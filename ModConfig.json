@@ -1,0 +1,12 @@
+{
+  "ModName": "SunExp",
+  "ModVersion": "0.1",
+  "ModAuthor": "Codex",
+  "ModDescription": "新增日耀聚能卡包：12张围绕日耀、聚炎、全场灼烧与太阳圣冕爆发构筑的高风险高回报卡牌。",
+  "IconPath": "Icon.png",
+  "Enabled": true,
+  "Dependencies": null,
+  "MustSame": false,
+  "WorkshopVisibility": "Private",
+  "PublishedFileId": ""
+}
