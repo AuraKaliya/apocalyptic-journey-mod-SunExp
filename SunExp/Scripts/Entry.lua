@@ -27,6 +27,18 @@ function SunExp_GetRadianceLevel(self)
     return SunExp_GetBuffLevel(self, "SunExp_sunexp_solar_radiance")
 end
 
+function SunExp_DealDamage(self, amount)
+    if self == nil then
+        return false
+    end
+    local damage = math.floor(tonumber(amount) or 0)
+    if damage <= 0 then
+        return false
+    end
+    self:Damage(tostring(damage))
+    return true
+end
+
 function SunExp_GetEnemyTargets(self)
     local targets = {}
     if self == nil then
@@ -379,7 +391,42 @@ function SunExp_GetBuffTypeName(buff)
     return nil
 end
 
+SunExp_PositiveBuffExcludeIds = {
+    solar_radiance = true,
+    gathered_flame = true,
+    solar_field = true,
+    burn_ward = true,
+    solar_crown_state = true,
+    miniature_corona_state = true,
+    melting_wheel_charge_state = true,
+    afterglow_syndrome_state = true
+}
+
+function SunExp_NormalizeBuffId(buffId)
+    if buffId == nil then
+        return nil
+    end
+    local id = tostring(buffId)
+    local prefix = "SunExp_sunexp_"
+    if string.sub(id, 1, string.len(prefix)) == prefix then
+        return string.sub(id, string.len(prefix) + 1)
+    end
+    return id
+end
+
+function SunExp_IsPositiveBuffExcludedId(buffId)
+    local id = SunExp_NormalizeBuffId(buffId)
+    return id ~= nil and SunExp_PositiveBuffExcludeIds[id] == true
+end
+
+function SunExp_IsPositiveBuffExcludedItem(buff)
+    return SunExp_IsPositiveBuffExcludedId(SunExp_GetBuffIdFromItem(buff))
+end
+
 function SunExp_IsNegativeBuffItem(buff)
+    if SunExp_IsPositiveBuffExcludedItem(buff) then
+        return false
+    end
     local typeName = SunExp_GetBuffTypeName(buff)
     if typeName == nil then
         return false
@@ -429,11 +476,11 @@ function SunExp_GetNegativeBuffSummary(target)
     for i = 0, count - 1 do
         local buff = SunExp_GetCollectionItem(buffs, i)
         if SunExp_IsNegativeBuffItem(buff) then
-            if buff.buffConfig ~= nil then
-                total = total + (tonumber(buff.buffConfig.Level) or 0)
-            end
             local id = SunExp_GetBuffIdFromItem(buff)
             if id ~= nil then
+                if buff.buffConfig ~= nil then
+                    total = total + (tonumber(buff.buffConfig.Level) or 0)
+                end
                 table.insert(ids, id)
             end
         end
@@ -451,10 +498,6 @@ function SunExp_RemoveAllNegativeBuffs(self, target)
         return false
     end
     local ids = SunExp_GetNegativeBuffSummary(target)
-    SunExp_SetStatusForBuff(self, target or self.Self, "Self")
-    pcall(function()
-        self:RemoveAllBadBuff("0")
-    end)
     for _, id in ipairs(ids) do
         SunExp_RemoveStatusBuff(self, target or self.Self, id)
     end
@@ -649,6 +692,7 @@ function SunExp_RegisterDynamicMethods(config)
     SunExp_RegisterDynamicMethod(config, "SunExp_SetVar", SunExp_SetVar)
     SunExp_RegisterDynamicMethod(config, "SunExp_GetBuffLevel", SunExp_GetBuffLevel)
     SunExp_RegisterDynamicMethod(config, "SunExp_GetRadianceLevel", SunExp_GetRadianceLevel)
+    SunExp_RegisterDynamicMethod(config, "SunExp_DealDamage", SunExp_DealDamage)
     SunExp_RegisterDynamicMethod(config, "SunExp_GetEnemyTargets", SunExp_GetEnemyTargets)
     SunExp_RegisterDynamicMethod(config, "SunExp_IsSelfStatus", SunExp_IsSelfStatus)
     SunExp_RegisterDynamicMethod(config, "SunExp_GetPrimaryTarget", SunExp_GetPrimaryTarget)
@@ -668,6 +712,9 @@ function SunExp_RegisterDynamicMethods(config)
     SunExp_RegisterDynamicMethod(config, "SunExp_GetCollectionCount", SunExp_GetCollectionCount)
     SunExp_RegisterDynamicMethod(config, "SunExp_GetCollectionItem", SunExp_GetCollectionItem)
     SunExp_RegisterDynamicMethod(config, "SunExp_GetBuffTypeName", SunExp_GetBuffTypeName)
+    SunExp_RegisterDynamicMethod(config, "SunExp_NormalizeBuffId", SunExp_NormalizeBuffId)
+    SunExp_RegisterDynamicMethod(config, "SunExp_IsPositiveBuffExcludedId", SunExp_IsPositiveBuffExcludedId)
+    SunExp_RegisterDynamicMethod(config, "SunExp_IsPositiveBuffExcludedItem", SunExp_IsPositiveBuffExcludedItem)
     SunExp_RegisterDynamicMethod(config, "SunExp_IsNegativeBuffItem", SunExp_IsNegativeBuffItem)
     SunExp_RegisterDynamicMethod(config, "SunExp_GetBuffIdFromItem", SunExp_GetBuffIdFromItem)
     SunExp_RegisterDynamicMethod(config, "SunExp_GetNegativeBuffSummary", SunExp_GetNegativeBuffSummary)
