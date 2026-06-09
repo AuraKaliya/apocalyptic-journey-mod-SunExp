@@ -1,0 +1,10 @@
+﻿{
+  "ModName": "SunExp",
+  "ModVersion": "0.1.2",
+  "ModAuthor": "Aura",
+  "ModDescription": "《日耀聚能》新增21张高风险高爆发卡牌与7件日耀遗物，可与官方卡包混合游玩。围绕日耀、日耀场、聚炎、全场灼烧与圣冕显化构筑：先铺开灼烧并吸收为聚炎，再在圣冕窗口兑现强力爆发；若过早引爆，则可能承受同等反噬。",
+  "IconPath": "Icon.png",
+  "Enabled": true,
+  "WorkshopVisibility": "Public",
+  "PublishedFileId": "3741157062"
+}
