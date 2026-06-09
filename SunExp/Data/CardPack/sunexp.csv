@@ -1,3 +1,5 @@
-Id,Type,Icon
-唯一标识,卡包类型,卡包图标
-cardpack_sunexp,Normal,Mods/SunExp/ModResource/Images/CardPack/sunexp
+"Id","Type","Icon"
+"唯一标识","卡包类型","卡包图标"
+"cardpack_sunexp_base","Normal","Mods/SunExp/ModResource/Images/CardPack/sunexp"
+"cardpack_sunexp_burst","Normal","Mods/SunExp/ModResource/Images/CardPack/sunexp"
+"cardpack_sunexp_canopy","Normal","Mods/SunExp/ModResource/Images/CardPack/sunexp"

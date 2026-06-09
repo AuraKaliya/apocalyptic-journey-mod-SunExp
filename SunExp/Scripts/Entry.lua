@@ -27,6 +27,44 @@ function SunExp_GetRadianceLevel(self)
     return SunExp_GetBuffLevel(self, "SunExp_sunexp_solar_radiance")
 end
 
+function SunExp_GetEnemyTargets(self)
+    local targets = {}
+    if self == nil then
+        return targets
+    end
+    self:SetStatus("AllTarget")
+    if self.Object == nil then
+        return targets
+    end
+    for i = 0, self.Object.Count - 1 do
+        local target = self.Object:get_Item(i)
+        if target ~= nil then
+            table.insert(targets, target)
+        end
+    end
+    return targets
+end
+
+function SunExp_HasNegativeBuff(target)
+    if target == nil or target.GetBuffs == nil then
+        return false
+    end
+    local buffs = target:GetBuffs()
+    if buffs == nil then
+        return false
+    end
+    for i = 0, buffs.Count - 1 do
+        local buff = buffs:get_Item(i)
+        if buff ~= nil and buff.buffConfig ~= nil and buff.buffConfig.dataConfig ~= nil and buff.buffConfig.dataConfig.data ~= nil then
+            local typeName = buff.buffConfig.dataConfig.data:get_Item("Type")
+            if typeName == "负面" then
+                return true
+            end
+        end
+    end
+    return false
+end
+
 function SunExp_HasCrownPhase(self, threshold)
     if self == nil or self.Self == nil then
         return false
