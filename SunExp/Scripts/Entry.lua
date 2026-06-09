@@ -39,6 +39,71 @@ function SunExp_DealDamage(self, amount)
     return true
 end
 
+function SunExp_AddDamageDescription(self, index, amount)
+    if self == nil then
+        return 0
+    end
+    local damage = math.floor(tonumber(amount) or 0)
+    if damage < 0 then
+        damage = 0
+    end
+    pcall(function()
+        self:AddDescription(tostring(index), "Damage", tostring(damage))
+    end)
+    return damage
+end
+
+function SunExp_CalcSparkDamage(self)
+    return 5
+end
+
+function SunExp_CalcFlareCutDamage(self)
+    local level = SunExp_GetRadianceLevel(self)
+    local damage = 10 + level
+    if SunExp_HasCrownPhase(self, 4) then
+        damage = damage + level
+    end
+    return damage
+end
+
+function SunExp_CalcSolarSparkDamage(self)
+    local useFlame = math.min(5, SunExp_GetBuffLevel(self, "SunExp_sunexp_gathered_flame"))
+    local radLevel = SunExp_GetRadianceLevel(self)
+    local damage = 6 + useFlame * 4
+    if SunExp_HasCrownPhase(self, 4) then
+        damage = damage + radLevel * 2
+    end
+    return damage
+end
+
+function SunExp_CalcCrownPressureDamage(self)
+    if not SunExp_HasCrownPhase(self, 4) then
+        return 0
+    end
+    local radLevel = SunExp_GetRadianceLevel(self)
+    local fieldLevel = SunExp_GetBuffLevel(self, "SunExp_sunexp_solar_field")
+    return radLevel * 2 + fieldLevel * 5
+end
+
+function SunExp_CalcCrownCoreFlashDamage(self)
+    local flameCount = SunExp_GetBuffLevel(self, "SunExp_sunexp_gathered_flame")
+    local useRad = math.floor(SunExp_GetRadianceLevel(self) / 2)
+    return 40 + flameCount * 5 + useRad * 10
+end
+
+function SunExp_CalcFlamePierceDamage(self)
+    local target = SunExp_GetPrimaryTarget(self)
+    local burnLevel = SunExp_GetStatusBuffLevel(target, "buff_burn")
+    local flameLevel = SunExp_GetBuffLevel(self, "SunExp_sunexp_gathered_flame")
+    local mult = math.max(1, math.floor(flameLevel / 4))
+    return 8 + burnLevel * mult
+end
+
+function SunExp_CalcSmokeErosionDamage(self)
+    local target = SunExp_GetPrimaryTarget(self)
+    return 7 + SunExp_GetStatusBuffLevel(target, "buff_burn")
+end
+
 function SunExp_GetEnemyTargets(self)
     local targets = {}
     if self == nil then
@@ -693,6 +758,14 @@ function SunExp_RegisterDynamicMethods(config)
     SunExp_RegisterDynamicMethod(config, "SunExp_GetBuffLevel", SunExp_GetBuffLevel)
     SunExp_RegisterDynamicMethod(config, "SunExp_GetRadianceLevel", SunExp_GetRadianceLevel)
     SunExp_RegisterDynamicMethod(config, "SunExp_DealDamage", SunExp_DealDamage)
+    SunExp_RegisterDynamicMethod(config, "SunExp_AddDamageDescription", SunExp_AddDamageDescription)
+    SunExp_RegisterDynamicMethod(config, "SunExp_CalcSparkDamage", SunExp_CalcSparkDamage)
+    SunExp_RegisterDynamicMethod(config, "SunExp_CalcFlareCutDamage", SunExp_CalcFlareCutDamage)
+    SunExp_RegisterDynamicMethod(config, "SunExp_CalcSolarSparkDamage", SunExp_CalcSolarSparkDamage)
+    SunExp_RegisterDynamicMethod(config, "SunExp_CalcCrownPressureDamage", SunExp_CalcCrownPressureDamage)
+    SunExp_RegisterDynamicMethod(config, "SunExp_CalcCrownCoreFlashDamage", SunExp_CalcCrownCoreFlashDamage)
+    SunExp_RegisterDynamicMethod(config, "SunExp_CalcFlamePierceDamage", SunExp_CalcFlamePierceDamage)
+    SunExp_RegisterDynamicMethod(config, "SunExp_CalcSmokeErosionDamage", SunExp_CalcSmokeErosionDamage)
     SunExp_RegisterDynamicMethod(config, "SunExp_GetEnemyTargets", SunExp_GetEnemyTargets)
     SunExp_RegisterDynamicMethod(config, "SunExp_IsSelfStatus", SunExp_IsSelfStatus)
     SunExp_RegisterDynamicMethod(config, "SunExp_GetPrimaryTarget", SunExp_GetPrimaryTarget)
