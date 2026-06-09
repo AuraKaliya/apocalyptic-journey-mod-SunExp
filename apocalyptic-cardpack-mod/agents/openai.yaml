@@ -1,0 +1,4 @@
+interface:
+  display_name: "Apocalyptic Cardpack Mod"
+  short_description: "Build Witch card-pack mods from CSV"
+  default_prompt: "Use $apocalyptic-cardpack-mod to design or review a Witch's Apocalyptic Journey card-pack Mod CSV set."
