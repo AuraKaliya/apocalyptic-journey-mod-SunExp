@@ -1,0 +1,84 @@
+标题 / Title:
+SunExp / 日耀聚能 - 反馈与建议收集 Feedback & Suggestions
+
+正文 / Body:
+
+[h1]SunExp / 日耀聚能 - 反馈与建议收集[/h1]
+
+感谢游玩《日耀聚能》。
+
+作者：Aura
+
+这个卡包目前仍在继续打磨，我希望它能做到：
+
+[list]
+[*]能和官方卡包正常混玩
+[*]日耀、聚炎和灼烧循环清晰易懂
+[*]爆发上限足够有爽感，但需要承担自燃与节奏代价
+[*]遗物能帮助体系成型，而不是单独决定胜负
+[*]卡面和遗物图标尽量接近原版风格
+[/list]
+
+[h2]希望收集的反馈[/h2]
+
+[list]
+[*][b]数值平衡[/b]：哪些卡牌或遗物太强、太弱、费用不合理，或者爆发过高。
+[*][b]自燃压力[/b]：聚炎、日耀场和圣冕显化带来的自身灼烧是否过重或过轻。
+[*][b]出现率[/b]：是否感觉 Mod 卡或遗物出现太频繁，或者很难遇到。
+[*][b]构筑体验[/b]：日耀、聚炎、灼烧吸收和圣冕爆发是否顺手，有没有卡住节奏。
+[*][b]Bug / 异常[/b]：卡牌不生效、文本错误、图片丢失、卡包无法启用、战斗中报错等。
+[*][b]美术表现[/b]：卡面和遗物图标是否像原版，哪些图需要重画或调整。
+[*][b]兼容性[/b]：和其他 Mod 一起使用时是否出现问题。
+[/list]
+
+[h2]反馈模板[/h2]
+
+[code]
+游戏版本：
+是否同时启用其他 Mod：
+遇到问题的层数 / 场景：
+相关卡牌或遗物：
+问题类型：过强 / 过弱 / 自燃压力 / Bug / 文本 / 图片 / 其他
+具体描述：
+如果是平衡建议，你希望怎么改：
+[/code]
+
+[h1]SunExp - Feedback & Suggestions[/h1]
+
+Thank you for playing SunExp.
+
+Created by Aura.
+
+This card pack is still being polished. The current goal is:
+
+[list]
+[*]Playable alongside official card packs
+[*]A clear Solar Radiance, Gathered Flame, and Burn loop
+[*]High burst potential that still asks the player to manage self-burn and tempo costs
+[*]Relics that help the engine come together without deciding the run by themselves
+[*]Card and relic art that feels close to the original style
+[/list]
+
+[h2]Feedback Wanted[/h2]
+
+[list]
+[*][b]Balance[/b]: cards or relics that feel too strong, too weak, too expensive, or too explosive.
+[*][b]Self-burn pressure[/b]: whether Gathered Flame, Solar Field, and Crown Manifestation create too much or too little self-burn.
+[*][b]Appearance rate[/b]: whether mod cards or relics appear too often or too rarely.
+[*][b]Build feel[/b]: whether Solar Radiance, Gathered Flame, Burn absorption, and Crown burst feel smooth to play.
+[*][b]Bugs / issues[/b]: cards not working, text errors, missing art, pack selection issues, combat errors, etc.
+[*][b]Art style[/b]: whether card and relic art feels close enough to the original style.
+[*][b]Compatibility[/b]: issues when used together with other mods.
+[/list]
+
+[h2]Feedback Template[/h2]
+
+[code]
+Game version:
+Other mods enabled:
+Floor / situation:
+Related card(s) or relic(s):
+Issue type: Too strong / Too weak / Self-burn / Bug / Text / Art / Other
+Description:
+Suggested change, if balance-related:
+[/code]
