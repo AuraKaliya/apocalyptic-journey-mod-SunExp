@@ -1,5 +1,5 @@
 "Id","Type","Icon"
 "唯一标识","卡包类型","卡包图标"
-"cardpack_radiant_spark","Normal","Mods/SunExp/ModResource/Images/CardPack/sunexp"
-"cardpack_ember_crown","Normal","Mods/SunExp/ModResource/Images/CardPack/sunexp"
-"cardpack_solar_canopy","Normal","Mods/SunExp/ModResource/Images/CardPack/sunexp"
+"cardpack_radiant_spark","Normal","Mods/SunExp/ModResource/Images/CardPack/cardpack_radiant_spark"
+"cardpack_ember_crown","Normal","Mods/SunExp/ModResource/Images/CardPack/cardpack_ember_crown"
+"cardpack_solar_canopy","Normal","Mods/SunExp/ModResource/Images/CardPack/cardpack_solar_canopy"

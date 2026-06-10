@@ -1,0 +1,93 @@
+﻿[
+    {
+        "Id":  "morning_shard",
+        "Name":  "晨辉碎片",
+        "Pack":  "星火",
+        "Source":  "D:\\Project\\Apocalypic-journey-mods-creator\\SunExp\\tools\\previews\\relic_redesign\\morning_shard_512.png",
+        "Final":  "D:\\Project\\Apocalypic-journey-mods-creator\\SunExp\\tools\\previews\\relic_redesign\\full_redraw\\icons_512\\morning_shard.png"
+    },
+    {
+        "Id":  "ember_cloak_lining",
+        "Name":  "烬衣衬布",
+        "Pack":  "烬冠",
+        "Source":  "C:\\Users\\Administrator\\.codex\\generated_images\\019eb18e-9390-7a40-8ca9-6f5f1739e5aa\\ig_0a418ec2f42eb625016a2960f9593881919ac61e180bebd2ce.png",
+        "Final":  "D:\\Project\\Apocalypic-journey-mods-creator\\SunExp\\tools\\previews\\relic_redesign\\full_redraw\\icons_512\\ember_cloak_lining.png"
+    },
+    {
+        "Id":  "sun_orbit_mirror",
+        "Name":  "环日镜",
+        "Pack":  "星火",
+        "Source":  "C:\\Users\\Administrator\\.codex\\generated_images\\019eb18e-9390-7a40-8ca9-6f5f1739e5aa\\ig_0a418ec2f42eb625016a296123e8948191ac498c2c2ce7f2c7.png",
+        "Final":  "D:\\Project\\Apocalypic-journey-mods-creator\\SunExp\\tools\\previews\\relic_redesign\\full_redraw\\icons_512\\sun_orbit_mirror.png"
+    },
+    {
+        "Id":  "sun_bottle",
+        "Name":  "太阳瓶",
+        "Pack":  "天幕",
+        "Source":  "C:\\Users\\Administrator\\.codex\\generated_images\\019eb18e-9390-7a40-8ca9-6f5f1739e5aa\\ig_0a418ec2f42eb625016a2961a7bba48191aba2abdd4b7da69b.png",
+        "Final":  "D:\\Project\\Apocalypic-journey-mods-creator\\SunExp\\tools\\previews\\relic_redesign\\full_redraw\\icons_512\\sun_bottle.png"
+    },
+    {
+        "Id":  "solar_phase_dial",
+        "Name":  "日相刻盘",
+        "Pack":  "星火",
+        "Source":  "C:\\Users\\Administrator\\.codex\\generated_images\\019eb18e-9390-7a40-8ca9-6f5f1739e5aa\\ig_0a418ec2f42eb625016a2961f951c88191a2c1ec1d885e5a78.png",
+        "Final":  "D:\\Project\\Apocalypic-journey-mods-creator\\SunExp\\tools\\previews\\relic_redesign\\full_redraw\\icons_512\\solar_phase_dial.png"
+    },
+    {
+        "Id":  "miniature_sunwheel",
+        "Name":  "小型日轮",
+        "Pack":  "烬冠",
+        "Source":  "C:\\Users\\Administrator\\.codex\\generated_images\\019eb18e-9390-7a40-8ca9-6f5f1739e5aa\\ig_0a418ec2f42eb625016a296234a8608191bb327e8f70e59387.png",
+        "Final":  "D:\\Project\\Apocalypic-journey-mods-creator\\SunExp\\tools\\previews\\relic_redesign\\full_redraw\\icons_512\\miniature_sunwheel.png"
+    },
+    {
+        "Id":  "blazing_crown_heart",
+        "Name":  "炽冠圣心",
+        "Pack":  "天幕",
+        "Source":  "C:\\Users\\Administrator\\.codex\\generated_images\\019eb18e-9390-7a40-8ca9-6f5f1739e5aa\\ig_0a418ec2f42eb625016a29632a808c8191afd496a5f3405eb8.png",
+        "Final":  "D:\\Project\\Apocalypic-journey-mods-creator\\SunExp\\tools\\previews\\relic_redesign\\full_redraw\\icons_512\\blazing_crown_heart.png"
+    },
+    {
+        "Id":  "solar_prism",
+        "Name":  "日心棱镜",
+        "Pack":  "星火",
+        "Source":  "C:\\Users\\Administrator\\.codex\\generated_images\\019eb18e-9390-7a40-8ca9-6f5f1739e5aa\\ig_0a418ec2f42eb625016a2963999f5c81919671e129b2af3ba7.png",
+        "Final":  "D:\\Project\\Apocalypic-journey-mods-creator\\SunExp\\tools\\previews\\relic_redesign\\full_redraw\\icons_512\\solar_prism.png"
+    },
+    {
+        "Id":  "coronation_throne",
+        "Name":  "授冕圣座",
+        "Pack":  "星火",
+        "Source":  "C:\\Users\\Administrator\\.codex\\generated_images\\019eb18e-9390-7a40-8ca9-6f5f1739e5aa\\ig_0a418ec2f42eb625016a2964000ff48191af442cd7d4a7dc5b.png",
+        "Final":  "D:\\Project\\Apocalypic-journey-mods-creator\\SunExp\\tools\\previews\\relic_redesign\\full_redraw\\icons_512\\coronation_throne.png"
+    },
+    {
+        "Id":  "gathered_flame_charm",
+        "Name":  "聚炎护符",
+        "Pack":  "烬冠",
+        "Source":  "C:\\Users\\Administrator\\.codex\\generated_images\\019eb18e-9390-7a40-8ca9-6f5f1739e5aa\\ig_0a418ec2f42eb625016a296466f90881918235bb2ddc2a0945.png",
+        "Final":  "D:\\Project\\Apocalypic-journey-mods-creator\\SunExp\\tools\\previews\\relic_redesign\\full_redraw\\icons_512\\gathered_flame_charm.png"
+    },
+    {
+        "Id":  "ash_charm",
+        "Name":  "灰烬护符",
+        "Pack":  "烬冠",
+        "Source":  "C:\\Users\\Administrator\\.codex\\generated_images\\019eb18e-9390-7a40-8ca9-6f5f1739e5aa\\ig_0a418ec2f42eb625016a2964e1694c8191a607c6dca387e165.png",
+        "Final":  "D:\\Project\\Apocalypic-journey-mods-creator\\SunExp\\tools\\previews\\relic_redesign\\full_redraw\\icons_512\\ash_charm.png"
+    },
+    {
+        "Id":  "blazing_sundial",
+        "Name":  "曜阳日晷",
+        "Pack":  "天幕",
+        "Source":  "D:\\Project\\Apocalypic-journey-mods-creator\\SunExp\\tools\\previews\\relic_redesign\\blazing_sundial_v1_512.png",
+        "Final":  "D:\\Project\\Apocalypic-journey-mods-creator\\SunExp\\tools\\previews\\relic_redesign\\full_redraw\\icons_512\\blazing_sundial.png"
+    },
+    {
+        "Id":  "burning_calamity_wind_belt",
+        "Name":  "燃灾风带",
+        "Pack":  "天幕",
+        "Source":  "C:\\Users\\Administrator\\.codex\\generated_images\\019eb18e-9390-7a40-8ca9-6f5f1739e5aa\\ig_0a418ec2f42eb625016a29655e2384819188143bad457528a7.png",
+        "Final":  "D:\\Project\\Apocalypic-journey-mods-creator\\SunExp\\tools\\previews\\relic_redesign\\full_redraw\\icons_512\\burning_calamity_wind_belt.png"
+    }
+]
