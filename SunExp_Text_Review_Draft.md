@@ -18,7 +18,7 @@
 
 ### Mod 描述
 
-当前：《日耀聚能》新增30张高风险高爆发卡牌与13件日耀遗物，分为基础、聚爆、天幕三个卡包分支，可与官方卡包混合游玩。围绕日耀、日耀场、聚炎、全场灼烧与圣冕显化构筑：先铺开灼烧并吸收为聚炎，再在圣冕窗口兑现强力爆发；若过早引爆，则可能承受同等反噬。
+当前：《日耀：烬冠天幕》新增30张高风险高爆发卡牌与13件日耀遗物，分为基础、聚爆、天幕三个卡包分支，可与官方卡包混合游玩。围绕日耀、炽灼天幕、聚炎、全场灼烧与圣冕显化构筑：先铺开灼烧并吸收为聚炎，再在圣冕窗口兑现强力爆发；若过早引爆，则可能承受同等反噬。
 
 修改稿：
 
@@ -26,34 +26,34 @@
 
 ## 卡包文案
 
-### 1. 日耀聚能：基础包 (`cardpack_sunexp_base`)
+### 1. 【日耀：星火】 (`cardpack_radiant_spark`)
 
-- Name：日耀聚能：基础包
+- Name：【日耀：星火】
 - Name 修改稿：
-- Name_zh-Hant：日耀聚能：基礎包
+- Name_zh-Hant：【日耀：星火】
 - Name_zh-Hant 修改稿：
-- Name_en：Solar Charge: Base Pack
+- Name_en：Radiance: Spark
 - Name_en 修改稿：
-- Name_ja：日耀集能：基礎パック
+- Name_ja：日耀：星火
 - Name_ja 修改稿：
-- Description：日耀聚能的基础卡包。提供日耀、聚炎、基础防护与太阳圣冕入口，并保留少量低复杂度灼烧转换。
+- Description：日耀：烬冠天幕的基础卡包。提供日耀、聚炎、基础防护与日耀：授冕入口，并保留少量低复杂度灼烧转换。
 - Description 修改稿：
-- Description_zh-Hant：日耀聚能的基礎卡包。提供日耀、聚炎、基礎防護與太陽聖冕入口，並保留少量低複雜度灼燒轉換。
+- Description_zh-Hant：日耀：烬冠天幕的基礎卡包。提供日耀、聚炎、基礎防護與日耀：授冕入口，並保留少量低複雜度灼燒轉換。
 - Description_zh-Hant 修改稿：
-- Description_en：The base Solar Charge pack. Provides Solar Radiance, Gathered Flame, basic defense, the Solar Crown entry point, and a small amount of low-complexity Burn conversion.
+- Description_en：The base Solar Charge pack. Provides Solar Radiance, Gathered Flame, basic defense, the Radiance: Coronation entry point, and a small amount of low-complexity Burn conversion.
 - Description_en 修改稿：
-- Description_ja：日耀集能の基礎パック。日耀、集炎、基本防御、太陽聖冕への入口を提供し、低複雑度の燃焼変換を含む。
+- Description_ja：日耀集能の基礎パック。日耀、集炎、基本防御、日耀：授冕への入口を提供し、低複雑度の燃焼変換を含む。
 - Description_ja 修改稿：
 
-### 2. 日耀聚能：聚爆包 (`cardpack_sunexp_burst`)
+### 2. 【日耀：烬冠】 (`cardpack_ember_crown`)
 
-- Name：日耀聚能：聚爆包
+- Name：【日耀：烬冠】
 - Name 修改稿：
-- Name_zh-Hant：日耀聚能：聚爆包
+- Name_zh-Hant：【日耀：烬冠】
 - Name_zh-Hant 修改稿：
-- Name_en：Solar Charge: Burst Pack
+- Name_en：Radiance: Ember Crown
 - Name_en 修改稿：
-- Name_ja：日耀集能：集爆パック
+- Name_ja：日耀：燼冠
 - Name_ja 修改稿：
 - Description：围绕自身灼烧、聚炎叠层和爆发兑现展开。需要管理自燃压力，并借助圣冕阶段提高收益与安全性。
 - Description 修改稿：
@@ -64,15 +64,15 @@
 - Description_ja：自身の燃焼、集炎スタック、爆発的な換金を軸にする。自燃圧を管理し、聖冕段階で收益と安全性を高める。
 - Description_ja 修改稿：
 
-### 3. 日耀聚能：天幕包 (`cardpack_sunexp_canopy`)
+### 3. 【日耀：天幕】 (`cardpack_solar_canopy`)
 
-- Name：日耀聚能：天幕包
+- Name：【日耀：天幕】
 - Name 修改稿：
-- Name_zh-Hant：日耀聚能：天幕包
+- Name_zh-Hant：【日耀：天幕】
 - Name_zh-Hant 修改稿：
-- Name_en：Solar Charge: Canopy Pack
+- Name_en：Radiance: Canopy
 - Name_en 修改稿：
-- Name_ja：日耀集能：天幕パック
+- Name_ja：日耀：天幕
 - Name_ja 修改稿：
 - Description：围绕敌方灼烧、负面 Buff 与 DOT 扩散展开。通过天幕场域压低敌方状态，并把灼烧变成持续收益。
 - Description 修改稿：
@@ -106,71 +106,71 @@
 - Name 修改稿：
 - Name_en：Gathered Flame
 - Name_en 修改稿：
-- Description：无上限聚能。回合开始时，自己获得等同于聚炎层数的灼烧；避灼光幕或圣冕顶层阶段可抵消这次自燃。
+- Description：无上限聚能。回合开始时，自己获得等同于聚炎层数的灼烧；烬衣或圣冕顶层阶段可抵消这次自燃。
 - Description 修改稿：
-- Description_en：Uncapped heat. At the start of round, gain Burn equal to Gathered Flame stacks. Burn Ward or the highest Crown phase can prevent this self-ignition.
+- Description_en：Uncapped heat. At the start of round, gain Burn equal to Gathered Flame stacks. Ember Cloak or the highest Crown phase can prevent this self-ignition.
 - Description_en 修改稿：
 
-### 3. 日耀场 (`{SunExp_sunexp_solar_field}`)
+### 3. 炽灼天幕 (`{SunExp_sunexp_scorching_canopy}`)
 
-- Name：日耀场
+- Name：炽灼天幕
 - Name 修改稿：
-- Name_en：Solar Field
+- Name_en：Scorching Canopy
 - Name_en 修改稿：
-- Description：场地聚热。每轮回合开始时，全体获得等同于日耀场层数的灼烧。
+- Description：场地聚热。每轮回合开始时，全体获得等同于炽灼天幕层数的灼烧。
 - Description 修改稿：
-- Description_en：Solar terrain. At the start of each round, all combatants gain Burn equal to Solar Field stacks.
+- Description_en：Solar terrain. At the start of each round, all combatants gain Burn equal to Scorching Canopy stacks.
 - Description_en 修改稿：
 
-### 4. 避灼光幕 (`{SunExp_sunexp_burn_ward}`)
+### 4. 烬衣 (`{SunExp_sunexp_ember_cloak}`)
 
-- Name：避灼光幕
+- Name：烬衣
 - Name 修改稿：
-- Name_en：Burn Ward
+- Name_en：Ember Cloak
 - Name_en 修改稿：
 - Description：临时避灼。获得时清除自身灼烧；下回合开始时再次清除自身灼烧，然后移除此状态。
 - Description 修改稿：
 - Description_en：Temporary burn ward. Clear your Burn on gain; at next round start, clear your Burn again, then remove this status.
 - Description_en 修改稿：
 
-### 5. 圣冕显化 (`{SunExp_sunexp_solar_crown_state}`)
+### 5. 圣冕显化 (`{SunExp_sunexp_solar_crown}`)
 
 - Name：圣冕显化
 - Name 修改稿：
 - Name_en：Crown Manifestation
 - Name_en 修改稿：
-- Description：持续2回合。期间日耀阶段向下包括：1+吸收灼烧额外聚炎；4+日耀伤害增幅；8+行动时获得魔能，若未达12层则自燃；12层清除并免疫自身灼烧。冕核爆闪会强制结束。
+- Description：持续2回合。期间日耀阶段向下包括：1+吸收灼烧额外聚炎；4+日耀伤害增幅；8+行动时获得魔能，若未达12层则自燃；12层清除并免疫自身灼烧。炽冕崩落会强制结束。
 - Description 修改稿：
-- Description_en：Lasts 2 rounds. Crown phases are inclusive: 1+ improves Burn absorption; 4+ boosts solar damage; 8+ grants mana on action and self-burn unless at 12; 12 clears and prevents your Burn. Crown-Core Flash ends it.
+- Description_en：Lasts 2 rounds. Crown phases are inclusive: 1+ improves Burn absorption; 4+ boosts solar damage; 8+ grants mana on action and self-burn unless at 12; 12 clears and prevents your Burn. Blazing Crown Collapse ends it.
 - Description_en 修改稿：
 
-### 6. 微型日冕 (`{SunExp_sunexp_miniature_corona_state}`)
+### 6. 源核：日耀 (`{SunExp_sunexp_origin_core_radiance}`)
 
-- Name：微型日冕
+- Name：源核：日耀
 - Name 修改稿：
-- Name_en：Miniature Corona
+- Name_en：Origin Core: Radiance
 - Name_en 修改稿：
 - Description：每回合第一次获得{SunExp_sunexp_solar_radiance}时，额外获得1层{SunExp_sunexp_solar_radiance}。
 - Description 修改稿：
 - Description_en：The first time each round you gain {SunExp_sunexp_solar_radiance}, gain 1 extra stack of it.
 - Description_en 修改稿：
 
-### 7. 熔轮储压 (`{SunExp_sunexp_melting_wheel_charge_state}`)
+### 7. 轮转：聚炎 (`{SunExp_sunexp_cycle_gathered_flame}`)
 
-- Name：熔轮储压
+- Name：轮转：聚炎
 - Name 修改稿：
-- Name_en：Melting Wheel Charge
+- Name_en：Cycle: Gathered Flame
 - Name_en 修改稿：
 - Description：每回合前3次自身{buff_burn}层数增加后，获得1层{SunExp_sunexp_gathered_flame}。
 - Description 修改稿：
 - Description_en：Up to 3 times each round, after your {buff_burn} stacks increase, gain 1 stack of {SunExp_sunexp_gathered_flame}.
 - Description_en 修改稿：
 
-### 8. 残光症候 (`{SunExp_sunexp_afterglow_syndrome_state}`)
+### 8. 残光病兆 (`{SunExp_sunexp_afterglow_omen}`)
 
-- Name：残光症候
+- Name：残光病兆
 - Name 修改稿：
-- Name_en：Afterglow Syndrome
+- Name_en：Afterglow Omen
 - Name_en 修改稿：
 - Description：回合开始时，所有带有{buff_burn}的敌人获得1层{buff_vulnerability}。
 - Description 修改稿：
@@ -183,7 +183,7 @@
 
 ### 1. 星火 (`spark`)
 
-- 元数据：类型=攻击牌；稀有度=1；费用=0；标签=无；所属卡包=日耀聚能：基础包
+- 元数据：类型=攻击牌；稀有度=1；费用=0；标签=无；所属卡包=【日耀：星火】
 - Name：星火
 - Name 修改稿：
 - Name_zh-Hant：星火
@@ -201,9 +201,9 @@
 - Description_ja：5ダメージを与え、対象に{buff_burn}を1スタック付与する。{SunExp_sunexp_solar_radiance}を1スタック得る。
 - Description_ja 修改稿：
 
-### 2. 灼热天幕 (`scorching_canopy`)
+### 2. 灼热天幕 (`scorching_canopy_card`)
 
-- 元数据：类型=技能牌；稀有度=1；费用=1；标签=无；所属卡包=日耀聚能：天幕包
+- 元数据：类型=技能牌；稀有度=1；费用=1；标签=无；所属卡包=【日耀：天幕】
 - Name：灼热天幕
 - Name 修改稿：
 - Name_zh-Hant：灼热天幕
@@ -212,18 +212,18 @@
 - Name_en 修改稿：
 - Name_ja：灼热天幕
 - Name_ja 修改稿：
-- Description：获得1层{SunExp_sunexp_solar_field}。全体获得2层{buff_burn}。
+- Description：获得1层{SunExp_sunexp_scorching_canopy}。全体获得2层{buff_burn}。
 - Description 修改稿：
-- Description_zh-Hant：獲得1層{SunExp_sunexp_solar_field}。全體獲得2層{buff_burn}。
+- Description_zh-Hant：獲得1層{SunExp_sunexp_scorching_canopy}。全體獲得2層{buff_burn}。
 - Description_zh-Hant 修改稿：
-- Description_en：Gain 1 stack of {SunExp_sunexp_solar_field}. All combatants gain 2 stacks of {buff_burn}.
+- Description_en：Gain 1 stack of {SunExp_sunexp_scorching_canopy}. All combatants gain 2 stacks of {buff_burn}.
 - Description_en 修改稿：
-- Description_ja：{SunExp_sunexp_solar_field}を1スタック得る。全員が{buff_burn}を2スタック得る。
+- Description_ja：{SunExp_sunexp_scorching_canopy}を1スタック得る。全員が{buff_burn}を2スタック得る。
 - Description_ja 修改稿：
 
-### 3. 耀焰斩 (`flare_cut`)
+### 3. 耀焰斩 (`radiant_flame_slash`)
 
-- 元数据：类型=攻击牌；稀有度=1；费用=1；标签=无；所属卡包=日耀聚能：基础包
+- 元数据：类型=攻击牌；稀有度=1；费用=1；标签=无；所属卡包=【日耀：星火】
 - Name：耀焰斩
 - Name 修改稿：
 - Name_zh-Hant：耀焰斩
@@ -241,29 +241,29 @@
 - Description_ja：10ダメージを与える。{SunExp_sunexp_solar_radiance}4スタックごとに追加で3ダメージ。聖冠顕現中かつ日耀4以上なら、日耀の値だけさらに追加ダメージ。
 - Description_ja 修改稿：
 
-### 4. 避灼光幕 (`burn_ward_card`)
+### 4. 烬衣 (`ember_cloak_card`)
 
-- 元数据：类型=技能牌；稀有度=1；费用=0；标签=无；所属卡包=日耀聚能：基础包
-- Name：避灼光幕
+- 元数据：类型=技能牌；稀有度=1；费用=0；标签=无；所属卡包=【日耀：星火】
+- Name：烬衣
 - Name 修改稿：
-- Name_zh-Hant：避灼光幕
+- Name_zh-Hant：烬衣
 - Name_zh-Hant 修改稿：
-- Name_en：Burn Ward
+- Name_en：Ember Cloak
 - Name_en 修改稿：
-- Name_ja：避灼光幕
+- Name_ja：烬衣
 - Name_ja 修改稿：
-- Description：获得{SunExp_sunexp_burn_ward}：清除自身{buff_burn}，获得等同于清除层数一半的护盾，并在下回合开始时再次清除自身{buff_burn}。
+- Description：获得{SunExp_sunexp_ember_cloak}：清除自身{buff_burn}，获得等同于清除层数一半的护盾，并在下回合开始时再次清除自身{buff_burn}。
 - Description 修改稿：
-- Description_zh-Hant：獲得{SunExp_sunexp_burn_ward}：清除自身{buff_burn}，獲得等同於清除層數一半的護盾，並在下回合開始時再次清除自身{buff_burn}。
+- Description_zh-Hant：獲得{SunExp_sunexp_ember_cloak}：清除自身{buff_burn}，獲得等同於清除層數一半的護盾，並在下回合開始時再次清除自身{buff_burn}。
 - Description_zh-Hant 修改稿：
-- Description_en：Gain {SunExp_sunexp_burn_ward}: clear your {buff_burn}, gain Block equal to half the cleared stacks, and clear your {buff_burn} again at the start of next round.
+- Description_en：Gain {SunExp_sunexp_ember_cloak}: clear your {buff_burn}, gain Block equal to half the cleared stacks, and clear your {buff_burn} again at the start of next round.
 - Description_en 修改稿：
-- Description_ja：{SunExp_sunexp_burn_ward}を得る。自身の{buff_burn}を消し、消したスタックの半分に等しい護盾を得る。次ターン開始時にも自身の{buff_burn}を消す。
+- Description_ja：{SunExp_sunexp_ember_cloak}を得る。自身の{buff_burn}を消し、消したスタックの半分に等しい護盾を得る。次ターン開始時にも自身の{buff_burn}を消す。
 - Description_ja 修改稿：
 
 ### 5. 引炎 (`draw_flame`)
 
-- 元数据：类型=技能牌；稀有度=1；费用=1；标签=无；所属卡包=日耀聚能：聚爆包
+- 元数据：类型=技能牌；稀有度=1；费用=1；标签=无；所属卡包=【日耀：烬冠】
 - Name：引炎
 - Name 修改稿：
 - Name_zh-Hant：引炎
@@ -281,9 +281,9 @@
 - Description_ja：対象から最大6スタックの{buff_burn}を吸収して取り除き、同量の{SunExp_sunexp_gathered_flame}を得る。聖冠顕現中、日耀段階は下位効果を含み追加の聚炎を得る。
 - Description_ja 修改稿：
 
-### 6. 日耀聚焦 (`solar_focus`)
+### 6. 日耀聚焦 (`solar_prayer`)
 
-- 元数据：类型=技能牌；稀有度=2；费用=0；标签=无；所属卡包=日耀聚能：基础包
+- 元数据：类型=技能牌；稀有度=2；费用=0；标签=无；所属卡包=【日耀：星火】
 - Name：日耀聚焦
 - Name 修改稿：
 - Name_zh-Hant：日耀聚焦
@@ -292,25 +292,25 @@
 - Name_en 修改稿：
 - Name_ja：日耀聚焦
 - Name_ja 修改稿：
-- Description：获得3层{SunExp_sunexp_solar_radiance}。若已有{SunExp_sunexp_solar_field}，抽1张牌；若已有{SunExp_sunexp_solar_crown_state}，获得1层{SunExp_sunexp_gathered_flame}。
+- Description：获得3层{SunExp_sunexp_solar_radiance}。若已有{SunExp_sunexp_scorching_canopy}，抽1张牌；若已有{SunExp_sunexp_solar_crown}，获得1层{SunExp_sunexp_gathered_flame}。
 - Description 修改稿：
-- Description_zh-Hant：獲得3層{SunExp_sunexp_solar_radiance}。若已有{SunExp_sunexp_solar_field}，抽1張牌；若已有{SunExp_sunexp_solar_crown_state}，獲得1層{SunExp_sunexp_gathered_flame}。
+- Description_zh-Hant：獲得3層{SunExp_sunexp_solar_radiance}。若已有{SunExp_sunexp_scorching_canopy}，抽1張牌；若已有{SunExp_sunexp_solar_crown}，獲得1層{SunExp_sunexp_gathered_flame}。
 - Description_zh-Hant 修改稿：
-- Description_en：Gain 3 stacks of {SunExp_sunexp_solar_radiance}. If you have {SunExp_sunexp_solar_field}, draw 1 card. If you have {SunExp_sunexp_solar_crown_state}, gain 1 stack of {SunExp_sunexp_gathered_flame}.
+- Description_en：Gain 3 stacks of {SunExp_sunexp_solar_radiance}. If you have {SunExp_sunexp_scorching_canopy}, draw 1 card. If you have {SunExp_sunexp_solar_crown}, gain 1 stack of {SunExp_sunexp_gathered_flame}.
 - Description_en 修改稿：
-- Description_ja：{SunExp_sunexp_solar_radiance}を3スタック得る。{SunExp_sunexp_solar_field}を持つなら1枚引く。{SunExp_sunexp_solar_crown_state}を持つなら{SunExp_sunexp_gathered_flame}を1スタック得る。
+- Description_ja：{SunExp_sunexp_solar_radiance}を3スタック得る。{SunExp_sunexp_scorching_canopy}を持つなら1枚引く。{SunExp_sunexp_solar_crown}を持つなら{SunExp_sunexp_gathered_flame}を1スタック得る。
 - Description_ja 修改稿：
 
-### 7. 日耀星火 (`solar_spark`)
+### 7. 燃星之咒 (`burning_star_hex`)
 
-- 元数据：类型=攻击牌；稀有度=2；费用=1；标签=无；所属卡包=日耀聚能：聚爆包
-- Name：日耀星火
+- 元数据：类型=攻击牌；稀有度=2；费用=1；标签=无；所属卡包=【日耀：烬冠】
+- Name：燃星之咒
 - Name 修改稿：
-- Name_zh-Hant：日耀星火
+- Name_zh-Hant：燃星之咒
 - Name_zh-Hant 修改稿：
 - Name_en：Solar Spark
 - Name_en 修改稿：
-- Name_ja：日耀星火
+- Name_ja：燃星之咒
 - Name_ja 修改稿：
 - Description：造成6点伤害。消耗至多5层{SunExp_sunexp_gathered_flame}，每层额外造成4点伤害。给予目标2层{buff_burn}，每有4层{SunExp_sunexp_solar_radiance}额外+1层。圣冕显化且日耀不少于4层时，额外增加等同日耀层数的伤害。
 - Description 修改稿：
@@ -321,49 +321,49 @@
 - Description_ja：6ダメージを与える。最大5スタックの{SunExp_sunexp_gathered_flame}を消費し、1スタックごとに+4ダメージ。対象に{buff_burn}を2スタック付与し、{SunExp_sunexp_solar_radiance}4ごとにさらに+1。聖冠中かつ日耀4以上なら日耀分の追加ダメージ。
 - Description_ja 修改稿：
 
-### 8. 冠冕压光 (`crown_pressure`)
+### 8. 冠冕威光 (`crown_radiance`)
 
-- 元数据：类型=技能牌；稀有度=2；费用=1；标签=无；所属卡包=日耀聚能：天幕包
-- Name：冠冕压光
+- 元数据：类型=技能牌；稀有度=2；费用=1；标签=无；所属卡包=【日耀：天幕】
+- Name：冠冕威光
 - Name 修改稿：
-- Name_zh-Hant：冠冕压光
+- Name_zh-Hant：冠冕威光
 - Name_zh-Hant 修改稿：
-- Name_en：Crown Pressure
+- Name_en：Crown Radiance
 - Name_en 修改稿：
-- Name_ja：冠冕压光
+- Name_ja：冠冕威光
 - Name_ja 修改稿：
-- Description：敌方全体获得4层{buff_burn}。若{SunExp_sunexp_solar_radiance}不少于8层，改为6层。若你拥有{SunExp_sunexp_solar_field}，随机敌人的{buff_burn}立刻生效一次。
+- Description：敌方全体获得4层{buff_burn}。若{SunExp_sunexp_solar_radiance}不少于8层，改为6层。若你拥有{SunExp_sunexp_scorching_canopy}，随机敌人的{buff_burn}立刻生效一次。
 - Description 修改稿：
-- Description_zh-Hant：敵方全體獲得4層{buff_burn}。若{SunExp_sunexp_solar_radiance}不少於8層，改為6層。若你擁有{SunExp_sunexp_solar_field}，隨機敵人的{buff_burn}立刻生效一次。
+- Description_zh-Hant：敵方全體獲得4層{buff_burn}。若{SunExp_sunexp_solar_radiance}不少於8層，改為6層。若你擁有{SunExp_sunexp_scorching_canopy}，隨機敵人的{buff_burn}立刻生效一次。
 - Description_zh-Hant 修改稿：
-- Description_en：All enemies gain 4 stacks of {buff_burn}, or 6 if you have at least 8 stacks of {SunExp_sunexp_solar_radiance}. If you have {SunExp_sunexp_solar_field}, trigger a random enemy's {buff_burn} once immediately.
+- Description_en：All enemies gain 4 stacks of {buff_burn}, or 6 if you have at least 8 stacks of {SunExp_sunexp_solar_radiance}. If you have {SunExp_sunexp_scorching_canopy}, trigger a random enemy's {buff_burn} once immediately.
 - Description_en 修改稿：
-- Description_ja：すべての敵が{buff_burn}を4スタック得る。{SunExp_sunexp_solar_radiance}が8以上なら6スタックになる。{SunExp_sunexp_solar_field}を持つなら、ランダムな敵の{buff_burn}をただちに1回発動する。
+- Description_ja：すべての敵が{buff_burn}を4スタック得る。{SunExp_sunexp_solar_radiance}が8以上なら6スタックになる。{SunExp_sunexp_scorching_canopy}を持つなら、ランダムな敵の{buff_burn}をただちに1回発動する。
 - Description_ja 修改稿：
 
-### 9. 场域点燃 (`field_ignition`)
+### 9. 天幕再临 (`canopy_return`)
 
-- 元数据：类型=技能牌；稀有度=2；费用=1；标签=无；所属卡包=日耀聚能：天幕包
-- Name：场域点燃
+- 元数据：类型=技能牌；稀有度=2；费用=1；标签=无；所属卡包=【日耀：天幕】
+- Name：天幕再临
 - Name 修改稿：
-- Name_zh-Hant：场域点燃
+- Name_zh-Hant：天幕再临
 - Name_zh-Hant 修改稿：
-- Name_en：Field Ignition
+- Name_en：Canopy Return
 - Name_en 修改稿：
-- Name_ja：场域点燃
+- Name_ja：天幕再临
 - Name_ja 修改稿：
-- Description：获得2层{SunExp_sunexp_solar_field}。全体获得3层{buff_burn}。若{SunExp_sunexp_solar_radiance}不少于4层，敌方全体的{buff_burn}立刻生效一次。
+- Description：获得2层{SunExp_sunexp_scorching_canopy}。全体获得3层{buff_burn}。若{SunExp_sunexp_solar_radiance}不少于4层，敌方全体的{buff_burn}立刻生效一次。
 - Description 修改稿：
-- Description_zh-Hant：獲得2層{SunExp_sunexp_solar_field}。全體獲得3層{buff_burn}。若{SunExp_sunexp_solar_radiance}不少於4層，敵方全體的{buff_burn}立刻生效一次。
+- Description_zh-Hant：獲得2層{SunExp_sunexp_scorching_canopy}。全體獲得3層{buff_burn}。若{SunExp_sunexp_solar_radiance}不少於4層，敵方全體的{buff_burn}立刻生效一次。
 - Description_zh-Hant 修改稿：
-- Description_en：Gain 2 stacks of {SunExp_sunexp_solar_field}. All combatants gain 3 stacks of {buff_burn}. If you have at least 4 stacks of {SunExp_sunexp_solar_radiance}, trigger all enemies' {buff_burn} once immediately.
+- Description_en：Gain 2 stacks of {SunExp_sunexp_scorching_canopy}. All combatants gain 3 stacks of {buff_burn}. If you have at least 4 stacks of {SunExp_sunexp_solar_radiance}, trigger all enemies' {buff_burn} once immediately.
 - Description_en 修改稿：
-- Description_ja：{SunExp_sunexp_solar_field}を2スタック得る。全員が{buff_burn}を3スタック得る。{SunExp_sunexp_solar_radiance}が4以上なら、すべての敵の{buff_burn}をただちに1回発動する。
+- Description_ja：{SunExp_sunexp_scorching_canopy}を2スタック得る。全員が{buff_burn}を3スタック得る。{SunExp_sunexp_solar_radiance}が4以上なら、すべての敵の{buff_burn}をただちに1回発動する。
 - Description_ja 修改稿：
 
 ### 10. 日相校准 (`solar_phase_tuning`)
 
-- 元数据：类型=技能牌；稀有度=2；费用=1；标签=无；所属卡包=日耀聚能：基础包
+- 元数据：类型=技能牌；稀有度=2；费用=1；标签=无；所属卡包=【日耀：星火】
 - Name：日相校准
 - Name 修改稿：
 - Name_zh-Hant：日相校准
@@ -381,49 +381,49 @@
 - Description_ja：{SunExp_sunexp_solar_radiance}を3スタック得る。自身の{buff_burn}を最大6スタック吸収し、同量の{SunExp_sunexp_gathered_flame}に変換する。6吸収したなら1枚引く。
 - Description_ja 修改稿：
 
-### 11. 太阳圣冕 (`solar_crown`)
+### 11. 日耀：授冕 (`solar_coronation`)
 
-- 元数据：类型=能力牌；稀有度=3；费用=2；标签=Ability；所属卡包=日耀聚能：基础包
-- Name：太阳圣冕
+- 元数据：类型=能力牌；稀有度=3；费用=2；标签=Ability；所属卡包=【日耀：星火】
+- Name：日耀：授冕
 - Name 修改稿：
-- Name_zh-Hant：太阳圣冕
+- Name_zh-Hant：日耀：授冕
 - Name_zh-Hant 修改稿：
-- Name_en：Solar Crown
+- Name_en：Radiance: Coronation
 - Name_en 修改稿：
-- Name_ja：太阳圣冕
+- Name_ja：日耀：授冕
 - Name_ja 修改稿：
-- Description：获得2层{SunExp_sunexp_solar_crown_state}和2层{SunExp_sunexp_solar_radiance}。圣冕阶段向下包括：高层会同时触发低层效果。
+- Description：获得2层{SunExp_sunexp_solar_crown}和2层{SunExp_sunexp_solar_radiance}。圣冕阶段向下包括：高层会同时触发低层效果。
 - Description 修改稿：
-- Description_zh-Hant：獲得2層{SunExp_sunexp_solar_crown_state}和2層{SunExp_sunexp_solar_radiance}。聖冕階段向下包括：高層會同時觸發低層效果。
+- Description_zh-Hant：獲得2層{SunExp_sunexp_solar_crown}和2層{SunExp_sunexp_solar_radiance}。聖冕階段向下包括：高層會同時觸發低層效果。
 - Description_zh-Hant 修改稿：
-- Description_en：Gain 2 stacks of {SunExp_sunexp_solar_crown_state} and 2 stacks of {SunExp_sunexp_solar_radiance}. Crown phases are inclusive: higher phases also trigger lower-phase benefits.
+- Description_en：Gain 2 stacks of {SunExp_sunexp_solar_crown} and 2 stacks of {SunExp_sunexp_solar_radiance}. Crown phases are inclusive: higher phases also trigger lower-phase benefits.
 - Description_en 修改稿：
-- Description_ja：{SunExp_sunexp_solar_crown_state}を2スタック、{SunExp_sunexp_solar_radiance}を2スタック得る。聖冠段階は下位効果を含み、高段階は低段階効果も同時に発動する。
+- Description_ja：{SunExp_sunexp_solar_crown}を2スタック、{SunExp_sunexp_solar_radiance}を2スタック得る。聖冠段階は下位効果を含み、高段階は低段階効果も同時に発動する。
 - Description_ja 修改稿：
 
-### 12. 冕核爆闪 (`crown_core_flash`)
+### 12. 炽冕崩落 (`blazing_crown_collapse`)
 
-- 元数据：类型=攻击牌；稀有度=3；费用=3；标签=无；所属卡包=日耀聚能：聚爆包
-- Name：冕核爆闪
+- 元数据：类型=攻击牌；稀有度=3；费用=3；标签=无；所属卡包=【日耀：烬冠】
+- Name：炽冕崩落
 - Name 修改稿：
-- Name_zh-Hant：冕核爆闪
+- Name_zh-Hant：炽冕崩落
 - Name_zh-Hant 修改稿：
-- Name_en：Crown-Core Flash
+- Name_en：Blazing Crown Collapse
 - Name_en 修改稿：
-- Name_ja：冕核爆闪
+- Name_ja：炽冕崩落
 - Name_ja 修改稿：
-- Description：爆发性一击。对所有敌人造成伤害；若没有{SunExp_sunexp_solar_crown_state}，自身也承受相同伤害。消耗全部{SunExp_sunexp_gathered_flame}和一半{SunExp_sunexp_solar_radiance}，基础40点；每消耗1层{SunExp_sunexp_gathered_flame}额外造成6点，每消耗1层{SunExp_sunexp_solar_radiance}额外造成8点。随后敌方全体的{buff_burn}立刻生效一次，结束{SunExp_sunexp_solar_crown_state}，并获得等同于消耗{SunExp_sunexp_gathered_flame}一半的{buff_burn}。
+- Description：爆发性一击。对所有敌人造成伤害；若没有{SunExp_sunexp_solar_crown}，自身也承受相同伤害。消耗全部{SunExp_sunexp_gathered_flame}和一半{SunExp_sunexp_solar_radiance}，基础40点；每消耗1层{SunExp_sunexp_gathered_flame}额外造成6点，每消耗1层{SunExp_sunexp_solar_radiance}额外造成8点。随后敌方全体的{buff_burn}立刻生效一次，结束{SunExp_sunexp_solar_crown}，并获得等同于消耗{SunExp_sunexp_gathered_flame}一半的{buff_burn}。
 - Description 修改稿：
-- Description_zh-Hant：爆發性一擊。對所有敵人造成傷害；若沒有{SunExp_sunexp_solar_crown_state}，自身也承受相同傷害。消耗全部{SunExp_sunexp_gathered_flame}和一半{SunExp_sunexp_solar_radiance}，基礎40點；每消耗1層{SunExp_sunexp_gathered_flame}額外造成6點，每消耗1層{SunExp_sunexp_solar_radiance}額外造成8點。隨後敵方全體的{buff_burn}立刻生效一次，結束{SunExp_sunexp_solar_crown_state}，並獲得等同於消耗{SunExp_sunexp_gathered_flame}一半的{buff_burn}。
+- Description_zh-Hant：爆發性一擊。對所有敵人造成傷害；若沒有{SunExp_sunexp_solar_crown}，自身也承受相同傷害。消耗全部{SunExp_sunexp_gathered_flame}和一半{SunExp_sunexp_solar_radiance}，基礎40點；每消耗1層{SunExp_sunexp_gathered_flame}額外造成6點，每消耗1層{SunExp_sunexp_solar_radiance}額外造成8點。隨後敵方全體的{buff_burn}立刻生效一次，結束{SunExp_sunexp_solar_crown}，並獲得等同於消耗{SunExp_sunexp_gathered_flame}一半的{buff_burn}。
 - Description_zh-Hant 修改稿：
-- Description_en：A burst strike against all enemies. If you do not have {SunExp_sunexp_solar_crown_state}, you also take the same damage. Consume all {SunExp_sunexp_gathered_flame} and half of {SunExp_sunexp_solar_radiance}. Deal 40 damage, +6 per flame consumed and +8 per radiance consumed. Then trigger all enemies' {buff_burn} once, end {SunExp_sunexp_solar_crown_state}, and gain {buff_burn} equal to half the flame consumed.
+- Description_en：A burst strike against all enemies. If you do not have {SunExp_sunexp_solar_crown}, you also take the same damage. Consume all {SunExp_sunexp_gathered_flame} and half of {SunExp_sunexp_solar_radiance}. Deal 40 damage, +6 per flame consumed and +8 per radiance consumed. Then trigger all enemies' {buff_burn} once, end {SunExp_sunexp_solar_crown}, and gain {buff_burn} equal to half the flame consumed.
 - Description_en 修改稿：
-- Description_ja：すべての敵への爆発的な一撃。{SunExp_sunexp_solar_crown_state}を持たない場合、自身も同じダメージを受ける。すべての{SunExp_sunexp_gathered_flame}と半分の{SunExp_sunexp_solar_radiance}を消費する。40ダメージ、消費した聚炎1につき+6、日耀1につき+8。続けて全敵の{buff_burn}を1回発動し、{SunExp_sunexp_solar_crown_state}を終了し、消費した聚炎の半分に等しい{buff_burn}を得る。
+- Description_ja：すべての敵への爆発的な一撃。{SunExp_sunexp_solar_crown}を持たない場合、自身も同じダメージを受ける。すべての{SunExp_sunexp_gathered_flame}と半分の{SunExp_sunexp_solar_radiance}を消費する。40ダメージ、消費した聚炎1につき+6、日耀1につき+8。続けて全敵の{buff_burn}を1回発動し、{SunExp_sunexp_solar_crown}を終了し、消費した聚炎の半分に等しい{buff_burn}を得る。
 - Description_ja 修改稿：
 
-### 13. 破晓校准 (`dawn_calibration`)
+### 13. 破晓校准 (`radiant_oath`)
 
-- 元数据：类型=技能牌；稀有度=1；费用=0；标签=Burnout；所属卡包=日耀聚能：基础包
+- 元数据：类型=技能牌；稀有度=1；费用=0；标签=Burnout；所属卡包=【日耀：星火】
 - Name：破晓校准
 - Name 修改稿：
 - Name_zh-Hant：破曉校準
@@ -432,18 +432,18 @@
 - Name_en 修改稿：
 - Name_ja：暁光校準
 - Name_ja 修改稿：
-- Description：获得3层{SunExp_sunexp_solar_radiance}。若你没有{SunExp_sunexp_solar_field}，获得1层{SunExp_sunexp_solar_field}；否则抽1张牌。焚毁。
+- Description：获得3层{SunExp_sunexp_solar_radiance}。若你没有{SunExp_sunexp_scorching_canopy}，获得1层{SunExp_sunexp_scorching_canopy}；否则抽1张牌。焚毁。
 - Description 修改稿：
-- Description_zh-Hant：獲得3層{SunExp_sunexp_solar_radiance}。若你沒有{SunExp_sunexp_solar_field}，獲得1層{SunExp_sunexp_solar_field}；否則抽1張牌。焚毀。
+- Description_zh-Hant：獲得3層{SunExp_sunexp_solar_radiance}。若你沒有{SunExp_sunexp_scorching_canopy}，獲得1層{SunExp_sunexp_scorching_canopy}；否則抽1張牌。焚毀。
 - Description_zh-Hant 修改稿：
-- Description_en：Gain 3 stacks of {SunExp_sunexp_solar_radiance}. If you do not have {SunExp_sunexp_solar_field}, gain 1 stack of it; otherwise draw 1 card. Burnout.
+- Description_en：Gain 3 stacks of {SunExp_sunexp_solar_radiance}. If you do not have {SunExp_sunexp_scorching_canopy}, gain 1 stack of it; otherwise draw 1 card. Burnout.
 - Description_en 修改稿：
-- Description_ja：{SunExp_sunexp_solar_radiance}を3スタック得る。{SunExp_sunexp_solar_field}を持っていないなら1スタック得る。そうでなければ1枚引く。焼却。
+- Description_ja：{SunExp_sunexp_solar_radiance}を3スタック得る。{SunExp_sunexp_scorching_canopy}を持っていないなら1スタック得る。そうでなければ1枚引く。焼却。
 - Description_ja 修改稿：
 
-### 14. 聚光引燃 (`heliostat_ignition`)
+### 14. 聚光引燃 (`solar_ignition`)
 
-- 元数据：类型=技能牌；稀有度=1；费用=1；标签=无；所属卡包=日耀聚能：基础包
+- 元数据：类型=技能牌；稀有度=1；费用=1；标签=无；所属卡包=【日耀：星火】
 - Name：聚光引燃
 - Name 修改稿：
 - Name_zh-Hant：聚光引燃
@@ -452,18 +452,18 @@
 - Name_en 修改稿：
 - Name_ja：集光点火
 - Name_ja 修改稿：
-- Description：获得1层{SunExp_sunexp_solar_radiance}。所有敌人获得2层{buff_burn}。若你拥有{SunExp_sunexp_solar_field}，抽1张牌；若{SunExp_sunexp_solar_radiance}不少于4层，随机敌人的{buff_burn}立刻生效一次。
+- Description：获得1层{SunExp_sunexp_solar_radiance}。所有敌人获得2层{buff_burn}。若你拥有{SunExp_sunexp_scorching_canopy}，抽1张牌；若{SunExp_sunexp_solar_radiance}不少于4层，随机敌人的{buff_burn}立刻生效一次。
 - Description 修改稿：
-- Description_zh-Hant：獲得1層{SunExp_sunexp_solar_radiance}。所有敵人獲得2層{buff_burn}。若你擁有{SunExp_sunexp_solar_field}，抽1張牌；若{SunExp_sunexp_solar_radiance}不少於4層，隨機敵人的{buff_burn}立刻生效一次。
+- Description_zh-Hant：獲得1層{SunExp_sunexp_solar_radiance}。所有敵人獲得2層{buff_burn}。若你擁有{SunExp_sunexp_scorching_canopy}，抽1張牌；若{SunExp_sunexp_solar_radiance}不少於4層，隨機敵人的{buff_burn}立刻生效一次。
 - Description_zh-Hant 修改稿：
-- Description_en：Gain 1 stack of {SunExp_sunexp_solar_radiance}. All enemies gain 2 stacks of {buff_burn}. If you have {SunExp_sunexp_solar_field}, draw 1 card. If you have at least 4 Radiance, trigger a random enemy's {buff_burn} once.
+- Description_en：Gain 1 stack of {SunExp_sunexp_solar_radiance}. All enemies gain 2 stacks of {buff_burn}. If you have {SunExp_sunexp_scorching_canopy}, draw 1 card. If you have at least 4 Radiance, trigger a random enemy's {buff_burn} once.
 - Description_en 修改稿：
-- Description_ja：{SunExp_sunexp_solar_radiance}を1スタック得る。すべての敵が{buff_burn}を2スタック得る。{SunExp_sunexp_solar_field}を持つなら1枚引く。日耀4以上ならランダムな敵の{buff_burn}を1回発動する。
+- Description_ja：{SunExp_sunexp_solar_radiance}を1スタック得る。すべての敵が{buff_burn}を2スタック得る。{SunExp_sunexp_scorching_canopy}を持つなら1枚引く。日耀4以上ならランダムな敵の{buff_burn}を1回発動する。
 - Description_ja 修改稿：
 
-### 15. 灼流回收 (`flare_reclaim`)
+### 15. 灼流回收 (`scorching_flow_reclaim`)
 
-- 元数据：类型=攻击牌；稀有度=2；费用=0；标签=无；所属卡包=日耀聚能：聚爆包
+- 元数据：类型=攻击牌；稀有度=2；费用=0；标签=无；所属卡包=【日耀：烬冠】
 - Name：灼流回收
 - Name 修改稿：
 - Name_zh-Hant：灼流回收
@@ -481,14 +481,14 @@
 - Description_ja：対象の敵の{buff_burn}をただちに1回発動する。その後、その対象の{buff_burn}をすべて吸収して取り除き、同量の{SunExp_sunexp_gathered_flame}を得る。10スタック以上吸収したなら1枚引く。
 - Description_ja 修改稿：
 
-### 16. 焚污转相 (`impurity_pyrolysis`)
+### 16. 焚污除秽 (`impurity_purge`)
 
-- 元数据：类型=技能牌；稀有度=2；费用=1；标签=无；所属卡包=日耀聚能：天幕包
-- Name：焚污转相
+- 元数据：类型=技能牌；稀有度=2；费用=1；标签=无；所属卡包=【日耀：天幕】
+- Name：焚污除秽
 - Name 修改稿：
-- Name_zh-Hant：焚污轉相
+- Name_zh-Hant：焚污除穢
 - Name_zh-Hant 修改稿：
-- Name_en：Impurity Pyrolysis
+- Name_en：Impurity Purge
 - Name_en 修改稿：
 - Name_ja：焚汚転相
 - Name_ja 修改稿：
@@ -503,7 +503,7 @@
 
 ### 17. 炎轮再临 (`flamewheel_recurrence`)
 
-- 元数据：类型=技能牌；稀有度=2；费用=1；标签=无；所属卡包=日耀聚能：聚爆包
+- 元数据：类型=技能牌；稀有度=2；费用=1；标签=无；所属卡包=【日耀：烬冠】
 - Name：炎轮再临
 - Name 修改稿：
 - Name_zh-Hant：炎輪再臨
@@ -521,14 +521,14 @@
 - Description_ja：すべての敵の{buff_burn}をただちにN回発動する。Nはこの戦闘でこのカードを使用した回数+1。この使用の合計マナ消費はNに等しい。
 - Description_ja 修改稿：
 
-### 18. 灼化倍增 (`burn_multiplier`)
+### 18. 蚀天之咒 (`eclipse_hex`)
 
-- 元数据：类型=技能牌；稀有度=2；费用=2；标签=无；所属卡包=日耀聚能：天幕包
-- Name：灼化倍增
+- 元数据：类型=技能牌；稀有度=2；费用=2；标签=无；所属卡包=【日耀：天幕】
+- Name：蚀天之咒
 - Name 修改稿：
-- Name_zh-Hant：灼化倍增
+- Name_zh-Hant：蚀天之咒
 - Name_zh-Hant 修改稿：
-- Name_en：Burn Multiplier
+- Name_en：Eclipse Hex
 - Name_en 修改稿：
 - Name_ja：灼化倍増
 - Name_ja 修改稿：
@@ -541,14 +541,14 @@
 - Description_ja：対象の敵の{buff_burn}を2倍にする。最大49スタック。持っていない場合は6スタック付与する。その後、対象の{buff_burn}をただちに1回発動する。
 - Description_ja 修改稿：
 
-### 19. 焰势贯穿 (`flame_pierce`)
+### 19. 日耀灼光 (`solar_scorching_light`)
 
-- 元数据：类型=攻击牌；稀有度=1；费用=1；标签=无；所属卡包=日耀聚能：聚爆包
-- Name：焰势贯穿
+- 元数据：类型=攻击牌；稀有度=1；费用=1；标签=无；所属卡包=【日耀：烬冠】
+- Name：日耀灼光
 - Name 修改稿：
-- Name_zh-Hant：焰勢貫穿
+- Name_zh-Hant：日耀灼光
 - Name_zh-Hant 修改稿：
-- Name_en：Flame Momentum Pierce
+- Name_en：Solar Scorchlight
 - Name_en 修改稿：
 - Name_ja：焔勢貫通
 - Name_ja 修改稿：
@@ -561,14 +561,14 @@
 - Description_ja：8ダメージを与える。対象の{buff_burn}1スタックごとに追加でXダメージ。Xは自身の{SunExp_sunexp_gathered_flame}スタック/4、最低1。
 - Description_ja 修改稿：
 
-### 20. 残焰传导 (`ember_conduction`)
+### 20. 燃灾 (`burning_calamity`)
 
-- 元数据：类型=技能牌；稀有度=2；费用=1；标签=无；所属卡包=日耀聚能：天幕包
-- Name：残焰传导
+- 元数据：类型=技能牌；稀有度=2；费用=1；标签=无；所属卡包=【日耀：天幕】
+- Name：燃灾
 - Name 修改稿：
-- Name_zh-Hant：殘焰傳導
+- Name_zh-Hant：燃災
 - Name_zh-Hant 修改稿：
-- Name_en：Ember Conduction
+- Name_en：Burning Calamity
 - Name_en 修改稿：
 - Name_ja：残焔伝導
 - Name_ja 修改稿：
@@ -581,14 +581,14 @@
 - Description_ja：敵1体を選ぶ。その{buff_burn}スタックの半分を他のすべての敵に付与する。その後、対象の{buff_burn}をただちに1回発動する。
 - Description_ja 修改稿：
 
-### 21. 回火轮转 (`backdraft_cycle`)
+### 21. 燃冠誓言 (`burning_crown_oath`)
 
-- 元数据：类型=技能牌；稀有度=2；费用=1；标签=无；所属卡包=日耀聚能：聚爆包
-- Name：回火轮转
+- 元数据：类型=技能牌；稀有度=2；费用=1；标签=无；所属卡包=【日耀：烬冠】
+- Name：燃冠誓言
 - Name 修改稿：
-- Name_zh-Hant：回火輪轉
+- Name_zh-Hant：燃冠誓言
 - Name_zh-Hant 修改稿：
-- Name_en：Backdraft Cycle
+- Name_en：Burning Crown Oath
 - Name_en 修改稿：
 - Name_ja：回火輪転
 - Name_ja 修改稿：
@@ -601,9 +601,9 @@
 - Description_ja：最大12スタックの{SunExp_sunexp_gathered_flame}を消費する。すべての敵は消費数の半分に等しい{buff_burn}を得る。8以上消費したなら1枚引き、魔能を1得る。
 - Description_ja 修改稿：
 
-### 22. 晨线护持 (`dawnline_guard`)
+### 22. 晨线护持 (`morning_light_bulwark`)
 
-- 元数据：类型=技能牌；稀有度=1；费用=1；标签=无；所属卡包=日耀聚能：基础包
+- 元数据：类型=技能牌；稀有度=1；费用=1；标签=无；所属卡包=【日耀：星火】
 - Name：晨线护持
 - Name 修改稿：
 - Name_zh-Hant：晨線護持
@@ -621,9 +621,9 @@
 - Description_ja：{SunExp_sunexp_solar_radiance}を2スタック得る。現在の日耀スタック+4の護盾を得る。
 - Description_ja 修改稿：
 
-### 23. 光谱折返 (`spectrum_return`)
+### 23. 光谱折返 (`solar_return`)
 
-- 元数据：类型=技能牌；稀有度=1；费用=0；标签=无；所属卡包=日耀聚能：基础包
+- 元数据：类型=技能牌；稀有度=1；费用=0；标签=无；所属卡包=【日耀：星火】
 - Name：光谱折返
 - Name 修改稿：
 - Name_zh-Hant：光譜折返
@@ -641,34 +641,34 @@
 - Description_ja：自身が{buff_burn}を持つなら1スタック取り除き、{SunExp_sunexp_solar_radiance}を1スタック得る。そうでなければ1枚引く。
 - Description_ja 修改稿：
 
-### 24. 微型日冕 (`miniature_corona`)
+### 24. 源核：日耀 (`solar_origin_core`)
 
-- 元数据：类型=能力牌；稀有度=2；费用=1；标签=Ability；所属卡包=日耀聚能：基础包
-- Name：微型日冕
+- 元数据：类型=能力牌；稀有度=2；费用=1；标签=Ability；所属卡包=【日耀：星火】
+- Name：源核：日耀
 - Name 修改稿：
-- Name_zh-Hant：微型日冕
+- Name_zh-Hant：源核：日耀
 - Name_zh-Hant 修改稿：
-- Name_en：Miniature Corona
+- Name_en：Origin Core: Radiance
 - Name_en 修改稿：
 - Name_ja：小型日冕
 - Name_ja 修改稿：
-- Description：获得{SunExp_sunexp_miniature_corona_state}。
+- Description：获得{SunExp_sunexp_origin_core_radiance}。
 - Description 修改稿：
-- Description_zh-Hant：獲得{SunExp_sunexp_miniature_corona_state}。
+- Description_zh-Hant：獲得{SunExp_sunexp_origin_core_radiance}。
 - Description_zh-Hant 修改稿：
-- Description_en：Gain {SunExp_sunexp_miniature_corona_state}.
+- Description_en：Gain {SunExp_sunexp_origin_core_radiance}.
 - Description_en 修改稿：
-- Description_ja：{SunExp_sunexp_miniature_corona_state}を得る。
+- Description_ja：{SunExp_sunexp_origin_core_radiance}を得る。
 - Description_ja 修改稿：
 
-### 25. 余烬压缩 (`ember_compression`)
+### 25. 凝烬成塔 (`ember_tower`)
 
-- 元数据：类型=技能牌；稀有度=1；费用=1；标签=无；所属卡包=日耀聚能：聚爆包
-- Name：余烬压缩
+- 元数据：类型=技能牌；稀有度=1；费用=1；标签=无；所属卡包=【日耀：烬冠】
+- Name：凝烬成塔
 - Name 修改稿：
-- Name_zh-Hant：餘燼壓縮
+- Name_zh-Hant：凝燼成塔
 - Name_zh-Hant 修改稿：
-- Name_en：Ember Compression
+- Name_en：Ember Tower
 - Name_en 修改稿：
 - Name_ja：残り火圧縮
 - Name_ja 修改稿：
@@ -681,14 +681,14 @@
 - Description_ja：自身の{buff_burn}を最大5スタック、同量の{SunExp_sunexp_gathered_flame}へ変換する。5スタック変換したなら1枚引く。
 - Description_ja 修改稿：
 
-### 26. 聚炎护壳 (`flame_shell`)
+### 26. 聚炎护盾 (`gathered_flame_shield`)
 
-- 元数据：类型=技能牌；稀有度=1；费用=1；标签=无；所属卡包=日耀聚能：聚爆包
-- Name：聚炎护壳
+- 元数据：类型=技能牌；稀有度=1；费用=1；标签=无；所属卡包=【日耀：烬冠】
+- Name：聚炎护盾
 - Name 修改稿：
-- Name_zh-Hant：聚炎護殼
+- Name_zh-Hant：聚炎護盾
 - Name_zh-Hant 修改稿：
-- Name_en：Flame Shell
+- Name_en：Gathered Flame Shield
 - Name_en 修改稿：
 - Name_ja：集炎殻
 - Name_ja 修改稿：
@@ -701,34 +701,34 @@
 - Description_ja：{SunExp_sunexp_gathered_flame}スタック×2の護盾を得る。その後{SunExp_sunexp_gathered_flame}を最大4スタック消費する。
 - Description_ja 修改稿：
 
-### 27. 熔轮储压 (`melting_wheel_charge`)
+### 27. 轮转：聚炎 (`gathered_flame_cycle`)
 
-- 元数据：类型=能力牌；稀有度=2；费用=2；标签=Ability；所属卡包=日耀聚能：聚爆包
-- Name：熔轮储压
+- 元数据：类型=能力牌；稀有度=2；费用=2；标签=Ability；所属卡包=【日耀：烬冠】
+- Name：轮转：聚炎
 - Name 修改稿：
-- Name_zh-Hant：熔輪儲壓
+- Name_zh-Hant：輪轉：聚炎
 - Name_zh-Hant 修改稿：
-- Name_en：Melting Wheel Charge
+- Name_en：Cycle: Gathered Flame
 - Name_en 修改稿：
 - Name_ja：熔輪蓄圧
 - Name_ja 修改稿：
-- Description：获得{SunExp_sunexp_melting_wheel_charge_state}。
+- Description：获得{SunExp_sunexp_cycle_gathered_flame}。
 - Description 修改稿：
-- Description_zh-Hant：獲得{SunExp_sunexp_melting_wheel_charge_state}。
+- Description_zh-Hant：獲得{SunExp_sunexp_cycle_gathered_flame}。
 - Description_zh-Hant 修改稿：
-- Description_en：Gain {SunExp_sunexp_melting_wheel_charge_state}.
+- Description_en：Gain {SunExp_sunexp_cycle_gathered_flame}.
 - Description_en 修改稿：
-- Description_ja：{SunExp_sunexp_melting_wheel_charge_state}を得る。
+- Description_ja：{SunExp_sunexp_cycle_gathered_flame}を得る。
 - Description_ja 修改稿：
 
-### 28. 低压天幕 (`low_pressure_canopy`)
+### 28. 日蚀 (`solar_eclipse`)
 
-- 元数据：类型=技能牌；稀有度=1；费用=1；标签=无；所属卡包=日耀聚能：天幕包
-- Name：低压天幕
+- 元数据：类型=技能牌；稀有度=1；费用=1；标签=无；所属卡包=【日耀：天幕】
+- Name：日蚀
 - Name 修改稿：
-- Name_zh-Hant：低壓天幕
+- Name_zh-Hant：日蝕
 - Name_zh-Hant 修改稿：
-- Name_en：Low-Pressure Canopy
+- Name_en：Solar Eclipse
 - Name_en 修改稿：
 - Name_ja：低圧天幕
 - Name_ja 修改稿：
@@ -743,7 +743,7 @@
 
 ### 29. 烟蚀 (`smoke_erosion`)
 
-- 元数据：类型=攻击牌；稀有度=1；费用=1；标签=无；所属卡包=日耀聚能：天幕包
+- 元数据：类型=攻击牌；稀有度=1；费用=1；标签=无；所属卡包=【日耀：天幕】
 - Name：烟蚀
 - Name 修改稿：
 - Name_zh-Hant：煙蝕
@@ -761,24 +761,24 @@
 - Description_ja：7ダメージを与える。対象がデバフを持つなら{buff_burn}を3スタック付与する。
 - Description_ja 修改稿：
 
-### 30. 残光症候 (`afterglow_syndrome`)
+### 30. 残光病兆 (`afterglow_omen_card`)
 
-- 元数据：类型=能力牌；稀有度=2；费用=2；标签=Ability；所属卡包=日耀聚能：天幕包
-- Name：残光症候
+- 元数据：类型=能力牌；稀有度=2；费用=2；标签=Ability；所属卡包=【日耀：天幕】
+- Name：残光病兆
 - Name 修改稿：
-- Name_zh-Hant：殘光症候
+- Name_zh-Hant：殘光病兆
 - Name_zh-Hant 修改稿：
-- Name_en：Afterglow Syndrome
+- Name_en：Afterglow Omen
 - Name_en 修改稿：
-- Name_ja：残光症候
+- Name_ja：残光病兆
 - Name_ja 修改稿：
-- Description：获得{SunExp_sunexp_afterglow_syndrome_state}。
+- Description：获得{SunExp_sunexp_afterglow_omen}。
 - Description 修改稿：
-- Description_zh-Hant：獲得{SunExp_sunexp_afterglow_syndrome_state}。
+- Description_zh-Hant：獲得{SunExp_sunexp_afterglow_omen}。
 - Description_zh-Hant 修改稿：
-- Description_en：Gain {SunExp_sunexp_afterglow_syndrome_state}.
+- Description_en：Gain {SunExp_sunexp_afterglow_omen}.
 - Description_en 修改稿：
-- Description_ja：{SunExp_sunexp_afterglow_syndrome_state}を得る。
+- Description_ja：{SunExp_sunexp_afterglow_omen}を得る。
 - Description_ja 修改稿：
 
 ---
@@ -787,7 +787,7 @@
 
 ### 1. 晨辉碎片 (`morning_shard`)
 
-- 元数据：系列=日耀遗物；标签=日耀；稀有度=1；所属卡包=日耀聚能：基础包
+- 元数据：系列=日耀遗物；标签=日耀；稀有度=1；所属卡包=【日耀：星火】
 - Name：晨辉碎片
 - Name 修改稿：
 - Name_zh-Hant：晨輝碎片
@@ -813,14 +813,14 @@
 - Description_ja：戦闘開始時、{SunExp_sunexp_solar_radiance}を2スタック得る。各戦闘で最初のターン開始時、{SunExp_sunexp_solar_radiance}を持つなら5+日耀スタック分の護盾を得る。
 - Description_ja 修改稿：
 
-### 2. 隔热衬布 (`thermal_lining`)
+### 2. 烬衣衬布 (`ember_cloak_lining`)
 
-- 元数据：系列=日耀遗物；标签=防火；稀有度=1；所属卡包=日耀聚能：聚爆包
-- Name：隔热衬布
+- 元数据：系列=日耀遗物；标签=防火；稀有度=1；所属卡包=【日耀：烬冠】
+- Name：烬衣衬布
 - Name 修改稿：
-- Name_zh-Hant：隔熱襯布
+- Name_zh-Hant：烬衣襯布
 - Name_zh-Hant 修改稿：
-- Name_en：Thermal Lining
+- Name_en：Ember Cloak Lining
 - Name_en 修改稿：
 - Name_ja：断熱裏布
 - Name_ja 修改稿：
@@ -843,7 +843,7 @@
 
 ### 3. 环日镜 (`sun_orbit_mirror`)
 
-- 元数据：系列=日耀遗物；标签=行动；稀有度=2；所属卡包=日耀聚能：基础包
+- 元数据：系列=日耀遗物；标签=行动；稀有度=2；所属卡包=【日耀：星火】
 - Name：环日镜
 - Name 修改稿：
 - Name_zh-Hant：環日鏡
@@ -869,14 +869,14 @@
 - Description_ja：3回行動するたび、{SunExp_sunexp_solar_radiance}を持つならランダムな敵に{buff_burn}を2スタック付与する。持たないなら{SunExp_sunexp_solar_radiance}を2スタック得る。
 - Description_ja 修改稿：
 
-### 4. 焰流虹吸 (`flame_siphon`)
+### 4. 太阳瓶 (`sun_bottle`)
 
-- 元数据：系列=日耀遗物；标签=灼烧；稀有度=2；所属卡包=日耀聚能：天幕包
-- Name：焰流虹吸
+- 元数据：系列=日耀遗物；标签=灼烧；稀有度=2；所属卡包=【日耀：天幕】
+- Name：太阳瓶
 - Name 修改稿：
-- Name_zh-Hant：焰流虹吸
+- Name_zh-Hant：太阳瓶
 - Name_zh-Hant 修改稿：
-- Name_en：Flame Siphon
+- Name_en：Sun Bottle
 - Name_en 修改稿：
 - Name_ja：焔流サイフォン
 - Name_ja 修改稿：
@@ -897,14 +897,14 @@
 - Description_ja：ターン開始時、{buff_burn}を持つランダムな敵1体の{buff_burn}を1回発動する。その後、その敵から1スタック取り除き、{SunExp_sunexp_gathered_flame}を2スタック得る。該当する敵がいない場合、ランダムな敵に{buff_burn}を2スタック付与する。
 - Description_ja 修改稿：
 
-### 5. 黄道刻盘 (`zodiac_dial`)
+### 5. 日相刻盘 (`solar_phase_dial`)
 
-- 元数据：系列=日耀遗物；标签=阶段；稀有度=3；所属卡包=日耀聚能：基础包
-- Name：黄道刻盘
+- 元数据：系列=日耀遗物；标签=阶段；稀有度=3；所属卡包=【日耀：星火】
+- Name：日相刻盘
 - Name 修改稿：
-- Name_zh-Hant：黃道刻盤
+- Name_zh-Hant：日相刻盤
 - Name_zh-Hant 修改稿：
-- Name_en：Zodiac Dial
+- Name_en：Solar Phase Dial
 - Name_en 修改稿：
 - Name_ja：黄道刻盤
 - Name_ja 修改稿：
@@ -925,14 +925,14 @@
 - Description_ja：各戦闘で{SunExp_sunexp_solar_radiance}が初めて4/8/12に到達した時、それぞれ1枚引く、魔能を1得る、自身の{buff_burn}を消して全敵の{buff_burn}を1回発動する。
 - Description_ja 修改稿：
 
-### 6. 白昼穹顶 (`daylight_dome`)
+### 6. 小型日轮 (`miniature_sunwheel`)
 
-- 元数据：系列=日耀遗物；标签=防御；稀有度=3；所属卡包=日耀聚能：聚爆包
-- Name：白昼穹顶
+- 元数据：系列=日耀遗物；标签=防御；稀有度=3；所属卡包=【日耀：烬冠】
+- Name：小型日轮
 - Name 修改稿：
-- Name_zh-Hant：白晝穹頂
+- Name_zh-Hant：小型日輪
 - Name_zh-Hant 修改稿：
-- Name_en：Daylight Dome
+- Name_en：Miniature Sunwheel
 - Name_en 修改稿：
 - Name_ja：白昼の天蓋
 - Name_ja 修改稿：
@@ -944,25 +944,25 @@
 - Tips_en 修改稿：
 - Tips_ja：都市を覆うのはガラスではなく、固定された正午そのものだ。
 - Tips_ja 修改稿：
-- Description：回合开始时，若你拥有{SunExp_sunexp_solar_field}，获得等同于其层数×3的护盾；随后若自身拥有{buff_burn}，将1层转化为{SunExp_sunexp_gathered_flame}，否则获得1层{SunExp_sunexp_solar_radiance}。
+- Description：回合开始时，若你拥有{SunExp_sunexp_scorching_canopy}，获得等同于其层数×3的护盾；随后若自身拥有{buff_burn}，将1层转化为{SunExp_sunexp_gathered_flame}，否则获得1层{SunExp_sunexp_solar_radiance}。
 - Description 修改稿：
-- Description_zh-Hant：回合開始時，若你擁有{SunExp_sunexp_solar_field}，獲得等同於其層數×3的護盾；隨後若自身擁有{buff_burn}，將1層轉化為{SunExp_sunexp_gathered_flame}，否則獲得1層{SunExp_sunexp_solar_radiance}。
+- Description_zh-Hant：回合開始時，若你擁有{SunExp_sunexp_scorching_canopy}，獲得等同於其層數×3的護盾；隨後若自身擁有{buff_burn}，將1層轉化為{SunExp_sunexp_gathered_flame}，否則獲得1層{SunExp_sunexp_solar_radiance}。
 - Description_zh-Hant 修改稿：
-- Description_en：At round start, if you have {SunExp_sunexp_solar_field}, gain Block equal to its stacks ×3. Then if you have {buff_burn}, convert 1 stack into {SunExp_sunexp_gathered_flame}; otherwise gain 1 stack of {SunExp_sunexp_solar_radiance}.
+- Description_en：At round start, if you have {SunExp_sunexp_scorching_canopy}, gain Block equal to its stacks ×3. Then if you have {buff_burn}, convert 1 stack into {SunExp_sunexp_gathered_flame}; otherwise gain 1 stack of {SunExp_sunexp_solar_radiance}.
 - Description_en 修改稿：
-- Description_ja：ターン開始時、{SunExp_sunexp_solar_field}を持つならそのスタック×3の護盾を得る。その後、自身が{buff_burn}を持つなら1スタックを{SunExp_sunexp_gathered_flame}に変換し、持たないなら{SunExp_sunexp_solar_radiance}を1スタック得る。
+- Description_ja：ターン開始時、{SunExp_sunexp_scorching_canopy}を持つならそのスタック×3の護盾を得る。その後、自身が{buff_burn}を持つなら1スタックを{SunExp_sunexp_gathered_flame}に変換し、持たないなら{SunExp_sunexp_solar_radiance}を1スタック得る。
 - Description_ja 修改稿：
 
-### 7. 恒星炉心 (`stellar_furnace_core`)
+### 7. 炽冠圣心 (`blazing_crown_heart`)
 
-- 元数据：系列=日耀遗物；标签=核心；稀有度=4；所属卡包=日耀聚能：天幕包
-- Name：恒星炉心
+- 元数据：系列=日耀遗物；标签=核心；稀有度=4；所属卡包=【日耀：天幕】
+- Name：炽冠圣心
 - Name 修改稿：
-- Name_zh-Hant：恆星爐心
+- Name_zh-Hant：熾冠聖心
 - Name_zh-Hant 修改稿：
-- Name_en：Stellar Furnace Core
+- Name_en：Blazing Crown Heart
 - Name_en 修改稿：
-- Name_ja：恒星炉心
+- Name_ja：炽冠圣心
 - Name_ja 修改稿：
 - Tips：它不像遗物，更像一颗被迫保持安静的小型太阳。
 - Tips 修改稿：
@@ -972,18 +972,18 @@
 - Tips_en 修改稿：
 - Tips_ja：遺物というより、静かでいることを強いられた小さな太陽だ。
 - Tips_ja 修改稿：
-- Description：战斗开始时，获得1层{SunExp_sunexp_solar_crown_state}、4层{SunExp_sunexp_solar_radiance}、2层{SunExp_sunexp_solar_field}。回合开始时，全体获得来自日耀场的{buff_burn}；若你拥有{SunExp_sunexp_burn_ward}或{SunExp_sunexp_solar_radiance}达到12层，本次自身不获得该{buff_burn}，且敌方全体额外获得1层{buff_burn}。
+- Description：战斗开始时，获得1层{SunExp_sunexp_solar_crown}、4层{SunExp_sunexp_solar_radiance}、2层{SunExp_sunexp_scorching_canopy}。回合开始时，全体获得来自炽灼天幕的{buff_burn}；若你拥有{SunExp_sunexp_ember_cloak}或{SunExp_sunexp_solar_radiance}达到12层，本次自身不获得该{buff_burn}，且敌方全体额外获得1层{buff_burn}。
 - Description 修改稿：
-- Description_zh-Hant：戰鬥開始時，獲得1層{SunExp_sunexp_solar_crown_state}、4層{SunExp_sunexp_solar_radiance}、2層{SunExp_sunexp_solar_field}。回合開始時，全體獲得來自日耀場的{buff_burn}；若你擁有{SunExp_sunexp_burn_ward}或{SunExp_sunexp_solar_radiance}達到12層，本次自身不獲得該{buff_burn}，且敵方全體額外獲得1層{buff_burn}。
+- Description_zh-Hant：戰鬥開始時，獲得1層{SunExp_sunexp_solar_crown}、4層{SunExp_sunexp_solar_radiance}、2層{SunExp_sunexp_scorching_canopy}。回合開始時，全體獲得來自炽灼天幕的{buff_burn}；若你擁有{SunExp_sunexp_ember_cloak}或{SunExp_sunexp_solar_radiance}達到12層，本次自身不獲得該{buff_burn}，且敵方全體額外獲得1層{buff_burn}。
 - Description_zh-Hant 修改稿：
-- Description_en：At combat start, gain 1 stack of {SunExp_sunexp_solar_crown_state}, 4 stacks of {SunExp_sunexp_solar_radiance}, and 2 stacks of {SunExp_sunexp_solar_field}. At round start, Solar Field burns all combatants. If you have {SunExp_sunexp_burn_ward} or at least 12 Radiance, you avoid that self-burn and all enemies gain 1 extra stack of {buff_burn}.
+- Description_en：At combat start, gain 1 stack of {SunExp_sunexp_solar_crown}, 4 stacks of {SunExp_sunexp_solar_radiance}, and 2 stacks of {SunExp_sunexp_scorching_canopy}. At round start, Scorching Canopy burns all combatants. If you have {SunExp_sunexp_ember_cloak} or at least 12 Radiance, you avoid that self-burn and all enemies gain 1 extra stack of {buff_burn}.
 - Description_en 修改稿：
-- Description_ja：戦闘開始時、{SunExp_sunexp_solar_crown_state}を1、{SunExp_sunexp_solar_radiance}を4、{SunExp_sunexp_solar_field}を2スタック得る。ターン開始時、日耀場により全員が{buff_burn}を得る。{SunExp_sunexp_burn_ward}を持つ、または日耀12以上なら自身はその灼焼を受けず、全敵が追加で{buff_burn}を1スタック得る。
+- Description_ja：戦闘開始時、{SunExp_sunexp_solar_crown}を1、{SunExp_sunexp_solar_radiance}を4、{SunExp_sunexp_scorching_canopy}を2スタック得る。ターン開始時、炽灼天幕により全員が{buff_burn}を得る。{SunExp_sunexp_ember_cloak}を持つ、または日耀12以上なら自身はその灼焼を受けず、全敵が追加で{buff_burn}を1スタック得る。
 - Description_ja 修改稿：
 
 ### 8. 日心棱镜 (`solar_prism`)
 
-- 元数据：系列=日耀遗物；标签=日耀；稀有度=1；所属卡包=日耀聚能：基础包
+- 元数据：系列=日耀遗物；标签=日耀；稀有度=1；所属卡包=【日耀：星火】
 - Name：日心棱镜
 - Name 修改稿：
 - Name_zh-Hant：日心稜鏡
@@ -1009,16 +1009,16 @@
 - Description_ja：戦闘開始時、{SunExp_sunexp_solar_radiance}を1スタック得る。各ターンで初めて{SunExp_sunexp_solar_radiance}を得た後、{buff_extraordinary}を1スタック得る。
 - Description_ja 修改稿：
 
-### 9. 小型日冕座 (`corona_cradle`)
+### 9. 授冕圣座 (`coronation_throne`)
 
-- 元数据：系列=日耀遗物；标签=圣冕；稀有度=2；所属卡包=日耀聚能：基础包
-- Name：小型日冕座
+- 元数据：系列=日耀遗物；标签=圣冕；稀有度=2；所属卡包=【日耀：星火】
+- Name：授冕圣座
 - Name 修改稿：
-- Name_zh-Hant：小型日冕座
+- Name_zh-Hant：授冕圣座
 - Name_zh-Hant 修改稿：
-- Name_en：Corona Cradle
+- Name_en：Coronation Throne
 - Name_en 修改稿：
-- Name_ja：小型日冕座
+- Name_ja：授冕圣座
 - Name_ja 修改稿：
 - Tips：它不产生光，只负责让真正的冠冕安稳降下。
 - Tips 修改稿：
@@ -1028,25 +1028,25 @@
 - Tips_en 修改稿：
 - Tips_ja：光を生まず、真の冠が安らかに降りる場を整えるだけだ。
 - Tips_ja 修改稿：
-- Description：每场战斗第一次获得{SunExp_sunexp_solar_crown_state}后，抽1张牌并获得2点护盾。
+- Description：每场战斗第一次获得{SunExp_sunexp_solar_crown}后，抽1张牌并获得2点护盾。
 - Description 修改稿：
-- Description_zh-Hant：每場戰鬥第一次獲得{SunExp_sunexp_solar_crown_state}後，抽1張牌並獲得2點護盾。
+- Description_zh-Hant：每場戰鬥第一次獲得{SunExp_sunexp_solar_crown}後，抽1張牌並獲得2點護盾。
 - Description_zh-Hant 修改稿：
-- Description_en：Each combat, after you first gain {SunExp_sunexp_solar_crown_state}, draw 1 card and gain 2 Block.
+- Description_en：Each combat, after you first gain {SunExp_sunexp_solar_crown}, draw 1 card and gain 2 Block.
 - Description_en 修改稿：
-- Description_ja：各戦闘で初めて{SunExp_sunexp_solar_crown_state}を得た後、1枚引き、2護盾を得る。
+- Description_ja：各戦闘で初めて{SunExp_sunexp_solar_crown}を得た後、1枚引き、2護盾を得る。
 - Description_ja 修改稿：
 
-### 10. 熔芯护符 (`molten_core_charm`)
+### 10. 聚炎护符 (`gathered_flame_charm`)
 
-- 元数据：系列=日耀遗物；标签=聚炎；稀有度=1；所属卡包=日耀聚能：聚爆包
-- Name：熔芯护符
+- 元数据：系列=日耀遗物；标签=聚炎；稀有度=1；所属卡包=【日耀：烬冠】
+- Name：聚炎护符
 - Name 修改稿：
-- Name_zh-Hant：熔芯護符
+- Name_zh-Hant：聚炎護符
 - Name_zh-Hant 修改稿：
-- Name_en：Molten Core Charm
+- Name_en：Gathered Flame Charm
 - Name_en 修改稿：
-- Name_ja：熔芯護符
+- Name_ja：聚炎護符
 - Name_ja 修改稿：
 - Tips：护符里的火没有出口，只能向内凝成更密的热。
 - Tips 修改稿：
@@ -1065,14 +1065,14 @@
 - Description_ja：各ターンで初めて自身の{buff_burn}が増えた後、{SunExp_sunexp_gathered_flame}を2スタック得る。
 - Description_ja 修改稿：
 
-### 11. 余烬压阀 (`ember_pressure_valve`)
+### 11. 灰烬护符 (`ash_charm`)
 
-- 元数据：系列=日耀遗物；标签=防火；稀有度=2；所属卡包=日耀聚能：聚爆包
-- Name：余烬压阀
+- 元数据：系列=日耀遗物；标签=防火；稀有度=2；所属卡包=【日耀：烬冠】
+- Name：灰烬护符
 - Name 修改稿：
-- Name_zh-Hant：餘燼壓閥
+- Name_zh-Hant：灰燼護符
 - Name_zh-Hant 修改稿：
-- Name_en：Ember Pressure Valve
+- Name_en：Ash Charm
 - Name_en 修改稿：
 - Name_ja：残り火圧弁
 - Name_ja 修改稿：
@@ -1093,14 +1093,14 @@
 - Description_ja：ターン開始時、自身が{buff_burn}を4スタック以上持つなら2スタック取り除き、2護盾と{SunExp_sunexp_gathered_flame}2スタックを得る。
 - Description_ja 修改稿：
 
-### 12. 低压穹幕 (`low_pressure_dome`)
+### 12. 曜阳日晷 (`blazing_sundial`)
 
-- 元数据：系列=日耀遗物；标签=天幕；稀有度=1；所属卡包=日耀聚能：天幕包
-- Name：低压穹幕
+- 元数据：系列=日耀遗物；标签=天幕；稀有度=1；所属卡包=【日耀：天幕】
+- Name：曜阳日晷
 - Name 修改稿：
-- Name_zh-Hant：低壓穹幕
+- Name_zh-Hant：曜陽日晷
 - Name_zh-Hant 修改稿：
-- Name_en：Low-Pressure Dome
+- Name_en：Blazing Sundial
 - Name_en 修改稿：
 - Name_ja：低圧穹幕
 - Name_ja 修改稿：
@@ -1121,14 +1121,14 @@
 - Description_ja：ターン開始時、敵全体が{buff_burn}を持つなら、敵全体に{buff_weak}を1スタック付与する。
 - Description_ja 修改稿：
 
-### 13. 赤道风带 (`equatorial_wind_belt`)
+### 13. 燃灾风带 (`burning_calamity_wind_belt`)
 
-- 元数据：系列=日耀遗物；标签=扩散；稀有度=2；所属卡包=日耀聚能：天幕包
-- Name：赤道风带
+- 元数据：系列=日耀遗物；标签=扩散；稀有度=2；所属卡包=【日耀：天幕】
+- Name：燃灾风带
 - Name 修改稿：
-- Name_zh-Hant：赤道風帶
+- Name_zh-Hant：燃災風帶
 - Name_zh-Hant 修改稿：
-- Name_en：Equatorial Wind Belt
+- Name_en：Burning Calamity Wind Belt
 - Name_en 修改稿：
 - Name_ja：赤道風帯
 - Name_ja 修改稿：

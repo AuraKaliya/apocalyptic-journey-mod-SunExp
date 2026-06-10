@@ -81,7 +81,7 @@ function SunExp_CalcCrownPressureDamage(self)
         return 0
     end
     local radLevel = SunExp_GetRadianceLevel(self)
-    local fieldLevel = SunExp_GetBuffLevel(self, "SunExp_sunexp_solar_field")
+    local fieldLevel = SunExp_GetBuffLevel(self, "SunExp_sunexp_scorching_canopy")
     return radLevel * 2 + fieldLevel * 5
 end
 
@@ -459,12 +459,12 @@ end
 SunExp_PositiveBuffExcludeIds = {
     solar_radiance = true,
     gathered_flame = true,
-    solar_field = true,
-    burn_ward = true,
-    solar_crown_state = true,
-    miniature_corona_state = true,
-    melting_wheel_charge_state = true,
-    afterglow_syndrome_state = true
+    scorching_canopy = true,
+    ember_cloak = true,
+    solar_crown = true,
+    origin_core_radiance = true,
+    cycle_gathered_flame = true,
+    afterglow_omen = true
 }
 
 function SunExp_NormalizeBuffId(buffId)
@@ -592,7 +592,7 @@ function SunExp_HasCrownPhase(self, threshold)
     if self == nil or self.Self == nil then
         return false
     end
-    local crown = self.Self:GetBuff("SunExp_sunexp_solar_crown_state")
+    local crown = self.Self:GetBuff("SunExp_sunexp_solar_crown")
     return crown ~= nil and SunExp_GetRadianceLevel(self) >= threshold
 end
 
@@ -608,7 +608,7 @@ function SunExp_IsSelfBurnProtected(self, includePending)
     if self == nil or self.Self == nil then
         return false
     end
-    local ward = self.Self:GetBuff("SunExp_sunexp_burn_ward")
+    local ward = self.Self:GetBuff("SunExp_sunexp_ember_cloak")
     if ward ~= nil and ward.buffConfig ~= nil and ward.buffConfig.Level > 0 then
         return true
     end

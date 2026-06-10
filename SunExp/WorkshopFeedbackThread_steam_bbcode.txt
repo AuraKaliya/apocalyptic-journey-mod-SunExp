@@ -1,11 +1,11 @@
 标题 / Title:
-SunExp / 日耀聚能 - 反馈与建议收集 Feedback & Suggestions
+SunExp / 日耀：烬冠天幕 - 反馈与建议收集 Feedback & Suggestions
 
 正文 / Body:
 
-[h1]SunExp / 日耀聚能 - 反馈与建议收集[/h1]
+[h1]SunExp / 日耀：烬冠天幕 - 反馈与建议收集[/h1]
 
-感谢游玩《日耀聚能》。
+感谢游玩《日耀：烬冠天幕》。
 
 作者：Aura
 
@@ -23,7 +23,7 @@ SunExp / 日耀聚能 - 反馈与建议收集 Feedback & Suggestions
 
 [list]
 [*][b]数值平衡[/b]：哪些卡牌或遗物太强、太弱、费用不合理，或者爆发过高。
-[*][b]自燃压力[/b]：聚炎、日耀场和圣冕显化带来的自身灼烧是否过重或过轻。
+[*][b]自燃压力[/b]：聚炎、炽灼天幕和圣冕显化带来的自身灼烧是否过重或过轻。
 [*][b]出现率[/b]：是否感觉 Mod 卡或遗物出现太频繁，或者很难遇到。
 [*][b]构筑体验[/b]：日耀、聚炎、灼烧吸收和圣冕爆发是否顺手，有没有卡住节奏。
 [*][b]Bug / 异常[/b]：卡牌不生效、文本错误、图片丢失、卡包无法启用、战斗中报错等。
@@ -63,7 +63,7 @@ This card pack is still being polished. The current goal is:
 
 [list]
 [*][b]Balance[/b]: cards or relics that feel too strong, too weak, too expensive, or too explosive.
-[*][b]Self-burn pressure[/b]: whether Gathered Flame, Solar Field, and Crown Manifestation create too much or too little self-burn.
+[*][b]Self-burn pressure[/b]: whether Gathered Flame, Scorching Canopy, and Crown Manifestation create too much or too little self-burn.
 [*][b]Appearance rate[/b]: whether mod cards or relics appear too often or too rarely.
 [*][b]Build feel[/b]: whether Solar Radiance, Gathered Flame, Burn absorption, and Crown burst feel smooth to play.
 [*][b]Bugs / issues[/b]: cards not working, text errors, missing art, pack selection issues, combat errors, etc.
