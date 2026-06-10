@@ -25,6 +25,34 @@ Use colon calls for instance methods. `self:AddBuff("buff_burn", "2")` is valid 
 
 For target-dependent cards, set `AttackCardItem` in `InitScript` and then use `self:SetStatus("Target")` before target damage or target Buff calls.
 
+## Buff settlement and level-change events
+
+Immediate buff settlement uses the current status selection. For all-enemy burn settlement, official template data uses the C# shape `SetStatus("AllTarget"); RunImmediately(DataId.buff_burn, "StartRound")`; in SunExp Lua CSV snippets, write:
+
+```lua
+self:SetStatus("AllTarget")
+self:RunImmediately("buff_burn", "StartRound")
+```
+
+Reference examples:
+
+- `apocalyptic-journey-mod-tutorial/ModTemplate/Scripts/Lib/DataConfigs/Data/Buff/buff.csv`
+- `apocalyptic-journey-mod-tutorial/ModTemplate/Scripts/Lib/DataConfigs/Data/Card/elementscard.csv`
+
+For selected-target settlement, set `Target` or `SetStatusById(...)` first. For all enemies, prefer the direct `AllTarget` pattern above unless a helper has already proved the same event dispatch behavior.
+
+Buff stack-change effects should listen to the buff-specific level-change event:
+
+```lua
+self:AddEvent("buff_burnOnLevelChange", function()
+    -- Read current buff_burn level and compare with a stored previous value.
+end)
+```
+
+Use this pattern for effects phrased as "when a buff level changes" or "when a buff increases". `Action` polling misses changes caused by StartRound, enemy turns, and nested card/buff resolution. When only increases should count, store the previous level and update it on both increase and decrease paths.
+
+Official references for level-change behavior include `ScriptSample.lua` and `DataConfigs/Data/Relic/relic.csv`, but many `DataConfigs` snippets are C# and must be translated to Lua before use.
+
 ## Dictionary and collection access
 
 C# dictionaries exposed through XLua are not Lua tables:

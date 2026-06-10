@@ -161,9 +161,9 @@
 - Name 修改稿：
 - Name_en：Cycle: Gathered Flame
 - Name_en 修改稿：
-- Description：每回合前3次自身{buff_burn}层数增加后，获得1层{SunExp_sunexp_gathered_flame}。
+- Description：当存在时，自身{buff_burn}每增加1层，获得1层{SunExp_sunexp_gathered_flame}。
 - Description 修改稿：
-- Description_en：Up to 3 times each round, after your {buff_burn} stacks increase, gain 1 stack of {SunExp_sunexp_gathered_flame}.
+- Description_en：While present, for each stack your {buff_burn} increases, gain 1 stack of {SunExp_sunexp_gathered_flame}.
 - Description_en 修改稿：
 
 ### 8. 残光病兆 (`{SunExp_sunexp_afterglow_omen}`)
@@ -432,13 +432,13 @@
 - Name_en 修改稿：
 - Name_ja：暁光校準
 - Name_ja 修改稿：
-- Description：获得3层{SunExp_sunexp_solar_radiance}。若你没有{SunExp_sunexp_scorching_canopy}，获得1层{SunExp_sunexp_scorching_canopy}；否则抽1张牌。焚毁。
+- Description：获得3层{SunExp_sunexp_solar_radiance}。若你没有{SunExp_sunexp_scorching_canopy}，获得1层{SunExp_sunexp_scorching_canopy}；否则抽1张牌。
 - Description 修改稿：
-- Description_zh-Hant：獲得3層{SunExp_sunexp_solar_radiance}。若你沒有{SunExp_sunexp_scorching_canopy}，獲得1層{SunExp_sunexp_scorching_canopy}；否則抽1張牌。焚毀。
+- Description_zh-Hant：獲得3層{SunExp_sunexp_solar_radiance}。若你沒有{SunExp_sunexp_scorching_canopy}，獲得1層{SunExp_sunexp_scorching_canopy}；否則抽1張牌。
 - Description_zh-Hant 修改稿：
-- Description_en：Gain 3 stacks of {SunExp_sunexp_solar_radiance}. If you do not have {SunExp_sunexp_scorching_canopy}, gain 1 stack of it; otherwise draw 1 card. Burnout.
+- Description_en：Gain 3 stacks of {SunExp_sunexp_solar_radiance}. If you do not have {SunExp_sunexp_scorching_canopy}, gain 1 stack of it; otherwise draw 1 card.
 - Description_en 修改稿：
-- Description_ja：{SunExp_sunexp_solar_radiance}を3スタック得る。{SunExp_sunexp_scorching_canopy}を持っていないなら1スタック得る。そうでなければ1枚引く。焼却。
+- Description_ja：{SunExp_sunexp_solar_radiance}を3スタック得る。{SunExp_sunexp_scorching_canopy}を持っていないなら1スタック得る。そうでなければ1枚引く。
 - Description_ja 修改稿：
 
 ### 14. 聚光引燃 (`solar_ignition`)
@@ -787,7 +787,7 @@
 
 ### 1. 晨辉碎片 (`morning_shard`)
 
-- 元数据：系列=日耀遗物；标签=日耀；稀有度=1；所属卡包=【日耀：星火】
+- 元数据：系列=日耀遗物；标签=无；稀有度=1；所属卡包=【日耀：星火】
 - Name：晨辉碎片
 - Name 修改稿：
 - Name_zh-Hant：晨輝碎片
@@ -815,7 +815,7 @@
 
 ### 2. 烬衣衬布 (`ember_cloak_lining`)
 
-- 元数据：系列=日耀遗物；标签=防火；稀有度=1；所属卡包=【日耀：烬冠】
+- 元数据：系列=日耀遗物；标签=无；稀有度=1；所属卡包=【日耀：烬冠】
 - Name：烬衣衬布
 - Name 修改稿：
 - Name_zh-Hant：烬衣襯布
@@ -843,7 +843,7 @@
 
 ### 3. 环日镜 (`sun_orbit_mirror`)
 
-- 元数据：系列=日耀遗物；标签=行动；稀有度=2；所属卡包=【日耀：星火】
+- 元数据：系列=日耀遗物；标签=无；稀有度=2；所属卡包=【日耀：星火】
 - Name：环日镜
 - Name 修改稿：
 - Name_zh-Hant：環日鏡
@@ -871,7 +871,7 @@
 
 ### 4. 太阳瓶 (`sun_bottle`)
 
-- 元数据：系列=日耀遗物；标签=灼烧；稀有度=2；所属卡包=【日耀：天幕】
+- 元数据：系列=日耀遗物；标签=无；稀有度=2；所属卡包=【日耀：天幕】
 - Name：太阳瓶
 - Name 修改稿：
 - Name_zh-Hant：太阳瓶
@@ -899,7 +899,7 @@
 
 ### 5. 日相刻盘 (`solar_phase_dial`)
 
-- 元数据：系列=日耀遗物；标签=阶段；稀有度=3；所属卡包=【日耀：星火】
+- 元数据：系列=日耀遗物；标签=无；稀有度=3；所属卡包=【日耀：星火】
 - Name：日相刻盘
 - Name 修改稿：
 - Name_zh-Hant：日相刻盤
@@ -927,7 +927,7 @@
 
 ### 6. 小型日轮 (`miniature_sunwheel`)
 
-- 元数据：系列=日耀遗物；标签=防御；稀有度=3；所属卡包=【日耀：烬冠】
+- 元数据：系列=日耀遗物；标签=无；稀有度=3；所属卡包=【日耀：烬冠】
 - Name：小型日轮
 - Name 修改稿：
 - Name_zh-Hant：小型日輪
@@ -955,7 +955,7 @@
 
 ### 7. 炽冠圣心 (`blazing_crown_heart`)
 
-- 元数据：系列=日耀遗物；标签=核心；稀有度=4；所属卡包=【日耀：天幕】
+- 元数据：系列=日耀遗物；标签=无；稀有度=4；所属卡包=【日耀：天幕】
 - Name：炽冠圣心
 - Name 修改稿：
 - Name_zh-Hant：熾冠聖心
@@ -983,7 +983,7 @@
 
 ### 8. 日心棱镜 (`solar_prism`)
 
-- 元数据：系列=日耀遗物；标签=日耀；稀有度=1；所属卡包=【日耀：星火】
+- 元数据：系列=日耀遗物；标签=无；稀有度=1；所属卡包=【日耀：星火】
 - Name：日心棱镜
 - Name 修改稿：
 - Name_zh-Hant：日心稜鏡
@@ -1011,7 +1011,7 @@
 
 ### 9. 授冕圣座 (`coronation_throne`)
 
-- 元数据：系列=日耀遗物；标签=圣冕；稀有度=2；所属卡包=【日耀：星火】
+- 元数据：系列=日耀遗物；标签=无；稀有度=2；所属卡包=【日耀：星火】
 - Name：授冕圣座
 - Name 修改稿：
 - Name_zh-Hant：授冕圣座
@@ -1039,7 +1039,7 @@
 
 ### 10. 聚炎护符 (`gathered_flame_charm`)
 
-- 元数据：系列=日耀遗物；标签=聚炎；稀有度=1；所属卡包=【日耀：烬冠】
+- 元数据：系列=日耀遗物；标签=无；稀有度=1；所属卡包=【日耀：烬冠】
 - Name：聚炎护符
 - Name 修改稿：
 - Name_zh-Hant：聚炎護符
@@ -1067,7 +1067,7 @@
 
 ### 11. 灰烬护符 (`ash_charm`)
 
-- 元数据：系列=日耀遗物；标签=防火；稀有度=2；所属卡包=【日耀：烬冠】
+- 元数据：系列=日耀遗物；标签=无；稀有度=2；所属卡包=【日耀：烬冠】
 - Name：灰烬护符
 - Name 修改稿：
 - Name_zh-Hant：灰燼護符
@@ -1095,7 +1095,7 @@
 
 ### 12. 曜阳日晷 (`blazing_sundial`)
 
-- 元数据：系列=日耀遗物；标签=天幕；稀有度=1；所属卡包=【日耀：天幕】
+- 元数据：系列=日耀遗物；标签=无；稀有度=1；所属卡包=【日耀：天幕】
 - Name：曜阳日晷
 - Name 修改稿：
 - Name_zh-Hant：曜陽日晷
@@ -1123,7 +1123,7 @@
 
 ### 13. 燃灾风带 (`burning_calamity_wind_belt`)
 
-- 元数据：系列=日耀遗物；标签=扩散；稀有度=2；所属卡包=【日耀：天幕】
+- 元数据：系列=日耀遗物；标签=无；稀有度=2；所属卡包=【日耀：天幕】
 - Name：燃灾风带
 - Name 修改稿：
 - Name_zh-Hant：燃災風帶

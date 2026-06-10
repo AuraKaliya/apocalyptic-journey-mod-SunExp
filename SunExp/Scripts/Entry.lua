@@ -296,17 +296,21 @@ function SunExp_TriggerBurn(self, target, fallbackStatus)
 end
 
 function SunExp_TriggerBurnAllEnemies(self, times)
-    local targets = SunExp_GetEnemyTargets(self)
+    if self == nil then
+        return 0
+    end
     local count = tonumber(times) or 1
     if count < 1 then
         count = 1
     end
     local triggered = 0
     for n = 1, count do
-        for i = 1, #targets do
-            if SunExp_TriggerBurn(self, targets[i]) then
-                triggered = triggered + 1
-            end
+        self:SetStatus("AllTarget")
+        local ok = pcall(function()
+            self:RunImmediately("buff_burn", "StartRound")
+        end)
+        if ok then
+            triggered = triggered + 1
         end
     end
     return triggered

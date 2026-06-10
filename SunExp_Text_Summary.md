@@ -22,7 +22,7 @@
 - 烬衣 (`{SunExp_sunexp_ember_cloak}`)：临时避灼。获得时清除自身灼烧；下回合开始时再次清除自身灼烧，然后移除此状态。
 - 圣冕显化 (`{SunExp_sunexp_solar_crown}`)：持续2回合。期间日耀阶段向下包括：1+吸收灼烧额外聚炎；4+日耀伤害增幅；8+行动时获得魔能，若未达12层则自燃；12层清除并免疫自身灼烧。炽冕崩落会强制结束。
 - 源核：日耀 (`{SunExp_sunexp_origin_core_radiance}`)：每回合第一次获得{SunExp_sunexp_solar_radiance}时，额外获得1层{SunExp_sunexp_solar_radiance}。
-- 轮转：聚炎 (`{SunExp_sunexp_cycle_gathered_flame}`)：每回合前3次自身{buff_burn}层数增加后，获得1层{SunExp_sunexp_gathered_flame}。
+- 轮转：聚炎 (`{SunExp_sunexp_cycle_gathered_flame}`)：当存在时，自身{buff_burn}每增加1层，获得1层{SunExp_sunexp_gathered_flame}。
 - 残光病兆 (`{SunExp_sunexp_afterglow_omen}`)：回合开始时，所有带有{buff_burn}的敌人获得1层{buff_vulnerability}。
 
 ## 卡牌
@@ -77,7 +77,7 @@
 
 13. 破晓校准 (`radiant_oath`)
    - 基本数据：技能牌；稀有度 1；费用 0；标签 Burnout；卡包 【日耀：星火】。
-   - 效果：获得3层{SunExp_sunexp_solar_radiance}。若你没有{SunExp_sunexp_scorching_canopy}，获得1层{SunExp_sunexp_scorching_canopy}；否则抽1张牌。焚毁。
+   - 效果：获得3层{SunExp_sunexp_solar_radiance}。若你没有{SunExp_sunexp_scorching_canopy}，获得1层{SunExp_sunexp_scorching_canopy}；否则抽1张牌。
 
 14. 聚光引燃 (`solar_ignition`)
    - 基本数据：技能牌；稀有度 1；费用 1；标签 无；卡包 【日耀：星火】。
@@ -150,67 +150,67 @@
 ## 遗物
 
 1. 晨辉碎片 (`morning_shard`)
-   - 基本数据：系列 日耀遗物；标签 日耀；稀有度 1；卡包 【日耀：星火】。
+   - 基本数据：系列 日耀遗物；标签 无；稀有度 1；卡包 【日耀：星火】。
    - 剧情短句：清晨第一缕光凝成的晶片，握在掌心时仍有温度。
    - 效果：战斗开始时，获得2层{SunExp_sunexp_solar_radiance}。每场战斗第一次回合开始时，若你拥有{SunExp_sunexp_solar_radiance}，获得5+日耀层数的护盾。
 
 2. 烬衣衬布 (`ember_cloak_lining`)
-   - 基本数据：系列 日耀遗物；标签 防火；稀有度 1；卡包 【日耀：烬冠】。
+   - 基本数据：系列 日耀遗物；标签 无；稀有度 1；卡包 【日耀：烬冠】。
    - 剧情短句：薄得像一层晨雾，却能把火焰折回光里。
    - 效果：回合开始时，若你拥有{buff_burn}，移除1层{buff_burn}，并获得2层{SunExp_sunexp_gathered_flame}。每回合最多触发一次。
 
 3. 环日镜 (`sun_orbit_mirror`)
-   - 基本数据：系列 日耀遗物；标签 行动；稀有度 2；卡包 【日耀：星火】。
+   - 基本数据：系列 日耀遗物；标签 无；稀有度 2；卡包 【日耀：星火】。
    - 剧情短句：镜面里没有倒影，只有一颗永远绕行的太阳。
    - 效果：每行动3次，若你拥有{SunExp_sunexp_solar_radiance}，对随机敌人施加2层{buff_burn}；否则获得2层{SunExp_sunexp_solar_radiance}。
 
 4. 太阳瓶 (`sun_bottle`)
-   - 基本数据：系列 日耀遗物；标签 灼烧；稀有度 2；卡包 【日耀：天幕】。
+   - 基本数据：系列 日耀遗物；标签 无；稀有度 2；卡包 【日耀：天幕】。
    - 剧情短句：漏斗内壁刻着倒流的火舌，专门收拢失控的热。
    - 效果：回合开始时，随机一名带有{buff_burn}的敌人，其{buff_burn}立刻生效一次；随后移除其1层{buff_burn}，你获得2层{SunExp_sunexp_gathered_flame}。若没有敌人拥有{buff_burn}，改为对随机敌人施加2层{buff_burn}。
 
 5. 日相刻盘 (`solar_phase_dial`)
-   - 基本数据：系列 日耀遗物；标签 阶段；稀有度 3；卡包 【日耀：星火】。
+   - 基本数据：系列 日耀遗物；标签 无；稀有度 3；卡包 【日耀：星火】。
    - 剧情短句：刻盘的每一格都对应一次太阳角度的偏移。
    - 效果：每场战斗中，{SunExp_sunexp_solar_radiance}首次达到4/8/12层时分别触发：抽1张牌、获得1点魔能、清除自身{buff_burn}并使敌方全体{buff_burn}立刻生效一次。
 
 6. 小型日轮 (`miniature_sunwheel`)
-   - 基本数据：系列 日耀遗物；标签 防御；稀有度 3；卡包 【日耀：烬冠】。
+   - 基本数据：系列 日耀遗物；标签 无；稀有度 3；卡包 【日耀：烬冠】。
    - 剧情短句：罩住城邦的不是玻璃，而是被固定下来的正午。
    - 效果：回合开始时，若你拥有{SunExp_sunexp_scorching_canopy}，获得等同于其层数×3的护盾；随后若自身拥有{buff_burn}，将1层转化为{SunExp_sunexp_gathered_flame}，否则获得1层{SunExp_sunexp_solar_radiance}。
 
 7. 炽冠圣心 (`blazing_crown_heart`)
-   - 基本数据：系列 日耀遗物；标签 核心；稀有度 4；卡包 【日耀：天幕】。
+   - 基本数据：系列 日耀遗物；标签 无；稀有度 4；卡包 【日耀：天幕】。
    - 剧情短句：它不像遗物，更像一颗被迫保持安静的小型太阳。
    - 效果：战斗开始时，获得1层{SunExp_sunexp_solar_crown}、4层{SunExp_sunexp_solar_radiance}、2层{SunExp_sunexp_scorching_canopy}。回合开始时，全体获得来自炽灼天幕的{buff_burn}；若你拥有{SunExp_sunexp_ember_cloak}或{SunExp_sunexp_solar_radiance}达到12层，本次自身不获得该{buff_burn}，且敌方全体额外获得1层{buff_burn}。
 
 8. 日心棱镜 (`solar_prism`)
-   - 基本数据：系列 日耀遗物；标签 日耀；稀有度 1；卡包 【日耀：星火】。
+   - 基本数据：系列 日耀遗物；标签 无；稀有度 1；卡包 【日耀：星火】。
    - 剧情短句：棱镜中心封着一枚微型日核，转动时会折出第二道晨光。
    - 效果：战斗开始时，获得1层{SunExp_sunexp_solar_radiance}。每回合第一次获得{SunExp_sunexp_solar_radiance}后，获得1层{buff_extraordinary}。
 
 9. 授冕圣座 (`coronation_throne`)
-   - 基本数据：系列 日耀遗物；标签 圣冕；稀有度 2；卡包 【日耀：星火】。
+   - 基本数据：系列 日耀遗物；标签 无；稀有度 2；卡包 【日耀：星火】。
    - 剧情短句：它不产生光，只负责让真正的冠冕安稳降下。
    - 效果：每场战斗第一次获得{SunExp_sunexp_solar_crown}后，抽1张牌并获得2点护盾。
 
 10. 聚炎护符 (`gathered_flame_charm`)
-   - 基本数据：系列 日耀遗物；标签 聚炎；稀有度 1；卡包 【日耀：烬冠】。
+   - 基本数据：系列 日耀遗物；标签 无；稀有度 1；卡包 【日耀：烬冠】。
    - 剧情短句：护符里的火没有出口，只能向内凝成更密的热。
    - 效果：每回合第一次自身{buff_burn}层数增加后，获得2层{SunExp_sunexp_gathered_flame}。
 
 11. 灰烬护符 (`ash_charm`)
-   - 基本数据：系列 日耀遗物；标签 防火；稀有度 2；卡包 【日耀：烬冠】。
+   - 基本数据：系列 日耀遗物；标签 无；稀有度 2；卡包 【日耀：烬冠】。
    - 剧情短句：阀门每次开启都像一次短促的日出。
    - 效果：回合开始时，若你拥有至少4层{buff_burn}，移除2层，获得2点护盾和2层{SunExp_sunexp_gathered_flame}。
 
 12. 曜阳日晷 (`blazing_sundial`)
-   - 基本数据：系列 日耀遗物；标签 天幕；稀有度 1；卡包 【日耀：天幕】。
+   - 基本数据：系列 日耀遗物；标签 无；稀有度 1；卡包 【日耀：天幕】。
    - 剧情短句：它把天空压低一点，让火焰和呼吸都变得迟缓。
    - 效果：回合开始时，若敌方全体拥有{buff_burn}，敌方全体获得1层{buff_weak}。
 
 13. 燃灾风带 (`burning_calamity_wind_belt`)
-   - 基本数据：系列 日耀遗物；标签 扩散；稀有度 2；卡包 【日耀：天幕】。
+   - 基本数据：系列 日耀遗物；标签 无；稀有度 2；卡包 【日耀：天幕】。
    - 剧情短句：环形热风总会把一处火星带到另一处阴影里。
    - 效果：回合开始时，至多4名带有{buff_burn}的敌人各使随机另一名敌人获得1层{buff_burn}。
 

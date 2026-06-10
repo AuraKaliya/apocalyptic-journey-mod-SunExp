@@ -34,6 +34,7 @@ Required card checks:
 - `Text/Card` description placeholders such as `{0}` must match `InitScript` dynamic descriptions.
 - If `UseScript` computes a dynamic number, keep display logic and runtime logic in sync.
 - If `PackBelong` changes, verify the pack exists in `Data/CardPack`.
+- Do not duplicate auto-displayed tags such as `Burnout` in localized `Text/Card` descriptions.
 
 ## Buff
 
@@ -59,6 +60,8 @@ Use Buffs for persistent effects and event hooks. Pair event registration with c
 - `PackBelong`
 
 Relic scripts often need `self:UpdateRelicShow()` when variable state changes.
+
+`SunExp/Text/Relic/sunexp.csv` includes display text fields for relic names, descriptions, and tags. `Text/Relic.Tag` can be appended by UI display paths; keep it blank unless a visible relic label is intentionally needed. It is not the same as `Data/Relic.PackBelong` or any logic script field.
 
 ## CardPack
 
