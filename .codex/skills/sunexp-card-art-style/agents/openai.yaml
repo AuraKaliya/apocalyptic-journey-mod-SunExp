@@ -1,0 +1,4 @@
+interface:
+  display_name: "SunExp Card Art Style"
+  short_description: "Draw official-like SunExp card icons."
+  default_prompt: "Use $sunexp-card-art-style to redesign SunExp card art with a unified official-like dark, two-color icon style."
