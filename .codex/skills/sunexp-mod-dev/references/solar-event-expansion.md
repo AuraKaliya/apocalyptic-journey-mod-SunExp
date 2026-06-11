@@ -8,7 +8,7 @@ Use this reference when adding or reviewing the WuNa / Solar Event map-event cha
 - `SunExp/Text/Map/sunexp.csv`: displays the map card as `日耀事件`.
 - `SunExp/Data/EventList/sunexp.csv`: defines `Sub_wuna_event_01` through `Sub_wuna_event_06`.
 - `SunExp/Text/EventList/sunexp.csv`: defines event titles, body text, and option text.
-- `SunExp/Scripts/Entry.lua`: owns reward helpers, WuNa progress helpers, and the map-card injection attempt.
+- `SunExp/Scripts/Entry.lua`: generated from `_src`; owns reward helpers, WuNa progress helpers, and map-event runtime helpers.
 
 ## Runtime model
 
@@ -19,15 +19,13 @@ Use this reference when adding or reviewing the WuNa / Solar Event map-event cha
   - ...
   - progress `5` -> `SunExp_sunexp_Sub_wuna_event_06`
 - The WuNa events use `Sub_` ids so the ordinary event pool does not randomly draw later story chapters as top-level ordinary events.
-- `SunExp_TryInjectSolarEventMapCard(...)` is registered both before and after `Witch.UI.Window.MapSelectUI.CreateMapItem`.
-  - The before hook inserts or refreshes the Solar Event node.
-  - The after hook repairs `NodeId` after the base game reapplies synced map data, so clicking the card still enters the current WuNa event instead of the generic event pool.
-- `NormalMapManager.RandomGenerate()` overwrites every generated `Type=Event` node's `NodeId` with a random official `EventList` row, so the solar card must be repaired again before selection is submitted.
-- `SunExp_TryRepairSolarEventGeneratedMap(...)` is registered after `Witch.NormalMapManager.RandomGenerate` and repairs the generated `MapTree` immediately. This is the primary non-C# fix.
-- `SunExp_TryRepairSolarEventSelection(...)` is registered before `Witch.UI.Window.MapSelectUI.SendNode` to repair the selected node chain before `maps[]` and `mapdata[]` are built.
+- `MapSelectUI.CreateMapItem(range)` is only a display step. It receives a temporary visible range and is not a stable source of final selection state.
+- `NormalMapManager.RandomGenerate()` overwrites every generated `Type=Event` node's `NodeId` with a random official `EventList` row, so the Solar Event must be assigned after random generation.
+- `SunExp_EnsureSolarEventInCurrentLayer(...)` replaces one node inside the current `MapTree.SelectNode` layer segment. It does not append to `SelectNode`, because the base game reads fixed layer ranges.
+- `SunExp_TryRepairSolarEventGeneratedMap(...)` is registered after `NormalMapManager.RandomGenerate` and `NormalMapManager.GeneratrMap`.
+- `SunExp_EnsureSolarEventInCurrentLayerFromHook(...)` is registered before `MapSelectUI.ReadyToSelect` so the real SelectNode segment is repaired before the UI reads its range.
 - `SunExp_TryRepairSolarEventMapSelection(...)` is registered before both `MapManager.UserCode_CmdSelectMap__String[]__String[]__NetworkConnectionToClient` and `MapManager.UserCode_CmdSelectMapIncludeSender__String[]__String[]__NetworkConnectionToClient` as a server-side fallback; any `SunExp_sunexp_solar_event` / `solar_event` map id has its `mapdata` forced back to the current WuNa event id.
 - The same map-data repair is also registered on public `CmdSelectMap` methods plus `TargetUpdateMap` / `RpcUpdateMap`, because first-floor map setup can sync arrays before the final click flow.
-- `SunExp_TryRepairSolarEventLoad(...)` is registered on `MapManager.RpcLoadMap`, `Witch.NormalMapManager.RpcLoadMap`, and `Commands.load` as a final guard when the load call still carries the solar map id.
 - Local validation can prove Lua/CSV syntax, ID references, and text shape; it cannot prove Unity runtime hook argument shape. In-game verification is required for "one Solar Event card appears in every map selection".
 
 ## Reward helpers
@@ -45,7 +43,6 @@ Current helper behavior:
 
 - Grant `100` gold.
 - Grant the card, relic, or blessing.
-- Show a short caption.
 - Advance `SunExp_WunaEventProgress` to at least `progress`.
 - End the event.
 
