@@ -53,3 +53,25 @@ function SunExp_GetCollectionItem(collection, index)
     end
     return nil
 end
+
+function SunExp_TrySetCollectionItem(collection, index, value)
+    if collection == nil then
+        return false
+    end
+    local ok = pcall(function()
+        collection:set_Item(index, value)
+    end)
+    if ok then
+        return true
+    end
+    ok = pcall(function()
+        collection[index] = value
+    end)
+    if ok then
+        return true
+    end
+    ok = pcall(function()
+        collection[index + 1] = value
+    end)
+    return ok
+end

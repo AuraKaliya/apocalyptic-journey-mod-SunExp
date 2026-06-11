@@ -6,19 +6,28 @@ Use this reference when adding or reviewing the WuNa / Solar Event map-event cha
 
 - `SunExp/Data/Map/sunexp.csv`: adds `solar_event`.
 - `SunExp/Text/Map/sunexp.csv`: displays the map card as `日耀事件`.
-- `SunExp/Data/EventList/sunexp.csv`: defines `wuna_event_01` through `wuna_event_06`.
+- `SunExp/Data/EventList/sunexp.csv`: defines `Sub_wuna_event_01` through `Sub_wuna_event_06`.
 - `SunExp/Text/EventList/sunexp.csv`: defines event titles, body text, and option text.
 - `SunExp/Scripts/Entry.lua`: owns reward helpers, WuNa progress helpers, and the map-card injection attempt.
 
 ## Runtime model
 
-- Progress is stored in game var `SunExp_WunaEventProgress`.
+- Progress is stored in game var `SunExp_WunaEventProgressV2`.
 - `SunExp_CreateSolarEventNode()` points the map event to the next event id:
-  - progress `0` -> `SunExp_sunexp_wuna_event_01`
-  - progress `1` -> `SunExp_sunexp_wuna_event_02`
+  - progress `0` -> `SunExp_sunexp_Sub_wuna_event_01`
+  - progress `1` -> `SunExp_sunexp_Sub_wuna_event_02`
   - ...
-  - progress `5` -> `SunExp_sunexp_wuna_event_06`
-- `SunExp_TryInjectSolarEventMapCard(...)` is registered as a conservative Lua hook on `Witch.UI.Window.MapSelectUI.CreateMapItem`.
+  - progress `5` -> `SunExp_sunexp_Sub_wuna_event_06`
+- The WuNa events use `Sub_` ids so the ordinary event pool does not randomly draw later story chapters as top-level ordinary events.
+- `SunExp_TryInjectSolarEventMapCard(...)` is registered both before and after `Witch.UI.Window.MapSelectUI.CreateMapItem`.
+  - The before hook inserts or refreshes the Solar Event node.
+  - The after hook repairs `NodeId` after the base game reapplies synced map data, so clicking the card still enters the current WuNa event instead of the generic event pool.
+- `NormalMapManager.RandomGenerate()` overwrites every generated `Type=Event` node's `NodeId` with a random official `EventList` row, so the solar card must be repaired again before selection is submitted.
+- `SunExp_TryRepairSolarEventGeneratedMap(...)` is registered after `Witch.NormalMapManager.RandomGenerate` and repairs the generated `MapTree` immediately. This is the primary non-C# fix.
+- `SunExp_TryRepairSolarEventSelection(...)` is registered before `Witch.UI.Window.MapSelectUI.SendNode` to repair the selected node chain before `maps[]` and `mapdata[]` are built.
+- `SunExp_TryRepairSolarEventMapSelection(...)` is registered before both `MapManager.UserCode_CmdSelectMap__String[]__String[]__NetworkConnectionToClient` and `MapManager.UserCode_CmdSelectMapIncludeSender__String[]__String[]__NetworkConnectionToClient` as a server-side fallback; any `SunExp_sunexp_solar_event` / `solar_event` map id has its `mapdata` forced back to the current WuNa event id.
+- The same map-data repair is also registered on public `CmdSelectMap` methods plus `TargetUpdateMap` / `RpcUpdateMap`, because first-floor map setup can sync arrays before the final click flow.
+- `SunExp_TryRepairSolarEventLoad(...)` is registered on `MapManager.RpcLoadMap`, `Witch.NormalMapManager.RpcLoadMap`, and `Commands.load` as a final guard when the load call still carries the solar map id.
 - Local validation can prove Lua/CSV syntax, ID references, and text shape; it cannot prove Unity runtime hook argument shape. In-game verification is required for "one Solar Event card appears in every map selection".
 
 ## Reward helpers
@@ -39,6 +48,14 @@ Current helper behavior:
 - Show a short caption.
 - Advance `SunExp_WunaEventProgress` to at least `progress`.
 - End the event.
+
+Event `InitScript` should gate visible choices through:
+
+```lua
+SunExp_BeginWunaEvent(self, 1)
+```
+
+Use the matching step number for each chapter. Do not use bare `Vars:set_Item(...)` in SunExp CSV scripts; use `self.Vars` or this helper so the event UI can see `Choice1` / `Choice2`.
 
 If balance changes, prefer changing the helper once instead of editing every event script.
 
@@ -62,18 +79,18 @@ Official blessing rows live in:
 
 | Event | Title | Option | Reward helper |
 | --- | --- | --- | --- |
-| `wuna_event_01` | 无日之城 | 校准第一缕晨辉 | `SunExp_WunaRewardRelic(1, "SunExp_sunexp_morning_shard")` |
-| `wuna_event_01` | 无日之城 | 向圣庭祈祷 | `SunExp_WunaRewardBless(1, "blessing_8")` |
-| `wuna_event_02` | 秩序化光辉 | 转动环日镜 | `SunExp_WunaRewardRelic(2, "SunExp_sunexp_sun_orbit_mirror")` |
-| `wuna_event_02` | 秩序化光辉 | 记录礼拜时辰 | `SunExp_WunaRewardBless(2, "blessing_8")` |
-| `wuna_event_03` | 光中的污染 | 检验日心棱镜 | `SunExp_WunaRewardRelic(3, "SunExp_sunexp_solar_prism")` |
-| `wuna_event_03` | 光中的污染 | 标记腐坏源头 | `SunExp_WunaRewardBless(3, "blessing_20")` |
-| `wuna_event_04` | 将灾厄引入自身 | 收拢聚炎护符 | `SunExp_WunaRewardRelic(4, "SunExp_sunexp_gathered_flame_charm")` |
-| `wuna_event_04` | 将灾厄引入自身 | 披上烬衣衬布 | `SunExp_WunaRewardRelic(4, "SunExp_sunexp_ember_cloak_lining")` |
-| `wuna_event_05` | 破碎冠冕 | 触碰破碎冠冕 | `SunExp_WunaRewardCard(5, "SunExp_sunexp_blazing_crown_collapse")` |
-| `wuna_event_05` | 破碎冠冕 | 扶起授冕圣座 | `SunExp_WunaRewardRelic(5, "SunExp_sunexp_coronation_throne")` |
-| `wuna_event_06` | 曜日魔女 | 裁定腐坏 | `SunExp_WunaRewardRelic(6, "SunExp_sunexp_blazing_crown_heart")` |
-| `wuna_event_06` | 曜日魔女 | 保存名字与星火 | `SunExp_WunaRewardCard(6, "SunExp_sunexp_spark")` |
+| `Sub_wuna_event_01` | 无日之城 | 校准第一缕晨辉 | `SunExp_WunaRewardRelic(1, "SunExp_sunexp_morning_shard")` |
+| `Sub_wuna_event_01` | 无日之城 | 向圣庭祈祷 | `SunExp_WunaRewardBless(1, "blessing_8")` |
+| `Sub_wuna_event_02` | 秩序化光辉 | 转动环日镜 | `SunExp_WunaRewardRelic(2, "SunExp_sunexp_sun_orbit_mirror")` |
+| `Sub_wuna_event_02` | 秩序化光辉 | 记录礼拜时辰 | `SunExp_WunaRewardBless(2, "blessing_8")` |
+| `Sub_wuna_event_03` | 光中的污染 | 检验日心棱镜 | `SunExp_WunaRewardRelic(3, "SunExp_sunexp_solar_prism")` |
+| `Sub_wuna_event_03` | 光中的污染 | 标记腐坏源头 | `SunExp_WunaRewardBless(3, "blessing_20")` |
+| `Sub_wuna_event_04` | 将灾厄引入自身 | 收拢聚炎护符 | `SunExp_WunaRewardRelic(4, "SunExp_sunexp_gathered_flame_charm")` |
+| `Sub_wuna_event_04` | 将灾厄引入自身 | 披上烬衣衬布 | `SunExp_WunaRewardRelic(4, "SunExp_sunexp_ember_cloak_lining")` |
+| `Sub_wuna_event_05` | 破碎冠冕 | 触碰破碎冠冕 | `SunExp_WunaRewardCard(5, "SunExp_sunexp_blazing_crown_collapse")` |
+| `Sub_wuna_event_05` | 破碎冠冕 | 扶起授冕圣座 | `SunExp_WunaRewardRelic(5, "SunExp_sunexp_coronation_throne")` |
+| `Sub_wuna_event_06` | 曜日魔女 | 裁定腐坏 | `SunExp_WunaRewardRelic(6, "SunExp_sunexp_blazing_crown_heart")` |
+| `Sub_wuna_event_06` | 曜日魔女 | 保存名字与星火 | `SunExp_WunaRewardCard(6, "SunExp_sunexp_spark")` |
 
 ## Validation checklist
 

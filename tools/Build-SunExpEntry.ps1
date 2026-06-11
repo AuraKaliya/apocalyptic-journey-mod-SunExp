@@ -50,7 +50,7 @@ if (-not (Test-Path -LiteralPath $outputDirectory)) {
 }
 
 $modules = New-Object System.Collections.Generic.List[string]
-foreach ($line in Get-Content -LiteralPath $manifestPathResolved) {
+foreach ($line in Get-Content -LiteralPath $manifestPathResolved -Encoding UTF8) {
     $entry = $line.Trim()
     if ([string]::IsNullOrWhiteSpace($entry) -or $entry.StartsWith("#")) {
         continue
@@ -74,7 +74,7 @@ foreach ($module in $modules) {
         throw "Module '$module' was listed in manifest but not found at '$modulePath'."
     }
 
-    $content = Get-Content -Raw -LiteralPath $modulePath
+    $content = Get-Content -Raw -LiteralPath $modulePath -Encoding UTF8
     $content = $content.TrimEnd("`r", "`n")
 
     $parts.Add("do") | Out-Null

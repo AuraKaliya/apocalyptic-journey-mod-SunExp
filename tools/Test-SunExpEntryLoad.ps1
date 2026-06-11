@@ -148,7 +148,8 @@ local expected_count = $expectedCount
 
 ModConfig = {
     dynamicMethods = {},
-    hooksBefore = {}
+    hooksBefore = {},
+    hooksAfter = {}
 }
 
 function ModConfig:AddDynamicMethod(name, fn)
@@ -162,6 +163,12 @@ function ModConfig:AddMethodHookBefore(typeDotMethod, fn)
     assert(type(typeDotMethod) == "string", "AddMethodHookBefore target must be string")
     assert(type(fn) == "function", "AddMethodHookBefore function missing for " .. tostring(typeDotMethod))
     table.insert(self.hooksBefore, { typeDotMethod = typeDotMethod, fn = fn })
+end
+
+function ModConfig:AddMethodHookAfter(typeDotMethod, fn)
+    assert(type(typeDotMethod) == "string", "AddMethodHookAfter target must be string")
+    assert(type(fn) == "function", "AddMethodHookAfter function missing for " .. tostring(typeDotMethod))
+    table.insert(self.hooksAfter, { typeDotMethod = typeDotMethod, fn = fn })
 end
 
 local chunk, load_error = loadfile(entry_path)
@@ -187,15 +194,177 @@ for name, _ in pairs(expected_methods) do
     assert(type(ModConfig.dynamicMethods[name]) == "function", "missing dynamic method after Setup: " .. name)
 end
 
-local has_map_hook = false
+local before_hooks = {}
 for _, hook in ipairs(ModConfig.hooksBefore) do
-    if hook.typeDotMethod == "Witch.UI.Window.MapSelectUI.CreateMapItem" and type(hook.fn) == "function" then
-        has_map_hook = true
+    if type(hook.fn) == "function" then
+        before_hooks[hook.typeDotMethod] = hook.fn
     end
 end
-assert(has_map_hook, "missing map injection hook registration")
+local ready_hook = before_hooks["MapSelectUI.ReadyToSelect"]
+local cmd_hook = before_hooks["MapManager.CmdSelectMap"]
+local user_cmd_hook = before_hooks["MapManager.UserCode_CmdSelectMap__String[]__String[]__NetworkConnectionToClient"]
+local target_update_hook = before_hooks["MapManager.TargetUpdateMap"]
+assert(ready_hook ~= nil, "missing ReadyToSelect solar layer hook")
+assert(cmd_hook ~= nil, "missing narrow CmdSelectMap repair hook")
+assert(user_cmd_hook ~= nil, "missing server CmdSelectMap repair hook")
+assert(target_update_hook ~= nil, "missing TargetUpdateMap repair hook")
 
-print("Entry load/setup simulation passed: dynamicMethods=" .. actual_count .. ", hooksBefore=" .. #ModConfig.hooksBefore)
+local after_hooks = {}
+for _, hook in ipairs(ModConfig.hooksAfter) do
+    if type(hook.fn) == "function" then
+        after_hooks[hook.typeDotMethod] = hook.fn
+    end
+end
+assert(after_hooks["NormalMapManager.GeneratrMap"] ~= nil, "missing GeneratrMap solar layer hook")
+assert(after_hooks["NormalMapManager.RandomGenerate"] ~= nil, "missing RandomGenerate solar layer hook")
+
+local function new_node(id, node_id)
+    local dict = { values = { Id = id, Type = "Event", NodeId = node_id, Level = "-1" } }
+    function dict:ContainsKey(key)
+        return self.values[key] ~= nil
+    end
+    function dict:get_Item(key)
+        return self.values[key]
+    end
+    function dict:set_Item(key, value)
+        self.values[key] = value
+    end
+    return { type = "Event", data = dict }
+end
+
+local function new_fight_node(id, node_id)
+    local node = new_node(id, node_id)
+    node.type = "Fight"
+    node.data.values.Type = "Fight"
+    return node
+end
+
+local function new_array(values)
+    local arr = { values = values, Length = #values, Count = #values }
+    function arr:get_Item(index)
+        return self.values[index + 1]
+    end
+    function arr:set_Item(index, value)
+        self.values[index + 1] = value
+    end
+    function arr:SetValue(value, index)
+        self.values[index + 1] = value
+    end
+    function arr:Add(value)
+        table.insert(self.values, value)
+        self.Length = #self.values
+        self.Count = #self.values
+    end
+    return arr
+end
+
+local fake_vars = { values = {} }
+function fake_vars:set_Item(key, value)
+    self.values[key] = value
+end
+assert(ModConfig.dynamicMethods.SunExp_SetEventChoices({ Vars = fake_vars }, "1", "1") == true, "event choice helper returned false")
+assert(fake_vars.values.Choice1 == "1", "event choice helper did not enable Choice1")
+assert(fake_vars.values.Choice2 == "1", "event choice helper did not enable Choice2")
+local begin_vars = { values = {} }
+function begin_vars:set_Item(key, value)
+    self.values[key] = value
+end
+assert(ModConfig.dynamicMethods.SunExp_BeginWunaEvent({ Vars = begin_vars }, 1) == true, "begin event helper did not enable first WuNa event")
+assert(begin_vars.values.Choice1 == "1", "begin event helper did not enable first event Choice1")
+assert(begin_vars.values.Choice2 == "1", "begin event helper did not enable first event Choice2")
+
+CS = { MapManager = { Instance = { Level = 6 } } }
+SunExp_TestExDeleteDes = 0
+
+local select_nodes = new_array({
+    new_fight_node("fight_a", "level_1"),
+    new_node("event_a", "event_100"),
+    new_fight_node("fight_b", "level_2"),
+    new_node("event_b", "event_101"),
+    new_fight_node("fight_c", "level_3"),
+    new_node("event_c", "event_102"),
+    new_fight_node("fight_d", "level_4"),
+    new_node("break", "Breaks"),
+    new_fight_node("fight_e", "level_5"),
+    new_node("event_d", "event_103"),
+    new_fight_node("fight_f", "level_6"),
+    new_node("event_e", "event_104"),
+    new_fight_node("fight_g", "level_7"),
+    new_node("event_f", "event_105"),
+    new_fight_node("fight_h", "level_8"),
+    new_node("break", "Breaks")
+})
+
+local fake_tree = {
+    SelectNode = select_nodes,
+    GetNodeByNodeId = function(self, id)
+        assert(id == "SunExp_sunexp_solar_event", "solar hook requested an unexpected placeholder node")
+        return new_node("solar_event", "")
+    end
+}
+
+local fake_ui = {
+    mapTree = fake_tree,
+    MapTree = fake_tree
+}
+
+local before_count = select_nodes.Count
+local changed = ready_hook({ Target = fake_ui })
+assert(changed == true, "ReadyToSelect hook did not ensure a solar node in the current layer")
+assert(select_nodes.Count == before_count, "solar layer hook must replace, not append")
+local start_index, segment_size = ModConfig.dynamicMethods.SunExp_GetSolarLayerRange()
+assert(start_index == 8 and segment_size == 8, "unexpected layer range for level 6")
+local solar_count = 0
+local solar_node = nil
+for i = start_index, start_index + segment_size - 1 do
+    local node = select_nodes:get_Item(i)
+    if ModConfig.dynamicMethods.SunExp_IsSolarEventNode(node) then
+        solar_count = solar_count + 1
+        solar_node = node
+    end
+end
+assert(solar_count == 1, "current layer must contain exactly one solar node")
+assert(solar_node.data.values.Id == "SunExp_sunexp_solar_event", "solar node did not normalize map id")
+assert(solar_node.data.values.Type == "Event", "solar node type must stay Event")
+assert(solar_node.data.values.NodeId == "SunExp_sunexp_Sub_wuna_event_01", "solar node must point at the current WuNa event, not a random event")
+changed = ready_hook({ Target = fake_ui })
+assert(select_nodes.Count == before_count, "second ensure call must not append")
+solar_count = 0
+for i = start_index, start_index + segment_size - 1 do
+    if ModConfig.dynamicMethods.SunExp_IsSolarEventNode(select_nodes:get_Item(i)) then
+        solar_count = solar_count + 1
+    end
+end
+assert(solar_count == 1, "second ensure call duplicated the solar node")
+
+local maps = new_array({ "event_a", "SunExp_sunexp_solar_event", "event_b" })
+local mapdata = new_array({ "event_100", "event_random", "event_2001" })
+changed = cmd_hook({ Arguments = new_array({ maps, mapdata, nil }) })
+assert(changed == true, "CmdSelectMap hook did not repair solar mapdata")
+assert(mapdata.values[1] == "event_100", "CmdSelectMap hook changed a non-solar event")
+assert(mapdata.values[2] == "SunExp_sunexp_Sub_wuna_event_01", "CmdSelectMap hook did not set the current WuNa event")
+assert(mapdata.values[3] == "event_2001", "CmdSelectMap hook changed a fixed story event")
+
+local shifted_maps = new_array({ "solar_event" })
+local shifted_mapdata = new_array({ "event_random" })
+changed = target_update_hook({ Arguments = new_array({ nil, shifted_maps, shifted_mapdata }) })
+assert(changed == true, "TargetUpdateMap hook did not repair shifted solar mapdata")
+assert(shifted_maps.values[1] == "SunExp_sunexp_solar_event", "solar map id was not normalized")
+assert(shifted_mapdata.values[1] == "SunExp_sunexp_Sub_wuna_event_01", "shifted solar mapdata was not repaired")
+
+local progress_vars = { SunExp_WunaEventProgressV2 = "6" }
+CS.ScriptExecutor = {
+    PlayerInfo = {
+        GetGameVar = function(key)
+            return progress_vars[key]
+        end
+    }
+}
+local repeat_node = new_node("SunExp_sunexp_solar_event", "event_random")
+assert(ModConfig.dynamicMethods.SunExp_TrySetSolarEventNode(repeat_node) == true, "solar node repeat repair returned false")
+assert(repeat_node.data.values.NodeId == "SunExp_sunexp_Sub_wuna_event_repeat", "solar node should become repeat only after progress reaches 6")
+
+print("Entry load/setup simulation passed: dynamicMethods=" .. actual_count .. ", hooksBefore=" .. #ModConfig.hooksBefore .. ", hooksAfter=" .. #ModConfig.hooksAfter)
 "@
 
     $runnerPath = Join-Path $tmpRoot "entry-load-test.lua"

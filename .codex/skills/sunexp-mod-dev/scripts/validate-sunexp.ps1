@@ -100,6 +100,7 @@ function Test-ScriptResidue {
         @{ Pattern = "\bMath\."; Hint = "Use math.* in Lua." },
         @{ Pattern = "\b[A-Za-z_][A-Za-z0-9_]*\s*\+\+"; Hint = "C# increment must be converted to Lua assignment." },
         @{ Pattern = "Vars\s*\["; Hint = "Use self.Vars:get_Item/set_Item for dictionaries." },
+        @{ Pattern = "(^|[^.A-Za-z0-9_])Vars\s*:"; Hint = "Use self.Vars or a helper that receives self; bare Vars may not exist in Lua CSV scripts." },
         @{ Pattern = "(^|[^:.])\b(AddBuff|RemoveBuff|Damage|ChangeDefence|DrawCount|ChangePower|SetStatus|AddDescription)\s*\("; Hint = "ScriptExecutor methods usually need self:Method(...)." }
     )
 
@@ -239,6 +240,62 @@ function Test-EventListTexts {
     }
 }
 
+function Test-SunExpWunaEventIds {
+    param([object[]]$EventRows)
+    $ids = @{}
+    foreach ($event in $EventRows) {
+        $id = Normalize-Id $event.Id
+        if (-not [string]::IsNullOrWhiteSpace($id)) {
+            $ids[$id] = $true
+        }
+    }
+    for ($i = 1; $i -le 6; $i++) {
+        $topLevel = "wuna_event_{0:D2}" -f $i
+        $subEvent = "Sub_wuna_event_{0:D2}" -f $i
+        if ($ids.ContainsKey($topLevel)) {
+            Add-Failure "EventList '$topLevel' must not be a top-level event; use '$subEvent' so the ordinary event pool cannot draw it."
+        }
+        if (-not $ids.ContainsKey($subEvent)) {
+            Add-Failure "EventList '$subEvent' is missing from the ordered WuNa solar event chain."
+        }
+    }
+}
+
+function New-Text {
+    param([int[]]$CodePoints)
+    return -join ($CodePoints | ForEach-Object { [char]$_ })
+}
+
+function Test-MapTextNotes {
+    param([object[]]$MapTexts)
+    $noteNormalEvent = New-Text @(0x666E, 0x901A, 0x4E8B, 0x4EF6)
+    $noteNormal = New-Text @(0x666E, 0x901A)
+    $noteElite = New-Text @(0x7CBE, 0x82F1)
+    $noteBoss = New-Text @(0x9996, 0x9886)
+    $noteBuild = New-Text @(0x5EFA, 0x7B51)
+    $noteSolarEvent = New-Text @(0x65E5, 0x8000, 0x4E8B, 0x4EF6)
+    $allowedNotes = @{
+        $noteNormalEvent = $true
+        $noteNormal = $true
+        $noteElite = $true
+        $noteBoss = $true
+        $noteBuild = $true
+        $noteSolarEvent = $true
+    }
+    foreach ($text in $MapTexts) {
+        if (-not ($text.PSObject.Properties.Name -contains "Note")) {
+            continue
+        }
+        $note = $text.Note
+        if ([string]::IsNullOrWhiteSpace($note)) {
+            continue
+        }
+        if (-not $allowedNotes.ContainsKey($note)) {
+            Add-Failure "Map text row '$($text.Id)' uses unsupported Note '$note'. Use one of: $($allowedNotes.Keys -join ', ')."
+        }
+    }
+}
+
 $repoRoot = Get-RepoRoot
 if (-not $ModRoot) {
     $ModRoot = Join-Path $repoRoot "SunExp"
@@ -297,6 +354,10 @@ foreach ($kind in $optionalKinds) {
         Test-ResourcePaths $kind $dataRows $repoRoot
         if ($kind -eq "EventList") {
             Test-EventListTexts $dataRows $textRows
+            Test-SunExpWunaEventIds $dataRows
+        }
+        if ($kind -eq "Map") {
+            Test-MapTextNotes $textRows
         }
     }
 }
