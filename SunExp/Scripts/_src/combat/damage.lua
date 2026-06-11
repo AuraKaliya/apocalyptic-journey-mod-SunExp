@@ -21,6 +21,7 @@ function SunExp_DealDamage(self, amount)
     if damage <= 0 then
         return false
     end
+    damage = SunExp_ApplyWunaEmberDamageBonus(self, damage)
     self:Damage(tostring(damage))
     return true
 end
