@@ -1,0 +1,14 @@
+# Modules are concatenated in this order by tools/Build-SunExpEntry.ps1.
+# Keep this order compatible with game load-time registration in Entry.lua.
+core/vars.lua
+core/player.lua
+events/wuna_solar_event.lua
+combat/damage.lua
+combat/targeting.lua
+core/collections.lua
+combat/negative_buffs.lua
+mechanics/radiance_crown_burn.lua
+mechanics/hooks.lua
+cards/flamewheel.lua
+registry.lua
+setup.lua
