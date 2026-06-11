@@ -13,3 +13,17 @@
 - **Expected:** Pillow `save(..., optimize=True)` would finish within the default shell timeout.
 - **Observed:** Optimized PNG save exceeded the 10s command timeout.
 - **Fix:** Use a longer timeout or normal PNG compression such as `compress_level=6` for large generated preview atlases.
+
+## 2026-06-11 - Lua varargs inside nested pcall
+
+- **Context:** Adding SunExp map-injection helper `SunExp_TryInjectSolarEventMapCard(...)`.
+- **Expected:** `local args = {...}` inside an anonymous `pcall(function() ... end)` body would pass Lua syntax validation.
+- **Observed:** Lua rejected `...` inside the nested anonymous function: `cannot use '...' outside a vararg function`.
+- **Fix:** Capture `local args = {...}` in the vararg function body before entering nested callbacks.
+
+## 2026-06-11 - EventList localized text CSV comma drift
+
+- **Context:** Adding `SunExp/Text/EventList/sunexp.csv` with English placeholder prose.
+- **Expected:** The text table would import with `1Describe` and `2Describe` aligned to their option columns.
+- **Observed:** English commas inside unquoted fields shifted later columns while the main validation still passed.
+- **Fix:** After editing multi-language CSV by hand, import it with `Import-Csv` and inspect key columns; quote comma-bearing fields or use comma-free placeholder text.

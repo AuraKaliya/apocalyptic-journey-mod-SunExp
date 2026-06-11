@@ -20,6 +20,7 @@ Use this skill only inside this repository. Treat the current `SunExp/` folder a
    - Lua runtime and C# translation rules: `references/lua-runtime-api.md`
    - SunExp mechanic model and helper usage: `references/sunexp-domain-model.md`
    - Role, dialogue, and event expansion: `references/expansion-role-dialogue-event.md`
+   - SunExp solar map-event expansion: `references/solar-event-expansion.md`
    - Validation expectations: `references/validation-rules.md`
 3. Prefer existing `SunExp_` helpers over new inline logic. Add a new helper in `Entry.lua` only when multiple cards/relics need the same runtime behavior or nil-safe wrapper.
 4. Keep Data and Text rows synchronized. Any new card, buff, relic, card pack, role, dialogue, or event needs both config and localized text when the template has both sides.

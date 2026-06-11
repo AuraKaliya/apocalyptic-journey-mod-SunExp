@@ -15,6 +15,8 @@ This checks:
 - Lua syntax for CSV script snippets and `Scripts/*.lua`.
 - C# syntax residue in script columns.
 - Data/Text ID pairing for Card, Buff, Relic, CardPack, RoleData, Dialogue, and EventList when present.
+- Data/Text ID pairing for Map when present.
+- EventList text shape for `TotalDescribe` and scripted option descriptions.
 - `PackBelong` references for cards and relics.
 - Mod resource paths that point to missing files.
 - Basic `{0}` style placeholder consistency for card descriptions.

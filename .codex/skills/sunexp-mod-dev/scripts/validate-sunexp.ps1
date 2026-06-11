@@ -201,6 +201,44 @@ function Test-CardDescriptions {
     }
 }
 
+function Test-EventListTexts {
+    param(
+        [object[]]$EventRows,
+        [object[]]$EventTexts
+    )
+    $textById = @{}
+    foreach ($text in $EventTexts) {
+        $textById[(Normalize-Id $text.Id)] = $text
+    }
+    foreach ($event in $EventRows) {
+        $id = Normalize-Id $event.Id
+        if (-not $textById.ContainsKey($id)) {
+            continue
+        }
+        $text = $textById[$id]
+        if ([string]::IsNullOrWhiteSpace($text.TotalDescribe) -or -not $text.TotalDescribe.TrimStart().StartsWith("<main>")) {
+            Add-Failure "EventList '$($event.Id)' text TotalDescribe is missing or not aligned to the TotalDescribe column."
+        }
+        for ($i = 1; $i -le 4; $i++) {
+            $scriptColumn = "${i}Script"
+            $describeColumn = "${i}Describe"
+            if (-not ($event.PSObject.Properties.Name -contains $scriptColumn) -or -not ($text.PSObject.Properties.Name -contains $describeColumn)) {
+                continue
+            }
+            $hasScript = -not [string]::IsNullOrWhiteSpace($event.$scriptColumn)
+            $description = $text.$describeColumn
+            if ($hasScript) {
+                if ([string]::IsNullOrWhiteSpace($description) -or -not $description.TrimStart().StartsWith("<main>")) {
+                    Add-Failure "EventList '$($event.Id)' option $i has script but missing/misaligned '$describeColumn'."
+                }
+            }
+            elseif (-not [string]::IsNullOrWhiteSpace($description)) {
+                Add-Warning "EventList '$($event.Id)' option $i has '$describeColumn' text but no '$scriptColumn'."
+            }
+        }
+    }
+}
+
 $repoRoot = Get-RepoRoot
 if (-not $ModRoot) {
     $ModRoot = Join-Path $repoRoot "SunExp"
@@ -247,7 +285,7 @@ Test-ScriptResidue "Data/Buff/sunexp.csv" $buffs
 Test-ScriptResidue "Data/Relic/sunexp.csv" $relics
 Test-CardDescriptions $cards $cardTexts
 
-$optionalKinds = @("RoleData", "Dialogue", "EventList", "Career")
+$optionalKinds = @("RoleData", "Dialogue", "EventList", "Career", "Map")
 foreach ($kind in $optionalKinds) {
     $dataFile = Join-Path $modRootPath "Data\$kind\sunexp.csv"
     $textFile = Join-Path $modRootPath "Text\$kind\sunexp.csv"
@@ -257,6 +295,9 @@ foreach ($kind in $optionalKinds) {
         Test-TextPair $kind $dataRows $textRows
         Test-ScriptResidue "Data/$kind/sunexp.csv" $dataRows
         Test-ResourcePaths $kind $dataRows $repoRoot
+        if ($kind -eq "EventList") {
+            Test-EventListTexts $dataRows $textRows
+        }
     }
 }
 

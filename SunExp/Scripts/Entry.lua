@@ -12,6 +12,246 @@ function SunExp_SetVar(self, key, value)
     self.Vars:set_Item(key, tostring(value))
 end
 
+function SunExp_PlayerInfo()
+    if CS == nil or CS.ScriptExecutor == nil then
+        return nil
+    end
+    return CS.ScriptExecutor.PlayerInfo
+end
+
+function SunExp_PlayerGetVar(key, defaultValue)
+    local player = SunExp_PlayerInfo()
+    if player == nil then
+        return defaultValue
+    end
+    local ok, value = pcall(function()
+        return player.GetGameVar(key)
+    end)
+    if ok and value ~= nil and tostring(value) ~= "" then
+        return tostring(value)
+    end
+    return defaultValue
+end
+
+function SunExp_PlayerSetVar(key, value)
+    local player = SunExp_PlayerInfo()
+    if player == nil then
+        return false
+    end
+    local ok = pcall(function()
+        player.SetGameVar(key, tostring(value))
+    end)
+    return ok
+end
+
+function SunExp_GainGold(amount)
+    local player = SunExp_PlayerInfo()
+    if player == nil then
+        return false
+    end
+    local value = math.floor(tonumber(amount) or 0)
+    if value == 0 then
+        return true
+    end
+    local ok = pcall(function()
+        player.Money = (tonumber(player.Money) or 0) + value
+    end)
+    return ok
+end
+
+function SunExp_AddCardReward(cardId)
+    local player = SunExp_PlayerInfo()
+    if player == nil or cardId == nil then
+        return false
+    end
+    local ok = pcall(function()
+        player.AddCard(cardId)
+    end)
+    return ok
+end
+
+function SunExp_AddRelicReward(relicId)
+    local player = SunExp_PlayerInfo()
+    if player == nil or relicId == nil then
+        return false
+    end
+    local ok = pcall(function()
+        player.AddRelic(relicId)
+    end)
+    return ok
+end
+
+function SunExp_AddBlessReward(blessId)
+    local player = SunExp_PlayerInfo()
+    if player == nil or blessId == nil then
+        return false
+    end
+    local ok = pcall(function()
+        player.AddBless(blessId)
+    end)
+    return ok
+end
+
+function SunExp_EndEvent()
+    local player = SunExp_PlayerInfo()
+    if player == nil then
+        return false
+    end
+    local ok = pcall(function()
+        player.EndEvent()
+    end)
+    return ok
+end
+
+function SunExp_ShowCaption(text)
+    local player = SunExp_PlayerInfo()
+    if player == nil or text == nil then
+        return false
+    end
+    local ok = pcall(function()
+        player.ShowCaption(text)
+    end)
+    return ok
+end
+
+function SunExp_WunaProgressKey()
+    return "SunExp_WunaEventProgress"
+end
+
+function SunExp_GetWunaProgress()
+    return tonumber(SunExp_PlayerGetVar(SunExp_WunaProgressKey(), "0")) or 0
+end
+
+function SunExp_SetWunaProgress(progress)
+    return SunExp_PlayerSetVar(SunExp_WunaProgressKey(), tostring(progress))
+end
+
+function SunExp_AdvanceWunaEvent(progress)
+    local current = SunExp_GetWunaProgress()
+    local nextProgress = math.max(current, tonumber(progress) or current)
+    SunExp_SetWunaProgress(nextProgress)
+end
+
+function SunExp_WunaFinish(progress)
+    SunExp_AdvanceWunaEvent(progress)
+    SunExp_EndEvent()
+end
+
+function SunExp_WunaRewardCard(progress, cardId)
+    SunExp_GainGold(100)
+    SunExp_AddCardReward(cardId)
+    SunExp_ShowCaption("余烬中，一张日耀卡牌被保存下来。")
+    SunExp_WunaFinish(progress)
+end
+
+function SunExp_WunaRewardRelic(progress, relicId)
+    SunExp_GainGold(100)
+    SunExp_AddRelicReward(relicId)
+    SunExp_ShowCaption("余烬中，一件日耀遗物被保存下来。")
+    SunExp_WunaFinish(progress)
+end
+
+function SunExp_WunaRewardBless(progress, blessId)
+    SunExp_GainGold(100)
+    SunExp_AddBlessReward(blessId)
+    SunExp_ShowCaption("余烬中，一道旧日祝福回应了你。")
+    SunExp_WunaFinish(progress)
+end
+
+function SunExp_WunaRewardNone(progress)
+    SunExp_GainGold(100)
+    SunExp_ShowCaption("余烬中，乌娜的名字被重新点亮。")
+    SunExp_WunaFinish(progress)
+end
+
+function SunExp_TrySetNodeData(node, key, value)
+    if node == nil or key == nil then
+        return false
+    end
+    local ok = pcall(function()
+        if node.data ~= nil and node.data.set_Item ~= nil then
+            node.data:set_Item(key, tostring(value))
+        elseif node.data ~= nil and node.data.Set ~= nil then
+            node.data:Set(key, tostring(value))
+        end
+    end)
+    return ok
+end
+
+function SunExp_CreateSolarEventNode()
+    local node = nil
+    pcall(function()
+        node = CS.MapTree.Node.New("Event")
+    end)
+    if node == nil then
+        return nil
+    end
+    local nextEvent = math.min(6, math.max(1, SunExp_GetWunaProgress() + 1))
+    local eventId = string.format("SunExp_sunexp_wuna_event_%02d", nextEvent)
+    pcall(function()
+        node.type = "Event"
+    end)
+    SunExp_TrySetNodeData(node, "Id", "SunExp_sunexp_solar_event")
+    SunExp_TrySetNodeData(node, "Type", "Event")
+    SunExp_TrySetNodeData(node, "NodeId", eventId)
+    SunExp_TrySetNodeData(node, "Level", "-1")
+    return node
+end
+
+function SunExp_TryAppendSolarEventNode(nodes)
+    if nodes == nil then
+        return false
+    end
+    local count = SunExp_GetCollectionCount(nodes)
+    for i = 0, count - 1 do
+        local item = SunExp_GetCollectionItem(nodes, i)
+        if item ~= nil and item.data ~= nil then
+            local ok, id = pcall(function()
+                if item.data.ContainsKey ~= nil and item.data:ContainsKey("Id") then
+                    return item.data:get_Item("Id")
+                end
+                return nil
+            end)
+            if ok and id == "SunExp_sunexp_solar_event" then
+                return true
+            end
+        end
+    end
+    local node = SunExp_CreateSolarEventNode()
+    if node == nil then
+        return false
+    end
+    local ok = pcall(function()
+        nodes:Add(node)
+    end)
+    return ok
+end
+
+function SunExp_TryInjectSolarEventMapCard(...)
+    local args = {...}
+    pcall(function()
+        if SunExp_GetWunaProgress() >= 6 then
+            return
+        end
+        for i = 1, #args do
+            local candidate = args[i]
+            if candidate ~= nil then
+                if SunExp_TryAppendSolarEventNode(candidate) then
+                    return
+                end
+                if candidate.GetNodes ~= nil then
+                    local ok, nodes = pcall(function()
+                        return candidate:GetNodes()
+                    end)
+                    if ok and SunExp_TryAppendSolarEventNode(nodes) then
+                        return
+                    end
+                end
+            end
+        end
+    end)
+end
+
 function SunExp_GetBuffLevel(self, buffId)
     if self == nil or self.Self == nil then
         return 0
@@ -757,6 +997,28 @@ function SunExp_RegisterDynamicMethod(config, name, fn)
 end
 
 function SunExp_RegisterDynamicMethods(config)
+    SunExp_RegisterDynamicMethod(config, "SunExp_PlayerInfo", SunExp_PlayerInfo)
+    SunExp_RegisterDynamicMethod(config, "SunExp_PlayerGetVar", SunExp_PlayerGetVar)
+    SunExp_RegisterDynamicMethod(config, "SunExp_PlayerSetVar", SunExp_PlayerSetVar)
+    SunExp_RegisterDynamicMethod(config, "SunExp_GainGold", SunExp_GainGold)
+    SunExp_RegisterDynamicMethod(config, "SunExp_AddCardReward", SunExp_AddCardReward)
+    SunExp_RegisterDynamicMethod(config, "SunExp_AddRelicReward", SunExp_AddRelicReward)
+    SunExp_RegisterDynamicMethod(config, "SunExp_AddBlessReward", SunExp_AddBlessReward)
+    SunExp_RegisterDynamicMethod(config, "SunExp_EndEvent", SunExp_EndEvent)
+    SunExp_RegisterDynamicMethod(config, "SunExp_ShowCaption", SunExp_ShowCaption)
+    SunExp_RegisterDynamicMethod(config, "SunExp_WunaProgressKey", SunExp_WunaProgressKey)
+    SunExp_RegisterDynamicMethod(config, "SunExp_GetWunaProgress", SunExp_GetWunaProgress)
+    SunExp_RegisterDynamicMethod(config, "SunExp_SetWunaProgress", SunExp_SetWunaProgress)
+    SunExp_RegisterDynamicMethod(config, "SunExp_AdvanceWunaEvent", SunExp_AdvanceWunaEvent)
+    SunExp_RegisterDynamicMethod(config, "SunExp_WunaFinish", SunExp_WunaFinish)
+    SunExp_RegisterDynamicMethod(config, "SunExp_WunaRewardCard", SunExp_WunaRewardCard)
+    SunExp_RegisterDynamicMethod(config, "SunExp_WunaRewardRelic", SunExp_WunaRewardRelic)
+    SunExp_RegisterDynamicMethod(config, "SunExp_WunaRewardBless", SunExp_WunaRewardBless)
+    SunExp_RegisterDynamicMethod(config, "SunExp_WunaRewardNone", SunExp_WunaRewardNone)
+    SunExp_RegisterDynamicMethod(config, "SunExp_TrySetNodeData", SunExp_TrySetNodeData)
+    SunExp_RegisterDynamicMethod(config, "SunExp_CreateSolarEventNode", SunExp_CreateSolarEventNode)
+    SunExp_RegisterDynamicMethod(config, "SunExp_TryAppendSolarEventNode", SunExp_TryAppendSolarEventNode)
+    SunExp_RegisterDynamicMethod(config, "SunExp_TryInjectSolarEventMapCard", SunExp_TryInjectSolarEventMapCard)
     SunExp_RegisterDynamicMethod(config, "SunExp_GetVar", SunExp_GetVar)
     SunExp_RegisterDynamicMethod(config, "SunExp_SetVar", SunExp_SetVar)
     SunExp_RegisterDynamicMethod(config, "SunExp_GetBuffLevel", SunExp_GetBuffLevel)
@@ -817,4 +1079,5 @@ end
 
 function ModConfig:Setup()
     SunExp_RegisterDynamicMethods(self)
+    self:AddMethodHookBefore("Witch.UI.Window.MapSelectUI.CreateMapItem", SunExp_TryInjectSolarEventMapCard)
 end
