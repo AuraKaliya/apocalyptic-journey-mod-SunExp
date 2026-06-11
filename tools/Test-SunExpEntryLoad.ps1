@@ -98,6 +98,18 @@ try {
     }
 
     $entryText = Read-AllText -Path $entryPathResolved
+    $forbiddenCaptions = @(
+        "SunExp card recovered.",
+        "SunExp relic recovered.",
+        "SunExp blessing recovered.",
+        "SunExp note closed."
+    )
+    foreach ($caption in $forbiddenCaptions) {
+        if ($entryText.Contains($caption)) {
+            throw "Entry.lua contains forbidden hard-coded solar event caption: $caption"
+        }
+    }
+
     $definedMethods = @(
         [regex]::Matches($entryText, "(?m)^function\s+(SunExp_[A-Za-z0-9_]+)\s*\(") |
             ForEach-Object { $_.Groups[1].Value } |

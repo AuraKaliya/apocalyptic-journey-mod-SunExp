@@ -128,33 +128,28 @@ end
 function SunExp_WunaRewardCard(progress, cardId)
     SunExp_GainGold(100)
     SunExp_AddCardReward(cardId)
-    SunExp_ShowCaption("SunExp card recovered.")
     SunExp_WunaFinish(progress)
 end
 
 function SunExp_WunaRewardRelic(progress, relicId)
     SunExp_GainGold(100)
     SunExp_AddRelicReward(relicId)
-    SunExp_ShowCaption("SunExp relic recovered.")
     SunExp_WunaFinish(progress)
 end
 
 function SunExp_WunaRewardBless(progress, blessId)
     SunExp_GainGold(100)
     SunExp_AddBlessReward(blessId)
-    SunExp_ShowCaption("SunExp blessing recovered.")
     SunExp_WunaFinish(progress)
 end
 
 function SunExp_WunaRewardNone(progress)
     SunExp_GainGold(100)
-    SunExp_ShowCaption("SunExp note closed.")
     SunExp_WunaFinish(progress)
 end
 
 function SunExp_WunaRepeatReward()
     SunExp_AddBlessReward("blessing_8")
-    SunExp_ShowCaption("SunExp note closed.")
     SunExp_EndEvent()
 end
 
