@@ -821,6 +821,20 @@ function SunExp_GetRadianceLevel(self)
     return SunExp_GetBuffLevel(self, "SunExp_sunexp_solar_radiance")
 end
 
+function SunExp_GetSolarMultiplier(self)
+    if self ~= nil and self.Self ~= nil and self.Self:GetBuff("SunExp_sunexp_solar_crown") ~= nil then
+        return 2
+    end
+    return 1
+end
+
+function SunExp_CalcSolarCoefficient(self, target)
+    local radiance = SunExp_GetRadianceLevel(self)
+    local flame = SunExp_GetBuffLevel(self, "SunExp_sunexp_gathered_flame")
+    local burn = SunExp_GetStatusBuffLevel(target, "buff_burn")
+    return SunExp_GetSolarMultiplier(self) * (radiance * 2 + math.floor(flame / 3) + math.floor(burn / 2))
+end
+
 function SunExp_DealDamage(self, amount)
     if self == nil then
         return false
@@ -848,42 +862,68 @@ function SunExp_AddDamageDescription(self, index, amount)
     return damage
 end
 
+function SunExp_CalcSolarKeywordDamage(self, base, target, coefficientScale)
+    local scale = tonumber(coefficientScale) or 1
+    return math.floor((tonumber(base) or 0) + SunExp_CalcSolarCoefficient(self, target) * scale)
+end
+
+function SunExp_CalcSolarKeywordBlock(self, base)
+    return math.floor((tonumber(base) or 0) + SunExp_CalcSolarCoefficient(self, nil))
+end
+
+function SunExp_DealSolarKeywordDamage(self, base, target, fallbackStatus, coefficientScale)
+    if target ~= nil then
+        SunExp_SetStatusForBuff(self, target, fallbackStatus or "Target")
+    elseif fallbackStatus ~= nil then
+        self:SetStatus(fallbackStatus)
+    end
+    return SunExp_DealDamage(self, SunExp_CalcSolarKeywordDamage(self, base, target, coefficientScale))
+end
+
+function SunExp_DealSolarKeywordDamageAllEnemies(self, base, coefficientScale)
+    local targets = SunExp_GetEnemyTargets(self)
+    local maxDamage = 0
+    for i = 1, #targets do
+        local target = targets[i]
+        local damage = SunExp_CalcSolarKeywordDamage(self, base, target, coefficientScale)
+        if damage > maxDamage then
+            maxDamage = damage
+        end
+        SunExp_SetPrimaryTarget(self, target)
+        SunExp_DealDamage(self, damage)
+    end
+    return maxDamage
+end
+
+function SunExp_ApplySolarKeywordSkill(self, baseBlock)
+    local block = SunExp_CalcSolarKeywordBlock(self, baseBlock)
+    if block > 0 then
+        self:SetStatus("Self")
+        self:ChangeDefence(tostring(block))
+    end
+    SunExp_TriggerSolarCrown(self)
+    return block
+end
+
 function SunExp_CalcSparkDamage(self)
     return 5
 end
 
 function SunExp_CalcFlareCutDamage(self)
-    local level = SunExp_GetRadianceLevel(self)
-    local damage = 10 + level
-    if SunExp_HasCrownPhase(self, 4) then
-        damage = damage + level
-    end
-    return damage
+    return SunExp_CalcSolarKeywordDamage(self, 10, SunExp_GetPrimaryTarget(self))
 end
 
 function SunExp_CalcSolarSparkDamage(self)
     local useFlame = math.min(5, SunExp_GetBuffLevel(self, "SunExp_sunexp_gathered_flame"))
-    local radLevel = SunExp_GetRadianceLevel(self)
-    local damage = 6 + useFlame * 4
-    if SunExp_HasCrownPhase(self, 4) then
-        damage = damage + radLevel * 2
-    end
-    return damage
+    return SunExp_CalcSolarKeywordDamage(self, 8 + useFlame * 2, SunExp_GetPrimaryTarget(self))
 end
 
 function SunExp_CalcCrownPressureDamage(self)
-    if not SunExp_HasCrownPhase(self, 4) then
-        return 0
-    end
-    local radLevel = SunExp_GetRadianceLevel(self)
-    local fieldLevel = SunExp_GetBuffLevel(self, "SunExp_sunexp_scorching_canopy")
-    return radLevel * 2 + fieldLevel * 5
+    return 0
 end
 
 function SunExp_CalcCrownCoreFlashDamage(self)
-    local flameCount = SunExp_GetBuffLevel(self, "SunExp_sunexp_gathered_flame")
-    local useRad = math.floor(SunExp_GetRadianceLevel(self) / 2)
-    return 40 + flameCount * 5 + useRad * 10
+    return SunExp_CalcSolarKeywordDamage(self, 40, SunExp_GetPrimaryTarget(self), 3)
 end
 
 function SunExp_CalcFlamePierceDamage(self)
@@ -1433,6 +1473,67 @@ function SunExp_HasCrownPhase(self, threshold)
     return crown ~= nil and SunExp_GetRadianceLevel(self) >= threshold
 end
 
+function SunExp_HasSolarCrown(self)
+    return self ~= nil and self.Self ~= nil and self.Self:GetBuff("SunExp_sunexp_solar_crown") ~= nil
+end
+
+function SunExp_TriggerBurnAll(self, times)
+    if self == nil then
+        return 0
+    end
+    local count = tonumber(times) or 1
+    if count < 1 then
+        count = 1
+    end
+    local triggered = 0
+    for i = 1, count do
+        self:SetStatus("All")
+        local ok = pcall(function()
+            self:RunImmediately("buff_burn", "StartRound")
+        end)
+        if ok then
+            triggered = triggered + 1
+        end
+    end
+    return triggered
+end
+
+function SunExp_TriggerSolarCrown(self)
+    if not SunExp_HasSolarCrown(self) then
+        return false
+    end
+    local radiance = SunExp_GetRadianceLevel(self)
+    if radiance >= 1 then
+        local total = SunExp_GetNegativeBuffTotal(self.Self)
+        if total > 0 then
+            SunExp_RemoveAllNegativeBuffs(self, self.Self)
+            self:SetStatus("Self")
+            self:AddBuff("buff_burn", tostring(total))
+        end
+    end
+    if radiance >= 4 then
+        self:DrawCount("1")
+    end
+    if radiance >= 8 then
+        self:SetStatus("Self")
+        self:ChangePower("1")
+    end
+    if radiance >= 12 then
+        local burn = SunExp_GetBuffLevel(self, "buff_burn")
+        if burn > 0 then
+            self:SetStatus("Self")
+            self:RemoveBuff("buff_burn")
+            self:AddBuff("SunExp_sunexp_gathered_flame", tostring(burn))
+        end
+    end
+    if radiance >= 15 then
+        self:SetStatus("All")
+        self:AddBuff("buff_burn", "5")
+        SunExp_TriggerBurnAll(self, 1)
+    end
+    return true
+end
+
 function SunExp_IsBurnWardPending(self)
     return SunExp_GetVar(self, "SunExpBurnWardPending", "0") == "1"
 end
@@ -1452,7 +1553,7 @@ function SunExp_IsSelfBurnProtected(self, includePending)
     if includePending and SunExp_IsBurnWardPending(self) then
         return true
     end
-    return SunExp_HasCrownPhase(self, 12)
+    return false
 end
 
 function SunExp_ClearSelfBurnIfProtected(self, includePending)
@@ -2060,8 +2161,15 @@ function SunExp_RegisterDynamicMethods(config)
     SunExp_RegisterDynamicMethod(config, "SunExp_SetVar", SunExp_SetVar)
     SunExp_RegisterDynamicMethod(config, "SunExp_GetBuffLevel", SunExp_GetBuffLevel)
     SunExp_RegisterDynamicMethod(config, "SunExp_GetRadianceLevel", SunExp_GetRadianceLevel)
+    SunExp_RegisterDynamicMethod(config, "SunExp_GetSolarMultiplier", SunExp_GetSolarMultiplier)
+    SunExp_RegisterDynamicMethod(config, "SunExp_CalcSolarCoefficient", SunExp_CalcSolarCoefficient)
     SunExp_RegisterDynamicMethod(config, "SunExp_DealDamage", SunExp_DealDamage)
     SunExp_RegisterDynamicMethod(config, "SunExp_AddDamageDescription", SunExp_AddDamageDescription)
+    SunExp_RegisterDynamicMethod(config, "SunExp_CalcSolarKeywordDamage", SunExp_CalcSolarKeywordDamage)
+    SunExp_RegisterDynamicMethod(config, "SunExp_CalcSolarKeywordBlock", SunExp_CalcSolarKeywordBlock)
+    SunExp_RegisterDynamicMethod(config, "SunExp_DealSolarKeywordDamage", SunExp_DealSolarKeywordDamage)
+    SunExp_RegisterDynamicMethod(config, "SunExp_DealSolarKeywordDamageAllEnemies", SunExp_DealSolarKeywordDamageAllEnemies)
+    SunExp_RegisterDynamicMethod(config, "SunExp_ApplySolarKeywordSkill", SunExp_ApplySolarKeywordSkill)
     SunExp_RegisterDynamicMethod(config, "SunExp_CalcSparkDamage", SunExp_CalcSparkDamage)
     SunExp_RegisterDynamicMethod(config, "SunExp_CalcFlareCutDamage", SunExp_CalcFlareCutDamage)
     SunExp_RegisterDynamicMethod(config, "SunExp_CalcSolarSparkDamage", SunExp_CalcSolarSparkDamage)
@@ -2099,6 +2207,9 @@ function SunExp_RegisterDynamicMethods(config)
     SunExp_RegisterDynamicMethod(config, "SunExp_RemoveAllNegativeBuffs", SunExp_RemoveAllNegativeBuffs)
     SunExp_RegisterDynamicMethod(config, "SunExp_HasNegativeBuff", SunExp_HasNegativeBuff)
     SunExp_RegisterDynamicMethod(config, "SunExp_HasCrownPhase", SunExp_HasCrownPhase)
+    SunExp_RegisterDynamicMethod(config, "SunExp_HasSolarCrown", SunExp_HasSolarCrown)
+    SunExp_RegisterDynamicMethod(config, "SunExp_TriggerBurnAll", SunExp_TriggerBurnAll)
+    SunExp_RegisterDynamicMethod(config, "SunExp_TriggerSolarCrown", SunExp_TriggerSolarCrown)
     SunExp_RegisterDynamicMethod(config, "SunExp_IsBurnWardPending", SunExp_IsBurnWardPending)
     SunExp_RegisterDynamicMethod(config, "SunExp_SetBurnWardPending", SunExp_SetBurnWardPending)
     SunExp_RegisterDynamicMethod(config, "SunExp_IsSelfBurnProtected", SunExp_IsSelfBurnProtected)

@@ -13,6 +13,20 @@ function SunExp_GetRadianceLevel(self)
     return SunExp_GetBuffLevel(self, "SunExp_sunexp_solar_radiance")
 end
 
+function SunExp_GetSolarMultiplier(self)
+    if self ~= nil and self.Self ~= nil and self.Self:GetBuff("SunExp_sunexp_solar_crown") ~= nil then
+        return 2
+    end
+    return 1
+end
+
+function SunExp_CalcSolarCoefficient(self, target)
+    local radiance = SunExp_GetRadianceLevel(self)
+    local flame = SunExp_GetBuffLevel(self, "SunExp_sunexp_gathered_flame")
+    local burn = SunExp_GetStatusBuffLevel(target, "buff_burn")
+    return SunExp_GetSolarMultiplier(self) * (radiance * 2 + math.floor(flame / 3) + math.floor(burn / 2))
+end
+
 function SunExp_DealDamage(self, amount)
     if self == nil then
         return false
@@ -40,42 +54,68 @@ function SunExp_AddDamageDescription(self, index, amount)
     return damage
 end
 
+function SunExp_CalcSolarKeywordDamage(self, base, target, coefficientScale)
+    local scale = tonumber(coefficientScale) or 1
+    return math.floor((tonumber(base) or 0) + SunExp_CalcSolarCoefficient(self, target) * scale)
+end
+
+function SunExp_CalcSolarKeywordBlock(self, base)
+    return math.floor((tonumber(base) or 0) + SunExp_CalcSolarCoefficient(self, nil))
+end
+
+function SunExp_DealSolarKeywordDamage(self, base, target, fallbackStatus, coefficientScale)
+    if target ~= nil then
+        SunExp_SetStatusForBuff(self, target, fallbackStatus or "Target")
+    elseif fallbackStatus ~= nil then
+        self:SetStatus(fallbackStatus)
+    end
+    return SunExp_DealDamage(self, SunExp_CalcSolarKeywordDamage(self, base, target, coefficientScale))
+end
+
+function SunExp_DealSolarKeywordDamageAllEnemies(self, base, coefficientScale)
+    local targets = SunExp_GetEnemyTargets(self)
+    local maxDamage = 0
+    for i = 1, #targets do
+        local target = targets[i]
+        local damage = SunExp_CalcSolarKeywordDamage(self, base, target, coefficientScale)
+        if damage > maxDamage then
+            maxDamage = damage
+        end
+        SunExp_SetPrimaryTarget(self, target)
+        SunExp_DealDamage(self, damage)
+    end
+    return maxDamage
+end
+
+function SunExp_ApplySolarKeywordSkill(self, baseBlock)
+    local block = SunExp_CalcSolarKeywordBlock(self, baseBlock)
+    if block > 0 then
+        self:SetStatus("Self")
+        self:ChangeDefence(tostring(block))
+    end
+    SunExp_TriggerSolarCrown(self)
+    return block
+end
+
 function SunExp_CalcSparkDamage(self)
     return 5
 end
 
 function SunExp_CalcFlareCutDamage(self)
-    local level = SunExp_GetRadianceLevel(self)
-    local damage = 10 + level
-    if SunExp_HasCrownPhase(self, 4) then
-        damage = damage + level
-    end
-    return damage
+    return SunExp_CalcSolarKeywordDamage(self, 10, SunExp_GetPrimaryTarget(self))
 end
 
 function SunExp_CalcSolarSparkDamage(self)
     local useFlame = math.min(5, SunExp_GetBuffLevel(self, "SunExp_sunexp_gathered_flame"))
-    local radLevel = SunExp_GetRadianceLevel(self)
-    local damage = 6 + useFlame * 4
-    if SunExp_HasCrownPhase(self, 4) then
-        damage = damage + radLevel * 2
-    end
-    return damage
+    return SunExp_CalcSolarKeywordDamage(self, 8 + useFlame * 2, SunExp_GetPrimaryTarget(self))
 end
 
 function SunExp_CalcCrownPressureDamage(self)
-    if not SunExp_HasCrownPhase(self, 4) then
-        return 0
-    end
-    local radLevel = SunExp_GetRadianceLevel(self)
-    local fieldLevel = SunExp_GetBuffLevel(self, "SunExp_sunexp_scorching_canopy")
-    return radLevel * 2 + fieldLevel * 5
+    return 0
 end
 
 function SunExp_CalcCrownCoreFlashDamage(self)
-    local flameCount = SunExp_GetBuffLevel(self, "SunExp_sunexp_gathered_flame")
-    local useRad = math.floor(SunExp_GetRadianceLevel(self) / 2)
-    return 40 + flameCount * 5 + useRad * 10
+    return SunExp_CalcSolarKeywordDamage(self, 40, SunExp_GetPrimaryTarget(self), 3)
 end
 
 function SunExp_CalcFlamePierceDamage(self)

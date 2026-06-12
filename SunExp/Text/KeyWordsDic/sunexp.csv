@@ -1,0 +1,3 @@
+"Id","Note","Description","Keywords","Keywords_zh-Hant","Keywords_en","Description_zh-Hant","Description_en","Keywords_ja","Description_ja","ShouldShow"
+"唯一标识","备注","描述","关键词","關鍵詞","keyword","描述","description","Keywords_ja","Description_ja",""
+"SunExpSolar","","攻击牌造成的直接伤害视为日耀伤害，并额外增加日耀系数点基础伤害。技能牌打出时获得日耀系数点护盾。若拥有圣冕显化，打出此牌时触发一次圣冕显化效果。","日耀","日耀","Solar","攻擊牌造成的直接傷害視為日耀傷害，並額外增加日耀係數點基礎傷害。技能牌打出時獲得日耀係數點護盾。若擁有聖冕顯化，打出此牌時觸發一次聖冕顯化效果。","Attack cards deal Solar damage and add Solar Coefficient as base damage. Skill cards gain Block equal to Solar Coefficient when played. If you have Crown Manifestation, playing this card triggers Crown Manifestation once.","日耀","攻撃カードの直接ダメージは日耀ダメージとなり、日耀係数分の基礎ダメージを追加する。スキルカードは使用時に日耀係数分のシールドを得る。聖冕顕化があるなら、このカード使用時に聖冕顕化を1回発動する。","TRUE"
