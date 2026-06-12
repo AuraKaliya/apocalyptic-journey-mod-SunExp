@@ -10,6 +10,7 @@ combat/negative_buffs.lua
 mechanics/radiance_crown_burn.lua
 mechanics/wuna_role.lua
 mechanics/hooks.lua
+mechanics/solar_keyword_field.lua
 cards/flamewheel.lua
 registry.lua
 setup.lua

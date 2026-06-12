@@ -93,7 +93,6 @@ function SunExp_ApplySolarKeywordSkill(self, baseBlock)
         self:SetStatus("Self")
         self:ChangeDefence(tostring(block))
     end
-    SunExp_TriggerSolarCrown(self)
     return block
 end
 
@@ -102,12 +101,24 @@ function SunExp_CalcSparkDamage(self)
 end
 
 function SunExp_CalcFlareCutDamage(self)
-    return SunExp_CalcSolarKeywordDamage(self, 10, SunExp_GetPrimaryTarget(self))
+    return 10
+end
+
+function SunExp_CalcFlareCutBonusDamage(self)
+    return SunExp_CalcSolarKeywordBonusDamage(self, SunExp_GetPrimaryTarget(self))
+end
+
+function SunExp_CalcSolarSparkBaseDamage(self)
+    local useFlame = math.min(5, SunExp_GetBuffLevel(self, "SunExp_sunexp_gathered_flame"))
+    return 8 + useFlame * 2
 end
 
 function SunExp_CalcSolarSparkDamage(self)
-    local useFlame = math.min(5, SunExp_GetBuffLevel(self, "SunExp_sunexp_gathered_flame"))
-    return SunExp_CalcSolarKeywordDamage(self, 8 + useFlame * 2, SunExp_GetPrimaryTarget(self))
+    return SunExp_CalcSolarSparkBaseDamage(self)
+end
+
+function SunExp_CalcSolarSparkBonusDamage(self)
+    return SunExp_CalcSolarKeywordBonusDamage(self, SunExp_GetPrimaryTarget(self))
 end
 
 function SunExp_CalcCrownPressureDamage(self)

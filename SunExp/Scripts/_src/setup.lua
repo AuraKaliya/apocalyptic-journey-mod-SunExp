@@ -29,4 +29,5 @@ function ModConfig:Setup()
     SunExp_TryAddMethodHookBefore(self, "MapManager.CmdSelectMapIncludeSender", SunExp_TryRepairSolarEventMapSelection)
     SunExp_TryAddMethodHookBefore(self, "MapManager.TargetUpdateMap", SunExp_TryRepairSolarEventMapSelection)
     SunExp_TryAddMethodHookBefore(self, "MapManager.RpcUpdateMap", SunExp_TryRepairSolarEventMapSelection)
+    SunExp_TryAddMethodHookBefore(self, "ScriptExecutor.AddBuff", SunExp_OnScriptExecutorAddBuffBefore)
 end
