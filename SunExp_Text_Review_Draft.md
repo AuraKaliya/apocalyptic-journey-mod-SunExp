@@ -273,13 +273,13 @@
 - Name_en 修改稿：
 - Name_ja：引炎
 - Name_ja 修改稿：
-- Description：吸收目标至多6层{buff_burn}，移除等量{buff_burn}，获得等量{SunExp_sunexp_gathered_flame}。圣冕显化期间，日耀阶段会向下包括并额外获得聚炎。
+- Description：吸收目标所有{buff_burn}，移除等量{buff_burn}，获得等量{SunExp_sunexp_gathered_flame}。
 - Description 修改稿：
-- Description_zh-Hant：吸收目標至多6層{buff_burn}，移除等量{buff_burn}，獲得等量{SunExp_sunexp_gathered_flame}。聖冕顯化期間，日耀階段會向下包括並額外獲得聚炎。
+- Description_zh-Hant：吸收目標所有{buff_burn}，移除等量{buff_burn}，獲得等量{SunExp_sunexp_gathered_flame}。
 - Description_zh-Hant 修改稿：
-- Description_en：Absorb up to 6 stacks of {buff_burn} from the target, removing them and gaining that much {SunExp_sunexp_gathered_flame}. Crown phases are inclusive and grant extra flame.
+- Description_en：Absorb all {buff_burn} from the target, removing it and gaining that much {SunExp_sunexp_gathered_flame}.
 - Description_en 修改稿：
-- Description_ja：対象から最大6スタックの{buff_burn}を吸収して取り除き、同量の{SunExp_sunexp_gathered_flame}を得る。聖冠顕現中、日耀段階は下位効果を含み追加の聚炎を得る。
+- Description_ja：対象の{buff_burn}をすべて吸収して取り除き、同量の{SunExp_sunexp_gathered_flame}を得る。
 - Description_ja 修改稿：
 
 ### 6. 日耀聚焦 (`solar_prayer`)
@@ -453,13 +453,13 @@
 - Name_en 修改稿：
 - Name_ja：集光点火
 - Name_ja 修改稿：
-- Description：获得1层{SunExp_sunexp_solar_radiance}。所有敌人获得2层{buff_burn}。若你拥有{SunExp_sunexp_scorching_canopy}，抽1张牌；若{SunExp_sunexp_solar_radiance}不少于4层，随机敌人的{buff_burn}立刻生效一次。
+- Description：敌方全体获得2层{buff_burn}，并立刻生效一次。
 - Description 修改稿：
-- Description_zh-Hant：獲得1層{SunExp_sunexp_solar_radiance}。所有敵人獲得2層{buff_burn}。若你擁有{SunExp_sunexp_scorching_canopy}，抽1張牌；若{SunExp_sunexp_solar_radiance}不少於4層，隨機敵人的{buff_burn}立刻生效一次。
+- Description_zh-Hant：敵方全體獲得2層{buff_burn}，並立刻生效一次。
 - Description_zh-Hant 修改稿：
-- Description_en：Gain 1 stack of {SunExp_sunexp_solar_radiance}. All enemies gain 2 stacks of {buff_burn}. If you have {SunExp_sunexp_scorching_canopy}, draw 1 card. If you have at least 4 Radiance, trigger a random enemy's {buff_burn} once.
+- Description_en：All enemies gain 2 stacks of {buff_burn}, then it triggers once immediately.
 - Description_en 修改稿：
-- Description_ja：{SunExp_sunexp_solar_radiance}を1スタック得る。すべての敵が{buff_burn}を2スタック得る。{SunExp_sunexp_scorching_canopy}を持つなら1枚引く。日耀4以上ならランダムな敵の{buff_burn}を1回発動する。
+- Description_ja：敵全体に{buff_burn}を2スタック付与し、ただちに1回発動する。
 - Description_ja 修改稿：
 
 ### 15. 灼流回收 (`scorching_flow_reclaim`)
@@ -593,13 +593,13 @@
 - Name_en 修改稿：
 - Name_ja：回火輪転
 - Name_ja 修改稿：
-- Description：消耗至多12层{SunExp_sunexp_gathered_flame}。敌方全体获得等同于消耗层数一半的{buff_burn}。若消耗不少于8层，抽1张牌并获得1点魔能。
+- Description：消耗自身所有{SunExp_sunexp_gathered_flame}。敌方全体获得等同于消耗层数一半的{buff_burn}，并立即生效一次。
 - Description 修改稿：
-- Description_zh-Hant：消耗至多12層{SunExp_sunexp_gathered_flame}。敵方全體獲得等同於消耗層數一半的{buff_burn}。若消耗不少於8層，抽1張牌並獲得1點魔能。
+- Description_zh-Hant：消耗自身所有{SunExp_sunexp_gathered_flame}。敵方全體獲得等同於消耗層數一半的{buff_burn}，並立即生效一次。
 - Description_zh-Hant 修改稿：
-- Description_en：Consume up to 12 stacks of {SunExp_sunexp_gathered_flame}. All enemies gain {buff_burn} equal to half the consumed stacks. If at least 8 stacks are consumed, draw 1 card and gain 1 mana.
+- Description_en：Consume all your {SunExp_sunexp_gathered_flame}. All enemies gain {buff_burn} equal to half the consumed stacks, then it triggers once immediately.
 - Description_en 修改稿：
-- Description_ja：最大12スタックの{SunExp_sunexp_gathered_flame}を消費する。すべての敵は消費数の半分に等しい{buff_burn}を得る。8以上消費したなら1枚引き、魔能を1得る。
+- Description_ja：自身の{SunExp_sunexp_gathered_flame}をすべて消費する。敵全体に消費数の半分に等しい{buff_burn}を付与し、ただちに1回発動する。
 - Description_ja 修改稿：
 
 ### 22. 晨线护持 (`morning_light_bulwark`)
@@ -945,13 +945,13 @@
 - Tips_en 修改稿：
 - Tips_ja：都市を覆うのはガラスではなく、固定された正午そのものだ。
 - Tips_ja 修改稿：
-- Description：回合开始时，若你拥有{SunExp_sunexp_scorching_canopy}，获得等同于其层数×3的护盾；随后若自身拥有{buff_burn}，将1层转化为{SunExp_sunexp_gathered_flame}，否则获得1层{SunExp_sunexp_solar_radiance}。
+- Description：回合开始时，若存在{SunExp_sunexp_scorching_canopy}，获得自身负面 Buff 总层数等量的{SunExp_sunexp_gathered_flame}。
 - Description 修改稿：
-- Description_zh-Hant：回合開始時，若你擁有{SunExp_sunexp_scorching_canopy}，獲得等同於其層數×3的護盾；隨後若自身擁有{buff_burn}，將1層轉化為{SunExp_sunexp_gathered_flame}，否則獲得1層{SunExp_sunexp_solar_radiance}。
+- Description_zh-Hant：回合開始時，若存在{SunExp_sunexp_scorching_canopy}，獲得自身負面 Buff 總層數等量的{SunExp_sunexp_gathered_flame}。
 - Description_zh-Hant 修改稿：
-- Description_en：At round start, if you have {SunExp_sunexp_scorching_canopy}, gain Block equal to its stacks ×3. Then if you have {buff_burn}, convert 1 stack into {SunExp_sunexp_gathered_flame}; otherwise gain 1 stack of {SunExp_sunexp_solar_radiance}.
+- Description_en：At round start, if {SunExp_sunexp_scorching_canopy} is present, gain {SunExp_sunexp_gathered_flame} equal to your total negative buff stacks.
 - Description_en 修改稿：
-- Description_ja：ターン開始時、{SunExp_sunexp_scorching_canopy}を持つならそのスタック×3の護盾を得る。その後、自身が{buff_burn}を持つなら1スタックを{SunExp_sunexp_gathered_flame}に変換し、持たないなら{SunExp_sunexp_solar_radiance}を1スタック得る。
+- Description_ja：ターン開始時、{SunExp_sunexp_scorching_canopy}があるなら、自身のデバフの合計スタック数に等しい{SunExp_sunexp_gathered_flame}を得る。
 - Description_ja 修改稿：
 
 ### 7. 炽冠圣心 (`blazing_crown_heart`)
@@ -1113,13 +1113,13 @@
 - Tips_en 修改稿：
 - Tips_ja：空を少し低く押し下げ、炎も呼吸も鈍らせる。
 - Tips_ja 修改稿：
-- Description：回合开始时，若敌方全体拥有{buff_burn}，敌方全体获得1层{buff_weak}。
+- Description：回合开始时，至多4名带有{buff_burn}的敌人获得1层{buff_weak}和1层{buff_rotten}。
 - Description 修改稿：
-- Description_zh-Hant：回合開始時，若敵方全體擁有{buff_burn}，敵方全體獲得1層{buff_weak}。
+- Description_zh-Hant：回合開始時，至多4名帶有{buff_burn}的敵人獲得1層{buff_weak}和1層{buff_rotten}。
 - Description_zh-Hant 修改稿：
-- Description_en：At round start, if all enemies have {buff_burn}, all enemies gain 1 stack of {buff_weak}.
+- Description_en：At round start, up to 4 enemies with {buff_burn} gain 1 stack of {buff_weak} and 1 stack of {buff_rotten}.
 - Description_en 修改稿：
-- Description_ja：ターン開始時、敵全体が{buff_burn}を持つなら、敵全体に{buff_weak}を1スタック付与する。
+- Description_ja：ターン開始時、{buff_burn}を持つ敵最大4体に{buff_weak}を1スタック、{buff_rotten}を1スタック付与する。
 - Description_ja 修改稿：
 
 ### 13. 燃灾风带 (`burning_calamity_wind_belt`)
@@ -1141,12 +1141,12 @@
 - Tips_en 修改稿：
 - Tips_ja：輪状の熱風は火花を一つの影から別の影へ運ぶ。
 - Tips_ja 修改稿：
-- Description：回合开始时，至多4名带有{buff_burn}的敌人各使随机另一名敌人获得1层{buff_burn}。
+- Description：回合开始时，至多4名带有{buff_burn}的敌人各使随机另一名敌人获得3层{buff_burn}。
 - Description 修改稿：
-- Description_zh-Hant：回合開始時，至多4名帶有{buff_burn}的敵人各使隨機另一名敵人獲得1層{buff_burn}。
+- Description_zh-Hant：回合開始時，至多4名帶有{buff_burn}的敵人各使隨機另一名敵人獲得3層{buff_burn}。
 - Description_zh-Hant 修改稿：
-- Description_en：At round start, up to 4 enemies with {buff_burn} each cause a random other enemy to gain 1 stack of {buff_burn}.
+- Description_en：At round start, up to 4 enemies with {buff_burn} each cause a random other enemy to gain 3 stacks of {buff_burn}.
 - Description_en 修改稿：
-- Description_ja：ターン開始時、{buff_burn}を持つ敵最大4体が、それぞれランダムな別の敵に{buff_burn}を1スタック付与する。
+- Description_ja：ターン開始時、{buff_burn}を持つ敵最大4体が、それぞれランダムな別の敵に{buff_burn}を3スタック付与する。
 - Description_ja 修改稿：
 

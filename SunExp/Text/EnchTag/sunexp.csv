@@ -1,3 +1,3 @@
 "Id","Note","Name","Description","Name_zh-Hant","Name_en","Description_zh-Hant","Description_en","Name_ja","Description_ja"
 "唯一标识","备注","名称","效果描述","名稱","Name","效果描述","Effect Description","名称","効果説明"
-"solar_keyword","","日耀","附着卡获得日耀词条。打出时按日耀规则结算。","日耀","Solar","附著卡獲得日耀詞條。打出時按日耀規則結算。","Attached card gains the Solar tag and resolves the Solar rule when played.","日耀","付与されたカードは日耀タグを得る。使用時に日耀ルールを解決する。"
+"solar_keyword","","白曜","附着卡获得“白曜”。","白曜","White Radiance","附著卡獲得「白曜」。","Attached card gains White Radiance.","白曜","付与されたカードは白曜を得る。"

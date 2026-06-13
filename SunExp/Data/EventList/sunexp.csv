@@ -1,9 +1,9 @@
 Id,1Script,2Script,3Script,4Script,InitScript,IsHighRisk,EntryScript
 唯一标识,选项1脚本,选项2脚本,选项3脚本;,选项4脚本,更新显示信息用的,是否是高危事件,退出脚本，为后置事件准备的
-Sub_wuna_event_01,"SunExp_WunaRewardRelic(1, ""SunExp_sunexp_morning_shard"")","SunExp_WunaRewardBless(1, ""blessing_8"")",,,"SunExp_BeginWunaEvent(self, 1)",FALSE,
-Sub_wuna_event_02,"SunExp_WunaRewardRelic(2, ""SunExp_sunexp_sun_orbit_mirror"")","SunExp_WunaRewardBless(2, ""blessing_8"")",,,"SunExp_BeginWunaEvent(self, 2)",FALSE,
-Sub_wuna_event_03,"SunExp_WunaRewardRelic(3, ""SunExp_sunexp_solar_prism"")","SunExp_WunaRewardBless(3, ""blessing_20"")",,,"SunExp_BeginWunaEvent(self, 3)",FALSE,
-Sub_wuna_event_04,"SunExp_WunaRewardRelic(4, ""SunExp_sunexp_gathered_flame_charm"")","SunExp_WunaRewardRelic(4, ""SunExp_sunexp_ember_cloak_lining"")",,,"SunExp_BeginWunaEvent(self, 4)",FALSE,
-Sub_wuna_event_05,"SunExp_WunaRewardCard(5, ""SunExp_sunexp_blazing_crown_collapse"")","SunExp_WunaRewardRelic(5, ""SunExp_sunexp_coronation_throne"")",,,"SunExp_BeginWunaEvent(self, 5)",FALSE,
-Sub_wuna_event_06,"SunExp_WunaRewardRelic(6, ""SunExp_sunexp_blazing_crown_heart"")","SunExp_WunaRewardCard(6, ""SunExp_sunexp_spark"")",,,"SunExp_BeginWunaEvent(self, 6)",FALSE,
-Sub_wuna_event_repeat,"SunExp_WunaRepeatReward()",,,,SunExp_BeginWunaRepeatEvent(self),FALSE,
+Sub_wuna_event_01,"CS.SunExp.Dll.Scripting.EventScripts.RewardRelic(1, ""SunExp_sunexp_morning_shard"");","CS.SunExp.Dll.Scripting.EventScripts.RewardBless(1, ""blessing_8"");",,,"CS.SunExp.Dll.Scripting.EventScripts.Init(self, ""Sub_wuna_event_01"");",FALSE,
+Sub_wuna_event_02,"CS.SunExp.Dll.Scripting.EventScripts.RewardRelic(2, ""SunExp_sunexp_sun_orbit_mirror"");","CS.SunExp.Dll.Scripting.EventScripts.RewardBless(2, ""blessing_8"");",,,"CS.SunExp.Dll.Scripting.EventScripts.Init(self, ""Sub_wuna_event_02"");",FALSE,
+Sub_wuna_event_03,"CS.SunExp.Dll.Scripting.EventScripts.RewardRelic(3, ""SunExp_sunexp_solar_prism"");","CS.SunExp.Dll.Scripting.EventScripts.RewardBless(3, ""blessing_20"");",,,"CS.SunExp.Dll.Scripting.EventScripts.Init(self, ""Sub_wuna_event_03"");",FALSE,
+Sub_wuna_event_04,"CS.SunExp.Dll.Scripting.EventScripts.RewardRelic(4, ""SunExp_sunexp_gathered_flame_charm"");","CS.SunExp.Dll.Scripting.EventScripts.RewardRelic(4, ""SunExp_sunexp_ember_cloak_lining"");",,,"CS.SunExp.Dll.Scripting.EventScripts.Init(self, ""Sub_wuna_event_04"");",FALSE,
+Sub_wuna_event_05,"CS.SunExp.Dll.Scripting.EventScripts.RewardCard(5, ""SunExp_sunexp_blazing_crown_collapse"");","CS.SunExp.Dll.Scripting.EventScripts.RewardRelic(5, ""SunExp_sunexp_coronation_throne"");",,,"CS.SunExp.Dll.Scripting.EventScripts.Init(self, ""Sub_wuna_event_05"");",FALSE,
+Sub_wuna_event_06,"CS.SunExp.Dll.Scripting.EventScripts.RewardRelic(6, ""SunExp_sunexp_blazing_crown_heart"");","CS.SunExp.Dll.Scripting.EventScripts.RewardCard(6, ""SunExp_sunexp_spark"");",,,"CS.SunExp.Dll.Scripting.EventScripts.Init(self, ""Sub_wuna_event_06"");",FALSE,
+Sub_wuna_event_repeat,CS.SunExp.Dll.Scripting.EventScripts.RepeatReward();,,,,"CS.SunExp.Dll.Scripting.EventScripts.Init(self, ""Sub_wuna_event_repeat"");",FALSE,

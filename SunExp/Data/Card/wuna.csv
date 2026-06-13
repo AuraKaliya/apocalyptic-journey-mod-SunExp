@@ -1,5 +1,5 @@
-Id,Rarity,Expend,Tag,InitScript,DrawScript,UseScript,DropScript,Icon,Effects,Action,PackBelong
-唯一标识,稀有度,花费,标签,更新显示信息用的,卡牌抽到后执行,卡牌使用后执行,卡牌进入弃牌堆后执行,图标资源的路径,特效路径,动作,所属卡包
-*wuna_white_sun_prayer,3,0,,"self.Vars:set_Item(""BaseScript"", ""CommonCardItem""); self:AddDescription(""1"", ""Value"", ""5"");",,SunExp_WunaUseWhiteSunPrayer(self);,,Mods/SunExp/ModResource/Images/Skill/白耀圣祷,,Skill,
-*wuna_grave_song,3,0,,"self.Vars:set_Item(""BaseScript"", ""CommonCardItem""); self:AddDescription(""1"", ""Buff"", ""30"");",,SunExp_WunaUseGraveSong(self);,,Mods/SunExp/ModResource/Images/Skill/圣庭墓曲,,Skill,
-*wuna_coronation_token,3,0,"Burnout,Froze","self.Vars:set_Item(""BaseScript"", ""CommonCardItem"");",,"self:SetStatus(""Self""); self:AddBuff(""SunExp_sunexp_solar_crown"", ""2""); self:AddBuff(""SunExp_sunexp_solar_radiance"", ""2"");",,Mods/SunExp/ModResource/Images/Card/SunExp/solar_coronation,,Skill,
+"Id","Rarity","Expend","Tag","InitScript","DrawScript","UseScript","DropScript","Icon","Effects","Action","PackBelong"
+"唯一标识","稀有度","花费","标签","更新显示信息用的","卡牌抽到后执行","卡牌使用后执行","卡牌进入弃牌堆后执行","图标资源的路径","特效路径","动作","所属卡包"
+"*wuna_white_sun_prayer","3","0","","CS.SunExp.Dll.Scripting.WunaScripts.Init(self, ""*wuna_white_sun_prayer"");","","CS.SunExp.Dll.Scripting.WunaScripts.Use(self, ""*wuna_white_sun_prayer"");","","Mods/SunExp/ModResource/Images/Skill/白曜圣祷","","Skill",""
+"*wuna_grave_song","3","0","","CS.SunExp.Dll.Scripting.WunaScripts.Init(self, ""*wuna_grave_song"");","","CS.SunExp.Dll.Scripting.WunaScripts.Use(self, ""*wuna_grave_song"");","","Mods/SunExp/ModResource/Images/Skill/圣庭墓曲","","Skill",""
+"*wuna_coronation_token","3","0","Burnout,Froze","CS.SunExp.Dll.Scripting.WunaScripts.Init(self, ""*wuna_coronation_token"");","","CS.SunExp.Dll.Scripting.WunaScripts.Use(self, ""*wuna_coronation_token"");","","Mods/SunExp/ModResource/Images/Card/SunExp/solar_coronation","","Skill",""

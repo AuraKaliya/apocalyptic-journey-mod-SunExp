@@ -96,3 +96,10 @@ Known official ModConfig methods include:
 - `self:AddMethodHookAfter(typeDotMethod, fn)`
 
 SunExp currently uses `AddDynamicMethod` to expose helper functions to CSV script snippets.
+
+## Runtime hook notes from in-game tests
+
+- `CommonCardItem.TrueUse.after` and `AttackCardItem.TrueUse.after` can observe the played `CardItem` after a successful card play. Use these hooks when temporary runtime card state on `CardItem`/`DataConfig.Vars` must drive a post-use effect; for `白曜圣祷` temporary `白曜`, pair them with a battle-local `TempVarsMap` resolved lock.
+- `CardItem.RunScript.after` did not fire for the tested `UseScript` path, despite decompiled `TrueUse` calling `RunScript("UseScript")`. Do not make it the only trigger for card-play keyword behavior.
+- `self:AddEvent("ActionAfter", function(actionData) ... end)` registers for the current fight and is disposed on fight end. It fired in testing, but the Lua callback did not expose a usable `DataConfig` from `ActionData`; do not keep it as a fallback trigger route for temporary `白曜` because multiplayer can replay/sync action events separately from local `TrueUse.after`.
+- `Vars.SpecialTag` is a current-instance display/tag source. It can make a keyword visible, but it does not automatically execute that keyword's `UseScript` or helper logic.

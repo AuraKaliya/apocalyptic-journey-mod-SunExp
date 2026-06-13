@@ -21,11 +21,11 @@
 
 ## 术语
 
-- 日耀 (`{SunExp_sunexp_solar_radiance}`)：核心聚能。每次行动时，获得等同于5倍日耀层数的超凡。圣冕显化期间，日耀阶段向下包括，高层同时拥有低层收益。
+- 日耀 (`{SunExp_sunexp_solar_radiance}`)：核心聚能。每次行动时，获得等同于5倍日耀层数的超凡。授冕时用于确立圣冕等阶。
 - 聚炎 (`{SunExp_sunexp_gathered_flame}`)：无上限聚能。回合开始时，自己获得等同于聚炎层数的灼烧；烬衣或圣冕顶层阶段可抵消这次自燃。
 - 炽灼天幕 (`{SunExp_sunexp_scorching_canopy}`)：场地聚热。每轮回合开始时，全体获得等同于炽灼天幕层数的灼烧。
 - 烬衣 (`{SunExp_sunexp_ember_cloak}`)：临时避灼。获得时清除自身灼烧；下回合开始时再次清除自身灼烧，然后移除此状态。
-- 圣冕显化 (`{SunExp_sunexp_solar_crown}`)：持续2回合。期间日耀阶段向下包括：1+吸收灼烧额外聚炎；4+日耀伤害增幅；8+行动时获得魔能，若未达12层则自燃；12层清除并免疫自身灼烧。炽冕崩落会强制结束。
+- 圣冕显化 (`{SunExp_sunexp_solar_crown}`)：持续期间日耀系数翻倍。授冕时根据当前日耀确立圣冕等阶；触发时按等阶获得清负面、抽牌、魔能、清自身灼烧转聚炎、敌方全体灼烧并生效等效果。结束时消耗等阶2倍的日耀。
 - 源核：日耀 (`{SunExp_sunexp_origin_core_radiance}`)：每回合第一次获得{SunExp_sunexp_solar_radiance}时，额外获得1层{SunExp_sunexp_solar_radiance}。
 - 轮转：聚炎 (`{SunExp_sunexp_cycle_gathered_flame}`)：当存在时，自身{buff_burn}每增加1层，获得1层{SunExp_sunexp_gathered_flame}。
 - 残光病兆 (`{SunExp_sunexp_afterglow_omen}`)：回合开始时，所有带有{buff_burn}的敌人获得1层{buff_vulnerability}。
@@ -50,19 +50,19 @@
 
 5. 引炎 (`draw_flame`)
    - 基本数据：技能牌；稀有度 1；费用 1；标签 无；卡包 【日耀：烬冠】。
-   - 效果：吸收目标至多6层{buff_burn}，移除等量{buff_burn}，获得等量{SunExp_sunexp_gathered_flame}。圣冕显化期间，日耀阶段会向下包括并额外获得聚炎。
+   - 效果：吸收目标所有{buff_burn}，移除等量{buff_burn}，获得等量{SunExp_sunexp_gathered_flame}。
 
-6. 日耀聚焦 (`solar_prayer`)
-   - 基本数据：技能牌；稀有度 2；费用 0；标签 无；卡包 【日耀：星火】。
-   - 效果：获得3层{SunExp_sunexp_solar_radiance}。若已有{SunExp_sunexp_scorching_canopy}，抽1张牌；若已有{SunExp_sunexp_solar_crown}，获得1层{SunExp_sunexp_gathered_flame}。
+6. 太阳圣祷 (`solar_prayer`)
+   - 基本数据：技能牌；稀有度 2；费用 1；标签 白曜；卡包 【日耀：星火】。
+   - 效果：获得2层{SunExp_sunexp_solar_radiance}。将自身的{buff_burn}全部转移给随机一名友方单位。
 
 7. 燃星之咒 (`burning_star_hex`)
    - 基本数据：攻击牌；稀有度 2；费用 1；标签 无；卡包 【日耀：烬冠】。
    - 效果：造成6点伤害。消耗至多5层{SunExp_sunexp_gathered_flame}，每层额外造成4点伤害。给予目标2层{buff_burn}，每有4层{SunExp_sunexp_solar_radiance}额外+1层。圣冕显化且日耀不少于4层时，额外增加等同日耀层数的伤害。
 
 8. 冠冕威光 (`crown_radiance`)
-   - 基本数据：技能牌；稀有度 2；费用 1；标签 无；卡包 【日耀：天幕】。
-   - 效果：敌方全体获得4层{buff_burn}。若{SunExp_sunexp_solar_radiance}不少于8层，改为6层。若你拥有{SunExp_sunexp_scorching_canopy}，随机敌人的{buff_burn}立刻生效一次。
+   - 基本数据：技能牌；稀有度 3；费用 2；标签 白曜；卡包 【日耀：天幕】。
+   - 效果：敌方全体获得6层{buff_burn}。若场上存在{SunExp_sunexp_scorching_canopy}，全体目标的{buff_burn}立即生效{SunExp_sunexp_solar_crown_tier}层数等量次数。
 
 9. 天幕再临 (`canopy_return`)
    - 基本数据：技能牌；稀有度 2；费用 1；标签 无；卡包 【日耀：天幕】。
@@ -73,12 +73,12 @@
    - 效果：获得3层{SunExp_sunexp_solar_radiance}。吸收自身至多6层{buff_burn}，转化为等量{SunExp_sunexp_gathered_flame}。若吸收满6层，抽1张牌。
 
 11. 日耀：授冕 (`solar_coronation`)
-   - 基本数据：能力牌；稀有度 3；费用 2；标签 Ability；卡包 【日耀：星火】。
-   - 效果：获得2层{SunExp_sunexp_solar_crown}和2层{SunExp_sunexp_solar_radiance}。圣冕阶段向下包括：高层会同时触发低层效果。
+   - 基本数据：能力牌；稀有度 3；费用 2；标签 白曜；卡包 【日耀：星火】。
+   - 效果：获得3层{SunExp_sunexp_solar_radiance}和2层{SunExp_sunexp_solar_crown}，并按当前日耀确立{SunExp_sunexp_solar_crown_tier}。
 
 12. 炽冕崩落 (`blazing_crown_collapse`)
-   - 基本数据：攻击牌；稀有度 3；费用 3；标签 无；卡包 【日耀：烬冠】。
-   - 效果：爆发性一击。对所有敌人造成伤害；若没有{SunExp_sunexp_solar_crown}，自身也承受相同伤害。消耗全部{SunExp_sunexp_gathered_flame}和一半{SunExp_sunexp_solar_radiance}，基础40点；每消耗1层{SunExp_sunexp_gathered_flame}额外造成6点，每消耗1层{SunExp_sunexp_solar_radiance}额外造成8点。随后敌方全体的{buff_burn}立刻生效一次，结束{SunExp_sunexp_solar_crown}，并获得等同于消耗{SunExp_sunexp_gathered_flame}一半的{buff_burn}。
+   - 基本数据：攻击牌；稀有度 3；费用 3；标签 白曜；卡包 【日耀：烬冠】。
+   - 效果：对敌方全体造成40+{SunExp_sunexp_solar_crown_tier}*{SunExp_sunexp_solar_coefficient}的伤害；若没有{SunExp_sunexp_solar_crown}，自身承受等额反噬。随后结束{SunExp_sunexp_solar_crown}，消耗全部{SunExp_sunexp_gathered_flame}，自身获得消耗聚炎层数一半的{buff_burn}。
 
 13. 破晓校准 (`radiant_oath`)
    - 基本数据：技能牌；稀有度 1；费用 0；标签 Burnout；卡包 【日耀：星火】。
@@ -86,14 +86,14 @@
 
 14. 聚光引燃 (`solar_ignition`)
    - 基本数据：技能牌；稀有度 1；费用 1；标签 无；卡包 【日耀：星火】。
-   - 效果：获得1层{SunExp_sunexp_solar_radiance}。所有敌人获得2层{buff_burn}。若你拥有{SunExp_sunexp_scorching_canopy}，抽1张牌；若{SunExp_sunexp_solar_radiance}不少于4层，随机敌人的{buff_burn}立刻生效一次。
+   - 效果：敌方全体获得2层{buff_burn}，并立刻生效一次。
 
 15. 灼流回收 (`scorching_flow_reclaim`)
-   - 基本数据：攻击牌；稀有度 2；费用 0；标签 无；卡包 【日耀：烬冠】。
-   - 效果：目标敌人的{buff_burn}立刻生效一次。随后吸收该目标所有{buff_burn}，移除这些{buff_burn}，你获得等量{SunExp_sunexp_gathered_flame}。若吸收不少于10层，抽1张牌。
+   - 基本数据：攻击牌；稀有度 2；费用 1；标签 无；卡包 【日耀：烬冠】。
+   - 效果：目标敌人的{buff_burn}立即生效1次。随后移除其身上所有{buff_burn}，获得等量{SunExp_sunexp_gathered_flame}。
 
 16. 焚污除秽 (`impurity_purge`)
-   - 基本数据：技能牌；稀有度 2；费用 1；标签 无；卡包 【日耀：天幕】。
+   - 基本数据：技能牌；稀有度 2；费用 1；标签 白曜；卡包 【日耀：天幕】。
    - 效果：移除自身所有负面 Buff，并获得等同于这些负面 Buff 总层数的{buff_burn}。若成功转化，获得1层{SunExp_sunexp_solar_radiance}。
 
 17. 炎轮再临 (`flamewheel_recurrence`)
@@ -114,7 +114,7 @@
 
 21. 燃冠誓言 (`burning_crown_oath`)
    - 基本数据：技能牌；稀有度 2；费用 1；标签 无；卡包 【日耀：烬冠】。
-   - 效果：消耗至多12层{SunExp_sunexp_gathered_flame}。敌方全体获得等同于消耗层数一半的{buff_burn}。若消耗不少于8层，抽1张牌并获得1点魔能。
+   - 效果：消耗自身所有{SunExp_sunexp_gathered_flame}。敌方全体获得等同于消耗层数一半的{buff_burn}，并立即生效一次。
 
 22. 晨线护持 (`morning_light_bulwark`)
    - 基本数据：技能牌；稀有度 1；费用 1；标签 无；卡包 【日耀：星火】。
@@ -129,8 +129,8 @@
    - 效果：获得{SunExp_sunexp_origin_core_radiance}。
 
 25. 凝烬成塔 (`ember_tower`)
-   - 基本数据：技能牌；稀有度 1；费用 1；标签 无；卡包 【日耀：烬冠】。
-   - 效果：将自身至多5层{buff_burn}转化为等量{SunExp_sunexp_gathered_flame}。若转化了5层，抽1张牌。
+   - 基本数据：技能牌；稀有度 1；费用 1；标签 白曜；卡包 【日耀：烬冠】。
+   - 效果：将自身所有{buff_burn}转化为等量{SunExp_sunexp_gathered_flame}。若转化满5层，抽1张牌。
 
 26. 聚炎护盾 (`gathered_flame_shield`)
    - 基本数据：技能牌；稀有度 1；费用 1；标签 无；卡包 【日耀：烬冠】。
@@ -182,7 +182,7 @@
 6. 小型日轮 (`miniature_sunwheel`)
    - 基本数据：系列 日耀遗物；标签 无；稀有度 3；卡包 【日耀：烬冠】。
    - 剧情短句：罩住城邦的不是玻璃，而是被固定下来的正午。
-   - 效果：回合开始时，若你拥有{SunExp_sunexp_scorching_canopy}，获得等同于其层数×3的护盾；随后若自身拥有{buff_burn}，将1层转化为{SunExp_sunexp_gathered_flame}，否则获得1层{SunExp_sunexp_solar_radiance}。
+   - 效果：回合开始时，若存在{SunExp_sunexp_scorching_canopy}，获得自身负面 Buff 总层数等量的{SunExp_sunexp_gathered_flame}。
 
 7. 炽冠圣心 (`blazing_crown_heart`)
    - 基本数据：系列 日耀遗物；标签 无；稀有度 4；卡包 【日耀：天幕】。
@@ -212,10 +212,10 @@
 12. 曜阳日晷 (`blazing_sundial`)
    - 基本数据：系列 日耀遗物；标签 无；稀有度 1；卡包 【日耀：天幕】。
    - 剧情短句：它把天空压低一点，让火焰和呼吸都变得迟缓。
-   - 效果：回合开始时，若敌方全体拥有{buff_burn}，敌方全体获得1层{buff_weak}。
+   - 效果：回合开始时，至多4名带有{buff_burn}的敌人获得1层{buff_weak}和1层{buff_rotten}。
 
 13. 燃灾风带 (`burning_calamity_wind_belt`)
    - 基本数据：系列 日耀遗物；标签 无；稀有度 2；卡包 【日耀：天幕】。
    - 剧情短句：环形热风总会把一处火星带到另一处阴影里。
-   - 效果：回合开始时，至多4名带有{buff_burn}的敌人各使随机另一名敌人获得1层{buff_burn}。
+   - 效果：回合开始时，至多4名带有{buff_burn}的敌人各使随机另一名敌人获得3层{buff_burn}。
 

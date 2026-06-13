@@ -59,6 +59,9 @@ function Get-AddDescriptionIndexes {
     if ([string]::IsNullOrWhiteSpace($ScriptText)) {
         return @()
     }
+    if ($ScriptText -match "CS\.SunExp\.Dll\.Scripting\.CardScripts\.Init\s*\(") {
+        return @(1, 2, 3, 4, 5, 6, 7, 8, 9)
+    }
     $pattern = "(?:SunExp_AddDamageDescription\s*\(\s*[^,]+,\s*|AddDescription\s*\(\s*)[""'](\d+)[""']"
     return @([regex]::Matches($ScriptText, $pattern) | ForEach-Object { [int]$_.Groups[1].Value } | Sort-Object -Unique)
 }

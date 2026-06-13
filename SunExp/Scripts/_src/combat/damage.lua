@@ -54,6 +54,31 @@ function SunExp_AddDamageDescription(self, index, amount)
     return damage
 end
 
+function SunExp_AddValueDescription(self, index, amount)
+    if self == nil then
+        return 0
+    end
+    local value = math.floor(tonumber(amount) or 0)
+    if value < 0 then
+        value = 0
+    end
+    pcall(function()
+        self:AddDescription(tostring(index), "Value", tostring(value))
+    end)
+    return value
+end
+
+function SunExp_AddDamageFormulaDescription(self, finalIndex, baseIndex, scaleIndex, finalDamage, baseDamage, coefficientScale)
+    SunExp_AddDamageDescription(self, finalIndex, finalDamage)
+    SunExp_AddValueDescription(self, baseIndex, baseDamage)
+    SunExp_AddValueDescription(self, scaleIndex, coefficientScale)
+    return finalDamage
+end
+
+function SunExp_AddSolarDamageFormulaDescription(self, finalIndex, baseIndex, scaleIndex, finalDamage, baseDamage, coefficientScale)
+    return SunExp_AddDamageFormulaDescription(self, finalIndex, baseIndex, scaleIndex, finalDamage, baseDamage, coefficientScale)
+end
+
 function SunExp_CalcSolarKeywordDamage(self, base, target, coefficientScale)
     local scale = tonumber(coefficientScale) or 1
     return math.floor((tonumber(base) or 0) + SunExp_CalcSolarCoefficient(self, target) * scale)
@@ -126,7 +151,7 @@ function SunExp_CalcCrownPressureDamage(self)
 end
 
 function SunExp_CalcCrownCoreFlashDamage(self)
-    return SunExp_CalcSolarKeywordDamage(self, 40, SunExp_GetPrimaryTarget(self), 3)
+    return SunExp_CalcSolarKeywordDamage(self, 40, SunExp_GetPrimaryTarget(self), SunExp_GetSolarCrownTier(self))
 end
 
 function SunExp_CalcFlamePierceDamage(self)

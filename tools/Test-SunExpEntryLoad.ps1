@@ -121,10 +121,6 @@ try {
             Sort-Object -Unique
     )
 
-    if ($registeredMethods.Count -eq 0) {
-        throw "No SunExp dynamic methods were found in Entry.lua."
-    }
-
     $csvTextParts = New-Object System.Collections.Generic.List[string]
     foreach ($csv in Get-ChildItem -Path (Join-Path $repoRoot "SunExp\Data") -Recurse -Filter *.csv -ErrorAction SilentlyContinue) {
         $csvTextParts.Add((Read-AllText -Path $csv.FullName)) | Out-Null
@@ -135,6 +131,10 @@ try {
             ForEach-Object { $_.Groups[1].Value } |
             Sort-Object -Unique
     )
+
+    if ($registeredMethods.Count -eq 0 -and $csvCalls.Count -gt 0) {
+        throw "CSV scripts still call SunExp helper(s), but no SunExp dynamic methods were found in Entry.lua: $($csvCalls -join ', ')"
+    }
 
     $missingDefinitions = @($csvCalls | Where-Object { $definedMethods -notcontains $_ })
     if ($missingDefinitions.Count -gt 0) {
@@ -204,6 +204,11 @@ assert(actual_count == expected_count, "dynamic method count mismatch: expected 
 
 for name, _ in pairs(expected_methods) do
     assert(type(ModConfig.dynamicMethods[name]) == "function", "missing dynamic method after Setup: " .. name)
+end
+
+if expected_count == 0 then
+    print("Entry load/setup simulation passed: migrated DLL mode, hooksBefore=" .. #ModConfig.hooksBefore .. ", hooksAfter=" .. #ModConfig.hooksAfter)
+    return
 end
 
 local before_hooks = {}
