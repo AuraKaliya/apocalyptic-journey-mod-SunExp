@@ -1,4 +1,0 @@
-interface:
-  display_name: "SunExp Mod Dev"
-  short_description: "Validate SunExp Lua mod content."
-  default_prompt: "Use this project skill when editing SunExp cards, buffs, relics, card packs, roles, dialogue, events, or Lua scripts."

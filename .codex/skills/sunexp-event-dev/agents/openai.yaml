@@ -1,3 +1,0 @@
-display_name: SunExp Event Dev
-short_description: Build and review SunExp event chains, map events, CSV rows, and Lua helpers.
-default_prompt: Use this skill to design, add, or fix SunExp events with synchronized Data/Text rows, Lua helpers, and regression checks.

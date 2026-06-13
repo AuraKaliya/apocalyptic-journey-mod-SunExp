@@ -87,7 +87,7 @@ public static class SpecialTagRuntime
             }
 
             var kind = isTemporary ? "temporary" : isNative ? "native" : "special";
-            var cost = isTemporary || isSpecial ? CardConfigApi.CurrentCost(config) : CardConfigApi.BaseCost(config);
+            var cost = CardConfigApi.CurrentCost(config);
             Pending.Push(new PendingCard(config, cost, kind));
             SunExpLog.Debug("White radiance captured: kind=" + kind + ", id=" + CardConfigApi.Id(config) + ", cost=" + cost + ", instance=" + config.InstanceID);
         }

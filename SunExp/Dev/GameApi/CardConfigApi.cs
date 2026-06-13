@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using SunExp.Dll.Infrastructure;
 
@@ -42,7 +43,9 @@ public static class CardConfigApi
             return 0;
         }
 
-        var total = DictionaryUtil.GetInt(config.data, "Expend")
+        var baseCost = DictionaryUtil.GetInt(config.data, "Expend");
+        var scaledBaseCost = Math.Min((int)(baseCost * ReadPlayerCardCostMultiplier()), 4);
+        var total = scaledBaseCost
             + DictionaryUtil.GetInt(config.Vars, "ExCost")
             + DictionaryUtil.GetInt(config.Vars, "OnceExCost")
             + DictionaryUtil.GetInt(config.Vars, "TotalExCost");
@@ -183,5 +186,28 @@ public static class CardConfigApi
         {
             return null;
         }
+    }
+
+    private static float ReadPlayerCardCostMultiplier()
+    {
+        try
+        {
+            var fightPlayer = FindType("FightPlayer")?.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+            var status = fightPlayer == null ? null : ReadMember(fightPlayer, "Status");
+            var dynamicVariables = status == null ? null : ReadMember(status, "dynamicVariables") as IDictionary<string, float>;
+            return dynamicVariables != null && dynamicVariables.TryGetValue("CardCost", out var multiplier)
+                ? multiplier
+                : 1f;
+        }
+        catch
+        {
+            return 1f;
+        }
+    }
+
+    private static Type? FindType(string name)
+    {
+        return Type.GetType(name)
+            ?? Array.Find(AppDomain.CurrentDomain.GetAssemblies(), asm => asm.GetType(name) != null)?.GetType(name);
     }
 }

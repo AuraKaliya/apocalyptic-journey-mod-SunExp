@@ -268,7 +268,6 @@ public static class ExecutorApi
             return false;
         }
 
-        HandleBurnOverflow(executor, target ?? executor.Self, buffId, amount);
         SetStatusForTarget(executor, target, fallbackStatus);
         executor.AddBuff(buffId, amount.ToString());
         return true;
@@ -548,10 +547,36 @@ public static class ExecutorApi
             return;
         }
 
+        SetActiveField(executor, fieldId);
         executor.SetStatus("Self");
         executor.AddBuff(SunExpIds.ScorchingCanopy, amount.ToString());
-        CombatIntSet("SunExpField_scorching_canopy_Active", 1);
-        CombatIntSet("SunExpField_scorching_canopy_Stacks", SelfBuffLevel(executor, SunExpIds.ScorchingCanopy));
+        SyncFieldStacks(executor, fieldId);
+        SunExpLog.Debug("Field applied: id=" + fieldId + ", add=" + amount + ", stacks=" + SelfBuffLevel(executor, SunExpIds.ScorchingCanopy));
+    }
+
+    public static bool ClearFieldBuff(ScriptExecutor? executor, string fieldId)
+    {
+        var buffId = FieldBuffId(fieldId);
+        if (executor == null || string.IsNullOrWhiteSpace(buffId))
+        {
+            return false;
+        }
+
+        SetVar(executor, "SunExpFieldInternalClear", "1");
+        try
+        {
+            executor.SetStatus("Self");
+            executor.RemoveBuff(buffId);
+            SetSharedFieldState(fieldId, 0);
+            SetVar(executor, "SunExpActiveFieldId", "");
+            SetVar(executor, "SunExpActiveFieldStacks", "0");
+            SunExpLog.Debug("Field cleared internally: id=" + fieldId);
+            return true;
+        }
+        finally
+        {
+            SetVar(executor, "SunExpFieldInternalClear", "0");
+        }
     }
 
     public static string FieldBuffId(string fieldId)
@@ -740,6 +765,10 @@ public static class ExecutorApi
         var overflow = StatusBuffLevel(target, SunExpIds.Burn) + amount - BurnUpperBound;
         if (overflow > 0)
         {
+            SunExpLog.Debug("Burn overflow converted: target=" + target.InstanceId
+                + ", burnBefore=" + StatusBuffLevel(target, SunExpIds.Burn)
+                + ", add=" + amount
+                + ", overflow=" + overflow);
             AddStatusBuff(executor, target, SunExpIds.BodyBurn, overflow, "Target");
         }
     }
