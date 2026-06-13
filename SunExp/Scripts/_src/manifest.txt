@@ -1,3 +1,0 @@
-# Runtime logic has migrated to SunExp/Scripts/Entry.dll.
-# Keep Entry.lua as a tiny compatibility hook for runtimes that still call ModConfig:Setup().
-setup.lua

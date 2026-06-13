@@ -2,9 +2,9 @@
 
 作者 / Author: Aura
 
-SunExp is a card pack and event mod for Witch's Apocalyptic Journey. It adds 30 high-risk burst cards, 13 Solar relics, and a Solar Event route across the Radiance: Spark, Radiance: Ember Crown, and Radiance: Canopy branches. The combat loop is built around Solar Radiance, Scorching Canopy, Gathered Flame, battlefield-wide Burn, and Crown Manifestation. Crown Manifestation turns the pack's largest burst into a safer payoff window, while forcing the blast outside that window can backfire hard. The current version also introduces staged Una / Obsidian Sanctuary records through the map event. The mod uses CSV, Lua scripts, text, and image resources, with no DLL hook included.
+SunExp is a card pack and event mod for Witch's Apocalyptic Journey. It adds 30 high-risk burst cards, 13 Solar relics, and a Solar Event route across the Radiance: Spark, Radiance: Ember Crown, and Radiance: Canopy branches. The combat loop is built around Solar Radiance, Scorching Canopy, Gathered Flame, battlefield-wide Burn, and Crown Manifestation. Crown Manifestation turns the pack's largest burst into a safer payoff window, while forcing the blast outside that window can backfire hard. The current version also introduces staged Una / Obsidian Sanctuary records through the map event. The mod uses a C# DLL, CSV, text, and image resources.
 
-《日耀：烬冠天幕》是一个以 CSV、Lua 脚本、文本和图片资源为主的卡包与事件 Mod，新增 30 张高风险高爆发卡牌、13 件日耀遗物，以及一个地图可见的日耀事件入口。三个卡包分支分别是【日耀：星火】、【日耀：烬冠】和【日耀：天幕】，可与官方卡包混合游玩。它围绕日耀、炽灼天幕、聚炎、全场灼烧和圣冕显化构筑，鼓励玩家先制造热量，再把热量转化为爆发。圣冕显化能让最大的爆发进入更安全的兑现窗口，若强行在圣冕外引爆，则可能遭受猛烈反噬。当前版本也加入了乌娜与白曜圣庭的阶段式事件记录。
+《日耀：烬冠天幕》是一个以 C# DLL、CSV、文本和图片资源为主的卡包与事件 Mod，新增 30 张高风险高爆发卡牌、13 件日耀遗物，以及一个地图可见的日耀事件入口。三个卡包分支分别是【日耀：星火】、【日耀：烬冠】和【日耀：天幕】，可与官方卡包混合游玩。它围绕日耀、炽灼天幕、聚炎、全场灼烧和圣冕显化构筑，鼓励玩家先制造热量，再把热量转化为爆发。圣冕显化能让最大的爆发进入更安全的兑现窗口，若强行在圣冕外引爆，则可能遭受猛烈反噬。当前版本也加入了乌娜与白曜圣庭的阶段式事件记录。
 
 ## 内容 / Contents
 
@@ -14,7 +14,7 @@ SunExp is a card pack and event mod for Witch's Apocalyptic Journey. It adds 30 
 - 1 个地图日耀事件入口，包含 6 段乌娜记录与重复节点 / 1 Solar map event route with 6 Una records and a repeat node
 - 核心状态：日耀、聚炎、炽灼天幕 / Solar Radiance, Gathered Flame, Scorching Canopy
 - 爆发窗口：圣冕显化、炽冕崩落 / Crown Manifestation, Blazing Crown Collapse
-- CSV + Lua + text + image resources, no DLL hook / CSV、Lua、文本与图片资源，不包含 DLL Hook
+- C# DLL + CSV + text + image resources / C# DLL、CSV、文本与图片资源
 
 ## 玩法 / Gameplay
 

@@ -327,11 +327,16 @@ function Invoke-SourceAssertions {
     $executorApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Dev\GameApi\ExecutorApi.cs"))
     $specialTagRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Dev\Hooks\SpecialTagRuntime.cs"))
     $cardConfigApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Dev\GameApi\CardConfigApi.cs"))
+    $cardScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Dev\Scripting\CardScripts.cs"))
 
     $addStatusBuff = [regex]::Match($executorApi, "public\s+static\s+bool\s+AddStatusBuff[\s\S]*?public\s+static\s+bool\s+RemoveStatusBuff")
     Assert-True $addStatusBuff.Success "Could not locate ExecutorApi.AddStatusBuff for source assertion."
     Assert-True (-not $addStatusBuff.Value.Contains("HandleBurnOverflow")) "AddStatusBuff must not call HandleBurnOverflow; burn overflow is handled by the ScriptExecutor.AddBuff hook."
     Assert-True $executorApi.Contains("public static bool ClearFieldBuff") "ExecutorApi.ClearFieldBuff is missing."
+    Assert-True $executorApi.Contains('DictionaryUtil.Set(executor?.Vars, "CanSelf", canSelf ? "True" : "False");') "SetBaseScript must explicitly write CanSelf for self-targetable attack cards."
+    Assert-True $executorApi.Contains("public static IStatusManager? PrimaryTargetIncludingSelf") "ExecutorApi.PrimaryTargetIncludingSelf is missing."
+    Assert-True ([regex]::IsMatch($cardScripts, 'case\s+"draw_flame":\s+ExecutorApi\.SetBaseScript\(self,\s+"AttackCardItem"\);\s+break;')) "draw_flame must allow self-targeting during initialization."
+    Assert-True $cardScripts.Contains("var target = ExecutorApi.PrimaryTargetIncludingSelf(self);") "draw_flame must resolve targets without excluding self."
     Assert-True (-not $specialTagRuntime.Contains("CardConfigApi.BaseCost")) "White radiance should use current actual play cost, not BaseCost."
     Assert-True $cardConfigApi.Contains("ReadPlayerCardCostMultiplier") "CardConfigApi must read the player CardCost multiplier."
 

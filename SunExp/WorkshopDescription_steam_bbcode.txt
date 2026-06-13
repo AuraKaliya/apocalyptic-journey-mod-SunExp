@@ -15,7 +15,7 @@
 [*]1 个地图日耀事件入口，包含 6 段乌娜记录与重复节点
 [*]核心机制：日耀、聚炎、炽灼天幕、灼烧
 [*]爆发窗口：圣冕显化、炽冕崩落
-[*]CSV、Lua、文本与图片资源，不包含 DLL Hook
+[*]C# DLL、CSV、文本与图片资源
 [/list]
 
 [h2]使用方式[/h2]
@@ -41,7 +41,7 @@ Its power level leans toward offense and burst. It is designed for players who e
 [*]1 Solar map event route with 6 Una records and a repeat node
 [*]Core mechanics: Solar Radiance, Gathered Flame, Scorching Canopy, Burn
 [*]Burst window: Crown Manifestation, Blazing Crown Collapse
-[*]CSV, Lua, text, and image resources; no DLL hook included
+[*]C# DLL, CSV, text, and image resources
 [/list]
 
 [h2]How to Use[/h2]

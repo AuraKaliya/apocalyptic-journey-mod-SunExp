@@ -54,6 +54,8 @@ public static class CardScripts
                     ExecutorApi.AddDamageDescription(self, "1", CalcFlamePierceDamage(self));
                     break;
                 case "draw_flame":
+                    ExecutorApi.SetBaseScript(self, "AttackCardItem");
+                    break;
                 case "scorching_flow_reclaim":
                 case "eclipse_hex":
                 case "burning_calamity":
@@ -219,11 +221,11 @@ public static class CardScripts
 
     private static void UseDrawFlame(ScriptExecutor self)
     {
-        var target = ExecutorApi.PrimaryTarget(self);
+        var target = ExecutorApi.PrimaryTargetIncludingSelf(self);
         var gain = ExecutorApi.StatusBuffLevel(target, SunExpIds.Burn);
         if (gain > 0)
         {
-            ExecutorApi.RemoveStatusBuff(self, target, SunExpIds.Burn, "Target");
+            ExecutorApi.RemoveStatusBuff(self, target, SunExpIds.Burn, "Self");
             self.SetStatus("Self");
             self.AddBuff(SunExpIds.GatheredFlame, gain.ToString());
         }

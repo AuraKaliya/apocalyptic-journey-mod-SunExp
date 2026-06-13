@@ -117,10 +117,7 @@ public static class ExecutorApi
     public static void SetBaseScript(ScriptExecutor executor, string baseScript, bool canSelf = true)
     {
         DictionaryUtil.Set(executor?.Vars, "BaseScript", baseScript);
-        if (!canSelf)
-        {
-            DictionaryUtil.Set(executor?.Vars, "CanSelf", "False");
-        }
+        DictionaryUtil.Set(executor?.Vars, "CanSelf", canSelf ? "True" : "False");
     }
 
     public static int SelfBuffLevel(ScriptExecutor? executor, string buffId)
@@ -231,6 +228,35 @@ public static class ExecutorApi
         }
 
         return executor.Object?.FirstOrDefault(target => target != null && !IsSelf(executor, target));
+    }
+
+    public static IStatusManager? PrimaryTargetIncludingSelf(ScriptExecutor? executor)
+    {
+        if (executor == null)
+        {
+            return null;
+        }
+
+        if (executor.Target != null)
+        {
+            return executor.Target;
+        }
+
+        if (executor.Self == null)
+        {
+            return null;
+        }
+
+        try
+        {
+            executor.SetStatus("Target");
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Debug("Primary target unavailable while resolving script display: " + ex.Message);
+        }
+
+        return executor.Object?.FirstOrDefault(target => target != null) ?? executor.Self;
     }
 
     public static bool IsSelf(ScriptExecutor? executor, IStatusManager? target)
