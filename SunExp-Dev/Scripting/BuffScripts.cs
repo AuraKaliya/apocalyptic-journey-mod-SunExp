@@ -284,7 +284,7 @@ public static class BuffScripts
             var value = target.GetType().GetProperty("MaxHp")?.GetValue(target)
                 ?? target.GetType().GetField("MaxHp")?.GetValue(target);
             var maxHp = value is int intValue ? intValue : DictionaryUtil.ParseInt(Convert.ToString(value));
-            return maxHp / 200 + 1;
+            return maxHp / 100 + 1;
         }
         catch
         {
