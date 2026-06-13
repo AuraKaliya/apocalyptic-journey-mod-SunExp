@@ -20,7 +20,7 @@ public static class SolarRadianceService
 
         if (hasCrown)
         {
-            var triggered = TriggerSolarCrown(executor);
+            var triggered = TriggerSolarCrown(executor, source);
             SunExpLog.Debug("HandleSolarCardUsed crown result=" + triggered + ", radianceAfter=" + BuffApi.Level(executor.Self, SunExpIds.SolarRadiance));
             return triggered;
         }
@@ -37,7 +37,7 @@ public static class SolarRadianceService
         return true;
     }
 
-    private static bool TriggerSolarCrown(ScriptExecutor executor)
+    private static bool TriggerSolarCrown(ScriptExecutor executor, string source)
     {
         if (executor.Self == null || !BuffApi.Has(executor.Self, SunExpIds.SolarCrown))
         {
@@ -45,6 +45,7 @@ public static class SolarRadianceService
         }
 
         var tier = BuffApi.Level(executor.Self, SunExpIds.SolarCrownTier);
+        SunExpLog.Info("SolarCrown trigger source=" + source + ", tier=" + tier + ", effects=" + SolarCrownEffectSummary(tier));
         var effectCount = 0;
 
         if (tier >= 1)
@@ -62,6 +63,7 @@ public static class SolarRadianceService
         if (tier >= 2)
         {
             effectCount++;
+            executor.SetStatus("Self");
             executor.DrawCount("1");
         }
 
@@ -94,6 +96,32 @@ public static class SolarRadianceService
 
         SunExpLog.Debug("SolarCrown triggered effectCount=" + effectCount + ", tier=" + tier + ", radiance=" + BuffApi.Level(executor.Self, SunExpIds.SolarRadiance));
         return true;
+    }
+
+    private static string SolarCrownEffectSummary(int tier)
+    {
+        if (tier <= 0)
+        {
+            return "none";
+        }
+
+        var effects = "";
+        AppendEffect(ref effects, tier >= 1, "T1:self negative buffs -> burn");
+        AppendEffect(ref effects, tier >= 2, "T2:draw 1");
+        AppendEffect(ref effects, tier >= 3, "T3:gain 1 mana");
+        AppendEffect(ref effects, tier >= 4, "T4:self burn -> gathered flame");
+        AppendEffect(ref effects, tier >= 5, "T5:all enemies gain 5 burn and trigger burn");
+        return effects;
+    }
+
+    private static void AppendEffect(ref string effects, bool active, string text)
+    {
+        if (!active)
+        {
+            return;
+        }
+
+        effects = string.IsNullOrWhiteSpace(effects) ? text : effects + "; " + text;
     }
 
     private static void TriggerBurnAllEnemies(ScriptExecutor executor)

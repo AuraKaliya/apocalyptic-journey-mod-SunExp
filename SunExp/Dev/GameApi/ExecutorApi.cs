@@ -96,6 +96,24 @@ public static class ExecutorApi
         SetVar(executor, tokenKey, DictionaryUtil.ParseInt(GetVar(executor, tokenKey, "0")) + 1);
     }
 
+    public static bool TryAddEvent(ScriptExecutor? executor, string eventName, Action script, string context = "")
+    {
+        if (executor == null || string.IsNullOrWhiteSpace(eventName) || script == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            executor.AddEvent(eventName, script);
+            return true;
+        }
+        catch (NullReferenceException)
+        {
+            return false;
+        }
+    }
+
     public static void SetBaseScript(ScriptExecutor executor, string baseScript, bool canSelf = true)
     {
         DictionaryUtil.Set(executor?.Vars, "BaseScript", baseScript);

@@ -107,13 +107,49 @@ public static class CardConfigApi
 
     public static bool TryClaimTemporaryWhiteRadiance(IDataConfig config)
     {
-        if (DictionaryUtil.Get(config.Vars, SunExpIds.TempWhiteRadianceResolved, "0") == "1")
+        var lockId = EnsureTemporaryWhiteRadianceLockId(config);
+        var sharedKey = TemporaryWhiteRadianceResolvedKey(lockId);
+        var cardResolved = DictionaryUtil.Get(config.Vars, SunExpIds.TempWhiteRadianceResolved, "0") == "1";
+        if (ExecutorApi.CombatIntGet(sharedKey) == 1)
+        {
+            if (cardResolved)
+            {
+                return false;
+            }
+
+            lockId = AssignTemporaryWhiteRadianceLockId(config);
+            sharedKey = TemporaryWhiteRadianceResolvedKey(lockId);
+        }
+
+        if (ExecutorApi.CombatIntGet(sharedKey) == 1)
         {
             return false;
         }
 
+        ExecutorApi.CombatIntSet(sharedKey, 1);
         DictionaryUtil.Set(config.Vars, SunExpIds.TempWhiteRadianceResolved, "1");
         return true;
+    }
+
+    private static string EnsureTemporaryWhiteRadianceLockId(IDataConfig config)
+    {
+        var lockId = DictionaryUtil.Get(config.Vars, SunExpIds.TempWhiteRadianceLockId);
+        return string.IsNullOrWhiteSpace(lockId) || lockId == "0"
+            ? AssignTemporaryWhiteRadianceLockId(config)
+            : lockId;
+    }
+
+    private static string AssignTemporaryWhiteRadianceLockId(IDataConfig config)
+    {
+        var lockId = ExecutorApi.CombatIntAdd("SunExpTempWhiteRadianceLockSeq", 1).ToString();
+        DictionaryUtil.Set(config.Vars, SunExpIds.TempWhiteRadianceLockId, lockId);
+        DictionaryUtil.Set(config.Vars, SunExpIds.TempWhiteRadianceResolved, "0");
+        return lockId;
+    }
+
+    private static string TemporaryWhiteRadianceResolvedKey(string lockId)
+    {
+        return "SunExpTempWhiteRadianceResolved_" + lockId;
     }
 
     private static object? ReadMember(object source, string name)

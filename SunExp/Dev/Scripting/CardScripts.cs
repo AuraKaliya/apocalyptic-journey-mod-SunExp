@@ -506,14 +506,33 @@ public static class CardScripts
             return;
         }
 
-        ExecutorApi.SetVar(self, "SunExpFlamewheelCostHook", "1");
-        self.AddEvent("FightStart", new Action(() =>
+        var token = (DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "SunExpFlamewheelCostToken", "0")) + 1).ToString();
+        var fightStartRegistered = ExecutorApi.TryAddEvent(self, "FightStart", new Action(() =>
         {
+            if (!ExecutorApi.IsHookTokenActive(self, "SunExpFlamewheelCostToken", token))
+            {
+                return;
+            }
+
             SetFlamewheelUsed(0);
             SetFlamewheelCost(self, 0);
             RefreshFlamewheelHand(self, 0);
-        }));
-        self.AddEvent("Action", new Action(() => RefreshFlamewheelHand(self, FlamewheelUsed())));
+        }), "flamewheel_recurrence");
+        var actionRegistered = ExecutorApi.TryAddEvent(self, "Action", new Action(() =>
+        {
+            if (!ExecutorApi.IsHookTokenActive(self, "SunExpFlamewheelCostToken", token))
+            {
+                return;
+            }
+
+            RefreshFlamewheelHand(self, FlamewheelUsed());
+        }), "flamewheel_recurrence");
+
+        if (fightStartRegistered && actionRegistered)
+        {
+            ExecutorApi.SetVar(self, "SunExpFlamewheelCostHook", "1");
+            ExecutorApi.SetVar(self, "SunExpFlamewheelCostToken", token);
+        }
     }
 
     private static void UseFlamewheel(ScriptExecutor self)
@@ -547,7 +566,17 @@ public static class CardScripts
     {
         foreach (var card in self.HandCard ?? Enumerable.Empty<CardItem>())
         {
+            if (card == null)
+            {
+                continue;
+            }
+
             var id = DictionaryUtil.Get(card.data, "Id");
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                id = DictionaryUtil.Get(card.dataConfig?.data, "Id");
+            }
+
             if (!id.Contains("flamewheel_recurrence"))
             {
                 continue;

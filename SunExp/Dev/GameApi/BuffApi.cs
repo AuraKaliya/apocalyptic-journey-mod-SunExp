@@ -6,8 +6,6 @@ namespace SunExp.Dll.GameApi;
 
 public static class BuffApi
 {
-    private const string PersistentEmberKey = "SunExpWunaPersistentEmber";
-
     private static readonly HashSet<string> PositiveExcludeIds = new(StringComparer.Ordinal)
     {
         "solar_radiance",
@@ -147,6 +145,7 @@ public static class BuffApi
             ExecutorApi.CombatIntSet(key, level);
         }
 
+        SavePersistentEmber(executor, status);
         return level;
     }
 
@@ -182,7 +181,7 @@ public static class BuffApi
             return 0;
         }
 
-        if (!ExecutorApi.IsSelf(executor, status) || ExecutorApi.GetVar(executor, "SunExpWunaRadianceDone", null!) == null)
+        if (!ExecutorApi.IsSelf(executor, status) || !IsWunaActive())
         {
             return consumed;
         }
@@ -192,8 +191,20 @@ public static class BuffApi
         executor.SetStatus("Self");
         executor.ChangeHp(heal.ToString());
         executor.ChangeMaxHp(consumed.ToString());
-        PlayerApi.SetGameVar(PersistentEmberKey, Math.Max(0, Math.Min(99, Level(status, SunExpIds.Ember))).ToString());
+        SavePersistentEmber(executor, status);
         return consumed;
+    }
+
+    public static int SavePersistentEmber(ScriptExecutor? executor, IStatusManager? status)
+    {
+        if (executor?.Self == null || status == null || !ExecutorApi.IsSelf(executor, status) || !IsWunaActive())
+        {
+            return 0;
+        }
+
+        var level = Math.Max(0, Math.Min(99, Level(status, SunExpIds.Ember)));
+        PlayerApi.SetGameVar(SunExpIds.WunaPersistentEmber, level.ToString());
+        return level;
     }
 
     private static IEnumerable<IBuffItem> NegativeBuffs(IStatusManager? status)
@@ -242,6 +253,18 @@ public static class BuffApi
             ? id.Substring(prefix.Length)
             : id;
         return PositiveExcludeIds.Contains(id) || PositiveExcludeIds.Contains(normalized);
+    }
+
+    private static bool IsWunaActive()
+    {
+        var careerId = PlayerApi.GetCurrentCareerId();
+        if (!string.IsNullOrWhiteSpace(careerId)
+            && careerId.IndexOf("wuna", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return true;
+        }
+
+        return PlayerApi.GetGameVar(SunExpIds.WunaActive, "0") == "1";
     }
 
     private static int ReadIntProperty(object target, string name)

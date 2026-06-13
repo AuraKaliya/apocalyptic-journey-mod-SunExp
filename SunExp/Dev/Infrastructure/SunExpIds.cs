@@ -24,4 +24,7 @@ public static class SunExpIds
     public const string TempWhiteRadianceResolved = "SunExpTempWhiteRadianceResolved";
 
     public const string SolarTriggerCost = "SunExpSolarTriggerCost";
+
+    public const string WunaActive = "SunExpWunaActive";
+    public const string WunaPersistentEmber = "SunExpWunaPersistentEmber";
 }

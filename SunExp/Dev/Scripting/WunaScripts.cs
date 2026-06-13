@@ -10,25 +10,65 @@ public static class WunaScripts
     private const string WhiteSunPrayerCardId = "SunExp_wuna_wuna_white_sun_prayer";
     private const string GraveSongCardId = "SunExp_wuna_wuna_grave_song";
     private const string CoronationTokenCardId = "SunExp_wuna_wuna_coronation_token";
-    private const string PersistentEmberKey = "SunExpWunaPersistentEmber";
 
     public static void InitCareer(ScriptExecutor self)
     {
         try
         {
+            PlayerApi.SetGameVar(SunExpIds.WunaActive, "1");
             PlayerApi.SetSkillTime(WhiteSunPrayerCardId, 0);
             PlayerApi.SetSkillTime(GraveSongCardId, 0);
             ExecutorApi.SetVar(self, "SunExpWunaRadianceDone", "0");
             ExecutorApi.SetVar(self, "SunExpWunaPrevEnemyBurn", "0");
 
-            self.AddEvent("FightStart", new Action(() =>
+            var token = (DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "SunExpWunaCareerToken", "0")) + 1).ToString();
+            self.SetStatus("Self");
+            var fightStartRegistered = ExecutorApi.TryAddEvent(self, "FightStart", new Action(() =>
             {
+                if (!ExecutorApi.IsHookTokenActive(self, "SunExpWunaCareerToken", token))
+                {
+                    return;
+                }
+
                 RestorePersistentEmber(self);
                 ExecutorApi.SetVar(self, "SunExpWunaRadianceDone", "0");
                 ExecutorApi.SetVar(self, "SunExpWunaPrevEnemyBurn", EnemyBurnTotal(self));
-            }));
-            self.AddEvent("StartRound", new Action(() => StartRound(self)));
-            self.AddEvent("buff_burnOnLevelChange", new Action(() => TryGainRadianceFromEnemyBurn(self)));
+            }), "wuna_career");
+            var startRoundRegistered = ExecutorApi.TryAddEvent(self, "StartRound", new Action(() =>
+            {
+                if (ExecutorApi.IsHookTokenActive(self, "SunExpWunaCareerToken", token))
+                {
+                    StartRound(self);
+                }
+            }), "wuna_career");
+            var burnChangeRegistered = ExecutorApi.TryAddEvent(self, "buff_burnOnLevelChange", new Action(() =>
+            {
+                if (ExecutorApi.IsHookTokenActive(self, "SunExpWunaCareerToken", token))
+                {
+                    TryGainRadianceFromEnemyBurn(self);
+                }
+            }), "wuna_career");
+
+            ExecutorApi.TryAddEvent(self, "Win", new Action(() =>
+            {
+                if (ExecutorApi.IsHookTokenActive(self, "SunExpWunaCareerToken", token))
+                {
+                    SaveAndClearCareerHook(self);
+                }
+            }), "wuna_career");
+            ExecutorApi.TryAddEvent(self, "Escape", new Action(() =>
+            {
+                if (ExecutorApi.IsHookTokenActive(self, "SunExpWunaCareerToken", token))
+                {
+                    SaveAndClearCareerHook(self);
+                }
+            }), "wuna_career");
+
+            if (fightStartRegistered && startRoundRegistered && burnChangeRegistered)
+            {
+                ExecutorApi.SetVar(self, "SunExpWunaCareerHook", "1");
+                ExecutorApi.SetVar(self, "SunExpWunaCareerToken", token);
+            }
         }
         catch (Exception ex)
         {
@@ -116,8 +156,8 @@ public static class WunaScripts
         self.SetStatus("Self");
         BuffApi.ClearEmberDamageBonus(self, self.Self);
         self.RemoveBuff(SunExpIds.Ember);
-        PlayerApi.SetGameVar(PersistentEmberKey, "0");
         BuffApi.OnEmberConsumed(self, self.Self, ember);
+        SetPersistentEmber(0);
         PlayerApi.SetSkillTime(GraveSongCardId, 4);
         if (burn > 0)
         {
@@ -213,6 +253,17 @@ public static class WunaScripts
         }
 
         ExecutorApi.SetVar(self, "SunExpWunaPrevEnemyBurn", EnemyBurnTotal(self));
+    }
+
+    private static int SavePersistentEmber(ScriptExecutor self)
+    {
+        return BuffApi.SavePersistentEmber(self, self?.Self);
+    }
+
+    private static void SaveAndClearCareerHook(ScriptExecutor self)
+    {
+        SavePersistentEmber(self);
+        ExecutorApi.ClearHook(self, "SunExpWunaCareerHook", "SunExpWunaCareerToken");
     }
 
     private static void TickSkillTimes()
@@ -340,13 +391,13 @@ public static class WunaScripts
 
     private static int GetPersistentEmber()
     {
-        return Math.Max(0, Math.Min(99, DictionaryUtil.ParseInt(PlayerApi.GetGameVar(PersistentEmberKey, "0"))));
+        return Math.Max(0, Math.Min(99, DictionaryUtil.ParseInt(PlayerApi.GetGameVar(SunExpIds.WunaPersistentEmber, "0"))));
     }
 
     private static int SetPersistentEmber(int value)
     {
         var level = Math.Max(0, Math.Min(99, value));
-        PlayerApi.SetGameVar(PersistentEmberKey, level.ToString());
+        PlayerApi.SetGameVar(SunExpIds.WunaPersistentEmber, level.ToString());
         return level;
     }
 }

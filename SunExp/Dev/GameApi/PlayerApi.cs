@@ -60,6 +60,18 @@ public static class PlayerApi
         InvokeStaticPlayerInfo("ShowCaption", text);
     }
 
+    public static string GetCurrentCareerId()
+    {
+        try
+        {
+            return DictionaryUtil.Get(RoleTable.Instance?.Career?.data, "Id");
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
     public static bool AddMoney(int amount)
     {
         if (amount == 0)
