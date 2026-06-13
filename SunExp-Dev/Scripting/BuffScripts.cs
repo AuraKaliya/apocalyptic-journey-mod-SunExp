@@ -42,6 +42,9 @@ public static class BuffScripts
                 case "afterglow_omen":
                     ApplyAfterglowOmen(self);
                     break;
+                case "dusk_afterheat_recovery_trait":
+                    PartnerScripts.RegisterDuskAfterheatRecovery(self);
+                    break;
             }
         }
         catch (Exception ex)
@@ -89,6 +92,9 @@ public static class BuffScripts
                     break;
                 case "afterglow_omen":
                     ExecutorApi.ClearHook(self, "SunExpAfterglowHook", "SunExpAfterglowToken");
+                    break;
+                case "dusk_afterheat_recovery_trait":
+                    PartnerScripts.ClearDuskAfterheatRecovery(self);
                     break;
             }
         }

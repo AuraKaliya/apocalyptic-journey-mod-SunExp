@@ -329,6 +329,11 @@ function Invoke-SourceAssertions {
     $cardConfigApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\CardConfigApi.cs"))
     $cardScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\CardScripts.cs"))
     $buffScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\BuffScripts.cs"))
+    $eventScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\EventScripts.cs"))
+    $runtimeHooks = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\RuntimeHooks.cs"))
+    $solarEventRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarEventRuntime.cs"))
+    $mapData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Map\sunexp.csv"))
+    $mapText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\Map\sunexp.csv"))
 
     $addStatusBuff = [regex]::Match($executorApi, "public\s+static\s+bool\s+AddStatusBuff[\s\S]*?public\s+static\s+bool\s+RemoveStatusBuff")
     Assert-True $addStatusBuff.Success "Could not locate ExecutorApi.AddStatusBuff for source assertion."
@@ -346,6 +351,18 @@ function Invoke-SourceAssertions {
     Assert-True $buffScripts.Contains("return maxHp / 100 + 1;") "body_burn must deal 1% max HP + 1 true damage per stack."
     Assert-True (-not $specialTagRuntime.Contains("CardConfigApi.BaseCost")) "White radiance should use current actual play cost, not BaseCost."
     Assert-True $cardConfigApi.Contains("ReadPlayerCardCostMultiplier") "CardConfigApi must read the player CardCost multiplier."
+    Assert-True $runtimeHooks.Contains("SolarEventRuntime.EnsureInCurrentLayer") "RuntimeHooks must route solar map injection through SolarEventRuntime."
+    Assert-True $runtimeHooks.Contains("SolarEventRuntime.RepairMapSelection") "RuntimeHooks must route solar map sync repair through SolarEventRuntime."
+    Assert-True (-not $solarEventRuntime.Contains("TypeGenerate")) "SolarEventRuntime must not generate map nodes by Note; the base game does not know the solar event Note."
+    Assert-True $solarEventRuntime.Contains("SunExpIds.SolarEventMapId") "SolarEventRuntime must target the dedicated solar map id."
+    Assert-True $solarEventRuntime.Contains("SunExpIds.WunaEventFullPrefix") "SolarEventRuntime must route mapdata to the current Wuna Sub event id."
+    Assert-True $eventScripts.Contains("CanClaim(progress)") "Event rewards must be guarded by current progress."
+    Assert-True $eventScripts.Contains("GetProgress() == progress - 1") "Event reward progress must match exactly before advancing."
+    Assert-True $mapData.Contains("solar_event,Event,Breaks_solar_event,-1") "solar_event must use a Breaks-like static NodeId so base random map generation filters it out."
+    $normalEventNote = -join ([char]0x666E, [char]0x901A, [char]0x4E8B, [char]0x4EF6)
+    $solarNote = -join ([char]0x65E5, [char]0x8000, [char]0x4E8B, [char]0x4EF6)
+    Assert-True $mapText.Contains("solar_event,$normalEventNote,") "solar_event map text Note must use a base-game map note to avoid NormalMapManager weight lookup crashes."
+    Assert-True (-not $mapText.Contains("solar_event,$solarNote,")) "solar_event must not use a custom solar Note; the base game does not know that map weight key."
 
     Write-Host "C# source assertions passed."
 }

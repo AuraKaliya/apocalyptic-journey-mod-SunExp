@@ -6,13 +6,11 @@ namespace SunExp.Dll.Scripting;
 
 public static class EventScripts
 {
-    private const string ProgressKey = "SunExp_WunaEventProgressV2";
-
     public static void Init(ScriptExecutor self, string id)
     {
         try
         {
-            if (id == "Sub_wuna_event_repeat")
+            if (id == SunExpIds.WunaEventRepeat)
             {
                 BeginRepeatEvent(self);
                 return;
@@ -30,6 +28,12 @@ public static class EventScripts
     {
         try
         {
+            if (!CanClaim(progress))
+            {
+                PlayerApi.EndEvent();
+                return;
+            }
+
             PlayerApi.AddMoney(100);
             PlayerApi.AddCard(cardId);
             Finish(progress);
@@ -44,6 +48,12 @@ public static class EventScripts
     {
         try
         {
+            if (!CanClaim(progress))
+            {
+                PlayerApi.EndEvent();
+                return;
+            }
+
             PlayerApi.AddMoney(100);
             PlayerApi.AddRelic(relicId);
             Finish(progress);
@@ -58,6 +68,12 @@ public static class EventScripts
     {
         try
         {
+            if (!CanClaim(progress))
+            {
+                PlayerApi.EndEvent();
+                return;
+            }
+
             PlayerApi.AddMoney(100);
             PlayerApi.AddBless(blessId);
             Finish(progress);
@@ -83,7 +99,7 @@ public static class EventScripts
 
     private static bool BeginWunaEvent(ScriptExecutor self, int step)
     {
-        var expected = Math.Max(1, Math.Min(6, step));
+        var expected = Math.Max(1, Math.Min(SunExpIds.WunaEventMaxProgress, step));
         var current = GetProgress();
         return current == expected - 1
             ? SetEventChoices(self, "1", "1", "", "")
@@ -117,20 +133,23 @@ public static class EventScripts
 
     private static int Advance(int progress)
     {
-        var current = GetProgress();
-        var next = Math.Max(current, progress);
-        PlayerApi.SetGameVar(ProgressKey, next.ToString());
-        return next;
+        PlayerApi.SetGameVar(SunExpIds.WunaEventProgressKey, progress.ToString());
+        return progress;
+    }
+
+    private static bool CanClaim(int progress)
+    {
+        return progress >= 1 && progress <= SunExpIds.WunaEventMaxProgress && GetProgress() == progress - 1;
     }
 
     private static int GetProgress()
     {
-        return DictionaryUtil.ParseInt(PlayerApi.GetGameVar(ProgressKey, "0"));
+        return DictionaryUtil.ParseInt(PlayerApi.GetGameVar(SunExpIds.WunaEventProgressKey, "0"));
     }
 
     private static int ParseStep(string id)
     {
-        if (string.IsNullOrWhiteSpace(id) || id.Length < 2)
+        if (string.IsNullOrWhiteSpace(id) || !id.StartsWith(SunExpIds.WunaEventPrefix, StringComparison.Ordinal) || id.Length < 2)
         {
             return 1;
         }

@@ -202,7 +202,7 @@ function Test-MapEventRows {
         if (-not $textIds.ContainsKey($id)) {
             Add-Failure "Map data row '$id' has no matching text row."
         }
-        if ($row.Type -eq "Event" -and $row.NodeId -match "^SunExp_sunexp_Sub_") {
+        if ($row.Type -eq "Event" -and $row.NodeId -match "^SunExp_sunexp_Sub_" -and $id -ne "solar_event") {
             Add-Warning "Map event '$id' points directly at story event '$($row.NodeId)'; verify runtime selection still controls the intended row."
         }
     }
@@ -210,7 +210,7 @@ function Test-MapEventRows {
 
 $repoRoot = Get-RepoRoot
 $modRootPath = Resolve-RepoPath -Path $ModRoot -DefaultPath (Join-Path $repoRoot "SunExp") -RepoRoot $repoRoot
-$eventScriptsPathResolved = Resolve-RepoPath -Path $EventScriptsPath -DefaultPath (Join-Path $repoRoot "SunExp\Dev\Scripting\EventScripts.cs") -RepoRoot $repoRoot
+$eventScriptsPathResolved = Resolve-RepoPath -Path $EventScriptsPath -DefaultPath (Join-Path $repoRoot "SunExp-Dev\Scripting\EventScripts.cs") -RepoRoot $repoRoot
 
 $script:Failures = New-Object System.Collections.Generic.List[string]
 $script:Warnings = New-Object System.Collections.Generic.List[string]

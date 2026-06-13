@@ -1,3 +1,3 @@
 Id,Type,NodeId,Level
 唯一标识,种类,对应种类的节点Id,对应出现层数
-solar_event,Event,SunExp_sunexp_solar_event,-1
+solar_event,Event,Breaks_solar_event,-1

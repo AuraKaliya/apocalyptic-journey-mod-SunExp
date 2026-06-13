@@ -299,14 +299,12 @@ function Test-MapTextNotes {
     $noteElite = New-Text @(0x7CBE, 0x82F1)
     $noteBoss = New-Text @(0x9996, 0x9886)
     $noteBuild = New-Text @(0x5EFA, 0x7B51)
-    $noteSolarEvent = New-Text @(0x65E5, 0x8000, 0x4E8B, 0x4EF6)
     $allowedNotes = @{
         $noteNormalEvent = $true
         $noteNormal = $true
         $noteElite = $true
         $noteBoss = $true
         $noteBuild = $true
-        $noteSolarEvent = $true
     }
     foreach ($text in $MapTexts) {
         if (-not ($text.PSObject.Properties.Name -contains "Note")) {

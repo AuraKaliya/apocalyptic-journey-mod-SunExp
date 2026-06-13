@@ -13,7 +13,7 @@ public static class PartnerScripts
             switch (id)
             {
                 case "dusk":
-                    RegisterDuskAfterheatRecovery(self);
+                    GrantDuskAfterheatRecoveryTrait(self);
                     break;
             }
         }
@@ -23,7 +23,7 @@ public static class PartnerScripts
         }
     }
 
-    private static void RegisterDuskAfterheatRecovery(ScriptExecutor self)
+    public static void RegisterDuskAfterheatRecovery(ScriptExecutor self)
     {
         var token = ExecutorApi.RegisterHook(self, "SunExpDuskAfterheatHook", "SunExpDuskAfterheatToken");
         if (token == null)
@@ -46,7 +46,7 @@ public static class PartnerScripts
                     continue;
                 }
 
-                var listenerKey = DuskListenerKey(targetId);
+                var listenerKey = DuskListenerKey(targetId, token);
                 if (ExecutorApi.GetVar(self, listenerKey, "0") == "1")
                 {
                     continue;
@@ -82,8 +82,24 @@ public static class PartnerScripts
         BuffApi.SyncEmberDamageBonus(self, self.Self);
     }
 
-    private static string DuskListenerKey(string targetId)
+    public static void ClearDuskAfterheatRecovery(ScriptExecutor self)
     {
-        return "SunExpDuskBurnListener_" + targetId;
+        ExecutorApi.ClearHook(self, "SunExpDuskAfterheatHook", "SunExpDuskAfterheatToken");
+    }
+
+    private static void GrantDuskAfterheatRecoveryTrait(ScriptExecutor self)
+    {
+        if (self?.Self == null)
+        {
+            return;
+        }
+
+        self.SetStatus("Self");
+        self.AddBuff(SunExpIds.DuskAfterheatRecoveryTrait, "1");
+    }
+
+    private static string DuskListenerKey(string targetId, string token)
+    {
+        return "SunExpDuskBurnListener_" + targetId + "_" + token;
     }
 }

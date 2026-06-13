@@ -18,6 +18,7 @@ public static class SunExpIds
     public const string OriginCoreRadiance = "SunExp_sunexp_origin_core_radiance";
     public const string CycleGatheredFlame = "SunExp_sunexp_cycle_gathered_flame";
     public const string AfterglowOmen = "SunExp_sunexp_afterglow_omen";
+    public const string DuskAfterheatRecoveryTrait = "SunExp_sunexp_dusk_afterheat_recovery_trait";
 
     public const string TempWhiteRadiance = "SunExpTempWhiteRadiance";
     public const string TempWhiteRadianceLockId = "SunExpTempWhiteRadianceLockId";
@@ -27,4 +28,13 @@ public static class SunExpIds
 
     public const string WunaActive = "SunExpWunaActive";
     public const string WunaPersistentEmber = "SunExpWunaPersistentEmber";
+
+    public const string WunaEventProgressKey = "SunExp_WunaEventProgressV2";
+    public const string SolarEventMapId = "SunExp_sunexp_solar_event";
+    public const string SolarEventShortMapId = "solar_event";
+    public const string WunaEventPrefix = "Sub_wuna_event_";
+    public const string WunaEventFullPrefix = "SunExp_sunexp_Sub_wuna_event_";
+    public const string WunaEventRepeat = "Sub_wuna_event_repeat";
+    public const string WunaEventFullRepeat = "SunExp_sunexp_Sub_wuna_event_repeat";
+    public const int WunaEventMaxProgress = 6;
 }
