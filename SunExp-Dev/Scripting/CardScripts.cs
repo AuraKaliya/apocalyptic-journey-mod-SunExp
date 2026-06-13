@@ -543,7 +543,7 @@ public static class CardScripts
         SetFlamewheelUsed(times);
         SetFlamewheelCost(self, times);
         RefreshFlamewheelHand(self, times);
-        ExecutorApi.TriggerBurnAllEnemies(self, times);
+        ExecutorApi.TriggerBurnAllEnemies(self, times * 2);
         DictionaryUtil.Set(self.Vars, SunExpIds.SolarTriggerCost, times.ToString());
     }
 

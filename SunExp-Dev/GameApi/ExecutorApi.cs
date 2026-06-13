@@ -98,7 +98,7 @@ public static class ExecutorApi
 
     public static bool TryAddEvent(ScriptExecutor? executor, string eventName, Action script, string context = "")
     {
-        if (executor == null || string.IsNullOrWhiteSpace(eventName) || script == null)
+        if (executor == null || executor.Self == null || string.IsNullOrWhiteSpace(eventName) || script == null)
         {
             return false;
         }
@@ -108,8 +108,9 @@ public static class ExecutorApi
             executor.AddEvent(eventName, script);
             return true;
         }
-        catch (NullReferenceException)
+        catch (Exception ex)
         {
+            SunExpLog.Debug("TryAddEvent skipped: " + context + ", event=" + eventName + ", error=" + ex.Message);
             return false;
         }
     }
