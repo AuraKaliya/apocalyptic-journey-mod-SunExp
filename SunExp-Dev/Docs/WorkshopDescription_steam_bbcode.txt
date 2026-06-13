@@ -26,7 +26,7 @@
 
 [h2]SunExp / Solar Charge[/h2]
 
-SunExp is a high-risk burst card pack and event mod built around [b]Solar Radiance[/b], [b]Scorching Canopy[/b], [b]Gathered Flame[/b], and [b]Crown Manifestation[/b]. It adds [b]30 cards[/b] that can be mixed into the official reward pool, [b]13 Solar relics[/b], and a map-visible [b]Solar Event[/b] route across the Radiance: Spark, Radiance: Ember Crown, and Radiance: Canopy branches.
+SunExp is a high-risk burst card pack, partner, and event mod built around [b]Solar Radiance[/b], [b]Scorching Canopy[/b], [b]Gathered Flame[/b], [b]Ember[/b], and [b]Crown Manifestation[/b]. It adds [b]30 cards[/b] that can be mixed into the official reward pool, [b]13 Solar relics[/b], the [b]Dusk[/b] partner, and a map-visible [b]Solar Event[/b] route across the Radiance: Spark, Radiance: Ember Crown, and Radiance: Canopy branches.
 
 The core loop is to ignite the battlefield, absorb Burn into Gathered Flame, then use Crown Manifestation as the safer window for cashing that stored heat out. Blazing Crown Collapse can still be forced outside Crown Manifestation, but you take the same burst damage as the enemies, so managing self-burn through Ember Cloak, relics, and high Crown phases is part of the intended play pattern.
 

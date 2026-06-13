@@ -2,7 +2,7 @@
 
 作者 / Author: Aura
 
-SunExp is a card pack and event mod for Witch's Apocalyptic Journey. It adds 30 high-risk burst cards, 13 Solar relics, and a Solar Event route across the Radiance: Spark, Radiance: Ember Crown, and Radiance: Canopy branches. The combat loop is built around Solar Radiance, Scorching Canopy, Gathered Flame, battlefield-wide Burn, and Crown Manifestation. Crown Manifestation turns the pack's largest burst into a safer payoff window, while forcing the blast outside that window can backfire hard. The current version also introduces staged Una / Obsidian Sanctuary records through the map event. The mod uses a C# DLL, CSV, text, and image resources.
+SunExp is a card pack, partner, and event mod for Witch's Apocalyptic Journey. It adds 30 high-risk burst cards, 13 Solar relics, the Dusk partner, and a Solar Event route across the Radiance: Spark, Radiance: Ember Crown, and Radiance: Canopy branches. The combat loop is built around Solar Radiance, Scorching Canopy, Gathered Flame, battlefield-wide Burn, Ember, and Crown Manifestation. Crown Manifestation turns the pack's largest burst into a safer payoff window, while forcing the blast outside that window can backfire hard. The current version also introduces staged Una / Obsidian Sanctuary records through the map event. The mod uses a C# DLL, CSV, text, and image resources.
 
 《日耀：烬冠天幕》是一个以 C# DLL、CSV、文本和图片资源为主的卡包与事件 Mod，新增 30 张高风险高爆发卡牌、13 件日耀遗物，以及一个地图可见的日耀事件入口。三个卡包分支分别是【日耀：星火】、【日耀：烬冠】和【日耀：天幕】，可与官方卡包混合游玩。它围绕日耀、炽灼天幕、聚炎、全场灼烧和圣冕显化构筑，鼓励玩家先制造热量，再把热量转化为爆发。圣冕显化能让最大的爆发进入更安全的兑现窗口，若强行在圣冕外引爆，则可能遭受猛烈反噬。当前版本也加入了乌娜与白曜圣庭的阶段式事件记录。
 

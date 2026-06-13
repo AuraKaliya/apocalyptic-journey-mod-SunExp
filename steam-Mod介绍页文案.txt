@@ -1,4 +1,6 @@
 ---
+《虚假的黄金梦》敬请期待
+---
 仓库 https://github.com/AuraKaliya/apocalyptic-journey-mod-SunExp 
 白日不定时摸鱼更新，晚上激情创作中。
 内置：卡包制作skill，卡牌/遗物绘制skill，事件/剧情事件制作skill

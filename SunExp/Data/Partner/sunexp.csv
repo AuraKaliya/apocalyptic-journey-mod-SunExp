@@ -1,0 +1,3 @@
+Id,Hp,Attack,Defend,ActionCount,Rarity,InitScript,CardList,ChoiceIcon,Model,Animation,Bless,CareerImage
+唯一标识,生命值,攻击,防御,每回合行动数,稀有度,初始脚本,行动列表,玩偶图标,怪物模型路径,动画路径,给予的祝福,选择详情图
+dusk,10,0,0,0,2,,,Mods/SunExp/ModResource/Images/Partner/SunExp/dusk_choice,Mods/SunExp/ModResource/Images/Partner/SunExp/dusk,Mods/SunExp/ModResource/AnimationLib/Dusk,SunExp_sunexp_dusk_afterheat_recovery,Mods/SunExp/ModResource/Images/Partner/SunExp/dusk

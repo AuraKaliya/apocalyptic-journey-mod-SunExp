@@ -1,0 +1,3 @@
+Id,Note,Name,Name_zh-Hant,Name_en,Name_ja,Description,Description_zh-Hant,Description_en,Description_ja,Tips,Tips_zh-Hant,Tips_en,Tips_ja
+唯一标识,备注,名称,名稱,Name,名称,描述,描述,Description,説明,剧情描述,劇情描述,Tips,ストーリー説明
+dusk_afterheat_recovery,伙伴被动,余热回收,餘熱回收,Afterheat Recovery,余熱回収,每当敌人{buff_burn}触发时，获得其{buff_burn}层数一半的{SunExp_sunexp_ember}。,每當敵人{buff_burn}觸發時，獲得其{buff_burn}層數一半的{SunExp_sunexp_ember}。,"Whenever an enemy's {buff_burn} triggers, gain {SunExp_sunexp_ember} equal to half that enemy's {buff_burn} stacks.",敵の{buff_burn}が発動するたび、その{buff_burn}スタックの半分に等しい{SunExp_sunexp_ember}を得る。,黄昏会把熄灭前的最后一缕热收进胸口的残阳。,黃昏會把熄滅前的最後一縷熱收進胸口的殘陽。,Dusk gathers the last heat before the flame goes out.,黄昏は火が消える前の最後の熱を胸の残陽へ集める。
