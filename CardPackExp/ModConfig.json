@@ -1,0 +1,10 @@
+﻿{
+  "ModName": "CardPackExp",
+  "ModVersion": "0.1.0",
+  "ModAuthor": "Aura",
+  "ModDescription": "一个【世界推演】模式开局卡包自定义工具。开始游戏后进入第一层地图时，可从当前启用卡包中编辑一次性初始套卡；不会把初始套卡塞进奖励候选池。",
+  "IconPath": "Icon.png",
+  "Enabled": true,
+  "WorkshopVisibility": "Public",
+  "PublishedFileId": "3744420973"
+}
