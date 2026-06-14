@@ -51,4 +51,12 @@ public static class SunExpIds
     public const string SolarMemoryTitle = "日耀回忆";
     public const string SolarMemoryDescription = "乌娜的专属回忆";
     public const string SolarMemorySubtitle = "Boss连战";
+
+    public const string SolarFinaleSavedNamesKey = "SunExp_SolarFinaleSavedNames";
+    public const string SolarFinaleBurnedNamesKey = "SunExp_SolarFinaleBurnedNames";
+    public const string SolarFinaleNamelessNamesKey = "SunExp_SolarFinaleNamelessNames";
+    public const string SolarFinaleSecondSunDefeatedKey = "SunExp_SolarFinaleSecondSunDefeated";
+    public const string SolarFinaleEndingKey = "SunExp_SolarFinaleEnding";
+    public const int SolarFinaleNameCount = 8;
+    public const int SolarFinaleHiddenBossNameThreshold = 5;
 }

@@ -164,6 +164,186 @@ public static class EventScripts
         }
     }
 
+    public static void InitSolarFinaleLedger(ScriptExecutor self)
+    {
+        try
+        {
+            EnsureSolarFinaleLedger();
+            SetEventChoices(self, "1", "1", "1", "");
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar finale ledger init failed", ex);
+        }
+    }
+
+    public static void PreserveSolarFinaleLedger()
+    {
+        try
+        {
+            PlayerApi.SetGameVar(SunExpIds.SolarFinaleSavedNamesKey, SunExpIds.SolarFinaleNameCount.ToString());
+            PlayerApi.SetGameVar(SunExpIds.SolarFinaleBurnedNamesKey, "0");
+            PlayerApi.SetGameVar(SunExpIds.SolarFinaleNamelessNamesKey, "0");
+            PlayerApi.ShowCaption("名册已整理：八个名字仍在余烬中发亮。");
+            PlayerApi.EndEvent();
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar finale preserve ledger failed", ex);
+        }
+    }
+
+    public static void BurnSolarFinaleName()
+    {
+        try
+        {
+            EnsureSolarFinaleLedger();
+            BurnFinaleNames(1);
+            PlayerApi.ShowCaption("一个名字被烧掉，换来终日前的一次喘息。");
+            PlayerApi.EndEvent();
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar finale burn name failed", ex);
+        }
+    }
+
+    public static void NamelessSolarFinaleName()
+    {
+        try
+        {
+            EnsureSolarFinaleLedger();
+            MoveFinaleNamesToNameless(1);
+            PlayerApi.ShowCaption("一个名字被写回白曜名册，字迹完整，却再也无法被呼唤。");
+            PlayerApi.EndEvent();
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar finale nameless name failed", ex);
+        }
+    }
+
+    public static void InitSolarFinaleSecondSun(ScriptExecutor self)
+    {
+        try
+        {
+            EnsureSolarFinaleLedger();
+            SetEventChoices(self, "1", "1", "1", "");
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar finale second sun init failed", ex);
+        }
+    }
+
+    public static void ResolveSolarFinaleSecondSun(string result)
+    {
+        try
+        {
+            EnsureSolarFinaleLedger();
+            PlayerApi.SetGameVar(SunExpIds.SolarFinaleSecondSunDefeatedKey, "1");
+
+            if (string.Equals(result, "burn_name", StringComparison.OrdinalIgnoreCase))
+            {
+                BurnFinaleNames(1);
+            }
+            else if (string.Equals(result, "overload", StringComparison.OrdinalIgnoreCase))
+            {
+                BurnFinaleNames(3);
+                PlayerApi.SetGameVar(SunExpIds.SolarFinaleEndingKey, "witch");
+            }
+
+            PlayerApi.EndEvent();
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar finale second sun resolve failed: " + result, ex);
+        }
+    }
+
+    public static void InitSolarFinaleSaint(ScriptExecutor self)
+    {
+        try
+        {
+            EnsureSolarFinaleLedger();
+            var canReachHiddenBoss = SavedFinaleNames() >= SunExpIds.SolarFinaleHiddenBossNameThreshold
+                && BurnedFinaleNames() < SunExpIds.SolarFinaleHiddenBossNameThreshold;
+            SetEventChoices(self, canReachHiddenBoss ? "1" : "", "1", "1", "");
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar finale saint init failed", ex);
+        }
+    }
+
+    public static void ResolveSolarFinaleSaint(string result)
+    {
+        try
+        {
+            EnsureSolarFinaleLedger();
+            if (string.Equals(result, "star_echo", StringComparison.OrdinalIgnoreCase)
+                && SavedFinaleNames() >= SunExpIds.SolarFinaleHiddenBossNameThreshold)
+            {
+                PlayerApi.SetGameVar(SunExpIds.SolarFinaleEndingKey, "stars");
+            }
+            else if (string.Equals(result, "burn_names", StringComparison.OrdinalIgnoreCase))
+            {
+                BurnFinaleNames(2);
+                PlayerApi.SetGameVar(SunExpIds.SolarFinaleEndingKey, BurnedFinaleNames() >= SunExpIds.SolarFinaleHiddenBossNameThreshold ? "witch" : "white_city");
+            }
+            else
+            {
+                MoveFinaleNamesToNameless(SavedFinaleNames());
+                PlayerApi.SetGameVar(SunExpIds.SolarFinaleEndingKey, "white_city");
+            }
+
+            PlayerApi.EndEvent();
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar finale saint resolve failed: " + result, ex);
+        }
+    }
+
+    public static void InitSolarFinaleEnding(ScriptExecutor self)
+    {
+        try
+        {
+            EnsureSolarFinaleLedger();
+            var ending = PlayerApi.GetGameVar(SunExpIds.SolarFinaleEndingKey, "");
+            if (string.IsNullOrWhiteSpace(ending))
+            {
+                ending = BurnedFinaleNames() >= SunExpIds.SolarFinaleHiddenBossNameThreshold
+                    ? "witch"
+                    : SavedFinaleNames() >= SunExpIds.SolarFinaleHiddenBossNameThreshold ? "stars" : "white_city";
+                PlayerApi.SetGameVar(SunExpIds.SolarFinaleEndingKey, ending);
+            }
+
+            SetEventChoices(self,
+                string.Equals(ending, "stars", StringComparison.OrdinalIgnoreCase) ? "1" : "",
+                string.Equals(ending, "white_city", StringComparison.OrdinalIgnoreCase) ? "1" : "",
+                string.Equals(ending, "witch", StringComparison.OrdinalIgnoreCase) ? "1" : "",
+                "");
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar finale ending init failed", ex);
+        }
+    }
+
+    public static void FinishSolarFinaleEnding(string ending)
+    {
+        try
+        {
+            PlayerApi.SetGameVar(SunExpIds.SolarFinaleEndingKey, ending);
+            PlayerApi.EndEvent();
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar finale ending failed: " + ending, ex);
+        }
+    }
+
     private static bool BeginWunaEvent(ScriptExecutor self, int step)
     {
         var expected = Math.Max(1, Math.Min(SunExpIds.WunaEventMaxProgress, step));
@@ -222,5 +402,51 @@ public static class EventScripts
         }
 
         return DictionaryUtil.ParseInt(id.Substring(id.Length - 2));
+    }
+
+    private static void EnsureSolarFinaleLedger()
+    {
+        if (string.IsNullOrWhiteSpace(PlayerApi.GetGameVar(SunExpIds.SolarFinaleSavedNamesKey, "")))
+        {
+            PlayerApi.SetGameVar(SunExpIds.SolarFinaleSavedNamesKey, SunExpIds.SolarFinaleNameCount.ToString());
+        }
+
+        if (string.IsNullOrWhiteSpace(PlayerApi.GetGameVar(SunExpIds.SolarFinaleBurnedNamesKey, "")))
+        {
+            PlayerApi.SetGameVar(SunExpIds.SolarFinaleBurnedNamesKey, "0");
+        }
+
+        if (string.IsNullOrWhiteSpace(PlayerApi.GetGameVar(SunExpIds.SolarFinaleNamelessNamesKey, "")))
+        {
+            PlayerApi.SetGameVar(SunExpIds.SolarFinaleNamelessNamesKey, "0");
+        }
+    }
+
+    private static int SavedFinaleNames()
+    {
+        return Math.Max(0, DictionaryUtil.ParseInt(PlayerApi.GetGameVar(SunExpIds.SolarFinaleSavedNamesKey, SunExpIds.SolarFinaleNameCount.ToString())));
+    }
+
+    private static int BurnedFinaleNames()
+    {
+        return Math.Max(0, DictionaryUtil.ParseInt(PlayerApi.GetGameVar(SunExpIds.SolarFinaleBurnedNamesKey, "0")));
+    }
+
+    private static void BurnFinaleNames(int count)
+    {
+        var saved = SavedFinaleNames();
+        var burned = BurnedFinaleNames();
+        var actual = Math.Min(saved, Math.Max(0, count));
+        PlayerApi.SetGameVar(SunExpIds.SolarFinaleSavedNamesKey, Math.Max(0, saved - actual).ToString());
+        PlayerApi.SetGameVar(SunExpIds.SolarFinaleBurnedNamesKey, (burned + actual).ToString());
+    }
+
+    private static void MoveFinaleNamesToNameless(int count)
+    {
+        var saved = SavedFinaleNames();
+        var nameless = Math.Max(0, DictionaryUtil.ParseInt(PlayerApi.GetGameVar(SunExpIds.SolarFinaleNamelessNamesKey, "0")));
+        var actual = Math.Min(saved, Math.Max(0, count));
+        PlayerApi.SetGameVar(SunExpIds.SolarFinaleSavedNamesKey, Math.Max(0, saved - actual).ToString());
+        PlayerApi.SetGameVar(SunExpIds.SolarFinaleNamelessNamesKey, (nameless + actual).ToString());
     }
 }
