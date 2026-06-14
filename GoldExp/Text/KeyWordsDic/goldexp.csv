@@ -1,0 +1,4 @@
+"Id","Note","Description","Keywords","Keywords_zh-Hant","Keywords_en","Description_zh-Hant","Description_en","Keywords_ja","Description_ja","ShouldShow"
+"唯一标识","备注","描述","关键词","關鍵詞","keyword","描述","description","Keywords_ja","Description_ja",""
+"GoldExp_goldexp_false_gold","","仅存在于本场战斗。消耗金币时，优先消耗伪金；[押注]只消耗真实金币。战斗结束时清空。","伪金","偽金","False Gold","僅存在於本場戰鬥。消耗金幣時，優先消耗偽金；[押注]只消耗真實金幣。戰鬥結束時清空。","Exists only during the current combat. When paying gold, False Gold is spent first; [Wager] spends real gold only. Clears after combat.","偽金","現在の戦闘中だけ存在する。金貨支払い時に先に消費される。","TRUE"
+"GoldExp_goldexp_debt","","债务会在3回合后结算：优先消耗伪金，再消耗真实金币；不足则清空手牌和魔能，随后消除。","债务","債務","Debt","債務會在3回合後結算：優先消耗偽金，再消耗真實金幣；不足則清空手牌和魔能，隨後消除。","Debt settles after 3 rounds: spend False Gold first, then real gold; if insufficient, discard your hand and clear Mana, then remove it.","債務","3回合後に清算される。偽金、実金貨の順に支払う。","TRUE"

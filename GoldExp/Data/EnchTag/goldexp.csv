@@ -1,0 +1,3 @@
+"Id","Tag","LoadScript","DrawScript","DropScript","PreUseScript","UseScript","UnloadScript","Rarity","Icon","PackBelong"
+"唯一标识","添加的标签","初始效果","抽到时的效果","进入弃牌堆的效果","","使用时的效果","卸下效果","稀有度","","cardpack id"
+"gold_dream_keyword","黄金梦","","","","","","","2","Icon/EnchIcon/末日","GoldExp_goldexp_cardpack_gold_dream"

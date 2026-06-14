@@ -1,0 +1,8 @@
+"Id","Note","Name","Name_zh-Hant","Name_en","Name_ja","Description","Description_zh-Hant","Description_ja","Description_en"
+"唯一标识","备注","名称","名稱","Name","名称","描述","描述","説明","Description"
+"false_gold","","伪金","偽金","False Gold","偽金","特性。消耗金币时，优先消耗伪金。战斗结束时清空。","特性。消耗金幣時，優先消耗偽金。戰鬥結束時清空。","金貨の支払い時に先に消費される。","Trait. When paying gold, False Gold is spent first. Clears after combat."
+"debt_1","","债务","債務","Debt","債務","【1】回合后进入结算。","【1】回合後進入結算。","【1】ターン後に清算へ進む。","Enters settlement after [1] round."
+"debt_2","","债务","債務","Debt","債務","【2】回合后进入结算。","【2】回合後進入結算。","【2】ターン後に清算へ進む。","Enters settlement after [2] rounds."
+"debt_3","","债务","債務","Debt","債務","【3】回合后进入结算。","【3】回合後進入結算。","【3】ターン後に清算へ進む。","Enters settlement after [3] rounds."
+"golden_potential","","黄金之资","黃金之資","Golden Potential","黄金の資質","拥有获得黄金称号的潜质。","擁有獲得黃金稱號的潛質。","黄金の称号を得る資質を持つ。","Has the potential to earn a golden title."
+"midas_raven_trait","","账金使魔","帳金使魔","Ledger Familiar","帳簿の使い魔","每2回合，若你至少拥有4层{GoldExp_goldexp_false_gold}，消耗2层并随机造成伤害、获得护盾；若你有{GoldExp_goldexp_debt}，额外抽1张牌并获得1层债务。","每2回合，若你至少擁有4層{GoldExp_goldexp_false_gold}，消耗2層並隨機造成傷害、獲得護盾；若你有{GoldExp_goldexp_debt}，額外抽1張牌並獲得1層債務。","2ターンごとに偽金を消費して攻防を得る。","Every 2 rounds, spends False Gold for damage and Block; Debt adds a card draw and 1 Debt."

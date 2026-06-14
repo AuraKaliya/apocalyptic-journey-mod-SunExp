@@ -1,0 +1,10 @@
+﻿{
+  "ModName": "GoldExp",
+  "ModVersion": "0.1.0",
+  "ModAuthor": "Aura",
+  "ModDescription": "《虚假的黄金梦》是一套围绕真实金币、战斗伪金与债务清算展开的小型扩展。当前版本开放1个金币主题卡包和6张扩展卡。（黄金魔女筹备中）",
+  "IconPath": "Icon.png",
+  "Enabled": true,
+  "WorkshopVisibility": "Public",
+  "PublishedFileId": "3744515537"
+}

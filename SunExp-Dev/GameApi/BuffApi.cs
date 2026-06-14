@@ -203,7 +203,7 @@ public static class BuffApi
         }
 
         var level = Math.Max(0, Math.Min(99, Level(status, SunExpIds.Ember)));
-        PlayerApi.SetGameVar(SunExpIds.WunaPersistentEmber, level.ToString());
+        PlayerApi.SetScopedGameVar(SunExpIds.WunaPersistentEmber, status, level.ToString());
         return level;
     }
 

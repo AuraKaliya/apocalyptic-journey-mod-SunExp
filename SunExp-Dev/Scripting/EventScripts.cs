@@ -1,5 +1,6 @@
 using System;
 using SunExp.Dll.GameApi;
+using SunExp.Dll.Hooks;
 using SunExp.Dll.Infrastructure;
 
 namespace SunExp.Dll.Scripting;
@@ -94,6 +95,72 @@ public static class EventScripts
         catch (Exception ex)
         {
             SunExpLog.Error("Event RepeatReward failed", ex);
+        }
+    }
+
+    public static void InitSolarMemoryStart(ScriptExecutor self)
+    {
+        try
+        {
+            if (PlayerApi.GetGameVar(SunExpIds.SolarMemoryOriginPointsKey, "") == "")
+            {
+                PlayerApi.SetGameVar(SunExpIds.SolarMemoryOriginPointsKey, "3");
+            }
+
+            SetEventChoices(self, "1", "1", "1", "1");
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar memory start init failed", ex);
+        }
+    }
+
+    public static void OpenSolarMemoryOrigin()
+    {
+        try
+        {
+            SolarMemoryModeRuntime.OpenOriginWindow();
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar memory origin option failed", ex);
+        }
+    }
+
+    public static void OpenSolarMemoryBless()
+    {
+        try
+        {
+            SolarMemoryModeRuntime.OpenBlessingWindow();
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar memory blessing option failed", ex);
+        }
+    }
+
+    public static void OpenSolarMemoryDeck()
+    {
+        try
+        {
+            SolarMemoryModeRuntime.OpenDeckWindow();
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar memory deck option failed", ex);
+        }
+    }
+
+    public static void StartSolarMemoryBossRush()
+    {
+        try
+        {
+            PlayerApi.SetGameVar(SunExpIds.SolarMemoryPreparedKey, "1");
+            PlayerApi.EndEvent();
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar memory start boss rush failed", ex);
         }
     }
 

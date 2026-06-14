@@ -157,7 +157,7 @@ public static class WunaScripts
         BuffApi.ClearEmberDamageBonus(self, self.Self);
         self.RemoveBuff(SunExpIds.Ember);
         BuffApi.OnEmberConsumed(self, self.Self, ember);
-        SetPersistentEmber(0);
+        SetPersistentEmber(self, 0);
         PlayerApi.SetSkillTime(GraveSongCardId, 4);
         if (burn > 0)
         {
@@ -323,7 +323,7 @@ public static class WunaScripts
         {
             ember.buffConfig.Level = 99;
             BuffApi.SyncEmberDamageBonus(self, self.Self);
-            SetPersistentEmber(99);
+            SetPersistentEmber(self, 99);
             return 99;
         }
 
@@ -332,11 +332,11 @@ public static class WunaScripts
             BuffApi.ClearEmberDamageBonus(self, self.Self);
             self.SetStatus("Self");
             self.RemoveBuff(SunExpIds.Ember);
-            SetPersistentEmber(0);
+            SetPersistentEmber(self, 0);
             return 0;
         }
 
-        SetPersistentEmber(level);
+        SetPersistentEmber(self, level);
         return level;
     }
 
@@ -347,7 +347,7 @@ public static class WunaScripts
             return 0;
         }
 
-        var stored = GetPersistentEmber();
+        var stored = GetPersistentEmber(self);
         self.SetStatus("Self");
         if (ExecutorApi.SelfBuffLevel(self, SunExpIds.Ember) > 0)
         {
@@ -389,15 +389,16 @@ public static class WunaScripts
         return true;
     }
 
-    private static int GetPersistentEmber()
+    private static int GetPersistentEmber(ScriptExecutor self)
     {
-        return Math.Max(0, Math.Min(99, DictionaryUtil.ParseInt(PlayerApi.GetGameVar(SunExpIds.WunaPersistentEmber, "0"))));
+        return Math.Max(0, Math.Min(99, DictionaryUtil.ParseInt(
+            PlayerApi.GetScopedGameVar(SunExpIds.WunaPersistentEmber, self?.Self, "0", migrateLegacyWhenSolo: true))));
     }
 
-    private static int SetPersistentEmber(int value)
+    private static int SetPersistentEmber(ScriptExecutor self, int value)
     {
         var level = Math.Max(0, Math.Min(99, value));
-        PlayerApi.SetGameVar(SunExpIds.WunaPersistentEmber, level.ToString());
+        PlayerApi.SetScopedGameVar(SunExpIds.WunaPersistentEmber, self?.Self, level.ToString());
         return level;
     }
 }

@@ -37,4 +37,18 @@ public static class SunExpIds
     public const string WunaEventRepeat = "Sub_wuna_event_repeat";
     public const string WunaEventFullRepeat = "SunExp_sunexp_Sub_wuna_event_repeat";
     public const int WunaEventMaxProgress = 6;
+
+    public const string SolarMemoryModeKey = "SunExp_SolarMemoryMode";
+    public const string SolarMemorySelectedPacksKey = "SunExp_SolarMemorySelectedPacks";
+    public const string SolarMemoryOriginPointsKey = "SunExp_SolarMemoryOriginPoints";
+    public const string SolarMemoryBlessPickCountKey = "SunExp_SolarMemoryBlessPickCount";
+    public const string SolarMemoryDeckConfiguredKey = "SunExp_SolarMemoryDeckConfigured";
+    public const string SolarMemoryPreparedKey = "SunExp_SolarMemoryPrepared";
+    public const string SolarMemoryEventId = "Sub_solar_memory_start";
+    public const string SolarMemoryFullEventId = "SunExp_sunexp_Sub_solar_memory_start";
+    public const string SolarMemoryMapId = "SunExp_sunexp_solar_memory_start";
+    public const string SolarMemoryShortMapId = "solar_memory_start";
+    public const string SolarMemoryTitle = "日耀回忆";
+    public const string SolarMemoryDescription = "乌娜的专属回忆";
+    public const string SolarMemorySubtitle = "Boss连战";
 }

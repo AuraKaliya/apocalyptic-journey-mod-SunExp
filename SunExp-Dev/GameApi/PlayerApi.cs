@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Reflection;
 using SunExp.Dll.Infrastructure;
 
@@ -48,6 +49,60 @@ public static class PlayerApi
         var value = InvokeStaticPlayerInfo("GetGameVar", key);
         var text = Convert.ToString(value);
         return string.IsNullOrWhiteSpace(text) ? fallback : text;
+    }
+
+    public static string ScopedGameVarKey(string key, IStatusManager? status)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return "";
+        }
+
+        var scopeId = SanitizeGameVarKeyPart(status?.InstanceId);
+        return string.IsNullOrWhiteSpace(scopeId) ? key : key + "_" + scopeId;
+    }
+
+    public static string GetScopedGameVar(string key, IStatusManager? status, string fallback = "", bool migrateLegacyWhenSolo = false)
+    {
+        var scopedKey = ScopedGameVarKey(key, status);
+        if (string.IsNullOrWhiteSpace(scopedKey))
+        {
+            return fallback;
+        }
+
+        if (scopedKey == key)
+        {
+            return GetGameVar(key, fallback);
+        }
+
+        var scopedValue = GetGameVar(scopedKey, "");
+        if (!string.IsNullOrWhiteSpace(scopedValue))
+        {
+            return scopedValue;
+        }
+
+        if (migrateLegacyWhenSolo && !IsMultiplayerSession())
+        {
+            var legacyValue = GetGameVar(key, "");
+            if (!string.IsNullOrWhiteSpace(legacyValue))
+            {
+                SetGameVar(scopedKey, legacyValue);
+                return legacyValue;
+            }
+        }
+
+        return fallback;
+    }
+
+    public static void SetScopedGameVar(string key, IStatusManager? status, string value)
+    {
+        var scopedKey = ScopedGameVarKey(key, status);
+        if (string.IsNullOrWhiteSpace(scopedKey))
+        {
+            return;
+        }
+
+        SetGameVar(scopedKey, value);
     }
 
     public static void ShowCaption(string text)
@@ -133,6 +188,86 @@ public static class PlayerApi
 
         return type.GetProperty(name, BindingFlags.Public | BindingFlags.Static)?.GetValue(null)
             ?? type.GetField(name, BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+    }
+
+    private static object? GetInstanceMember(object? target, string name)
+    {
+        if (target == null)
+        {
+            return null;
+        }
+
+        var type = target.GetType();
+        return type.GetProperty(name, BindingFlags.Public | BindingFlags.Instance)?.GetValue(target)
+            ?? type.GetField(name, BindingFlags.Public | BindingFlags.Instance)?.GetValue(target);
+    }
+
+    private static bool IsMultiplayerSession()
+    {
+        try
+        {
+            var entryType = FindType("GameEntryUI");
+            var playerCount = GetStaticMember(entryType, "playerCount");
+            if (playerCount is int count && count > 1)
+            {
+                return true;
+            }
+
+            var server = GetStaticMember(FindType("GameServer"), "Instance");
+            var lobby = GetInstanceMember(server, "LobbyInfo");
+            var players = GetInstanceMember(lobby, "AddedPlayers") as ICollection;
+            return players != null && players.Count > 1;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static Type? FindType(string name)
+    {
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            try
+            {
+                foreach (var type in assembly.GetTypes())
+                {
+                    if (type.Name == name || type.FullName == name)
+                    {
+                        return type;
+                    }
+                }
+            }
+            catch
+            {
+                // Some runtime assemblies can reject GetTypes; skip them.
+            }
+        }
+
+        return null;
+    }
+
+    private static string SanitizeGameVarKeyPart(string? value)
+    {
+        if (value == null)
+        {
+            return "";
+        }
+
+        var trimmed = value.Trim();
+        if (trimmed.Length == 0)
+        {
+            return "";
+        }
+
+        var chars = new char[trimmed.Length];
+        for (var i = 0; i < trimmed.Length; i++)
+        {
+            var ch = trimmed[i];
+            chars[i] = char.IsLetterOrDigit(ch) || ch == '_' || ch == '-' ? ch : '_';
+        }
+
+        return new string(chars);
     }
 
     private static bool SetStaticMember(object? typeObject, string name, object value)

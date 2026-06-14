@@ -1,0 +1,8 @@
+"Id","InitScript","ApplyScript","ClearScript","ReducePerTurn","ReducePerAttacked","ReducePerUse","UpperBound","Icon","Type","Rarity","Effects","SoundEffects","Action","CanZero"
+"唯一标识","更新显示信息用的","BUFF生效时的效果","清除时效果","层数每回合减少数","层数每受击减少数","层数每行动减少数","层数上限","图标路径","类型","稀有度","特效","","",""
+"false_gold","","CS.GoldExp.Dll.Scripting.BuffScripts.Apply(self, ""false_gold"");","","0","0","0","999999","Icon/Buff/金矿","特性","2","","","","FALSE"
+"debt_1","","CS.GoldExp.Dll.Scripting.BuffScripts.Apply(self, ""debt_1"");","","0","0","0","999999","Icon/Buff/白银委托","特性","2","","","","FALSE"
+"debt_2","","CS.GoldExp.Dll.Scripting.BuffScripts.Apply(self, ""debt_2"");","","0","0","0","999999","Icon/Buff/白银委托","特性","2","","","","FALSE"
+"debt_3","","CS.GoldExp.Dll.Scripting.BuffScripts.Apply(self, ""debt_3"");","","0","0","0","999999","Icon/Buff/白银委托","特性","2","","","","FALSE"
+"golden_potential","","CS.GoldExp.Dll.Scripting.BuffScripts.Apply(self, ""golden_potential"");","","0","0","0","1","Icon/Buff/金矿","特性","3","","","","FALSE"
+"midas_raven_trait","","CS.GoldExp.Dll.Scripting.PartnerScripts.RegisterMidasRaven(self);","CS.GoldExp.Dll.Scripting.PartnerScripts.ClearMidasRaven(self);","0","0","0","1","Mods/GoldExp/ModResource/Images/Buff/GoldExp/midas_raven_trait","能力","2","","","","FALSE"

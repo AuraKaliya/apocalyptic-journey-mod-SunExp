@@ -1,0 +1,3 @@
+Id,Note,Name,Name_zh-Hant,Name_en,Name_ja,Description,Description_zh-Hant,Description_en,Description_ja,Tips,Tips_zh-Hant,Tips_en,Tips_ja
+唯一标识,备注,名称,名稱,Name,名称,描述,描述,Description,説明,剧情描述,劇情描述,Tips,ストーリー説明
+midas_raven_ledger,伙伴被动,账金小使魔,帳金小使魔,Ledger Familiar,帳簿の使い魔,每2回合消耗{GoldExp_goldexp_false_gold}提供伤害和护盾；若你有{GoldExp_goldexp_debt}，额外抽牌并加深债务。,每2回合消耗{GoldExp_goldexp_false_gold}提供傷害和護盾；若你有{GoldExp_goldexp_debt}，額外抽牌並加深債務.,"Every 2 rounds, spends {GoldExp_goldexp_false_gold} for damage and Block. If you have {GoldExp_goldexp_debt}, also draw and gain more Debt.",偽金を使う使い魔。,它会把账本合上，然后把欠款念给敌人听。,它會把帳本合上，然後把欠款念給敵人聽。,It closes the ledger before naming the debt.,帳簿を閉じる。
