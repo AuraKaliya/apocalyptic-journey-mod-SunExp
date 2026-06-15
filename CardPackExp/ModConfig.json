@@ -6,5 +6,8 @@
   "IconPath": "Icon.png",
   "Enabled": true,
   "WorkshopVisibility": "Public",
+  "WorkshopTags": [
+    "工具"
+  ],
   "PublishedFileId": "3744420973"
 }
