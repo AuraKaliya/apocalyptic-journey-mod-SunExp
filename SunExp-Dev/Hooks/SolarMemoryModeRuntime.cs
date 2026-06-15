@@ -19,67 +19,40 @@ public static class SolarMemoryModeRuntime
 {
     private const string EntryObjectName = "SunExp_SolarMemoryMode";
     private const string PackWindowName = "SunExp_SolarMemoryPackWindow";
+    private const int SolarMemoryOpeningSlotIndex = 0;
+    private const int SolarMemoryMidLayerSlotIndex = 3;
     private static readonly Color PanelColor = new(0.11f, 0.09f, 0.08f, 0.96f);
     private static readonly Color AccentColor = new(0.84f, 0.55f, 0.2f, 1f);
     private static readonly Color RowNormalColor = new(0.18f, 0.16f, 0.14f, 0.92f);
     private static readonly Color RowSelectedColor = new(0.38f, 0.24f, 0.11f, 0.96f);
     private static readonly Color ButtonColor = new(0.29f, 0.21f, 0.16f, 0.96f);
     private static Font? cachedFont;
+    private static int eventRecordCountBeforeMapGeneration = -1;
+    private static int eventRecordLayerBeforeMapGeneration = -1;
 
     public static void Initialize(ModConfig modConfig)
     {
         RegisterAfter(modConfig, "ModeChoiceUI.Init", InjectEntry);
         RegisterAfter(modConfig, "ModeChoiceUI.DataUpdate", InjectEntry);
+        RegisterAfter(modConfig, "MapSelectUI.DataUpdate", ApplySolarMemoryLayerTitle);
+        RegisterBefore(modConfig, "GameConfigManager.CardPackCheck", FilterSolarMemoryCardPackCheck);
+        RegisterBefore(modConfig, "NormalMapManager.RandomGenerate", CaptureSolarMemoryGenerationState);
         RegisterAfter(modConfig, "NormalMapManager.GeneratrMap", RewriteSolarMemoryMap);
-        RegisterAfter(modConfig, "NormalMapManager.ReadyToChangeMap", FinishSolarMemoryAfterFirstLayer);
+        RegisterBefore(modConfig, "MapSelectUI.ReadyToSelect", EnsureSolarMemoryMapBeforeSelect);
+        RegisterBefore(modConfig, "MapManager.UserCode_CmdSelectMap__String[]__String[]__NetworkConnectionToClient", RepairSolarMemoryMapSelection);
+        RegisterBefore(modConfig, "MapManager.UserCode_CmdSelectMapIncludeSender__String[]__String[]__NetworkConnectionToClient", RepairSolarMemoryMapSelection);
+        RegisterBefore(modConfig, "MapManager.CmdSelectMap", RepairSolarMemoryMapSelection);
+        RegisterBefore(modConfig, "MapManager.CmdSelectMapIncludeSender", RepairSolarMemoryMapSelection);
+        RegisterBefore(modConfig, "MapManager.TargetUpdateMap", RepairSolarMemoryMapSelection);
+        RegisterBefore(modConfig, "MapManager.RpcUpdateMap", RepairSolarMemoryMapSelection);
+        RegisterAfter(modConfig, "NormalMapManager.ReadyToChangeMap", FinishSolarMemoryAfterFinalLayer);
     }
 
     public static void OpenOriginWindow()
     {
         try
         {
-            CloseWindow("SunExp_SolarMemoryOriginWindow");
-            var parent = UIManager.Instance?.upperCanvasTf ?? UIManager.Instance?.canvasTf;
-            if (parent == null || RoleTable.Instance == null)
-            {
-                return;
-            }
-
-            var root = CreateRect("SunExp_SolarMemoryOriginWindow", parent);
-            Stretch(root);
-            root.gameObject.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.55f);
-
-            var panel = CreatePanel(root, new Vector2(620f, 430f));
-            AddText(panel, "Title", "本源加点", 30, FontStyle.Bold, TextAnchor.MiddleLeft, Color.white,
-                new Vector2(34f, -38f), new Vector2(320f, 48f));
-            var summary = AddText(panel, "Summary", "", 18, FontStyle.Normal, TextAnchor.MiddleRight, new Color(1f, 0.86f, 0.64f, 1f),
-                new Vector2(260f, -42f), new Vector2(320f, 40f));
-
-            var valueTexts = new Dictionary<string, Text>(StringComparer.Ordinal);
-            var names = new[]
-            {
-                Tuple.Create("Strength", "魔力"),
-                Tuple.Create("Lucky", "精神"),
-                Tuple.Create("Perceive", "感知"),
-                Tuple.Create("Wisdom", "幸运")
-            };
-
-            for (var i = 0; i < names.Length; i++)
-            {
-                var item = names[i];
-                var y = -105f - i * 64f;
-                AddText(panel, item.Item1 + "Name", item.Item2, 21, FontStyle.Bold, TextAnchor.MiddleLeft, Color.white,
-                    new Vector2(48f, y), new Vector2(160f, 48f));
-                valueTexts[item.Item1] = AddText(panel, item.Item1 + "Value", "", 22, FontStyle.Bold, TextAnchor.MiddleCenter,
-                    new Color(1f, 0.82f, 0.46f, 1f), new Vector2(250f, y), new Vector2(100f, 48f));
-                AddButton(panel, item.Item1 + "Add", "+", new Vector2(420f, 430f + y - 48f), new Vector2(86f, 42f), () =>
-                {
-                    AddOriginPoint(item.Item1, valueTexts, summary);
-                });
-            }
-
-            RefreshOriginTexts(valueTexts, summary);
-            AddButton(panel, "Close", "关闭", new Vector2(470f, 28f), new Vector2(110f, 42f), () => CloseWindow("SunExp_SolarMemoryOriginWindow"));
+            SolarMemorySetupFlowRuntime.OpenOriginSetupWindow();
         }
         catch (Exception ex)
         {
@@ -91,13 +64,7 @@ public static class SolarMemoryModeRuntime
     {
         try
         {
-            if (BlessingPickCount() >= 5)
-            {
-                UIManager.Instance?.ShowTip("祝福挑选已完成", null);
-                return;
-            }
-
-            OpenBlessingStep();
+            SolarMemorySetupFlowRuntime.StartAfterStarterDeck();
         }
         catch (Exception ex)
         {
@@ -116,7 +83,11 @@ public static class SolarMemoryModeRuntime
 
             if (PlayerApi.GetGameVar(SunExpIds.SolarMemoryDeckConfiguredKey, "0") != "1")
             {
-                ConfigureSolarMemoryReservePool();
+                ClearSolarMemoryReservePool();
+            }
+            else
+            {
+                SanitizeSolarMemoryRoleCards(RoleTable.Instance, "OpenDeckWindow");
             }
 
             var ui = UIManager.Instance.ShowUI<OutDeckUI>("OutDeckUI", true);
@@ -138,6 +109,19 @@ public static class SolarMemoryModeRuntime
         catch (Exception ex)
         {
             SunExpLog.Warn("Solar memory hook failed: " + target + " -> " + ex.Message);
+        }
+    }
+
+    private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
+    {
+        try
+        {
+            config.AddMethodHookBefore(target, action);
+            SunExpLog.Debug("Solar memory hook before registered: " + target);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("Solar memory hook before failed: " + target + " -> " + ex.Message);
         }
     }
 
@@ -414,11 +398,15 @@ public static class SolarMemoryModeRuntime
         saveInfo.ItemOpers.PlayerId = Singleton<GameConfigManager>.Instance.PlayerId;
         saveInfo.GameVars[SunExpIds.SolarMemoryModeKey] = "1";
         saveInfo.GameVars[SunExpIds.SolarMemorySelectedPacksKey] = string.Join("|", selectedPacks);
-        saveInfo.GameVars[SunExpIds.SolarMemoryOriginPointsKey] = "3";
+        saveInfo.GameVars[SunExpIds.SolarMemoryOriginPointsKey] = "50";
         saveInfo.GameVars[SunExpIds.SolarMemoryBlessPickCountKey] = "0";
+        saveInfo.GameVars[SunExpIds.SolarMemoryBlessSelectedIdsKey] = "";
         saveInfo.GameVars[SunExpIds.SolarMemoryDeckConfiguredKey] = "0";
         saveInfo.GameVars[SunExpIds.SolarMemoryStarterDeckAppliedKey] = "0";
         saveInfo.GameVars[SunExpIds.SolarMemoryStarterDeckModeKey] = "";
+        saveInfo.GameVars[SunExpIds.SolarMemoryOriginConfiguredKey] = "0";
+        saveInfo.GameVars[SunExpIds.SolarMemoryBlessConfiguredKey] = "0";
+        saveInfo.GameVars[SunExpIds.SolarMemorySetupFinishedKey] = "0";
         saveInfo.GameVars[SunExpIds.SolarMemoryPreparedKey] = "0";
         saveInfo.GameVars["MapScene1"] = (random.Next(0, 100) < 50 ? SceneType.Courtyard : SceneType.Forest).ToString();
         saveInfo.GameVars["MapScene2"] = SceneType.SlotMachScene.ToString();
@@ -437,6 +425,28 @@ public static class SolarMemoryModeRuntime
         LobbyManager.Instance?.TryCreateSteamLobby(4);
     }
 
+    private static void CaptureSolarMemoryGenerationState(ModHookContext context)
+    {
+        try
+        {
+            if (!IsSolarMemoryRun() || context.Target is not NormalMapManager manager)
+            {
+                eventRecordCountBeforeMapGeneration = -1;
+                eventRecordLayerBeforeMapGeneration = -1;
+                return;
+            }
+
+            eventRecordCountBeforeMapGeneration = GameSaveManager.GetEventRecord()?.Count ?? 0;
+            eventRecordLayerBeforeMapGeneration = SolarMemoryLayer(manager);
+        }
+        catch (Exception ex)
+        {
+            eventRecordCountBeforeMapGeneration = -1;
+            eventRecordLayerBeforeMapGeneration = -1;
+            SunExpLog.Error("Solar memory map generation capture failed", ex);
+        }
+    }
+
     private static void RewriteSolarMemoryMap(ModHookContext context)
     {
         try
@@ -446,29 +456,7 @@ public static class SolarMemoryModeRuntime
                 return;
             }
 
-            var tree = manager.MapTree;
-            if (tree == null || tree.DefaultNode.Count == 0 || manager.Level != 0)
-            {
-                return;
-            }
-
-            var segmentSize = 2 + GameSaveManager.GetValue<int>(GameVar.ExLockDes);
-            var start = 0;
-            if (start < 0 || start >= tree.DefaultNode.Count)
-            {
-                return;
-            }
-
-            tree.DefaultNode[start] = CreateSolarMemoryStartNode(tree);
-
-            for (var i = start + 1; i < Math.Min(tree.DefaultNode.Count, start + segmentSize); i++)
-            {
-                tree.DefaultNode[i] = CreateBossChainNode(tree, i - start, manager.Level / 6);
-            }
-
-            RewriteSelectNodesToBosses(tree);
-
-            SunExpLog.Debug("Solar memory map segment rewritten at level " + manager.Level);
+            EnsureSolarMemoryMapState(manager, "NormalMapManager.GeneratrMap", true);
         }
         catch (Exception ex)
         {
@@ -476,18 +464,308 @@ public static class SolarMemoryModeRuntime
         }
     }
 
-    private static void FinishSolarMemoryAfterFirstLayer(ModHookContext context)
+    private static void EnsureSolarMemoryMapBeforeSelect(ModHookContext context)
     {
         try
         {
-            if (!IsSolarMemoryRun() || context.Target is not NormalMapManager manager || manager.Level < 6)
+            if (!IsSolarMemoryRun())
+            {
+                return;
+            }
+
+            var mapManager = MapManager.Instance;
+            if (mapManager?.ModeMapManager is NormalMapManager manager)
+            {
+                EnsureSolarMemoryMapState(manager, "MapSelectUI.ReadyToSelect", false);
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar memory pre-select map repair failed", ex);
+        }
+    }
+
+    private static void ApplySolarMemoryLayerTitle(ModHookContext context)
+    {
+        try
+        {
+            if (!IsSolarMemoryRun() || context.Target is not MapSelectUI mapSelect)
+            {
+                return;
+            }
+
+            var layer = CurrentSolarMemoryLayer();
+            var title = SunExpIds.SolarMemoryLayerNames[Math.Max(0, Math.Min(SunExpIds.SolarMemoryLayerNames.Length - 1, layer))];
+            SetTmpText(mapSelect.transform.Find("Title/Text/text"), title);
+
+            var text = mapSelect.transform.Find("Title/Text/text")?.GetComponent<Text>();
+            if (text != null)
+            {
+                text.text = title;
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar memory layer title failed", ex);
+        }
+    }
+
+    private static bool EnsureSolarMemoryMapState(NormalMapManager manager, string source, bool trimEventRecord)
+    {
+        var tree = manager.MapTree;
+        if (tree == null)
+        {
+            return false;
+        }
+
+        var layer = SolarMemoryLayer(manager);
+        var changed = RewriteSolarMemoryDefaultLayer(tree, layer);
+        changed = RewriteSolarMemorySelectLayer(tree, layer) || changed;
+        if (trimEventRecord)
+        {
+            TrimSolarMemoryEventRecord(layer);
+        }
+
+        if (changed)
+        {
+            SunExpLog.Debug("Solar memory map state normalized by " + source + " at level " + manager.Level);
+        }
+
+        return changed;
+    }
+
+    private static bool RewriteSolarMemoryDefaultLayer(MapTree tree, int layer)
+    {
+        var defaultSegmentSize = DefaultLayerSegmentSize();
+        var defaultStart = layer * defaultSegmentSize;
+        if (defaultStart < 0 || defaultStart >= tree.DefaultNode.Count)
+        {
+            return false;
+        }
+
+        var changed = false;
+        tree.DefaultNode[defaultStart] = CreateSolarMemoryEventNode(tree, layer, SolarMemoryOpeningSlotIndex);
+        changed = true;
+
+        var defaultEnd = Math.Min(tree.DefaultNode.Count, defaultStart + defaultSegmentSize);
+        for (var i = defaultStart + 1; i < defaultEnd; i++)
+        {
+            tree.DefaultNode[i] = CreateBossChainNode(tree, i - defaultStart, layer);
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private static bool RewriteSolarMemorySelectLayer(MapTree tree, int layer)
+    {
+        var selectSegmentSize = SelectLayerSegmentSize();
+        var selectStart = layer * selectSegmentSize;
+        if (selectStart < 0 || selectStart >= tree.SelectNode.Count)
+        {
+            return false;
+        }
+
+        var changed = false;
+        var selectEnd = Math.Min(tree.SelectNode.Count, selectStart + selectSegmentSize);
+        for (var i = selectStart; i < selectEnd; i++)
+        {
+            var indexInSegment = i - selectStart;
+            if (indexInSegment == SolarMemoryMidLayerSlotIndex)
+            {
+                tree.SelectNode[i] = CreateSolarMemoryEventNode(tree, layer, SolarMemoryMidLayerSlotIndex);
+                changed = true;
+                continue;
+            }
+
+            if (IsBreakNode(tree.SelectNode[i]))
+            {
+                continue;
+            }
+
+            tree.SelectNode[i] = CreateBossChainNode(tree, indexInSegment, layer);
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private static void TrimSolarMemoryEventRecord(int layer)
+    {
+        var records = GameSaveManager.GetEventRecord();
+        if (records == null
+            || eventRecordCountBeforeMapGeneration < 0
+            || eventRecordLayerBeforeMapGeneration != layer)
+        {
+            ResetSolarMemoryEventRecordCapture();
+            return;
+        }
+
+        while (records.Count > eventRecordCountBeforeMapGeneration)
+        {
+            records.RemoveAt(records.Count - 1);
+        }
+
+        ResetSolarMemoryEventRecordCapture();
+    }
+
+    private static void ResetSolarMemoryEventRecordCapture()
+    {
+        eventRecordCountBeforeMapGeneration = -1;
+        eventRecordLayerBeforeMapGeneration = -1;
+    }
+
+    private static int SolarMemoryLayer(NormalMapManager manager)
+    {
+        return ClampSolarMemoryLayer(manager.Level / 6);
+    }
+
+    private static int ClampSolarMemoryLayer(int layer)
+    {
+        return Math.Max(0, Math.Min(SunExpIds.SolarMemoryMaxLayer - 1, layer));
+    }
+
+    private static int CurrentSolarMemoryLayer()
+    {
+        return MapManager.Instance?.ModeMapManager is NormalMapManager manager
+            ? SolarMemoryLayer(manager)
+            : 0;
+    }
+
+    private static int SolarMemoryEventIndex(int layer, int mapSlotIndex)
+    {
+        var normalizedLayer = ClampSolarMemoryLayer(layer);
+        var slot = mapSlotIndex >= SolarMemoryMidLayerSlotIndex ? 1 : 0;
+        var index = normalizedLayer * 2 + slot;
+        return Math.Max(0, Math.Min(SunExpIds.SolarMemoryFullEventIds.Length - 1, index));
+    }
+
+    private static int DefaultLayerSegmentSize()
+    {
+        return Math.Max(1, 2 + GameSaveManager.GetValue<int>(GameVar.ExLockDes));
+    }
+
+    private static int SelectLayerSegmentSize()
+    {
+        return Math.Max(1, 8 - GameSaveManager.GetValue<int>(GameVar.ExDeleteDes));
+    }
+
+    private static void RepairSolarMemoryMapSelection(ModHookContext context)
+    {
+        try
+        {
+            if (!IsSolarMemoryRun())
+            {
+                return;
+            }
+
+            var args = context.Arguments ?? Array.Empty<object>();
+            for (var i = 0; i < args.Length - 1; i++)
+            {
+                if (args[i] is string[] maps && args[i + 1] is string[] mapData && RepairSolarMemoryMapArrays(maps, mapData))
+                {
+                    SunExpLog.Debug("Solar memory map selection repaired");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar memory map selection repair failed", ex);
+        }
+    }
+
+    private static bool RepairSolarMemoryMapArrays(string[] maps, string[] mapData)
+    {
+        if (maps.Length == 0 || mapData.Length == 0)
+        {
+            return false;
+        }
+
+        var count = Math.Min(maps.Length, mapData.Length);
+        var layer = CurrentSolarMemoryLayer();
+        var changed = RepairSolarMemorySyncIndex(maps, mapData, SolarMemoryOpeningSlotIndex, layer, SolarMemoryOpeningSlotIndex);
+        if (count > SolarMemoryMidLayerSlotIndex)
+        {
+            changed = RepairSolarMemorySyncIndex(maps, mapData, SolarMemoryMidLayerSlotIndex, layer, SolarMemoryMidLayerSlotIndex) || changed;
+        }
+
+        for (var i = 0; i < count; i++)
+        {
+            if (i == SolarMemoryOpeningSlotIndex || i == SolarMemoryMidLayerSlotIndex)
+            {
+                continue;
+            }
+
+            if (IsSolarMemoryMapId(maps[i]) || IsSolarMemoryEventId(mapData[i]))
+            {
+                changed = RepairSolarMemorySyncIndex(maps, mapData, i, layer, i) || changed;
+            }
+        }
+
+        return changed;
+    }
+
+    private static bool RepairSolarMemorySyncIndex(string[] maps, string[] mapData, int index, int layer, int mapSlotIndex)
+    {
+        var eventIndex = SolarMemoryEventIndex(layer, mapSlotIndex);
+        var expectedMapId = SunExpIds.SolarMemoryMapIds[eventIndex];
+        var expectedEventId = SunExpIds.SolarMemoryFullEventIds[eventIndex];
+        var changed = false;
+        if (maps[index] != expectedMapId)
+        {
+            maps[index] = expectedMapId;
+            changed = true;
+        }
+
+        if (mapData[index] != expectedEventId)
+        {
+            mapData[index] = expectedEventId;
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private static bool IsSolarMemoryMapId(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return false;
+        }
+
+        return SunExpIds.SolarMemoryMapIds.Any(value => string.Equals(id, value, StringComparison.Ordinal))
+            || SunExpIds.SolarMemoryShortMapIds.Any(value => string.Equals(id, value, StringComparison.Ordinal))
+            || string.Equals(id, "SunExp_sunexp_solar_memory_start", StringComparison.Ordinal)
+            || string.Equals(id, "solar_memory_start", StringComparison.Ordinal);
+    }
+
+    private static bool IsSolarMemoryEventId(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return false;
+        }
+
+        return SunExpIds.SolarMemoryFullEventIds.Any(value => string.Equals(id, value, StringComparison.Ordinal))
+            || SunExpIds.SolarMemoryEventIds.Any(value => string.Equals(id, value, StringComparison.Ordinal))
+            || string.Equals(id, "SunExp_sunexp_Sub_solar_memory_start", StringComparison.Ordinal)
+            || string.Equals(id, "Sub_solar_memory_start", StringComparison.Ordinal);
+    }
+
+    private static void FinishSolarMemoryAfterFinalLayer(ModHookContext context)
+    {
+        try
+        {
+            if (!IsSolarMemoryRun()
+                || context.Target is not NormalMapManager manager
+                || manager.Level < SunExpIds.SolarMemoryMaxLayer * 6)
             {
                 return;
             }
 
             UIManager.Instance?.CloseUI("MapSelectUI");
             UIManager.Instance?.ShowUI<GameExitUI>("GameExitUI", true);
-            SunExpLog.Debug("Solar memory first layer finished; showing settlement.");
+            SunExpLog.Debug("Solar memory final layer finished; showing settlement.");
         }
         catch (Exception ex)
         {
@@ -495,17 +773,21 @@ public static class SolarMemoryModeRuntime
         }
     }
 
-    private static MapTree.Node CreateSolarMemoryStartNode(MapTree tree)
+    private static MapTree.Node CreateSolarMemoryEventNode(MapTree tree, int layer, int mapSlotIndex)
     {
-        var data = Singleton<GameConfigManager>.Instance.GetOne(DataType.Map, SunExpIds.SolarMemoryMapId)
-            ?? Singleton<GameConfigManager>.Instance.GetOne(DataType.Map, SunExpIds.SolarMemoryShortMapId);
-        var node = tree.TypeGenerate("普通事件");
+        var eventIndex = SolarMemoryEventIndex(layer, mapSlotIndex);
+        var mapId = SunExpIds.SolarMemoryMapIds[eventIndex];
+        var shortMapId = SunExpIds.SolarMemoryShortMapIds[eventIndex];
+        var eventId = SunExpIds.SolarMemoryFullEventIds[eventIndex];
+        var data = Singleton<GameConfigManager>.Instance.GetOne(DataType.Map, mapId)
+            ?? Singleton<GameConfigManager>.Instance.GetOne(DataType.Map, shortMapId);
+        var node = new MapTree.Node("普通事件");
         node.type = "普通事件";
         node.data = data == null ? new Dictionary<string, string>() : new Dictionary<string, string>(data);
-        node.data["Id"] = SunExpIds.SolarMemoryMapId;
+        node.data["Id"] = mapId;
         node.data["Type"] = "Event";
         node.data["Note"] = "普通事件";
-        node.data["NodeId"] = SunExpIds.SolarMemoryFullEventId;
+        node.data["NodeId"] = eventId;
         node.data["Level"] = "-1";
         return node;
     }
@@ -513,19 +795,6 @@ public static class SolarMemoryModeRuntime
     private static MapTree.Node CreateBossChainNode(MapTree tree, int indexInSegment, int segment)
     {
         return tree.TypeGenerate("首领");
-    }
-
-    private static void RewriteSelectNodesToBosses(MapTree tree)
-    {
-        for (var i = 0; i < tree.SelectNode.Count; i++)
-        {
-            if (IsBreakNode(tree.SelectNode[i]))
-            {
-                continue;
-            }
-
-            tree.SelectNode[i] = tree.TypeGenerate("首领");
-        }
     }
 
     private static bool IsBreakNode(MapTree.Node node)
@@ -596,42 +865,199 @@ public static class SolarMemoryModeRuntime
             && (!string.Equals(id, "cardpack_13", StringComparison.OrdinalIgnoreCase) || GameConfigManager.ShouldEnableOnlineCardPack());
     }
 
-    private static void OpenBlessingStep()
+    public static bool IsSolarMemoryEventCard(string cardId)
     {
-        var parent = UIManager.Instance?.upperCanvasTf ?? UIManager.Instance?.canvasTf;
-        if (parent == null)
+        if (string.IsNullOrWhiteSpace(cardId))
         {
-            return;
+            return false;
         }
 
-        var current = BlessingPickCount();
-        if (current >= 5)
+        if (ContainsEventMarker(cardId))
         {
-            UIManager.Instance?.ShowTip("祝福挑选已完成", null);
-            return;
+            return true;
         }
 
-        new BlessingChoiceGenerator().CreateBlessUI(parent, () =>
+        try
         {
-            var next = BlessingPickCount() + 1;
-            PlayerApi.SetGameVar(SunExpIds.SolarMemoryBlessPickCountKey, Math.Min(5, next).ToString());
-            if (next < 5)
-            {
-                OpenBlessingStep();
-            }
-            else
-            {
-                UIManager.Instance?.ShowTip("祝福挑选完成", null);
-            }
-        });
+            var data = new DataConfig(cardId, DataType.Card).data;
+            return IsSolarMemoryEventCard(data) || HasLocalizedEventCardType(cardId);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
-    private static int BlessingPickCount()
+    private static bool IsSolarMemoryEventCard(IDictionary<string, string> data)
     {
-        return Math.Max(0, DictionaryUtil.ParseInt(PlayerApi.GetGameVar(SunExpIds.SolarMemoryBlessPickCountKey, "0")));
+        var id = Field(data, "Id");
+        if (ContainsEventCardIdMarker(id))
+        {
+            return true;
+        }
+
+        return ContainsEventTypeMarker(Field(data, "Type"))
+            || ContainsEventTypeMarker(Field(data, "Note"))
+            || HasLocalizedEventCardType(id)
+            || ContainsSolarEventScriptMarker(Field(data, "Tag"))
+            || ContainsSolarEventScriptMarker(Field(data, "Action"))
+            || ContainsSolarEventScriptMarker(Field(data, "InitScript"))
+            || ContainsSolarEventScriptMarker(Field(data, "UseScript"));
     }
 
-    public static void ConfigureSolarMemoryReservePool()
+    private static bool HasLocalizedEventCardType(string cardId)
+    {
+        if (string.IsNullOrWhiteSpace(cardId))
+        {
+            return false;
+        }
+
+        try
+        {
+            var data = new DataConfig(cardId, DataType.Card).data;
+            return ContainsEventTypeMarker(data.Localize("Type"))
+                || ContainsEventTypeMarker(data.Localize("Note"));
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string Field(IDictionary<string, string> data, string key)
+    {
+        return data.TryGetValue(key, out var value) ? value : "";
+    }
+
+    private static bool ContainsEventMarker(string value)
+    {
+        return ContainsEventCardIdMarker(value) || ContainsEventTypeMarker(value) || ContainsSolarEventScriptMarker(value);
+    }
+
+    private static bool ContainsEventCardIdMarker(string value)
+    {
+        return value.IndexOf("solar_event", StringComparison.OrdinalIgnoreCase) >= 0
+            || value.IndexOf("solar_memory_event", StringComparison.OrdinalIgnoreCase) >= 0
+            || value.IndexOf("SolarMemoryEvent", StringComparison.OrdinalIgnoreCase) >= 0
+            || value.StartsWith("event_", StringComparison.OrdinalIgnoreCase)
+            || value.StartsWith("card_event", StringComparison.OrdinalIgnoreCase)
+            || value.IndexOf("_event_", StringComparison.OrdinalIgnoreCase) >= 0
+            || value.Contains("事件");
+    }
+
+    private static bool ContainsEventTypeMarker(string value)
+    {
+        return value.Equals("Event", StringComparison.OrdinalIgnoreCase)
+            || value.Equals("事件", StringComparison.Ordinal)
+            || value.Equals("事件牌", StringComparison.Ordinal)
+            || value.Equals("事件卡", StringComparison.Ordinal)
+            || value.IndexOf("EventCard", StringComparison.OrdinalIgnoreCase) >= 0
+            || value.Contains("事件牌")
+            || value.Contains("事件卡");
+    }
+
+    private static bool ContainsSolarEventScriptMarker(string value)
+    {
+        return value.IndexOf("solar_event", StringComparison.OrdinalIgnoreCase) >= 0
+            || value.IndexOf("solar_memory_event", StringComparison.OrdinalIgnoreCase) >= 0
+            || value.IndexOf("SolarMemoryEvent", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static void FilterSolarMemoryCardPackCheck(ModHookContext context)
+    {
+        try
+        {
+            if (!IsSolarMemoryRun()
+                || context.Arguments == null
+                || context.Arguments.Length == 0
+                || context.Arguments[0] is not List<Dictionary<string, string>> cards)
+            {
+                return;
+            }
+
+            var removed = RemoveEventCardData(cards);
+            if (removed.Count > 0)
+            {
+                SunExpLog.Info("[SolarMemoryMode] removed event cards from CardPackCheck: " + string.Join("|", removed));
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar memory CardPackCheck filter failed", ex);
+        }
+    }
+
+    private static List<string> RemoveEventCardData(List<Dictionary<string, string>> cards)
+    {
+        var removed = new List<string>();
+        for (var i = cards.Count - 1; i >= 0; i--)
+        {
+            var data = cards[i];
+            if (data != null && IsSolarMemoryEventCard(data))
+            {
+                removed.Add(Field(data, "Id"));
+                cards.RemoveAt(i);
+            }
+        }
+
+        removed.Reverse();
+        return removed;
+    }
+
+    public static int SanitizeSolarMemoryRoleCards(RoleTable? role, string source)
+    {
+        if (role == null)
+        {
+            return 0;
+        }
+
+        var removed = new List<string>();
+        RemoveEventConfigs(role.cardList, removed);
+        RemoveEventConfigs(role.UnCardList, removed);
+        NormalizeSolarMemoryCardCounts(role);
+
+        if (removed.Count > 0)
+        {
+            SunExpLog.Info("[SolarMemoryMode] sanitized event cards from " + source + ": " + string.Join("|", removed));
+        }
+
+        return removed.Count;
+    }
+
+    private static void RemoveEventConfigs(IList<DataConfig> cards, List<string> removed)
+    {
+        for (var i = cards.Count - 1; i >= 0; i--)
+        {
+            var config = cards[i];
+            var id = CardId(config);
+            if (IsSolarMemoryEventCard(id))
+            {
+                removed.Add(id);
+                cards.RemoveAt(i);
+            }
+        }
+
+        removed.Reverse();
+    }
+
+    private static string CardId(DataConfig? config)
+    {
+        if (config == null)
+        {
+            return "";
+        }
+
+        return Field(config.data, "Id");
+    }
+
+    private static void NormalizeSolarMemoryCardCounts(RoleTable role)
+    {
+        role.CardTopCount = Math.Max(role.CardTopCount, role.cardList.Count);
+        role.CardBottomCount = Math.Min(role.CardBottomCount, role.cardList.Count);
+        role.MaxAlCardCount = Math.Min(role.MaxAlCardCount, role.UnCardList.Count);
+    }
+
+    public static void ClearSolarMemoryReservePool()
     {
         var role = RoleTable.Instance;
         if (role == null)
@@ -639,46 +1065,12 @@ public static class SolarMemoryModeRuntime
             return;
         }
 
-        var cardIds = SelectedPackCardIds();
+        SanitizeSolarMemoryRoleCards(role, "ClearSolarMemoryReservePool");
         role.UnCardList.Clear();
-        role.CardTopCount = Math.Max(role.CardTopCount, Math.Max(role.cardList.Count, cardIds.Count * 2));
-        role.CardBottomCount = Math.Min(role.CardBottomCount, role.cardList.Count);
-        role.MaxAlCardCount = Math.Max(0, cardIds.Count * 3);
-
-        foreach (var cardId in cardIds)
-        {
-            role.UnCardList.Add(new DataConfig(cardId, DataType.Card));
-            role.UnCardList.Add(new DataConfig(cardId, DataType.Card));
-        }
+        NormalizeSolarMemoryCardCounts(role);
 
         PlayerApi.SetGameVar(SunExpIds.SolarMemoryDeckConfiguredKey, "1");
-        UIManager.Instance?.ShowTip("\u65e5\u8000\u56de\u5fc6\u5907\u9009\u724c\u5df2\u52a0\u5165\u5361\u5305\u724c x2", null);
-    }
-
-    private static List<string> SelectedPackCardIds()
-    {
-        var ids = new List<string>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var packId in CurrentPackSelection())
-        {
-            foreach (var pair in Singleton<GameConfigManager>.Instance.GetPackItems(packId))
-            {
-                if (pair.Key != DataType.Card)
-                {
-                    continue;
-                }
-
-                foreach (var card in pair.Value)
-                {
-                    if (card.TryGetValue("Id", out var id) && !string.IsNullOrWhiteSpace(id) && seen.Add(id))
-                    {
-                        ids.Add(id);
-                    }
-                }
-            }
-        }
-
-        return ids;
+        UIManager.Instance?.ShowTip("\u65e5\u8000\u56de\u5fc6\u5907\u9009\u724c\u5df2\u6e05\u7a7a", null);
     }
 
     private static string PackName(Dictionary<string, string> pack)
@@ -723,46 +1115,6 @@ public static class SolarMemoryModeRuntime
         }
 
         summary.text = "已选择卡包：" + selected.Count + "。确认后将以普通冒险底层进入，并启用日耀回忆 Boss 连战地图。";
-    }
-
-    private static void AddOriginPoint(string key, Dictionary<string, Text> valueTexts, Text summary)
-    {
-        var points = OriginPoints();
-        if (points <= 0)
-        {
-            UIManager.Instance?.ShowTip("本次回忆的本源点数已经用完", null);
-            return;
-        }
-
-        if (RoleTable.Instance == null || !RoleTable.Instance.VarsMap.ContainsKey(key))
-        {
-            return;
-        }
-
-        RoleTable.Instance.UseVarsChanges(key, 1);
-        PlayerApi.SetGameVar(SunExpIds.SolarMemoryOriginPointsKey, Math.Max(0, points - 1).ToString());
-        RefreshOriginTexts(valueTexts, summary);
-    }
-
-    private static int OriginPoints()
-    {
-        var text = PlayerApi.GetGameVar(SunExpIds.SolarMemoryOriginPointsKey, "3");
-        return Math.Max(0, DictionaryUtil.ParseInt(text));
-    }
-
-    private static void RefreshOriginTexts(Dictionary<string, Text> valueTexts, Text summary)
-    {
-        if (RoleTable.Instance == null)
-        {
-            return;
-        }
-
-        foreach (var pair in valueTexts)
-        {
-            pair.Value.text = RoleTable.Instance.VarsMap.TryGetValue(pair.Key, out var value) ? value.ToString() : "0";
-        }
-
-        summary.text = "剩余点数：" + OriginPoints();
     }
 
     private static RectTransform CreatePanel(RectTransform parent, Vector2 size)

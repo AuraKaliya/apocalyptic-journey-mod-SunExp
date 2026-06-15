@@ -111,6 +111,7 @@ public static class SolarMemoryStarterDeckRuntime
                 return;
             }
 
+            SolarMemoryModeRuntime.SanitizeSolarMemoryRoleCards(roleTable, "NormalMapManager.InitRoleTable");
             MarkPending(roleTable, "NormalMapManager.InitRoleTable");
         }
         catch (Exception ex)
@@ -134,11 +135,14 @@ public static class SolarMemoryStarterDeckRuntime
                 return;
             }
 
+            SolarMemoryModeRuntime.SanitizeSolarMemoryRoleCards(roleTable, "TryShowStarterDeckEditor");
             var candidates = BuildCandidateCardIds();
             if (candidates.Count == 0)
             {
                 MarkApplied(roleTable, "no-candidate");
+                SolarMemoryModeRuntime.ClearSolarMemoryReservePool();
                 SunExpLog.Warn("[SolarMemoryStarterDeck] no valid card candidates; keeping official starter deck.");
+                SolarMemorySetupFlowRuntime.StartAfterStarterDeck();
                 return;
             }
 
@@ -156,6 +160,7 @@ public static class SolarMemoryStarterDeckRuntime
         IEnumerable<string> packs = selectedPacks.Count > 0 ? selectedPacks : SolarMemoryModeRuntime.CurrentPackSelection();
         return CardIdsFromPacks(packs)
             .Where(id => !string.IsNullOrWhiteSpace(id) && !id.StartsWith("*", StringComparison.Ordinal))
+            .Where(id => !SolarMemoryModeRuntime.IsSolarMemoryEventCard(id))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(CardSortKey)
             .ToList();
@@ -859,23 +864,34 @@ public static class SolarMemoryStarterDeckRuntime
                 return;
             }
 
+            var filteredDeck = deck
+                .Where(id => !SolarMemoryModeRuntime.IsSolarMemoryEventCard(id))
+                .ToList();
+            if (filteredDeck.Count != StarterDeckSize)
+            {
+                UpdateHint("\u4e8b\u4ef6\u5361\u5df2\u88ab\u8fc7\u6ee4\uff0c\u9700\u8981\u91cd\u65b0\u9009\u6ee1 11 \u5f20\u724c\u3002");
+                return;
+            }
+
             var originalDeckCount = roleTable.cardList.Count;
             roleTable.cardList.Clear();
-            foreach (var cardId in deck)
+            foreach (var cardId in filteredDeck)
             {
                 roleTable.cardList.Add(new DataConfig(cardId, DataType.Card));
             }
 
             roleTable.CardTopCount = Math.Max(roleTable.CardTopCount, roleTable.cardList.Count);
             roleTable.CardBottomCount = Math.Min(roleTable.CardBottomCount, roleTable.cardList.Count);
+            SolarMemoryModeRuntime.SanitizeSolarMemoryRoleCards(roleTable, "ApplyStarterDeck");
             MarkApplied(roleTable, "custom");
-            SolarMemoryModeRuntime.ConfigureSolarMemoryReservePool();
+            SolarMemoryModeRuntime.ClearSolarMemoryReservePool();
             ClosePanel();
+            SolarMemorySetupFlowRuntime.StartAfterStarterDeck();
 
             SunExpLog.Info("[SolarMemoryStarterDeck] applied custom starter deck; originalDeck="
                 + originalDeckCount
                 + "; deck=" + roleTable.cardList.Count
-                + "; cards=" + string.Join("|", deck));
+                + "; cards=" + string.Join("|", filteredDeck));
         }
         catch (Exception ex)
         {
@@ -885,9 +901,11 @@ public static class SolarMemoryStarterDeckRuntime
 
     private static void KeepOfficialDeck(RoleTable roleTable)
     {
+        SolarMemoryModeRuntime.SanitizeSolarMemoryRoleCards(roleTable, "KeepOfficialDeck");
         MarkApplied(roleTable, "official");
-        SolarMemoryModeRuntime.ConfigureSolarMemoryReservePool();
+        SolarMemoryModeRuntime.ClearSolarMemoryReservePool();
         ClosePanel();
+        SolarMemorySetupFlowRuntime.StartAfterStarterDeck();
         SunExpLog.Info("[SolarMemoryStarterDeck] kept official starter deck; deck=" + roleTable.cardList.Count);
     }
 

@@ -15,6 +15,11 @@ public static class SolarEventRuntime
     {
         try
         {
+            if (SolarMemoryModeRuntime.IsSolarMemoryRun())
+            {
+                return;
+            }
+
             if (!EnsureInCurrentLayer(context.Target))
             {
                 foreach (var arg in context.Arguments ?? Array.Empty<object>())
@@ -36,6 +41,11 @@ public static class SolarEventRuntime
     {
         try
         {
+            if (SolarMemoryModeRuntime.IsSolarMemoryRun())
+            {
+                return;
+            }
+
             var args = context.Arguments ?? Array.Empty<object>();
             for (var i = 0; i < args.Length - 1; i++)
             {

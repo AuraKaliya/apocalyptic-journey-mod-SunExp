@@ -104,14 +104,44 @@ public static class EventScripts
         {
             if (PlayerApi.GetGameVar(SunExpIds.SolarMemoryOriginPointsKey, "") == "")
             {
-                PlayerApi.SetGameVar(SunExpIds.SolarMemoryOriginPointsKey, "3");
+                PlayerApi.SetGameVar(SunExpIds.SolarMemoryOriginPointsKey, "50");
             }
 
-            SetEventChoices(self, "1", "1", "1", "1");
+            SetEventChoices(self, "", "", "1", "1");
         }
         catch (Exception ex)
         {
             SunExpLog.Error("Solar memory start init failed", ex);
+        }
+    }
+
+    public static void InitSolarMemoryNode(ScriptExecutor self)
+    {
+        try
+        {
+            if (PlayerApi.GetGameVar(SunExpIds.SolarMemoryOriginPointsKey, "") == "")
+            {
+                PlayerApi.SetGameVar(SunExpIds.SolarMemoryOriginPointsKey, "50");
+            }
+
+            SetEventChoices(self, "1", "1", "", "");
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar memory node init failed", ex);
+        }
+    }
+
+    public static void ContinueSolarMemory()
+    {
+        try
+        {
+            PlayerApi.SetGameVar(SunExpIds.SolarMemoryPreparedKey, "1");
+            PlayerApi.EndEvent();
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar memory continue failed", ex);
         }
     }
 

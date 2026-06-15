@@ -42,17 +42,68 @@ public static class SunExpIds
     public const string SolarMemorySelectedPacksKey = "SunExp_SolarMemorySelectedPacks";
     public const string SolarMemoryOriginPointsKey = "SunExp_SolarMemoryOriginPoints";
     public const string SolarMemoryBlessPickCountKey = "SunExp_SolarMemoryBlessPickCount";
+    public const string SolarMemoryBlessSelectedIdsKey = "SunExp_SolarMemoryBlessSelectedIds";
     public const string SolarMemoryDeckConfiguredKey = "SunExp_SolarMemoryDeckConfigured";
     public const string SolarMemoryStarterDeckAppliedKey = "SunExp_SolarMemoryStarterDeckApplied";
     public const string SolarMemoryStarterDeckModeKey = "SunExp_SolarMemoryStarterDeckMode";
+    public const string SolarMemoryOriginConfiguredKey = "SunExp_SolarMemoryOriginConfigured";
+    public const string SolarMemoryBlessConfiguredKey = "SunExp_SolarMemoryBlessConfigured";
+    public const string SolarMemorySetupFinishedKey = "SunExp_SolarMemorySetupFinished";
     public const string SolarMemoryPreparedKey = "SunExp_SolarMemoryPrepared";
-    public const string SolarMemoryEventId = "Sub_solar_memory_start";
-    public const string SolarMemoryFullEventId = "SunExp_sunexp_Sub_solar_memory_start";
-    public const string SolarMemoryMapId = "SunExp_sunexp_solar_memory_start";
-    public const string SolarMemoryShortMapId = "solar_memory_start";
+    public const string SolarMemoryEventId = "Sub_solar_memory_black_sun_after";
+    public const string SolarMemoryFullEventId = "SunExp_sunexp_Sub_solar_memory_black_sun_after";
+    public const string SolarMemoryMapId = "SunExp_sunexp_solar_memory_black_sun_after";
+    public const string SolarMemoryShortMapId = "solar_memory_black_sun_after";
+    public static readonly string[] SolarMemoryEventIds =
+    {
+        "Sub_solar_memory_black_sun_after",
+        "Sub_solar_memory_second_sun",
+        "Sub_solar_memory_saint_daily",
+        "Sub_solar_memory_polluted_light",
+        "Sub_solar_memory_grief_struggle",
+        "Sub_solar_memory_above_sacred_wheel"
+    };
+
+    public static readonly string[] SolarMemoryFullEventIds =
+    {
+        "SunExp_sunexp_Sub_solar_memory_black_sun_after",
+        "SunExp_sunexp_Sub_solar_memory_second_sun",
+        "SunExp_sunexp_Sub_solar_memory_saint_daily",
+        "SunExp_sunexp_Sub_solar_memory_polluted_light",
+        "SunExp_sunexp_Sub_solar_memory_grief_struggle",
+        "SunExp_sunexp_Sub_solar_memory_above_sacred_wheel"
+    };
+
+    public static readonly string[] SolarMemoryMapIds =
+    {
+        "SunExp_sunexp_solar_memory_black_sun_after",
+        "SunExp_sunexp_solar_memory_second_sun",
+        "SunExp_sunexp_solar_memory_saint_daily",
+        "SunExp_sunexp_solar_memory_polluted_light",
+        "SunExp_sunexp_solar_memory_grief_struggle",
+        "SunExp_sunexp_solar_memory_above_sacred_wheel"
+    };
+
+    public static readonly string[] SolarMemoryShortMapIds =
+    {
+        "solar_memory_black_sun_after",
+        "solar_memory_second_sun",
+        "solar_memory_saint_daily",
+        "solar_memory_polluted_light",
+        "solar_memory_grief_struggle",
+        "solar_memory_above_sacred_wheel"
+    };
+
+    public static readonly string[] SolarMemoryLayerNames =
+    {
+        "\u7279\u745e\u5384\u65af",
+        "\u767d\u66dc\u5723\u5ead",
+        "\u5723\u8f6e"
+    };
     public const string SolarMemoryTitle = "日耀回忆";
     public const string SolarMemoryDescription = "乌娜的专属回忆";
     public const string SolarMemorySubtitle = "Boss连战";
+    public const int SolarMemoryMaxLayer = 3;
 
     public const string SolarFinaleSavedNamesKey = "SunExp_SolarFinaleSavedNames";
     public const string SolarFinaleBurnedNamesKey = "SunExp_SolarFinaleBurnedNames";

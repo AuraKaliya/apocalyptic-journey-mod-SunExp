@@ -1,0 +1,1063 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using SunExp.Dll.GameApi;
+using SunExp.Dll.Infrastructure;
+using UnityEngine;
+using UnityEngine.UI;
+using Witch;
+using Witch.Core;
+using Witch.UI;
+using Object = UnityEngine.Object;
+
+namespace SunExp.Dll.Hooks;
+
+public static class SolarMemoryBlessingPickerRuntime
+{
+    public const int Tier4Quota = 2;
+    public const int Tier3Quota = 3;
+    public const int Tier2Quota = 5;
+    public const int Tier1Quota = 5;
+    public const int TotalBlessingQuota = Tier4Quota + Tier3Quota + Tier2Quota + Tier1Quota;
+
+    private const string PanelName = "SunExp_SolarMemoryBlessingPicker";
+    private const string ButtonSpritePath = "Mods/SunExp/ModResource/Images/UI/button-\u4e5d\u5bab\u683c.png";
+    private const string PanelSpritePath = "Mods/SunExp/ModResource/Images/UI/background-\u4e5d\u5bab\u683c.png";
+    private const float HeaderHeight = 42f;
+    private const float BlessRowHeight = 54f;
+    private const float IconColumnWidth = 44f;
+    private const float BlessIconSize = 36f;
+    private const float TierColumnWidth = 58f;
+    private const float InlineButtonWidth = 96f;
+    private const float MainButtonWidth = 112f;
+    private const float ButtonHeight = 34f;
+
+    private static readonly Color Gold = new(0.82f, 0.72f, 0.42f);
+    private static readonly Color PaleGold = new(0.93f, 0.86f, 0.58f);
+    private static readonly Color Green = new(0.62f, 0.94f, 0.62f);
+    private static readonly Color DeepBlue = new(0.02f, 0.02f, 0.16f, 0.98f);
+    private static readonly Color HeaderTint = new(0.025f, 0.025f, 0.14f, 0.98f);
+    private static readonly Color AreaTint = new(0.018f, 0.018f, 0.105f, 0.98f);
+    private static readonly Color FooterTint = new(0.018f, 0.018f, 0.115f, 0.96f);
+    private static readonly Color RowTint = new(0.07f, 0.07f, 0.21f, 0.98f);
+
+    private static readonly Dictionary<int, List<BlessingEntry>> blessingPools = new();
+    private static readonly Dictionary<int, List<string>> selectedByTier = new();
+    private static readonly Dictionary<string, Sprite?> blessIconCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<int, Text> tierCounterTexts = new();
+    private static GameObject? activePanel;
+    private static Transform? candidateListContent;
+    private static Transform? selectedListContent;
+    private static Text? selectedCounterText;
+    private static Text? hintText;
+    private static Sprite? buttonSprite;
+    private static Sprite? panelSprite;
+    private static bool buttonSpriteLoadAttempted;
+    private static bool panelSpriteLoadAttempted;
+    private static bool isConfirming;
+    private static int activeTier = 4;
+
+    public static bool IsOpen => activePanel != null;
+
+    public static void Open(Action onCompleted)
+    {
+        try
+        {
+            if (!SolarMemoryModeRuntime.IsSolarMemoryRun() || RoleTable.Instance == null)
+            {
+                return;
+            }
+
+            if (PlayerApi.GetGameVar(SunExpIds.SolarMemoryBlessConfiguredKey, "0") == "1")
+            {
+                onCompleted();
+                return;
+            }
+
+            Close();
+            isConfirming = false;
+            activeTier = 4;
+            BuildBlessingPools();
+            LoadSelectionFromGameVar();
+            ShowPanel(onCompleted);
+        }
+        catch (Exception ex)
+        {
+            Close();
+            SunExpLog.Error("Solar memory custom blessing picker failed", ex);
+        }
+    }
+
+    public static void Close()
+    {
+        if (activePanel != null)
+        {
+            Object.Destroy(activePanel);
+            activePanel = null;
+        }
+
+        candidateListContent = null;
+        selectedListContent = null;
+        selectedCounterText = null;
+        hintText = null;
+        tierCounterTexts.Clear();
+    }
+
+    private static void ShowPanel(Action onCompleted)
+    {
+        var parent = UIManager.Instance?.upperCanvasTf ?? UIManager.Instance?.canvasTf;
+        if (parent == null)
+        {
+            return;
+        }
+
+        activePanel = CreateRect(PanelName, parent, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        activePanel.transform.SetAsLastSibling();
+        var blocker = activePanel.AddComponent<Image>();
+        blocker.color = new Color(0f, 0f, 0f, 0.74f);
+
+        var window = CreateRect("Window", activePanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+            new Vector2(0.5f, 0.5f), ResolveWindowSize(parent));
+        ApplyPanelImage(window, DeepBlue);
+        var windowLayout = window.AddComponent<VerticalLayoutGroup>();
+        windowLayout.padding = new RectOffset(24, 24, 18, 14);
+        windowLayout.spacing = 8f;
+        windowLayout.childControlWidth = true;
+        windowLayout.childControlHeight = true;
+        windowLayout.childForceExpandWidth = true;
+        windowLayout.childForceExpandHeight = false;
+
+        var header = CreateLayoutObject("Header", window.transform);
+        header.AddComponent<LayoutElement>().preferredHeight = 76f;
+        ApplyPanelImage(header, HeaderTint);
+        var headerLayout = header.AddComponent<VerticalLayoutGroup>();
+        headerLayout.padding = new RectOffset(16, 16, 8, 8);
+        headerLayout.spacing = 3f;
+        headerLayout.childControlHeight = true;
+        headerLayout.childControlWidth = true;
+        headerLayout.childForceExpandHeight = false;
+        AddTextBlock(header.transform, "\u65e5\u8000\u56de\u5fc6\u00b7\u795d\u798f\u9009\u53d6", 28, TextAnchor.MiddleCenter, PaleGold, 34f);
+        AddTextBlock(header.transform, "\u4e00\u6b21\u6027\u9009\u5b9a\u672c\u5c40\u521d\u59cb\u795d\u798f\u3002", 15, TextAnchor.MiddleCenter, Gold, 22f);
+
+        var tierTabs = CreateLayoutObject("TierTabs", window.transform);
+        tierTabs.AddComponent<LayoutElement>().preferredHeight = 42f;
+        var tierTabsLayout = tierTabs.AddComponent<HorizontalLayoutGroup>();
+        tierTabsLayout.spacing = 12f;
+        tierTabsLayout.childControlWidth = true;
+        tierTabsLayout.childControlHeight = true;
+        tierTabsLayout.childForceExpandWidth = true;
+        tierTabsLayout.childForceExpandHeight = true;
+        foreach (var tier in OrderedTiers())
+        {
+            CreateTierButton(tierTabs.transform, tier);
+        }
+
+        var labelRow = CreateLayoutObject("ColumnLabels", window.transform);
+        labelRow.AddComponent<LayoutElement>().preferredHeight = 48f;
+        var labelLayout = labelRow.AddComponent<HorizontalLayoutGroup>();
+        labelLayout.spacing = 34f;
+        labelLayout.childControlWidth = true;
+        labelLayout.childControlHeight = true;
+        labelLayout.childForceExpandWidth = true;
+        labelLayout.childForceExpandHeight = true;
+        CreateColumnHeader(labelRow.transform, "\u53ef\u9009\u795d\u798f", out _);
+        CreateColumnHeader(labelRow.transform, "\u5df2\u9009\u795d\u798f", out selectedCounterText);
+
+        var listRow = CreateLayoutObject("ListRow", window.transform);
+        var listElement = listRow.AddComponent<LayoutElement>();
+        listElement.flexibleHeight = 1f;
+        listElement.minHeight = 420f;
+        var listLayout = listRow.AddComponent<HorizontalLayoutGroup>();
+        listLayout.spacing = 34f;
+        listLayout.childControlWidth = true;
+        listLayout.childControlHeight = true;
+        listLayout.childForceExpandWidth = true;
+        listLayout.childForceExpandHeight = true;
+
+        candidateListContent = CreateScroll(listRow.transform, "CandidateBlessings");
+        selectedListContent = CreateScroll(listRow.transform, "SelectedBlessings");
+
+        var footer = CreateLayoutObject("Footer", window.transform);
+        footer.AddComponent<LayoutElement>().preferredHeight = 44f;
+        ApplyPanelImage(footer, FooterTint);
+        var footerLayout = footer.AddComponent<HorizontalLayoutGroup>();
+        footerLayout.padding = new RectOffset(14, 14, 5, 5);
+        footerLayout.spacing = 9f;
+        footerLayout.childControlHeight = true;
+        footerLayout.childControlWidth = true;
+        footerLayout.childForceExpandHeight = true;
+        footerLayout.childForceExpandWidth = false;
+        hintText = AddTextBlock(footer.transform, "", 14, TextAnchor.MiddleCenter, PaleGold, 34f, 1f);
+
+        var footerButtons = CreateLayoutObject("FooterButtons", footer.transform);
+        var footerButtonsElement = footerButtons.AddComponent<LayoutElement>();
+        footerButtonsElement.minWidth = MainButtonWidth * 3f + 14f * 2f;
+        footerButtonsElement.preferredWidth = footerButtonsElement.minWidth;
+        footerButtonsElement.minHeight = ButtonHeight;
+        footerButtonsElement.preferredHeight = ButtonHeight;
+        var footerButtonsLayout = footerButtons.AddComponent<HorizontalLayoutGroup>();
+        footerButtonsLayout.spacing = 14f;
+        footerButtonsLayout.childControlWidth = true;
+        footerButtonsLayout.childControlHeight = true;
+        footerButtonsLayout.childForceExpandWidth = false;
+        footerButtonsLayout.childForceExpandHeight = true;
+
+        CreateButton(footerButtons.transform, "\u81ea\u52a8\u586b\u5145", new Vector2(MainButtonWidth, ButtonHeight), AutoFillSelection);
+        CreateButton(footerButtons.transform, "\u6e05\u7a7a", new Vector2(MainButtonWidth, ButtonHeight), ClearSelection);
+        CreateButton(footerButtons.transform, "\u786e\u8ba4", new Vector2(MainButtonWidth, ButtonHeight), () => ConfirmSelection(onCompleted));
+
+        RefreshAll();
+    }
+
+    private static void BuildBlessingPools()
+    {
+        blessingPools.Clear();
+        foreach (var tier in OrderedTiers())
+        {
+            blessingPools[tier] = new List<BlessingEntry>();
+        }
+
+        try
+        {
+            var rows = Singleton<GameConfigManager>.Instance.GetTable(DataType.Bless).Getlines();
+            var checkedRows = Singleton<GameConfigManager>.Instance.CardPackCheck(rows);
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var row in checkedRows)
+            {
+                if (!row.TryGetValue("Id", out var id) || string.IsNullOrWhiteSpace(id) || !seen.Add(id))
+                {
+                    continue;
+                }
+
+                if (Singleton<GameRuntimeData>.Instance.IsLocked(id))
+                {
+                    continue;
+                }
+
+                var tier = row.TryGetValue("Rarity", out var rarity)
+                    ? DictionaryUtil.ParseInt(rarity, -1)
+                    : -1;
+                if (!blessingPools.ContainsKey(tier))
+                {
+                    continue;
+                }
+
+                blessingPools[tier].Add(new BlessingEntry(id, tier, BlessDisplayName(id), BlessDescription(id), BlessIconPath(id)));
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Failed to build solar memory blessing pools", ex);
+        }
+
+        foreach (var tier in OrderedTiers())
+        {
+            blessingPools[tier] = blessingPools[tier]
+                .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(entry => entry.Id, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+    }
+
+    private static void LoadSelectionFromGameVar()
+    {
+        selectedByTier.Clear();
+        foreach (var tier in OrderedTiers())
+        {
+            selectedByTier[tier] = new List<string>();
+        }
+
+        var saved = PlayerApi.GetGameVar(SunExpIds.SolarMemoryBlessSelectedIdsKey, "");
+        if (string.IsNullOrWhiteSpace(saved))
+        {
+            return;
+        }
+
+        foreach (var id in saved.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var entry = FindEntry(id);
+            if (entry == null)
+            {
+                continue;
+            }
+
+            var selected = selectedByTier[entry.Tier];
+            if (selected.Count < QuotaForTier(entry.Tier))
+            {
+                selected.Add(entry.Id);
+            }
+        }
+    }
+
+    private static void RefreshAll()
+    {
+        RefreshCandidateList();
+        RefreshSelectedList();
+        RefreshCounters();
+        PersistSelection();
+    }
+
+    private static void RefreshCandidateList()
+    {
+        if (candidateListContent == null)
+        {
+            return;
+        }
+
+        ClearChildren(candidateListContent);
+        if (!blessingPools.TryGetValue(activeTier, out var entries) || entries.Count == 0)
+        {
+            AddTextBlock(candidateListContent, "\u5f53\u524d\u9636\u5c42\u6ca1\u6709\u53ef\u9009\u795d\u798f\u3002", 15, TextAnchor.MiddleCenter, Gold, 40f);
+            return;
+        }
+
+        foreach (var entry in entries)
+        {
+            CreateCandidateRow(candidateListContent, entry);
+        }
+    }
+
+    private static void RefreshSelectedList()
+    {
+        if (selectedListContent == null)
+        {
+            return;
+        }
+
+        ClearChildren(selectedListContent);
+        foreach (var tier in OrderedTiers())
+        {
+            for (var i = 0; i < selectedByTier[tier].Count; i++)
+            {
+                var index = i;
+                var id = selectedByTier[tier][i];
+                var entry = FindEntry(id);
+                if (entry != null)
+                {
+                    CreateSelectedRow(selectedListContent, entry, tier, index);
+                }
+            }
+        }
+    }
+
+    private static void RefreshCounters()
+    {
+        foreach (var tier in OrderedTiers())
+        {
+            if (tierCounterTexts.TryGetValue(tier, out var text))
+            {
+                text.text = TierLabel(tier) + " " + SelectedCount(tier) + "/" + QuotaForTier(tier);
+                text.color = SelectedCount(tier) == QuotaForTier(tier) ? Green : PaleGold;
+            }
+        }
+
+        if (selectedCounterText != null)
+        {
+            selectedCounterText.text = TotalSelectedCount() + "/" + TotalBlessingQuota;
+            selectedCounterText.color = IsSelectionComplete() ? Green : PaleGold;
+        }
+
+        UpdateHint(IsSelectionComplete()
+            ? "\u53ef\u4ee5\u786e\u8ba4\u3002"
+            : "\u8bf7\u6309\u5404\u9636\u5c42\u914d\u989d\u9009\u6ee1\u795d\u798f\u3002");
+    }
+
+    private static void CreateCandidateRow(Transform parent, BlessingEntry entry)
+    {
+        var row = CreateRow(parent, "Candidate-" + entry.Id);
+        CreateBlessIconCell(row.transform, entry);
+        AddTextBlock(row.transform, entry.Name, 15, TextAnchor.MiddleCenter, PaleGold, 42f, 0f, 124f);
+        AddTextBlock(row.transform, TierLabel(entry.Tier), 13, TextAnchor.MiddleCenter, Gold, 42f, 0f, TierColumnWidth);
+        AddTextBlock(row.transform, entry.Description, 12, TextAnchor.MiddleLeft, PaleGold, 42f, 1f);
+        CreateInlineButton(row.transform, "\u6dfb\u52a0", () => AddBlessing(entry));
+    }
+
+    private static void CreateSelectedRow(Transform parent, BlessingEntry entry, int tier, int index)
+    {
+        var row = CreateRow(parent, "Selected-" + entry.Id + "-" + index);
+        CreateBlessIconCell(row.transform, entry);
+        AddTextBlock(row.transform, entry.Name, 15, TextAnchor.MiddleCenter, PaleGold, 42f, 0f, 124f);
+        AddTextBlock(row.transform, TierLabel(entry.Tier), 13, TextAnchor.MiddleCenter, Gold, 42f, 0f, TierColumnWidth);
+        AddTextBlock(row.transform, entry.Description, 12, TextAnchor.MiddleLeft, PaleGold, 42f, 1f);
+        CreateInlineButton(row.transform, "\u79fb\u9664", () => RemoveBlessing(tier, index));
+    }
+
+    private static void AddBlessing(BlessingEntry entry)
+    {
+        var selected = selectedByTier[entry.Tier];
+        if (selected.Count >= QuotaForTier(entry.Tier))
+        {
+            UpdateHint(TierLabel(entry.Tier) + "\u5df2\u8fbe\u5230\u53ef\u9009\u6570\u91cf\u4e0a\u9650\u3002");
+            return;
+        }
+
+        selected.Add(entry.Id);
+        RefreshAll();
+    }
+
+    private static void RemoveBlessing(int tier, int index)
+    {
+        if (selectedByTier.TryGetValue(tier, out var selected) && index >= 0 && index < selected.Count)
+        {
+            selected.RemoveAt(index);
+        }
+
+        RefreshAll();
+    }
+
+    private static void AutoFillSelection()
+    {
+        foreach (var tier in OrderedTiers())
+        {
+            if (!blessingPools.TryGetValue(tier, out var entries))
+            {
+                continue;
+            }
+
+            var selected = selectedByTier[tier];
+            if (entries.Count == 0)
+            {
+                continue;
+            }
+
+            var index = 0;
+            while (selected.Count < QuotaForTier(tier))
+            {
+                selected.Add(entries[index % entries.Count].Id);
+                index++;
+            }
+        }
+
+        RefreshAll();
+    }
+
+    private static void ClearSelection()
+    {
+        foreach (var selected in selectedByTier.Values)
+        {
+            selected.Clear();
+        }
+
+        RefreshAll();
+    }
+
+    private static void ConfirmSelection(Action onCompleted)
+    {
+        if (isConfirming)
+        {
+            return;
+        }
+
+        if (!IsSelectionComplete())
+        {
+            UpdateHint("\u8bf7\u5148\u9009\u6ee1\u6240\u6709\u9636\u5c42\u914d\u989d\u3002");
+            return;
+        }
+
+        try
+        {
+            isConfirming = true;
+            var ids = SelectedIds().ToList();
+            PlayerApi.SetGameVar(SunExpIds.SolarMemoryBlessSelectedIdsKey, string.Join("|", ids));
+            PlayerApi.SetGameVar(SunExpIds.SolarMemoryBlessPickCountKey, ids.Count.ToString());
+            PlayerApi.SetGameVar(SunExpIds.SolarMemoryBlessConfiguredKey, "1");
+            foreach (var id in ids)
+            {
+                PlayerApi.AddBless(id);
+            }
+
+            Close();
+            onCompleted();
+        }
+        catch (Exception ex)
+        {
+            isConfirming = false;
+            SunExpLog.Error("Failed to confirm solar memory blessings", ex);
+            UpdateHint("\u795d\u798f\u53d1\u653e\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002");
+        }
+    }
+
+    private static bool IsSelectionComplete()
+    {
+        foreach (var tier in OrderedTiers())
+        {
+            if (SelectedCount(tier) != QuotaForTier(tier))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static IEnumerable<string> SelectedIds()
+    {
+        foreach (var tier in OrderedTiers())
+        {
+            foreach (var id in selectedByTier[tier])
+            {
+                yield return id;
+            }
+        }
+    }
+
+    private static void PersistSelection()
+    {
+        PlayerApi.SetGameVar(SunExpIds.SolarMemoryBlessSelectedIdsKey, string.Join("|", SelectedIds()));
+        PlayerApi.SetGameVar(SunExpIds.SolarMemoryBlessPickCountKey, TotalSelectedCount().ToString());
+    }
+
+    private static int TotalSelectedCount()
+    {
+        return OrderedTiers().Sum(SelectedCount);
+    }
+
+    private static int SelectedCount(int tier)
+    {
+        return selectedByTier.TryGetValue(tier, out var selected) ? selected.Count : 0;
+    }
+
+    private static BlessingEntry? FindEntry(string id)
+    {
+        foreach (var entries in blessingPools.Values)
+        {
+            var entry = entries.FirstOrDefault(item => string.Equals(item.Id, id, StringComparison.OrdinalIgnoreCase));
+            if (entry != null)
+            {
+                return entry;
+            }
+        }
+
+        return null;
+    }
+
+    private static int QuotaForTier(int tier)
+    {
+        return tier switch
+        {
+            4 => Tier4Quota,
+            3 => Tier3Quota,
+            2 => Tier2Quota,
+            1 => Tier1Quota,
+            _ => 0
+        };
+    }
+
+    private static IEnumerable<int> OrderedTiers()
+    {
+        yield return 4;
+        yield return 3;
+        yield return 2;
+        yield return 1;
+    }
+
+    private static string TierLabel(int tier)
+    {
+        return tier + "\u9636";
+    }
+
+    private static void CreateTierButton(Transform parent, int tier)
+    {
+        var go = CreateLayoutObject("Tier-" + tier, parent);
+        var element = go.AddComponent<LayoutElement>();
+        element.flexibleWidth = 1f;
+        element.minHeight = ButtonHeight;
+        element.preferredHeight = ButtonHeight;
+        var image = ApplyButtonImage(go);
+        var button = go.AddComponent<Button>();
+        button.targetGraphic = image;
+        button.onClick.AddListener(() =>
+        {
+            activeTier = tier;
+            RefreshAll();
+        });
+        tierCounterTexts[tier] = AddTextFill(go.transform, "", 14, TextAnchor.MiddleCenter, PaleGold);
+    }
+
+    private static Transform CreateScroll(Transform parent, string name)
+    {
+        var root = CreateLayoutObject("Scroll-" + name, parent);
+        var rootElement = root.AddComponent<LayoutElement>();
+        rootElement.flexibleWidth = 1f;
+        rootElement.minWidth = 300f;
+        rootElement.flexibleHeight = 1f;
+        rootElement.minHeight = 260f;
+        ApplyPanelImage(root, AreaTint);
+
+        var header = CreateBlessInfoHeader(root.transform);
+        var headerRect = header.GetComponent<RectTransform>();
+        headerRect.anchorMin = new Vector2(0f, 1f);
+        headerRect.anchorMax = new Vector2(1f, 1f);
+        headerRect.pivot = new Vector2(0.5f, 1f);
+        headerRect.sizeDelta = new Vector2(-8f, HeaderHeight);
+        headerRect.anchoredPosition = new Vector2(0f, -4f);
+
+        var viewport = CreateRect("Viewport", root.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        var viewportRect = viewport.GetComponent<RectTransform>();
+        viewportRect.offsetMin = new Vector2(4f, 4f);
+        viewportRect.offsetMax = new Vector2(-4f, -(HeaderHeight + 12f));
+        var viewportImage = viewport.AddComponent<Image>();
+        viewportImage.color = new Color(0f, 0f, 0f, 0.01f);
+        viewport.AddComponent<Mask>().showMaskGraphic = false;
+
+        var content = CreateRect("Content", viewport.transform, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, 1f), Vector2.zero);
+        var contentLayout = content.AddComponent<VerticalLayoutGroup>();
+        contentLayout.childForceExpandHeight = false;
+        contentLayout.childForceExpandWidth = true;
+        contentLayout.spacing = 8f;
+        contentLayout.padding = new RectOffset(2, 2, 0, 0);
+        var fitter = content.AddComponent<ContentSizeFitter>();
+        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        var scroll = root.AddComponent<ScrollRect>();
+        scroll.viewport = viewport.GetComponent<RectTransform>();
+        scroll.content = content.GetComponent<RectTransform>();
+        scroll.horizontal = false;
+        scroll.vertical = true;
+        scroll.scrollSensitivity = 24f;
+        return content.transform;
+    }
+
+    private static GameObject CreateBlessInfoHeader(Transform parent)
+    {
+        var header = CreateLayoutObject("BlessInfoHeader", parent);
+        var element = header.AddComponent<LayoutElement>();
+        element.minHeight = HeaderHeight;
+        element.preferredHeight = HeaderHeight;
+        element.flexibleHeight = 0f;
+        ApplyPanelImage(header, HeaderTint);
+
+        var layout = header.AddComponent<HorizontalLayoutGroup>();
+        layout.padding = new RectOffset(8, 8, 0, 0);
+        layout.spacing = 10f;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = true;
+
+        AddTextBlock(header.transform, "\u56fe\u6807", 14, TextAnchor.MiddleCenter, PaleGold, HeaderHeight, 0f, IconColumnWidth);
+        AddTextBlock(header.transform, "\u540d\u79f0", 14, TextAnchor.MiddleCenter, PaleGold, HeaderHeight, 0f, 124f);
+        AddTextBlock(header.transform, "\u9636\u5c42", 14, TextAnchor.MiddleCenter, PaleGold, HeaderHeight, 0f, TierColumnWidth);
+        AddTextBlock(header.transform, "\u6548\u679c", 14, TextAnchor.MiddleCenter, PaleGold, HeaderHeight, 1f);
+        AddTextBlock(header.transform, "", 14, TextAnchor.MiddleCenter, PaleGold, HeaderHeight, 0f, InlineButtonWidth);
+        return header;
+    }
+
+    private static GameObject CreateRow(Transform parent, string name)
+    {
+        var row = CreateLayoutObject(name, parent);
+        var layoutElement = row.AddComponent<LayoutElement>();
+        layoutElement.minHeight = BlessRowHeight;
+        layoutElement.preferredHeight = BlessRowHeight;
+        layoutElement.flexibleHeight = 0f;
+        ApplyPanelImage(row, RowTint);
+        var layout = row.AddComponent<HorizontalLayoutGroup>();
+        layout.padding = new RectOffset(8, 8, 6, 6);
+        layout.spacing = 10f;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = true;
+        return row;
+    }
+
+    private static Button CreateInlineButton(Transform parent, string label, Action action)
+    {
+        var go = CreateLayoutObject("InlineButton-" + label, parent);
+        var element = go.AddComponent<LayoutElement>();
+        element.minWidth = InlineButtonWidth;
+        element.preferredWidth = InlineButtonWidth;
+        element.minHeight = 32f;
+        element.preferredHeight = 32f;
+        var image = ApplyInlineButtonImage(go);
+        var button = go.AddComponent<Button>();
+        button.targetGraphic = image;
+        button.onClick.AddListener(() => action());
+        AddTextFill(go.transform, label, 14, TextAnchor.MiddleCenter, PaleGold);
+        return button;
+    }
+
+    private static Button CreateButton(Transform parent, string label, Vector2 size, Action action)
+    {
+        var go = CreateLayoutObject("Button-" + label, parent);
+        var element = go.AddComponent<LayoutElement>();
+        var width = Mathf.Max(80f, size.x);
+        element.minWidth = width;
+        element.preferredWidth = width;
+        element.minHeight = size.y;
+        element.preferredHeight = size.y;
+        var image = ApplyButtonImage(go);
+        var button = go.AddComponent<Button>();
+        button.targetGraphic = image;
+        button.onClick.AddListener(() => action());
+        AddTextFill(go.transform, label, 14, TextAnchor.MiddleCenter, PaleGold);
+        return button;
+    }
+
+    private static Image ApplyButtonImage(GameObject go)
+    {
+        var image = go.AddComponent<Image>();
+        image.color = Color.white;
+        image.sprite = GetButtonSprite();
+        image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
+        image.fillCenter = true;
+        if (image.sprite == null)
+        {
+            image.color = new Color(0.05f, 0.05f, 0.22f, 0.96f);
+        }
+
+        return image;
+    }
+
+    private static Image ApplyInlineButtonImage(GameObject go)
+    {
+        var image = go.AddComponent<Image>();
+        image.sprite = GetPanelSprite();
+        image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
+        image.fillCenter = true;
+        image.color = image.sprite != null ? new Color(1f, 1f, 1f, 0.96f) : new Color(0.04f, 0.04f, 0.18f, 0.96f);
+        if (image.sprite != null)
+        {
+            AddPanelTint(go, new Color(0.035f, 0.035f, 0.15f, 0.96f));
+        }
+
+        return image;
+    }
+
+    private static void ApplyPanelImage(GameObject go, Color fallbackOrTint)
+    {
+        var image = go.AddComponent<Image>();
+        image.sprite = GetPanelSprite();
+        image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
+        image.fillCenter = true;
+        image.color = image.sprite != null ? new Color(1f, 1f, 1f, fallbackOrTint.a) : fallbackOrTint;
+        if (image.sprite != null)
+        {
+            AddPanelTint(go, fallbackOrTint);
+        }
+    }
+
+    private static void AddPanelTint(GameObject target, Color color)
+    {
+        var tint = new GameObject("PanelTint", typeof(RectTransform));
+        tint.transform.SetParent(target.transform, false);
+        tint.transform.SetAsFirstSibling();
+        var rect = tint.GetComponent<RectTransform>();
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.offsetMin = new Vector2(3f, 3f);
+        rect.offsetMax = new Vector2(-3f, -3f);
+        var layout = tint.AddComponent<LayoutElement>();
+        layout.ignoreLayout = true;
+        var image = tint.AddComponent<Image>();
+        image.color = new Color(color.r, color.g, color.b, Mathf.Min(0.62f, color.a));
+        image.raycastTarget = false;
+    }
+
+    private static GameObject CreateColumnHeader(Transform parent, string title, out Text? counter)
+    {
+        var header = CreateLayoutObject("ColumnHeader-" + title, parent);
+        var element = header.AddComponent<LayoutElement>();
+        element.flexibleWidth = 1f;
+        element.minWidth = 300f;
+        ApplyPanelImage(header, HeaderTint);
+        var headerLayout = header.AddComponent<HorizontalLayoutGroup>();
+        headerLayout.padding = new RectOffset(14, 14, 6, 6);
+        headerLayout.childControlWidth = true;
+        headerLayout.childControlHeight = true;
+        headerLayout.childForceExpandWidth = false;
+        AddTextBlock(header.transform, title, 17, TextAnchor.MiddleCenter, PaleGold, 32f, 1f);
+        counter = AddTextBlock(header.transform, "", 16, TextAnchor.MiddleCenter, Green, 32f, 0f, 90f);
+        return header;
+    }
+
+    private static void CreateBadge(Transform parent, string value)
+    {
+        var badge = CreateLayoutObject("Badge", parent);
+        var element = badge.AddComponent<LayoutElement>();
+        element.minWidth = IconColumnWidth;
+        element.preferredWidth = IconColumnWidth;
+        element.minHeight = BlessIconSize;
+        element.preferredHeight = BlessIconSize;
+        ApplyPanelImage(badge, DeepBlue);
+        AddTextFill(badge.transform, value, 18, TextAnchor.MiddleCenter, PaleGold);
+    }
+
+    private static void CreateBlessIconCell(Transform parent, BlessingEntry entry)
+    {
+        var sprite = TryLoadBlessIcon(entry);
+        if (sprite == null)
+        {
+            CreateBadge(parent, entry.Tier.ToString());
+            return;
+        }
+
+        var cell = CreateLayoutObject("BlessIcon", parent);
+        var element = cell.AddComponent<LayoutElement>();
+        element.minWidth = IconColumnWidth;
+        element.preferredWidth = IconColumnWidth;
+        element.minHeight = BlessIconSize;
+        element.preferredHeight = BlessIconSize;
+
+        var icon = CreateRect("Image", cell.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+            new Vector2(0.5f, 0.5f), new Vector2(BlessIconSize, BlessIconSize));
+        var image = icon.AddComponent<Image>();
+        image.sprite = sprite;
+        image.preserveAspect = true;
+        image.raycastTarget = false;
+        image.color = Color.white;
+    }
+
+    private static Text AddTextBlock(Transform parent, string value, int fontSize, TextAnchor anchor, Color color,
+        float preferredHeight, float flexibleWidth = 0f, float preferredWidth = 0f)
+    {
+        var go = CreateLayoutObject("Text", parent);
+        var element = go.AddComponent<LayoutElement>();
+        element.minHeight = preferredHeight;
+        element.preferredHeight = preferredHeight;
+        if (flexibleWidth > 0f)
+        {
+            element.flexibleWidth = flexibleWidth;
+        }
+
+        if (preferredWidth > 0f)
+        {
+            element.minWidth = preferredWidth;
+            element.preferredWidth = preferredWidth;
+        }
+
+        return ConfigureText(go, value, fontSize, anchor, color);
+    }
+
+    private static Text AddTextFill(Transform parent, string value, int fontSize, TextAnchor anchor, Color color)
+    {
+        var go = CreateRect("Text", parent, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        return ConfigureText(go, value, fontSize, anchor, color);
+    }
+
+    private static Text ConfigureText(GameObject go, string value, int fontSize, TextAnchor anchor, Color color)
+    {
+        var text = go.AddComponent<Text>();
+        text.text = value;
+        text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        text.fontSize = fontSize;
+        text.alignment = anchor;
+        text.color = color;
+        text.horizontalOverflow = HorizontalWrapMode.Wrap;
+        text.verticalOverflow = VerticalWrapMode.Truncate;
+        text.resizeTextForBestFit = true;
+        text.resizeTextMinSize = Math.Max(9, fontSize - 5);
+        text.resizeTextMaxSize = fontSize;
+        text.raycastTarget = false;
+        return text;
+    }
+
+    private static GameObject CreateLayoutObject(string name, Transform parent)
+    {
+        var go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        var rect = go.GetComponent<RectTransform>();
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.sizeDelta = Vector2.zero;
+        rect.anchoredPosition = Vector2.zero;
+        return go;
+    }
+
+    private static GameObject CreateRect(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 sizeDelta)
+    {
+        var go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        var rect = go.GetComponent<RectTransform>();
+        rect.anchorMin = anchorMin;
+        rect.anchorMax = anchorMax;
+        rect.pivot = pivot;
+        rect.sizeDelta = sizeDelta;
+        rect.anchoredPosition = Vector2.zero;
+        return go;
+    }
+
+    private static Sprite? GetButtonSprite()
+    {
+        if (buttonSprite != null)
+        {
+            return buttonSprite;
+        }
+
+        if (buttonSpriteLoadAttempted)
+        {
+            return null;
+        }
+
+        buttonSpriteLoadAttempted = true;
+        buttonSprite = CreateNineSliceSprite(ButtonSpritePath, new Vector4(24f, 12f, 24f, 12f));
+        return buttonSprite;
+    }
+
+    private static Sprite? GetPanelSprite()
+    {
+        if (panelSprite != null)
+        {
+            return panelSprite;
+        }
+
+        if (panelSpriteLoadAttempted)
+        {
+            return null;
+        }
+
+        panelSpriteLoadAttempted = true;
+        panelSprite = CreateNineSliceSprite(PanelSpritePath, new Vector4(4f, 4f, 4f, 4f));
+        return panelSprite;
+    }
+
+    private static Sprite? CreateNineSliceSprite(string path, Vector4 border)
+    {
+        try
+        {
+            var source = ResourceLoader.Load<Sprite>(path, true);
+            if (source == null || source.texture == null)
+            {
+                SunExpLog.Warn("[SolarMemoryBlessingPicker] UI sprite missing: " + path);
+                return null;
+            }
+
+            var texture = source.texture;
+            texture.filterMode = FilterMode.Point;
+            texture.wrapMode = TextureWrapMode.Clamp;
+            return Sprite.Create(texture, source.rect, new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, border);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[SolarMemoryBlessingPicker] failed to load UI sprite " + path + ": " + ex.Message);
+            return null;
+        }
+    }
+
+    private static Vector2 ResolveWindowSize(Transform parent)
+    {
+        var available = new Vector2(Screen.width, Screen.height);
+        if (parent is RectTransform rect && rect.rect.width > 0f && rect.rect.height > 0f)
+        {
+            available = rect.rect.size;
+        }
+
+        var width = Mathf.Min(1240f, Mathf.Max(820f, available.x - 60f));
+        var height = Mathf.Min(800f, Mathf.Max(680f, available.y - 28f));
+        return new Vector2(width, height);
+    }
+
+    private static Sprite? TryLoadBlessIcon(BlessingEntry entry)
+    {
+        if (blessIconCache.TryGetValue(entry.Id, out var cached))
+        {
+            return cached;
+        }
+
+        Sprite? sprite = null;
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(entry.IconPath))
+            {
+                sprite = ResourceLoader.Load<Sprite>(entry.IconPath, true);
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[SolarMemoryBlessingPicker] failed to load bless icon for " + entry.Id + ": " + ex.Message);
+        }
+
+        blessIconCache[entry.Id] = sprite;
+        return sprite;
+    }
+
+    private static string BlessDisplayName(string blessId)
+    {
+        try
+        {
+            var data = new DataConfig(blessId, DataType.Bless).data;
+            var localizedName = data.Localize("Name");
+            if (!string.IsNullOrWhiteSpace(localizedName) && localizedName != "Name")
+            {
+                return localizedName;
+            }
+
+            if (data.TryGetValue("Name", out var name) && !string.IsNullOrWhiteSpace(name))
+            {
+                return name;
+            }
+        }
+        catch
+        {
+            return blessId;
+        }
+
+        return blessId;
+    }
+
+    private static string BlessDescription(string blessId)
+    {
+        try
+        {
+            var description = new DataConfig(blessId, DataType.Bless).Description();
+            return string.IsNullOrWhiteSpace(description) ? blessId : description;
+        }
+        catch
+        {
+            return blessId;
+        }
+    }
+
+    private static string BlessIconPath(string blessId)
+    {
+        try
+        {
+            var data = new DataConfig(blessId, DataType.Bless).data;
+            return data.TryGetValue("Icon", out var icon) ? icon : "";
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    private static void ClearChildren(Transform parent)
+    {
+        foreach (Transform child in parent)
+        {
+            Object.Destroy(child.gameObject);
+        }
+    }
+
+    private static void UpdateHint(string message)
+    {
+        if (hintText != null)
+        {
+            hintText.text = message;
+        }
+    }
+
+    private sealed class BlessingEntry
+    {
+        public BlessingEntry(string id, int tier, string name, string description, string iconPath)
+        {
+            Id = id;
+            Tier = tier;
+            Name = name;
+            Description = description;
+            IconPath = iconPath;
+        }
+
+        public string Id { get; }
+
+        public int Tier { get; }
+
+        public string Name { get; }
+
+        public string Description { get; }
+
+        public string IconPath { get; }
+    }
+}

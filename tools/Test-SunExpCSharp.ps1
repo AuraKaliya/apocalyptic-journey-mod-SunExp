@@ -325,6 +325,7 @@ function Invoke-SourceAssertions {
     param([string]$RepoRoot)
 
     $executorApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\ExecutorApi.cs"))
+    $sunExpIds = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpIds.cs"))
     $playerApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\PlayerApi.cs"))
     $specialTagRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SpecialTagRuntime.cs"))
     $cardConfigApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\CardConfigApi.cs"))
@@ -335,8 +336,14 @@ function Invoke-SourceAssertions {
     $wunaScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\WunaScripts.cs"))
     $runtimeHooks = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\RuntimeHooks.cs"))
     $solarEventRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarEventRuntime.cs"))
+    $solarMemoryModeRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryModeRuntime.cs"))
+    $solarMemoryStarterDeckRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryStarterDeckRuntime.cs"))
+    $solarMemorySetupFlowRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemorySetupFlowRuntime.cs"))
+    $solarMemoryBlessingPickerRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryBlessingPickerRuntime.cs"))
     $mapData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Map\sunexp.csv"))
     $mapText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\Map\sunexp.csv"))
+    $eventData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\EventList\sunexp.csv"))
+    $eventText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\EventList\sunexp.csv"))
 
     $addStatusBuff = [regex]::Match($executorApi, "public\s+static\s+bool\s+AddStatusBuff[\s\S]*?public\s+static\s+bool\s+RemoveStatusBuff")
     Assert-True $addStatusBuff.Success "Could not locate ExecutorApi.AddStatusBuff for source assertion."
@@ -364,6 +371,66 @@ function Invoke-SourceAssertions {
     Assert-True (-not $solarEventRuntime.Contains("TypeGenerate")) "SolarEventRuntime must not generate map nodes by Note; the base game does not know the solar event Note."
     Assert-True $solarEventRuntime.Contains("SunExpIds.SolarEventMapId") "SolarEventRuntime must target the dedicated solar map id."
     Assert-True $solarEventRuntime.Contains("SunExpIds.WunaEventFullPrefix") "SolarEventRuntime must route mapdata to the current Wuna Sub event id."
+    Assert-True $solarEventRuntime.Contains("SolarMemoryModeRuntime.IsSolarMemoryRun()") "SolarEventRuntime must not inject ordinary solar events during Solar Memory mode."
+    Assert-True $solarMemoryModeRuntime.Contains('RegisterBefore(modConfig, "GameConfigManager.CardPackCheck", FilterSolarMemoryCardPackCheck)') "Solar memory must filter event cards before CardPackCheck builds reward candidates."
+    Assert-True $solarMemoryModeRuntime.Contains('RegisterBefore(modConfig, "NormalMapManager.RandomGenerate", CaptureSolarMemoryGenerationState)') "Solar memory must capture event records before base map generation can draw ordinary events."
+    Assert-True $solarMemoryModeRuntime.Contains('RegisterBefore(modConfig, "MapSelectUI.ReadyToSelect", EnsureSolarMemoryMapBeforeSelect)') "Solar memory must normalize SelectNode immediately before map candidate cards are created."
+    Assert-True $solarMemoryModeRuntime.Contains("RepairSolarMemoryMapSelection") "Solar memory must repair synced map arrays for its fixed first node."
+    Assert-True ([regex]::IsMatch($solarMemoryModeRuntime, 'defaultStart\s*=\s*layer\s*\*\s*defaultSegmentSize')) "Solar memory default nodes must be rewritten for the current layer, not only layer 0."
+    Assert-True ([regex]::IsMatch($solarMemoryModeRuntime, 'selectStart\s*=\s*layer\s*\*\s*selectSegmentSize')) "Solar memory candidate SelectNode entries must be rewritten for the current layer."
+    Assert-True $solarMemoryModeRuntime.Contains("TrimSolarMemoryEventRecord") "Solar memory must roll back ordinary event records consumed during base map generation."
+    Assert-True $sunExpIds.Contains("SolarMemoryEventIds") "Solar memory must define all fixed story event ids."
+    Assert-True $sunExpIds.Contains("Sub_solar_memory_above_sacred_wheel") "Solar memory id list must include the sixth fixed event."
+    Assert-True $sunExpIds.Contains("SolarMemoryLayerNames") "Solar memory must define custom layer names."
+    Assert-True $solarMemoryModeRuntime.Contains('"MapSelectUI.DataUpdate", ApplySolarMemoryLayerTitle') "Solar memory must override map layer titles in MapSelectUI."
+    Assert-True $solarMemoryModeRuntime.Contains("SolarMemoryMidLayerSlotIndex = 3") "Solar memory must reserve the fourth map slot for the second story event in each layer."
+    Assert-True $solarMemoryModeRuntime.Contains("CreateSolarMemoryEventNode(tree, layer, SolarMemoryOpeningSlotIndex)") "Solar memory default nodes must use the per-layer opening story event."
+    Assert-True $solarMemoryModeRuntime.Contains("CreateSolarMemoryEventNode(tree, layer, SolarMemoryMidLayerSlotIndex)") "Solar memory SelectNode entries must place the second story event in the fourth candidate slot."
+    Assert-True $solarMemoryModeRuntime.Contains("RepairSolarMemorySyncIndex(maps, mapData, SolarMemoryMidLayerSlotIndex") "Solar memory sync repair must force the fourth map node id."
+    Assert-True $solarMemoryModeRuntime.Contains("SunExpIds.SolarMemoryMapIds[eventIndex]") "Solar memory sync repair must use the fixed story map id array."
+    Assert-True $solarMemoryModeRuntime.Contains("SunExpIds.SolarMemoryFullEventIds[eventIndex]") "Solar memory sync repair must use the fixed story event id array."
+    Assert-True $eventScripts.Contains("public static void InitSolarMemoryNode") "Solar memory fixed story events must expose an init method."
+    Assert-True $eventScripts.Contains("public static void ContinueSolarMemory") "Solar memory fixed story events must expose a continue method."
+    Assert-True $eventScripts.Contains('PlayerApi.SetGameVar(SunExpIds.SolarMemoryOriginPointsKey, "50")') "Solar memory event initialization must not reset origin points to the old value."
+    Assert-True $mapData.Contains("solar_memory_black_sun_after,Event,SunExp_sunexp_Sub_solar_memory_black_sun_after,-1") "Solar memory map data must include the first fixed story event."
+    Assert-True $mapData.Contains("solar_memory_above_sacred_wheel,Event,SunExp_sunexp_Sub_solar_memory_above_sacred_wheel,-1") "Solar memory map data must include the sixth fixed story event."
+    Assert-True $mapText.Contains("solar_memory_polluted_light") "Solar memory map text must include the polluted light node."
+    Assert-True $eventData.Contains("Sub_solar_memory_grief_struggle,CS.SunExp.Dll.Scripting.EventScripts.ContinueSolarMemory();") "Solar memory event data must route story choices through C# continue."
+    Assert-True $eventText.Contains("Sub_solar_memory_above_sacred_wheel") "Solar memory event text must include the sixth fixed story row."
+    Assert-True $solarMemoryModeRuntime.Contains("public static int SanitizeSolarMemoryRoleCards") "Solar memory must expose a role-card sanitizer."
+    Assert-True $solarMemoryModeRuntime.Contains("RemoveEventConfigs(role.cardList") "Solar memory sanitizer must remove event cards from the actual deck."
+    Assert-True $solarMemoryModeRuntime.Contains("RemoveEventConfigs(role.UnCardList") "Solar memory sanitizer must remove event cards from the reserve pool."
+    Assert-True $solarMemoryModeRuntime.Contains('SanitizeSolarMemoryRoleCards(role, "ClearSolarMemoryReservePool")') "Clearing the solar memory reserve must also sanitize the active deck."
+    Assert-True $solarMemoryStarterDeckRuntime.Contains('SanitizeSolarMemoryRoleCards(roleTable, "NormalMapManager.InitRoleTable")') "Solar memory role initialization must sanitize the official starter deck."
+    Assert-True $solarMemoryStarterDeckRuntime.Contains('SanitizeSolarMemoryRoleCards(roleTable, "ApplyStarterDeck")') "Solar memory custom starter deck application must sanitize the final deck."
+    Assert-True $solarMemoryStarterDeckRuntime.Contains('SanitizeSolarMemoryRoleCards(roleTable, "KeepOfficialDeck")') "Solar memory official starter deck path must sanitize before continuing."
+    Assert-True $solarMemoryStarterDeckRuntime.Contains("!SolarMemoryModeRuntime.IsSolarMemoryEventCard(id)") "Solar memory starter deck candidates must exclude event cards."
+    Assert-True $solarMemoryModeRuntime.Contains('saveInfo.GameVars[SunExpIds.SolarMemoryOriginPointsKey] = "50"') "Solar memory must initialize origin setup with 50 points."
+    Assert-True $solarMemorySetupFlowRuntime.Contains("private const int OriginSetupPointTotal = 50") "Solar memory origin setup must expose 50 assignable points."
+    Assert-True (-not $solarMemorySetupFlowRuntime.Contains("private const int OriginStatCap = 40")) "Solar memory origin setup must not use a fixed 40 cap for every origin."
+    Assert-True $solarMemorySetupFlowRuntime.Contains("private const int OriginLargeStep = 10") "Solar memory origin setup must support ten-point increments."
+    Assert-True $solarMemorySetupFlowRuntime.Contains('CreateLayoutButton(controls, "++"') "Solar memory origin setup must render a ++ button."
+    Assert-True $solarMemorySetupFlowRuntime.Contains("AllowedOriginAdd") "Solar memory origin setup must clamp additions by remaining points and stat cap."
+    Assert-True $solarMemorySetupFlowRuntime.Contains("OriginCapFor") "Solar memory origin setup must resolve dynamic caps from the chosen origin roles."
+    Assert-True $solarMemorySetupFlowRuntime.Contains("role.MainVarUpperBound") "Solar memory origin setup must use RoleTable.MainVarUpperBound for the main origin."
+    Assert-True $solarMemorySetupFlowRuntime.Contains("role.SecondaryVarUpperBound") "Solar memory origin setup must use RoleTable.SecondaryVarUpperBound for the secondary origin."
+    Assert-True $solarMemorySetupFlowRuntime.Contains("role.OtherVarUpperBound") "Solar memory origin setup must use RoleTable.OtherVarUpperBound for unchosen origins."
+    Assert-True $solarMemorySetupFlowRuntime.Contains("OriginAssignablePointTotal") "Solar memory origin setup must reduce total points when current stat capacity is below 50."
+    Assert-True $solarMemorySetupFlowRuntime.Contains("NormalizePendingOriginAdds") "Solar memory origin setup must re-clamp pending points before confirmation."
+    Assert-True $solarMemorySetupFlowRuntime.Contains("OriginRoleLabel") "Solar memory origin setup must show whether an origin is main, secondary, or unchosen."
+    Assert-True $solarMemorySetupFlowRuntime.Contains("SolarMemoryBlessingPickerRuntime.Open") "Solar memory blessing setup must use the custom quota picker."
+    Assert-True (-not $solarMemorySetupFlowRuntime.Contains("BlessingChoiceGenerator().CreateBlessUI")) "Solar memory setup must not chain the native blessing picker."
+    Assert-True $solarMemoryBlessingPickerRuntime.Contains("public const int Tier4Quota = 2") "Solar memory blessing picker must offer two tier-4 blessings."
+    Assert-True $solarMemoryBlessingPickerRuntime.Contains("public const int Tier3Quota = 3") "Solar memory blessing picker must offer three tier-3 blessings."
+    Assert-True $solarMemoryBlessingPickerRuntime.Contains("public const int Tier2Quota = 5") "Solar memory blessing picker must offer five tier-2 blessings."
+    Assert-True $solarMemoryBlessingPickerRuntime.Contains("public const int Tier1Quota = 5") "Solar memory blessing picker must offer five tier-1 blessings."
+    Assert-True $solarMemoryBlessingPickerRuntime.Contains("PlayerApi.AddBless(id)") "Solar memory blessing picker must grant selected blessings through PlayerApi.AddBless."
+    Assert-True $solarMemoryBlessingPickerRuntime.Contains("SunExpIds.SolarMemoryBlessSelectedIdsKey") "Solar memory blessing picker must persist selected ids for re-entry safety."
+    Assert-True $solarMemoryBlessingPickerRuntime.Contains("selected.Add(entries[index % entries.Count].Id)") "Solar memory blessing auto-fill must allow duplicate blessings when needed."
+    Assert-True $solarMemoryBlessingPickerRuntime.Contains("selected.RemoveAt(index)") "Solar memory blessing picker must remove selected rows by index for duplicate ids."
+    Assert-True (-not $solarMemoryBlessingPickerRuntime.Contains("private static bool IsSelected")) "Solar memory blessing picker must not globally deduplicate blessing ids."
+    Assert-True (-not $solarMemoryBlessingPickerRuntime.Contains("if (IsSelected(entry.Id))")) "Solar memory blessing picker must allow duplicate manual selections."
+    Assert-True (-not $solarMemoryBlessingPickerRuntime.Contains("CreateBlessUI")) "Solar memory custom blessing picker must not call the native blessing choice UI."
     Assert-True $eventScripts.Contains("CanClaim(progress)") "Event rewards must be guarded by current progress."
     Assert-True $eventScripts.Contains("GetProgress() == progress - 1") "Event reward progress must match exactly before advancing."
     Assert-True $mapData.Contains("solar_event,Event,Breaks_solar_event,-1") "solar_event must use a Breaks-like static NodeId so base random map generation filters it out."
