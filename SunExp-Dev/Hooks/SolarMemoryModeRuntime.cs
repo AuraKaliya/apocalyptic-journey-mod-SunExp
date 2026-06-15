@@ -19,6 +19,9 @@ public static class SolarMemoryModeRuntime
 {
     private const string EntryObjectName = "SunExp_SolarMemoryMode";
     private const string PackWindowName = "SunExp_SolarMemoryPackWindow";
+    private const string EntryTitleSpritePath = "Mods/SunExp/ModResource/Images/UI/solar_memory_title_c.png";
+    private const string EntryHighlightedTitleSpritePath = "Mods/SunExp/ModResource/Images/UI/solar_memory_title_c_h.png";
+    private const float EntryTitleArtHeightRatio = 0.735f;
     private const int SolarMemoryOpeningSlotIndex = 0;
     private const int SolarMemoryMidLayerSlotIndex = 3;
     private static readonly Color PanelColor = new(0.11f, 0.09f, 0.08f, 0.96f);
@@ -27,6 +30,10 @@ public static class SolarMemoryModeRuntime
     private static readonly Color RowSelectedColor = new(0.38f, 0.24f, 0.11f, 0.96f);
     private static readonly Color ButtonColor = new(0.29f, 0.21f, 0.16f, 0.96f);
     private static Font? cachedFont;
+    private static Sprite? entryTitleSprite;
+    private static Sprite? entryHighlightedTitleSprite;
+    private static bool entryTitleSpriteLoadAttempted;
+    private static bool entryHighlightedTitleSpriteLoadAttempted;
     private static int eventRecordCountBeforeMapGeneration = -1;
     private static int eventRecordLayerBeforeMapGeneration = -1;
 
@@ -150,6 +157,7 @@ public static class SolarMemoryModeRuntime
                 entry.transform.localScale = template.localScale;
             }
 
+            ConfigureEntryUnlocked(entry.transform);
             ConfigureEntryTexts(entry.transform);
             ConfigureEntryClick(entry, modeChoice);
             entry.SetActive(true);
@@ -160,11 +168,44 @@ public static class SolarMemoryModeRuntime
         }
     }
 
+    private static void ConfigureEntryUnlocked(Transform entry)
+    {
+        foreach (var child in entry.GetComponentsInChildren<Transform>(true))
+        {
+            if (string.Equals(child.name, "Lock", StringComparison.OrdinalIgnoreCase))
+            {
+                child.gameObject.SetActive(false);
+            }
+        }
+
+        var switchButton = entry.GetComponent<SwitchButton>();
+        if (switchButton != null)
+        {
+            switchButton.interactable = true;
+        }
+
+        foreach (var selectable in entry.GetComponentsInChildren<Selectable>(true))
+        {
+            selectable.interactable = true;
+        }
+    }
+
     private static void ConfigureEntryTexts(Transform entry)
     {
         SetTmpText(entry.Find("Text/Text"), SunExpIds.SolarMemoryDescription + "\n" + SunExpIds.SolarMemorySubtitle);
+        var hasTitleSprites = ConfigureEntryTitleSprites(entry);
 
         var title = entry.Find("SunExpTitle");
+        if (hasTitleSprites)
+        {
+            if (title != null)
+            {
+                title.gameObject.SetActive(false);
+            }
+
+            return;
+        }
+
         if (title == null)
         {
             var go = new GameObject("SunExpTitle", typeof(RectTransform));
@@ -185,6 +226,192 @@ public static class SolarMemoryModeRuntime
             {
                 text.text = SunExpIds.SolarMemoryTitle;
             }
+
+            title.gameObject.SetActive(true);
+        }
+    }
+
+    private static bool ConfigureEntryTitleSprites(Transform entry)
+    {
+        var normalSprite = GetEntryTitleSprite();
+        var highlightedSprite = GetEntryHighlightedTitleSprite();
+        if (normalSprite == null || highlightedSprite == null)
+        {
+            return false;
+        }
+
+        var normalTitle = entry.Find("Normal/Title");
+        var highlightedTitle = entry.Find("HighLighted/Title");
+        ClearEntryStateImages(entry.Find("Normal"), normalTitle);
+        ClearEntryStateImages(entry.Find("HighLighted"), highlightedTitle);
+        ClearEntryStateImages(entry.Find("Pressed"), highlightedTitle);
+        SetImageSprite(normalTitle, normalSprite);
+        SetImageSprite(highlightedTitle, highlightedSprite);
+        return true;
+    }
+
+    private static Sprite? GetEntryTitleSprite()
+    {
+        if (entryTitleSprite != null)
+        {
+            return entryTitleSprite;
+        }
+
+        if (entryTitleSpriteLoadAttempted)
+        {
+            return null;
+        }
+
+        entryTitleSpriteLoadAttempted = true;
+        entryTitleSprite = LoadEntrySprite(EntryTitleSpritePath);
+        return entryTitleSprite;
+    }
+
+    private static Sprite? GetEntryHighlightedTitleSprite()
+    {
+        if (entryHighlightedTitleSprite != null)
+        {
+            return entryHighlightedTitleSprite;
+        }
+
+        if (entryHighlightedTitleSpriteLoadAttempted)
+        {
+            return null;
+        }
+
+        entryHighlightedTitleSpriteLoadAttempted = true;
+        entryHighlightedTitleSprite = LoadEntrySprite(EntryHighlightedTitleSpritePath);
+        return entryHighlightedTitleSprite;
+    }
+
+    private static Sprite? LoadEntrySprite(string path)
+    {
+        try
+        {
+            var sprite = ResourceLoader.Load<Sprite>(path, true);
+            if (sprite == null)
+            {
+                SunExpLog.Warn("[SolarMemoryMode] entry sprite missing: " + path);
+                return null;
+            }
+
+            var trimmed = TrimTransparentPadding(sprite) ?? sprite;
+            return CropEntryTitleArt(trimmed) ?? trimmed;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[SolarMemoryMode] failed to load entry sprite " + path + ": " + ex.Message);
+            return null;
+        }
+    }
+
+    private static Sprite? TrimTransparentPadding(Sprite sprite)
+    {
+        try
+        {
+            var texture = sprite.texture;
+            var rect = sprite.rect;
+            var minX = (int)rect.xMax;
+            var minY = (int)rect.yMax;
+            var maxX = (int)rect.xMin - 1;
+            var maxY = (int)rect.yMin - 1;
+            var startX = Mathf.Max(0, Mathf.FloorToInt(rect.xMin));
+            var startY = Mathf.Max(0, Mathf.FloorToInt(rect.yMin));
+            var endX = Mathf.Min(texture.width, Mathf.CeilToInt(rect.xMax));
+            var endY = Mathf.Min(texture.height, Mathf.CeilToInt(rect.yMax));
+
+            for (var y = startY; y < endY; y++)
+            {
+                for (var x = startX; x < endX; x++)
+                {
+                    if (texture.GetPixel(x, y).a <= 0.01f)
+                    {
+                        continue;
+                    }
+
+                    minX = Math.Min(minX, x);
+                    minY = Math.Min(minY, y);
+                    maxX = Math.Max(maxX, x);
+                    maxY = Math.Max(maxY, y);
+                }
+            }
+
+            if (maxX < minX || maxY < minY)
+            {
+                return sprite;
+            }
+
+            var trimmed = new Rect(minX, minY, maxX - minX + 1, maxY - minY + 1);
+            if (Mathf.Approximately(trimmed.width, rect.width) && Mathf.Approximately(trimmed.height, rect.height))
+            {
+                return sprite;
+            }
+
+            return Sprite.Create(texture, trimmed, new Vector2(0.5f, 0.5f), sprite.pixelsPerUnit);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[SolarMemoryMode] failed to trim entry sprite: " + ex.Message);
+            return sprite;
+        }
+    }
+
+    private static Sprite? CropEntryTitleArt(Sprite sprite)
+    {
+        try
+        {
+            var rect = sprite.rect;
+            var height = Mathf.Max(1f, rect.height * EntryTitleArtHeightRatio);
+            var cropped = new Rect(rect.x, rect.y + rect.height - height, rect.width, height);
+            return Sprite.Create(sprite.texture, cropped, new Vector2(0.5f, 0.5f), sprite.pixelsPerUnit);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[SolarMemoryMode] failed to crop entry title sprite: " + ex.Message);
+            return sprite;
+        }
+    }
+
+    private static void SetImageSprite(Transform? target, Sprite sprite)
+    {
+        var image = target?.GetComponent<Image>();
+        if (image == null)
+        {
+            return;
+        }
+
+        image.sprite = sprite;
+        image.preserveAspect = true;
+        image.enabled = true;
+    }
+
+    private static void ClearEntryStateImages(Transform? stateRoot, Transform? keep)
+    {
+        if (stateRoot == null || keep == null)
+        {
+            return;
+        }
+
+        foreach (var image in stateRoot.GetComponentsInChildren<Image>(true))
+        {
+            if (image.transform == keep)
+            {
+                continue;
+            }
+
+            image.sprite = null;
+            image.enabled = false;
+        }
+
+        foreach (var rawImage in stateRoot.GetComponentsInChildren<RawImage>(true))
+        {
+            if (rawImage.transform == keep)
+            {
+                continue;
+            }
+
+            rawImage.texture = null;
+            rawImage.enabled = false;
         }
     }
 
@@ -193,6 +420,7 @@ public static class SolarMemoryModeRuntime
         var switchButton = entry.GetComponent<SwitchButton>();
         if (switchButton != null)
         {
+            switchButton.interactable = true;
             switchButton.onClick.RemoveAllListeners();
             switchButton.onClick.AddListener(new UnityAction(() => StartSolarMemoryRun(modeChoice, InitialPackSelection().ToList())));
         }
