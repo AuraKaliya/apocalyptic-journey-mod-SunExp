@@ -1,0 +1,8 @@
+"Id","InitScript","ApplyScript","ClearScript","ReducePerTurn","ReducePerAttacked","ReducePerUse","UpperBound","Icon","Type","Rarity","Effects","SoundEffects","Action","CanZero"
+"唯一标识","更新显示信息用的","BUFF生效时的效果","清除时效果","层数每回合减少数","层数每受击减少数","层数每行动减少数","层数上限","图标路径","类型","稀有度","特效","","",""
+"miracle_pouch","","CS.StarExp.Dll.Scripting.BuffScripts.Apply(self, ""miracle_pouch"");","","0","0","0","9","Icon/Buff/金矿","特性","2","","","","FALSE"
+"miracle_clock","","CS.StarExp.Dll.Scripting.BuffScripts.Apply(self, ""miracle_clock"");","","0","0","0","8","Icon/Buff/白银委托","特性","2","","","","FALSE"
+"clock_debt","","CS.StarExp.Dll.Scripting.BuffScripts.Apply(self, ""clock_debt"");","","0","0","0","999","Icon/Buff/白银委托","能力","2","","","","FALSE"
+"starlight","","CS.StarExp.Dll.Scripting.BuffScripts.Apply(self, ""starlight"");","","0","0","0","999","Icon/Buff/金矿","能力","2","","","","FALSE"
+"time_erosion","","CS.StarExp.Dll.Scripting.BuffScripts.Apply(self, ""time_erosion"");","","0","0","0","1","Icon/Buff/白银委托","能力","3","","","","FALSE"
+"white_stone_power","","CS.StarExp.Dll.Scripting.BuffScripts.Apply(self, ""white_stone_power"");","","0","0","0","999","Icon/Buff/金矿","能力","2","","","","FALSE"

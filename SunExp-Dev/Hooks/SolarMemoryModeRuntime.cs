@@ -116,7 +116,7 @@ public static class SolarMemoryModeRuntime
 
             if (PlayerApi.GetGameVar(SunExpIds.SolarMemoryDeckConfiguredKey, "0") != "1")
             {
-                ConfigureSolarMemoryDeckPool();
+                ConfigureSolarMemoryReservePool();
             }
 
             var ui = UIManager.Instance.ShowUI<OutDeckUI>("OutDeckUI", true);
@@ -210,21 +210,21 @@ public static class SolarMemoryModeRuntime
         if (switchButton != null)
         {
             switchButton.onClick.RemoveAllListeners();
-            switchButton.onClick.AddListener(new UnityAction(() => StartSolarMemoryRun(modeChoice, CurrentPackSelection())));
+            switchButton.onClick.AddListener(new UnityAction(() => StartSolarMemoryRun(modeChoice, InitialPackSelection().ToList())));
         }
 
         foreach (var component in entry.GetComponentsInChildren<MonoBehaviour>(true))
         {
             if (component != null && component.GetType().Name == "ButtonManager")
             {
-                BindUnityEvent(component, "onClick", () => StartSolarMemoryRun(modeChoice, CurrentPackSelection()));
+                BindUnityEvent(component, "onClick", () => StartSolarMemoryRun(modeChoice, InitialPackSelection().ToList()));
             }
         }
 
         foreach (var button in entry.GetComponentsInChildren<Button>(true))
         {
             button.onClick.RemoveAllListeners();
-            button.onClick.AddListener(new UnityAction(() => StartSolarMemoryRun(modeChoice, CurrentPackSelection())));
+            button.onClick.AddListener(new UnityAction(() => StartSolarMemoryRun(modeChoice, InitialPackSelection().ToList())));
         }
     }
 
@@ -367,6 +367,7 @@ public static class SolarMemoryModeRuntime
         try
         {
             var saveInfo = CreateSolarMemorySave(selectedPacks);
+            SolarMemoryStarterDeckRuntime.CaptureSelectedPacks(selectedPacks);
             GameSaveManager.Select(saveInfo);
             GameEntryUI.selectedSave = saveInfo;
             LobbyManager.Instance?.SetLobbyModeType("Normal");
@@ -416,6 +417,8 @@ public static class SolarMemoryModeRuntime
         saveInfo.GameVars[SunExpIds.SolarMemoryOriginPointsKey] = "3";
         saveInfo.GameVars[SunExpIds.SolarMemoryBlessPickCountKey] = "0";
         saveInfo.GameVars[SunExpIds.SolarMemoryDeckConfiguredKey] = "0";
+        saveInfo.GameVars[SunExpIds.SolarMemoryStarterDeckAppliedKey] = "0";
+        saveInfo.GameVars[SunExpIds.SolarMemoryStarterDeckModeKey] = "";
         saveInfo.GameVars[SunExpIds.SolarMemoryPreparedKey] = "0";
         saveInfo.GameVars["MapScene1"] = (random.Next(0, 100) < 50 ? SceneType.Courtyard : SceneType.Forest).ToString();
         saveInfo.GameVars["MapScene2"] = SceneType.SlotMachScene.ToString();
@@ -536,7 +539,7 @@ public static class SolarMemoryModeRuntime
             || (node.data.TryGetValue("Id", out var id) && id.Contains("Breaks"));
     }
 
-    private static bool IsSolarMemoryRun()
+    public static bool IsSolarMemoryRun()
     {
         return GameSaveManager.GetValue<string>(SunExpIds.SolarMemoryModeKey) == "1";
     }
@@ -562,10 +565,22 @@ public static class SolarMemoryModeRuntime
         return selected;
     }
 
-    private static List<string> CurrentPackSelection()
+    public static List<string> CurrentPackSelection()
     {
+        var saved = IsSolarMemoryRun() ? GameSaveManager.GetValue<string>(SunExpIds.SolarMemorySelectedPacksKey) : "";
+        if (!string.IsNullOrWhiteSpace(saved))
+        {
+            var savedPacks = saved.Split('|')
+                .Where(IsValidPackForCurrentLobby)
+                .ToList();
+            if (savedPacks.Count > 0)
+            {
+                return savedPacks;
+            }
+        }
+
         var selected = Singleton<GameRuntimeData>.Instance.UseCardPack
-            .Where(id => !string.Equals(id, "cardpack_13", StringComparison.OrdinalIgnoreCase) || GameConfigManager.ShouldEnableOnlineCardPack())
+            .Where(IsValidPackForCurrentLobby)
             .ToList();
         if (selected.Count == 0)
         {
@@ -573,6 +588,12 @@ public static class SolarMemoryModeRuntime
         }
 
         return selected;
+    }
+
+    private static bool IsValidPackForCurrentLobby(string id)
+    {
+        return !string.IsNullOrWhiteSpace(id)
+            && (!string.Equals(id, "cardpack_13", StringComparison.OrdinalIgnoreCase) || GameConfigManager.ShouldEnableOnlineCardPack());
     }
 
     private static void OpenBlessingStep()
@@ -610,7 +631,7 @@ public static class SolarMemoryModeRuntime
         return Math.Max(0, DictionaryUtil.ParseInt(PlayerApi.GetGameVar(SunExpIds.SolarMemoryBlessPickCountKey, "0")));
     }
 
-    private static void ConfigureSolarMemoryDeckPool()
+    public static void ConfigureSolarMemoryReservePool()
     {
         var role = RoleTable.Instance;
         if (role == null)
@@ -619,10 +640,9 @@ public static class SolarMemoryModeRuntime
         }
 
         var cardIds = SelectedPackCardIds();
-        role.cardList.Clear();
         role.UnCardList.Clear();
-        role.CardBottomCount = 0;
-        role.CardTopCount = Math.Max(1, cardIds.Count * 2);
+        role.CardTopCount = Math.Max(role.CardTopCount, Math.Max(role.cardList.Count, cardIds.Count * 2));
+        role.CardBottomCount = Math.Min(role.CardBottomCount, role.cardList.Count);
         role.MaxAlCardCount = Math.Max(0, cardIds.Count * 3);
 
         foreach (var cardId in cardIds)
@@ -632,7 +652,7 @@ public static class SolarMemoryModeRuntime
         }
 
         PlayerApi.SetGameVar(SunExpIds.SolarMemoryDeckConfiguredKey, "1");
-        UIManager.Instance?.ShowTip("日耀回忆牌组已重置：牌组清空，备选已加入卡包牌 x2", null);
+        UIManager.Instance?.ShowTip("\u65e5\u8000\u56de\u5fc6\u5907\u9009\u724c\u5df2\u52a0\u5165\u5361\u5305\u724c x2", null);
     }
 
     private static List<string> SelectedPackCardIds()

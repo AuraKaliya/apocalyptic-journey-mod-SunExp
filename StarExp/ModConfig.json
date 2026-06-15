@@ -1,0 +1,9 @@
+{
+  "ModName": "StarExp",
+  "ModVersion": "0.1.0",
+  "ModAuthor": "Aura",
+  "ModDescription": "《晨星与奇迹》是一套围绕指引牌、黑石/白石奇迹袋、奇迹时钟与钟债展开的角色扩展。当前版本开放角色【晨星与奇迹的魔女·星纱】、对应卡包、10张首版卡牌与黑石/白石/奇迹时钟的基础战斗闭环，图片暂用官方资源。",
+  "IconPath": "Icon/UI_Icons/Native/战备/战备3.0/战备3.0/卡包封面/时间",
+  "Enabled": true,
+  "WorkshopVisibility": "Private"
+}

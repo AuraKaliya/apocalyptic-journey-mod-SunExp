@@ -43,6 +43,8 @@ public static class SunExpIds
     public const string SolarMemoryOriginPointsKey = "SunExp_SolarMemoryOriginPoints";
     public const string SolarMemoryBlessPickCountKey = "SunExp_SolarMemoryBlessPickCount";
     public const string SolarMemoryDeckConfiguredKey = "SunExp_SolarMemoryDeckConfigured";
+    public const string SolarMemoryStarterDeckAppliedKey = "SunExp_SolarMemoryStarterDeckApplied";
+    public const string SolarMemoryStarterDeckModeKey = "SunExp_SolarMemoryStarterDeckMode";
     public const string SolarMemoryPreparedKey = "SunExp_SolarMemoryPrepared";
     public const string SolarMemoryEventId = "Sub_solar_memory_start";
     public const string SolarMemoryFullEventId = "SunExp_sunexp_Sub_solar_memory_start";

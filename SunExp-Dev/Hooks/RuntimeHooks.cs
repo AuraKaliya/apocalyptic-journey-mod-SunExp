@@ -22,6 +22,7 @@ public static class RuntimeHooks
         RegisterBefore(modConfig, "MapManager.RpcUpdateMap", SolarEventRuntime.RepairMapSelection);
         RegisterBefore(modConfig, "ScriptExecutor.AddBuff", OnScriptExecutorAddBuffBefore);
         SolarMemoryModeRuntime.Initialize(modConfig);
+        SolarMemoryStarterDeckRuntime.Initialize(modConfig);
         AnimatedBlessingIconRuntime.Initialize(modConfig);
         AnimatedBuffIconRuntime.Initialize(modConfig);
         SunExpLog.Info("Runtime hooks registered");
