@@ -1,0 +1,3 @@
+"Id","Note","Name","Name_zh-Hant","Name_en","Name_ja","Description","Description_zh-Hant","Description_ja","Description_en"
+"唯一标识","备注","名字","名字","Name","名前","描述","描述","説明","Description"
+"qixing_stars","","七星","七星","Seven Stars","七星","当前七星卡堆中剩余的“星”数量。大雾会根据已丢去的星数获得天罚。","當前七星卡堆中剩餘的「星」數量。大霧會根據已丟去的星數獲得天罰。","現在の七星の山に残っている「星」の数。大霧は失われた星の数に応じて天罰を得る。","The number of Stars remaining in the Seven Stars pile. Great Fog gains Divine Wrath based on the number of lost Stars."

@@ -56,23 +56,23 @@ public static class BossScripts
             {
                 case "mirror_calibration":
                     self.SetStatus("All");
-                    self.AddBuff(SunExpIds.Burn, "2");
+                    self.AddBuff(SunExpIds.Burn, "5");
                     self.SetStatus("Self");
                     self.ChangeDefence("10");
                     break;
                 case "orbit_refraction":
-                    ExecutorApi.DealDamage(self, 14);
-                    self.AddBuff(SunExpIds.Burn, "2");
+                    ExecutorApi.DealDamage(self, 20);
+                    self.AddBuff(SunExpIds.Burn, "10");
                     break;
                 case "last_day_morning_prayer":
                     self.SetStatus("All");
-                    self.AddBuff(SunExpIds.Burn, "3");
+                    self.AddBuff(SunExpIds.Burn, "5");
                     self.SetStatus("Self");
-                    self.ChangeDefence("14");
+                    self.AddBuff(SunExpIds.GatheredFlame, "10");
                     break;
                 case "last_day_noon_burn":
                     ExecutorApi.DealDamage(self, 18);
-                    self.AddBuff(SunExpIds.BodyBurn, "1");
+                    self.AddBuff("buff_weak", "2");
                     break;
                 case "saint_purification":
                     ExecutorApi.DealDamage(self, 14);
@@ -97,9 +97,9 @@ public static class BossScripts
     {
         return cardId switch
         {
-            "mirror_calibration" => new BossCardSpec(0, 1, "Buff", 2),
-            "orbit_refraction" => new BossCardSpec(2, 2, "Damage", 14),
-            "last_day_morning_prayer" => new BossCardSpec(0, 1, "Buff", 3),
+            "mirror_calibration" => new BossCardSpec(0, 1, "Buff", 5),
+            "orbit_refraction" => new BossCardSpec(2, 2, "Damage", 20),
+            "last_day_morning_prayer" => new BossCardSpec(0, 1, "Buff", 5),
             "last_day_noon_burn" => new BossCardSpec(1, 2, "Damage", 18),
             "saint_purification" => new BossCardSpec(0, 1, "Damage", 14),
             "saint_return_to_court" => new BossCardSpec(2, 2, "Damage", 12),

@@ -113,9 +113,14 @@ public static class SunExpIds
     public const string SolarFinaleEndingKey = "SunExp_SolarFinaleEnding";
     public const string SolarFinaleSaintGateEventId = "Sub_solar_finale_saint_gate";
     public const string SolarFinaleFullSaintGateEventId = "SunExp_sunexp_Sub_solar_finale_saint_gate";
+    public const string SolarFinaleEndingEventId = "Sub_solar_finale_ending";
+    public const string SolarFinaleFullEndingEventId = "SunExp_sunexp_Sub_solar_finale_ending";
+    public const string SolarFinaleFinalLayerEnteredKey = "SunExp_SolarFinaleFinalLayerEntered";
+    public const string SolarFinaleSaintGateOpenedKey = "SunExp_SolarFinaleSaintGateOpened";
     public const string SolarFinaleSaintGateResolvedKey = "SunExp_SolarFinaleSaintGateResolved";
     public const string SolarFinalePendingSaintBattleKey = "SunExp_SolarFinalePendingSaintBattle";
     public const string SolarFinaleSaintDefeatedKey = "SunExp_SolarFinaleSaintDefeated";
+    public const string SolarFinaleCompletedKey = "SunExp_SolarFinaleCompleted";
     public const string SolarBossOrbitMirrorMapId = "SunExp_sunexp_solar_memory_boss_orbit_mirror_array";
     public const string SolarBossSecondSunMapId = "SunExp_sunexp_solar_memory_boss_second_sun_last_day";
     public const string SolarBossSaintWunaMapId = "SunExp_sunexp_solar_memory_boss_saint_wuna";
@@ -125,6 +130,8 @@ public static class SunExpIds
     public const string SolarBossOrbitMirrorEnemyId = "SunExp_sunexp_boss_orbit_mirror_array";
     public const string SolarBossSecondSunEnemyId = "SunExp_sunexp_boss_second_sun_last_day";
     public const string SolarBossSaintWunaEnemyId = "SunExp_sunexp_boss_saint_wuna";
+    public const string BlazingCrownCollapseCardId = "SunExp_sunexp_blazing_crown_collapse";
+    public const int SolarFinaleMapLevel = 30;
     public const int SolarFinaleNameCount = 8;
     public const int SolarFinaleHiddenBossNameThreshold = 5;
 }

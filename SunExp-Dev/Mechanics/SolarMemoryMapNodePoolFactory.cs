@@ -12,6 +12,8 @@ public static class SolarMemoryMapNodePoolFactory
 {
     public const int OpeningSlotIndex = 0;
     public const int MidLayerSlotIndex = 3;
+    public const int PenultimateSlotIndex = 4;
+    public const int EndingSlotIndex = 5;
     private const string BossMapNote = "首领";
 
     public static SolarMemoryMapNodePool GenerateLayer(NormalMapManager manager, MapTree tree)
@@ -30,9 +32,15 @@ public static class SolarMemoryMapNodePoolFactory
                 continue;
             }
 
-            if (i == defaultSegmentSize - 1 && TryCreateFixedStoryBossNode(tree, layer, out var fixedBossNode))
+            if (i == 1 && TryCreateFixedEndingNode(tree, layer, out var endingNode))
             {
-                defaultNodes.Add(fixedBossNode);
+                defaultNodes.Add(endingNode);
+                continue;
+            }
+
+            if (i == 2 && layer == 2 && TryCreateFixedBossNode(tree, SunExpIds.SolarBossSecondSunMapId, out var secondSunNode))
+            {
+                defaultNodes.Add(secondSunNode);
                 continue;
             }
 
@@ -41,9 +49,7 @@ public static class SolarMemoryMapNodePoolFactory
 
         for (var i = 0; i < selectSegmentSize; i++)
         {
-            selectNodes.Add(i == MidLayerSlotIndex
-                ? CreateSolarMemoryEventNode(layer, MidLayerSlotIndex)
-                : CreateExpandedBossPoolNode(tree, i, layer));
+            selectNodes.Add(CreateExpandedBossPoolNode(tree, i, layer));
         }
 
         SunExpLog.Debug("[SolarMemoryMapNodePool] generated layer="
@@ -131,10 +137,27 @@ public static class SolarMemoryMapNodePoolFactory
         return node;
     }
 
-    private static bool TryCreateFixedStoryBossNode(MapTree tree, int layer, out MapTree.Node node)
+    private static bool TryCreateFixedEndingNode(MapTree tree, int layer, out MapTree.Node node)
     {
         node = null!;
-        var mapId = FixedStoryBossMapId(layer);
+        if (layer == 0)
+        {
+            return false;
+        }
+
+        var mapId = layer switch
+        {
+            1 => SunExpIds.SolarBossOrbitMirrorMapId,
+            2 => SunExpIds.SolarBossSaintWunaMapId,
+            _ => ""
+        };
+
+        return TryCreateFixedBossNode(tree, mapId, out node);
+    }
+
+    private static bool TryCreateFixedBossNode(MapTree tree, string mapId, out MapTree.Node node)
+    {
+        node = null!;
         if (string.IsNullOrWhiteSpace(mapId))
         {
             return false;
@@ -147,24 +170,12 @@ public static class SolarMemoryMapNodePoolFactory
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[SolarMemoryMapNodePool] fixed boss node generation failed at layer "
-                + layer
-                + ", map="
+            SunExpLog.Warn("[SolarMemoryMapNodePool] fixed boss node generation failed; map="
                 + mapId
                 + ": "
                 + ex.Message);
             return false;
         }
-    }
-
-    private static string FixedStoryBossMapId(int layer)
-    {
-        return layer switch
-        {
-            1 => SunExpIds.SolarBossOrbitMirrorMapId,
-            2 => SunExpIds.SolarBossSecondSunMapId,
-            _ => ""
-        };
     }
 
     private static MapTree.Node CreateExpandedBossPoolNode(MapTree tree, int indexInSegment, int layer)

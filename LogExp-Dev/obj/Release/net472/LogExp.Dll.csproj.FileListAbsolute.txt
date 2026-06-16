@@ -6,3 +6,11 @@ D:\workfile\project\Mod_1\apocalyptic-journey-mod-SunExp\LogExp-Dev\obj\Release\
 D:\workfile\project\Mod_1\apocalyptic-journey-mod-SunExp\LogExp-Dev\obj\Release\net472\LogExp.Dll.csproj.CoreCompileInputs.cache
 D:\workfile\project\Mod_1\apocalyptic-journey-mod-SunExp\LogExp-Dev\obj\Release\net472\LogExp.Dll.sourcelink.json
 D:\workfile\project\Mod_1\apocalyptic-journey-mod-SunExp\LogExp-Dev\obj\Release\net472\LogExp.Aura.dll
+D:\Project\Apocalypic-journey-mods-creator\ModExp\LogExp-Dev\bin\Release\net472\LogExp.Aura.dll
+D:\Project\Apocalypic-journey-mods-creator\ModExp\LogExp-Dev\obj\Release\net472\LogExp.Dll.csproj.AssemblyReference.cache
+D:\Project\Apocalypic-journey-mods-creator\ModExp\LogExp-Dev\obj\Release\net472\LogExp.Dll.GeneratedMSBuildEditorConfig.editorconfig
+D:\Project\Apocalypic-journey-mods-creator\ModExp\LogExp-Dev\obj\Release\net472\LogExp.Dll.AssemblyInfoInputs.cache
+D:\Project\Apocalypic-journey-mods-creator\ModExp\LogExp-Dev\obj\Release\net472\LogExp.Dll.AssemblyInfo.cs
+D:\Project\Apocalypic-journey-mods-creator\ModExp\LogExp-Dev\obj\Release\net472\LogExp.Dll.csproj.CoreCompileInputs.cache
+D:\Project\Apocalypic-journey-mods-creator\ModExp\LogExp-Dev\obj\Release\net472\LogExp.Dll.sourcelink.json
+D:\Project\Apocalypic-journey-mods-creator\ModExp\LogExp-Dev\obj\Release\net472\LogExp.Aura.dll

@@ -1,9 +1,14 @@
-{
+﻿{
   "ModName": "LogExp",
   "ModVersion": "0.1.0",
   "ModAuthor": "Aura",
-  "ModDescription": "将 Unity Debug 输出与游戏 Commands 日志写入本地会话日志文件，附带本地时间信息，便于定位模组问题。",
-  "IconPath": "",
+  "ModDescription": "将输出信息输出到当前mod目录下的log文件夹内，避免游戏关闭控制台信息丢失。",
+  "IconPath": "Icon.png",
   "Enabled": true,
-  "Dependencies": null
+  "WorkshopVisibility": null,
+  "WorkshopTags": [
+    "配置",
+    "工具"
+  ],
+  "PublishedFileId": "3745965090"
 }

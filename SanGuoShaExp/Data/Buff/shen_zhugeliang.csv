@@ -1,0 +1,3 @@
+"Id","InitScript","ApplyScript","ClearScript","ReducePerTurn","ReducePerAttacked","ReducePerUse","UpperBound","Icon","Type","Rarity","Effects","SoundEffects","Action","CanZero"
+"唯一标识","更新显示信息用的","BUFF生效时的效果","清除时效果","层数每回合减少数","层数每受击减少数","层数每行动减少数","层数上限","图标路径","类型","稀有度","特效","","",""
+"qixing_stars","","","","0","0","0","7","Icon/Buff/启示","特性","4","","","","TRUE"

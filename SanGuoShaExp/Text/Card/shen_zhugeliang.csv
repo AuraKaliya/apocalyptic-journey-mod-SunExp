@@ -1,0 +1,3 @@
+Id,是否完成,Type,Note,Name,Name_en,Name_zh-Hant,Name_ja,Description,Description_zh-Hant,Description_en,Description_ja
+唯一标识,FALSE,类型,备注,名称,Name,名稱,名称,描述,描述,Description,説明
+*qixing,TRUE,职业技能,,七星,Seven Stars,七星,七星,选择1张手牌并焚毁，然后从七星卡堆中选择1张牌加入手牌。七星卡堆初始为战斗开始时从抽牌堆随机复制的7张牌。,選擇1張手牌並焚毀，然後從七星卡堆中選擇1張牌加入手牌。七星卡堆初始為戰鬥開始時從抽牌堆隨機複製的7張牌。,Choose 1 hand card to burn, then choose 1 card from the Seven Stars pile and add it to your hand. The Seven Stars pile starts as 7 random cards copied from your draw pile at combat start.,手札1枚を選んで焚毀し、七星の山から1枚を選んで手札に加える。七星の山は戦闘開始時に山札からランダムにコピーされた7枚で始まる。

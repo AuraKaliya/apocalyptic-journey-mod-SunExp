@@ -342,6 +342,7 @@ public static class EventScripts
         {
             EnsureSolarFinaleLedger();
             PlayerApi.SetGameVar(SunExpIds.SolarFinaleSecondSunDefeatedKey, "1");
+            PlayerApi.SetGameVar(SunExpIds.SolarFinaleSaintGateOpenedKey, "shown");
             var canReachHiddenBoss = CanReachSolarFinaleSaintBattle();
             SetEventChoices(self, canReachHiddenBoss ? "1" : "", "1", "", "");
         }
@@ -452,6 +453,7 @@ public static class EventScripts
         try
         {
             PlayerApi.SetGameVar(SunExpIds.SolarFinaleEndingKey, ending);
+            PlayerApi.SetGameVar(SunExpIds.SolarFinaleCompletedKey, "1");
             SolarMemoryModeRuntime.ShowSolarMemorySettlement();
         }
         catch (Exception ex)

@@ -94,11 +94,16 @@ public static class LogExpRuntime
     {
         var root = GetWritableRoot(modConfig);
         var fileName = "Witch-" + DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + ".log";
-        return Path.Combine(root, "LogExp", fileName);
+        return Path.Combine(root, "Logs", fileName);
     }
 
     private static string GetWritableRoot(ModConfig modConfig)
     {
+        if (!string.IsNullOrWhiteSpace(modConfig.DirectoryName))
+        {
+            return modConfig.DirectoryName;
+        }
+
         try
         {
             if (!string.IsNullOrWhiteSpace(Application.persistentDataPath))
@@ -108,11 +113,6 @@ public static class LogExpRuntime
         }
         catch
         {
-        }
-
-        if (!string.IsNullOrWhiteSpace(modConfig.DirectoryName))
-        {
-            return modConfig.DirectoryName;
         }
 
         return Environment.CurrentDirectory;

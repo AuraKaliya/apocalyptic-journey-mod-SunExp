@@ -224,7 +224,10 @@ public static class SolarMemoryBlessingPickerRuntime
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var row in checkedRows)
             {
-                if (!row.TryGetValue("Id", out var id) || string.IsNullOrWhiteSpace(id) || !seen.Add(id))
+                if (!row.TryGetValue("Id", out var id)
+                    || string.IsNullOrWhiteSpace(id)
+                    || IsTechnicalBlessing(id)
+                    || !seen.Add(id))
                 {
                     continue;
                 }
@@ -541,6 +544,13 @@ public static class SolarMemoryBlessingPickerRuntime
             1 => Tier1Quota,
             _ => 0
         };
+    }
+
+    private static bool IsTechnicalBlessing(string id)
+    {
+        return id.Equals("dusk_afterheat_recovery", StringComparison.OrdinalIgnoreCase)
+            || id.Equals("SunExp_sunexp_dusk_afterheat_recovery", StringComparison.OrdinalIgnoreCase)
+            || id.EndsWith("_dusk_afterheat_recovery", StringComparison.OrdinalIgnoreCase);
     }
 
     private static IEnumerable<int> OrderedTiers()

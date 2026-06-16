@@ -4,7 +4,7 @@ using Michsky.MUIP;
 using SafeBoxExp.Dll.Infrastructure;
 using TMPro;
 using UnityEngine;
-using UnityEngine.Events;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using Witch;
 using Witch.Core;
@@ -24,6 +24,7 @@ public static class SafeBoxRuntime
     private const int RelaxedMaxReserveCardCount = 999999;
     private const int MinimumSafeBoxLevel = 2;
     private static LimitSnapshot? activeSnapshot;
+    private static bool? lastLoggedButtonVisible;
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -58,7 +59,7 @@ public static class SafeBoxRuntime
         try
         {
             config.AddMethodHookBefore(target, action);
-            SafeBoxExpLog.Debug("Hook before registered: " + target);
+            SafeBoxExpLog.Info("Hook before registered: " + target);
         }
         catch (Exception ex)
         {
@@ -71,7 +72,7 @@ public static class SafeBoxRuntime
         try
         {
             config.AddMethodHookAfter(target, action);
-            SafeBoxExpLog.Debug("Hook after registered: " + target);
+            SafeBoxExpLog.Info("Hook after registered: " + target);
         }
         catch (Exception ex)
         {
@@ -107,6 +108,8 @@ public static class SafeBoxRuntime
         var existing = buttons.Find(SafeBoxExpIds.ButtonName);
         if (existing != null)
         {
+            BindButton(existing.gameObject);
+            ConfigureButtonPresentation(existing.gameObject);
             return true;
         }
 
@@ -115,9 +118,8 @@ public static class SafeBoxRuntime
         buttonObject.transform.SetAsLastSibling();
         buttonObject.SetActive(false);
 
-        BindButton(buttonObject, OpenSafeBox);
-        ApplyButtonText(buttonObject, "保险箱");
-        TrySetButtonIcon(buttonObject);
+        BindButton(buttonObject);
+        ConfigureButtonPresentation(buttonObject);
         SafeBoxExpLog.Info("Injected SafeBoxExp top-bar button");
         return true;
     }
@@ -195,58 +197,107 @@ public static class SafeBoxRuntime
         RefreshTopBarButton();
     }
 
-    private static void BindButton(GameObject buttonObject, UnityAction action)
+    private static void BindButton(GameObject buttonObject)
     {
         var manager = buttonObject.GetComponent<ButtonManager>();
         if (manager != null)
         {
             manager.onClick.RemoveAllListeners();
-            manager.onClick.AddListener(action);
-            return;
+            manager.onDoubleClick.RemoveAllListeners();
+            manager.onRightClick.RemoveAllListeners();
+            manager.Interactable(true);
         }
 
         var button = buttonObject.GetComponent<Button>();
         if (button != null)
         {
             button.onClick.RemoveAllListeners();
-            button.onClick.AddListener(action);
+        }
+
+        var relay = buttonObject.GetComponent<SafeBoxButtonClickRelay>();
+        if (relay == null)
+        {
+            relay = buttonObject.AddComponent<SafeBoxButtonClickRelay>();
         }
     }
 
-    private static void ApplyButtonText(GameObject buttonObject, string text)
+    private static void ConfigureButtonPresentation(GameObject buttonObject)
     {
+        const string displayName = "保险箱";
+        var sprite = LoadSafeBoxSprite();
         var manager = buttonObject.GetComponent<ButtonManager>();
         if (manager != null)
         {
-            manager.SetText(text);
+            manager.enableIcon = sprite != null;
+            manager.enableText = false;
+            manager.iconScale = 1f;
+            manager.buttonText = displayName;
+            if (sprite != null)
+            {
+                manager.buttonIcon = sprite;
+                manager.normalImage?.gameObject.transform.parent?.gameObject.SetActive(true);
+                manager.highlightImage?.gameObject.transform.parent?.gameObject.SetActive(true);
+                manager.disabledImage?.gameObject.transform.parent?.gameObject.SetActive(true);
+                SetButtonManagerImage(manager.normalImage, sprite);
+                SetButtonManagerImage(manager.highlightImage, sprite);
+                SetButtonManagerImage(manager.disabledImage, sprite);
+                manager.SetIcon(sprite);
+            }
+
+            manager.SetText(displayName);
+            manager.UpdateUI();
+            SetButtonManagerTextActive(manager, false);
         }
 
-        foreach (var label in buttonObject.GetComponentsInChildren<TMP_Text>(true))
+        foreach (var keyItem in buttonObject.GetComponents<KeyItem>())
         {
-            label.text = text;
+            Object.Destroy(keyItem);
         }
+
+        var tooltip = buttonObject.GetComponent<SafeBoxButtonTooltip>();
+        if (tooltip == null)
+        {
+            tooltip = buttonObject.AddComponent<SafeBoxButtonTooltip>();
+        }
+
+        buttonObject.name = SafeBoxExpIds.ButtonName;
     }
 
-    private static void TrySetButtonIcon(GameObject buttonObject)
+    private static Sprite? LoadSafeBoxSprite()
     {
-        var sprite = ResourceLoader.Load<Sprite>("Icon/Tutorial/保险箱", true)
+        return ResourceLoader.Load<Sprite>("Icon/Tutorial/保险箱", true)
             ?? ResourceLoader.Load<Sprite>("Images/Tutorial/Adventure/保险箱", true)
             ?? ResourceLoader.Load<Sprite>("Icon/Relic/遗物占位", true)
             ?? ResourceLoader.Load<Sprite>("Icon/Card/卡面占位", true);
-        if (sprite == null)
+    }
+
+    private static void SetButtonManagerImage(Image? image, Sprite sprite)
+    {
+        if (image == null)
         {
             return;
         }
 
-        foreach (var image in buttonObject.GetComponentsInChildren<Image>(true))
+        image.sprite = sprite;
+        image.preserveAspect = true;
+        image.color = Color.white;
+    }
+
+    private static void SetButtonManagerTextActive(ButtonManager manager, bool active)
+    {
+        if (manager.normalText != null)
         {
-            if (image.gameObject.name.IndexOf("Icon", StringComparison.OrdinalIgnoreCase) >= 0
-                || image.transform.parent?.name.IndexOf("Icon", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                image.sprite = sprite;
-                image.preserveAspect = true;
-                return;
-            }
+            manager.normalText.gameObject.SetActive(active);
+        }
+
+        if (manager.highlightedText != null)
+        {
+            manager.highlightedText.gameObject.SetActive(active);
+        }
+
+        if (manager.disabledText != null)
+        {
+            manager.disabledText.gameObject.SetActive(active);
         }
     }
 
@@ -280,12 +331,23 @@ public static class SafeBoxRuntime
 
     private static void SetTopBarButtonActive(TopBarUI topBar, bool active)
     {
-        topBar.transform.Find("Content/Buttons/" + SafeBoxExpIds.ButtonName)?.gameObject.SetActive(active);
+        var button = topBar.transform.Find("Content/Buttons/" + SafeBoxExpIds.ButtonName)?.gameObject;
+        if (button == null)
+        {
+            return;
+        }
+
+        button.SetActive(active);
+        if (lastLoggedButtonVisible != active)
+        {
+            lastLoggedButtonVisible = active;
+            SafeBoxExpLog.Info("Top-bar SafeBox button visible=" + active + "; state=" + GetOpenBlockReason());
+        }
     }
 
     private static bool ShouldShowSafeBoxButton()
     {
-        if (GameUIManager.Instance == null || RoleTable.Instance == null || MapManager.Instance?.ModeMapManager == null)
+        if (GameUIManager.Instance == null || RoleTable.Instance == null)
         {
             return false;
         }
@@ -295,16 +357,24 @@ public static class SafeBoxRuntime
             return false;
         }
 
-        return !HasBlockingFlowUi();
+        return !IsActiveUI<FightUI>("FightUI");
+    }
+
+    internal static void HandleButtonClicked()
+    {
+        SafeBoxExpLog.Info("Top-bar SafeBox button clicked; state=" + GetOpenBlockReason());
+        OpenSafeBox();
     }
 
     private static void OpenSafeBox()
     {
         try
         {
-            if (!CanOpenSafeBox())
+            var blockReason = GetOpenBlockReason();
+            if (blockReason != "ok")
             {
                 GameUIManager.Instance?.ShowTip("当前状态不能打开保险箱");
+                SafeBoxExpLog.Warn("Open SafeBox blocked: " + blockReason);
                 return;
             }
 
@@ -313,6 +383,7 @@ public static class SafeBoxRuntime
             safeBox.ShowBackItem();
             ReplaceCountShowWithUnlimited(safeBox);
             PrimeUnlimitedFlags();
+            SafeBoxExpLog.Info("Opened official SafeBoxUI");
         }
         catch (Exception ex)
         {
@@ -333,6 +404,76 @@ public static class SafeBoxRuntime
         }
 
         return GameUIManager.Instance.WindowObj == null && GameUIManager.Instance.InputObj == null;
+    }
+
+    private static string GetOpenBlockReason()
+    {
+        if (GameUIManager.Instance == null)
+        {
+            return "UIManager missing";
+        }
+
+        if (RoleTable.Instance == null)
+        {
+            return "RoleTable missing";
+        }
+
+        if (MapManager.Instance?.ModeMapManager == null)
+        {
+            return "MapManager/ModeMapManager missing";
+        }
+
+        if (FightManager.Instance != null && FightManager.Instance.fightType != FightType.None)
+        {
+            return "fight active: " + FightManager.Instance.fightType;
+        }
+
+        if (IsActiveUI<FightUI>("FightUI"))
+        {
+            return "FightUI active";
+        }
+
+        if (IsActiveUI<EventUI>("EventUI"))
+        {
+            return "EventUI active";
+        }
+
+        if (IsActiveUI<DialogueUI>("DialogueUI"))
+        {
+            return "DialogueUI active";
+        }
+
+        if (IsActiveUI<OptionsUI>("OptionsUI"))
+        {
+            return "OptionsUI active";
+        }
+
+        if (IsActiveUI<InkTurnUI>("InkTurnUI"))
+        {
+            return "InkTurnUI active";
+        }
+
+        if (IsActiveUI<CurtainTurnUI>("CurtainTurnUI"))
+        {
+            return "CurtainTurnUI active";
+        }
+
+        if (IsActiveUI<SceneTurnUI>("SceneTurnUI"))
+        {
+            return "SceneTurnUI active";
+        }
+
+        if (GameUIManager.Instance.WindowObj != null)
+        {
+            return "ModalWindow active";
+        }
+
+        if (GameUIManager.Instance.InputObj != null)
+        {
+            return "InputWindow active";
+        }
+
+        return "ok";
     }
 
     private static bool HasBlockingFlowUi()
@@ -400,6 +541,7 @@ public static class SafeBoxRuntime
             }
 
             ApplyUnlimitedEnvironment();
+            SafeBoxExpLog.Info("Prepared unlimited SafeBox environment; target=" + HookTargetName(context));
         }
         catch (Exception ex)
         {
@@ -428,6 +570,7 @@ public static class SafeBoxRuntime
             SaveRuntimeData(context);
             RefreshTopBar();
             RefreshTopBarButton();
+            SafeBoxExpLog.Info("Finished unlimited SafeBox operation; target=" + HookTargetName(context));
         }
         catch (Exception ex)
         {
@@ -547,6 +690,11 @@ public static class SafeBoxRuntime
         }
     }
 
+    private static string HookTargetName(ModHookContext context)
+    {
+        return context.Target?.GetType().Name ?? "static";
+    }
+
     private sealed class LimitSnapshot
     {
         private readonly RoleTable? role;
@@ -591,6 +739,65 @@ public static class SafeBoxRuntime
             {
                 mode.Level = level;
             }
+        }
+    }
+}
+
+internal sealed class SafeBoxButtonClickRelay : MonoBehaviour, IPointerClickHandler, ISubmitHandler
+{
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        if (eventData.button == PointerEventData.InputButton.Left)
+        {
+            SafeBoxRuntime.HandleButtonClicked();
+        }
+    }
+
+    public void OnSubmit(BaseEventData eventData)
+    {
+        SafeBoxRuntime.HandleButtonClicked();
+    }
+}
+
+internal sealed class SafeBoxButtonTooltip : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
+{
+    private GameObject? tooltipObject;
+
+    public void OnPointerEnter(PointerEventData eventData)
+    {
+        if (tooltipObject == null)
+        {
+            tooltipObject = Object.Instantiate(ResourceLoader.Load<GameObject>("UI/SelectedMessage"), transform);
+            tooltipObject.name = "SafeBoxExpTooltip";
+            tooltipObject.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -100f);
+        }
+        else
+        {
+            tooltipObject.SetActive(true);
+        }
+
+        var text = tooltipObject.transform.Find("text")?.GetComponent<TMP_Text>();
+        if (text != null)
+        {
+            text.gameObject.SetActive(true);
+            text.text = "保险箱";
+        }
+    }
+
+    public void OnPointerExit(PointerEventData eventData)
+    {
+        if (tooltipObject != null)
+        {
+            tooltipObject.SetActive(false);
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (tooltipObject != null)
+        {
+            Object.Destroy(tooltipObject);
+            tooltipObject = null;
         }
     }
 }

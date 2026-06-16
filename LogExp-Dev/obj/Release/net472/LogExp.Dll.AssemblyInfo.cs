@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("LogExp.Aura")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a89452bf951ccb7f7c7a651759b48f8d5974ded8")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a343757598be296e80674932898f0886fba60dcd")]
 [assembly: System.Reflection.AssemblyProductAttribute("LogExp.Aura")]
 [assembly: System.Reflection.AssemblyTitleAttribute("LogExp.Aura")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

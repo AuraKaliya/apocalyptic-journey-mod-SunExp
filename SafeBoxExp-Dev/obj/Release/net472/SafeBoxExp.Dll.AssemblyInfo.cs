@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("SafeBoxExp.Aura")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+48f49efbe8a7be15ef84141a102f961f95301d72")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a343757598be296e80674932898f0886fba60dcd")]
 [assembly: System.Reflection.AssemblyProductAttribute("SafeBoxExp.Aura")]
 [assembly: System.Reflection.AssemblyTitleAttribute("SafeBoxExp.Aura")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
