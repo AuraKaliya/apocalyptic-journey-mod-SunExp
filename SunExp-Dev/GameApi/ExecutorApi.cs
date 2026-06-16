@@ -7,7 +7,7 @@ namespace SunExp.Dll.GameApi;
 
 public static class ExecutorApi
 {
-    private const int BurnUpperBoundFallback = 49;
+    private const int BurnUpperBoundFallback = 1;
 
     public static string GetVar(ScriptExecutor? executor, string key, string fallback = "")
     {
