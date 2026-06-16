@@ -11,16 +11,8 @@ public static class RuntimeHooks
 {
     public static void Initialize(ModConfig modConfig)
     {
-        RegisterBefore(modConfig, "MapSelectUI.ReadyToSelect", SolarEventRuntime.EnsureInCurrentLayer);
-        RegisterAfter(modConfig, "NormalMapManager.RandomGenerate", SolarEventRuntime.EnsureInCurrentLayer);
-        RegisterAfter(modConfig, "NormalMapManager.GeneratrMap", SolarEventRuntime.EnsureInCurrentLayer);
-        RegisterBefore(modConfig, "MapManager.UserCode_CmdSelectMap__String[]__String[]__NetworkConnectionToClient", SolarEventRuntime.RepairMapSelection);
-        RegisterBefore(modConfig, "MapManager.UserCode_CmdSelectMapIncludeSender__String[]__String[]__NetworkConnectionToClient", SolarEventRuntime.RepairMapSelection);
-        RegisterBefore(modConfig, "MapManager.CmdSelectMap", SolarEventRuntime.RepairMapSelection);
-        RegisterBefore(modConfig, "MapManager.CmdSelectMapIncludeSender", SolarEventRuntime.RepairMapSelection);
-        RegisterBefore(modConfig, "MapManager.TargetUpdateMap", SolarEventRuntime.RepairMapSelection);
-        RegisterBefore(modConfig, "MapManager.RpcUpdateMap", SolarEventRuntime.RepairMapSelection);
         RegisterBefore(modConfig, "ScriptExecutor.AddBuff", OnScriptExecutorAddBuffBefore);
+        DuskPartnerRuntime.Initialize(modConfig);
         SolarMemoryModeRuntime.Initialize(modConfig);
         SolarMemoryStarterDeckRuntime.Initialize(modConfig);
         AnimatedBlessingIconRuntime.Initialize(modConfig);
@@ -38,19 +30,6 @@ public static class RuntimeHooks
         catch (Exception ex)
         {
             SunExpLog.Warn("Hook before failed: " + target + " -> " + ex.Message);
-        }
-    }
-
-    private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
-    {
-        try
-        {
-            config.AddMethodHookAfter(target, action);
-            SunExpLog.Debug("Hook after registered: " + target);
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Warn("Hook after failed: " + target + " -> " + ex.Message);
         }
     }
 

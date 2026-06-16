@@ -1,0 +1,9 @@
+{
+  "ModName": "SafeBoxExp",
+  "ModVersion": "0.1.0",
+  "ModAuthor": "Aura",
+  "ModDescription": "随身保险箱入口，并解除官方保险箱的数量、层数、带出与金钱存取次数限制。保留官方保险箱界面与金钱公式。",
+  "IconPath": "Icon.png",
+  "Enabled": true,
+  "Dependencies": null
+}

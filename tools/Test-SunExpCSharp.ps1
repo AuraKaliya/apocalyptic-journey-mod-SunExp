@@ -335,6 +335,7 @@ function Invoke-SourceAssertions {
     $eventScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\EventScripts.cs"))
     $wunaScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\WunaScripts.cs"))
     $runtimeHooks = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\RuntimeHooks.cs"))
+    $duskPartnerRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\DuskPartnerRuntime.cs"))
     $solarEventRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarEventRuntime.cs"))
     $solarMemoryModeRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryModeRuntime.cs"))
     $solarMemoryStarterDeckRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryStarterDeckRuntime.cs"))
@@ -344,6 +345,7 @@ function Invoke-SourceAssertions {
     $mapText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\Map\sunexp.csv"))
     $eventData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\EventList\sunexp.csv"))
     $eventText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\EventList\sunexp.csv"))
+    $blessingData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Blessing\sunexp.csv"))
 
     $addStatusBuff = [regex]::Match($executorApi, "public\s+static\s+bool\s+AddStatusBuff[\s\S]*?public\s+static\s+bool\s+RemoveStatusBuff")
     Assert-True $addStatusBuff.Success "Could not locate ExecutorApi.AddStatusBuff for source assertion."
@@ -366,12 +368,14 @@ function Invoke-SourceAssertions {
     Assert-True $buffScripts.Contains("return maxHp / 100 + 1;") "body_burn must deal 1% max HP + 1 true damage per stack."
     Assert-True (-not $specialTagRuntime.Contains("CardConfigApi.BaseCost")) "White radiance should use current actual play cost, not BaseCost."
     Assert-True $cardConfigApi.Contains("ReadPlayerCardCostMultiplier") "CardConfigApi must read the player CardCost multiplier."
-    Assert-True $runtimeHooks.Contains("SolarEventRuntime.EnsureInCurrentLayer") "RuntimeHooks must route solar map injection through SolarEventRuntime."
-    Assert-True $runtimeHooks.Contains("SolarEventRuntime.RepairMapSelection") "RuntimeHooks must route solar map sync repair through SolarEventRuntime."
-    Assert-True (-not $solarEventRuntime.Contains("TypeGenerate")) "SolarEventRuntime must not generate map nodes by Note; the base game does not know the solar event Note."
-    Assert-True $solarEventRuntime.Contains("SunExpIds.SolarEventMapId") "SolarEventRuntime must target the dedicated solar map id."
-    Assert-True $solarEventRuntime.Contains("SunExpIds.WunaEventFullPrefix") "SolarEventRuntime must route mapdata to the current Wuna Sub event id."
-    Assert-True $solarEventRuntime.Contains("SolarMemoryModeRuntime.IsSolarMemoryRun()") "SolarEventRuntime must not inject ordinary solar events during Solar Memory mode."
+    Assert-True (-not $runtimeHooks.Contains("SolarEventRuntime.EnsureInCurrentLayer")) "RuntimeHooks must not inject SunExp events into normal adventure maps."
+    Assert-True (-not $runtimeHooks.Contains("SolarEventRuntime.RepairMapSelection")) "RuntimeHooks must not repair normal adventure map selections for SunExp events."
+    Assert-True $runtimeHooks.Contains("DuskPartnerRuntime.Initialize(modConfig)") "RuntimeHooks must initialize Dusk partner runtime."
+    Assert-True $duskPartnerRuntime.Contains('"GameEntryUI.CheckCareer"') "Dusk runtime must clean the partner blessing placeholder after career checks."
+    Assert-True $duskPartnerRuntime.Contains('"Fight_Start.Init"') "Dusk runtime must grant the trait at fight start."
+    Assert-True $duskPartnerRuntime.Contains("status.AddBuff(SunExpIds.DuskAfterheatRecoveryTrait, 1)") "Dusk runtime must grant the afterheat recovery trait buff."
+    Assert-True $duskPartnerRuntime.Contains("RemoveDuskPlaceholderBlessing") "Dusk runtime must remove the technical blessing placeholder from role blessings."
+    Assert-True ([regex]::IsMatch($blessingData, "dusk_afterheat_recovery,99,,,Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_1,[^,]*,,7")) "Dusk blessing must be an inert non-random placeholder; the trait buff carries the actual behavior."
     Assert-True $solarMemoryModeRuntime.Contains('RegisterBefore(modConfig, "GameConfigManager.CardPackCheck", FilterSolarMemoryCardPackCheck)') "Solar memory must filter event cards before CardPackCheck builds reward candidates."
     Assert-True $solarMemoryModeRuntime.Contains('RegisterBefore(modConfig, "NormalMapManager.RandomGenerate", CaptureSolarMemoryGenerationState)') "Solar memory must capture event records before base map generation can draw ordinary events."
     Assert-True $solarMemoryModeRuntime.Contains('RegisterBefore(modConfig, "MapSelectUI.ReadyToSelect", EnsureSolarMemoryMapBeforeSelect)') "Solar memory must normalize SelectNode immediately before map candidate cards are created."
@@ -407,8 +411,8 @@ function Invoke-SourceAssertions {
     Assert-True $eventScripts.Contains("public static void InitSolarMemoryNode") "Solar memory fixed story events must expose an init method."
     Assert-True $eventScripts.Contains("public static void ContinueSolarMemory") "Solar memory fixed story events must expose a continue method."
     Assert-True $eventScripts.Contains('PlayerApi.SetGameVar(SunExpIds.SolarMemoryOriginPointsKey, "50")') "Solar memory event initialization must not reset origin points to the old value."
-    Assert-True $mapData.Contains("solar_memory_black_sun_after,Event,SunExp_sunexp_Sub_solar_memory_black_sun_after,-1") "Solar memory map data must include the first fixed story event."
-    Assert-True $mapData.Contains("solar_memory_above_sacred_wheel,Event,SunExp_sunexp_Sub_solar_memory_above_sacred_wheel,-1") "Solar memory map data must include the sixth fixed story event."
+    Assert-True $mapData.Contains("solar_memory_black_sun_after,Event,Breaks_solar_memory_black_sun_after,-1") "Solar memory map data must use a Breaks placeholder so normal adventure generation excludes it."
+    Assert-True $mapData.Contains("solar_memory_above_sacred_wheel,Event,Breaks_solar_memory_above_sacred_wheel,-1") "Solar memory map data must use Breaks placeholders for all fixed story events."
     Assert-True $mapText.Contains("solar_memory_polluted_light") "Solar memory map text must include the polluted light node."
     Assert-True $eventData.Contains("Sub_solar_memory_grief_struggle,CS.SunExp.Dll.Scripting.EventScripts.ContinueSolarMemory();") "Solar memory event data must route story choices through C# continue."
     Assert-True $eventText.Contains("Sub_solar_memory_above_sacred_wheel") "Solar memory event text must include the sixth fixed story row."

@@ -1,0 +1,8 @@
+D:\Project\Apocalypic-journey-mods-creator\ModExp\SafeBoxExp-Dev\obj\Release\net472\SafeBoxExp.Dll.csproj.AssemblyReference.cache
+D:\Project\Apocalypic-journey-mods-creator\ModExp\SafeBoxExp-Dev\obj\Release\net472\SafeBoxExp.Dll.GeneratedMSBuildEditorConfig.editorconfig
+D:\Project\Apocalypic-journey-mods-creator\ModExp\SafeBoxExp-Dev\obj\Release\net472\SafeBoxExp.Dll.AssemblyInfoInputs.cache
+D:\Project\Apocalypic-journey-mods-creator\ModExp\SafeBoxExp-Dev\obj\Release\net472\SafeBoxExp.Dll.AssemblyInfo.cs
+D:\Project\Apocalypic-journey-mods-creator\ModExp\SafeBoxExp-Dev\obj\Release\net472\SafeBoxExp.Dll.csproj.CoreCompileInputs.cache
+D:\Project\Apocalypic-journey-mods-creator\ModExp\SafeBoxExp-Dev\obj\Release\net472\SafeBoxExp.Dll.sourcelink.json
+D:\Project\Apocalypic-journey-mods-creator\ModExp\SafeBoxExp-Dev\bin\Release\net472\SafeBoxExp.Aura.dll
+D:\Project\Apocalypic-journey-mods-creator\ModExp\SafeBoxExp-Dev\obj\Release\net472\SafeBoxExp.Aura.dll
