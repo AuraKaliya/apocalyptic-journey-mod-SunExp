@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using Michsky.MUIP;
 using SafeBoxExp.Dll.Infrastructure;
 using TMPro;
@@ -26,9 +27,14 @@ public static class SafeBoxRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
+        RegisterAfter(modConfig, "TopBarUI.Awake", RefreshTopBarButton);
         RegisterAfter(modConfig, "TopBarUI.Start", InjectTopBarButton);
         RegisterAfter(modConfig, "TopBarUI.ShowLeftUp", ShowTopBarButton);
         RegisterAfter(modConfig, "TopBarUI.HideLeftUp", HideTopBarButton);
+        RegisterAfter(modConfig, "MapSelectUI.Start", RefreshTopBarButtonForAdventureUi);
+        RegisterAfter(modConfig, "MapSelectUI.ReadyToSelect", RefreshTopBarButtonForAdventureUi);
+        RegisterAfter(modConfig, "MapSelectUI.ShowMap", RefreshTopBarButtonForAdventureUi);
+        RegisterAfter(modConfig, "MapSelectUI.MapAnimation", RefreshTopBarButtonForAdventureUi);
 
         RegisterBefore(modConfig, "SafeBoxUI.PutIntoStore", PrepareUnlimitedSafeBox);
         RegisterAfter(modConfig, "SafeBoxUI.PutIntoStore", FinishUnlimitedSafeBox);
@@ -77,40 +83,116 @@ public static class SafeBoxRuntime
     {
         try
         {
-            if (context.Target is not TopBarUI topBar)
+            if (context.Target is TopBarUI topBar && EnsureTopBarButton(topBar))
             {
-                return;
+                SetTopBarButtonActive(topBar, ShouldShowSafeBoxButton());
             }
-
-            var buttons = topBar.transform.Find("Content/Buttons");
-            var cardBack = buttons?.Find("CardBack");
-            if (buttons == null || cardBack == null)
-            {
-                SafeBoxExpLog.Warn("TopBarUI button container or CardBack template missing");
-                return;
-            }
-
-            var existing = buttons.Find(SafeBoxExpIds.ButtonName);
-            if (existing != null)
-            {
-                existing.gameObject.SetActive(IsSafeBoxButtonVisible());
-                return;
-            }
-
-            var buttonObject = Object.Instantiate(cardBack.gameObject, buttons);
-            buttonObject.name = SafeBoxExpIds.ButtonName;
-            buttonObject.transform.SetAsLastSibling();
-            buttonObject.SetActive(IsSafeBoxButtonVisible());
-
-            BindButton(buttonObject, OpenSafeBox);
-            ApplyButtonText(buttonObject, "保险箱");
-            TrySetButtonIcon(buttonObject);
-            SafeBoxExpLog.Info("Injected SafeBoxExp top-bar button");
         }
         catch (Exception ex)
         {
             SafeBoxExpLog.Error("Failed to inject SafeBoxExp top-bar button", ex);
         }
+    }
+
+    private static bool EnsureTopBarButton(TopBarUI topBar)
+    {
+        var buttons = topBar.transform.Find("Content/Buttons");
+        var cardBack = buttons?.Find("CardBack");
+        if (buttons == null || cardBack == null)
+        {
+            SafeBoxExpLog.Warn("TopBarUI button container or CardBack template missing");
+            return false;
+        }
+
+        var existing = buttons.Find(SafeBoxExpIds.ButtonName);
+        if (existing != null)
+        {
+            return true;
+        }
+
+        var buttonObject = Object.Instantiate(cardBack.gameObject, buttons);
+        buttonObject.name = SafeBoxExpIds.ButtonName;
+        buttonObject.transform.SetAsLastSibling();
+        buttonObject.SetActive(false);
+
+        BindButton(buttonObject, OpenSafeBox);
+        ApplyButtonText(buttonObject, "保险箱");
+        TrySetButtonIcon(buttonObject);
+        SafeBoxExpLog.Info("Injected SafeBoxExp top-bar button");
+        return true;
+    }
+
+    private static void RefreshTopBarButton(ModHookContext context)
+    {
+        try
+        {
+            if (context.Target is TopBarUI topBar)
+            {
+                RefreshTopBarButton(topBar);
+                ScheduleTopBarButtonRefresh();
+            }
+        }
+        catch (Exception ex)
+        {
+            SafeBoxExpLog.Warn("Failed to refresh SafeBoxExp button: " + ex.Message);
+        }
+    }
+
+    private static void RefreshTopBarButtonForAdventureUi(ModHookContext context)
+    {
+        RefreshTopBarButton();
+        ScheduleTopBarButtonRefresh();
+        ScheduleTopBarButtonRefresh(3);
+    }
+
+    private static void RefreshTopBarButton()
+    {
+        try
+        {
+            var topBar = GameUIManager.Instance?.GetUI<TopBarUI>("TopBarUI");
+            if (topBar != null)
+            {
+                RefreshTopBarButton(topBar);
+            }
+        }
+        catch (Exception ex)
+        {
+            SafeBoxExpLog.Warn("Failed to refresh SafeBoxExp button: " + ex.Message);
+        }
+    }
+
+    private static void RefreshTopBarButton(TopBarUI topBar)
+    {
+        if (EnsureTopBarButton(topBar))
+        {
+            SetTopBarButtonActive(topBar, ShouldShowSafeBoxButton());
+        }
+    }
+
+    private static void ScheduleTopBarButtonRefresh(int delayFrames = 1)
+    {
+        try
+        {
+            var uiManager = GameUIManager.Instance;
+            if (uiManager != null)
+            {
+                uiManager.StartCoroutine(RefreshTopBarButtonAfterFrames(delayFrames));
+            }
+        }
+        catch (Exception ex)
+        {
+            SafeBoxExpLog.Debug("Failed to schedule SafeBoxExp button refresh: " + ex.Message);
+        }
+    }
+
+    private static IEnumerator RefreshTopBarButtonAfterFrames(int delayFrames)
+    {
+        for (var i = 0; i < delayFrames; i++)
+        {
+            yield return null;
+        }
+
+        RefreshTopBarButton();
     }
 
     private static void BindButton(GameObject buttonObject, UnityAction action)
@@ -170,7 +252,10 @@ public static class SafeBoxRuntime
 
     private static void ShowTopBarButton(ModHookContext context)
     {
-        SetTopBarButtonActive(context, IsSafeBoxButtonVisible());
+        if (context.Target is TopBarUI topBar)
+        {
+            RefreshTopBarButton(topBar);
+        }
     }
 
     private static void HideTopBarButton(ModHookContext context)
@@ -184,7 +269,7 @@ public static class SafeBoxRuntime
         {
             if (context.Target is TopBarUI topBar)
             {
-                topBar.transform.Find("Content/Buttons/" + SafeBoxExpIds.ButtonName)?.gameObject.SetActive(active);
+                SetTopBarButtonActive(topBar, active);
             }
         }
         catch (Exception ex)
@@ -193,16 +278,31 @@ public static class SafeBoxRuntime
         }
     }
 
-    private static bool IsSafeBoxButtonVisible()
+    private static void SetTopBarButtonActive(TopBarUI topBar, bool active)
     {
-        return GameUIManager.Instance != null && RoleTable.Instance != null && !HasBlockingUi();
+        topBar.transform.Find("Content/Buttons/" + SafeBoxExpIds.ButtonName)?.gameObject.SetActive(active);
+    }
+
+    private static bool ShouldShowSafeBoxButton()
+    {
+        if (GameUIManager.Instance == null || RoleTable.Instance == null || MapManager.Instance?.ModeMapManager == null)
+        {
+            return false;
+        }
+
+        if (FightManager.Instance != null && FightManager.Instance.fightType != FightType.None)
+        {
+            return false;
+        }
+
+        return !HasBlockingFlowUi();
     }
 
     private static void OpenSafeBox()
     {
         try
         {
-            if (HasBlockingUi())
+            if (!CanOpenSafeBox())
             {
                 GameUIManager.Instance?.ShowTip("当前状态不能打开保险箱");
                 return;
@@ -220,7 +320,22 @@ public static class SafeBoxRuntime
         }
     }
 
-    private static bool HasBlockingUi()
+    private static bool CanOpenSafeBox()
+    {
+        if (GameUIManager.Instance == null || RoleTable.Instance == null || MapManager.Instance?.ModeMapManager == null)
+        {
+            return false;
+        }
+
+        if (HasBlockingFlowUi())
+        {
+            return false;
+        }
+
+        return GameUIManager.Instance.WindowObj == null && GameUIManager.Instance.InputObj == null;
+    }
+
+    private static bool HasBlockingFlowUi()
     {
         if (GameUIManager.Instance == null)
         {
@@ -243,7 +358,7 @@ public static class SafeBoxRuntime
             return true;
         }
 
-        return GameUIManager.Instance.WindowObj != null || GameUIManager.Instance.InputObj != null;
+        return false;
     }
 
     private static bool IsActiveUI<T>(string uiName) where T : UIBase
@@ -255,6 +370,7 @@ public static class SafeBoxRuntime
     private static void CloseSafeBoxForBlockingUi(ModHookContext context)
     {
         CloseSafeBox();
+        RefreshTopBarButton();
     }
 
     private static void CloseSafeBox()
@@ -311,6 +427,7 @@ public static class SafeBoxRuntime
             SafeBoxUI.SafeboxSave();
             SaveRuntimeData(context);
             RefreshTopBar();
+            RefreshTopBarButton();
         }
         catch (Exception ex)
         {
