@@ -7,7 +7,7 @@ namespace SunExp.Dll.GameApi;
 
 public static class ExecutorApi
 {
-    public const int BurnUpperBound = 49;
+    private const int BurnUpperBoundFallback = 49;
 
     public static string GetVar(ScriptExecutor? executor, string key, string fallback = "")
     {
@@ -129,6 +129,45 @@ public static class ExecutorApi
     public static int StatusBuffLevel(IStatusManager? status, string buffId)
     {
         return BuffApi.Level(status, buffId);
+    }
+
+    public static int BurnUpperBound(IStatusManager? target)
+    {
+        return BuffUpperBound(target, SunExpIds.Burn, BurnUpperBoundFallback);
+    }
+
+    public static int BuffUpperBound(IStatusManager? target, string buffId, int fallback)
+    {
+        if (target != null && !string.IsNullOrWhiteSpace(buffId))
+        {
+            var liveUpperBound = target.GetBuff(buffId)?.buffConfig?.UpperBound ?? 0;
+            if (liveUpperBound > 0)
+            {
+                return liveUpperBound;
+            }
+        }
+
+        return ConfiguredBuffUpperBound(buffId, fallback);
+    }
+
+    private static int ConfiguredBuffUpperBound(string buffId, int fallback)
+    {
+        if (string.IsNullOrWhiteSpace(buffId))
+        {
+            return fallback;
+        }
+
+        try
+        {
+            var data = Singleton<GameConfigManager>.Instance.GetOne(DataType.Buff, buffId);
+            var configured = DictionaryUtil.ParseInt(DictionaryUtil.Get(data, "UpperBound"));
+            return configured > 0 ? configured : fallback;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Debug("Buff upper bound fallback used: id=" + buffId + ", fallback=" + fallback + ", error=" + ex.Message);
+            return fallback;
+        }
     }
 
     public static List<IStatusManager> EnemyTargets(ScriptExecutor? executor)
@@ -789,12 +828,14 @@ public static class ExecutorApi
             return;
         }
 
-        var overflow = StatusBuffLevel(target, SunExpIds.Burn) + amount - BurnUpperBound;
+        var upperBound = BurnUpperBound(target);
+        var overflow = StatusBuffLevel(target, SunExpIds.Burn) + amount - upperBound;
         if (overflow > 0)
         {
             SunExpLog.Debug("Burn overflow converted: target=" + target.InstanceId
                 + ", burnBefore=" + StatusBuffLevel(target, SunExpIds.Burn)
                 + ", add=" + amount
+                + ", upperBound=" + upperBound
                 + ", overflow=" + overflow);
             AddStatusBuff(executor, target, SunExpIds.BodyBurn, overflow, "Target");
         }

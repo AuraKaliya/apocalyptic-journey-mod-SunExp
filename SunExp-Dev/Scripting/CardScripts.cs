@@ -370,7 +370,7 @@ public static class CardScripts
             var burn = target?.GetBuff(SunExpIds.Burn);
             if (burn?.buffConfig != null)
             {
-                burn.buffConfig.Level = Math.Min(49, level * 2);
+                burn.buffConfig.Level = Math.Min(ExecutorApi.BurnUpperBound(target), level * 2);
             }
         }
         ExecutorApi.TriggerBurn(self, target);

@@ -644,13 +644,7 @@ public static class SolarMemoryModeRuntime
 
     private static void StartLobby()
     {
-        if (!LobbyManager.ShouldUseSteamLobby())
-        {
-            LobbyManager.Instance.StartLocalHost();
-            return;
-        }
-
-        LobbyManager.Instance?.TryCreateSteamLobby(4);
+        GameCompatibilityApi.StartLobby();
     }
 
     private static void CaptureSolarMemoryGenerationState(ModHookContext context)
@@ -1090,7 +1084,7 @@ public static class SolarMemoryModeRuntime
     private static bool IsValidPackForCurrentLobby(string id)
     {
         return !string.IsNullOrWhiteSpace(id)
-            && (!string.Equals(id, "cardpack_13", StringComparison.OrdinalIgnoreCase) || GameConfigManager.ShouldEnableOnlineCardPack());
+            && (!string.Equals(id, "cardpack_13", StringComparison.OrdinalIgnoreCase) || GameCompatibilityApi.ShouldEnableOnlineCardPack());
     }
 
     public static bool IsSolarMemoryEventCard(string cardId)

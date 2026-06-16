@@ -6,8 +6,8 @@
     <AssemblyName>SunExp.Aura</AssemblyName>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
-    <GamePath>D:\Steam\steamapps\common\Witch's Apocalyptic Journey</GamePath>
-    <DllPath>$(GamePath)\Witch's Apocalyptic Journey_Data\Managed</DllPath>
+    <ManagedPath Condition="'$(ManagedPath)' == ''">$(MSBuildProjectDirectory)\..\Managed</ManagedPath>
+    <DllPath>$(ManagedPath)</DllPath>
     <ModScriptsPath>..\SunExp\Scripts</ModScriptsPath>
     <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>

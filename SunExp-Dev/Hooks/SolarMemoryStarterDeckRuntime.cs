@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using UnityEngine;
 using UnityEngine.UI;
@@ -195,7 +196,7 @@ public static class SolarMemoryStarterDeckRuntime
     private static bool IsValidPackForCurrentLobby(string id)
     {
         return !string.IsNullOrWhiteSpace(id)
-            && (!string.Equals(id, "cardpack_13", StringComparison.OrdinalIgnoreCase) || GameConfigManager.ShouldEnableOnlineCardPack());
+            && (!string.Equals(id, "cardpack_13", StringComparison.OrdinalIgnoreCase) || GameCompatibilityApi.ShouldEnableOnlineCardPack());
     }
 
     private static void ShowStarterDeckEditor(RoleTable roleTable, IReadOnlyList<string> candidates)

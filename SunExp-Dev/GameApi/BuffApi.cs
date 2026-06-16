@@ -264,7 +264,8 @@ public static class BuffApi
             return true;
         }
 
-        return PlayerApi.GetGameVar(SunExpIds.WunaActive, "0") == "1";
+        return string.IsNullOrWhiteSpace(careerId)
+            && PlayerApi.GetGameVar(SunExpIds.WunaActive, "0") == "1";
     }
 
     private static int ReadIntProperty(object target, string name)
