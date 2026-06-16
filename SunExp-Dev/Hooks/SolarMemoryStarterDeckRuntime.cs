@@ -83,6 +83,32 @@ public static class SolarMemoryStarterDeckRuntime
         SunExpLog.Info("[SolarMemoryStarterDeck] pending after " + source + "; currentDeck=" + roleTable.cardList.Count);
     }
 
+    public static bool OpenOrResume()
+    {
+        try
+        {
+            if (!SolarMemoryModeRuntime.IsSolarMemoryRun() || RoleTable.Instance == null)
+            {
+                SunExpLog.Warn("[SolarMemoryStarterDeck] OpenOrResume skipped: run or role table unavailable.");
+                return false;
+            }
+
+            if (IsApplied(RoleTable.Instance))
+            {
+                SunExpLog.Info("[SolarMemoryStarterDeck] OpenOrResume skipped: starter deck already applied.");
+                return false;
+            }
+
+            MarkPending(RoleTable.Instance, "SolarMemoryPreparationRuntime.OpenOrResume");
+            return TryShowStarterDeckEditor("SolarMemoryPreparationRuntime.OpenOrResume");
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar memory starter deck OpenOrResume failed", ex);
+            return false;
+        }
+    }
+
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
         try
@@ -123,36 +149,49 @@ public static class SolarMemoryStarterDeckRuntime
 
     private static void TryShowStarterDeckEditor(ModHookContext context)
     {
+        TryShowStarterDeckEditor("hook");
+    }
+
+    private static bool TryShowStarterDeckEditor(string source)
+    {
         try
         {
             if (!SolarMemoryModeRuntime.IsSolarMemoryRun())
             {
-                return;
+                return false;
             }
 
             var roleTable = pendingRoleTable ?? RoleTable.Instance;
             if (roleTable == null || promptShown || IsApplied(roleTable))
             {
-                return;
+                return false;
             }
 
-            SolarMemoryModeRuntime.SanitizeSolarMemoryRoleCards(roleTable, "TryShowStarterDeckEditor");
+            SolarMemoryModeRuntime.SanitizeSolarMemoryRoleCards(roleTable, "TryShowStarterDeckEditor:" + source);
             var candidates = BuildCandidateCardIds();
             if (candidates.Count == 0)
             {
                 MarkApplied(roleTable, "no-candidate");
                 SolarMemoryModeRuntime.ClearSolarMemoryReservePool();
                 SunExpLog.Warn("[SolarMemoryStarterDeck] no valid card candidates; keeping official starter deck.");
-                SolarMemorySetupFlowRuntime.StartAfterStarterDeck();
-                return;
+                SolarMemoryPreparationRuntime.CompleteDeckSelection();
+                return true;
             }
 
             promptShown = true;
+            SunExpLog.Info("[SolarMemoryStarterDeck] opening editor from "
+                + source
+                + "; candidates="
+                + candidates.Count
+                + "; currentDeck="
+                + roleTable.cardList.Count);
             ShowStarterDeckEditor(roleTable, candidates);
+            return true;
         }
         catch (Exception ex)
         {
             SunExpLog.Error("Failed to show solar memory starter deck editor", ex);
+            return false;
         }
     }
 
@@ -887,7 +926,7 @@ public static class SolarMemoryStarterDeckRuntime
             MarkApplied(roleTable, "custom");
             SolarMemoryModeRuntime.ClearSolarMemoryReservePool();
             ClosePanel();
-            SolarMemorySetupFlowRuntime.StartAfterStarterDeck();
+            SolarMemoryPreparationRuntime.CompleteDeckSelection();
 
             SunExpLog.Info("[SolarMemoryStarterDeck] applied custom starter deck; originalDeck="
                 + originalDeckCount
@@ -906,7 +945,7 @@ public static class SolarMemoryStarterDeckRuntime
         MarkApplied(roleTable, "official");
         SolarMemoryModeRuntime.ClearSolarMemoryReservePool();
         ClosePanel();
-        SolarMemorySetupFlowRuntime.StartAfterStarterDeck();
+        SolarMemoryPreparationRuntime.CompleteDeckSelection();
         SunExpLog.Info("[SolarMemoryStarterDeck] kept official starter deck; deck=" + roleTable.cardList.Count);
     }
 

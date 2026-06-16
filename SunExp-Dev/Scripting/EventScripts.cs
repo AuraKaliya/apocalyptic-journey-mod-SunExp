@@ -107,6 +107,7 @@ public static class EventScripts
                 PlayerApi.SetGameVar(SunExpIds.SolarMemoryOriginPointsKey, "50");
             }
 
+            SunExpLog.Info("[SolarMemoryEvent] init start node; prepComplete=" + SolarMemoryPreparationRuntime.IsComplete());
             SetEventChoices(self, "", "", "1", "1");
         }
         catch (Exception ex)
@@ -136,6 +137,14 @@ public static class EventScripts
     {
         try
         {
+            if (!SolarMemoryPreparationRuntime.IsComplete())
+            {
+                SunExpLog.Info("[SolarMemoryEvent] continue requested before preparation complete; resuming preparation.");
+                SolarMemoryPreparationRuntime.StartOrResume();
+                return;
+            }
+
+            SunExpLog.Info("[SolarMemoryEvent] continue accepted; prepared=1.");
             PlayerApi.SetGameVar(SunExpIds.SolarMemoryPreparedKey, "1");
             PlayerApi.EndEvent();
         }
@@ -181,10 +190,31 @@ public static class EventScripts
         }
     }
 
+    public static void OpenSolarMemoryPreparation()
+    {
+        try
+        {
+            SunExpLog.Info("[SolarMemoryEvent] preparation option selected.");
+            SolarMemoryPreparationRuntime.StartOrResume();
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar memory preparation option failed", ex);
+        }
+    }
+
     public static void StartSolarMemoryBossRush()
     {
         try
         {
+            if (!SolarMemoryPreparationRuntime.IsComplete())
+            {
+                SunExpLog.Info("[SolarMemoryEvent] boss rush blocked: preparation incomplete; resuming preparation.");
+                SolarMemoryPreparationRuntime.StartOrResume();
+                return;
+            }
+
+            SunExpLog.Info("[SolarMemoryEvent] boss rush started; prepared=1.");
             PlayerApi.SetGameVar(SunExpIds.SolarMemoryPreparedKey, "1");
             PlayerApi.EndEvent();
         }

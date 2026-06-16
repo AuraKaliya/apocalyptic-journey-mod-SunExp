@@ -38,38 +38,13 @@ public static class SolarMemorySetupFlowRuntime
     private static bool panelSpriteLoadAttempted;
     private static bool blessingStepActive;
 
+    public static bool IsBlessingStepActive => blessingStepActive;
+
+    public static bool IsOriginWindowOpen => activeOriginRoot != null;
+
     public static void StartAfterStarterDeck()
     {
-        try
-        {
-            if (!SolarMemoryModeRuntime.IsSolarMemoryRun()
-                || RoleTable.Instance == null
-                || IsSetupFinished()
-                || activeOriginRoot != null
-                || blessingStepActive)
-            {
-                return;
-            }
-
-            EnsureSetupVars();
-            if (PlayerApi.GetGameVar(SunExpIds.SolarMemoryOriginConfiguredKey, "0") != "1")
-            {
-                OpenOriginSetupWindow();
-                return;
-            }
-
-            if (PlayerApi.GetGameVar(SunExpIds.SolarMemoryBlessConfiguredKey, "0") != "1")
-            {
-                OpenBlessingStep();
-                return;
-            }
-
-            FinishSetup();
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Error("Solar memory setup flow failed", ex);
-        }
+        SolarMemoryPreparationRuntime.StartOrResume();
     }
 
     public static void OpenOriginSetupWindow()
@@ -225,10 +200,11 @@ public static class SolarMemorySetupFlowRuntime
         PlayerApi.SetGameVar(SunExpIds.SolarMemoryOriginPointsKey, "0");
         PlayerApi.SetGameVar(SunExpIds.SolarMemoryOriginConfiguredKey, "1");
         CloseOriginWindow();
-        OpenBlessingStep();
+        SunExpLog.Info("[SolarMemorySetup] origin allocation confirmed.");
+        SolarMemoryPreparationRuntime.CompleteOriginAllocation();
     }
 
-    private static void OpenBlessingStep()
+    public static void OpenBlessingSetupWindow()
     {
         try
         {
@@ -240,15 +216,16 @@ public static class SolarMemorySetupFlowRuntime
             EnsureSetupVars();
             if (PlayerApi.GetGameVar(SunExpIds.SolarMemoryBlessConfiguredKey, "0") == "1")
             {
-                FinishSetup();
+                SolarMemoryPreparationRuntime.CompleteBlessingSelection();
                 return;
             }
 
             blessingStepActive = true;
+            SunExpLog.Info("[SolarMemorySetup] opening blessing picker.");
             SolarMemoryBlessingPickerRuntime.Open(() =>
             {
                 blessingStepActive = false;
-                FinishSetup();
+                SolarMemoryPreparationRuntime.CompleteBlessingSelection();
             });
             if (!SolarMemoryBlessingPickerRuntime.IsOpen
                 && PlayerApi.GetGameVar(SunExpIds.SolarMemoryBlessConfiguredKey, "0") != "1")
@@ -263,6 +240,14 @@ public static class SolarMemorySetupFlowRuntime
             SolarMemoryBlessingPickerRuntime.Close();
             SunExpLog.Error("Solar memory blessing setup failed", ex);
         }
+    }
+
+    public static void ClosePreparationWindows()
+    {
+        CloseOriginWindow();
+        CloseBlessingChrome();
+        SolarMemoryBlessingPickerRuntime.Close();
+        blessingStepActive = false;
     }
 
     private static void CreateBlessingChrome(Transform parent, int step)

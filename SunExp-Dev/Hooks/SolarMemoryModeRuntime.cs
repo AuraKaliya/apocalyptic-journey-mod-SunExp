@@ -4,6 +4,7 @@ using System.Linq;
 using Data.Save;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
+using SunExp.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
@@ -34,8 +35,6 @@ public static class SolarMemoryModeRuntime
     private static Sprite? entryHighlightedTitleSprite;
     private static bool entryTitleSpriteLoadAttempted;
     private static bool entryHighlightedTitleSpriteLoadAttempted;
-    private static int eventRecordCountBeforeMapGeneration = -1;
-    private static int eventRecordLayerBeforeMapGeneration = -1;
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -59,7 +58,7 @@ public static class SolarMemoryModeRuntime
     {
         try
         {
-            SolarMemorySetupFlowRuntime.OpenOriginSetupWindow();
+            SolarMemoryPreparationRuntime.StartOrResume();
         }
         catch (Exception ex)
         {
@@ -71,7 +70,7 @@ public static class SolarMemoryModeRuntime
     {
         try
         {
-            SolarMemorySetupFlowRuntime.StartAfterStarterDeck();
+            SolarMemoryPreparationRuntime.StartOrResume();
         }
         catch (Exception ex)
         {
@@ -635,6 +634,7 @@ public static class SolarMemoryModeRuntime
         saveInfo.GameVars[SunExpIds.SolarMemoryOriginConfiguredKey] = "0";
         saveInfo.GameVars[SunExpIds.SolarMemoryBlessConfiguredKey] = "0";
         saveInfo.GameVars[SunExpIds.SolarMemorySetupFinishedKey] = "0";
+        saveInfo.GameVars[SunExpIds.SolarMemoryPrepStepKey] = SolarMemoryPrepStep.DeckSelection.ToString();
         saveInfo.GameVars[SunExpIds.SolarMemoryPreparedKey] = "0";
         saveInfo.GameVars["MapScene1"] = (random.Next(0, 100) < 50 ? SceneType.Courtyard : SceneType.Forest).ToString();
         saveInfo.GameVars["MapScene2"] = SceneType.SlotMachScene.ToString();
@@ -653,18 +653,15 @@ public static class SolarMemoryModeRuntime
         {
             if (!IsSolarMemoryRun() || context.Target is not NormalMapManager manager)
             {
-                eventRecordCountBeforeMapGeneration = -1;
-                eventRecordLayerBeforeMapGeneration = -1;
+                SolarMemoryMapNodePoolApplier.ResetGenerationCapture();
                 return;
             }
 
-            eventRecordCountBeforeMapGeneration = GameSaveManager.GetEventRecord()?.Count ?? 0;
-            eventRecordLayerBeforeMapGeneration = SolarMemoryLayer(manager);
+            SolarMemoryMapNodePoolApplier.CaptureGenerationState(manager);
         }
         catch (Exception ex)
         {
-            eventRecordCountBeforeMapGeneration = -1;
-            eventRecordLayerBeforeMapGeneration = -1;
+            SolarMemoryMapNodePoolApplier.ResetGenerationCapture();
             SunExpLog.Error("Solar memory map generation capture failed", ex);
         }
     }
@@ -734,26 +731,7 @@ public static class SolarMemoryModeRuntime
 
     private static bool EnsureSolarMemoryMapState(NormalMapManager manager, string source, bool trimEventRecord)
     {
-        var tree = manager.MapTree;
-        if (tree == null)
-        {
-            return false;
-        }
-
-        var layer = SolarMemoryLayer(manager);
-        var changed = RewriteSolarMemoryDefaultLayer(tree, layer);
-        changed = RewriteSolarMemorySelectLayer(tree, layer) || changed;
-        if (trimEventRecord)
-        {
-            TrimSolarMemoryEventRecord(layer);
-        }
-
-        if (changed)
-        {
-            SunExpLog.Debug("Solar memory map state normalized by " + source + " at level " + manager.Level);
-        }
-
-        return changed;
+        return SolarMemoryMapNodePoolApplier.ApplyToCurrentLayer(manager, source, trimEventRecord);
     }
 
     private static bool RewriteSolarMemoryDefaultLayer(MapTree tree, int layer)
@@ -812,31 +790,6 @@ public static class SolarMemoryModeRuntime
         return changed;
     }
 
-    private static void TrimSolarMemoryEventRecord(int layer)
-    {
-        var records = GameSaveManager.GetEventRecord();
-        if (records == null
-            || eventRecordCountBeforeMapGeneration < 0
-            || eventRecordLayerBeforeMapGeneration != layer)
-        {
-            ResetSolarMemoryEventRecordCapture();
-            return;
-        }
-
-        while (records.Count > eventRecordCountBeforeMapGeneration)
-        {
-            records.RemoveAt(records.Count - 1);
-        }
-
-        ResetSolarMemoryEventRecordCapture();
-    }
-
-    private static void ResetSolarMemoryEventRecordCapture()
-    {
-        eventRecordCountBeforeMapGeneration = -1;
-        eventRecordLayerBeforeMapGeneration = -1;
-    }
-
     private static int SolarMemoryLayer(NormalMapManager manager)
     {
         return ClampSolarMemoryLayer(manager.Level / 6);
@@ -886,7 +839,7 @@ public static class SolarMemoryModeRuntime
             {
                 if (args[i] is string[] maps && args[i + 1] is string[] mapData && RepairSolarMemoryMapArrays(maps, mapData))
                 {
-                    SunExpLog.Debug("Solar memory map selection repaired");
+                    SunExpLog.Info("[SolarMemoryMapSync] map selection arrays repaired.");
                 }
             }
         }
@@ -943,6 +896,20 @@ public static class SolarMemoryModeRuntime
         {
             mapData[index] = expectedEventId;
             changed = true;
+        }
+
+        if (changed)
+        {
+            SunExpLog.Info("[SolarMemoryMapSync] repaired index="
+                + index
+                + "; layer="
+                + layer
+                + "; slot="
+                + mapSlotIndex
+                + "; map="
+                + expectedMapId
+                + "; event="
+                + expectedEventId);
         }
 
         return changed;
