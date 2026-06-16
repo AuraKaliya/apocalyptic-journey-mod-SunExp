@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Data.Save;
 using SunExp.Dll.Infrastructure;
 using Witch;
@@ -11,6 +12,7 @@ public static class SolarMemoryMapNodePoolFactory
 {
     public const int OpeningSlotIndex = 0;
     public const int MidLayerSlotIndex = 3;
+    private const string BossMapNote = "首领";
 
     public static SolarMemoryMapNodePool GenerateLayer(NormalMapManager manager, MapTree tree)
     {
@@ -22,16 +24,26 @@ public static class SolarMemoryMapNodePoolFactory
 
         for (var i = 0; i < defaultSegmentSize; i++)
         {
-            defaultNodes.Add(i == OpeningSlotIndex
-                ? CreateSolarMemoryEventNode(layer, OpeningSlotIndex)
-                : CreateBossChainNode(tree, i, layer));
+            if (i == OpeningSlotIndex)
+            {
+                defaultNodes.Add(CreateSolarMemoryEventNode(layer, OpeningSlotIndex));
+                continue;
+            }
+
+            if (i == defaultSegmentSize - 1 && TryCreateFixedStoryBossNode(tree, layer, out var fixedBossNode))
+            {
+                defaultNodes.Add(fixedBossNode);
+                continue;
+            }
+
+            defaultNodes.Add(CreateExpandedBossPoolNode(tree, i, layer));
         }
 
         for (var i = 0; i < selectSegmentSize; i++)
         {
             selectNodes.Add(i == MidLayerSlotIndex
                 ? CreateSolarMemoryEventNode(layer, MidLayerSlotIndex)
-                : CreateBossChainNode(tree, i, layer));
+                : CreateExpandedBossPoolNode(tree, i, layer));
         }
 
         SunExpLog.Debug("[SolarMemoryMapNodePool] generated layer="
@@ -74,6 +86,32 @@ public static class SolarMemoryMapNodePoolFactory
         return Math.Max(1, 8 - GameSaveManager.GetValue<int>(GameVar.ExDeleteDes));
     }
 
+    public static bool IsSolarMemoryFixedStoryBoss(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return false;
+        }
+
+        return string.Equals(id, SunExpIds.SolarBossOrbitMirrorMapId, StringComparison.Ordinal)
+            || string.Equals(id, "solar_memory_boss_orbit_mirror_array", StringComparison.Ordinal)
+            || string.Equals(id, SunExpIds.SolarBossSecondSunMapId, StringComparison.Ordinal)
+            || string.Equals(id, "solar_memory_boss_second_sun_last_day", StringComparison.Ordinal)
+            || string.Equals(id, SunExpIds.SolarBossSaintWunaMapId, StringComparison.Ordinal)
+            || string.Equals(id, "solar_memory_boss_saint_wuna", StringComparison.Ordinal);
+    }
+
+    public static MapTree.Node CreateFixedBossNode(MapTree tree, string mapId)
+    {
+        var data = MapRow(mapId);
+        if (data == null)
+        {
+            throw new InvalidOperationException("Missing fixed boss map row: " + mapId);
+        }
+
+        return CreateBossNodeFromMapRow(tree, data);
+    }
+
     private static MapTree.Node CreateSolarMemoryEventNode(int layer, int mapSlotIndex)
     {
         var eventIndex = EventIndex(layer, mapSlotIndex);
@@ -93,11 +131,58 @@ public static class SolarMemoryMapNodePoolFactory
         return node;
     }
 
-    private static MapTree.Node CreateBossChainNode(MapTree tree, int indexInSegment, int layer)
+    private static bool TryCreateFixedStoryBossNode(MapTree tree, int layer, out MapTree.Node node)
+    {
+        node = null!;
+        var mapId = FixedStoryBossMapId(layer);
+        if (string.IsNullOrWhiteSpace(mapId))
+        {
+            return false;
+        }
+
+        try
+        {
+            node = CreateFixedBossNode(tree, mapId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[SolarMemoryMapNodePool] fixed boss node generation failed at layer "
+                + layer
+                + ", map="
+                + mapId
+                + ": "
+                + ex.Message);
+            return false;
+        }
+    }
+
+    private static string FixedStoryBossMapId(int layer)
+    {
+        return layer switch
+        {
+            1 => SunExpIds.SolarBossOrbitMirrorMapId,
+            2 => SunExpIds.SolarBossSecondSunMapId,
+            _ => ""
+        };
+    }
+
+    private static MapTree.Node CreateExpandedBossPoolNode(MapTree tree, int indexInSegment, int layer)
     {
         try
         {
-            return tree.TypeGenerate("首领");
+            var candidates = Singleton<GameConfigManager>.Instance.GetTable(DataType.Map).Getlines()
+                .Where(IsExpandedBossCandidate)
+                .ToList();
+
+            if (candidates.Count == 0)
+            {
+                SunExpLog.Warn("[SolarMemoryMapNodePool] expanded boss pool empty; falling back to TypeGenerate.");
+                return tree.TypeGenerate(BossMapNote);
+            }
+
+            var data = new RandomPool(candidates, tree.treedice).DrawByCount(1)[0];
+            return CreateBossNodeFromMapRow(tree, data);
         }
         catch (Exception ex)
         {
@@ -114,11 +199,82 @@ public static class SolarMemoryMapNodePoolFactory
                 {
                     ["Id"] = "map_0",
                     ["Type"] = "Fight",
-                    ["Note"] = "首领",
+                    ["Note"] = BossMapNote,
                     ["NodeId"] = "map_0",
                     ["Level"] = "-1"
                 }
             };
         }
+    }
+
+    private static bool IsExpandedBossCandidate(Dictionary<string, string> row)
+    {
+        if (row == null)
+        {
+            return false;
+        }
+
+        var id = DictionaryUtil.Get(row, "Id");
+        var nodeId = DictionaryUtil.Get(row, "NodeId");
+        if (string.IsNullOrWhiteSpace(id)
+            || string.IsNullOrWhiteSpace(nodeId)
+            || id.StartsWith("*", StringComparison.Ordinal)
+            || nodeId.StartsWith("*", StringComparison.Ordinal)
+            || IsSolarMemoryFixedStoryBoss(id))
+        {
+            return false;
+        }
+
+        if (!string.Equals(DictionaryUtil.Get(row, "Type"), "Fight", StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(DictionaryUtil.Get(row, "Note"), BossMapNote, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var level = DictionaryUtil.Get(row, "Level", "-1");
+        if (!int.TryParse(level, out _))
+        {
+            return false;
+        }
+
+        return IsBossLevel(nodeId);
+    }
+
+    private static bool IsBossLevel(string nodeId)
+    {
+        try
+        {
+            var level = Singleton<GameConfigManager>.Instance.GetOne(DataType.Level, nodeId);
+            if (level == null)
+            {
+                return true;
+            }
+
+            return DictionaryUtil.Get(level, "Note").IndexOf("boss", StringComparison.OrdinalIgnoreCase) >= 0
+                || DictionaryUtil.Get(level, "Note").Contains(BossMapNote);
+        }
+        catch
+        {
+            return true;
+        }
+    }
+
+    private static Dictionary<string, string>? MapRow(string mapId)
+    {
+        return Singleton<GameConfigManager>.Instance.GetOne(DataType.Map, mapId)
+            ?? Singleton<GameConfigManager>.Instance.GetTable(DataType.Map).Getlines()
+                .FirstOrDefault(row => string.Equals(DictionaryUtil.Get(row, "Id"), mapId, StringComparison.Ordinal)
+                    || string.Equals("SunExp_sunexp_" + DictionaryUtil.Get(row, "Id"), mapId, StringComparison.Ordinal));
+    }
+
+    private static MapTree.Node CreateBossNodeFromMapRow(MapTree tree, Dictionary<string, string> row)
+    {
+        var node = new MapTree.Node(BossMapNote);
+        node.type = BossMapNote;
+        node.data = new Dictionary<string, string>(row);
+        node.data["Type"] = "Fight";
+        node.data["Note"] = BossMapNote;
+        node.NodeDice = tree.treedice;
+        return node;
     }
 }

@@ -952,14 +952,104 @@ public static class SolarMemoryModeRuntime
                 return;
             }
 
+            if (PlayerApi.GetGameVar(SunExpIds.SolarFinalePendingSaintBattleKey, "") == "in_progress")
+            {
+                FinishSolarFinaleSaintBattle();
+                return;
+            }
+
+            if (PlayerApi.GetGameVar(SunExpIds.SolarFinaleSaintGateResolvedKey, "0") == "1")
+            {
+                OpenSolarFinaleEndingEvent();
+                return;
+            }
+
+            PlayerApi.SetGameVar(SunExpIds.SolarFinaleSecondSunDefeatedKey, "1");
             UIManager.Instance?.CloseUI("MapSelectUI");
-            UIManager.Instance?.ShowUI<GameExitUI>("GameExitUI", true);
-            SunExpLog.Debug("Solar memory final layer finished; showing settlement.");
+            UIManager.Instance?.ShowEventUI(SunExpIds.SolarFinaleSaintGateEventId);
+            SunExpLog.Debug("Solar memory final layer finished; showing finale saint gate.");
         }
         catch (Exception ex)
         {
             SunExpLog.Error("Solar memory settlement failed", ex);
         }
+    }
+
+    public static void StartSolarFinaleSaintBattle()
+    {
+        try
+        {
+            if (!IsSolarMemoryRun())
+            {
+                PlayerApi.EndEvent();
+                return;
+            }
+
+            var mapManager = MapManager.Instance;
+            var tree = mapManager?.MapTree;
+            if (mapManager == null || tree == null)
+            {
+                SunExpLog.Warn("[SolarFinale] unable to start saint battle: MapManager or MapTree missing.");
+                OpenSolarFinaleEndingEvent();
+                return;
+            }
+
+            var node = SolarMemoryMapNodePoolFactory.CreateFixedBossNode(tree, SunExpIds.SolarBossSaintWunaMapId);
+            tree.currentNode = node;
+            GameSaveManager.UpdateNode(node);
+            PlayerApi.SetGameVar(SunExpIds.SolarFinaleSaintGateResolvedKey, "1");
+            PlayerApi.SetGameVar(SunExpIds.SolarFinalePendingSaintBattleKey, "in_progress");
+            UIManager.Instance?.CloseUI("EventUI");
+            mapManager.CmdNextMap();
+            SunExpLog.Info("[SolarFinale] starting fixed saint battle node.");
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar finale saint battle start failed", ex);
+            OpenSolarFinaleEndingEvent();
+        }
+    }
+
+    public static void OpenSolarFinaleEndingEvent()
+    {
+        try
+        {
+            UIManager.Instance?.CloseUI("MapSelectUI");
+            UIManager.Instance?.CloseUI("EventUI");
+            UIManager.Instance?.ShowEventUI("Sub_solar_finale_ending");
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar finale ending event failed", ex);
+            UIManager.Instance?.ShowUI<GameExitUI>("GameExitUI", true);
+        }
+    }
+
+    public static void ShowSolarMemorySettlement()
+    {
+        try
+        {
+            UIManager.Instance?.CloseUI("MapSelectUI");
+            UIManager.Instance?.CloseUI("EventUI");
+            UIManager.Instance?.ShowUI<GameExitUI>("GameExitUI", true);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar memory settlement UI failed", ex);
+        }
+    }
+
+    private static void FinishSolarFinaleSaintBattle()
+    {
+        PlayerApi.SetGameVar(SunExpIds.SolarFinalePendingSaintBattleKey, "");
+        PlayerApi.SetGameVar(SunExpIds.SolarFinaleSaintDefeatedKey, "1");
+        if (string.IsNullOrWhiteSpace(PlayerApi.GetGameVar(SunExpIds.SolarFinaleEndingKey, "")))
+        {
+            PlayerApi.SetGameVar(SunExpIds.SolarFinaleEndingKey, "stars");
+        }
+
+        OpenSolarFinaleEndingEvent();
+        SunExpLog.Info("[SolarFinale] saint battle finished; opening ending event.");
     }
 
     private static MapTree.Node CreateSolarMemoryEventNode(MapTree tree, int layer, int mapSlotIndex)

@@ -1,0 +1,5 @@
+Id,EnemyIds,Note,Level,BGM
+Id,敌人Id的数组,备注,出现层数,重载音乐
+level_orbit_mirror_array,SunExp_sunexp_boss_orbit_mirror_array,boss,-1,
+level_second_sun_last_day,SunExp_sunexp_boss_second_sun_last_day,boss,-1,
+level_saint_wuna,SunExp_sunexp_boss_saint_wuna,boss,-1,

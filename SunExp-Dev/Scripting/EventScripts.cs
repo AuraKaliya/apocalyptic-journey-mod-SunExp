@@ -336,6 +336,62 @@ public static class EventScripts
         }
     }
 
+    public static void InitSolarFinaleSaintGate(ScriptExecutor self)
+    {
+        try
+        {
+            EnsureSolarFinaleLedger();
+            PlayerApi.SetGameVar(SunExpIds.SolarFinaleSecondSunDefeatedKey, "1");
+            var canReachHiddenBoss = CanReachSolarFinaleSaintBattle();
+            SetEventChoices(self, canReachHiddenBoss ? "1" : "", "1", "", "");
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar finale saint gate init failed", ex);
+        }
+    }
+
+    public static void EnterSolarFinaleSaintBattle()
+    {
+        try
+        {
+            EnsureSolarFinaleLedger();
+            if (!CanReachSolarFinaleSaintBattle())
+            {
+                PlayerApi.ShowCaption("剩余名字不足以呼唤白曜圣女。");
+                SkipSolarFinaleSaintBattle();
+                return;
+            }
+
+            SolarMemoryModeRuntime.StartSolarFinaleSaintBattle();
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar finale saint battle option failed", ex);
+            SkipSolarFinaleSaintBattle();
+        }
+    }
+
+    public static void SkipSolarFinaleSaintBattle()
+    {
+        try
+        {
+            EnsureSolarFinaleLedger();
+            PlayerApi.SetGameVar(SunExpIds.SolarFinaleSaintGateResolvedKey, "1");
+            PlayerApi.SetGameVar(SunExpIds.SolarFinalePendingSaintBattleKey, "");
+            if (string.IsNullOrWhiteSpace(PlayerApi.GetGameVar(SunExpIds.SolarFinaleEndingKey, "")))
+            {
+                PlayerApi.SetGameVar(SunExpIds.SolarFinaleEndingKey, ResolveSolarFinaleEndingKey());
+            }
+
+            SolarMemoryModeRuntime.OpenSolarFinaleEndingEvent();
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar finale saint skip failed", ex);
+        }
+    }
+
     public static void ResolveSolarFinaleSaint(string result)
     {
         try
@@ -396,7 +452,7 @@ public static class EventScripts
         try
         {
             PlayerApi.SetGameVar(SunExpIds.SolarFinaleEndingKey, ending);
-            PlayerApi.EndEvent();
+            SolarMemoryModeRuntime.ShowSolarMemorySettlement();
         }
         catch (Exception ex)
         {
@@ -490,6 +546,23 @@ public static class EventScripts
     private static int BurnedFinaleNames()
     {
         return Math.Max(0, DictionaryUtil.ParseInt(PlayerApi.GetGameVar(SunExpIds.SolarFinaleBurnedNamesKey, "0")));
+    }
+
+    private static bool CanReachSolarFinaleSaintBattle()
+    {
+        return PlayerApi.GetGameVar(SunExpIds.SolarFinaleSecondSunDefeatedKey, "0") == "1"
+            && SavedFinaleNames() >= SunExpIds.SolarFinaleHiddenBossNameThreshold
+            && BurnedFinaleNames() < SunExpIds.SolarFinaleHiddenBossNameThreshold;
+    }
+
+    private static string ResolveSolarFinaleEndingKey()
+    {
+        if (BurnedFinaleNames() >= SunExpIds.SolarFinaleHiddenBossNameThreshold)
+        {
+            return "witch";
+        }
+
+        return SavedFinaleNames() >= SunExpIds.SolarFinaleHiddenBossNameThreshold ? "stars" : "white_city";
     }
 
     private static void BurnFinaleNames(int count)

@@ -1,0 +1,8 @@
+Id,Note,Name,Name_zh-Hant,Name_en,Name_ja,Description,Description_zh-Hant,Description_en,Description_ja
+唯1标识,备注,名称,名稱,Name,名称,描述,描述,Description,説明
+enemycard_mirror_calibration,,校准光照,校準光照,Calibrate Light,Calibrate Light,全体获得{0}层灼烧，首领获得护盾。,全體獲得{0}層灼燒，首領獲得護盾。,All characters gain {0} Burn and the boss gains Shield.,All characters gain {0} Burn and the boss gains Shield.
+enemycard_orbit_refraction,,环日折射,環日折射,Orbit Refraction,Orbit Refraction,造成{0}伤害并追加灼烧。,造成{0}傷害並追加灼燒。,Deal {0} damage and apply Burn.,Deal {0} damage and apply Burn.
+enemycard_last_day_morning_prayer,,晨祷校准,晨禱校準,Morning Prayer Calibration,Morning Prayer Calibration,全体获得{0}层灼烧，首领获得护盾。,全體獲得{0}層灼燒，首領獲得護盾。,All characters gain {0} Burn and the boss gains Shield.,All characters gain {0} Burn and the boss gains Shield.
+enemycard_last_day_noon_burn,,正午白昼,正午白晝,Noonday White Light,Noonday White Light,造成{0}伤害并留下焚身。,造成{0}傷害並留下焚身。,Deal {0} damage and leave Body Burn.,Deal {0} damage and leave Body Burn.
+enemycard_saint_purification,,最后净化,最後淨化,Final Purification,Final Purification,造成{0}伤害并转化为焚身压力。,造成{0}傷害並轉化為焚身壓力。,Deal {0} damage and convert it into Body Burn pressure.,Deal {0} damage and convert it into Body Burn pressure.
+enemycard_saint_return_to_court,,写回圣庭,寫回聖庭,Return to the Court,Return to the Court,造成{0}伤害，并将一个保存名字写回无名白曜。,造成{0}傷害，並將一個保存名字寫回無名白曜。,Deal {0} damage and return one preserved name as nameless radiance.,Deal {0} damage and return one preserved name as nameless radiance.

@@ -334,6 +334,8 @@ function Invoke-SourceAssertions {
     $buffScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\BuffScripts.cs"))
     $buffApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\BuffApi.cs"))
     $eventScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\EventScripts.cs"))
+    $bossScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\BossScripts.cs"))
+    $entry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Entry.cs"))
     $wunaScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\WunaScripts.cs"))
     $runtimeHooks = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\RuntimeHooks.cs"))
     $duskPartnerRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\DuskPartnerRuntime.cs"))
@@ -347,6 +349,7 @@ function Invoke-SourceAssertions {
     $solarMemoryMapNodePoolApplier = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarMemoryMapNodePoolApplier.cs"))
     $mapData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Map\sunexp.csv"))
     $mapText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\Map\sunexp.csv"))
+    $levelData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Level\sunexp.csv"))
     $eventData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\EventList\sunexp.csv"))
     $eventText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\EventList\sunexp.csv"))
     $blessingData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Blessing\sunexp.csv"))
@@ -416,6 +419,15 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemoryMapNodePoolFactory.Contains("MidLayerSlotIndex = 3") "Solar memory must reserve the fourth map slot for the second story event in each layer."
     Assert-True $solarMemoryMapNodePoolFactory.Contains("CreateSolarMemoryEventNode(layer, OpeningSlotIndex)") "Solar memory default nodes must use the per-layer opening story event."
     Assert-True $solarMemoryMapNodePoolFactory.Contains("CreateSolarMemoryEventNode(layer, MidLayerSlotIndex)") "Solar memory SelectNode entries must place the second story event in the fourth candidate slot."
+    Assert-True $solarMemoryMapNodePoolFactory.Contains("TryCreateFixedStoryBossNode") "Solar memory must reserve fixed story boss nodes for accepted Wuna bosses."
+    Assert-True $solarMemoryMapNodePoolFactory.Contains("CreateExpandedBossPoolNode") "Solar memory must use an expanded all-layer boss pool for non-fixed boss nodes."
+    Assert-True $solarMemoryMapNodePoolFactory.Contains("IsSolarMemoryFixedStoryBoss") "Solar memory expanded boss pool must exclude fixed Wuna story bosses."
+    Assert-True $sunExpIds.Contains("SolarBossOrbitMirrorMapId") "Solar memory must define the fixed mirror-array boss map id."
+    Assert-True $sunExpIds.Contains("SolarBossSecondSunMapId") "Solar memory must define the fixed second-sun boss map id."
+    Assert-True $sunExpIds.Contains("SolarBossSaintWunaMapId") "Solar memory must define the hidden saint boss map id."
+    Assert-True $entry.Contains("SunExp.Dll.Scripting.BossScripts") "Entry must register BossScripts for CSV script calls."
+    Assert-True $bossScripts.Contains("public static void InitCard") "BossScripts must expose enemy-card init for CSV rows."
+    Assert-True $bossScripts.Contains("public static void UseCard") "BossScripts must expose enemy-card use behavior for CSV rows."
     Assert-True $solarMemoryModeRuntime.Contains("RepairSolarMemorySyncIndex(maps, mapData, SolarMemoryMidLayerSlotIndex") "Solar memory sync repair must force the fourth map node id."
     Assert-True $solarMemoryModeRuntime.Contains("SunExpIds.SolarMemoryMapIds[eventIndex]") "Solar memory sync repair must use the fixed story map id array."
     Assert-True $solarMemoryModeRuntime.Contains("SunExpIds.SolarMemoryFullEventIds[eventIndex]") "Solar memory sync repair must use the fixed story event id array."
@@ -424,9 +436,17 @@ function Invoke-SourceAssertions {
     Assert-True $eventScripts.Contains('PlayerApi.SetGameVar(SunExpIds.SolarMemoryOriginPointsKey, "50")') "Solar memory event initialization must not reset origin points to the old value."
     Assert-True $mapData.Contains("solar_memory_black_sun_after,Event,Breaks_solar_memory_black_sun_after,-1") "Solar memory map data must use a Breaks placeholder so normal adventure generation excludes it."
     Assert-True $mapData.Contains("solar_memory_above_sacred_wheel,Event,Breaks_solar_memory_above_sacred_wheel,-1") "Solar memory map data must use Breaks placeholders for all fixed story events."
+    Assert-True $mapData.Contains("solar_memory_boss_orbit_mirror_array,Fight,SunExp_sunexp_level_orbit_mirror_array,-1") "Solar memory map data must include the fixed mirror-array boss."
+    Assert-True $mapData.Contains("solar_memory_boss_second_sun_last_day,Fight,SunExp_sunexp_level_second_sun_last_day,-1") "Solar memory map data must include the fixed second-sun boss."
+    Assert-True $mapData.Contains("solar_memory_boss_saint_wuna,Fight,SunExp_sunexp_level_saint_wuna,-1") "Solar memory map data must include the hidden saint boss."
+    Assert-True $levelData.Contains("level_saint_wuna,SunExp_sunexp_boss_saint_wuna,boss,-1") "Solar memory level data must define the hidden saint fight as a boss level."
     Assert-True $mapText.Contains("solar_memory_polluted_light") "Solar memory map text must include the polluted light node."
+    Assert-True $mapText.Contains("solar_memory_boss_saint_wuna,首领") "Solar memory map text must mark the hidden saint fight as a boss node."
     Assert-True $eventData.Contains("Sub_solar_memory_grief_struggle,CS.SunExp.Dll.Scripting.EventScripts.ContinueSolarMemory();") "Solar memory event data must route story choices through C# continue."
+    Assert-True $eventData.Contains("Sub_solar_finale_saint_gate,CS.SunExp.Dll.Scripting.EventScripts.EnterSolarFinaleSaintBattle();") "Solar finale saint gate must route the hidden battle option through C#."
     Assert-True $eventText.Contains("Sub_solar_memory_above_sacred_wheel") "Solar memory event text must include the sixth fixed story row."
+    Assert-True $eventText.Contains("Sub_solar_finale_saint_gate") "Solar finale event text must include the saint gate row."
+    Assert-True (-not $eventText.Contains("奥尔德林不再拥有太阳")) "Solar finale ending text must not refer to Alderin as Wuna's world."
     Assert-True $solarMemoryModeRuntime.Contains("public static int SanitizeSolarMemoryRoleCards") "Solar memory must expose a role-card sanitizer."
     Assert-True $solarMemoryModeRuntime.Contains("RemoveEventConfigs(role.cardList") "Solar memory sanitizer must remove event cards from the actual deck."
     Assert-True $solarMemoryModeRuntime.Contains("RemoveEventConfigs(role.UnCardList") "Solar memory sanitizer must remove event cards from the reserve pool."

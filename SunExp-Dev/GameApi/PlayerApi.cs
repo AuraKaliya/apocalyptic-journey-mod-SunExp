@@ -159,6 +159,11 @@ public static class PlayerApi
         InvokeStaticPlayerInfo("EndEvent");
     }
 
+    public static void EventTryChangeMap()
+    {
+        InvokeStaticPlayerInfo("EventTryChangeMap");
+    }
+
     private static object? InvokeStaticPlayerInfo(string methodName, params object[] args)
     {
         var playerInfo = PlayerInfo as Type;
