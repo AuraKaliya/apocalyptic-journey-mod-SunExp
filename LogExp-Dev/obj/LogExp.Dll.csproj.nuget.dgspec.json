@@ -1,0 +1,53 @@
+{
+  "format": 1,
+  "restore": {
+    "D:\\workfile\\project\\Mod_1\\apocalyptic-journey-mod-SunExp\\LogExp-Dev\\LogExp.Dll.csproj": {}
+  },
+  "projects": {
+    "D:\\workfile\\project\\Mod_1\\apocalyptic-journey-mod-SunExp\\LogExp-Dev\\LogExp.Dll.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\workfile\\project\\Mod_1\\apocalyptic-journey-mod-SunExp\\LogExp-Dev\\LogExp.Dll.csproj",
+        "projectName": "LogExp.Aura",
+        "projectPath": "D:\\workfile\\project\\Mod_1\\apocalyptic-journey-mod-SunExp\\LogExp-Dev\\LogExp.Dll.csproj",
+        "packagesPath": "C:\\Users\\75601\\.nuget\\packages\\",
+        "outputPath": "D:\\workfile\\project\\Mod_1\\apocalyptic-journey-mod-SunExp\\LogExp-Dev\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\75601\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "net472"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net472": {
+            "targetAlias": "net472",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "10.0.100"
+      },
+      "frameworks": {
+        "net472": {
+          "targetAlias": "net472",
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103\\RuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}

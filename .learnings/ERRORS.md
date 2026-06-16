@@ -27,3 +27,64 @@
 - **Expected:** The text table would import with `1Describe` and `2Describe` aligned to their option columns.
 - **Observed:** English commas inside unquoted fields shifted later columns while the main validation still passed.
 - **Fix:** After editing multi-language CSV by hand, import it with `Import-Csv` and inspect key columns; quote comma-bearing fields or use comma-free placeholder text.
+
+## [ERR-20260616-001] powershell-rg-glob-argument
+
+**Logged**: 2026-06-16T15:30:19.1783337+08:00
+**Priority**: low
+**Status**: pending
+**Area**: docs
+
+### Summary
+PowerShell treated bare wildcard path arguments in an `rg` path list as invalid path patterns.
+
+### Error
+```text
+rg: *.ps1: 文件名、目录名或卷标语法不正确。 (os error 123)
+```
+
+### Context
+- Command attempted: `rg -n "LogExp|日志|log" "LogExp" "tools" "*.ps1"`
+- Recurred with: `rg -n "Application\\.logMessageReceived|..." "*-Dev" -g "*.cs"`
+- Environment: Windows PowerShell in the SunExp repository.
+
+### Suggested Fix
+Use `rg -n "pattern" LogExp tools -g "*.ps1"` for file globs, or enumerate wildcard directories with PowerShell first and pass resolved paths.
+
+### Metadata
+- Reproducible: yes
+- Related Files: none
+
+---
+
+## [ERR-20260616-002] dotnet-objectdisposed-catch-order
+
+**Logged**: 2026-06-16T15:42:04.8648026+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: backend
+
+### Summary
+Adding `catch (ObjectDisposedException)` after `catch (InvalidOperationException)` caused unreachable catch code in net472.
+
+### Error
+```text
+error CS0160: 上一个 catch 子句已经捕获了此类型或超类型(“InvalidOperationException”)的所有异常
+```
+
+### Context
+- Command attempted: `tools\Build-LogExpDll.ps1`
+- `BlockingCollection.Add` disposal races were already covered by `InvalidOperationException` because `ObjectDisposedException` derives from it.
+
+### Suggested Fix
+Keep only the broader `InvalidOperationException` catch or put narrower derived exceptions first when both are genuinely needed.
+
+### Metadata
+- Reproducible: yes
+- Related Files: LogExp-Dev/Infrastructure/LogFileWriter.cs
+
+### Resolution
+- **Resolved**: 2026-06-16T15:42:04.8648026+08:00
+- **Notes**: Removed the unreachable `ObjectDisposedException` catch.
+
+---
