@@ -1,0 +1,14 @@
+{
+  "ModName": "BackgroundAudioReplaceExp",
+  "ModVersion": "0.1.0",
+  "ModAuthor": "Aura",
+  "ModDescription": "仅在进入战斗时将战斗背景音乐替换为该 Mod 目录下的 BGM.mp3，战斗结束后恢复进入战斗前的原背景音乐。",
+  "IconPath": null,
+  "Enabled": true,
+  "WorkshopVisibility": "Public",
+  "WorkshopTags": [
+    "工具",
+    "音频"
+  ],
+  "PublishedFileId": null
+}
