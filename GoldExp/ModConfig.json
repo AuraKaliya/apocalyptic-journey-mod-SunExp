@@ -6,5 +6,8 @@
   "IconPath": "Icon.png",
   "Enabled": true,
   "WorkshopVisibility": "Public",
+  "WorkshopTags": [
+    "卡包"
+  ],
   "PublishedFileId": "3744515537"
 }
