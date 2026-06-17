@@ -350,6 +350,12 @@ function Invoke-SourceAssertions {
     $mapData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Map\sunexp.csv"))
     $mapText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\Map\sunexp.csv"))
     $levelData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Level\sunexp.csv"))
+    $enemyData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Enemy\sunexp.csv"))
+    $enemyText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\Enemy\sunexp.csv"))
+    $enemyCardText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\EnemyCard\sunexp.csv"))
+    $buffData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Buff\sunexp.csv"))
+    $buffText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\Buff\sunexp.csv"))
+    $keywordText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\KeyWordsDic\sunexp.csv"))
     $eventData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\EventList\sunexp.csv"))
     $eventText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\EventList\sunexp.csv"))
     $blessingData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Blessing\sunexp.csv"))
@@ -390,8 +396,8 @@ function Invoke-SourceAssertions {
     Assert-True $duskPartnerRuntime.Contains('"Fight_Start.Init"') "Dusk runtime must grant the trait at fight start."
     Assert-True $duskPartnerRuntime.Contains("status.AddBuff(SunExpIds.DuskAfterheatRecoveryTrait, 1)") "Dusk runtime must grant the afterheat recovery trait buff."
     Assert-True $duskPartnerRuntime.Contains("RemoveDuskPlaceholderBlessing") "Dusk runtime must remove stale technical blessing placeholders from role blessings."
-    Assert-True ([regex]::IsMatch($blessingData, "(?m)^dusk_afterheat_recovery,0,,,Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_1,[^,]*,,5$")) "Dusk afterheat recovery must remain a legal zero-weight technical Blessing for GameEntryUI.CheckCareer."
-    Assert-True ([regex]::IsMatch($partnerData, "(?m)^dusk,10,0,0,0,2,,,Mods/SunExp/ModResource/Images/Partner/SunExp/dusk_choice,Mods/SunExp/ModResource/Images/Partner/SunExp/dusk,Mods/SunExp/ModResource/AnimationLib/Dusk,SunExp_sunexp_dusk_afterheat_recovery,Mods/SunExp/ModResource/Images/Partner/SunExp/dusk$")) "Dusk partner must keep a non-empty Bless column because GameEntryUI.CheckCareer creates a DataConfig from it."
+    Assert-True ([regex]::IsMatch($blessingData, "(?m)^dusk_afterheat_recovery,0,,,Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_1,[^,]*,,5\r?$")) "Dusk afterheat recovery must remain a legal zero-weight technical Blessing for GameEntryUI.CheckCareer."
+    Assert-True ([regex]::IsMatch($partnerData, "(?m)^dusk,10,0,0,0,2,,,Mods/SunExp/ModResource/Images/Partner/SunExp/dusk_choice,Mods/SunExp/ModResource/Images/Partner/SunExp/dusk,Mods/SunExp/ModResource/AnimationLib/Dusk,SunExp_sunexp_dusk_afterheat_recovery,Mods/SunExp/ModResource/Images/Partner/SunExp/dusk\r?$")) "Dusk partner must keep a non-empty Bless column because GameEntryUI.CheckCareer creates a DataConfig from it."
     Assert-True $solarMemoryBlessingPickerRuntime.Contains("IsTechnicalBlessing(id)") "Solar memory blessing picker must skip technical partner blessings."
     Assert-True $solarMemoryModeRuntime.Contains('RegisterBefore(modConfig, "GameConfigManager.CardPackCheck", FilterSolarMemoryCardPackCheck)') "Solar memory must filter event cards before CardPackCheck builds reward candidates."
     Assert-True $solarMemoryModeRuntime.Contains('RegisterBefore(modConfig, "NormalMapManager.RandomGenerate", CaptureSolarMemoryGenerationState)') "Solar memory must capture event records before base map generation can draw ordinary events."
@@ -451,6 +457,42 @@ function Invoke-SourceAssertions {
     Assert-True $entry.Contains("SunExp.Dll.Scripting.BossScripts") "Entry must register BossScripts for CSV script calls."
     Assert-True $bossScripts.Contains("public static void InitCard") "BossScripts must expose enemy-card init for CSV rows."
     Assert-True $bossScripts.Contains("public static void UseCard") "BossScripts must expose enemy-card use behavior for CSV rows."
+    Assert-True $sunExpIds.Contains("BossTraitMirrorArray") "SunExpIds must define the mirror-array boss trait buff id."
+    Assert-True $sunExpIds.Contains("BossTraitMercilessDaylight") "SunExpIds must define the merciless-daylight boss trait buff id."
+    Assert-True $sunExpIds.Contains("BossTraitWhiteRadianceSaint") "SunExpIds must define the white-radiance-saint boss trait buff id."
+    Assert-True $buffScripts.Contains('case "boss_trait_mirror_array":') "BuffScripts must route mirror-array boss trait apply/clear."
+    Assert-True $buffScripts.Contains('case "boss_trait_merciless_daylight":') "BuffScripts must route merciless-daylight boss trait apply/clear."
+    Assert-True $buffScripts.Contains('case "boss_trait_white_radiance_saint":') "BuffScripts must route white-radiance-saint boss trait apply/clear."
+    Assert-True $bossScripts.Contains("ApplyBossTraitBuff(self, SunExpIds.BossTraitMirrorArray)") "Mirror-array boss init must grant its trait buff."
+    Assert-True $bossScripts.Contains("ApplyBossTraitBuff(self, SunExpIds.BossTraitMercilessDaylight)") "Second-sun boss init must grant its trait buff."
+    Assert-True $bossScripts.Contains("ApplyBossTraitBuff(self, SunExpIds.BossTraitWhiteRadianceSaint)") "Saint Wuna boss init must grant its trait buff."
+    Assert-True $bossScripts.Contains("TriggerMirrorArray") "BossScripts must implement the mirror-array trait trigger."
+    Assert-True $bossScripts.Contains("TriggerMercilessDaylight") "BossScripts must implement the merciless-daylight trait trigger."
+    Assert-True $bossScripts.Contains("TriggerWhiteRadianceSaint") "BossScripts must implement the white-radiance-saint trait trigger."
+    Assert-True $bossScripts.Contains("MoveSavedNameToBurned") "Merciless daylight must be able to convert preserved names into burned names."
+    Assert-True $bossScripts.Contains("MoveSavedNameToNameless") "White Radiance Saint must be able to convert preserved names into nameless people."
+    Assert-True $buffData.Contains("boss_trait_mirror_array") "Buff data must define the mirror-array boss trait."
+    Assert-True $buffData.Contains("boss_trait_merciless_daylight") "Buff data must define the merciless-daylight boss trait."
+    Assert-True $buffData.Contains("boss_trait_white_radiance_saint") "Buff data must define the white-radiance-saint boss trait."
+    Assert-True $buffText.Contains("三千环日镜") "Buff text must localize the mirror-array boss trait."
+    Assert-True $buffText.Contains("无慈白昼") "Buff text must localize the merciless-daylight boss trait."
+    Assert-True $buffText.Contains("白耀圣女") "Buff text must localize the white-radiance-saint boss trait."
+    Assert-True $enemyData.Contains("SunExp_sunexp_boss_trait_mirror_array") "Mirror-array enemy data must expose its trait in AttributeText."
+    Assert-True $enemyData.Contains("SunExp_sunexp_boss_trait_merciless_daylight") "Second-sun enemy data must expose its trait in AttributeText."
+    Assert-True $enemyData.Contains("SunExp_sunexp_boss_trait_white_radiance_saint") "Saint Wuna enemy data must expose its trait in AttributeText."
+    Assert-True $enemyText.Contains("<title>镜阵</title>") "Mirror-array bestiary text must use the renamed 镜阵 entry."
+    Assert-True $enemyText.Contains("<title>终日</title>") "Second-sun bestiary text must use the renamed 终日 entry."
+    Assert-True $enemyText.Contains("<title>圣祷</title>") "Saint Wuna bestiary text must use the renamed 圣祷 entry."
+    Assert-True (-not $enemyText.Contains("镜阵校准")) "Boss bestiary text must not keep the old 镜阵校准 title."
+    Assert-True (-not $enemyText.Contains("最后净化")) "Boss bestiary text must not keep the old 最后净化 title."
+    Assert-True $keywordText.Contains('"镜阵"') "Keyword dictionary must expose 镜阵."
+    Assert-True $keywordText.Contains('"终日"') "Keyword dictionary must expose 终日."
+    Assert-True $keywordText.Contains('"焚书"') "Keyword dictionary must expose 焚书."
+    Assert-True $keywordText.Contains('"圣祷"') "Keyword dictionary must expose 圣祷."
+    Assert-True $keywordText.Contains('"时光铭刻"') "Keyword dictionary must expose 时光铭刻."
+    Assert-True $keywordText.Contains('"无名之人"') "Keyword dictionary must expose 无名之人."
+    Assert-True $enemyCardText.Contains("enemycard_saint_purification,,圣祷") "Saint purification enemy-card text must use 圣祷."
+    Assert-True $enemyCardText.Contains("enemycard_saint_return_to_court,,时光铭刻") "Saint return enemy-card text must use 时光铭刻."
     Assert-True $solarMemoryModeRuntime.Contains("foreach (var spec in FixedNodeSpecs(layer))") "Solar memory sync repair must force every fixed map node id."
     Assert-True $solarMemoryModeRuntime.Contains("SunExpIds.SolarMemoryMapIds[eventIndex]") "Solar memory sync repair must use the fixed story map id array."
     Assert-True $solarMemoryModeRuntime.Contains("SunExpIds.SolarMemoryFullEventIds[eventIndex]") "Solar memory sync repair must use the fixed story event id array."

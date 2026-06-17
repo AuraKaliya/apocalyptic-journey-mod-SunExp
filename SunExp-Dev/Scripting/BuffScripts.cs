@@ -45,6 +45,11 @@ public static class BuffScripts
                 case "dusk_afterheat_recovery_trait":
                     PartnerScripts.RegisterDuskAfterheatRecovery(self);
                     break;
+                case "boss_trait_mirror_array":
+                case "boss_trait_merciless_daylight":
+                case "boss_trait_white_radiance_saint":
+                    BossScripts.ApplyTrait(self, id);
+                    break;
             }
         }
         catch (Exception ex)
@@ -95,6 +100,11 @@ public static class BuffScripts
                     break;
                 case "dusk_afterheat_recovery_trait":
                     PartnerScripts.ClearDuskAfterheatRecovery(self);
+                    break;
+                case "boss_trait_mirror_array":
+                case "boss_trait_merciless_daylight":
+                case "boss_trait_white_radiance_saint":
+                    BossScripts.ClearTrait(self, id);
                     break;
             }
         }
