@@ -7,6 +7,11 @@ namespace GoldExp.Dll.Scripting;
 
 public static class CardScripts
 {
+    private const string FortuneThrowAscensionVar = "GoldExpFortuneThrowAscension";
+    private const int FortuneThrowBaseDamage = 3;
+    private const int FortuneThrowDamageStep = 3;
+    private const int FortuneThrowCheckValue = 50;
+
     public static void Init(ScriptExecutor self, string id)
     {
         try
@@ -19,6 +24,8 @@ public static class CardScripts
                     break;
                 case "fortune_throw":
                     ExecutorApi.SetBaseScript(self, "CommonCardItem");
+                    ExecutorApi.AddDescription(self, "1", "TrueDamage", FortuneThrowDamage(self));
+                    ExecutorApi.AddDescription(self, "2", "Value", FortuneThrowCheckValue);
                     if (GoldDreamService.TryCanPayGold(self, 1000, out var canPay))
                     {
                         SetUsable(self, canPay);
@@ -93,11 +100,18 @@ public static class CardScripts
 
         for (var i = 0; i < 6; i++)
         {
-            if (UnityEngine.Random.value < 0.5f)
+            var check = self.CheckDice.Roll().Value;
+            if (check >= FortuneThrowCheckValue)
             {
-                ExecutorApi.DealDamageRandomEnemy(self, 3, "True");
+                ExecutorApi.DealDamageRandomEnemy(self, FortuneThrowDamage(self), "True");
+                if (check > 100)
+                {
+                    ExecutorApi.DealDamageRandomEnemy(self, FortuneThrowDamage(self), "True");
+                }
             }
         }
+
+        AscendFortuneThrow(self);
     }
 
     private static void UseDisplayWealth(ScriptExecutor self)
@@ -114,5 +128,26 @@ public static class CardScripts
         var value = usable ? "1" : "0";
         DictionaryUtil.Set(self?.Vars, "Usable", value);
         DictionaryUtil.Set(self?.dataConfig?.Vars, "Usable", value);
+    }
+
+    private static int FortuneThrowDamage(ScriptExecutor self)
+    {
+        return FortuneThrowBaseDamage + FortuneThrowAscensions(self) * FortuneThrowDamageStep;
+    }
+
+    private static int FortuneThrowAscensions(ScriptExecutor self)
+    {
+        var value = DictionaryUtil.Get(
+            self?.Vars,
+            FortuneThrowAscensionVar,
+            DictionaryUtil.Get(self?.dataConfig?.Vars, FortuneThrowAscensionVar, "0"));
+        return Math.Max(0, DictionaryUtil.ParseInt(value));
+    }
+
+    private static void AscendFortuneThrow(ScriptExecutor self)
+    {
+        var ascensions = FortuneThrowAscensions(self) + 1;
+        DictionaryUtil.Set(self?.Vars, FortuneThrowAscensionVar, ascensions);
+        DictionaryUtil.Set(self?.dataConfig?.Vars, FortuneThrowAscensionVar, ascensions);
     }
 }
