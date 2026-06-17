@@ -19,6 +19,9 @@ public static class SunExpIds
     public const string CycleGatheredFlame = "SunExp_sunexp_cycle_gathered_flame";
     public const string AfterglowOmen = "SunExp_sunexp_afterglow_omen";
     public const string DuskAfterheatRecoveryTrait = "SunExp_sunexp_dusk_afterheat_recovery_trait";
+    public const string BossTraitMirrorArray = "SunExp_sunexp_boss_trait_mirror_array";
+    public const string BossTraitMercilessDaylight = "SunExp_sunexp_boss_trait_merciless_daylight";
+    public const string BossTraitWhiteRadianceSaint = "SunExp_sunexp_boss_trait_white_radiance_saint";
 
     public const string TempWhiteRadiance = "SunExpTempWhiteRadiance";
     public const string TempWhiteRadianceLockId = "SunExpTempWhiteRadianceLockId";

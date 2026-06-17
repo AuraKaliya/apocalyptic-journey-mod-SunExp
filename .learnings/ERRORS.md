@@ -88,3 +88,36 @@ Keep only the broader `InvalidOperationException` catch or put narrower derived 
 - **Notes**: Removed the unreachable `ObjectDisposedException` catch.
 
 ---
+
+## [ERR-20260617-001] powershell-replace-literal-paths
+
+**Logged**: 2026-06-17T13:42:16.5907412+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: docs
+
+### Summary
+PowerShell `-replace` treated literal documentation text containing backslashes and backticks as a regex pattern while converting generated docs.
+
+### Error
+```text
+The regular expression pattern Generated from workspace CSV files\. Refresh with `tools\Export-ModDevDocs\.ps1`\. is not valid.
+```
+
+### Context
+- Command attempted: mechanical Chinese backup conversion for `docs/mod-dev-zh-CN/generated/*.md`.
+- Environment: Windows PowerShell in the SunExp repository.
+- Cause: `-replace` expects a regex pattern; literal strings containing backslashes and backticks are safer with `.Replace(...)` or `[regex]::Escape(...)`.
+
+### Suggested Fix
+Use string `.Replace(old, new)` for literal prose replacements, or build regex patterns with `[regex]::Escape($old)`.
+
+### Metadata
+- Reproducible: yes
+- Related Files: docs/mod-dev-zh-CN/generated/*.md
+
+### Resolution
+- **Resolved**: 2026-06-17T13:42:16.5907412+08:00
+- **Notes**: Replaced the remaining generated-index prose with a direct patch.
+
+---
