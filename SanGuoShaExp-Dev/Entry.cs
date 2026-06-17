@@ -14,6 +14,7 @@ public static class Entry
     {
         RegisterLuaVisibleAssembly();
         AudioApi.Initialize(modConfig);
+        BattleBgmProviderRuntime.Initialize(modConfig);
         SanGuoShaExpLog.Info("SanGuoShaExp C# entry loaded");
     }
 

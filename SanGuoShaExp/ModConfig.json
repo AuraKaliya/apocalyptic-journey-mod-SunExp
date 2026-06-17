@@ -2,7 +2,7 @@
   "ModName": "SanGuoShaExp",
   "ModVersion": "0.1.0",
   "ModAuthor": "Aura",
-  "ModDescription": "《三国杀》角色扩展。新增可玩角色【神·诸葛亮】，围绕七星卡堆、狂风与大雾展开战斗。6.17更新内容：【添加了【神·诸葛亮】七星、大雾、狂风的技能音效。】",
+  "ModDescription": "《三国杀》角色扩展。新增可玩角色【神·诸葛亮】，围绕七星卡堆、狂风与大雾展开战斗。6.17更新内容：【添加了【神·诸葛亮】七星、大雾、狂风的技能音效。】6.18更新内容：【神·诸葛亮冒险中，对局战斗BGM接入全局仲裁系统。】",
   "IconPath": "Icon.png",
   "Enabled": true,
   "WorkshopVisibility": "Public",
