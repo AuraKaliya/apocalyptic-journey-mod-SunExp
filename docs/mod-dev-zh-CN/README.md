@@ -22,6 +22,7 @@ CSV 表、脚本入口、宿主 API、Hook 点、资源、本地化，以及主�
 4. 流程：
    - [MOD 加载流程](flows/mod-load-flow.md)
    - [卡牌战斗流程](flows/card-combat-flow.md)
+   - [祝福与 Buff 机制](flows/blessing-buff-flow.md)
    - [事件、对话与地图流程](flows/event-dialogue-map-flow.md)
 5. Cookbook：
    - [添加一张卡牌](cookbook/add-card.md)
