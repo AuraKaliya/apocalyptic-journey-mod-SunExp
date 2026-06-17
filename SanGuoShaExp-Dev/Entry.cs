@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Reflection;
+using SanGuoShaExp.Dll.GameApi;
 using SanGuoShaExp.Dll.Infrastructure;
 using Witch.Mod;
 
@@ -12,6 +13,7 @@ public static class Entry
     public static void Initialize(ModConfig modConfig)
     {
         RegisterLuaVisibleAssembly();
+        AudioApi.Initialize(modConfig);
         SanGuoShaExpLog.Info("SanGuoShaExp C# entry loaded");
     }
 

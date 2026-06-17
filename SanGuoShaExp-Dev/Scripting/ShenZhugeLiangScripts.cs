@@ -171,6 +171,7 @@ public static class ShenZhugeLiangScripts
                 hand.Burning(0f);
                 pile.RemoveAll(card => card.InstanceID == selected.InstanceID);
                 self.CreateCard(selected);
+                AudioApi.PlayQixing();
                 SyncQixingBuff(self);
                 SanGuoShaExpLog.Debug("Qixing replaced hand card with " + selected.data.GetValueOrDefault("Id", selected.InstanceID));
             });
@@ -179,6 +180,7 @@ public static class ShenZhugeLiangScripts
 
     private static void ResolveEndRoundPassives(ScriptExecutor self)
     {
+        AudioApi.PlayRandomWindMist();
         BurnRandomQixingCard(self);
 
         foreach (var target in ExecutorApi.EnemyTargets(self))
