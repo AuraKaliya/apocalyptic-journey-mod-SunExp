@@ -1,12 +1,13 @@
-{
+﻿{
   "ModName": "CardUseCialloExp",
   "ModVersion": "0.1.0",
   "ModAuthor": "Aura",
-  "ModDescription": "替换/增加出牌音效，打出牌时自动播放该mod下的audio.mp3，默认为“Ciallo～(∠・ω< )⌒☆”~~~",
+  "ModDescription": "替换出牌特效音效，打出牌时将原本即将播放的效果音替换为该mod下的audio.mp3，默认为“Ciallo～(∠・ω< )⌒☆”~~~",
   "IconPath": "Icon.png",
   "Enabled": true,
   "WorkshopVisibility": "Public",
   "WorkshopTags": [
     "工具"
-  ]
+  ],
+  "PublishedFileId": "3746529220"
 }

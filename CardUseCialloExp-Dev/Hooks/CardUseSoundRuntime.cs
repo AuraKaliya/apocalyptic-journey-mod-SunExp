@@ -4,50 +4,95 @@ using System.IO;
 using UnityEngine;
 using UnityEngine.Networking;
 using Witch.Mod;
+using Witch.UI.Window;
 
 namespace CardUseCialloExp.Dll.Hooks;
 
 public static class CardUseSoundRuntime
 {
     private const string AudioFileName = "audio.mp3";
+    private const float CardActionReplacementWindowSeconds = 1.0f;
+    private const int MaxReplacementsPerCardAction = 1;
 
-    private static readonly object EventOwner = new();
-    private static string? registeredStatusId;
     private static AudioClip? clip;
     private static AudioLoader? loader;
     private static bool loadStarted;
-    private static int registerWaitLogCount;
+    private static float replaceEffectsUntilTime;
+    private static int remainingCardActionReplacements;
+    private static int cardActionCount;
     private static int skippedBeforeLoadCount;
-    private static int playedCount;
+    private static int replacedCount;
 
     public static void Initialize(ModConfig modConfig)
     {
         Debug.Log("[CardUseCialloExp] initialize begin, modDir=" + modConfig.DirectoryName);
         StartLoadingClip(modConfig);
-        TryRegisterForPlayer("Initialize");
         Debug.Log("[CardUseCialloExp] initialize end");
     }
 
     [HookAfter(typeof(Fight_Start), nameof(Fight_Start.Init))]
     public static void OnFightStart(Fight_Start __instance)
     {
-        registeredStatusId = null;
+        replaceEffectsUntilTime = 0f;
+        remainingCardActionReplacements = 0;
+        cardActionCount = 0;
         skippedBeforeLoadCount = 0;
-        playedCount = 0;
-        Debug.Log("[CardUseCialloExp] fight start detected, listener state reset");
-        TryRegisterForPlayer("Fight_Start.Init");
+        replacedCount = 0;
+        Debug.Log("[CardUseCialloExp] fight start detected, replacement state reset");
     }
 
-    [HookBefore(typeof(CommonCardItem), nameof(CommonCardItem.TrueUse))]
-    public static void BeforeCommonTrueUse(CommonCardItem __instance)
+    [HookBefore(typeof(FightUI), nameof(FightUI.CallActionAnimation))]
+    public static void BeforeCallActionAnimation(FightUI __instance, IScriptExecutor scriptExecutor)
     {
-        TryRegisterForPlayer("CommonCardItem.TrueUse.ensure");
+        if (!IsCardScriptExecutor(scriptExecutor))
+        {
+            return;
+        }
+
+        cardActionCount++;
+        remainingCardActionReplacements = MaxReplacementsPerCardAction;
+        replaceEffectsUntilTime = Time.unscaledTime + CardActionReplacementWindowSeconds;
+
+        if (cardActionCount <= 5 || cardActionCount % 50 == 0)
+        {
+            Debug.Log("[CardUseCialloExp] card action detected, replacement window opened #" + cardActionCount
+                + ", effect=" + ReadEffectName(scriptExecutor));
+        }
     }
 
-    [HookBefore(typeof(AttackCardItem), nameof(AttackCardItem.TrueUse))]
-    public static void BeforeAttackTrueUse(AttackCardItem __instance)
+    [HookBefore(typeof(EffectSound), "Start")]
+    public static void BeforeEffectSoundStart(EffectSound __instance)
     {
-        TryRegisterForPlayer("AttackCardItem.TrueUse.ensure");
+        try
+        {
+            if (__instance == null || !ShouldReplaceCurrentEffectSound())
+            {
+                return;
+            }
+
+            if (clip == null)
+            {
+                skippedBeforeLoadCount++;
+                remainingCardActionReplacements = 0;
+                Debug.LogWarning("[CardUseCialloExp] card effect sound detected but audio not loaded yet, skipped=" + skippedBeforeLoadCount);
+                return;
+            }
+
+            if (ReferenceEquals(__instance.clip, clip))
+            {
+                return;
+            }
+
+            var originalName = __instance.clip == null ? "<null>" : __instance.clip.name;
+            __instance.clip = clip;
+            remainingCardActionReplacements--;
+            replacedCount++;
+            Debug.Log("[CardUseCialloExp] replaced card effect sound #" + replacedCount + ": " + originalName + " -> " + clip.name);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning("[CardUseCialloExp] failed to replace card effect sound: " + ex);
+        }
     }
 
     private static void StartLoadingClip(ModConfig modConfig)
@@ -80,58 +125,52 @@ public static class CardUseSoundRuntime
         });
     }
 
-    private static void TryRegisterForPlayer(string source)
+    private static bool ShouldReplaceCurrentEffectSound()
+    {
+        return remainingCardActionReplacements > 0 && Time.unscaledTime <= replaceEffectsUntilTime;
+    }
+
+    private static bool IsCardScriptExecutor(IScriptExecutor? scriptExecutor)
     {
         try
         {
-            var player = FightPlayer.Instance;
-            var statusId = player?.Status?.InstanceId;
-            if (string.IsNullOrWhiteSpace(statusId))
+            var dataConfig = scriptExecutor?.dataConfig;
+            if (dataConfig == null)
             {
-                if (registerWaitLogCount < 5)
-                {
-                    registerWaitLogCount++;
-                    Debug.Log("[CardUseCialloExp] listener not registered from " + source + ": player/status not ready");
-                }
-
-                return;
+                return false;
             }
 
-            if (registeredStatusId == statusId)
+            if (dataConfig.Type == DataType.Card)
             {
-                return;
+                return true;
             }
 
-            EventCenter.Instance.Clear(EventOwner);
-            EventCenter.Instance.AddEventListener("ActionAfter" + statusId, new Action(OnCardPlayed), EventOwner, EventDispose.OnFightEnd);
-            registeredStatusId = statusId;
-            Debug.Log("[CardUseCialloExp] registered card use listener from " + source + ": statusId=" + statusId);
+            return dataConfig.data != null
+                && dataConfig.data.ContainsKey("Expend")
+                && dataConfig.data.ContainsKey("UseScript");
         }
-        catch (Exception ex)
+        catch
         {
-            Debug.LogWarning("[CardUseCialloExp] failed to register card use listener from " + source + ": " + ex);
+            return false;
         }
     }
 
-    private static void OnCardPlayed()
+    private static string ReadEffectName(IScriptExecutor? scriptExecutor)
     {
         try
         {
-            if (clip == null)
+            if (scriptExecutor?.dataConfig?.data != null
+                && scriptExecutor.dataConfig.data.TryGetValue("Effects", out var effectName)
+                && !string.IsNullOrWhiteSpace(effectName))
             {
-                skippedBeforeLoadCount++;
-                Debug.LogWarning("[CardUseCialloExp] card play detected but audio not loaded yet, skipped=" + skippedBeforeLoadCount);
-                return;
+                return effectName;
             }
-
-            playedCount++;
-            Debug.Log("[CardUseCialloExp] card play detected, playing audio #" + playedCount + ": " + clip.name);
-            AudioManager.Instance.PlayEffect(clip);
         }
-        catch (Exception ex)
+        catch
         {
-            Debug.LogWarning("[CardUseCialloExp] failed to play card use audio: " + ex);
         }
+
+        return "<none>";
     }
 
     private sealed class AudioLoader : MonoBehaviour
