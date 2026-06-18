@@ -175,25 +175,34 @@ public static class BuffScripts
             return;
         }
 
-        ExecutorApi.SetActiveField(self, "scorching_canopy");
+        ExecutorApi.SetActiveField(self, SunExpFieldId.ScorchingCanopy);
 
         var token = ExecutorApi.RegisterHook(self, "SunExpField_scorching_canopyHook", "SunExpField_scorching_canopyToken");
-        ExecutorApi.SyncFieldStacks(self, "scorching_canopy");
-        SunExpLog.Debug("Scorching canopy carrier applied: stacks=" + ExecutorApi.SelfBuffLevel(self, SunExpIds.ScorchingCanopy));
+        ExecutorApi.SyncFieldStacks(self, SunExpFieldId.ScorchingCanopy);
+        SunExpLog.Debug("Scorching canopy carrier applied: carrierStacks="
+            + ExecutorApi.SelfBuffLevel(self, SunExpIds.ScorchingCanopy)
+            + ", fieldStacks=" + ExecutorApi.FieldStacks(SunExpFieldId.ScorchingCanopy));
         if (token == null)
         {
             return;
         }
 
         var epoch = DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "SunExpActiveFieldEpoch", "0"));
+        self.AddEvent(SunExpIds.ScorchingCanopy + "OnLevelChange", new Action(() =>
+        {
+            if (ExecutorApi.IsHookTokenActive(self, "SunExpField_scorching_canopyToken", token))
+            {
+                ExecutorApi.SyncFieldStacks(self, SunExpFieldId.ScorchingCanopy);
+            }
+        }));
         self.AddEvent("StartRound", new Action(() =>
         {
-            if (!ExecutorApi.IsActiveField(self, "scorching_canopy", epoch, token))
+            if (!ExecutorApi.IsActiveField(self, SunExpFieldId.ScorchingCanopy, epoch, token))
             {
                 return;
             }
 
-            FieldStartRound(self, "scorching_canopy");
+            FieldStartRound(self, SunExpFieldId.ScorchingCanopy);
         }));
     }
 
@@ -206,28 +215,26 @@ public static class BuffScripts
         ExecutorApi.ClearHook(self, "SunExpField_scorching_canopyHook", "SunExpField_scorching_canopyToken");
         if (!externalClear || stacks <= 0)
         {
-            if (wasActive)
-            {
-                ExecutorApi.SetSharedFieldState("scorching_canopy", 0);
-            }
-
+            ExecutorApi.SyncFieldStacks(self, SunExpFieldId.ScorchingCanopy);
             SunExpLog.Debug("Scorching canopy carrier cleared internally: wasActive=" + wasActive + ", stacks=" + stacks);
             return;
         }
 
         if (!wasActive)
         {
+            ExecutorApi.SyncFieldStacks(self, SunExpFieldId.ScorchingCanopy);
             return;
         }
 
         SunExpLog.Debug("Scorching canopy carrier restored after external clear: stacks=" + stacks);
         self.SetStatus("Self");
         self.AddBuff(SunExpIds.ScorchingCanopy, stacks.ToString());
+        ExecutorApi.SyncFieldStacks(self, SunExpFieldId.ScorchingCanopy);
     }
 
-    private static bool FieldStartRound(ScriptExecutor self, string fieldId)
+    private static bool FieldStartRound(ScriptExecutor self, SunExpFieldId fieldId)
     {
-        if (fieldId != "scorching_canopy")
+        if (fieldId != SunExpFieldId.ScorchingCanopy)
         {
             return false;
         }

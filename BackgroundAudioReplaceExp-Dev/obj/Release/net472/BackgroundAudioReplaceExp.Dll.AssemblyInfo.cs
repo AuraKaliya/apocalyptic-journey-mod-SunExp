@@ -10,12 +10,12 @@
 using System;
 using System.Reflection;
 
-[assembly: System.Reflection.AssemblyCompanyAttribute("SanGuoShaExp.Aura")]
+[assembly: System.Reflection.AssemblyCompanyAttribute("BackgroundAudioReplaceExp.Aura")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f30fe3b2a1e70e636f91d252522357f5e47b1f67")]
-[assembly: System.Reflection.AssemblyProductAttribute("SanGuoShaExp.Aura")]
-[assembly: System.Reflection.AssemblyTitleAttribute("SanGuoShaExp.Aura")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+bd778407459dd6e831a1ebb0d9da7b23c5e4db6d")]
+[assembly: System.Reflection.AssemblyProductAttribute("BackgroundAudioReplaceExp.Aura")]
+[assembly: System.Reflection.AssemblyTitleAttribute("BackgroundAudioReplaceExp.Aura")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
 
 // 由 MSBuild WriteCodeFragment 类生成。

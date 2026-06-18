@@ -35,7 +35,7 @@
 | scorching_flow_reclaim | 灼流回收 | Flare Reclaim | 攻击牌 | 2 | 1 | - | 目标敌人的灼烧立即生效1次。随后移除其身上所有灼烧，获得等量聚炎。 |
 | impurity_purge | 焚污除秽 | Impurity Purge | 技能牌 | 2 | 1 | - | 移除自身所有负面 Buff，并获得等同于这些负面 Buff 总层数的灼烧。若成功转化，获得1层日耀。 |
 | flamewheel_recurrence | 炎轮再临 | Flamewheel Recurrence | 技能牌 | 2 | 1 | - | 敌方全体的灼烧立刻生效N次，N为本场战斗已使用此牌次数+1。本次总耗费等于N。 |
-| eclipse_hex | 蚀天之咒 | Eclipse Hex | 技能牌 | 2 | 2 | - | 使目标敌人的灼烧层数翻倍，最高不超过49层；若目标没有灼烧，改为施加6层。随后目标的灼烧立刻生效一次。 |
+| eclipse_hex | 蚀天之咒 | Eclipse Hex | 技能牌 | 2 | 2 | - | 若目标没有灼烧，施加6层；否则追加等同于当前层数的灼烧。随后目标的灼烧立刻生效一次。 |
 | solar_scorching_light | 日耀灼光 | Solar Scorchlight | 攻击牌 | 1 | 1 | - | 造成8点伤害。目标每有1层灼烧，额外造成X点伤害，X为自身聚炎层数/4，至少为1。 |
 | burning_calamity | 燃灾 | Burning Calamity | 技能牌 | 2 | 1 | - | 选择一个敌人，将其灼烧层数的一半施加给其他所有敌人。随后该目标的灼烧立刻生效一次。 |
 | burning_crown_oath | 燃冠誓言 | Burning Crown Oath | 技能牌 | 2 | 1 | - | 消耗自身所有聚炎。敌方全体获得等同于消耗层数一半的灼烧，并立即触发一次。 |

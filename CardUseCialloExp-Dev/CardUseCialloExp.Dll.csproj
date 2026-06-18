@@ -24,6 +24,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\AudioArbiterShared\AudioArbiterRuntime.cs" Link="Shared\AudioArbiterRuntime.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>$(DllPath)\UnityEngine.CoreModule.dll</HintPath>
       <Private>false</Private>
@@ -46,6 +50,14 @@
     </Reference>
     <Reference Include="Witch.Core">
       <HintPath>$(DllPath)\Witch.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Mirror">
+      <HintPath>$(DllPath)\Mirror.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="MemoryPack.Core">
+      <HintPath>$(DllPath)\MemoryPack.Core.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>

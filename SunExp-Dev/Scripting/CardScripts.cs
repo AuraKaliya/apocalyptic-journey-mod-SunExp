@@ -361,17 +361,13 @@ public static class CardScripts
     {
         var target = ExecutorApi.PrimaryTarget(self);
         var level = ExecutorApi.StatusBuffLevel(target, SunExpIds.Burn);
-        if (level < 6)
+        if (level <= 0)
         {
             ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, 6, "Target");
         }
         else
         {
-            var burn = target?.GetBuff(SunExpIds.Burn);
-            if (burn?.buffConfig != null)
-            {
-                burn.buffConfig.Level = Math.Min(ExecutorApi.BurnUpperBound(target), level * 2);
-            }
+            ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, level, "Target");
         }
         ExecutorApi.TriggerBurn(self, target);
     }

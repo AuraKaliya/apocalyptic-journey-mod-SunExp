@@ -327,6 +327,7 @@ function Invoke-SourceAssertions {
 
     $executorApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\ExecutorApi.cs"))
     $sunExpIds = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpIds.cs"))
+    $sunExpFieldId = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpFieldId.cs"))
     $playerApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\PlayerApi.cs"))
     $specialTagRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SpecialTagRuntime.cs"))
     $cardConfigApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\CardConfigApi.cs"))
@@ -369,6 +370,15 @@ function Invoke-SourceAssertions {
     Assert-True $tryAddEvent.Value.Contains("executor.Self == null") "TryAddEvent must skip preview/dictionary executors without Self before calling AddEvent."
     Assert-True $tryAddEvent.Value.Contains("catch (Exception ex)") "TryAddEvent must catch all event registration failures and degrade safely."
     Assert-True $executorApi.Contains("public static bool ClearFieldBuff") "ExecutorApi.ClearFieldBuff is missing."
+    Assert-True $sunExpFieldId.Contains("public enum SunExpFieldId") "SunExpFieldId must define enum-like field ids."
+    Assert-True $sunExpFieldId.Contains("ScorchingCanopy") "SunExpFieldId must include ScorchingCanopy."
+    Assert-True $executorApi.Contains("private static int TotalFieldBuffStacks") "Field stacks must be recomputed from combat statuses."
+    Assert-True $executorApi.Contains("foreach (var status in FightManager.Instance.statuses.Values)") "Field sync must scan FightManager statuses."
+    Assert-True $executorApi.Contains('CombatIntAdd(FieldCombatKey(field, "Epoch"), 1);') "Field state changes must advance a shared epoch."
+    Assert-True $executorApi.Contains("SyncFieldStacks(ScriptExecutor? executor, SunExpFieldId field)") "Field sync must expose the enum-based overload."
+    Assert-True (-not [regex]::IsMatch($executorApi, 'ClearFieldBuff[\s\S]*?SetSharedFieldState\(fieldId,\s*0\)')) "ClearFieldBuff must resync field state instead of blindly clearing shared stacks."
+    Assert-True $buffScripts.Contains("self.AddEvent(SunExpIds.ScorchingCanopy + ""OnLevelChange""") "Scorching Canopy must resync when its carrier buff level changes."
+    Assert-True $buffScripts.Contains("ExecutorApi.SyncFieldStacks(self, SunExpFieldId.ScorchingCanopy);") "Scorching Canopy apply/clear must use enum-based field sync."
     Assert-True $executorApi.Contains("public static int BurnUpperBound(IStatusManager? target)") "ExecutorApi must expose a dynamic burn upper bound helper."
     Assert-True $executorApi.Contains("private const int BurnUpperBoundFallback = 1;") "Invalid burn upper bounds must fall back to the minimum valid stack count."
     Assert-True $executorApi.Contains("target.GetBuff(buffId)?.buffConfig?.UpperBound") "Burn upper bound must prefer the live BuffItemConfig.UpperBound."
@@ -388,7 +398,7 @@ function Invoke-SourceAssertions {
     Assert-True ([regex]::IsMatch($cardScripts, 'case\s+"draw_flame":\s+ExecutorApi\.SetBaseScript\(self,\s+"AttackCardItem"\);\s+break;')) "draw_flame must allow self-targeting during initialization."
     Assert-True $cardScripts.Contains("var target = ExecutorApi.PrimaryTargetIncludingSelf(self);") "draw_flame must resolve targets without excluding self."
     Assert-True $cardScripts.Contains("ExecutorApi.TriggerBurnAllEnemies(self, times * 2);") "flamewheel_recurrence must trigger enemy burn 2*N times while keeping N as the cost."
-    Assert-True $cardScripts.Contains("ExecutorApi.BurnUpperBound(target)") "eclipse_hex must use the current burn upper bound instead of a hard-coded cap."
+    Assert-True $cardScripts.Contains("ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, level, ""Target"");") "eclipse_hex must add current Burn stacks instead of directly setting a capped level."
     Assert-True $buffScripts.Contains("return maxHp / 100 + 1;") "body_burn must deal 1% max HP + 1 true damage per stack."
     Assert-True (-not $specialTagRuntime.Contains("CardConfigApi.BaseCost")) "White radiance should use current actual play cost, not BaseCost."
     Assert-True $cardConfigApi.Contains("ReadPlayerCardCostMultiplier") "CardConfigApi must read the player CardCost multiplier."
