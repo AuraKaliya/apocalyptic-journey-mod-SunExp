@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using Newtonsoft.Json;
 using SkillCGExp.Dll.Hooks;
 using SkillCGExp.Dll.Infrastructure;
 using UnityEngine;
@@ -21,15 +23,22 @@ public sealed class SkillCgConfig
         var path = Path.Combine(modDirectory, "SkillCGConfig.json");
         if (!File.Exists(path))
         {
-            SkillCgExpLog.WarnOnce("config-missing", "SkillCGConfig.json not found; using the built-in CG.png wildcard skill rule.");
+            SkillCgExpLog.WarnOnce("config-missing", "SkillCGConfig.json not found; using built-in official role skill CG rules.");
             return CreateDefault();
         }
 
         try
         {
             var text = File.ReadAllText(path);
-            var config = JsonUtility.FromJson<SkillCgConfig>(text) ?? CreateDefault();
+            var config = JsonConvert.DeserializeObject<SkillCgConfig>(text) ?? CreateDefault();
+            if (config.enabled && (config.rules == null || config.rules.Length == 0))
+            {
+                SkillCgExpLog.WarnOnce("config-rules-empty", "SkillCGConfig.json loaded with no rules; using built-in official role skill CG rules.");
+                config.rules = CreateDefault().rules;
+            }
+
             config.Normalize(modDirectory);
+            SkillCgExpLog.InfoOnce("config-loaded", "SkillCGConfig loaded: path=" + path + ", rules=" + config.rules.Length + ", summary=" + BuildRuleSummary(config.rules));
             return config;
         }
         catch (Exception ex)
@@ -37,6 +46,14 @@ public sealed class SkillCgConfig
             SkillCgExpLog.WarnOnce("config-load-failed", "SkillCGConfig.json failed to load; using defaults. error=" + ex.Message);
             return CreateDefault();
         }
+    }
+
+    private static string BuildRuleSummary(IEnumerable<SkillCgRule> rules)
+    {
+        var summary = rules
+            .Select(rule => rule.cardId + "->" + Path.GetFileName(rule.image))
+            .ToArray();
+        return summary.Length == 0 ? "<none>" : string.Join("|", summary);
     }
 
     public void Normalize(string modDirectory)
@@ -64,11 +81,23 @@ public sealed class SkillCgConfig
             {
                 new SkillCgRule
                 {
-                    providerId = "SkillCGExp.DefaultStaticCG",
-                    cardId = "*",
-                    action = "Skill",
-                    image = "CG.png",
-                    priority = 0,
+                    providerId = "SkillCGExp.AmeliaSkillCG",
+                    cardId = "careercard_1",
+                    action = "*",
+                    image = "CG_\u963F\u7C73\u8389\u5A05.png",
+                    priority = 10,
+                    fadeIn = 0.35f,
+                    hold = 1.0f,
+                    fadeOut = 0.45f,
+                    enabled = true
+                },
+                new SkillCgRule
+                {
+                    providerId = "SkillCGExp.AdelaSkillCG",
+                    cardId = "careercard_4",
+                    action = "*",
+                    image = "CG_\u963F\u9EDB\u62C9.png",
+                    priority = 10,
                     fadeIn = 0.35f,
                     hold = 1.0f,
                     fadeOut = 0.45f,

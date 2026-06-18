@@ -6,12 +6,24 @@
   "rules": [
     {
       "enabled": true,
-      "providerId": "SkillCGExp.DefaultStaticCG",
-      "cardId": "*",
-      "action": "Skill",
+      "providerId": "SkillCGExp.AmeliaSkillCG",
+      "cardId": "careercard_1",
+      "action": "*",
       "ownerInstanceId": "",
-      "image": "CG.png",
-      "priority": 0,
+      "image": "CG_\u963F\u7C73\u8389\u5A05.png",
+      "priority": 10,
+      "fadeIn": 0.35,
+      "hold": 1.0,
+      "fadeOut": 0.45
+    },
+    {
+      "enabled": true,
+      "providerId": "SkillCGExp.AdelaSkillCG",
+      "cardId": "careercard_4",
+      "action": "*",
+      "ownerInstanceId": "",
+      "image": "CG_\u963F\u9EDB\u62C9.png",
+      "priority": 10,
       "fadeIn": 0.35,
       "hold": 1.0,
       "fadeOut": 0.45

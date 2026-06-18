@@ -17,6 +17,15 @@ public static class SkillCgArbiterRuntime
 {
     private const string GlobalObjectName = "SkillCGExp.CgArbiter.Global";
     private const string ComponentFullName = "SkillCGExp.Dll.Hooks.SkillCgArbiterRuntime+SkillCgArbiterComponent";
+    private const float SlideDurationSeconds = 2.0f;
+    private const float SlideImageHeightRatio = 0.85f;
+    private const float SlideStartXRatio = 1.18f;
+    private const float SlideEndXRatio = -0.18f;
+    private const float SlideCenterSlowStrength = 0.65f;
+    private const float AlphaFadeInStartXRatio = 1.05f;
+    private const float AlphaFadeInEndXRatio = 0.82f;
+    private const float AlphaFadeOutStartXRatio = 0.18f;
+    private const float AlphaFadeOutEndXRatio = -0.05f;
     public const int CurrentProtocolVersion = 1;
     public const int MinimumSupportedProtocolVersion = 1;
     private static readonly HashSet<string> ReuseLogOwners = new(StringComparer.OrdinalIgnoreCase);
@@ -327,10 +336,12 @@ public static class SkillCgArbiterRuntime
             overlayImage.enabled = true;
             overlayGroup!.alpha = 0f;
 
-            SkillCgExpLog.DebugLog("CG play: provider=" + request.ProviderId + ", card=" + request.CardId + ", image=" + Path.GetFileName(request.ImagePath));
-            yield return Fade(0f, 1f, request.FadeIn, generation);
-            yield return Wait(request.Hold, generation);
-            yield return Fade(1f, 0f, request.FadeOut, generation);
+            SkillCgExpLog.DebugLog(
+                "CG play slide: provider=" + request.ProviderId
+                + ", card=" + request.CardId
+                + ", image=" + Path.GetFileName(request.ImagePath)
+                + ", duration=" + SlideDurationSeconds.ToString("0.##") + "s");
+            yield return SlideRightToLeft(sprite, generation);
 
             if (generation != playGeneration)
             {
@@ -339,6 +350,90 @@ public static class SkillCgArbiterRuntime
 
             overlayImage.sprite = null;
             overlayRoot.SetActive(false);
+        }
+
+        private IEnumerator SlideRightToLeft(Sprite sprite, int generation)
+        {
+            if (overlayRoot == null || overlayGroup == null || overlayImage == null)
+            {
+                yield break;
+            }
+
+            var imageRect = overlayImage.rectTransform;
+            imageRect.anchorMin = new Vector2(0.5f, 0.5f);
+            imageRect.anchorMax = new Vector2(0.5f, 0.5f);
+            imageRect.pivot = new Vector2(0.5f, 0.5f);
+
+            var elapsed = 0f;
+            while (generation == playGeneration && elapsed < SlideDurationSeconds)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                var progress = Mathf.Clamp01(elapsed / SlideDurationSeconds);
+                var viewport = GetOverlayViewportSize();
+                var xRatio = EvaluateSlideXRatio(progress);
+
+                imageRect.sizeDelta = CalculateImageSize(sprite, viewport);
+                imageRect.anchoredPosition = new Vector2((xRatio - 0.5f) * viewport.x, 0f);
+                overlayGroup.alpha = EvaluateSlideAlpha(xRatio);
+                yield return null;
+            }
+
+            if (generation == playGeneration)
+            {
+                var viewport = GetOverlayViewportSize();
+                imageRect.sizeDelta = CalculateImageSize(sprite, viewport);
+                imageRect.anchoredPosition = new Vector2((SlideEndXRatio - 0.5f) * viewport.x, 0f);
+                overlayGroup.alpha = 0f;
+            }
+        }
+
+        private Vector2 GetOverlayViewportSize()
+        {
+            if (overlayRoot != null)
+            {
+                var rect = overlayRoot.GetComponent<RectTransform>().rect;
+                if (rect.width > 1f && rect.height > 1f)
+                {
+                    return new Vector2(rect.width, rect.height);
+                }
+            }
+
+            return new Vector2(Mathf.Max(1f, Screen.width), Mathf.Max(1f, Screen.height));
+        }
+
+        private static Vector2 CalculateImageSize(Sprite sprite, Vector2 viewport)
+        {
+            var spriteRect = sprite.rect;
+            var aspect = spriteRect.height <= 0f ? 1f : spriteRect.width / spriteRect.height;
+            var height = Mathf.Max(1f, viewport.y * SlideImageHeightRatio);
+            return new Vector2(height * aspect, height);
+        }
+
+        private static float EvaluateSlideXRatio(float progress)
+        {
+            var t = Mathf.Clamp01(progress);
+            var remappedProgress = Mathf.Clamp01(t + SlideCenterSlowStrength * Mathf.Sin(2f * Mathf.PI * t) / (2f * Mathf.PI));
+            return Mathf.Lerp(SlideStartXRatio, SlideEndXRatio, remappedProgress);
+        }
+
+        private static float EvaluateSlideAlpha(float xRatio)
+        {
+            if (xRatio >= AlphaFadeInStartXRatio || xRatio <= AlphaFadeOutEndXRatio)
+            {
+                return 0f;
+            }
+
+            if (xRatio > AlphaFadeInEndXRatio)
+            {
+                return Mathf.InverseLerp(AlphaFadeInStartXRatio, AlphaFadeInEndXRatio, xRatio);
+            }
+
+            if (xRatio < AlphaFadeOutStartXRatio)
+            {
+                return Mathf.InverseLerp(AlphaFadeOutEndXRatio, AlphaFadeOutStartXRatio, xRatio);
+            }
+
+            return 1f;
         }
 
         private IEnumerator LoadSprite(string path, Action<Sprite?> onLoaded)

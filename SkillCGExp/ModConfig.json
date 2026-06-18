@@ -2,13 +2,13 @@
   "ModName": "SkillCGExp",
   "ModVersion": "0.1.0",
   "ModAuthor": "Aura",
-  "ModDescription": "在技能动作播放时按队列显示静态 CG：图片淡入、短暂停留、淡出。CG 请求走全局队列仲裁，支持联机同装本地同步播放，并避免多 MOD 直接抢占同一 UI。",
-  "IconPath": "CG.png",
+  "ModDescription": "\u89D2\u8272\u4F7F\u7528\u6307\u5B9A\u6280\u80FD\u65F6\u64AD\u653E\u5BF9\u5E94\u9759\u6001 CG\uFF1A\u56FE\u7247\u6DE1\u5165\u3001\u77ED\u6682\u505C\u7559\u3001\u6DE1\u51FA\u3002CG \u8BF7\u6C42\u8D70\u5168\u5C40\u961F\u5217\u4EF2\u88C1\uFF0C\u907F\u514D\u591A MOD \u76F4\u63A5\u62A2\u5360\u540C\u4E00 UI\u3002",
+  "IconPath": "CG_\u963F\u7C73\u8389\u5A05.png",
   "Enabled": true,
   "WorkshopVisibility": null,
   "WorkshopTags": [
-    "工具",
-    "视觉"
+    "\u5DE5\u5177",
+    "\u89C6\u89C9"
   ],
   "PublishedFileId": null
 }

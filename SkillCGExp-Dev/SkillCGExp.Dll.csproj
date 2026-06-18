@@ -28,6 +28,10 @@
       <HintPath>$(DllPath)\netstandard.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(DllPath)\Newtonsoft.Json.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>$(DllPath)\UnityEngine.CoreModule.dll</HintPath>
       <Private>false</Private>

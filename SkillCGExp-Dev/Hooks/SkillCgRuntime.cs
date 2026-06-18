@@ -86,17 +86,18 @@ public static class SkillCgRuntime
             return null;
         }
 
-        var action = ReadData(dataConfig, "Action");
-        if (string.IsNullOrWhiteSpace(action))
-        {
-            return null;
-        }
-
         var cardId = ReadData(dataConfig, "Id");
         if (string.IsNullOrWhiteSpace(cardId))
         {
             cardId = dataConfig.InstanceID ?? "";
         }
+
+        if (string.IsNullOrWhiteSpace(cardId))
+        {
+            return null;
+        }
+
+        var action = ReadData(dataConfig, "Action");
 
         var owner = scriptExecutor?.Self as StatusManager;
         var ownerInstanceId = owner?.InstanceId ?? "";
