@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <Compile Include="..\BattleBgmArbiterShared\BattleBgmArbiterRuntime.cs" Link="Shared\BattleBgmArbiterRuntime.cs" />
+    <Compile Include="..\AudioArbiterShared\AudioArbiterRuntime.cs" Link="Shared\AudioArbiterRuntime.cs" />
   </ItemGroup>
 
   <ItemGroup>

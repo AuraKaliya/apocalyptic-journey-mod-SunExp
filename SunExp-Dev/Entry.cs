@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Reflection;
 using Witch.Mod;
+using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks;
 using SunExp.Dll.Infrastructure;
 
@@ -13,6 +14,7 @@ public static class Entry
     public static void Initialize(ModConfig modConfig)
     {
         RegisterLuaVisibleAssembly();
+        AudioApi.Initialize(modConfig);
         SunExpLog.Info("SunExp C# entry loaded");
         RuntimeHooks.Initialize(modConfig);
         SpecialTagRuntime.Initialize();

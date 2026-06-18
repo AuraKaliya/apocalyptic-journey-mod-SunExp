@@ -131,6 +131,7 @@ public static class WunaScripts
         }
 
         self.SetStatus("Self");
+        AudioApi.PlayWhiteSunPrayer();
         TryAddCardToHand(self, CoronationTokenCardId);
         EnsureHandTags(self, "Burnout", SunExpIds.WhiteRadianceTag);
         PlayerApi.SetSkillTime(WhiteSunPrayerCardId, 5);
@@ -153,6 +154,7 @@ public static class WunaScripts
         }
 
         var burn = ember / 2;
+        AudioApi.PlayGraveSong();
         self.SetStatus("Self");
         BuffApi.ClearEmberDamageBonus(self, self.Self);
         self.RemoveBuff(SunExpIds.Ember);

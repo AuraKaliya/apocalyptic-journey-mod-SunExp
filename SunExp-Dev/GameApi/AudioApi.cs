@@ -1,18 +1,17 @@
 using System;
 using AudioArbiter.Shared;
-using SanGuoShaExp.Dll.Infrastructure;
+using SunExp.Dll.Infrastructure;
 using Witch.Mod;
 
-namespace SanGuoShaExp.Dll.GameApi;
+namespace SunExp.Dll.GameApi;
 
 public static class AudioApi
 {
-    private const string ModId = "SanGuoShaExp";
+    private const string ModId = "SunExp";
     private const string ManifestPath = "audio.registry.json";
-    private const string QixingKind = "SanGuoShaExp.Qixing";
-    private const string GaleKind = "SanGuoShaExp.Gale";
-    private const string MistKind = "SanGuoShaExp.Mist";
-    private const string ShenZhugeLiangRoleId = "shen_zhugeliang";
+    private const string WunaCareerId = "wuna";
+    private const string WhiteSunPrayerKind = "SunExp.Wuna.WhiteSunPrayer";
+    private const string GraveSongKind = "SunExp.Wuna.GraveSong";
 
     private static ModConfig? currentModConfig;
     private static bool initialized;
@@ -21,7 +20,7 @@ public static class AudioApi
     {
         if (modConfig == null)
         {
-            SanGuoShaExpLog.Warn("Audio initialization skipped: mod config is null");
+            SunExpLog.Warn("Audio initialization skipped: mod config is null");
             return;
         }
 
@@ -32,28 +31,31 @@ public static class AudioApi
 
         initialized = true;
         currentModConfig = modConfig;
+
         AudioArbiterRuntime.Initialize(modConfig, ModId);
         if (!AudioArbiterRuntime.RegisterManifest(modConfig, ModId, ManifestPath))
         {
-            SanGuoShaExpLog.Warn("Audio manifest registration failed: " + ManifestPath);
+            SunExpLog.Warn("Audio manifest registration failed: " + ManifestPath);
         }
+
+        BattleBgmProviderRuntime.Initialize(modConfig);
     }
 
-    public static void PlayQixing()
+    public static void PlayWhiteSunPrayer()
     {
-        Request(QixingKind, "Seven Stars");
+        Request(WhiteSunPrayerKind, "White Sun Prayer");
     }
 
-    public static void PlayRandomWindMist()
+    public static void PlayGraveSong()
     {
-        Request(UnityEngine.Random.Range(0, 2) == 0 ? GaleKind : MistKind, "Gale or Great Fog");
+        Request(GraveSongKind, "Grave Song");
     }
 
     private static void Request(string kind, string label)
     {
         if (currentModConfig == null)
         {
-            SanGuoShaExpLog.Warn("Audio request skipped before initialization: " + label);
+            SunExpLog.Warn("Audio request skipped before initialization: " + label);
             return;
         }
 
@@ -62,9 +64,9 @@ public static class AudioApi
             ModConfig = currentModConfig,
             OwnerModId = ModId,
             Kind = kind,
-            CareerId = ShenZhugeLiangRoleId,
-            RoleId = ShenZhugeLiangRoleId,
-            SourceName = "SanGuoShaExp.AudioApi." + label
+            CareerId = WunaCareerId,
+            RoleId = WunaCareerId,
+            SourceName = "SunExp.AudioApi." + label
         });
     }
 }

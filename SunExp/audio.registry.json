@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 2,
+  "ownerModId": "SunExp",
+  "audioProtocol": {
+    "minVersion": 2,
+    "preferredVersion": 2
+  },
+  "defaults": {
+    "sync": true,
+    "hardClaim": true,
+    "cooldownSeconds": 0.05,
+    "gainDb": 0,
+    "volumeMultiplier": 1
+  },
+  "providers": [
+    {
+      "providerId": "SunExp.Wuna.CareerSelected",
+      "kind": "CareerSelected",
+      "bus": "Vocal",
+      "policy": "ReplaceOriginal",
+      "priority": 100,
+      "path": "ModResource/audio/wuna_career_selected.wav",
+      "gainDb": 20,
+      "match": {
+        "careerIds": [
+          "wuna",
+          "SunExp_wuna_wuna"
+        ],
+        "roleIds": [
+          "wuna",
+          "SunExp_wuna_wuna"
+        ]
+      }
+    },
+    {
+      "providerId": "SunExp.Wuna.LowHealth",
+      "kind": "LowHealth",
+      "bus": "Vocal",
+      "policy": "ReplaceOriginal",
+      "priority": 200,
+      "path": "ModResource/audio/wuna_low_health.wav",
+      "gainDb": 22,
+      "cooldownSeconds": 1.0,
+      "match": {
+        "careerIds": [
+          "wuna",
+          "SunExp_wuna_wuna"
+        ],
+        "roleIds": [
+          "wuna",
+          "SunExp_wuna_wuna"
+        ],
+        "hpRatioCrossDown": 0.2,
+        "localOwnerOnly": true
+      },
+      "suppressOriginal": {
+        "vocalStates": [
+          "Dying"
+        ],
+        "narrationIds": [
+          17,
+          18
+        ]
+      }
+    },
+    {
+      "providerId": "SunExp.Wuna.WhiteSunPrayer",
+      "kind": "SunExp.Wuna.WhiteSunPrayer",
+      "bus": "Vocal",
+      "policy": "Additive",
+      "priority": 120,
+      "path": "ModResource/audio/wuna_white_sun_prayer.wav",
+      "gainDb": 20,
+      "cooldownSeconds": 0.2,
+      "match": {
+        "careerIds": [
+          "wuna",
+          "SunExp_wuna_wuna"
+        ],
+        "roleIds": [
+          "wuna",
+          "SunExp_wuna_wuna"
+        ]
+      }
+    },
+    {
+      "providerId": "SunExp.Wuna.GraveSong",
+      "kind": "SunExp.Wuna.GraveSong",
+      "bus": "Vocal",
+      "policy": "Additive",
+      "priority": 120,
+      "path": "ModResource/audio/wuna_grave_song.wav",
+      "gainDb": 20,
+      "cooldownSeconds": 0.2,
+      "match": {
+        "careerIds": [
+          "wuna",
+          "SunExp_wuna_wuna"
+        ],
+        "roleIds": [
+          "wuna",
+          "SunExp_wuna_wuna"
+        ]
+      }
+    },
+    {
+      "providerId": "SunExp.Wuna.BattleWin",
+      "kind": "BattleCompleted",
+      "bus": "Vocal",
+      "policy": "Additive",
+      "priority": 100,
+      "path": "ModResource/audio/wuna_battle_win.wav",
+      "gainDb": 20,
+      "cooldownSeconds": 0.5,
+      "match": {
+        "careerIds": [
+          "wuna",
+          "SunExp_wuna_wuna"
+        ],
+        "roleIds": [
+          "wuna",
+          "SunExp_wuna_wuna"
+        ],
+        "battleResults": [
+          "Win"
+        ]
+      }
+    }
+  ],
+  "battleBgmDefaults": {
+    "priority": 200,
+    "hardClaim": true,
+    "silenceWhenLoading": true,
+    "fallbackToOriginalWhenFailed": true,
+    "allowMidBattleSwitch": true
+  },
+  "battleBgmProviders": []
+}

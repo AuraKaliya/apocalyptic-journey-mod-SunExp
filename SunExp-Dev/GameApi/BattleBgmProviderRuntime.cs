@@ -5,14 +5,14 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using BattleBgmArbiter.Shared;
-using SanGuoShaExp.Dll.Infrastructure;
+using SunExp.Dll.Infrastructure;
 using Witch.Mod;
 
-namespace SanGuoShaExp.Dll.GameApi;
+namespace SunExp.Dll.GameApi;
 
 public static class BattleBgmProviderRuntime
 {
-    private const string ModId = "SanGuoShaExp";
+    private const string ModId = "SunExp";
     private const string ManifestPath = "audio.registry.json";
     private static ModConfig? currentModConfig;
     private static string primaryProviderId = "";
@@ -21,7 +21,7 @@ public static class BattleBgmProviderRuntime
     {
         if (modConfig == null)
         {
-            SanGuoShaExpLog.Warn("Battle BGM provider initialization skipped: mod config is null");
+            SunExpLog.Warn("Battle BGM provider initialization skipped: mod config is null");
             return;
         }
 
@@ -29,7 +29,7 @@ public static class BattleBgmProviderRuntime
         BattleBgmArbiterRuntime.Initialize(modConfig, ModId);
         if (!RegisterManifest(modConfig, ModId, ManifestPath))
         {
-            SanGuoShaExpLog.Warn("Battle BGM manifest registration failed: " + ManifestPath);
+            SunExpLog.Warn("Battle BGM manifest registration skipped or empty: " + ManifestPath);
         }
     }
 
@@ -37,13 +37,13 @@ public static class BattleBgmProviderRuntime
     {
         if (currentModConfig == null)
         {
-            SanGuoShaExpLog.Warn("Battle BGM switch skipped: provider runtime is not initialized");
+            SunExpLog.Warn("Battle BGM switch skipped: provider runtime is not initialized");
             return;
         }
 
         if (string.IsNullOrWhiteSpace(primaryProviderId))
         {
-            SanGuoShaExpLog.Warn("Battle BGM switch skipped: no provider registered from manifest");
+            SunExpLog.Warn("Battle BGM switch skipped: no provider registered from manifest");
             return;
         }
 
@@ -54,7 +54,7 @@ public static class BattleBgmProviderRuntime
             new BattleBgmSwitchRequest
             {
                 ProviderId = primaryProviderId,
-                Reason = string.IsNullOrWhiteSpace(reason) ? "SanGuoShaExp.RequestBattleSwitch" : reason,
+                Reason = string.IsNullOrWhiteSpace(reason) ? "SunExp.RequestBattleSwitch" : reason,
                 Force = force,
                 AllowSilenceWhenLoading = allowSilenceWhenLoading,
                 RestartIfSameClip = restartIfSameClip
@@ -65,17 +65,18 @@ public static class BattleBgmProviderRuntime
     {
         try
         {
+            primaryProviderId = "";
             var manifestPath = Path.Combine(modConfig.DirectoryName, manifestRelativePath);
             if (!File.Exists(manifestPath))
             {
-                SanGuoShaExpLog.Warn("Battle BGM manifest missing: " + manifestPath);
+                SunExpLog.Warn("Battle BGM manifest missing: " + manifestPath);
                 return false;
             }
 
             var manifest = DeserializeManifest(File.ReadAllText(manifestPath));
             if (manifest == null)
             {
-                SanGuoShaExpLog.Warn("Battle BGM manifest invalid: " + manifestPath);
+                SunExpLog.Warn("Battle BGM manifest invalid: " + manifestPath);
                 return false;
             }
 
@@ -94,7 +95,7 @@ public static class BattleBgmProviderRuntime
                 var providerId = provider.providerId?.Trim() ?? "";
                 if (string.IsNullOrWhiteSpace(providerId))
                 {
-                    SanGuoShaExpLog.Warn("Battle BGM provider skipped: providerId is empty");
+                    SunExpLog.Warn("Battle BGM provider skipped: providerId is empty");
                     continue;
                 }
 
@@ -120,15 +121,15 @@ public static class BattleBgmProviderRuntime
                 }
 
                 registered++;
-                SanGuoShaExpLog.Info("Battle BGM provider registered from manifest: " + providerId + ", path=" + audioPath);
+                SunExpLog.Info("Battle BGM provider registered from manifest: " + providerId + ", path=" + audioPath);
             }
 
-            SanGuoShaExpLog.Info("Battle BGM manifest registered: providers=" + registered + ", path=" + manifestPath);
-            return registered > 0;
+            SunExpLog.Info("Battle BGM manifest registered: providers=" + registered + ", path=" + manifestPath);
+            return true;
         }
         catch (Exception ex)
         {
-            SanGuoShaExpLog.Warn("Battle BGM manifest registration failed: " + ex);
+            SunExpLog.Warn("Battle BGM manifest registration failed: " + ex);
             return false;
         }
     }
@@ -215,7 +216,7 @@ public static class BattleBgmProviderRuntime
             }
             catch (Exception ex)
             {
-                SanGuoShaExpLog.Warn("Battle BGM adventure condition failed: " + ex.Message);
+                SunExpLog.Warn("Battle BGM adventure condition failed: " + ex.Message);
                 return false;
             }
         };
@@ -269,7 +270,7 @@ public static class BattleBgmProviderRuntime
             }
             catch (Exception ex)
             {
-                SanGuoShaExpLog.Warn("Battle BGM battle condition failed: " + ex.Message);
+                SunExpLog.Warn("Battle BGM battle condition failed: " + ex.Message);
                 return false;
             }
         };

@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 2,
+  "ownerModId": "SanGuoShaExp",
+  "audioProtocol": {
+    "minVersion": 2,
+    "preferredVersion": 2
+  },
+  "defaults": {
+    "sync": true,
+    "hardClaim": true,
+    "cooldownSeconds": 0.05,
+    "gainDb": 0,
+    "volumeMultiplier": 1
+  },
+  "providers": [
+    {
+      "providerId": "SanGuoShaExp.ShenZhugeLiang.LowHealth",
+      "kind": "LowHealth",
+      "bus": "Vocal",
+      "policy": "ReplaceOriginal",
+      "priority": 200,
+      "path": "ModResource/audio/low_health.mp3",
+      "gainDb": 20,
+      "cooldownSeconds": 1.0,
+      "match": {
+        "careerIds": [
+          "shen_zhugeliang",
+          "SanGuoShaExp_shen_zhugeliang_shen_zhugeliang"
+        ],
+        "roleIds": [
+          "shen_zhugeliang",
+          "SanGuoShaExp_shen_zhugeliang_shen_zhugeliang"
+        ],
+        "hpRatioCrossDown": 0.2,
+        "localOwnerOnly": true
+      },
+      "suppressOriginal": {
+        "vocalStates": [
+          "Dying"
+        ],
+        "narrationIds": [
+          17,
+          18
+        ]
+      }
+    },
+    {
+      "providerId": "SanGuoShaExp.ShenZhugeLiang.CareerSelected",
+      "kind": "CareerSelected",
+      "bus": "Vocal",
+      "policy": "ReplaceOriginal",
+      "priority": 100,
+      "path": "ModResource/audio/career_selected.mp3",
+      "gainDb": 8,
+      "match": {
+        "careerIds": [
+          "shen_zhugeliang",
+          "SanGuoShaExp_shen_zhugeliang_shen_zhugeliang"
+        ],
+        "roleIds": [
+          "shen_zhugeliang",
+          "SanGuoShaExp_shen_zhugeliang_shen_zhugeliang"
+        ]
+      }
+    },
+    {
+      "providerId": "SanGuoShaExp.ShenZhugeLiang.Qixing",
+      "kind": "SanGuoShaExp.Qixing",
+      "bus": "Effect",
+      "policy": "Additive",
+      "priority": 100,
+      "path": "ModResource/audio/qixing.mp3",
+      "gainDb": 8
+    },
+    {
+      "providerId": "SanGuoShaExp.ShenZhugeLiang.Gale",
+      "kind": "SanGuoShaExp.Gale",
+      "bus": "Effect",
+      "policy": "Additive",
+      "priority": 100,
+      "path": "ModResource/audio/gale.mp3",
+      "gainDb": 8
+    },
+    {
+      "providerId": "SanGuoShaExp.ShenZhugeLiang.Mist",
+      "kind": "SanGuoShaExp.Mist",
+      "bus": "Effect",
+      "policy": "Additive",
+      "priority": 100,
+      "path": "ModResource/audio/mist.mp3",
+      "gainDb": 8
+    }
+  ],
+  "battleBgmDefaults": {
+    "priority": 200,
+    "hardClaim": true,
+    "silenceWhenLoading": true,
+    "fallbackToOriginalWhenFailed": true,
+    "allowMidBattleSwitch": true
+  },
+  "battleBgmProviders": [
+    {
+      "providerId": "SanGuoShaExp.ShenZhugeLiangBattleBgm",
+      "path": "ModResource/audio/bgm/shen_zhugeliang_battle.mp3",
+      "isDefault": true,
+      "match": {
+        "careerIds": [
+          "shen_zhugeliang",
+          "SanGuoShaExp_shen_zhugeliang_shen_zhugeliang"
+        ]
+      }
+    }
+  ]
+}

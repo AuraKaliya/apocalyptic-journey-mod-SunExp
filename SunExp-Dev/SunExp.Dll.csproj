@@ -24,8 +24,29 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\AudioArbiterShared\AudioArbiterRuntime.cs" Link="Shared\AudioArbiterRuntime.cs" />
+    <Compile Include="..\BattleBgmArbiterShared\BattleBgmArbiterRuntime.cs" Link="Shared\BattleBgmArbiterRuntime.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="netstandard">
+      <HintPath>$(DllPath)\netstandard.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>$(DllPath)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AudioModule">
+      <HintPath>$(DllPath)\UnityEngine.AudioModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestModule">
+      <HintPath>$(DllPath)\UnityEngine.UnityWebRequestModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestAudioModule">
+      <HintPath>$(DllPath)\UnityEngine.UnityWebRequestAudioModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.UI">
