@@ -1,0 +1,20 @@
+{
+  "enabled": true,
+  "maxQueueLength": 8,
+  "maxRequestAgeSeconds": 6.0,
+  "duplicateWindowSeconds": 0.2,
+  "rules": [
+    {
+      "enabled": true,
+      "providerId": "SkillCGExp.DefaultStaticCG",
+      "cardId": "*",
+      "action": "Skill",
+      "ownerInstanceId": "",
+      "image": "CG.png",
+      "priority": 0,
+      "fadeIn": 0.35,
+      "hold": 1.0,
+      "fadeOut": 0.45
+    }
+  ]
+}
