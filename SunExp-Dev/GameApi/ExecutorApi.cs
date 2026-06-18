@@ -816,14 +816,15 @@ public static class ExecutorApi
         return SelfBuffLevel(executor, SunExpIds.SolarCrownTier);
     }
 
-    public static void HandleBurnOverflow(ScriptExecutor? executor, IStatusManager? target, string buffId, int amount)
+    public static void HandleBurnOverflow(IStatusManager? target, string buffId, int amount)
     {
-        if (executor == null || target == null || buffId != SunExpIds.Burn || !IsActiveField(executor, "scorching_canopy"))
+        if (target == null || buffId != SunExpIds.Burn || amount <= 0 || !IsSharedFieldActive("scorching_canopy"))
         {
             return;
         }
 
-        if (IsSelf(executor, target) && IsSelfBurnProtected(executor, true))
+        var ward = target.GetBuff(SunExpIds.EmberCloak);
+        if (ward?.buffConfig != null && ward.buffConfig.Level > 0)
         {
             return;
         }
@@ -837,7 +838,7 @@ public static class ExecutorApi
                 + ", add=" + amount
                 + ", upperBound=" + upperBound
                 + ", overflow=" + overflow);
-            AddStatusBuff(executor, target, SunExpIds.BodyBurn, overflow, "Target");
+            target.AddBuff(SunExpIds.BodyBurn, overflow);
         }
     }
 }
