@@ -1,0 +1,6 @@
+"Id","Note","Name","Name_zh-Hant","Name_en","Name_ja","Description","Description_zh-Hant","Description_ja","Description_en"
+"唯一标识","备注","名字","名字","Name","名前","描述","描述","説明","Description"
+"wine","","酒意","酒意","Wine","酒意","下一张杀系牌每层伤害+14，使用杀系牌后移除。","下一張殺系牌每層傷害+14，使用殺系牌後移除。","次の殺系カードは1スタックにつきダメージ+14。殺系カード使用後に解除。","Your next Sha-type card gains +14 damage per stack. Removed after playing a Sha-type card."
+"chain","","连环","連環","Chain","連環","受到火/雷伤害时，会使其他连环敌人受到溅射伤害。","受到火/雷傷害時，會使其他連環敵人受到濺射傷害。","火/雷ダメージを受けると、他の連環中の敵にも波及ダメージを与える。","When taking Fire or Thunder damage, other Chained enemies take splash damage."
+"supply_shortage","","兵粮寸断","兵糧寸斷","Supply Shortage","兵糧寸断","军争锦囊造成的断粮状态，同时会伴随无力和弱点。","軍爭錦囊造成的斷糧狀態，同時會伴隨無力和弱點。","軍争の計略による兵糧不足。脱力と弱点を伴う。","A Military tactic status paired with Weak and Weakness."
+"vine_armor","","藤甲","藤甲","Vine Armor","藤甲","获得大量防御，但火焰会成为风险。","獲得大量防禦，但火焰會成為風險。","大きな防御を得るが、炎が危険となる。","Grants heavy defense, but marks Fire as a risk."

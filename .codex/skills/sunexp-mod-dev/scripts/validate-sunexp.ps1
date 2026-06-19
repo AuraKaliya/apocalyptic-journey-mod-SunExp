@@ -287,6 +287,36 @@ function Test-SunExpWunaEventIds {
     }
 }
 
+function Test-EnemyAnimationMapResources {
+    param(
+        [object[]]$Rows,
+        [string]$RepoRoot
+    )
+    foreach ($row in $Rows) {
+        if (-not ($row.PSObject.Properties.Name -contains "Animation")) {
+            continue
+        }
+        $value = $row.Animation
+        if ([string]::IsNullOrWhiteSpace($value) -or $value -notlike "Mods/SunExp/*") {
+            continue
+        }
+
+        $relative = $value -replace "^Mods/SunExp/", "SunExp/"
+        $animationRoot = Join-Path $RepoRoot $relative
+        $mapRoot = Join-Path $animationRoot "Map"
+        $mapFrames = @()
+        if (Test-Path -LiteralPath $mapRoot) {
+            $mapFrames = @(Get-ChildItem -LiteralPath $mapRoot -File -ErrorAction SilentlyContinue | Where-Object {
+                $_.Extension -in @(".png", ".jpg", ".jpeg")
+            })
+        }
+
+        if ($mapFrames.Count -eq 0) {
+            Add-Failure "Enemy '$($row.Id)' Animation '$value' is missing Map/*.png or Map/*.jpg. MapItem.Init calls Animation/Map before falling back to Idle, and empty mod folders return null."
+        }
+    }
+}
+
 function New-Text {
     param([int[]]$CodePoints)
     return -join ($CodePoints | ForEach-Object { [char]$_ })
@@ -342,6 +372,7 @@ $relics = Read-Rows (Join-Path $modRootPath "Data\Relic\sunexp.csv")
 $relicTexts = Read-Rows (Join-Path $modRootPath "Text\Relic\sunexp.csv")
 $packs = Read-Rows (Join-Path $modRootPath "Data\CardPack\sunexp.csv")
 $packTexts = Read-Rows (Join-Path $modRootPath "Text\CardPack\sunexp.csv")
+$enemies = Read-Rows (Join-Path $modRootPath "Data\Enemy\sunexp.csv")
 
 Test-TextPair "Card" $cards $cardTexts
 Test-TextPair "Buff" $buffs $buffTexts
@@ -357,6 +388,8 @@ Test-PackRefs "Relic" $relics $packIds
 
 Test-ResourcePaths "Card" $cards $repoRoot
 Test-ResourcePaths "Relic" $relics $repoRoot
+Test-ResourcePaths "Enemy" $enemies $repoRoot
+Test-EnemyAnimationMapResources $enemies $repoRoot
 
 Test-ScriptResidue "Data/Card/sunexp.csv" $cards
 Test-ScriptResidue "Data/Buff/sunexp.csv" $buffs
@@ -398,4 +431,4 @@ if ($script:Failures.Count -gt 0) {
     exit 1
 }
 
-Write-Host "SunExp validation passed: cards=$($cards.Count), relics=$($relics.Count), buffs=$($buffs.Count), packs=$($packs.Count), warnings=$($script:Warnings.Count)."
+Write-Host "SunExp validation passed: cards=$($cards.Count), relics=$($relics.Count), buffs=$($buffs.Count), packs=$($packs.Count), enemies=$($enemies.Count), warnings=$($script:Warnings.Count)."

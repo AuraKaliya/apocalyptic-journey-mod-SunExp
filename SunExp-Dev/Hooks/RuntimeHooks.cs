@@ -16,6 +16,8 @@ public static class RuntimeHooks
         SolarMemoryStarterDeckRuntime.Initialize(modConfig);
         AnimatedBlessingIconRuntime.Initialize(modConfig);
         AnimatedBuffIconRuntime.Initialize(modConfig);
+        AnimatedEnemyDictIconRuntime.Initialize(modConfig);
+        SolarMemoryMapItemAnimationRuntime.Initialize(modConfig);
         SunExpLog.Info("Runtime hooks registered");
     }
 

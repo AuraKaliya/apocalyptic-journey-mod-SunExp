@@ -60,7 +60,9 @@ public static class Entry
             }
 
             luaEnv.DoString(
-                "assert(xlua.import_type('SanGuoShaExp.Dll.Scripting.ShenZhugeLiangScripts'), 'SanGuoShaExp ShenZhugeLiangScripts unavailable');",
+                "assert(xlua.import_type('SanGuoShaExp.Dll.Scripting.ShenZhugeLiangScripts'), 'SanGuoShaExp ShenZhugeLiangScripts unavailable');"
+                + "assert(xlua.import_type('SanGuoShaExp.Dll.Scripting.SanGuoShaCardScripts'), 'SanGuoShaExp SanGuoShaCardScripts unavailable');"
+                + "assert(xlua.import_type('SanGuoShaExp.Dll.Scripting.SanGuoShaRelicScripts'), 'SanGuoShaExp SanGuoShaRelicScripts unavailable');",
                 "SanGuoShaExp.RegisterLuaVisibleAssembly");
             SanGuoShaExpLog.Info("Registered C# script assembly for XLua: " + assemblyName);
         }
