@@ -218,19 +218,11 @@ public static class SolarMemoryStarterDeckRuntime
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var packId in packIds.Where(IsValidPackForCurrentLobby).OrderBy(id => id))
         {
-            foreach (var pair in Singleton<GameConfigManager>.Instance.GetPackItems(packId))
+            foreach (var card in GameCompatibilityApi.GetItemsByPack(DataType.Card, packId))
             {
-                if (pair.Key != DataType.Card)
+                if (card.TryGetValue("Id", out var id) && !string.IsNullOrWhiteSpace(id) && seen.Add(id))
                 {
-                    continue;
-                }
-
-                foreach (var card in pair.Value)
-                {
-                    if (card.TryGetValue("Id", out var id) && !string.IsNullOrWhiteSpace(id) && seen.Add(id))
-                    {
-                        ids.Add(id);
-                    }
+                    ids.Add(id);
                 }
             }
         }

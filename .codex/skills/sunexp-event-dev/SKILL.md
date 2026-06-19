@@ -3,8 +3,9 @@ name: sunexp-event-dev
 description: >-
   Project-local skill for designing, adding, reviewing, or fixing SunExp
   EventList rows, Text/EventList localization, card-pack story event chains,
-  map-visible special events, event reward/progress behavior, and C# event
-  scripts for Witch's Apocalyptic Journey.
+  map-visible or mode-exclusive events and bosses, random-pool isolation,
+  multiplayer map synchronization, event reward/progress behavior, and C#
+  event scripts for Witch's Apocalyptic Journey.
 ---
 
 # SunExp Event Dev
@@ -18,6 +19,7 @@ Use this skill inside the SunExp repository for event work. Pair it with
    - Ordinary event: may enter the base random event pool.
    - Story chain event: use `Sub_` ids so it is not randomly drawn as an ordinary event.
    - Map-visible special event: needs `Data/Map`, `Text/Map`, runtime selection handling, and narrow selection sync repair.
+   - Mode-exclusive event or boss: must be excluded from every global map pool and admitted only by that mode's guarded factory.
    - Repeat event: must be entered only by explicit progress logic.
 2. Inspect the current rows and C# behavior before editing:
    - `SunExp/Data/EventList/sunexp.csv`
@@ -38,6 +40,8 @@ Use this skill inside the SunExp repository for event work. Pair it with
 - Do not use hard-coded English captions in event reward/progress helpers.
 - Do not rely on UI creation alone for map-visible events; keep runtime selection behavior aligned.
 - Do not globally rewrite ordinary event `mapdata`; repair only entries whose map id is your special event id.
+- Do not treat `Breaks_` or an unreachable `Level` as complete mode isolation. Use `Rarity=7` for internal fixed Map rows, retain a mode guard, and sanitize old generated nodes/sync arrays outside the owning mode.
+- Do not invent a custom `Text/Map.Note` merely to isolate content. Native map weighting expects known Note keys and may select unknown keys before crashing.
 - Keep `Data/EventList` option scripts aligned with `Text/EventList` option descriptions.
 
 ## References

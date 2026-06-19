@@ -1,3 +1,4 @@
-display_name: SunExp Event Dev
-short_description: Build and review SunExp event chains, map events, CSV rows, and C# event scripts.
-default_prompt: Use this skill to design, add, or fix SunExp events with synchronized Data/Text rows, C# event behavior, and regression checks.
+interface:
+  display_name: "SunExp Event Dev"
+  short_description: "Build isolated SunExp events and map flows."
+  default_prompt: "Use $sunexp-event-dev to design or fix SunExp event chains, mode-exclusive map nodes, synchronization, and regression checks."

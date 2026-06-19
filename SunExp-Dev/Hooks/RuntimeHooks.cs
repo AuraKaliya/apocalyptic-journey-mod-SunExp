@@ -14,6 +14,7 @@ public static class RuntimeHooks
         RegisterAfter(modConfig, "StatusManager.AddBuff", OnStatusManagerAddBuffAfter);
         DuskPartnerRuntime.Initialize(modConfig);
         SolarMemoryModeRuntime.Initialize(modConfig);
+        SolarMemoryContentIsolationRuntime.Initialize(modConfig);
         SolarMemoryStarterDeckRuntime.Initialize(modConfig);
         SunExpHardTagRuntime.Initialize(modConfig);
         AnimatedBlessingIconRuntime.Initialize(modConfig);

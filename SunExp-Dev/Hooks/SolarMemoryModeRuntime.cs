@@ -1436,6 +1436,7 @@ public static class SolarMemoryModeRuntime
         node.data["Note"] = "普通事件";
         node.data["NodeId"] = eventId;
         node.data["Level"] = "-1";
+        node.NodeDice = Dice.Default;
         return node;
     }
 
@@ -1743,24 +1744,9 @@ public static class SolarMemoryModeRuntime
 
     private static string PackCounts(string id)
     {
-        var card = 0;
-        var relic = 0;
-        var bless = 0;
-        foreach (var pair in Singleton<GameConfigManager>.Instance.GetPackItems(id))
-        {
-            if (pair.Key == DataType.Card)
-            {
-                card += pair.Value.Count;
-            }
-            else if (pair.Key == DataType.Relic)
-            {
-                relic += pair.Value.Count;
-            }
-            else if (pair.Key == DataType.Bless)
-            {
-                bless += pair.Value.Count;
-            }
-        }
+        var card = GameCompatibilityApi.GetItemsByPack(DataType.Card, id).Count;
+        var relic = GameCompatibilityApi.GetItemsByPack(DataType.Relic, id).Count;
+        var bless = GameCompatibilityApi.GetItemsByPack(DataType.Bless, id).Count;
 
         return "卡 " + card + " / 遗物 " + relic + " / 祝福 " + bless;
     }

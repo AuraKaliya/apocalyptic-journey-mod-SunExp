@@ -30,3 +30,16 @@ Add or update tests for these risks when the touched event surface requires them
 - Final `NodeId` points to the controlled event row, not a random ordinary event.
 - Selection sync repairs only entries whose `maps[i]` is the special map id.
 - Fixed story events remain unchanged.
+
+## Mode Isolation
+
+- Every exclusive Map row, including setup events and bosses, has `Rarity=7`.
+- Full and short Map IDs are recognized by one centralized predicate.
+- Story EventList IDs remain `Sub_` rows.
+- The owning mode bypasses the non-owner sanitizer.
+- World Simulation, Sublimation, tutorial, and slot-style modes cannot draw exclusive rows.
+- Existing polluted map lists are repaired before map UI creation.
+- Multiplayer sync repair changes only exclusive map/event entries.
+- Official event `NodeId` values survive visual-template replacement.
+- Custom and replacement nodes have deterministic `NodeDice`.
+- Tests do not claim that `Breaks_` alone excludes `TypeGenerate` draws.

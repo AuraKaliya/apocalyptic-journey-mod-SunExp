@@ -101,14 +101,26 @@ public static class SunExpHardTagRuntime
                 return;
             }
 
-            ApplyWhiteRadianceCourtCards();
-            ApplyScorchedWorld();
-            ApplySunsetExpedition();
-            RegisterPlayerRoundListener("Fight_Start.Init");
+            RunFightStartStep("WhiteRadianceCourt", () => ApplyWhiteRadianceCourtCards());
+            RunFightStartStep("ScorchedWorld", ApplyScorchedWorld);
+            RunFightStartStep("SunsetExpedition", ApplySunsetExpedition);
+            RunFightStartStep("BlackSunListener", () => RegisterPlayerRoundListener("Fight_Start.Init"));
         }
         catch (Exception ex)
         {
             SunExpLog.Error("SunExp hard tag fight start failed", ex);
+        }
+    }
+
+    private static void RunFightStartStep(string name, Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("SunExp hard tag fight-start step failed: " + name, ex);
         }
     }
 
@@ -242,15 +254,14 @@ public static class SunExpHardTagRuntime
             return;
         }
 
-        var executor = FightPlayer.Instance?.Status?.MirrorSc as ScriptExecutor;
-        if (executor == null)
+        var status = FightPlayer.Instance?.Status;
+        if (status == null)
         {
-            FightPlayer.Instance?.Status?.AddBuff(SunExpIds.ScorchingCanopy, level);
             return;
         }
 
-        executor.SetStatus("Self");
-        executor.AddBuff(SunExpIds.ScorchingCanopy, level.ToString());
+        status.AddBuff(SunExpIds.ScorchingCanopy, level);
+        var executor = status.MirrorSc as ScriptExecutor;
         ExecutorApi.SyncFieldStacks(executor, SunExpFieldId.ScorchingCanopy);
     }
 
@@ -263,20 +274,32 @@ public static class SunExpHardTagRuntime
 
         var count = Math.Max(0, DictionaryUtil.ParseInt(PlayerApi.GetGameVar(SunExpIds.HardSunsetFightCountKey, "0")));
         var percent = Math.Min(50, count);
-        var executor = FightPlayer.Instance?.Status?.MirrorSc as ScriptExecutor;
         var status = FightPlayer.Instance?.Status;
-        if (percent > 0 && executor != null && status != null)
+        if (percent > 0 && status != null && status.CurHp > 1)
         {
-            var damage = Math.Max(1, status.CurHp * percent / 100);
-            damage = Math.Min(damage, Math.Max(0, status.CurHp - 1));
-            if (damage > 0)
+            var oldHp = status.CurHp;
+            var damage = Math.Max(1, oldHp * percent / 100);
+            var nextHp = Math.Max(1, oldHp - damage);
+            if (nextHp < oldHp)
             {
-                executor.SetStatus("Self");
-                executor.ChangeHp((-damage).ToString());
+                status.CurHp = nextHp;
+                SunExpLog.Info("[SunsetExpedition] count="
+                    + count
+                    + "; percent="
+                    + percent
+                    + "; hp="
+                    + oldHp
+                    + "->"
+                    + nextHp
+                    + "; statusId="
+                    + status.InstanceId);
             }
         }
 
-        PlayerApi.SetGameVar(SunExpIds.HardSunsetFightCountKey, (count + 1).ToString());
+        if (IsServerAuthority())
+        {
+            PlayerApi.SetGameVar(SunExpIds.HardSunsetFightCountKey, (count + 1).ToString());
+        }
     }
 
     private static void ApplyWhiteRadianceCourtCards(ScriptExecutor? executor = null)

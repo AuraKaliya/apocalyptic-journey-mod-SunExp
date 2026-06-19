@@ -9,6 +9,7 @@ Run:
 ```powershell
 tools\Build-SunExpDll.ps1
 tools\Test-SunExpCSharp.ps1
+.codex\skills\sunexp-event-dev\scripts\validate-sunexp-events.ps1 # when EventList or Map changes
 .codex\skills\sunexp-mod-dev\scripts\validate-sunexp.ps1
 ```
 
@@ -35,6 +36,9 @@ Automated checks do not prove Unity runtime semantics. Manually reason through:
 - Does every event listener avoid duplicated hooks?
 - Does every changed behavior update player-facing text?
 - Does any changed hook, audio provider, BGM provider, animated icon runtime, or game API wrapper need in-game verification?
+- Does a compatibility wrapper support the current Managed signature, known legacy signature, and a deterministic fallback?
+- Does each custom map node have `NodeDice`, and are shared run/map mutations host-authoritative?
+- Can one failed lifecycle step prevent unrelated setup from running?
 
 ## Known limitations
 

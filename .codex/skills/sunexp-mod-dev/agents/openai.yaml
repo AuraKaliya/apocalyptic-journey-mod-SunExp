@@ -1,4 +1,4 @@
 interface:
   display_name: "SunExp Mod Dev"
-  short_description: "Build and validate SunExp C# mod content."
-  default_prompt: "Use this project skill when editing SunExp C# scripts, CSV data, localization, cards, buffs, relics, card packs, roles, dialogue, events, or authoring boundaries."
+  short_description: "Build and debug SunExp runtime and content."
+  default_prompt: "Use $sunexp-mod-dev to implement or debug SunExp C# runtime, Managed compatibility, multiplayer hooks, CSV content, and validation."

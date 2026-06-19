@@ -57,6 +57,113 @@ Use `rg -n "pattern" LogExp tools -g "*.ps1"` for file globs, or enumerate wildc
 
 ---
 
+## [ERR-20260620-001] managed-method-signature-drift
+
+**Logged**: 2026-06-20T01:20:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: runtime-compatibility
+
+### Summary
+`SolarMemoryStarterDeckRuntime` compiled against an older direct
+`GameConfigManager.GetPackItems` signature and failed at runtime after Managed
+assemblies changed.
+
+### Error
+```text
+System.MissingMethodException: Method not found: GameConfigManager.GetPackItems(string)
+```
+
+### Distilled Fix
+Treat repository `Managed/` as the current contract. Route known drifting APIs
+through one `GameApi` reflection wrapper that supports current and legacy
+signatures, then falls back to a deterministic table scan. Rebuild `Entry.dll`
+after updating Managed.
+
+### Resolution
+- **Resolved**: 2026-06-20T01:20:00+08:00
+- **Related Files**: `SunExp-Dev/GameApi/GameCompatibilityApi.cs`, `SunExp-Dev/Hooks/SolarMemoryStarterDeckRuntime.cs`
+
+---
+
+## [ERR-20260620-002] map-breaks-is-not-mode-isolation
+
+**Logged**: 2026-06-20T01:20:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: map-runtime
+
+### Summary
+Solar Memory event Map rows appeared in World Simulation even though their
+`NodeId` used `Breaks_` placeholders.
+
+### Cause
+`MapTree.TypeGenerate` draws from the global Map table by `Note` and does not
+apply the `Breaks` filter used by `NormalMapManager.RandomGenerate`. Ordinary
+event rows also ignore `Level`, so neither `Breaks_` nor level 99 fully isolates
+them.
+
+### Distilled Fix
+Mark every mode-exclusive Map row with `Rarity=7`, keep story events as `Sub_`,
+admit them only through a mode-guarded direct factory, and sanitize old map trees
+plus multiplayer `maps`/`mapData` arrays outside the owning mode.
+
+### Resolution
+- **Resolved**: 2026-06-20T01:20:00+08:00
+- **Related Files**: `SunExp/Data/Map/sunexp.csv`, `SunExp-Dev/Hooks/SolarMemoryContentIsolationRuntime.cs`
+
+---
+
+## [ERR-20260620-003] custom-map-node-missing-deterministic-dice
+
+**Logged**: 2026-06-20T01:20:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: map-runtime
+
+### Summary
+Custom Solar Memory nodes could reach map loading without a valid `NodeDice`,
+making downstream map initialization and multiplayer behavior unsafe.
+
+### Distilled Fix
+Assign every custom or replacement `MapTree.Node` a deterministic `NodeDice`.
+Prefer the owning tree's dice cursor for generated nodes; use `Dice.Default`
+only for fixed nodes that perform no random draws. Add source assertions for all
+custom node factories.
+
+### Resolution
+- **Resolved**: 2026-06-20T01:20:00+08:00
+- **Related Files**: `SunExp-Dev/Mechanics/SolarMemoryMapNodePoolFactory.cs`, `SunExp-Dev/Hooks/SolarMemoryModeRuntime.cs`
+
+---
+
+## [ERR-20260620-004] fight-start-step-aborted-later-setup
+
+**Logged**: 2026-06-20T01:20:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: battle-runtime
+
+### Summary
+A fight-start hard-tag operation could throw while applying HP loss and prevent
+unrelated listeners and later setup steps from running.
+
+### Cause
+The operation borrowed an unrelated active executor and called a path that
+expected a valid data-config `Id`. Multiple independent setup actions shared one
+failure boundary.
+
+### Distilled Fix
+Apply global effects through the resolved synchronized status API, keep shared
+progression host-authoritative, and execute independent fight-start actions in
+separately named/logged failure boundaries.
+
+### Resolution
+- **Resolved**: 2026-06-20T01:20:00+08:00
+- **Related Files**: `SunExp-Dev/Hooks/SunExpHardTagRuntime.cs`
+
+---
+
 ## [ERR-20260616-002] dotnet-objectdisposed-catch-order
 
 **Logged**: 2026-06-16T15:42:04.8648026+08:00

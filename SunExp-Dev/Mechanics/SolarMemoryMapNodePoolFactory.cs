@@ -134,6 +134,7 @@ public static class SolarMemoryMapNodePoolFactory
         node.data["Note"] = "普通事件";
         node.data["NodeId"] = eventId;
         node.data["Level"] = "-1";
+        node.NodeDice = Dice.Default;
         return node;
     }
 

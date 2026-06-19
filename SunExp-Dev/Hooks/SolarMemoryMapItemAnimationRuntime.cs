@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using SunExp.Dll.Infrastructure;
+using UnityEngine;
 using Witch.Core;
 using Witch.Mod;
 
@@ -10,6 +11,7 @@ public static class SolarMemoryMapItemAnimationRuntime
 {
     private const string SecondSunMapFallbackAnimation = "AnimationLib/\u707e\u5384\u5148\u5146";
     private const string SaintWunaMapFallbackAnimation = "AnimationLib/\u5931\u5fc3\u9b54\u5973";
+    private const string GenericFightMapFallbackAnimation = "AnimationLib/\u707e\u5384\u5148\u5146";
 
     private static readonly Dictionary<MapTree.Node, AnimationRestore> PendingRestores = new();
 
@@ -53,19 +55,18 @@ public static class SolarMemoryMapItemAnimationRuntime
                 || context.Arguments == null
                 || context.Arguments.Length == 0
                 || context.Arguments[0] is not MapTree.Node node
-                || !TryResolvePatch(node, out var enemyId, out var fallbackAnimation))
+                || !TryResolveEnemyRow(node, out var enemyId, out var row))
             {
-                return;
-            }
-
-            var row = EnemyRow(enemyId);
-            if (row == null)
-            {
-                SunExpLog.Warn("[SolarMemoryMapItem] missing enemy row for map fallback: " + enemyId);
                 return;
             }
 
             var original = DictionaryUtil.Get(row, "Animation");
+            var fallbackAnimation = ResolveFallbackAnimation(node, original);
+            if (string.IsNullOrWhiteSpace(fallbackAnimation))
+            {
+                return;
+            }
+
             if (string.Equals(original, fallbackAnimation, StringComparison.Ordinal))
             {
                 return;
@@ -73,7 +74,13 @@ public static class SolarMemoryMapItemAnimationRuntime
 
             PendingRestores[node] = new AnimationRestore(row, original);
             row["Animation"] = fallbackAnimation;
-            SunExpLog.Debug("[SolarMemoryMapItem] applied map animation fallback for " + enemyId + ".");
+            SunExpLog.Info("[SolarMemoryMapItem] applied map animation fallback for "
+                + enemyId
+                + "; original="
+                + original
+                + "; fallback="
+                + fallbackAnimation
+                + ".");
         }
         catch (Exception ex)
         {
@@ -103,36 +110,104 @@ public static class SolarMemoryMapItemAnimationRuntime
         }
     }
 
-    private static bool TryResolvePatch(MapTree.Node node, out string enemyId, out string fallbackAnimation)
+    private static bool TryResolveEnemyRow(MapTree.Node node, out string enemyId, out IDictionary<string, string> row)
     {
         enemyId = "";
-        fallbackAnimation = "";
+        row = null!;
         if (node.data == null || !string.Equals(DictionaryUtil.Get(node.data, "Type"), "Fight", StringComparison.Ordinal))
         {
             return false;
         }
 
         var levelId = DictionaryUtil.Get(node.data, "NodeId");
-        if (string.Equals(levelId, SunExpIds.SolarBossSecondSunLevelId, StringComparison.Ordinal))
+        var level = ConfigRow(DataType.Level, levelId);
+        var enemyIds = DictionaryUtil.Get(level, "EnemyIds")
+            .Replace(" ", "")
+            .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+        if (enemyIds.Length == 0)
         {
-            enemyId = SunExpIds.SolarBossSecondSunEnemyId;
-            fallbackAnimation = SecondSunMapFallbackAnimation;
-            return true;
+            return false;
         }
 
-        if (string.Equals(levelId, SunExpIds.SolarBossSaintWunaLevelId, StringComparison.Ordinal))
+        var bestHp = int.MinValue;
+        foreach (var id in enemyIds)
         {
-            enemyId = SunExpIds.SolarBossSaintWunaEnemyId;
-            fallbackAnimation = SaintWunaMapFallbackAnimation;
-            return true;
+            var candidate = EnemyRow(id);
+            if (candidate == null)
+            {
+                continue;
+            }
+
+            var hp = DictionaryUtil.GetInt(candidate, "Hp", 0);
+            if (hp <= bestHp)
+            {
+                continue;
+            }
+
+            bestHp = hp;
+            enemyId = id;
+            row = candidate;
         }
 
-        return false;
+        return row != null;
+    }
+
+    private static string ResolveFallbackAnimation(MapTree.Node node, string originalAnimation)
+    {
+        var levelId = DictionaryUtil.Get(node.data, "NodeId");
+        if (IsLevel(levelId, SunExpIds.SolarBossSecondSunLevelId, "level_second_sun_last_day"))
+        {
+            return SecondSunMapFallbackAnimation;
+        }
+
+        if (IsLevel(levelId, SunExpIds.SolarBossSaintWunaLevelId, "level_saint_wuna"))
+        {
+            return SaintWunaMapFallbackAnimation;
+        }
+
+        if (!HasMapPreviewFrames(originalAnimation))
+        {
+            return GenericFightMapFallbackAnimation;
+        }
+
+        return "";
+    }
+
+    private static bool HasMapPreviewFrames(string animationPath)
+    {
+        if (string.IsNullOrWhiteSpace(animationPath))
+        {
+            return false;
+        }
+
+        try
+        {
+            if (ResourceLoader.LoadAll<Texture2D>(animationPath + "/Map").Length > 0)
+            {
+                return true;
+            }
+
+            return ResourceLoader.LoadAll<Texture2D>(animationPath + "/Idle").Length > 0;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[SolarMemoryMapItem] map animation probe failed: "
+                + animationPath
+                + " -> "
+                + ex.Message);
+            return false;
+        }
+    }
+
+    private static bool IsLevel(string actual, string fullId, string shortId)
+    {
+        return string.Equals(actual, fullId, StringComparison.Ordinal)
+            || string.Equals(actual, shortId, StringComparison.Ordinal);
     }
 
     private static IDictionary<string, string>? EnemyRow(string fullEnemyId)
     {
-        var row = Singleton<GameConfigManager>.Instance.GetOne(DataType.Enemy, fullEnemyId);
+        var row = ConfigRow(DataType.Enemy, fullEnemyId);
         if (row != null)
         {
             return row;
@@ -142,7 +217,29 @@ public static class SolarMemoryMapItemAnimationRuntime
         var shortId = fullEnemyId.StartsWith(prefix, StringComparison.Ordinal)
             ? fullEnemyId.Substring(prefix.Length)
             : fullEnemyId;
-        return Singleton<GameConfigManager>.Instance.GetOne(DataType.Enemy, shortId);
+        return ConfigRow(DataType.Enemy, shortId);
+    }
+
+    private static IDictionary<string, string>? ConfigRow(DataType type, string id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return null;
+        }
+
+        var row = Singleton<GameConfigManager>.Instance.GetOne(type, id);
+        if (row != null)
+        {
+            return row;
+        }
+
+        const string prefix = "SunExp_sunexp_";
+        if (id.StartsWith(prefix, StringComparison.Ordinal))
+        {
+            return Singleton<GameConfigManager>.Instance.GetOne(type, id.Substring(prefix.Length));
+        }
+
+        return Singleton<GameConfigManager>.Instance.GetOne(type, prefix + id);
     }
 
     private readonly struct AnimationRestore

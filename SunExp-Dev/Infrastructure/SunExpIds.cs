@@ -46,6 +46,8 @@ public static class SunExpIds
     public const int WunaEventMaxProgress = 6;
 
     public const string SolarMemoryModeKey = "SunExp_SolarMemoryMode";
+    public const string SolarMemoryStartMapId = "SunExp_sunexp_solar_memory_start";
+    public const string SolarMemoryStartShortMapId = "solar_memory_start";
     public const string SolarMemorySelectedPacksKey = "SunExp_SolarMemorySelectedPacks";
     public const string SolarMemoryOriginPointsKey = "SunExp_SolarMemoryOriginPoints";
     public const string SolarMemoryBlessPickCountKey = "SunExp_SolarMemoryBlessPickCount";
@@ -132,6 +134,9 @@ public static class SunExpIds
     public const string SolarBossOrbitMirrorMapId = "SunExp_sunexp_solar_memory_boss_orbit_mirror_array";
     public const string SolarBossSecondSunMapId = "SunExp_sunexp_solar_memory_boss_second_sun_last_day";
     public const string SolarBossSaintWunaMapId = "SunExp_sunexp_solar_memory_boss_saint_wuna";
+    public const string SolarBossOrbitMirrorShortMapId = "solar_memory_boss_orbit_mirror_array";
+    public const string SolarBossSecondSunShortMapId = "solar_memory_boss_second_sun_last_day";
+    public const string SolarBossSaintWunaShortMapId = "solar_memory_boss_saint_wuna";
     public const string SolarBossOrbitMirrorLevelId = "SunExp_sunexp_level_orbit_mirror_array";
     public const string SolarBossSecondSunLevelId = "SunExp_sunexp_level_second_sun_last_day";
     public const string SolarBossSaintWunaLevelId = "SunExp_sunexp_level_saint_wuna";
@@ -142,4 +147,62 @@ public static class SunExpIds
     public const int SolarFinaleMapLevel = 30;
     public const int SolarFinaleNameCount = 8;
     public const int SolarFinaleHiddenBossNameThreshold = 5;
+
+    public static bool IsSolarMemoryExclusiveMapId(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return false;
+        }
+
+        if (string.Equals(id, SolarEventMapId, System.StringComparison.Ordinal)
+            || string.Equals(id, SolarEventShortMapId, System.StringComparison.Ordinal)
+            || string.Equals(id, SolarMemoryStartMapId, System.StringComparison.Ordinal)
+            || string.Equals(id, SolarMemoryStartShortMapId, System.StringComparison.Ordinal)
+            || string.Equals(id, SolarBossOrbitMirrorMapId, System.StringComparison.Ordinal)
+            || string.Equals(id, SolarBossOrbitMirrorShortMapId, System.StringComparison.Ordinal)
+            || string.Equals(id, SolarBossSecondSunMapId, System.StringComparison.Ordinal)
+            || string.Equals(id, SolarBossSecondSunShortMapId, System.StringComparison.Ordinal)
+            || string.Equals(id, SolarBossSaintWunaMapId, System.StringComparison.Ordinal)
+            || string.Equals(id, SolarBossSaintWunaShortMapId, System.StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        foreach (var value in SolarMemoryMapIds)
+        {
+            if (string.Equals(id, value, System.StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        foreach (var value in SolarMemoryShortMapIds)
+        {
+            if (string.Equals(id, value, System.StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static bool IsSolarMemoryExclusiveEventId(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return false;
+        }
+
+        var value = id ?? "";
+        return value.StartsWith("Breaks_solar_event", System.StringComparison.Ordinal)
+            || value.StartsWith("Breaks_solar_memory_", System.StringComparison.Ordinal)
+            || value.StartsWith("Sub_solar_memory_", System.StringComparison.Ordinal)
+            || value.StartsWith("SunExp_sunexp_Sub_solar_memory_", System.StringComparison.Ordinal)
+            || value.StartsWith("Sub_solar_finale_", System.StringComparison.Ordinal)
+            || value.StartsWith("SunExp_sunexp_Sub_solar_finale_", System.StringComparison.Ordinal)
+            || value.StartsWith(WunaEventPrefix, System.StringComparison.Ordinal)
+            || value.StartsWith(WunaEventFullPrefix, System.StringComparison.Ordinal);
+    }
 }

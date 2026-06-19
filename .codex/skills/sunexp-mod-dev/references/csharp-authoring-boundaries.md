@@ -30,6 +30,41 @@ Use the decompiled project only to verify production boundaries, method names,
 signatures, and comparable official script shape. Do not copy large chunks of
 decompiled code into the mod.
 
+The repository `Managed/` assemblies are authoritative for compilation. When
+they disagree with the decompiled snapshot, follow current `Managed/` and add a
+compatibility wrapper if older signatures must remain supported.
+
+## Managed Signature Drift
+
+- Compile against repository `Managed/` after it is updated.
+- Interpret `MissingMethodException` as binary API drift first. Locate every
+  direct caller before changing UI or gameplay logic.
+- Keep reflection in one `GameApi/` wrapper. Resolve the current signature,
+  support known legacy signatures, then use a deterministic table/API fallback.
+- Return an empty safe result only after supported paths fail, and log failures
+  without exposing exceptions to UI flow.
+
+## Hook Failure Containment
+
+- Wrap hook entry points so game flow survives mod failures.
+- Run independent lifecycle actions in separately named/logged steps. One failed
+  HP adjustment must not block listeners, tags, or later setup.
+- Do not borrow an unrelated active `ScriptExecutor` for a global effect or call
+  a path requiring a data-config `Id` from a synthetic/missing config. Use the
+  resolved synchronized status or manager API when verified.
+
+## Multiplayer And Runtime Objects
+
+- Let the host advance shared run counters, map state, and progression keys.
+- Keep player preparation and deck choices player-scoped in multiplayer.
+- Repair both the authoritative map tree and `maps`/`mapData` sync arrays when a
+  custom map contract can be polluted or version-skewed.
+- Keep fallback ordering deterministic so host and clients choose the same row.
+- Assign `NodeDice` to every custom `MapTree.Node`; prefer the owning tree's dice
+  cursor and use `Dice.Default` only for fixed nodes that do not draw.
+- Clone mutable map dictionaries. Never persist battle/map/UI fallback state by
+  mutating global config rows; restore any temporary row change after native use.
+
 Primary locations:
 
 - `开发参考资料/反编译文件夹v1.0.23693118/AllScripts/AllScripts.cs`: official compiled script examples and `ScriptExecutor` usage.
