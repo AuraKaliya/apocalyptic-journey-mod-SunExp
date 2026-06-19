@@ -22,6 +22,10 @@ public static class SunExpIds
     public const string BossTraitMirrorArray = "SunExp_sunexp_boss_trait_mirror_array";
     public const string BossTraitMercilessDaylight = "SunExp_sunexp_boss_trait_merciless_daylight";
     public const string BossTraitWhiteRadianceSaint = "SunExp_sunexp_boss_trait_white_radiance_saint";
+    public const string BossWhiteRadianceCrown = "SunExp_sunexp_boss_white_radiance_crown";
+    public const string Cripple = "buff_cripple";
+    public const string Extraordinary = "buff_extraordinary";
+    public const string EnemyCardSaintWhiteEdict = "SunExp_sunexp_enemycard_saint_white_edict";
 
     public const string TempWhiteRadiance = "SunExpTempWhiteRadiance";
     public const string TempWhiteRadianceLockId = "SunExpTempWhiteRadianceLockId";
@@ -54,6 +58,7 @@ public static class SunExpIds
     public const string SolarMemorySetupFinishedKey = "SunExp_SolarMemorySetupFinished";
     public const string SolarMemoryPrepStepKey = "SunExp_SolarMemoryPrepStep";
     public const string SolarMemoryPreparedKey = "SunExp_SolarMemoryPrepared";
+    public const string HardSunsetFightCountKey = "SunExp_Hard_SunsetFightCount";
     public const string SolarMemoryEventId = "Sub_solar_memory_black_sun_after";
     public const string SolarMemoryFullEventId = "SunExp_sunexp_Sub_solar_memory_black_sun_after";
     public const string SolarMemoryMapId = "SunExp_sunexp_solar_memory_black_sun_after";

@@ -13,6 +13,7 @@ namespace SkillCGExp.Dll.Config;
 public sealed class SkillCgConfig
 {
     public bool enabled = true;
+    public bool syncRemote = true;
     public int maxQueueLength = 8;
     public float maxRequestAgeSeconds = 6f;
     public float duplicateWindowSeconds = 0.2f;
@@ -74,6 +75,7 @@ public sealed class SkillCgConfig
         return new SkillCgConfig
         {
             enabled = true,
+            syncRemote = true,
             maxQueueLength = 8,
             maxRequestAgeSeconds = 6f,
             duplicateWindowSeconds = 0.2f,
@@ -121,6 +123,7 @@ public sealed class SkillCgRule
     public float fadeIn = 0.35f;
     public float hold = 1.0f;
     public float fadeOut = 0.45f;
+    public string ResolvedImagePath { get; private set; } = "";
 
     public void Normalize(string modDirectory)
     {
@@ -128,7 +131,8 @@ public sealed class SkillCgRule
         cardId = string.IsNullOrWhiteSpace(cardId) ? "*" : cardId.Trim();
         action = string.IsNullOrWhiteSpace(action) ? "Skill" : action.Trim();
         ownerInstanceId = ownerInstanceId?.Trim() ?? "";
-        image = NormalizePath(modDirectory, image);
+        image = string.IsNullOrWhiteSpace(image) ? "CG.png" : image.Trim();
+        ResolvedImagePath = ResolveImagePath(modDirectory, image);
         fadeIn = Mathf.Max(0f, fadeIn);
         hold = Mathf.Max(0f, hold);
         fadeOut = Mathf.Max(0f, fadeOut);
@@ -161,7 +165,7 @@ public sealed class SkillCgRule
             || string.Equals(pattern, value, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string NormalizePath(string modDirectory, string value)
+    private static string ResolveImagePath(string modDirectory, string value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -177,10 +181,12 @@ public sealed class SkillCgRule
 public sealed class ConfigSkillCgProvider
 {
     private readonly List<SkillCgRule> rules;
+    private readonly bool syncRemote;
 
-    public ConfigSkillCgProvider(IEnumerable<SkillCgRule> rules)
+    public ConfigSkillCgProvider(IEnumerable<SkillCgRule> rules, bool syncRemote)
     {
         this.rules = new List<SkillCgRule>(rules);
+        this.syncRemote = syncRemote;
     }
 
     public string ProviderId => "SkillCGExp.ConfigProvider";
@@ -209,13 +215,15 @@ public sealed class ConfigSkillCgProvider
                 OwnerModId = OwnerModId,
                 CardId = trigger.CardId,
                 OwnerInstanceId = trigger.OwnerInstanceId,
-                ImagePath = rule.image,
+                ImagePath = rule.ResolvedImagePath,
+                ImageResource = rule.image,
                 Priority = rule.priority,
                 FadeIn = rule.fadeIn,
                 Hold = rule.hold,
                 FadeOut = rule.fadeOut,
                 CreatedAt = Time.unscaledTime,
-                ActionSequence = trigger.ActionSequence
+                ActionSequence = trigger.ActionSequence,
+                DisableSync = !syncRemote
             };
         }
     }

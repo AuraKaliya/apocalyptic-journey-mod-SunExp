@@ -1,0 +1,7 @@
+"Id","Belong","Level","UseScript","FightScript","MaxCount","Type"
+"唯一标识","属于哪类","难度奖励权重","进入冒险时脚本","进入战斗时脚本","最大层数","分类"
+"sunexp_scorched_world","焦枯世界","1","","","4","Normal"
+"sunexp_black_sun_calamity","黑日之灾","3","","","1","Normal"
+"sunexp_white_radiance_court","白曜圣庭","3","","","1","Normal"
+"sunexp_sunset_expedition","落日远征","2","","","1","Normal"
+"sunexp_rebirth","重生","4","","","1","Normal"

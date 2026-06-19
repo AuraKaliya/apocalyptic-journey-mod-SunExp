@@ -620,7 +620,7 @@ public static class SolarMemoryModeRuntime
             Name = "SunExpSolarMemory" + UnityEngine.Random.Range(0, 100000),
             roleTable = new Dictionary<string, RoleTable>(),
             mapTree = new MapTree(),
-            HardTags = new List<DataConfig>(),
+            HardTags = SunExpHardTagRuntime.SelectedRuntimeHardTags(),
             startTime = DateTime.Now,
             modeType = "Normal",
             Seed = random.Next(0, (int)Math.Pow(10.0, 16.0) - 1).ToString()
@@ -640,6 +640,7 @@ public static class SolarMemoryModeRuntime
         saveInfo.GameVars[SunExpIds.SolarMemorySetupFinishedKey] = "0";
         saveInfo.GameVars[SunExpIds.SolarMemoryPrepStepKey] = SolarMemoryPrepStep.DeckSelection.ToString();
         saveInfo.GameVars[SunExpIds.SolarMemoryPreparedKey] = "0";
+        saveInfo.GameVars[SunExpIds.HardSunsetFightCountKey] = "0";
         saveInfo.GameVars[SunExpIds.SolarFinaleFinalLayerEnteredKey] = "0";
         saveInfo.GameVars[SunExpIds.SolarFinaleSaintGateOpenedKey] = "0";
         saveInfo.GameVars[SunExpIds.SolarFinaleCompletedKey] = "0";

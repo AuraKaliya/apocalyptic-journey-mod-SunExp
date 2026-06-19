@@ -44,6 +44,17 @@ public static class BuffApi
         return total;
     }
 
+    public static int PositiveTotal(IStatusManager? status)
+    {
+        var total = 0;
+        foreach (var buff in PositiveBuffs(status))
+        {
+            total += Math.Max(0, buff.buffConfig?.Level ?? 0);
+        }
+
+        return total;
+    }
+
     public static bool RemoveNegativeBuffs(ScriptExecutor executor, IStatusManager? status)
     {
         var removed = false;
@@ -56,6 +67,25 @@ public static class BuffApi
             }
 
             ExecutorApi.SetStatusForTarget(executor, status, "Self");
+            executor.RemoveBuff(id);
+            removed = true;
+        }
+
+        return removed;
+    }
+
+    public static bool RemovePositiveBuffs(ScriptExecutor executor, IStatusManager? status)
+    {
+        var removed = false;
+        foreach (var buff in PositiveBuffs(status))
+        {
+            var id = buff.buffConfig?.BuffId;
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                continue;
+            }
+
+            ExecutorApi.SetStatusForTarget(executor, status, "Target");
             executor.RemoveBuff(id);
             removed = true;
         }
@@ -233,11 +263,53 @@ public static class BuffApi
             }
 
             var type = buff.buffConfig.Type ?? "";
-            if (type == "Negative" || type.Contains("负面"))
+            if (IsNegativeType(type))
             {
                 yield return buff;
             }
         }
+    }
+
+    private static IEnumerable<IBuffItem> PositiveBuffs(IStatusManager? status)
+    {
+        if (status == null)
+        {
+            yield break;
+        }
+
+        var buffs = status.GetBuffs();
+        if (buffs == null)
+        {
+            yield break;
+        }
+
+        foreach (var buff in buffs)
+        {
+            if (buff?.buffConfig == null)
+            {
+                continue;
+            }
+
+            var type = buff.buffConfig.Type ?? "";
+            if (IsPositiveType(type))
+            {
+                yield return buff;
+            }
+        }
+    }
+
+    private static bool IsNegativeType(string type)
+    {
+        return type == "Negative"
+            || type.Contains("\u8d1f\u9762")
+            || type.Contains("璐熼潰");
+    }
+
+    private static bool IsPositiveType(string type)
+    {
+        return type == "Positive"
+            || type.Contains("\u6b63\u9762")
+            || type.Contains("姝ｉ潰");
     }
 
     private static bool IsPositiveExcluded(string? buffId)
@@ -255,7 +327,23 @@ public static class BuffApi
         return PositiveExcludeIds.Contains(id) || PositiveExcludeIds.Contains(normalized);
     }
 
-    private static bool IsWunaActive()
+    public static bool IsWunaPlayerStatus(IStatusManager? status)
+    {
+        if (status == null || !IsWunaActive())
+        {
+            return false;
+        }
+
+        var localPlayerId = PlayerApi.LocalPlayerStatusId();
+        if (!string.IsNullOrWhiteSpace(localPlayerId))
+        {
+            return string.Equals(status.InstanceId, localPlayerId, StringComparison.Ordinal);
+        }
+
+        return string.Equals(status.fatherObject?.GetType().Name, "FightPlayer", StringComparison.Ordinal);
+    }
+
+    public static bool IsWunaActive()
     {
         var careerId = PlayerApi.GetCurrentCareerId();
         if (!string.IsNullOrWhiteSpace(careerId)

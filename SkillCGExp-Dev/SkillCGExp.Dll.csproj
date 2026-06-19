@@ -64,6 +64,14 @@
       <HintPath>$(DllPath)\Witch.Core.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="Mirror">
+      <HintPath>$(DllPath)\Mirror.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="MemoryPack.Core">
+      <HintPath>$(DllPath)\MemoryPack.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
 
   <Target Name="CopyEntryDllToMod" AfterTargets="Build">

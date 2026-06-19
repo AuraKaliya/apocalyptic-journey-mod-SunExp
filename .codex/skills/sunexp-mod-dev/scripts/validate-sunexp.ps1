@@ -471,7 +471,7 @@ foreach ($file in $enemyFiles) {
     Test-EnemyAnimationMapResources $rows $repoRoot
 }
 
-$optionalKinds = @("RoleData", "Dialogue", "EventList", "Career", "Map", "EnemyCard", "Partner", "PartnerCard", "Blessing", "EnchTag")
+$optionalKinds = @("RoleData", "Dialogue", "EventList", "Career", "Map", "EnemyCard", "Partner", "PartnerCard", "Blessing", "EnchTag", "Hard")
 foreach ($kind in $optionalKinds) {
     $dataFiles = Get-KindCsvFiles $modRootPath "Data" $kind
     if ($dataFiles.Count -eq 0) {

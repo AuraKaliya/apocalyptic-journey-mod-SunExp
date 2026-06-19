@@ -11,9 +11,11 @@ public static class RuntimeHooks
     public static void Initialize(ModConfig modConfig)
     {
         RegisterBefore(modConfig, "StatusManager.AddBuff", OnStatusManagerAddBuffBefore);
+        RegisterAfter(modConfig, "StatusManager.AddBuff", OnStatusManagerAddBuffAfter);
         DuskPartnerRuntime.Initialize(modConfig);
         SolarMemoryModeRuntime.Initialize(modConfig);
         SolarMemoryStarterDeckRuntime.Initialize(modConfig);
+        SunExpHardTagRuntime.Initialize(modConfig);
         AnimatedBlessingIconRuntime.Initialize(modConfig);
         AnimatedBuffIconRuntime.Initialize(modConfig);
         AnimatedEnemyDictIconRuntime.Initialize(modConfig);
@@ -34,20 +36,34 @@ public static class RuntimeHooks
         }
     }
 
+    private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
+    {
+        try
+        {
+            config.AddMethodHookAfter(target, action);
+            SunExpLog.Debug("Hook after registered: " + target);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("Hook after failed: " + target + " -> " + ex.Message);
+        }
+    }
+
     private static void OnStatusManagerAddBuffBefore(ModHookContext context)
     {
         try
         {
             var target = context.Target as IStatusManager;
             var args = context.Arguments;
-            var buffId = Convert.ToString(args != null && args.Length > 0 ? args[0] : null);
-            if (target == null || buffId != SunExpIds.Burn)
+            var buffId = BuffIdFromArgs(args);
+            if (target == null)
             {
                 return;
             }
 
-            var amount = DictionaryUtil.ParseInt(Convert.ToString(args != null && args.Length > 1 ? args[1] : null));
-            if (amount <= 0)
+            var amount = BuffAmountFromArgs(args);
+            ExecutorApi.PrepareSolarRadianceUpperBound(target, buffId);
+            if (buffId != SunExpIds.Burn || amount <= 0)
             {
                 return;
             }
@@ -58,5 +74,45 @@ public static class RuntimeHooks
         {
             SunExpLog.Error("Status AddBuff before hook failed", ex);
         }
+    }
+
+    private static void OnStatusManagerAddBuffAfter(ModHookContext context)
+    {
+        try
+        {
+            var target = context.Target as IStatusManager;
+            var args = context.Arguments;
+            var buffId = BuffIdFromArgs(args);
+            var amount = BuffAmountFromArgs(args);
+            ExecutorApi.FinalizeSolarRadianceUpperBound(target, buffId, amount);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Status AddBuff after hook failed", ex);
+        }
+    }
+
+    private static string BuffIdFromArgs(object[]? args)
+    {
+        if (args == null || args.Length == 0)
+        {
+            return "";
+        }
+
+        return args[0] is IBuffItemConfig config
+            ? config.BuffId ?? ""
+            : Convert.ToString(args[0]) ?? "";
+    }
+
+    private static int BuffAmountFromArgs(object[]? args)
+    {
+        if (args == null || args.Length == 0)
+        {
+            return 0;
+        }
+
+        return args[0] is IBuffItemConfig config
+            ? config.Level
+            : DictionaryUtil.ParseInt(Convert.ToString(args.Length > 1 ? args[1] : null));
     }
 }

@@ -8,6 +8,8 @@ namespace SunExp.Dll.GameApi;
 public static class ExecutorApi
 {
     private const int BurnUpperBoundFallback = 1;
+    private const int SolarRadianceDefaultUpperBound = 12;
+    private const int WunaSolarRadianceUpperBound = 15;
 
     public static string GetVar(ScriptExecutor? executor, string key, string fallback = "")
     {
@@ -134,6 +136,13 @@ public static class ExecutorApi
     public static int BurnUpperBound(IStatusManager? target)
     {
         return BuffUpperBound(target, SunExpIds.Burn, BurnUpperBoundFallback);
+    }
+
+    public static int SolarRadianceUpperBound(IStatusManager? target)
+    {
+        return BuffApi.IsWunaPlayerStatus(target)
+            ? WunaSolarRadianceUpperBound
+            : SolarRadianceDefaultUpperBound;
     }
 
     public static int BuffUpperBound(IStatusManager? target, string buffId, int fallback)
@@ -403,6 +412,48 @@ public static class ExecutorApi
         }
 
         return true;
+    }
+
+    public static bool DealDamageToTarget(
+        ScriptExecutor? executor,
+        IStatusManager? target,
+        int amount,
+        string fallbackStatus = "Target",
+        string damageType = "")
+    {
+        if (executor == null || amount <= 0)
+        {
+            return false;
+        }
+
+        SetStatusForTarget(executor, target, fallbackStatus);
+        return DealDamage(executor, amount, damageType);
+    }
+
+    public static int StatusMaxHp(IStatusManager? status)
+    {
+        return ReadIntProperty(status, "MaxHp");
+    }
+
+    public static int DealTrueDamageAllEnemiesByMaxHp(ScriptExecutor? executor)
+    {
+        if (executor == null)
+        {
+            return 0;
+        }
+
+        var hit = 0;
+        foreach (var target in EnemyTargets(executor))
+        {
+            var damage = Math.Max(1, StatusMaxHp(target));
+            SetStatusForTarget(executor, target, "AllTarget");
+            if (DealDamage(executor, damage, "True"))
+            {
+                hit++;
+            }
+        }
+
+        return hit;
     }
 
     public static void AddDamageDescription(ScriptExecutor? executor, string index, int amount)
@@ -953,9 +1004,81 @@ public static class ExecutorApi
         return executor != null && BuffApi.RemoveNegativeBuffs(executor, status);
     }
 
+    public static bool RemoveAllPositiveBuffs(ScriptExecutor? executor, IStatusManager? status)
+    {
+        return executor != null && BuffApi.RemovePositiveBuffs(executor, status);
+    }
+
+    public static bool AddEnemyAction(ScriptExecutor? executor, string enemyCardId)
+    {
+        if (executor == null || string.IsNullOrWhiteSpace(enemyCardId))
+        {
+            return false;
+        }
+
+        executor.SetStatus("Self");
+        executor.AddEnemyAction(new DataConfig(enemyCardId, DataType.EnemyCard));
+        return true;
+    }
+
     public static int SolarCrownTier(ScriptExecutor? executor)
     {
         return SelfBuffLevel(executor, SunExpIds.SolarCrownTier);
+    }
+
+    public static void PrepareSolarRadianceUpperBound(IStatusManager? target, string buffId)
+    {
+        if (target == null || buffId != SunExpIds.SolarRadiance)
+        {
+            return;
+        }
+
+        ApplySolarRadianceUpperBound(target, SolarRadianceUpperBound(target));
+    }
+
+    public static void FinalizeSolarRadianceUpperBound(IStatusManager? target, string buffId, int amount)
+    {
+        if (target == null || buffId != SunExpIds.SolarRadiance)
+        {
+            return;
+        }
+
+        var upperBound = SolarRadianceUpperBound(target);
+        var buff = target.GetBuff(SunExpIds.SolarRadiance);
+        var current = buff?.buffConfig?.Level ?? 0;
+        ApplySolarRadianceUpperBound(target, upperBound);
+
+        if (amount <= 0 || !BuffApi.IsWunaPlayerStatus(target) || buff?.buffConfig == null)
+        {
+            return;
+        }
+
+        var before = Math.Max(0, current - amount);
+        var desired = Math.Min(upperBound, before + amount);
+        if (desired > buff.buffConfig.Level)
+        {
+            buff.buffConfig.Level = desired;
+        }
+    }
+
+    private static void ApplySolarRadianceUpperBound(IStatusManager target, int upperBound)
+    {
+        var buff = target.GetBuff(SunExpIds.SolarRadiance);
+        if (buff?.buffConfig == null)
+        {
+            return;
+        }
+
+        var nextUpperBound = Math.Max(1, upperBound);
+        if (buff.buffConfig.UpperBound != nextUpperBound)
+        {
+            buff.buffConfig.UpperBound = nextUpperBound;
+        }
+
+        if (buff.buffConfig.Level > nextUpperBound)
+        {
+            buff.buffConfig.Level = nextUpperBound;
+        }
     }
 
     public static void HandleBurnOverflow(IStatusManager? target, string buffId, int amount)
@@ -981,6 +1104,25 @@ public static class ExecutorApi
                 + ", upperBound=" + upperBound
                 + ", overflow=" + overflow);
             target.AddBuff(SunExpIds.BodyBurn, overflow);
+        }
+    }
+
+    private static int ReadIntProperty(object? target, string name)
+    {
+        if (target == null || string.IsNullOrWhiteSpace(name))
+        {
+            return 0;
+        }
+
+        try
+        {
+            var value = target.GetType().GetProperty(name)?.GetValue(target)
+                ?? target.GetType().GetField(name)?.GetValue(target);
+            return value is int intValue ? intValue : DictionaryUtil.ParseInt(Convert.ToString(value));
+        }
+        catch
+        {
+            return 0;
         }
     }
 }

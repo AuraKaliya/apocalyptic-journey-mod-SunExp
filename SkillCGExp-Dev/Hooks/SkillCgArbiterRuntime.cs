@@ -4,10 +4,12 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using Network.Command;
 using SkillCGExp.Dll.Infrastructure;
 using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.UI;
+using Witch.Core;
 using Witch.Mod;
 using GameUIManager = Witch.UI.UIManager;
 
@@ -29,9 +31,15 @@ public static class SkillCgArbiterRuntime
     public const int CurrentProtocolVersion = 1;
     public const int MinimumSupportedProtocolVersion = 1;
     private static readonly HashSet<string> ReuseLogOwners = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, string> ModDirectories = new(StringComparer.OrdinalIgnoreCase);
 
-    public static void Initialize(ModConfig modConfig, string ownerModId, SkillCgArbiterOptions? options = null)
+    public static void Initialize(ModConfig? modConfig, string ownerModId, SkillCgArbiterOptions? options = null)
     {
+        if (modConfig != null && !string.IsNullOrWhiteSpace(modConfig.DirectoryName))
+        {
+            ModDirectories[ownerModId] = modConfig.DirectoryName;
+        }
+
         var arbiter = EnsureArbiter(ownerModId);
         Invoke(arbiter, "Configure", options ?? new SkillCgArbiterOptions());
     }
@@ -46,6 +54,35 @@ public static class SkillCgArbiterRuntime
     {
         var arbiter = EnsureArbiter(ownerModId);
         Invoke(arbiter, "Trigger", context);
+    }
+
+    public static void RequestCg(string ownerModId, SkillCgRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.OwnerModId))
+        {
+            request.OwnerModId = ownerModId;
+        }
+
+        var arbiter = EnsureArbiter(ownerModId);
+        Invoke(arbiter, "RequestCg", request);
+    }
+
+    public static string ResolveImagePath(string ownerModId, string imageResource, string fallbackPath = "")
+    {
+        var resource = imageResource?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(resource))
+        {
+            return fallbackPath?.Trim() ?? "";
+        }
+
+        if (Path.IsPathRooted(resource))
+        {
+            return resource;
+        }
+
+        return ModDirectories.TryGetValue(ownerModId, out var modDirectory) && !string.IsNullOrWhiteSpace(modDirectory)
+            ? Path.Combine(modDirectory, resource.Replace('/', Path.DirectorySeparatorChar))
+            : fallbackPath?.Trim() ?? resource;
     }
 
     public static void Clear(string ownerModId, string reason)
@@ -222,10 +259,24 @@ public static class SkillCgArbiterRuntime
                 if (TryEnqueue(request))
                 {
                     accepted++;
+                    SyncRemote(request);
                 }
             }
 
             if (accepted > 0 && !playing)
+            {
+                StartCoroutine(PlayQueue(playGeneration));
+            }
+        }
+
+        public void RequestCg(object? value)
+        {
+            if (value is not SkillCgRequest request)
+            {
+                return;
+            }
+
+            if (TryEnqueue(request) && !playing)
             {
                 StartCoroutine(PlayQueue(playGeneration));
             }
@@ -281,6 +332,30 @@ public static class SkillCgArbiterRuntime
             queue.Sort(QueuedRequest.CompareForQueue);
             SkillCgExpLog.DebugLog("CG queued: provider=" + request.ProviderId + ", card=" + request.CardId + ", queue=" + queue.Count);
             return true;
+        }
+
+        private void SyncRemote(SkillCgRequest request)
+        {
+            if (request.DisableSync || request.IsRemote)
+            {
+                return;
+            }
+
+            var playerManager = PlayerManager.Instance;
+            if (playerManager == null)
+            {
+                return;
+            }
+
+            try
+            {
+                playerManager.SendRpcCommandExcludeOwner(new RpcSkillCgEvent(request));
+            }
+            catch (Exception ex)
+            {
+                SkillCgExpLog.WarnOnce("remote-sync-failed", "Remote CG sync failed once; later errors are suppressed. error=" + ex.Message);
+                SkillCgExpLog.DebugLog("Remote CG sync exception: " + ex);
+            }
         }
 
         private IEnumerator PlayQueue(int generation)
@@ -675,6 +750,7 @@ public sealed class SkillCgArbiterOptions
     }
 }
 
+[Serializable]
 public sealed class SkillCgTriggerContext
 {
     public long ActionSequence { get; set; }
@@ -688,6 +764,7 @@ public sealed class SkillCgTriggerContext
     public float CreatedAt { get; set; }
 }
 
+[Serializable]
 public sealed class SkillCgRequest
 {
     public string ProviderId { get; set; } = "";
@@ -699,6 +776,8 @@ public sealed class SkillCgRequest
     public string OwnerInstanceId { get; set; } = "";
 
     public string ImagePath { get; set; } = "";
+
+    public string ImageResource { get; set; } = "";
 
     public int Priority { get; set; }
 
@@ -712,7 +791,11 @@ public sealed class SkillCgRequest
 
     public long ActionSequence { get; set; }
 
-    public string DuplicateKey => ProviderId + "|" + OwnerInstanceId + "|" + CardId + "|" + ImagePath;
+    public bool IsRemote { get; set; }
+
+    public bool DisableSync { get; set; }
+
+    public string DuplicateKey => ProviderId + "|" + OwnerInstanceId + "|" + CardId + "|" + (string.IsNullOrWhiteSpace(ImageResource) ? ImagePath : ImageResource);
 
     public void Normalize()
     {
@@ -721,6 +804,12 @@ public sealed class SkillCgRequest
         CardId = CardId?.Trim() ?? "";
         OwnerInstanceId = OwnerInstanceId?.Trim() ?? "";
         ImagePath = ImagePath?.Trim() ?? "";
+        ImageResource = ImageResource?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(ImageResource) && !string.IsNullOrWhiteSpace(ImagePath))
+        {
+            ImageResource = Path.GetFileName(ImagePath);
+        }
+
         FadeIn = Mathf.Max(0f, FadeIn);
         Hold = Mathf.Max(0f, Hold);
         FadeOut = Mathf.Max(0f, FadeOut);
@@ -750,12 +839,15 @@ public sealed class SkillCgRequest
             CardId = ReadString(type, source, "CardId", context.CardId),
             OwnerInstanceId = ReadString(type, source, "OwnerInstanceId", context.OwnerInstanceId),
             ImagePath = ReadString(type, source, "ImagePath", ""),
+            ImageResource = ReadString(type, source, "ImageResource", ""),
             Priority = ReadInt(type, source, "Priority", priority),
             FadeIn = ReadFloat(type, source, "FadeIn", 0.35f),
             Hold = ReadFloat(type, source, "Hold", 1f),
             FadeOut = ReadFloat(type, source, "FadeOut", 0.45f),
             CreatedAt = ReadFloat(type, source, "CreatedAt", Time.unscaledTime),
-            ActionSequence = ReadLong(type, source, "ActionSequence", context.ActionSequence)
+            ActionSequence = ReadLong(type, source, "ActionSequence", context.ActionSequence),
+            IsRemote = ReadBool(type, source, "IsRemote", false),
+            DisableSync = ReadBool(type, source, "DisableSync", false)
         };
     }
 
@@ -808,6 +900,95 @@ public sealed class SkillCgRequest
         {
             return fallback;
         }
+    }
+
+    private static bool ReadBool(Type type, object source, string name, bool fallback)
+    {
+        try
+        {
+            var value = type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public)?.GetValue(source);
+            return value is bool typed ? typed : fallback;
+        }
+        catch
+        {
+            return fallback;
+        }
+    }
+}
+
+[Serializable]
+public sealed class SkillCgNetworkEvent
+{
+    public string ProviderId { get; set; } = "";
+
+    public string OwnerModId { get; set; } = "";
+
+    public string CardId { get; set; } = "";
+
+    public string OwnerInstanceId { get; set; } = "";
+
+    public string ImageResource { get; set; } = "";
+
+    public int Priority { get; set; }
+
+    public float FadeIn { get; set; } = 0.35f;
+
+    public float Hold { get; set; } = 1f;
+
+    public float FadeOut { get; set; } = 0.45f;
+
+    public long ActionSequence { get; set; }
+}
+
+[Serializable]
+public sealed class RpcSkillCgEvent : RpcCommandBase
+{
+    public RpcSkillCgEvent()
+    {
+        Event = new SkillCgNetworkEvent();
+    }
+
+    public RpcSkillCgEvent(SkillCgRequest request)
+    {
+        request.Normalize();
+        Event = new SkillCgNetworkEvent
+        {
+            ProviderId = request.ProviderId,
+            OwnerModId = request.OwnerModId,
+            CardId = request.CardId,
+            OwnerInstanceId = request.OwnerInstanceId,
+            ImageResource = string.IsNullOrWhiteSpace(request.ImageResource) ? Path.GetFileName(request.ImagePath) : request.ImageResource,
+            Priority = request.Priority,
+            FadeIn = request.FadeIn,
+            Hold = request.Hold,
+            FadeOut = request.FadeOut,
+            ActionSequence = request.ActionSequence
+        };
+    }
+
+    public SkillCgNetworkEvent Event { get; set; }
+
+    public override void RpcExecute()
+    {
+        var ownerModId = string.IsNullOrWhiteSpace(Event.OwnerModId) ? "SkillCGExp" : Event.OwnerModId;
+        SkillCgArbiterRuntime.Initialize(null, ownerModId);
+        SkillCgArbiterRuntime.RequestCg(ownerModId, new SkillCgRequest
+        {
+            ProviderId = Event.ProviderId,
+            OwnerModId = ownerModId,
+            CardId = Event.CardId,
+            OwnerInstanceId = Event.OwnerInstanceId,
+            ImageResource = Event.ImageResource,
+            ImagePath = SkillCgArbiterRuntime.ResolveImagePath(ownerModId, Event.ImageResource),
+            Priority = Event.Priority,
+            FadeIn = Event.FadeIn,
+            Hold = Event.Hold,
+            FadeOut = Event.FadeOut,
+            CreatedAt = Time.unscaledTime,
+            ActionSequence = Event.ActionSequence,
+            IsRemote = true,
+            DisableSync = true
+        });
     }
 }
 

@@ -229,6 +229,20 @@ public static class PlayerApi
         }
     }
 
+    public static string LocalPlayerStatusId()
+    {
+        try
+        {
+            var fightPlayer = GetStaticMember(FindType("FightPlayer"), "Instance");
+            var status = GetInstanceMember(fightPlayer, "Status");
+            return Convert.ToString(GetInstanceMember(status, "InstanceId")) ?? "";
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
     private static Type? FindType(string name)
     {
         foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())

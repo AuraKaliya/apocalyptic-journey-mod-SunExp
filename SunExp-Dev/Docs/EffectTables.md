@@ -95,7 +95,7 @@ Source: `SunExp/Data/Buff/sunexp.csv`, `SunExp/Text/Buff/sunexp.csv`
 
 | Full ID | Name | Name_en | Type | UpperBound | Reduce/Turn | CanZero | Description |
 | --- | --- | --- | --- | ---: | ---: | --- | --- |
-| SunExp_sunexp_solar_radiance | 日耀 | Solar Radiance | 能力 | 15 | 0 | FALSE | 每次行动时，获得等同于5倍日耀层数的超凡。 |
+| SunExp_sunexp_solar_radiance | 日耀 | Solar Radiance | 能力 | 12 | 0 | FALSE | 每次行动时，获得等同于5倍日耀层数的超凡。 |
 | SunExp_sunexp_solar_coefficient | 日耀系数 | Solar Coefficient | 能力 | 1 | 0 | FALSE | 等于自身{SunExp_sunexp_solar_radiance}层数*2+{SunExp_sunexp_gathered_flame}层数/3+{buff_burn}层数/2。 |
 | SunExp_sunexp_gathered_flame | 聚炎 | Gathered Flame | 能力 | 999 | 0 | FALSE | 回合开始时，自己获得等同于聚炎层数的灼烧和10倍层数的超凡。 |
 | SunExp_sunexp_scorching_canopy | 灼热天幕 | Scorching Canopy | 能力 | 9 | 0 | FALSE | 场地。每轮回合开始时，全体获得等同于灼热天幕层数的灼烧；场上存在天幕时，任何目标被施加的灼烧超过上限部分会转化为等量焚身。 |

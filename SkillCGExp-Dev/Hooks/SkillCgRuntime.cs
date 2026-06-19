@@ -33,7 +33,7 @@ public static class SkillCgRuntime
 
         if (config.enabled)
         {
-            SkillCgArbiterRuntime.RegisterProvider(modConfig, ModId, new ConfigSkillCgProvider(config.rules));
+            SkillCgArbiterRuntime.RegisterProvider(modConfig, ModId, new ConfigSkillCgProvider(config.rules, config.syncRemote));
         }
 
         RegisterBefore(modConfig, "FightUI.CallActionAnimation", BeforeCallActionAnimation);
@@ -46,6 +46,7 @@ public static class SkillCgRuntime
         SkillCgExpLog.InfoOnce(
             "initialized",
             "Initialized. enabled=" + config.enabled
+            + ", syncRemote=" + config.syncRemote
             + ", rules=" + config.rules.Length
             + ", maxQueue=" + config.maxQueueLength
             + ", maxAge=" + config.maxRequestAgeSeconds.ToString("0.##") + "s");
