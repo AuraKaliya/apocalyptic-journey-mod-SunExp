@@ -17,7 +17,7 @@ Use this checklist before finishing event work.
 ## Script Calls
 
 - Every event script call in `Data/EventList` should target a stable C# entry point, normally `CS.SunExp.Dll.Scripting.EventScripts.*`.
-- Every called `EventScripts` method should exist in `SunExp/Dev/Scripting/EventScripts.cs`.
+- Every called `EventScripts` method should exist in `SunExp-Dev/Scripting/EventScripts.cs`.
 - Any remaining `SunExp_...(` script call is invalid; use a C# entry point instead.
 
 ## IDs

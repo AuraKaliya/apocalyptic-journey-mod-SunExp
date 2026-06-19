@@ -283,7 +283,7 @@ public static class BossScripts
         }
 
         ChangeSelfDefence(self, WhiteRadianceSaintBlock);
-        PlayerApi.ShowCaption("白耀圣女将一个保存名字铭刻为无名之人。");
+        PlayerApi.ShowCaption("白曜圣女将一个保存名字铭刻为无名之人。");
     }
 
     private static void ChangeSelfDefence(ScriptExecutor self, int amount)

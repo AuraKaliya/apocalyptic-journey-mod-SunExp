@@ -6,9 +6,9 @@ buff, relic, event, dialogue, and role scripts eventually run through
 
 Source anchors:
 
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/ScriptExecutor.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch.Core/IScriptExecutor.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/DataConfig.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/ScriptExecutor.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch.Core/IScriptExecutor.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/DataConfig.cs`
 
 ## Core Context
 

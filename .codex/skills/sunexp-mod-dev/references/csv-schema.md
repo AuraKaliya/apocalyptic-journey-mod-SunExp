@@ -6,12 +6,13 @@ Use this reference when adding or editing Data/Text rows. The first row is the s
 
 - Game-loaded mod IDs are composed as `ModName_FileName_Id`.
 - For SunExp rows in `sunexp.csv`, the full runtime ID is usually `SunExp_sunexp_<Id>`.
+- For role-specific files such as `wuna.csv`, the full runtime ID uses the file stem, for example `SunExp_wuna_<Id>`.
 - Use full IDs when scripts reference SunExp content.
 - An ID starting with `*` is normally excluded from random pools.
 
 ## Card
 
-`SunExp/Data/Card/sunexp.csv` fields:
+`SunExp/Data/Card/*.csv` fields:
 
 - `Id`: local card id.
 - `Rarity`: rarity number.
@@ -26,19 +27,19 @@ Use this reference when adding or editing Data/Text rows. The first row is the s
 - `Action`: usually `Attack` for attack cards.
 - `PackBelong`: full card-pack id.
 
-`SunExp/Text/Card/sunexp.csv` fields include `Type`, `Name`, localized names, and localized descriptions.
+`SunExp/Text/Card/*.csv` fields include `Type`, `Name`, localized names, and localized descriptions.
 
 Required card checks:
 
 - `AttackCardItem` for target cards, `CommonCardItem` for non-target cards.
 - `Text/Card` description placeholders such as `{0}` must match `InitScript` dynamic descriptions.
 - If `UseScript` depends on a value shown in text, keep display setup and runtime behavior in sync.
-- If `PackBelong` changes, verify the pack exists in `Data/CardPack`.
+- If `PackBelong` changes, verify the pack exists in `Data/CardPack`. Role skill cards may intentionally leave `PackBelong` blank when they are not reward-pool cards.
 - Do not duplicate auto-displayed tags such as `Burnout` in localized `Text/Card` descriptions.
 
 ## Buff
 
-`SunExp/Data/Buff/sunexp.csv` fields:
+`SunExp/Data/Buff/*.csv` fields:
 
 - `InitScript`: display setup.
 - `ApplyScript`: runs when Buff is applied.
@@ -51,7 +52,7 @@ Use Buffs for persistent effects and event hooks. Pair event registration with c
 
 ## Relic
 
-`SunExp/Data/Relic/sunexp.csv` fields:
+`SunExp/Data/Relic/*.csv` fields:
 
 - `Rarity`
 - `OwnScript`: when acquired.
@@ -62,11 +63,11 @@ Use Buffs for persistent effects and event hooks. Pair event registration with c
 When a relic's displayed state can change, expose that update through the C#
 relic script or a supporting wrapper instead of inline CSV logic.
 
-`SunExp/Text/Relic/sunexp.csv` includes display text fields for relic names, descriptions, and tags. `Text/Relic.Tag` can be appended by UI display paths; keep it blank unless a visible relic label is intentionally needed. It is not the same as `Data/Relic.PackBelong` or any logic script field.
+`SunExp/Text/Relic/*.csv` includes display text fields for relic names, descriptions, and tags. `Text/Relic.Tag` can be appended by UI display paths; keep it blank unless a visible relic label is intentionally needed. It is not the same as `Data/Relic.PackBelong` or any logic script field.
 
 ## CardPack
 
-Keep `Data/CardPack/sunexp.csv` and `Text/CardPack/sunexp.csv` synchronized.
+Keep `Data/CardPack/*.csv` and `Text/CardPack/*.csv` synchronized.
 
 ## Future expansion tables
 

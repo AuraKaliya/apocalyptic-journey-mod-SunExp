@@ -24,8 +24,8 @@ Use this skill inside the SunExp repository for event work. Pair it with
    - `SunExp/Text/EventList/sunexp.csv`
    - `SunExp/Data/Map/sunexp.csv`
    - `SunExp/Text/Map/sunexp.csv`
-   - `SunExp/Dev/Scripting/EventScripts.cs`
-   - related helpers under `SunExp/Dev/GameApi/`, `SunExp/Dev/Mechanics/`, and `SunExp/Dev/Infrastructure/`.
+   - `SunExp-Dev/Scripting/EventScripts.cs`
+   - related helpers under `SunExp-Dev/GameApi/`, `SunExp-Dev/Mechanics/`, and `SunExp-Dev/Infrastructure/`.
 3. Add or update Data rows and matching Text rows together.
 4. Keep event behavior in C# by default. CSV script columns should call stable `CS.SunExp.Dll.Scripting.EventScripts.*` entry points.
 5. Keep event option scripts aligned with localized option descriptions.

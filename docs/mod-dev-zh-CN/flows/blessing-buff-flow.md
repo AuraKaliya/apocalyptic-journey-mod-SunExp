@@ -4,15 +4,15 @@
 
 源码锚点：
 
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/RoleTable.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/BlessingRelic.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/UI/Window/BlessingChoiceGenerator.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/ScriptExecutor.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/Commands.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/StatusManager.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/UI/Window/BuffBarUI.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/BuffItem.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/BuffItemConfig.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/RoleTable.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/BlessingRelic.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/UI/Window/BlessingChoiceGenerator.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/ScriptExecutor.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/Commands.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/StatusManager.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/UI/Window/BuffBarUI.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/BuffItem.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/BuffItemConfig.cs`
 - `SunExp/Data/Blessing/sunexp.csv`
 - `SunExp/Data/Buff/sunexp.csv`
 - `SunExp-Dev/Scripting/BuffScripts.cs`

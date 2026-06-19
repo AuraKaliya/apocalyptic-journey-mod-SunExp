@@ -8,8 +8,8 @@ exact behavior.
 
 Source anchors:
 
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/UI/Window/EventUI.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/AllScripts/AllScripts.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/UI/Window/EventUI.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/AllScripts/AllScripts.cs`
 - `SunExp/Data/EventList/sunexp.csv`
 - `SunExp-Dev/Scripting/EventScripts.cs`
 
@@ -30,8 +30,8 @@ the recommended shape for story events, rewards, mode setup, and branching.
 
 Source anchors:
 
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/UI/Window/DialogueUI.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/DialogueManager.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/UI/Window/DialogueUI.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/DialogueManager.cs`
 
 ```mermaid
 flowchart TD
@@ -48,8 +48,8 @@ Keep `ChoiceCount`, choice scripts, and localized choice text aligned.
 
 Source anchors:
 
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/NormalMapManager.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/MapManager.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/NormalMapManager.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/MapManager.cs`
 - `SunExp/Data/Map/sunexp.csv`
 - `SunExp-Dev/Hooks/SolarMemoryModeRuntime.cs`
 - `SunExp-Dev/Mechanics/SolarMemoryMapNodePoolFactory.cs`

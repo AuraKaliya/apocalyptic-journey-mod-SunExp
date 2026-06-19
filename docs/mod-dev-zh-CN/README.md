@@ -4,7 +4,7 @@
 时快速查 API、流程和落地范式。内容基于三层资料：
 
 - `apocalyptic-journey-mod-tutorial/` 下的官方教程与模板
-- `开发参考资料/反编译文件夹v1.0.23715745/` 下的反编译游戏快照
+- `开发参考资料/反编译文件夹v1.0.23693118/` 下的反编译游戏快照
 - `SunExp/` 及各个 `*-Dev/` C# 工程中的实际 MOD 实现
 
 目标不是复刻完整反编译工程，而是整理 MOD 作者最常用、最稳定的表面：
@@ -19,6 +19,7 @@ CSV 表、脚本入口、宿主 API、Hook 点、资源、本地化，以及主�
    - [ScriptExecutor API](api/script-executor.md)
    - [状态与事件](api/status-and-events.md)
    - [SunExp C# 封装 API](api/sunexp-csharp-wrapper-api.md)
+   - [运行时仲裁器与扩展点](api/runtime-arbiters.md)
 4. 流程：
    - [MOD 加载流程](flows/mod-load-flow.md)
    - [卡牌战斗流程](flows/card-combat-flow.md)

@@ -1,4 +1,4 @@
-# Generated CSV Schema Index
+﻿# Generated CSV Schema Index
 
 Generated from workspace CSV files. Refresh with `tools\Export-ModDevDocs.ps1`.
 
@@ -1329,6 +1329,280 @@ Columns:
 - `Name_en`
 - `Name_ja`
 
+## SanGuoShaExp
+
+### `SanGuoShaExp/Data/Buff/sanguosha.csv`
+
+Columns:
+
+- `Id`
+- `InitScript`
+- `ApplyScript`
+- `ClearScript`
+- `ReducePerTurn`
+- `ReducePerAttacked`
+- `ReducePerUse`
+- `UpperBound`
+- `Icon`
+- `Type`
+- `Rarity`
+- `Effects`
+- `SoundEffects`
+- `Action`
+- `CanZero`
+
+### `SanGuoShaExp/Data/Buff/shen_zhugeliang.csv`
+
+Columns:
+
+- `Id`
+- `InitScript`
+- `ApplyScript`
+- `ClearScript`
+- `ReducePerTurn`
+- `ReducePerAttacked`
+- `ReducePerUse`
+- `UpperBound`
+- `Icon`
+- `Type`
+- `Rarity`
+- `Effects`
+- `SoundEffects`
+- `Action`
+- `CanZero`
+
+### `SanGuoShaExp/Data/Card/sanguosha.csv`
+
+Columns:
+
+- `Id`
+- `Rarity`
+- `Expend`
+- `Tag`
+- `InitScript`
+- `DrawScript`
+- `UseScript`
+- `DropScript`
+- `Icon`
+- `Effects`
+- `Action`
+- `PackBelong`
+
+### `SanGuoShaExp/Data/Card/shen_zhugeliang.csv`
+
+Columns:
+
+- `Id`
+- `Rarity`
+- `Expend`
+- `Tag`
+- `InitScript`
+- `DrawScript`
+- `UseScript`
+- `DropScript`
+- `Icon`
+- `Effects`
+- `Action`
+- `PackBelong`
+
+### `SanGuoShaExp/Data/CardPack/sanguosha.csv`
+
+Columns:
+
+- `Id`
+- `Type`
+- `Icon`
+
+### `SanGuoShaExp/Data/Career/shen_zhugeliang.csv`
+
+Columns:
+
+- `Id`
+- `SanMax`
+- `SkillScript`
+- `Animation`
+- `Vocal`
+- `Skill1`
+- `Skill2`
+- `ChoiceIcon`
+- `DollIcon`
+- `Character`
+- `Avatar`
+- `CareerImage`
+- `ActionImage1`
+- `ActionImage2`
+- `Dialogue`
+- `EmojiPath`
+- `AttackEffect`
+- `SkillEffect`
+- `HitEffect`
+- `DefendEffect`
+
+### `SanGuoShaExp/Data/Relic/sanguosha.csv`
+
+Columns:
+
+- `Id`
+- `Rarity`
+- `OwnScript`
+- `FightScript`
+- `Icon`
+- `PackBelong`
+
+### `SanGuoShaExp/Data/RoleData/shen_zhugeliang.csv`
+
+Columns:
+
+- `Id`
+- `Avatar`
+- `CharacterImage`
+- `HouseAvatar`
+
+### `SanGuoShaExp/Text/Buff/sanguosha.csv`
+
+Columns:
+
+- `Id`
+- `Note`
+- `Name`
+- `Name_zh-Hant`
+- `Name_en`
+- `Name_ja`
+- `Description`
+- `Description_zh-Hant`
+- `Description_ja`
+- `Description_en`
+
+### `SanGuoShaExp/Text/Buff/shen_zhugeliang.csv`
+
+Columns:
+
+- `Id`
+- `Note`
+- `Name`
+- `Name_zh-Hant`
+- `Name_en`
+- `Name_ja`
+- `Description`
+- `Description_zh-Hant`
+- `Description_ja`
+- `Description_en`
+
+### `SanGuoShaExp/Text/Card/sanguosha.csv`
+
+Columns:
+
+- `Id`
+- `是否完成`
+- `Type`
+- `Note`
+- `Name`
+- `Name_en`
+- `Name_zh-Hant`
+- `Name_ja`
+- `Description`
+- `Description_zh-Hant`
+- `Description_en`
+- `Description_ja`
+
+### `SanGuoShaExp/Text/Card/shen_zhugeliang.csv`
+
+Columns:
+
+- `Id`
+- `是否完成`
+- `Type`
+- `Note`
+- `Name`
+- `Name_en`
+- `Name_zh-Hant`
+- `Name_ja`
+- `Description`
+- `Description_zh-Hant`
+- `Description_en`
+- `Description_ja`
+
+### `SanGuoShaExp/Text/CardPack/sanguosha.csv`
+
+Columns:
+
+- `Id`
+- `Note`
+- `Name`
+- `Name_zh-Hant`
+- `Name_en`
+- `Name_ja`
+- `Description`
+- `Description_zh-Hant`
+- `Description_ja`
+- `Description_en`
+
+### `SanGuoShaExp/Text/Career/shen_zhugeliang.csv`
+
+Columns:
+
+- `Id`
+- `Note`
+- `Name`
+- `Name_zh-Hant`
+- `Name_en`
+- `Name_ja`
+- `Title`
+- `Title_zh-Hant`
+- `Title_en`
+- `Title_ja`
+- `Description`
+- `Description_zh-Hant`
+- `Description_en`
+- `Description_ja`
+- `Action1`
+- `Action1_zh-Hant`
+- `Action1_en`
+- `Action1_ja`
+- `Action2`
+- `Action2_zh-Hant`
+- `Action2_en`
+- `Action2_ja`
+- `Passive1`
+- `Passive1_zh-Hant`
+- `Passive1_en`
+- `Passive1_ja`
+- `Passive2`
+- `Passive2_zh-Hant`
+- `Passive2_en`
+- `Passive2_ja`
+
+### `SanGuoShaExp/Text/Relic/sanguosha.csv`
+
+Columns:
+
+- `Id`
+- `Note`
+- `Series`
+- `Tag`
+- `Name`
+- `Name_zh-Hant`
+- `Name_en`
+- `Name_ja`
+- `Tips`
+- `Tips_zh-Hant`
+- `Tips_en`
+- `Tips_ja`
+- `Description`
+- `Description_zh-Hant`
+- `Description_en`
+- `Description_ja`
+
+### `SanGuoShaExp/Text/RoleData/shen_zhugeliang.csv`
+
+Columns:
+
+- `Id`
+- `Name`
+- `Name_zh-Hant`
+- `Name_en`
+- `Name_ja`
+
 ## StarExp
 
 ### `StarExp/Data/Buff/star_miracle.csv`
@@ -2103,154 +2377,4 @@ Columns:
 - `Dia_en`
 - `Dia_zh-Hant`
 - `Dia_ja`
-
-## SanGuoShaExp
-
-### `SanGuoShaExp/Data/Buff/shen_zhugeliang.csv`
-
-Columns:
-
-- `Id`
-- `InitScript`
-- `ApplyScript`
-- `ClearScript`
-- `ReducePerTurn`
-- `ReducePerAttacked`
-- `ReducePerUse`
-- `UpperBound`
-- `Icon`
-- `Type`
-- `Rarity`
-- `Effects`
-- `SoundEffects`
-- `Action`
-- `CanZero`
-
-### `SanGuoShaExp/Data/Card/shen_zhugeliang.csv`
-
-Columns:
-
-- `Id`
-- `Rarity`
-- `Expend`
-- `Tag`
-- `InitScript`
-- `DrawScript`
-- `UseScript`
-- `DropScript`
-- `Icon`
-- `Effects`
-- `Action`
-- `PackBelong`
-
-### `SanGuoShaExp/Data/Career/shen_zhugeliang.csv`
-
-Columns:
-
-- `Id`
-- `SanMax`
-- `SkillScript`
-- `Animation`
-- `Vocal`
-- `Skill1`
-- `Skill2`
-- `ChoiceIcon`
-- `DollIcon`
-- `Character`
-- `Avatar`
-- `CareerImage`
-- `ActionImage1`
-- `ActionImage2`
-- `Dialogue`
-- `EmojiPath`
-- `AttackEffect`
-- `SkillEffect`
-- `HitEffect`
-- `DefendEffect`
-
-### `SanGuoShaExp/Data/RoleData/shen_zhugeliang.csv`
-
-Columns:
-
-- `Id`
-- `Avatar`
-- `CharacterImage`
-- `HouseAvatar`
-
-### `SanGuoShaExp/Text/Buff/shen_zhugeliang.csv`
-
-Columns:
-
-- `Id`
-- `Note`
-- `Name`
-- `Name_zh-Hant`
-- `Name_en`
-- `Name_ja`
-- `Description`
-- `Description_zh-Hant`
-- `Description_ja`
-- `Description_en`
-
-### `SanGuoShaExp/Text/Card/shen_zhugeliang.csv`
-
-Columns:
-
-- `Id`
-- `是否完成`
-- `Type`
-- `Note`
-- `Name`
-- `Name_en`
-- `Name_zh-Hant`
-- `Name_ja`
-- `Description`
-- `Description_zh-Hant`
-- `Description_en`
-- `Description_ja`
-
-### `SanGuoShaExp/Text/Career/shen_zhugeliang.csv`
-
-Columns:
-
-- `Id`
-- `Note`
-- `Name`
-- `Name_zh-Hant`
-- `Name_en`
-- `Name_ja`
-- `Title`
-- `Title_zh-Hant`
-- `Title_en`
-- `Title_ja`
-- `Description`
-- `Description_zh-Hant`
-- `Description_en`
-- `Description_ja`
-- `Action1`
-- `Action1_zh-Hant`
-- `Action1_en`
-- `Action1_ja`
-- `Action2`
-- `Action2_zh-Hant`
-- `Action2_en`
-- `Action2_ja`
-- `Passive1`
-- `Passive1_zh-Hant`
-- `Passive1_en`
-- `Passive1_ja`
-- `Passive2`
-- `Passive2_zh-Hant`
-- `Passive2_en`
-- `Passive2_ja`
-
-### `SanGuoShaExp/Text/RoleData/shen_zhugeliang.csv`
-
-Columns:
-
-- `Id`
-- `Name`
-- `Name_zh-Hant`
-- `Name_en`
-- `Name_ja`
 

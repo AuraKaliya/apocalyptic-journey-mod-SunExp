@@ -16,11 +16,14 @@ This checks:
 
 - C# compile and focused SunExp C# regression tests.
 - Old dynamic helper calls, inline script blocks, or production `.lua` files.
-- Data/Text ID pairing for Card, Buff, Relic, CardPack, RoleData, Dialogue, and EventList when present.
-- Data/Text ID pairing for Map when present.
+- Data/Text ID pairing for matching SunExp CSV files under `Data/` and `Text/`, including role-specific files such as `wuna.csv`.
+- Data/Text ID pairing for Map when present. Tables with no Text side, such as current `Data/Level`, are allowed.
 - EventList text shape for `TotalDescribe` and scripted option descriptions.
+- WuNa story-chain event ids, including rejecting top-level `wuna_event_01` style ids.
 - `PackBelong` references for cards and relics.
 - Mod resource paths that point to missing files.
+- Enemy animation folders that need `Map/*.png` or `Map/*.jpg` frames for map icons.
+- Supported `Text/Map.Note` values used by map UI.
 - Basic `{0}` style placeholder consistency for card descriptions.
 
 ## Manual checks
@@ -31,7 +34,7 @@ Automated checks do not prove Unity runtime semantics. Manually reason through:
 - Does dynamic display match runtime behavior?
 - Does every event listener avoid duplicated hooks?
 - Does every changed behavior update player-facing text?
-- Does any changed hook or game API wrapper need in-game verification?
+- Does any changed hook, audio provider, BGM provider, animated icon runtime, or game API wrapper need in-game verification?
 
 ## Known limitations
 

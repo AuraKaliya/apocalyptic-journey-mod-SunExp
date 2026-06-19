@@ -23,14 +23,14 @@ SunExp 希望新增一套独立的局外成长系统：
 - `SunExp-Dev/Hooks/SolarMemoryBlessingPickerRuntime.cs`
 - `SunExp-Dev/Hooks/SolarMemoryPreparationRuntime.cs`
 - `SunExp-Dev/Hooks/RuntimeHooks.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/RoleTable.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/GameRuntimeData.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/UI/Window/GameEntryUI.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/UI/Window/HouseManager.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/UI/Window/HouseUI.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/UI/Window/OutsiderShopUI.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/UI/Window/OutsideShopItem.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/UI/Window/StatusUI.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/RoleTable.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/GameRuntimeData.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/UI/Window/GameEntryUI.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/UI/Window/HouseManager.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/UI/Window/HouseUI.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/UI/Window/OutsiderShopUI.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/UI/Window/OutsideShopItem.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/UI/Window/StatusUI.cs`
 
 当前 `开发参考资料` 目录下只发现反编译工程，未发现单独的官方 mod 仓库目录。若后续补充官方 mod 仓库，应再对照更新本文档。
 
@@ -397,7 +397,7 @@ flowchart TD
 示例：
 
 - 击败“日耀回忆”第一层 Boss 后解锁一阶日耀成长。
-- 击败“白耀圣女·乌娜”后解锁圣庭相关成长。
+- 击败“白曜圣女·乌娜”后解锁圣庭相关成长。
 - 完成隐藏结局后解锁高阶成长节点。
 
 ## 多人模式注意事项

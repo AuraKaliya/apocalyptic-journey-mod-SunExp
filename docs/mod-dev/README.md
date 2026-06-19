@@ -4,7 +4,7 @@ This directory is a practical API and flow reference for making MODs in this
 workspace. It is grounded in three source layers:
 
 - the official tutorial and templates under `apocalyptic-journey-mod-tutorial/`
-- the decompiled game snapshot under `开发参考资料/反编译文件夹v1.0.23715745/`
+- the decompiled game snapshot under `开发参考资料/反编译文件夹v1.0.23693118/`
 - the working MOD projects such as `SunExp/` plus their `*-Dev/` C# projects
 
 The goal is not to mirror the full decompiled game. The goal is to document the
@@ -20,6 +20,7 @@ hook points, resources, localization, and the major gameplay flows.
    - [ScriptExecutor API](api/script-executor.md)
    - [Status and Events](api/status-and-events.md)
    - [SunExp C# Wrapper API](api/sunexp-csharp-wrapper-api.md)
+   - [Runtime Arbiters and Extension Points](api/runtime-arbiters.md)
 4. Flows:
    - [MOD Load Flow](flows/mod-load-flow.md)
    - [Card Combat Flow](flows/card-combat-flow.md)

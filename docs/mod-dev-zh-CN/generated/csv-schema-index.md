@@ -1,12 +1,12 @@
-# 生成的 CSV 结构索引
+﻿# Generated CSV Schema Index
 
-从当前工作区 CSV 文件生成。英文主索引可通过 `tools\Export-ModDevDocs.ps1` 刷新。
+Generated from workspace CSV files. Refresh with `tools\Export-ModDevDocs.ps1`.
 
-## 官方 ModTemplate
+## Official ModTemplate
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/Achievement/achievementsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `ListenScript`
@@ -16,7 +16,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/Affection/affectionsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Character`
@@ -27,7 +27,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/Blessing/blessingsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Weight`
@@ -40,7 +40,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/Buff/buffsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `InitScript`
@@ -60,7 +60,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/Card/cardsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Rarity`
@@ -77,7 +77,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/Career/careersample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `SanMax`
@@ -102,7 +102,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/Coin/coinsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Type`
@@ -112,7 +112,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/Destiny/destinysample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Rarity`
@@ -123,7 +123,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/Dialogue/dialoguesample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `BaseScript`
@@ -136,7 +136,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/Effect/effectsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `InitScript`
@@ -147,7 +147,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/EnchTag/enchtagsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Tag`
@@ -163,7 +163,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/Enemy/enemysample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Name`
@@ -179,7 +179,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/EnemyBless/enemyblesssample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Rarity`
@@ -187,7 +187,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/EnemyCard/enemycardsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `InitScript`
@@ -201,7 +201,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/EventList/eventlistsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `1Script`
@@ -214,7 +214,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/Food/foodsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Icon`
@@ -224,7 +224,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/Hard/hardsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Belong`
@@ -236,7 +236,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/HouseDialogue/housedialoguesample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `BaseScript`
@@ -248,7 +248,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/Item/itemsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Rarity`
@@ -257,7 +257,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/Level/levelsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `EnemyIds`
@@ -267,7 +267,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/Map/mapsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Type`
@@ -276,7 +276,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/OutSideShop/outsideshopsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `PriceType`
@@ -291,7 +291,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/Partner/partnersample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `InitScript`
@@ -303,7 +303,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/PartnerCard/partnercardsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `InitScript`
@@ -316,7 +316,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/Relic/relicsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Rarity`
@@ -327,7 +327,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/RoleData/roledatasample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Avatar`
@@ -336,7 +336,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/SlotCal/slotcalsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Type`
@@ -344,7 +344,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/SlotReward/slotrewardsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Type`
@@ -352,7 +352,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/Task/tasksample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Reward`
@@ -362,7 +362,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Data/Tutorial/tutorialsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `EventName`
@@ -370,7 +370,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/Achievement/achievementsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Name`
@@ -384,7 +384,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/Affection/affectionsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Name`
@@ -398,7 +398,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/Announcement/announcementsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -416,7 +416,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/Blessing/blessingsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -435,7 +435,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/Buff/buffsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -450,7 +450,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/Card/cardsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `是否完成`
@@ -467,7 +467,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/CardPack/cardpacksample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Name`
@@ -483,7 +483,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/Career/careersample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -518,7 +518,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/Coin/coinsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -533,7 +533,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/Destiny/destinysample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -552,7 +552,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/Dialogue/dialoguesample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Text`
@@ -574,7 +574,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/EnchTag/enchtagsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -589,7 +589,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/Enemy/enemysample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -609,7 +609,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/EnemyBless/enemyblesssample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Description`
@@ -623,7 +623,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/EnemyCard/enemycardsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -638,7 +638,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/EventList/eventlistsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -674,7 +674,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/Hard/hardsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Name`
@@ -689,7 +689,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/HouseDialogue/housedialoguesample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Text`
@@ -708,7 +708,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/IllustratedBook/illustratedbooksample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -735,7 +735,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/Item/itemsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -750,7 +750,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/KeyWordsDic/keywordsdicsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -766,7 +766,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/Map/mapsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -785,7 +785,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/Narration/narrationsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Time`
@@ -798,7 +798,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/OutSideShop/outsideshopsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -829,7 +829,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/Partner/partnersample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -848,7 +848,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/PartnerCard/partnercardsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -863,7 +863,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/Relic/relicsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -884,7 +884,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/RoleData/roledatasample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Name`
@@ -902,7 +902,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/SlotCal/slotcalsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -917,7 +917,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/SlotReward/slotrewardsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -932,7 +932,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/Task/tasksample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Name`
@@ -950,7 +950,7 @@
 
 ### `apocalyptic-journey-mod-tutorial/ModTemplate/Text/Tutorial/tutorialsample.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -968,7 +968,7 @@
 
 ### `GoldExp/Data/Blessing/goldexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Weight`
@@ -981,7 +981,7 @@
 
 ### `GoldExp/Data/Buff/goldexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `InitScript`
@@ -1001,7 +1001,7 @@
 
 ### `GoldExp/Data/Card/goldexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Rarity`
@@ -1018,7 +1018,7 @@
 
 ### `GoldExp/Data/Card/goldwitch.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Rarity`
@@ -1035,7 +1035,7 @@
 
 ### `GoldExp/Data/CardPack/goldexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Type`
@@ -1043,7 +1043,7 @@
 
 ### `GoldExp/Data/Career/goldwitch.csv`
 
-列：
+Columns:
 
 - `Id`
 - `SanMax`
@@ -1068,7 +1068,7 @@
 
 ### `GoldExp/Data/EnchTag/goldexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Tag`
@@ -1084,7 +1084,7 @@
 
 ### `GoldExp/Data/Partner/goldexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Hp`
@@ -1102,14 +1102,14 @@
 
 ### `GoldExp/Data/PartnerCard/goldexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `CardId`
 
 ### `GoldExp/Data/Relic/goldexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Rarity`
@@ -1120,7 +1120,7 @@
 
 ### `GoldExp/Data/RoleData/goldwitch.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Avatar`
@@ -1129,7 +1129,7 @@
 
 ### `GoldExp/Text/Blessing/goldexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -1148,7 +1148,7 @@
 
 ### `GoldExp/Text/Buff/goldexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -1163,7 +1163,7 @@
 
 ### `GoldExp/Text/Card/goldexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `是否完成`
@@ -1180,7 +1180,7 @@
 
 ### `GoldExp/Text/Card/goldwitch.csv`
 
-列：
+Columns:
 
 - `Id`
 - `是否完成`
@@ -1197,7 +1197,7 @@
 
 ### `GoldExp/Text/CardPack/goldexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -1212,7 +1212,7 @@
 
 ### `GoldExp/Text/Career/goldwitch.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -1247,7 +1247,7 @@
 
 ### `GoldExp/Text/EnchTag/goldexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -1262,7 +1262,7 @@
 
 ### `GoldExp/Text/KeyWordsDic/goldexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -1278,7 +1278,7 @@
 
 ### `GoldExp/Text/Partner/goldexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -1293,14 +1293,14 @@
 
 ### `GoldExp/Text/PartnerCard/goldexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Name`
 
 ### `GoldExp/Text/Relic/goldexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -1321,7 +1321,281 @@
 
 ### `GoldExp/Text/RoleData/goldwitch.csv`
 
-列：
+Columns:
+
+- `Id`
+- `Name`
+- `Name_zh-Hant`
+- `Name_en`
+- `Name_ja`
+
+## SanGuoShaExp
+
+### `SanGuoShaExp/Data/Buff/sanguosha.csv`
+
+Columns:
+
+- `Id`
+- `InitScript`
+- `ApplyScript`
+- `ClearScript`
+- `ReducePerTurn`
+- `ReducePerAttacked`
+- `ReducePerUse`
+- `UpperBound`
+- `Icon`
+- `Type`
+- `Rarity`
+- `Effects`
+- `SoundEffects`
+- `Action`
+- `CanZero`
+
+### `SanGuoShaExp/Data/Buff/shen_zhugeliang.csv`
+
+Columns:
+
+- `Id`
+- `InitScript`
+- `ApplyScript`
+- `ClearScript`
+- `ReducePerTurn`
+- `ReducePerAttacked`
+- `ReducePerUse`
+- `UpperBound`
+- `Icon`
+- `Type`
+- `Rarity`
+- `Effects`
+- `SoundEffects`
+- `Action`
+- `CanZero`
+
+### `SanGuoShaExp/Data/Card/sanguosha.csv`
+
+Columns:
+
+- `Id`
+- `Rarity`
+- `Expend`
+- `Tag`
+- `InitScript`
+- `DrawScript`
+- `UseScript`
+- `DropScript`
+- `Icon`
+- `Effects`
+- `Action`
+- `PackBelong`
+
+### `SanGuoShaExp/Data/Card/shen_zhugeliang.csv`
+
+Columns:
+
+- `Id`
+- `Rarity`
+- `Expend`
+- `Tag`
+- `InitScript`
+- `DrawScript`
+- `UseScript`
+- `DropScript`
+- `Icon`
+- `Effects`
+- `Action`
+- `PackBelong`
+
+### `SanGuoShaExp/Data/CardPack/sanguosha.csv`
+
+Columns:
+
+- `Id`
+- `Type`
+- `Icon`
+
+### `SanGuoShaExp/Data/Career/shen_zhugeliang.csv`
+
+Columns:
+
+- `Id`
+- `SanMax`
+- `SkillScript`
+- `Animation`
+- `Vocal`
+- `Skill1`
+- `Skill2`
+- `ChoiceIcon`
+- `DollIcon`
+- `Character`
+- `Avatar`
+- `CareerImage`
+- `ActionImage1`
+- `ActionImage2`
+- `Dialogue`
+- `EmojiPath`
+- `AttackEffect`
+- `SkillEffect`
+- `HitEffect`
+- `DefendEffect`
+
+### `SanGuoShaExp/Data/Relic/sanguosha.csv`
+
+Columns:
+
+- `Id`
+- `Rarity`
+- `OwnScript`
+- `FightScript`
+- `Icon`
+- `PackBelong`
+
+### `SanGuoShaExp/Data/RoleData/shen_zhugeliang.csv`
+
+Columns:
+
+- `Id`
+- `Avatar`
+- `CharacterImage`
+- `HouseAvatar`
+
+### `SanGuoShaExp/Text/Buff/sanguosha.csv`
+
+Columns:
+
+- `Id`
+- `Note`
+- `Name`
+- `Name_zh-Hant`
+- `Name_en`
+- `Name_ja`
+- `Description`
+- `Description_zh-Hant`
+- `Description_ja`
+- `Description_en`
+
+### `SanGuoShaExp/Text/Buff/shen_zhugeliang.csv`
+
+Columns:
+
+- `Id`
+- `Note`
+- `Name`
+- `Name_zh-Hant`
+- `Name_en`
+- `Name_ja`
+- `Description`
+- `Description_zh-Hant`
+- `Description_ja`
+- `Description_en`
+
+### `SanGuoShaExp/Text/Card/sanguosha.csv`
+
+Columns:
+
+- `Id`
+- `是否完成`
+- `Type`
+- `Note`
+- `Name`
+- `Name_en`
+- `Name_zh-Hant`
+- `Name_ja`
+- `Description`
+- `Description_zh-Hant`
+- `Description_en`
+- `Description_ja`
+
+### `SanGuoShaExp/Text/Card/shen_zhugeliang.csv`
+
+Columns:
+
+- `Id`
+- `是否完成`
+- `Type`
+- `Note`
+- `Name`
+- `Name_en`
+- `Name_zh-Hant`
+- `Name_ja`
+- `Description`
+- `Description_zh-Hant`
+- `Description_en`
+- `Description_ja`
+
+### `SanGuoShaExp/Text/CardPack/sanguosha.csv`
+
+Columns:
+
+- `Id`
+- `Note`
+- `Name`
+- `Name_zh-Hant`
+- `Name_en`
+- `Name_ja`
+- `Description`
+- `Description_zh-Hant`
+- `Description_ja`
+- `Description_en`
+
+### `SanGuoShaExp/Text/Career/shen_zhugeliang.csv`
+
+Columns:
+
+- `Id`
+- `Note`
+- `Name`
+- `Name_zh-Hant`
+- `Name_en`
+- `Name_ja`
+- `Title`
+- `Title_zh-Hant`
+- `Title_en`
+- `Title_ja`
+- `Description`
+- `Description_zh-Hant`
+- `Description_en`
+- `Description_ja`
+- `Action1`
+- `Action1_zh-Hant`
+- `Action1_en`
+- `Action1_ja`
+- `Action2`
+- `Action2_zh-Hant`
+- `Action2_en`
+- `Action2_ja`
+- `Passive1`
+- `Passive1_zh-Hant`
+- `Passive1_en`
+- `Passive1_ja`
+- `Passive2`
+- `Passive2_zh-Hant`
+- `Passive2_en`
+- `Passive2_ja`
+
+### `SanGuoShaExp/Text/Relic/sanguosha.csv`
+
+Columns:
+
+- `Id`
+- `Note`
+- `Series`
+- `Tag`
+- `Name`
+- `Name_zh-Hant`
+- `Name_en`
+- `Name_ja`
+- `Tips`
+- `Tips_zh-Hant`
+- `Tips_en`
+- `Tips_ja`
+- `Description`
+- `Description_zh-Hant`
+- `Description_en`
+- `Description_ja`
+
+### `SanGuoShaExp/Text/RoleData/shen_zhugeliang.csv`
+
+Columns:
 
 - `Id`
 - `Name`
@@ -1333,7 +1607,7 @@
 
 ### `StarExp/Data/Buff/star_miracle.csv`
 
-列：
+Columns:
 
 - `Id`
 - `InitScript`
@@ -1353,7 +1627,7 @@
 
 ### `StarExp/Data/Card/star_miracle.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Rarity`
@@ -1370,7 +1644,7 @@
 
 ### `StarExp/Data/CardPack/star_miracle.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Type`
@@ -1378,7 +1652,7 @@
 
 ### `StarExp/Data/Career/star_miracle.csv`
 
-列：
+Columns:
 
 - `Id`
 - `SanMax`
@@ -1403,7 +1677,7 @@
 
 ### `StarExp/Data/RoleData/star_miracle.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Avatar`
@@ -1412,7 +1686,7 @@
 
 ### `StarExp/Text/Buff/star_miracle.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -1427,7 +1701,7 @@
 
 ### `StarExp/Text/Card/star_miracle.csv`
 
-列：
+Columns:
 
 - `Id`
 - `是否完成`
@@ -1444,7 +1718,7 @@
 
 ### `StarExp/Text/CardPack/star_miracle.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -1459,7 +1733,7 @@
 
 ### `StarExp/Text/Career/star_miracle.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -1494,7 +1768,7 @@
 
 ### `StarExp/Text/KeyWordsDic/star_miracle.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -1510,7 +1784,7 @@
 
 ### `StarExp/Text/RoleData/star_miracle.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Name`
@@ -1530,7 +1804,7 @@
 
 ### `SunExp/Data/Blessing/sunexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Weight`
@@ -1543,7 +1817,7 @@
 
 ### `SunExp/Data/Buff/sunexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `InitScript`
@@ -1563,7 +1837,7 @@
 
 ### `SunExp/Data/Buff/wuna.csv`
 
-列：
+Columns:
 
 - `Id`
 - `InitScript`
@@ -1583,7 +1857,7 @@
 
 ### `SunExp/Data/Card/sunexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Rarity`
@@ -1600,7 +1874,7 @@
 
 ### `SunExp/Data/Card/wuna.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Rarity`
@@ -1617,7 +1891,7 @@
 
 ### `SunExp/Data/CardPack/sunexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Type`
@@ -1625,7 +1899,7 @@
 
 ### `SunExp/Data/Career/wuna.csv`
 
-列：
+Columns:
 
 - `Id`
 - `SanMax`
@@ -1650,7 +1924,7 @@
 
 ### `SunExp/Data/EnchTag/sunexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Tag`
@@ -1666,7 +1940,7 @@
 
 ### `SunExp/Data/Enemy/sunexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Name`
@@ -1682,7 +1956,7 @@
 
 ### `SunExp/Data/EnemyCard/sunexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `InitScript`
@@ -1696,7 +1970,7 @@
 
 ### `SunExp/Data/EventList/sunexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `1Script`
@@ -1709,7 +1983,7 @@
 
 ### `SunExp/Data/Level/sunexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `EnemyIds`
@@ -1719,7 +1993,7 @@
 
 ### `SunExp/Data/Map/sunexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Type`
@@ -1728,7 +2002,7 @@
 
 ### `SunExp/Data/Partner/sunexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Hp`
@@ -1746,7 +2020,7 @@
 
 ### `SunExp/Data/PartnerCard/sunexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `InitScript`
@@ -1759,7 +2033,7 @@
 
 ### `SunExp/Data/Relic/sunexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Rarity`
@@ -1770,7 +2044,7 @@
 
 ### `SunExp/Data/RoleData/wuna.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Avatar`
@@ -1779,7 +2053,7 @@
 
 ### `SunExp/Text/Blessing/sunexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -1798,7 +2072,7 @@
 
 ### `SunExp/Text/Buff/sunexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -1813,7 +2087,7 @@
 
 ### `SunExp/Text/Buff/wuna.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -1828,7 +2102,7 @@
 
 ### `SunExp/Text/Card/sunexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `是否完成`
@@ -1845,7 +2119,7 @@
 
 ### `SunExp/Text/Card/wuna.csv`
 
-列：
+Columns:
 
 - `Id`
 - `是否完成`
@@ -1862,7 +2136,7 @@
 
 ### `SunExp/Text/CardPack/sunexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -1877,7 +2151,7 @@
 
 ### `SunExp/Text/Career/wuna.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -1912,7 +2186,7 @@
 
 ### `SunExp/Text/EnchTag/sunexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -1927,7 +2201,7 @@
 
 ### `SunExp/Text/Enemy/sunexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -1947,7 +2221,7 @@
 
 ### `SunExp/Text/EnemyCard/sunexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -1962,7 +2236,7 @@
 
 ### `SunExp/Text/EventList/sunexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -1998,7 +2272,7 @@
 
 ### `SunExp/Text/KeyWordsDic/sunexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -2014,7 +2288,7 @@
 
 ### `SunExp/Text/Map/sunexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -2033,7 +2307,7 @@
 
 ### `SunExp/Text/Partner/sunexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -2052,7 +2326,7 @@
 
 ### `SunExp/Text/PartnerCard/sunexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -2067,7 +2341,7 @@
 
 ### `SunExp/Text/Relic/sunexp.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Note`
@@ -2088,7 +2362,7 @@
 
 ### `SunExp/Text/RoleData/wuna.csv`
 
-列：
+Columns:
 
 - `Id`
 - `Name`
@@ -2103,155 +2377,4 @@
 - `Dia_en`
 - `Dia_zh-Hant`
 - `Dia_ja`
-
-## SanGuoShaExp
-
-### `SanGuoShaExp/Data/Buff/shen_zhugeliang.csv`
-
-列：
-
-- `Id`
-- `InitScript`
-- `ApplyScript`
-- `ClearScript`
-- `ReducePerTurn`
-- `ReducePerAttacked`
-- `ReducePerUse`
-- `UpperBound`
-- `Icon`
-- `Type`
-- `Rarity`
-- `Effects`
-- `SoundEffects`
-- `Action`
-- `CanZero`
-
-### `SanGuoShaExp/Data/Card/shen_zhugeliang.csv`
-
-列：
-
-- `Id`
-- `Rarity`
-- `Expend`
-- `Tag`
-- `InitScript`
-- `DrawScript`
-- `UseScript`
-- `DropScript`
-- `Icon`
-- `Effects`
-- `Action`
-- `PackBelong`
-
-### `SanGuoShaExp/Data/Career/shen_zhugeliang.csv`
-
-列：
-
-- `Id`
-- `SanMax`
-- `SkillScript`
-- `Animation`
-- `Vocal`
-- `Skill1`
-- `Skill2`
-- `ChoiceIcon`
-- `DollIcon`
-- `Character`
-- `Avatar`
-- `CareerImage`
-- `ActionImage1`
-- `ActionImage2`
-- `Dialogue`
-- `EmojiPath`
-- `AttackEffect`
-- `SkillEffect`
-- `HitEffect`
-- `DefendEffect`
-
-### `SanGuoShaExp/Data/RoleData/shen_zhugeliang.csv`
-
-列：
-
-- `Id`
-- `Avatar`
-- `CharacterImage`
-- `HouseAvatar`
-
-### `SanGuoShaExp/Text/Buff/shen_zhugeliang.csv`
-
-列：
-
-- `Id`
-- `Note`
-- `Name`
-- `Name_zh-Hant`
-- `Name_en`
-- `Name_ja`
-- `Description`
-- `Description_zh-Hant`
-- `Description_ja`
-- `Description_en`
-
-### `SanGuoShaExp/Text/Card/shen_zhugeliang.csv`
-
-列：
-
-- `Id`
-- `是否完成`
-- `Type`
-- `Note`
-- `Name`
-- `Name_en`
-- `Name_zh-Hant`
-- `Name_ja`
-- `Description`
-- `Description_zh-Hant`
-- `Description_en`
-- `Description_ja`
-
-### `SanGuoShaExp/Text/Career/shen_zhugeliang.csv`
-
-列：
-
-- `Id`
-- `Note`
-- `Name`
-- `Name_zh-Hant`
-- `Name_en`
-- `Name_ja`
-- `Title`
-- `Title_zh-Hant`
-- `Title_en`
-- `Title_ja`
-- `Description`
-- `Description_zh-Hant`
-- `Description_en`
-- `Description_ja`
-- `Action1`
-- `Action1_zh-Hant`
-- `Action1_en`
-- `Action1_ja`
-- `Action2`
-- `Action2_zh-Hant`
-- `Action2_en`
-- `Action2_ja`
-- `Passive1`
-- `Passive1_zh-Hant`
-- `Passive1_en`
-- `Passive1_ja`
-- `Passive2`
-- `Passive2_zh-Hant`
-- `Passive2_en`
-- `Passive2_ja`
-
-### `SanGuoShaExp/Text/RoleData/shen_zhugeliang.csv`
-
-列：
-
-- `Id`
-- `Name`
-- `Name_zh-Hant`
-- `Name_en`
-- `Name_ja`
-
 

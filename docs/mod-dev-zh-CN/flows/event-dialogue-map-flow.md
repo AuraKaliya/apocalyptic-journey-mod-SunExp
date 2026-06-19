@@ -7,8 +7,8 @@
 
 源码锚点：
 
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/UI/Window/EventUI.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/AllScripts/AllScripts.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/UI/Window/EventUI.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/AllScripts/AllScripts.cs`
 - `SunExp/Data/EventList/sunexp.csv`
 - `SunExp-Dev/Scripting/EventScripts.cs`
 
@@ -29,8 +29,8 @@ SunExp 让 EventList 脚本列保持为对 `EventScripts` 的短调用。剧情�
 
 源码锚点：
 
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/UI/Window/DialogueUI.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/DialogueManager.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/UI/Window/DialogueUI.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/DialogueManager.cs`
 
 ```mermaid
 flowchart TD
@@ -47,8 +47,8 @@ flowchart TD
 
 源码锚点：
 
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/NormalMapManager.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/MapManager.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/NormalMapManager.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/MapManager.cs`
 - `SunExp/Data/Map/sunexp.csv`
 - `SunExp-Dev/Hooks/SolarMemoryModeRuntime.cs`
 - `SunExp-Dev/Mechanics/SolarMemoryMapNodePoolFactory.cs`

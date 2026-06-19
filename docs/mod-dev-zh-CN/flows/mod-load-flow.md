@@ -4,8 +4,8 @@
 
 源码锚点：
 
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/GameConfigManager.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/Mod/ModConfig.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/GameConfigManager.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/Mod/ModConfig.cs`
 - `apocalyptic-journey-mod-tutorial/ModTemplate/README.zh-CN.md`
 - `apocalyptic-journey-mod-tutorial/DllTemplate/readme.zh-CN.md`
 

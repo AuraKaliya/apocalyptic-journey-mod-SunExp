@@ -403,25 +403,26 @@ SunExp/Data/Level/sunexp.csv
 | `SunExp_sunexp_level_second_sun_last_day` | `SunExp_sunexp_boss_second_sun_last_day` | `boss` | `-1` |
 | `SunExp_sunexp_level_saint_wuna` | `SunExp_sunexp_boss_saint_wuna` | `boss` | `-1` |
 
-### Enemy / EnemyCard / EnemyBless
+### Enemy / EnemyCard / Boss trait Buff
 
-新增：
+当前已落地：
 
 ```text
 SunExp/Data/Enemy/sunexp.csv
 SunExp/Text/Enemy/sunexp.csv
 SunExp/Data/EnemyCard/sunexp.csv
 SunExp/Text/EnemyCard/sunexp.csv
-SunExp/Data/EnemyBless/sunexp.csv
-SunExp/Text/EnemyBless/sunexp.csv
+SunExp/Data/Buff/sunexp.csv
+SunExp/Text/Buff/sunexp.csv
 ```
 
-初版可以只做最小可运行战斗：
+当前实现保持最小可运行战斗：
 
-- 每个 Boss 3 到 4 张行动牌。
+- 3 个 Boss 分别是 `boss_orbit_mirror_array`、`boss_second_sun_last_day`、`boss_saint_wuna`。
+- 每个 Boss 使用 2 张行动牌，共 6 张 `EnemyCard`。
 - 每张牌调用 `CS.SunExp.Dll.Scripting.BossScripts.*`。
-- 复杂机制全部在 C# 中实现。
-- CSV 只负责 ID、CD、目标、基础数值、脚本入口和官方资源占位。
+- Boss 常驻机制通过 Buff 特性承载：`boss_trait_mirror_array`、`boss_trait_merciless_daylight`、`boss_trait_white_radiance_saint`。
+- 当前没有 `EnemyBless` 表；CSV 只负责 ID、目标、基础数值、脚本入口和占位资源。
 
 ## C# 落点
 
@@ -438,26 +439,36 @@ SunExp/Text/EnemyBless/sunexp.csv
 
 ### `SolarMemoryModeRuntime.cs`
 
-改动：
+当前职责：
 
-1. 替换当前第三层完成后直接 `GameExitUI` 的逻辑。
-2. 增加终局路由状态：
+1. `FinishSolarMemoryAfterFinalLayer` 接管第三层完成后的终局路由。
+2. 使用终局路由状态：
    - `SolarFinaleSecondSunDefeatedKey`
    - `SolarFinaleSaintGateResolvedKey`
    - `SolarFinalePendingSaintBattleKey`
    - `SolarFinaleSaintDefeatedKey`
-3. 终日态完成后进入 `Sub_solar_finale_saint_gate`。
-4. 乌娜战斗完成后再进入 ending 或结算 UI。
+3. `StartSolarFinaleSaintBattle()` 从事件选项进入固定乌娜战斗节点。
+4. `OpenSolarFinaleEndingEvent()` 和 `ShowSolarMemorySettlement()` 负责终局事件与结算 UI。
+5. `FinishSolarFinaleSaintBattle()` 在乌娜战斗完成后写入状态并进入 ending。
 
 ### `EventScripts.cs`
 
-新增入口：
+当前入口：
 
 ```csharp
-public static void InitSolarFinaleSaintGate(object self)
+public static void InitSolarFinaleLedger(ScriptExecutor self)
+public static void PreserveSolarFinaleLedger()
+public static void BurnSolarFinaleName()
+public static void NamelessSolarFinaleName()
+public static void InitSolarFinaleSecondSun(ScriptExecutor self)
+public static void ResolveSolarFinaleSecondSun(string result)
+public static void InitSolarFinaleSaint(ScriptExecutor self)
+public static void InitSolarFinaleSaintGate(ScriptExecutor self)
 public static void EnterSolarFinaleSaintBattle()
 public static void SkipSolarFinaleSaintBattle()
-public static void ResolveSolarFinaleAfterSaintBattle()
+public static void ResolveSolarFinaleSaint(string result)
+public static void InitSolarFinaleEnding(ScriptExecutor self)
+public static void FinishSolarFinaleEnding(string ending)
 ```
 
 事件脚本职责：
@@ -469,28 +480,29 @@ public static void ResolveSolarFinaleAfterSaintBattle()
 
 ### `BossScripts.cs`
 
-建议新增：
+当前文件：
 
 ```text
 SunExp-Dev/Scripting/BossScripts.cs
-SunExp-Dev/Mechanics/SolarMemoryBossService.cs
 ```
 
-`BossScripts` 是 CSV 调用入口；`SolarMemoryBossService` 存放实际机制。
+`BossScripts` 同时是 CSV 调用入口和当前 Boss 机制承载处；没有单独的 `SolarMemoryBossService.cs`。
 
-初版入口：
+当前入口：
 
 ```csharp
-public static void OnFightStart(string bossId)
-public static void OnRoundStart(string bossId)
-public static void UseCard(string bossId, string cardId)
-public static void OnDefeated(string bossId)
+public static void InitEnemy(ScriptExecutor self, string bossId)
+public static void ApplyTrait(ScriptExecutor self, string traitId)
+public static void ClearTrait(ScriptExecutor self, string traitId)
+public static void InitCard(ScriptExecutor self, string cardId)
+public static void Target(ScriptExecutor self, string target)
+public static void UseCard(ScriptExecutor self, string cardId)
 ```
 
-`OnDefeated` 需要处理：
+当前状态处理：
 
-- 终日态：设置 `SolarFinaleSecondSunDefeatedKey`。
-- 乌娜：设置 `SolarFinaleSaintDefeatedKey` 和 ending key。
+- 终日态击破后的路线由 `SolarMemoryModeRuntime` 与终局事件链处理。
+- 乌娜战斗完成后由 `SolarMemoryModeRuntime.FinishSolarFinaleSaintBattle()` 写入 `SolarFinaleSaintDefeatedKey` 并进入 ending。
 
 ### `SunExpIds.cs`
 

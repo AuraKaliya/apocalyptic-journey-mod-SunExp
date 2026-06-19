@@ -5,8 +5,8 @@ This page covers the two most important combat/runtime surfaces around
 
 Source anchors:
 
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch.Core/IStatusManager.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch.Core/EventCenter.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch.Core/IStatusManager.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch.Core/EventCenter.cs`
 
 ## IStatusManager
 

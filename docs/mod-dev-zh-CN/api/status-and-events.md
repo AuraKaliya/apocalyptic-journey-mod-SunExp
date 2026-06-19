@@ -5,8 +5,8 @@
 
 源码锚点：
 
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch.Core/IStatusManager.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch.Core/EventCenter.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch.Core/IStatusManager.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch.Core/EventCenter.cs`
 
 ## IStatusManager
 

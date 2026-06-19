@@ -6,18 +6,19 @@ description: Project-local skill for producing SunExp mod content for Witch's Ap
 # SunExp Mod Dev
 
 Use this skill only inside this repository. Treat `SunExp/` as the shipped mod
-surface and `SunExp/Dev/` as the default implementation surface for behavior.
+surface and `SunExp-Dev/` as the default implementation surface for behavior.
 Production behavior lives in C# DLL entry points called from CSV. The `luaEnv`
-bridge in `SunExp/Dev/Entry.cs` is a host interop detail, not a production Lua
+bridge in `SunExp-Dev/Entry.cs` is a host interop detail, not a production Lua
 implementation path.
 
 ## Workflow
 
 1. Inspect the current feature surface before editing:
-   - `SunExp/Dev/**/*.cs`
-   - `SunExp/Data/**/sunexp.csv`
-   - `SunExp/Text/**/sunexp.csv`
+   - `SunExp-Dev/**/*.cs`
+   - `SunExp/Data/**/*.csv`
+   - `SunExp/Text/**/*.csv`
    - `SunExp/ModConfig.json`
+   - `SunExp/audio.registry.json` when audio, vocal, or BGM behavior changes.
    - release-facing docs only when behavior, counts, or user-facing claims change.
 2. Load only the relevant reference:
    - Card, Buff, Relic, CardPack fields: `references/csv-schema.md`
@@ -28,8 +29,9 @@ implementation path.
    - For EventList, Text/EventList, map-visible event, and event helper work, also use the project-local `sunexp-event-dev` skill.
 3. Keep behavior in C# by default:
    - CSV script columns should call `CS.SunExp.Dll.Scripting.*` entry points.
-   - Put card, buff, relic, role, and event behavior in the matching `SunExp/Dev/Scripting/*Scripts.cs` file.
-   - Put shared game-facing wrappers in `SunExp/Dev/GameApi/`, reusable implementation code in `SunExp/Dev/Mechanics/`, and IDs/utilities in `SunExp/Dev/Infrastructure/`.
+   - Put card, buff, relic, role, boss, and event behavior in the matching `SunExp-Dev/Scripting/*Scripts.cs` file.
+   - Put shared game-facing wrappers in `SunExp-Dev/GameApi/`, reusable implementation code in `SunExp-Dev/Mechanics/`, and IDs/utilities in `SunExp-Dev/Infrastructure/`.
+   - Put runtime hook and UI integration code in `SunExp-Dev/Hooks/`.
 4. Keep Data and Text rows synchronized. Any new card, buff, relic, card pack, role, dialogue, map, or event needs both config and localized text when the template has both sides.
 5. Prefer existing SunExp C# helpers over inline CSV logic. Add a shared helper only when multiple scripts need the same behavior or nil-safe wrapper.
 6. Check authoring boundaries before validation when edits touch new C# entry points, hooks, CSV script columns, resource paths, or localized descriptions.
@@ -54,7 +56,7 @@ tools\Test-SunExpCSharp.ps1
 
 - CSV script columns should stay short and delegate to `CS.SunExp.Dll.Scripting.*`.
 - New public CSV-callable C# methods should have stable names and small parameter lists.
-- Hook code should be isolated under `SunExp/Dev/Hooks/` and verified against the decompiled method signature before use.
+- Hook code should be isolated under `SunExp-Dev/Hooks/` and verified against the decompiled method signature before use.
 - Data/Text CSV rows, icon paths, and localized descriptions should be updated in the same change.
 - Old dynamic helper calls are not allowed in CSV script columns; use C# entry points.
 

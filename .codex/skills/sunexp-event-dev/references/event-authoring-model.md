@@ -44,7 +44,7 @@ Rules:
 - Put option rewards in `1Script` through `4Script`.
 - Put choice visibility and entry gating in `InitScript`.
 - Prefer compact C# entry-point calls in CSV, not long inline logic.
-- If multiple event rows share behavior, implement or reuse a helper in `SunExp/Dev/Scripting/EventScripts.cs` or the relevant C# support layer.
+- If multiple event rows share behavior, implement or reuse a helper in `SunExp-Dev/Scripting/EventScripts.cs` or the relevant C# support layer.
 
 ## Text/EventList
 
@@ -62,6 +62,6 @@ Style:
 
 ## C# Placement
 
-- Put shared event option behavior in `SunExp/Dev/Scripting/EventScripts.cs`.
-- Put repeated player/game-var access behind `SunExp/Dev/GameApi/PlayerApi.cs`.
-- Check official event script examples in `开发参考资料/反编译文件夹/AllScripts/AllScripts.cs` when the CSV field or API shape is unclear.
+- Put shared event option behavior in `SunExp-Dev/Scripting/EventScripts.cs`.
+- Put repeated player/game-var access behind `SunExp-Dev/GameApi/PlayerApi.cs`.
+- Check official event script examples in `开发参考资料/反编译文件夹v1.0.23693118/AllScripts/AllScripts.cs` when the CSV field or API shape is unclear.

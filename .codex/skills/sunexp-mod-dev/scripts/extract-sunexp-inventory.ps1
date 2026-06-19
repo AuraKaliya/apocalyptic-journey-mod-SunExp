@@ -13,8 +13,12 @@ function Read-Rows {
     if (-not (Test-Path -LiteralPath $Path)) {
         return @()
     }
-    return @(Import-Csv -LiteralPath $Path | Where-Object {
-        $_.Id -and $_.Id -ne "唯一标识"
+    $rows = @(Import-Csv -LiteralPath $Path)
+    if ($rows.Count -le 1) {
+        return @()
+    }
+    return @($rows | Select-Object -Skip 1 | Where-Object {
+        -not [string]::IsNullOrWhiteSpace($_.Id)
     })
 }
 

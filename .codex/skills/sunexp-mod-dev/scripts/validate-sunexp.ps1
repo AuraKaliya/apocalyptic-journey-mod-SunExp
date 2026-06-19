@@ -65,8 +65,11 @@ function Normalize-Id {
 }
 
 function Full-SunExp-Id {
-    param([string]$Id)
-    return "SunExp_sunexp_$(Normalize-Id $Id)"
+    param(
+        [string]$Id,
+        [string]$FileStem = "sunexp"
+    )
+    return "SunExp_${FileStem}_$(Normalize-Id $Id)"
 }
 
 function Get-Placeholders {
@@ -161,6 +164,9 @@ function Test-PackRefs {
             continue
         }
         if ([string]::IsNullOrWhiteSpace($row.PackBelong)) {
+            if ($Kind -eq "Card" -and (Normalize-Id $row.Id) -ne $row.Id) {
+                continue
+            }
             Add-Failure "$Kind '$($row.Id)' has empty PackBelong."
             continue
         }
@@ -350,6 +356,57 @@ function Test-MapTextNotes {
     }
 }
 
+function Get-KindCsvFiles {
+    param(
+        [string]$ModRootPath,
+        [string]$Area,
+        [string]$Kind
+    )
+    $dir = Join-Path $ModRootPath "$Area\$Kind"
+    if (-not (Test-Path -LiteralPath $dir)) {
+        return @()
+    }
+    return @(Get-ChildItem -LiteralPath $dir -Filter "*.csv" -File | Sort-Object Name)
+}
+
+function Get-TextCsvForDataCsv {
+    param(
+        [string]$ModRootPath,
+        [System.IO.FileInfo]$DataFile
+    )
+    $dataRoot = Join-Path $ModRootPath "Data"
+    $relative = $DataFile.FullName.Substring($dataRoot.Length).TrimStart("\")
+    return Join-Path (Join-Path $ModRootPath "Text") $relative
+}
+
+function Add-RowsFromFiles {
+    param([System.IO.FileInfo[]]$Files)
+    $allRows = @()
+    foreach ($file in $Files) {
+        $allRows += @(Read-Rows $file.FullName)
+    }
+    return @($allRows)
+}
+
+function Test-KindDataTextPairs {
+    param(
+        [string]$Kind,
+        [System.IO.FileInfo[]]$DataFiles,
+        [string]$ModRootPath,
+        [bool]$TextRequired = $true
+    )
+    foreach ($dataFile in $DataFiles) {
+        $textFile = Get-TextCsvForDataCsv $ModRootPath $dataFile
+        if (-not (Test-Path -LiteralPath $textFile)) {
+            if ($TextRequired) {
+                Add-Failure "$Kind data file '$($dataFile.FullName)' has no matching text file."
+            }
+            continue
+        }
+        Test-TextPair $Kind (Read-Rows $dataFile.FullName) (Read-Rows $textFile)
+    }
+}
+
 $repoRoot = Get-RepoRoot
 if (-not $ModRoot) {
     $ModRoot = Join-Path $repoRoot "SunExp"
@@ -364,47 +421,67 @@ $script:Warnings = New-Object System.Collections.Generic.List[string]
 
 Test-NoLuaProductionFiles $modRootPath $repoRoot
 
-$cards = Read-Rows (Join-Path $modRootPath "Data\Card\sunexp.csv")
-$cardTexts = Read-Rows (Join-Path $modRootPath "Text\Card\sunexp.csv")
-$buffs = Read-Rows (Join-Path $modRootPath "Data\Buff\sunexp.csv")
-$buffTexts = Read-Rows (Join-Path $modRootPath "Text\Buff\sunexp.csv")
-$relics = Read-Rows (Join-Path $modRootPath "Data\Relic\sunexp.csv")
-$relicTexts = Read-Rows (Join-Path $modRootPath "Text\Relic\sunexp.csv")
-$packs = Read-Rows (Join-Path $modRootPath "Data\CardPack\sunexp.csv")
-$packTexts = Read-Rows (Join-Path $modRootPath "Text\CardPack\sunexp.csv")
-$enemies = Read-Rows (Join-Path $modRootPath "Data\Enemy\sunexp.csv")
+$cardFiles = Get-KindCsvFiles $modRootPath "Data" "Card"
+$buffFiles = Get-KindCsvFiles $modRootPath "Data" "Buff"
+$relicFiles = Get-KindCsvFiles $modRootPath "Data" "Relic"
+$packFiles = Get-KindCsvFiles $modRootPath "Data" "CardPack"
+$enemyFiles = Get-KindCsvFiles $modRootPath "Data" "Enemy"
 
-Test-TextPair "Card" $cards $cardTexts
-Test-TextPair "Buff" $buffs $buffTexts
-Test-TextPair "Relic" $relics $relicTexts
-Test-TextPair "CardPack" $packs $packTexts
+$cards = Add-RowsFromFiles $cardFiles
+$buffs = Add-RowsFromFiles $buffFiles
+$relics = Add-RowsFromFiles $relicFiles
+$packs = Add-RowsFromFiles $packFiles
+$enemies = Add-RowsFromFiles $enemyFiles
+
+Test-KindDataTextPairs "Card" $cardFiles $modRootPath
+Test-KindDataTextPairs "Buff" $buffFiles $modRootPath
+Test-KindDataTextPairs "Relic" $relicFiles $modRootPath
+Test-KindDataTextPairs "CardPack" $packFiles $modRootPath
 
 $packIds = @{}
-foreach ($pack in $packs) {
-    $packIds[(Full-SunExp-Id $pack.Id)] = $true
+foreach ($packFile in $packFiles) {
+    $fileStem = [System.IO.Path]::GetFileNameWithoutExtension($packFile.Name)
+    foreach ($pack in (Read-Rows $packFile.FullName)) {
+        $packIds[(Full-SunExp-Id $pack.Id $fileStem)] = $true
+    }
 }
 Test-PackRefs "Card" $cards $packIds
 Test-PackRefs "Relic" $relics $packIds
 
-Test-ResourcePaths "Card" $cards $repoRoot
-Test-ResourcePaths "Relic" $relics $repoRoot
-Test-ResourcePaths "Enemy" $enemies $repoRoot
-Test-EnemyAnimationMapResources $enemies $repoRoot
+foreach ($file in $cardFiles) {
+    $rows = Read-Rows $file.FullName
+    Test-ResourcePaths "Card" $rows $repoRoot
+    Test-ScriptResidue "Data/Card/$($file.Name)" $rows
+    $textFile = Get-TextCsvForDataCsv $modRootPath $file
+    Test-CardDescriptions $rows (Read-Rows $textFile)
+}
+foreach ($file in $buffFiles) {
+    $rows = Read-Rows $file.FullName
+    Test-ResourcePaths "Buff" $rows $repoRoot
+    Test-ScriptResidue "Data/Buff/$($file.Name)" $rows
+}
+foreach ($file in $relicFiles) {
+    $rows = Read-Rows $file.FullName
+    Test-ResourcePaths "Relic" $rows $repoRoot
+    Test-ScriptResidue "Data/Relic/$($file.Name)" $rows
+}
+foreach ($file in $enemyFiles) {
+    $rows = Read-Rows $file.FullName
+    Test-ResourcePaths "Enemy" $rows $repoRoot
+    Test-EnemyAnimationMapResources $rows $repoRoot
+}
 
-Test-ScriptResidue "Data/Card/sunexp.csv" $cards
-Test-ScriptResidue "Data/Buff/sunexp.csv" $buffs
-Test-ScriptResidue "Data/Relic/sunexp.csv" $relics
-Test-CardDescriptions $cards $cardTexts
-
-$optionalKinds = @("RoleData", "Dialogue", "EventList", "Career", "Map")
+$optionalKinds = @("RoleData", "Dialogue", "EventList", "Career", "Map", "EnemyCard", "Partner", "PartnerCard", "Blessing", "EnchTag")
 foreach ($kind in $optionalKinds) {
-    $dataFile = Join-Path $modRootPath "Data\$kind\sunexp.csv"
-    $textFile = Join-Path $modRootPath "Text\$kind\sunexp.csv"
-    if ((Test-Path -LiteralPath $dataFile) -or (Test-Path -LiteralPath $textFile)) {
-        $dataRows = Read-Rows $dataFile
-        $textRows = Read-Rows $textFile
-        Test-TextPair $kind $dataRows $textRows
-        Test-ScriptResidue "Data/$kind/sunexp.csv" $dataRows
+    $dataFiles = Get-KindCsvFiles $modRootPath "Data" $kind
+    if ($dataFiles.Count -eq 0) {
+        continue
+    }
+    Test-KindDataTextPairs $kind $dataFiles $modRootPath
+    foreach ($dataFile in $dataFiles) {
+        $dataRows = Read-Rows $dataFile.FullName
+        $textRows = Read-Rows (Get-TextCsvForDataCsv $modRootPath $dataFile)
+        Test-ScriptResidue "Data/$kind/$($dataFile.Name)" $dataRows
         Test-ResourcePaths $kind $dataRows $repoRoot
         if ($kind -eq "EventList") {
             Test-EventListTexts $dataRows $textRows

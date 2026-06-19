@@ -1,6 +1,18 @@
-# 生成的公开 API 索引
+﻿# Generated Public API Index
 
-从当前 `*-Dev` C# 工程生成。英文主索引可通过 `tools\Export-ModDevDocs.ps1` 刷新。
+Generated from `*-Dev` C# projects. Refresh with `tools\Export-ModDevDocs.ps1`.
+
+## BackgroundAudioReplaceExp-Dev
+
+### `BackgroundAudioReplaceExp-Dev/Entry.cs`
+
+- `public static class Entry`
+- `public static void Initialize(ModConfig modConfig)`
+
+### `BackgroundAudioReplaceExp-Dev/Hooks/BackgroundBattleMusicRuntime.cs`
+
+- `public static class BackgroundBattleMusicRuntime`
+- `public static void Initialize(ModConfig modConfig)`
 
 ## CardPackExp-Dev
 
@@ -31,6 +43,18 @@
 - `public static void Info(string message)`
 - `public static void Warn(string message)`
 - `public static void Error(string message, Exception? exception = null)`
+
+## CardUseCialloExp-Dev
+
+### `CardUseCialloExp-Dev/Entry.cs`
+
+- `public static class Entry`
+- `public static void Initialize(ModConfig modConfig)`
+
+### `CardUseCialloExp-Dev/Hooks/CardUseSoundRuntime.cs`
+
+- `public static class CardUseSoundRuntime`
+- `public static void Initialize(ModConfig modConfig)`
 
 ## GoldExp-Dev
 
@@ -268,6 +292,23 @@
 - `public static class Entry`
 - `public static void Initialize(ModConfig modConfig)`
 
+### `SanGuoShaExp-Dev/GameApi/AudioApi.cs`
+
+- `public static class AudioApi`
+- `public static void Initialize(ModConfig modConfig)`
+- `public static void PlayQixing()`
+- `public static void PlayRandomWindMist()`
+
+### `SanGuoShaExp-Dev/GameApi/BattleBgmProviderRuntime.cs`
+
+- `public static class BattleBgmProviderRuntime`
+- `public static void Initialize(ModConfig modConfig)`
+- `public static void RequestBattleSwitch(string reason, bool force = false, bool allowSilenceWhenLoading = false, bool restartIfSameClip = true)`
+- `public sealed class BattleAudioRegistryManifest`
+- `public sealed class BattleBgmDefaultsManifest`
+- `public sealed class BattleBgmProviderManifest`
+- `public sealed class BattleBgmMatchManifest`
+
 ### `SanGuoShaExp-Dev/GameApi/ExecutorApi.cs`
 
 - `public static class ExecutorApi`
@@ -305,12 +346,78 @@
 - `public static void Error(string message, Exception? exception = null)`
 - `public static void Debug(string message)`
 
+### `SanGuoShaExp-Dev/Scripting/SanGuoShaCardScripts.cs`
+
+- `public static class SanGuoShaCardScripts`
+- `public static void Init(ScriptExecutor self, string id)`
+- `public static void Use(ScriptExecutor self, string id)`
+
+### `SanGuoShaExp-Dev/Scripting/SanGuoShaRelicScripts.cs`
+
+- `public static class SanGuoShaRelicScripts`
+- `public static void Fight(ScriptExecutor self, string id)`
+
 ### `SanGuoShaExp-Dev/Scripting/ShenZhugeLiangScripts.cs`
 
 - `public static class ShenZhugeLiangScripts`
 - `public static void InitCareer(ScriptExecutor self)`
 - `public static void Init(ScriptExecutor self, string id)`
 - `public static void Use(ScriptExecutor self, string id)`
+
+## SkillCGExp-Dev
+
+### `SkillCGExp-Dev/Config/SkillCgConfig.cs`
+
+- `public sealed class SkillCgConfig`
+- `public static SkillCgConfig Load(string modDirectory)`
+- `public void Normalize(string modDirectory)`
+- `public sealed class SkillCgRule`
+- `public void Normalize(string modDirectory)`
+- `public bool Matches(SkillCgTriggerContext context)`
+- `public sealed class ConfigSkillCgProvider`
+- `public IEnumerable<SkillCgRequest> BuildRequests(object context)`
+
+### `SkillCGExp-Dev/Entry.cs`
+
+- `public static class Entry`
+- `public static void Initialize(ModConfig modConfig)`
+
+### `SkillCGExp-Dev/Hooks/SkillCgArbiterRuntime.cs`
+
+- `public static class SkillCgArbiterRuntime`
+- `public static void Initialize(ModConfig modConfig, string ownerModId, SkillCgArbiterOptions? options = null)`
+- `public static void RegisterProvider(ModConfig modConfig, string ownerModId, object provider)`
+- `public static void Trigger(object ownerToken, string ownerModId, SkillCgTriggerContext context)`
+- `public static void Clear(string ownerModId, string reason)`
+- `public sealed class SkillCgArbiterComponent : MonoBehaviour`
+- `public void Configure(object? value)`
+- `public void RegisterProvider(object? provider)`
+- `public void Trigger(object? value)`
+- `public void ClearQueue(object? reason)`
+- `public void AppendRequests(SkillCgTriggerContext context, List<SkillCgRequest> output)`
+- `public string Describe()`
+- `public sealed class SkillCgArbiterOptions`
+- `public SkillCgArbiterOptions Normalized()`
+- `public sealed class SkillCgTriggerContext`
+- `public sealed class SkillCgRequest`
+- `public void Normalize()`
+- `public static SkillCgRequest? FromObject(object? source, string providerId, string ownerModId, int priority, SkillCgTriggerContext context)`
+- `public static int CompareForQueue(QueuedRequest a, QueuedRequest b)`
+
+### `SkillCGExp-Dev/Hooks/SkillCgRuntime.cs`
+
+- `public static class SkillCgRuntime`
+- `public static void Initialize(ModConfig modConfig)`
+
+### `SkillCGExp-Dev/Infrastructure/SkillCgExpLog.cs`
+
+- `public static class SkillCgExpLog`
+- `public static void Info(string message)`
+- `public static void InfoOnce(string key, string message)`
+- `public static void Warn(string message)`
+- `public static void WarnOnce(string key, string message)`
+- `public static void Error(string message, Exception? exception = null)`
+- `public static void DebugLog(string message)`
 
 ## StarExp-Dev
 
@@ -422,6 +529,23 @@
 - `public static class Entry`
 - `public static void Initialize(ModConfig modConfig)`
 
+### `SunExp-Dev/GameApi/AudioApi.cs`
+
+- `public static class AudioApi`
+- `public static void Initialize(ModConfig modConfig)`
+- `public static void PlayWhiteSunPrayer()`
+- `public static void PlayGraveSong()`
+
+### `SunExp-Dev/GameApi/BattleBgmProviderRuntime.cs`
+
+- `public static class BattleBgmProviderRuntime`
+- `public static void Initialize(ModConfig modConfig)`
+- `public static void RequestBattleSwitch(string reason, bool force = false, bool allowSilenceWhenLoading = false, bool restartIfSameClip = true)`
+- `public sealed class BattleAudioRegistryManifest`
+- `public sealed class BattleBgmDefaultsManifest`
+- `public sealed class BattleBgmProviderManifest`
+- `public sealed class BattleBgmMatchManifest`
+
 ### `SunExp-Dev/GameApi/BuffApi.cs`
 
 - `public static class BuffApi`
@@ -498,20 +622,32 @@
 - `public static void ApplyFieldBuff(ScriptExecutor? executor, string fieldId, int amount)`
 - `public static bool ClearFieldBuff(ScriptExecutor? executor, string fieldId)`
 - `public static string FieldBuffId(string fieldId)`
+- `public static string FieldBuffId(SunExpFieldId field)`
 - `public static string FieldCombatKey(string fieldId, string name)`
+- `public static string FieldCombatKey(SunExpFieldId field, string name)`
+- `public static string FieldSlug(SunExpFieldId field)`
+- `public static SunExpFieldId ParseFieldId(string fieldId)`
 - `public static void SetSharedFieldState(string fieldId, int stacks)`
+- `public static void SetSharedFieldState(SunExpFieldId field, int stacks)`
 - `public static bool IsSharedFieldActive(string fieldId)`
+- `public static bool IsSharedFieldActive(SunExpFieldId field)`
+- `public static int FieldStacks(string fieldId)`
+- `public static int FieldStacks(SunExpFieldId field)`
 - `public static int SyncFieldStacks(ScriptExecutor? executor, string fieldId)`
+- `public static int SyncFieldStacks(ScriptExecutor? executor, SunExpFieldId field)`
 - `public static int SetActiveField(ScriptExecutor? executor, string fieldId)`
+- `public static int SetActiveField(ScriptExecutor? executor, SunExpFieldId field)`
 - `public static bool BeginSharedFieldStartRound(ScriptExecutor? executor, string fieldId)`
+- `public static bool BeginSharedFieldStartRound(ScriptExecutor? executor, SunExpFieldId field)`
 - `public static bool IsActiveField(ScriptExecutor? executor, string fieldId, int? epoch = null, string? token = null)`
+- `public static bool IsActiveField(ScriptExecutor? executor, SunExpFieldId field, int? epoch = null, string? token = null)`
 - `public static bool IsActiveField(ScriptExecutor? executor, string fieldId)`
 - `public static int TransferSelfBurnToRandomFriendly(ScriptExecutor? executor)`
 - `public static void AddBurnToRandomEnemy(ScriptExecutor? executor, int amount)`
 - `public static int NegativeBuffTotal(IStatusManager? status)`
 - `public static bool RemoveAllNegativeBuffs(ScriptExecutor? executor, IStatusManager? status)`
 - `public static int SolarCrownTier(ScriptExecutor? executor)`
-- `public static void HandleBurnOverflow(ScriptExecutor? executor, IStatusManager? target, string buffId, int amount)`
+- `public static void HandleBurnOverflow(IStatusManager? target, string buffId, int amount)`
 
 ### `SunExp-Dev/GameApi/GameCompatibilityApi.cs`
 
@@ -552,6 +688,13 @@
 - `public sealed class AnimatedBuffSpriteIcon : MonoBehaviour`
 - `public void Configure(float seconds)`
 
+### `SunExp-Dev/Hooks/AnimatedEnemyDictIconRuntime.cs`
+
+- `public static class AnimatedEnemyDictIconRuntime`
+- `public static void Initialize(ModConfig modConfig)`
+- `public sealed class AnimatedEnemyDictIcon : MonoBehaviour`
+- `public void Configure(float seconds, IReadOnlyList<string> framePaths)`
+
 ### `SunExp-Dev/Hooks/DuskPartnerRuntime.cs`
 
 - `public static class DuskPartnerRuntime`
@@ -575,6 +718,11 @@
 - `public static void Open(Action onCompleted)`
 - `public static void Close()`
 
+### `SunExp-Dev/Hooks/SolarMemoryMapItemAnimationRuntime.cs`
+
+- `public static class SolarMemoryMapItemAnimationRuntime`
+- `public static void Initialize(ModConfig modConfig)`
+
 ### `SunExp-Dev/Hooks/SolarMemoryModeRuntime.cs`
 
 - `public static class SolarMemoryModeRuntime`
@@ -595,6 +743,7 @@
 
 ### `SunExp-Dev/Hooks/SolarMemoryPreparationRuntime.cs`
 
+- `public enum SolarMemoryPrepStep`
 - `public static class SolarMemoryPreparationRuntime`
 - `public static void StartOrResume()`
 - `public static void CompleteDeckSelection()`
@@ -634,6 +783,10 @@
 - `public static int GetInt(IDictionary<string, string>? values, string key, int fallback = 0)`
 - `public static int ParseInt(string? value, int fallback = 0)`
 - `public static bool ContainsToken(string? text, string token)`
+
+### `SunExp-Dev/Infrastructure/SunExpFieldId.cs`
+
+- `public enum SunExpFieldId`
 
 ### `SunExp-Dev/Infrastructure/SunExpIds.cs`
 
@@ -678,6 +831,8 @@
 
 - `public static class BossScripts`
 - `public static void InitEnemy(ScriptExecutor self, string bossId)`
+- `public static void ApplyTrait(ScriptExecutor self, string traitId)`
+- `public static void ClearTrait(ScriptExecutor self, string traitId)`
 - `public static void InitCard(ScriptExecutor self, string cardId)`
 - `public static void Target(ScriptExecutor self, string target)`
 - `public static void UseCard(ScriptExecutor self, string cardId)`
@@ -742,5 +897,4 @@
 - `public static void InitCareer(ScriptExecutor self)`
 - `public static void Init(ScriptExecutor self, string id)`
 - `public static void Use(ScriptExecutor self, string id)`
-
 

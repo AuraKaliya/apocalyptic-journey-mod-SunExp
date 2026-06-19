@@ -11,6 +11,11 @@ $docsRoot = Join-Path $Root 'docs\mod-dev'
 $generatedRoot = Join-Path $docsRoot 'generated'
 New-Item -ItemType Directory -Force -Path $generatedRoot | Out-Null
 
+function New-Text {
+    param([int[]]$CodePoints)
+    return -join ($CodePoints | ForEach-Object { [char]$_ })
+}
+
 function Get-RelativePath {
     param([Parameter(Mandatory = $true)][string]$Path)
 
@@ -29,14 +34,16 @@ function Split-CsvHeader {
 }
 
 function Get-ReferenceRoot {
-    $parent = Join-Path $Root '开发参考资料'
+    $referenceParentName = New-Text @(0x5F00, 0x53D1, 0x53C2, 0x8003, 0x8D44, 0x6599)
+    $decompiledPrefix = New-Text @(0x53CD, 0x7F16, 0x8BD1, 0x6587, 0x4EF6, 0x5939)
+    $parent = Join-Path $Root $referenceParentName
     if (-not (Test-Path -LiteralPath $parent)) {
         return $null
     }
 
     $candidate = Get-ChildItem -LiteralPath $parent -Directory |
-        Where-Object { $_.Name -like '反编译文件夹*' } |
-        Sort-Object LastWriteTime -Descending |
+        Where-Object { $_.Name -like "$decompiledPrefix*" } |
+        Sort-Object Name -Descending |
         Select-Object -First 1
 
     if ($candidate) {
@@ -44,6 +51,24 @@ function Get-ReferenceRoot {
     }
 
     return $null
+}
+
+function Get-CsvSources {
+    $sources = New-Object System.Collections.Generic.List[hashtable]
+    $templatePath = Join-Path $Root 'apocalyptic-journey-mod-tutorial\ModTemplate'
+    if (Test-Path -LiteralPath $templatePath) {
+        $sources.Add(@{ Name = 'Official ModTemplate'; Path = 'apocalyptic-journey-mod-tutorial\ModTemplate' })
+    }
+
+    $modDirs = Get-ChildItem -LiteralPath $Root -Directory |
+        Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'ModConfig.json') } |
+        Sort-Object Name
+
+    foreach ($dir in $modDirs) {
+        $sources.Add(@{ Name = $dir.Name; Path = $dir.Name })
+    }
+
+    return @($sources)
 }
 
 function Write-CsvSchemaIndex {
@@ -54,15 +79,7 @@ function Write-CsvSchemaIndex {
     $lines.Add("Generated from workspace CSV files. Refresh with ``tools\Export-ModDevDocs.ps1``.")
     $lines.Add('')
 
-    $sources = @(
-        @{ Name = 'Official ModTemplate'; Path = 'apocalyptic-journey-mod-tutorial\ModTemplate' },
-        @{ Name = 'GoldExp'; Path = 'GoldExp' },
-        @{ Name = 'StarExp'; Path = 'StarExp' },
-        @{ Name = 'SunExp'; Path = 'SunExp' },
-        @{ Name = 'SanGuoShaExp'; Path = 'SanGuoShaExp' }
-    )
-
-    foreach ($source in $sources) {
+    foreach ($source in (Get-CsvSources)) {
         $sourcePath = Join-Path $Root $source.Path
         if (-not (Test-Path -LiteralPath $sourcePath)) {
             continue
@@ -124,7 +141,7 @@ function Write-PublicApiIndex {
             $content = Get-Content -LiteralPath $file.FullName -Encoding UTF8
             foreach ($line in $content) {
                 $trimmed = $line.Trim()
-                if ($trimmed -match '^public\s+(static\s+)?(sealed\s+)?class\s+[A-Za-z0-9_]+') {
+                if ($trimmed -match '^public\s+(static\s+)?(sealed\s+)?(class|enum|struct|interface)\s+[A-Za-z0-9_]+') {
                     $entries.Add($trimmed)
                     continue
                 }

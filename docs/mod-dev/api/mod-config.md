@@ -4,7 +4,7 @@
 
 Source anchor:
 
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/Mod/ModConfig.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/Mod/ModConfig.cs`
 
 ## Load-Time Role
 

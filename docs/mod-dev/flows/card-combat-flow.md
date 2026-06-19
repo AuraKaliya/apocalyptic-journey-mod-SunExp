@@ -2,11 +2,11 @@
 
 Source anchors:
 
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/CardItem.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/CommonCardItem.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/AttackCardItem.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/BuffItem.cs`
-- `开发参考资料/反编译文件夹v1.0.23715745/Witch/BlessingRelic.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/CardItem.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/CommonCardItem.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/AttackCardItem.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/BuffItem.cs`
+- `开发参考资料/反编译文件夹v1.0.23693118/Witch/BlessingRelic.cs`
 
 ## Card Lifecycle
 

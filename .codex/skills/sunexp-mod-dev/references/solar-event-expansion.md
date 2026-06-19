@@ -9,8 +9,8 @@ chains. Pair it with the `sunexp-event-dev` skill for event-specific checks.
 - `SunExp/Text/Map/sunexp.csv`
 - `SunExp/Data/EventList/sunexp.csv`
 - `SunExp/Text/EventList/sunexp.csv`
-- `SunExp/Dev/Scripting/EventScripts.cs`
-- `SunExp/Dev/Hooks/*` when map generation or selection behavior is involved.
+- `SunExp-Dev/Scripting/EventScripts.cs`
+- `SunExp-Dev/Hooks/*` when map generation or selection behavior is involved.
 
 ## Authoring Rules
 
@@ -19,13 +19,13 @@ chains. Pair it with the `sunexp-event-dev` skill for event-specific checks.
 - Use `Sub_` ids for controlled story-chain event rows so they are not ordinary top-level events.
 - Use full mod IDs in script arguments when referencing SunExp cards, relics, maps, or events.
 - Put shared event behavior in `EventScripts.cs` or a supporting C# helper.
-- Put map-generation or selection hooks under `SunExp/Dev/Hooks/` after verifying the target game method in the decompiled reference.
+- Put map-generation or selection hooks under `SunExp-Dev/Hooks/` after verifying the target game method in the decompiled reference.
 
 ## Decompiled Reference Searches
 
 ```powershell
-rg -n "EventList|Choice1|Choice2|EndEvent|ContinueEvent" "开发参考资料\反编译文件夹\AllScripts" "开发参考资料\反编译文件夹\Witch"
-rg -n "MapSelectUI|NormalMapManager|MapManager|SelectNode" "开发参考资料\反编译文件夹"
+rg -n "EventList|Choice1|Choice2|EndEvent|ContinueEvent" "开发参考资料\反编译文件夹v1.0.23693118\AllScripts" "开发参考资料\反编译文件夹v1.0.23693118\Witch"
+rg -n "MapSelectUI|NormalMapManager|MapManager|SelectNode" "开发参考资料\反编译文件夹v1.0.23693118"
 ```
 
 Use the results to confirm method names, argument shape, and likely hook
