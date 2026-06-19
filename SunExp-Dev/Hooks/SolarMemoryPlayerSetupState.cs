@@ -1,0 +1,146 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using SunExp.Dll.GameApi;
+using SunExp.Dll.Infrastructure;
+using Witch;
+
+namespace SunExp.Dll.Hooks;
+
+public static class SolarMemoryPlayerSetupState
+{
+    public static string GetValue(string key, string fallback = "", bool migrateLegacyWhenSolo = true)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return fallback;
+        }
+
+        var role = RoleTable.Instance;
+        var map = role?.SpecialVarMap;
+        if (map != null && map.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+
+        if (role == null)
+        {
+            return PlayerApi.GetGameVar(key, fallback);
+        }
+
+        if (migrateLegacyWhenSolo && !PlayerApi.IsMultiplayerSession())
+        {
+            var legacy = PlayerApi.GetGameVar(key, "");
+            if (!string.IsNullOrWhiteSpace(legacy))
+            {
+                SetValue(key, legacy);
+                return legacy;
+            }
+        }
+
+        return fallback;
+    }
+
+    public static void SetValue(string key, string value)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return;
+        }
+
+        var role = RoleTable.Instance;
+        if (role != null)
+        {
+            role.SpecialVarMap ??= new Dictionary<string, string>();
+            role.SpecialVarMap[key] = value ?? "";
+            return;
+        }
+
+        PlayerApi.SetGameVar(key, value ?? "");
+    }
+
+    public static bool IsSet(string key)
+    {
+        return GetValue(key, "0") == "1";
+    }
+
+    public static void SetFlag(string key, bool value)
+    {
+        SetValue(key, value ? "1" : "0");
+    }
+
+    public static int GetInt(string key, int fallback = 0)
+    {
+        return DictionaryUtil.ParseInt(GetValue(key, fallback.ToString()), fallback);
+    }
+
+    public static void SetInt(string key, int value)
+    {
+        SetValue(key, Math.Max(0, value).ToString());
+    }
+
+    public static List<string> SelectedPacks()
+    {
+        return SplitList(GetValue(SunExpIds.SolarMemorySelectedPacksKey, "", migrateLegacyWhenSolo: false));
+    }
+
+    public static void SetSelectedPacks(IEnumerable<string> packs)
+    {
+        SetValue(SunExpIds.SolarMemorySelectedPacksKey, JoinList(packs));
+    }
+
+    public static List<string> SelectedBlessings()
+    {
+        return SplitList(GetValue(SunExpIds.SolarMemoryBlessSelectedIdsKey, ""));
+    }
+
+    public static void SetSelectedBlessings(IEnumerable<string> blessingIds)
+    {
+        var ids = blessingIds.Where(id => !string.IsNullOrWhiteSpace(id)).ToList();
+        SetValue(SunExpIds.SolarMemoryBlessSelectedIdsKey, JoinList(ids));
+        SetInt(SunExpIds.SolarMemoryBlessPickCountKey, ids.Count);
+    }
+
+    public static string Snapshot()
+    {
+        return "scope="
+            + ScopeLabel()
+            + "; deck="
+            + GetValue(SunExpIds.SolarMemoryDeckConfiguredKey, "0")
+            + "; starter="
+            + GetValue(SunExpIds.SolarMemoryStarterDeckAppliedKey, "0")
+            + "; origin="
+            + GetValue(SunExpIds.SolarMemoryOriginConfiguredKey, "0")
+            + "; bless="
+            + GetValue(SunExpIds.SolarMemoryBlessConfiguredKey, "0")
+            + "; setup="
+            + GetValue(SunExpIds.SolarMemorySetupFinishedKey, "0")
+            + "; step="
+            + GetValue(SunExpIds.SolarMemoryPrepStepKey, "");
+    }
+
+    private static string ScopeLabel()
+    {
+        var roleId = RoleTable.Instance?.Id;
+        if (!string.IsNullOrWhiteSpace(roleId))
+        {
+            return roleId ?? "global";
+        }
+
+        return "global";
+    }
+
+    private static List<string> SplitList(string value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? new List<string>()
+            : value.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .ToList();
+    }
+
+    private static string JoinList(IEnumerable<string> values)
+    {
+        return string.Join("|", values.Where(value => !string.IsNullOrWhiteSpace(value)));
+    }
+}

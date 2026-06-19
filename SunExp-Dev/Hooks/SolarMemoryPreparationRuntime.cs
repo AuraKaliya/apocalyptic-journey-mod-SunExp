@@ -53,7 +53,7 @@ public static class SolarMemoryPreparationRuntime
                 return;
             }
 
-            PlayerApi.SetGameVar(SunExpIds.SolarMemoryDeckConfiguredKey, "1");
+            SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryDeckConfiguredKey, true);
             WriteStep(SolarMemoryPrepStep.OriginAllocation);
             SunExpLog.Info("[SolarMemoryPrep] DeckSelection complete; next=OriginAllocation.");
             EnterStep(SolarMemoryPrepStep.OriginAllocation);
@@ -73,7 +73,7 @@ public static class SolarMemoryPreparationRuntime
                 return;
             }
 
-            PlayerApi.SetGameVar(SunExpIds.SolarMemoryOriginConfiguredKey, "1");
+            SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryOriginConfiguredKey, true);
             WriteStep(SolarMemoryPrepStep.BlessingSelection);
             SunExpLog.Info("[SolarMemoryPrep] OriginAllocation complete; next=BlessingSelection.");
             EnterStep(SolarMemoryPrepStep.BlessingSelection);
@@ -93,7 +93,7 @@ public static class SolarMemoryPreparationRuntime
                 return;
             }
 
-            PlayerApi.SetGameVar(SunExpIds.SolarMemoryBlessConfiguredKey, "1");
+            SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryBlessConfiguredKey, true);
             WriteStep(SolarMemoryPrepStep.Complete);
             SunExpLog.Info("[SolarMemoryPrep] BlessingSelection complete; next=Complete.");
             FinishPreparation();
@@ -138,8 +138,8 @@ public static class SolarMemoryPreparationRuntime
 
     private static void FinishPreparation()
     {
-        PlayerApi.SetGameVar(SunExpIds.SolarMemoryBlessConfiguredKey, "1");
-        PlayerApi.SetGameVar(SunExpIds.SolarMemorySetupFinishedKey, "1");
+        SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryBlessConfiguredKey, true);
+        SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemorySetupFinishedKey, true);
         WriteStep(SolarMemoryPrepStep.Complete);
         SolarMemorySetupFlowRuntime.ClosePreparationWindows();
         UIManager.Instance?.ShowTip("日耀回忆整备完成", null);
@@ -148,7 +148,7 @@ public static class SolarMemoryPreparationRuntime
 
     private static SolarMemoryPrepStep ReadOrInferStep()
     {
-        var saved = PlayerApi.GetGameVar(SunExpIds.SolarMemoryPrepStepKey, "");
+        var saved = SolarMemoryPlayerSetupState.GetValue(SunExpIds.SolarMemoryPrepStepKey, "");
         if (Enum.TryParse<SolarMemoryPrepStep>(saved, out var parsed)
             && parsed != SolarMemoryPrepStep.None
             && IsStepStillValid(parsed))
@@ -171,12 +171,12 @@ public static class SolarMemoryPreparationRuntime
     {
         return step switch
         {
-            SolarMemoryPrepStep.Complete => PlayerApi.GetGameVar(SunExpIds.SolarMemorySetupFinishedKey, "0") == "1"
-                || PlayerApi.GetGameVar(SunExpIds.SolarMemoryBlessConfiguredKey, "0") == "1",
-            SolarMemoryPrepStep.BlessingSelection => PlayerApi.GetGameVar(SunExpIds.SolarMemoryOriginConfiguredKey, "0") == "1"
-                && PlayerApi.GetGameVar(SunExpIds.SolarMemoryBlessConfiguredKey, "0") != "1",
+            SolarMemoryPrepStep.Complete => SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemorySetupFinishedKey)
+                || SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryBlessConfiguredKey),
+            SolarMemoryPrepStep.BlessingSelection => SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryOriginConfiguredKey)
+                && !SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryBlessConfiguredKey),
             SolarMemoryPrepStep.OriginAllocation => IsDeckConfigured()
-                && PlayerApi.GetGameVar(SunExpIds.SolarMemoryOriginConfiguredKey, "0") != "1",
+                && !SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryOriginConfiguredKey),
             SolarMemoryPrepStep.DeckSelection => !IsDeckConfigured(),
             _ => false
         };
@@ -184,13 +184,13 @@ public static class SolarMemoryPreparationRuntime
 
     private static SolarMemoryPrepStep InferStepFromLegacyState()
     {
-        if (PlayerApi.GetGameVar(SunExpIds.SolarMemorySetupFinishedKey, "0") == "1"
-            || PlayerApi.GetGameVar(SunExpIds.SolarMemoryBlessConfiguredKey, "0") == "1")
+        if (SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemorySetupFinishedKey)
+            || SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryBlessConfiguredKey))
         {
             return SolarMemoryPrepStep.Complete;
         }
 
-        if (PlayerApi.GetGameVar(SunExpIds.SolarMemoryOriginConfiguredKey, "0") == "1")
+        if (SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryOriginConfiguredKey))
         {
             return SolarMemoryPrepStep.BlessingSelection;
         }
@@ -202,8 +202,8 @@ public static class SolarMemoryPreparationRuntime
 
     private static bool IsDeckConfigured()
     {
-        if (PlayerApi.GetGameVar(SunExpIds.SolarMemoryDeckConfiguredKey, "0") == "1"
-            || PlayerApi.GetGameVar(SunExpIds.SolarMemoryStarterDeckAppliedKey, "0") == "1")
+        if (SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryDeckConfiguredKey)
+            || SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryStarterDeckAppliedKey))
         {
             return true;
         }
@@ -216,22 +216,11 @@ public static class SolarMemoryPreparationRuntime
 
     private static void WriteStep(SolarMemoryPrepStep step)
     {
-        PlayerApi.SetGameVar(SunExpIds.SolarMemoryPrepStepKey, step.ToString());
+        SolarMemoryPlayerSetupState.SetValue(SunExpIds.SolarMemoryPrepStepKey, step.ToString());
     }
 
     private static string StateSnapshot()
     {
-        return "deck="
-            + PlayerApi.GetGameVar(SunExpIds.SolarMemoryDeckConfiguredKey, "0")
-            + "; starter="
-            + PlayerApi.GetGameVar(SunExpIds.SolarMemoryStarterDeckAppliedKey, "0")
-            + "; origin="
-            + PlayerApi.GetGameVar(SunExpIds.SolarMemoryOriginConfiguredKey, "0")
-            + "; bless="
-            + PlayerApi.GetGameVar(SunExpIds.SolarMemoryBlessConfiguredKey, "0")
-            + "; setup="
-            + PlayerApi.GetGameVar(SunExpIds.SolarMemorySetupFinishedKey, "0")
-            + "; step="
-            + PlayerApi.GetGameVar(SunExpIds.SolarMemoryPrepStepKey, "");
+        return SolarMemoryPlayerSetupState.Snapshot();
     }
 }

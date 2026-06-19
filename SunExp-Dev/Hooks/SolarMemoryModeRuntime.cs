@@ -91,7 +91,7 @@ public static class SolarMemoryModeRuntime
                 return;
             }
 
-            if (PlayerApi.GetGameVar(SunExpIds.SolarMemoryDeckConfiguredKey, "0") != "1")
+            if (!SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryDeckConfiguredKey))
             {
                 ClearSolarMemoryReservePool();
             }
@@ -1482,15 +1482,26 @@ public static class SolarMemoryModeRuntime
 
     public static List<string> CurrentPackSelection()
     {
-        var saved = IsSolarMemoryRun() ? GameSaveManager.GetValue<string>(SunExpIds.SolarMemorySelectedPacksKey) : "";
-        if (!string.IsNullOrWhiteSpace(saved))
+        var playerPacks = SolarMemoryPlayerSetupState.SelectedPacks()
+            .Where(IsValidPackForCurrentLobby)
+            .ToList();
+        if (playerPacks.Count > 0)
         {
-            var savedPacks = saved.Split('|')
-                .Where(IsValidPackForCurrentLobby)
-                .ToList();
-            if (savedPacks.Count > 0)
+            return playerPacks;
+        }
+
+        if (!PlayerApi.IsMultiplayerSession())
+        {
+            var saved = IsSolarMemoryRun() ? GameSaveManager.GetValue<string>(SunExpIds.SolarMemorySelectedPacksKey) : "";
+            if (!string.IsNullOrWhiteSpace(saved))
             {
-                return savedPacks;
+                var savedPacks = saved.Split('|')
+                    .Where(IsValidPackForCurrentLobby)
+                    .ToList();
+                if (savedPacks.Count > 0)
+                {
+                    return savedPacks;
+                }
             }
         }
 
@@ -1715,7 +1726,7 @@ public static class SolarMemoryModeRuntime
         role.UnCardList.Clear();
         NormalizeSolarMemoryCardCounts(role);
 
-        PlayerApi.SetGameVar(SunExpIds.SolarMemoryDeckConfiguredKey, "1");
+        SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryDeckConfiguredKey, true);
         UIManager.Instance?.ShowTip("\u65e5\u8000\u56de\u5fc6\u5907\u9009\u724c\u5df2\u6e05\u7a7a", null);
     }
 

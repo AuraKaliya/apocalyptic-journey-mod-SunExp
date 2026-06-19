@@ -64,6 +64,7 @@ public static class SolarMemoryStarterDeckRuntime
             selectedPacks.Add(pack);
         }
 
+        SolarMemoryPlayerSetupState.SetSelectedPacks(selectedPacks);
         pendingRoleTable = null;
         promptShown = false;
         ClosePanel();
@@ -78,6 +79,11 @@ public static class SolarMemoryStarterDeckRuntime
         }
 
         pendingRoleTable = roleTable;
+        if (selectedPacks.Count > 0)
+        {
+            SolarMemoryPlayerSetupState.SetSelectedPacks(selectedPacks);
+        }
+
         promptShown = false;
         MarkCardPackExpHandled(roleTable);
         SunExpLog.Info("[SolarMemoryStarterDeck] pending after " + source + "; currentDeck=" + roleTable.cardList.Count);
@@ -951,7 +957,8 @@ public static class SolarMemoryStarterDeckRuntime
 
     private static bool IsApplied(RoleTable roleTable)
     {
-        return roleTable.SpecialVarMap != null
+        return SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryStarterDeckAppliedKey)
+            || roleTable.SpecialVarMap != null
             && roleTable.SpecialVarMap.TryGetValue(SunExpIds.SolarMemoryStarterDeckAppliedKey, out var value)
             && value == "1";
     }
@@ -961,6 +968,8 @@ public static class SolarMemoryStarterDeckRuntime
         roleTable.SpecialVarMap ??= new Dictionary<string, string>();
         roleTable.SpecialVarMap[SunExpIds.SolarMemoryStarterDeckAppliedKey] = "1";
         roleTable.SpecialVarMap[SunExpIds.SolarMemoryStarterDeckModeKey] = mode;
+        SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryStarterDeckAppliedKey, true);
+        SolarMemoryPlayerSetupState.SetValue(SunExpIds.SolarMemoryStarterDeckModeKey, mode);
         MarkCardPackExpHandled(roleTable);
         pendingRoleTable = null;
     }

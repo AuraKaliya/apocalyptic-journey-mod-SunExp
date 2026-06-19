@@ -102,9 +102,9 @@ public static class EventScripts
     {
         try
         {
-            if (PlayerApi.GetGameVar(SunExpIds.SolarMemoryOriginPointsKey, "") == "")
+            if (SolarMemoryPlayerSetupState.GetValue(SunExpIds.SolarMemoryOriginPointsKey, "") == "")
             {
-                PlayerApi.SetGameVar(SunExpIds.SolarMemoryOriginPointsKey, "50");
+                SolarMemoryPlayerSetupState.SetInt(SunExpIds.SolarMemoryOriginPointsKey, 50);
             }
 
             SunExpLog.Info("[SolarMemoryEvent] init start node; prepComplete=" + SolarMemoryPreparationRuntime.IsComplete());
@@ -120,9 +120,9 @@ public static class EventScripts
     {
         try
         {
-            if (PlayerApi.GetGameVar(SunExpIds.SolarMemoryOriginPointsKey, "") == "")
+            if (SolarMemoryPlayerSetupState.GetValue(SunExpIds.SolarMemoryOriginPointsKey, "") == "")
             {
-                PlayerApi.SetGameVar(SunExpIds.SolarMemoryOriginPointsKey, "50");
+                SolarMemoryPlayerSetupState.SetInt(SunExpIds.SolarMemoryOriginPointsKey, 50);
             }
 
             SetEventChoices(self, "1", "1", "", "");
@@ -145,7 +145,7 @@ public static class EventScripts
             }
 
             SunExpLog.Info("[SolarMemoryEvent] continue accepted; prepared=1.");
-            PlayerApi.SetGameVar(SunExpIds.SolarMemoryPreparedKey, "1");
+            SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryPreparedKey, true);
             PlayerApi.EndEvent();
         }
         catch (Exception ex)
@@ -215,7 +215,7 @@ public static class EventScripts
             }
 
             SunExpLog.Info("[SolarMemoryEvent] boss rush started; prepared=1.");
-            PlayerApi.SetGameVar(SunExpIds.SolarMemoryPreparedKey, "1");
+            SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryPreparedKey, true);
             PlayerApi.EndEvent();
         }
         catch (Exception ex)

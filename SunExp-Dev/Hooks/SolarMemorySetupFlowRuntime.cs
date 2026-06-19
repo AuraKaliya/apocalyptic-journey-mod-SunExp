@@ -197,8 +197,8 @@ public static class SolarMemorySetupFlowRuntime
             }
         }
 
-        PlayerApi.SetGameVar(SunExpIds.SolarMemoryOriginPointsKey, "0");
-        PlayerApi.SetGameVar(SunExpIds.SolarMemoryOriginConfiguredKey, "1");
+        SolarMemoryPlayerSetupState.SetInt(SunExpIds.SolarMemoryOriginPointsKey, 0);
+        SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryOriginConfiguredKey, true);
         CloseOriginWindow();
         SunExpLog.Info("[SolarMemorySetup] origin allocation confirmed.");
         SolarMemoryPreparationRuntime.CompleteOriginAllocation();
@@ -214,7 +214,7 @@ public static class SolarMemorySetupFlowRuntime
             }
 
             EnsureSetupVars();
-            if (PlayerApi.GetGameVar(SunExpIds.SolarMemoryBlessConfiguredKey, "0") == "1")
+            if (SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryBlessConfiguredKey))
             {
                 SolarMemoryPreparationRuntime.CompleteBlessingSelection();
                 return;
@@ -228,7 +228,7 @@ public static class SolarMemorySetupFlowRuntime
                 SolarMemoryPreparationRuntime.CompleteBlessingSelection();
             });
             if (!SolarMemoryBlessingPickerRuntime.IsOpen
-                && PlayerApi.GetGameVar(SunExpIds.SolarMemoryBlessConfiguredKey, "0") != "1")
+                && !SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryBlessConfiguredKey))
             {
                 blessingStepActive = false;
             }
@@ -268,8 +268,8 @@ public static class SolarMemorySetupFlowRuntime
 
     private static void FinishSetup()
     {
-        PlayerApi.SetGameVar(SunExpIds.SolarMemoryBlessConfiguredKey, "1");
-        PlayerApi.SetGameVar(SunExpIds.SolarMemorySetupFinishedKey, "1");
+        SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryBlessConfiguredKey, true);
+        SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemorySetupFinishedKey, true);
         CloseOriginWindow();
         CloseBlessingChrome();
         SolarMemoryBlessingPickerRuntime.Close();
@@ -280,34 +280,34 @@ public static class SolarMemorySetupFlowRuntime
 
     private static void EnsureSetupVars()
     {
-        if (PlayerApi.GetGameVar(SunExpIds.SolarMemoryOriginPointsKey, "") == "")
+        if (SolarMemoryPlayerSetupState.GetValue(SunExpIds.SolarMemoryOriginPointsKey, "") == "")
         {
-            PlayerApi.SetGameVar(SunExpIds.SolarMemoryOriginPointsKey, OriginAssignablePointTotal().ToString());
+            SolarMemoryPlayerSetupState.SetInt(SunExpIds.SolarMemoryOriginPointsKey, OriginAssignablePointTotal());
         }
 
-        if (PlayerApi.GetGameVar(SunExpIds.SolarMemoryOriginConfiguredKey, "0") != "1")
+        if (!SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryOriginConfiguredKey))
         {
             var assignable = OriginAssignablePointTotal();
-            if (DictionaryUtil.ParseInt(PlayerApi.GetGameVar(SunExpIds.SolarMemoryOriginPointsKey, "0")) != assignable)
+            if (SolarMemoryPlayerSetupState.GetInt(SunExpIds.SolarMemoryOriginPointsKey, 0) != assignable)
             {
-                PlayerApi.SetGameVar(SunExpIds.SolarMemoryOriginPointsKey, assignable.ToString());
+                SolarMemoryPlayerSetupState.SetInt(SunExpIds.SolarMemoryOriginPointsKey, assignable);
             }
         }
     }
 
     private static bool IsSetupFinished()
     {
-        return PlayerApi.GetGameVar(SunExpIds.SolarMemorySetupFinishedKey, "0") == "1";
+        return SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemorySetupFinishedKey);
     }
 
     private static int BlessingPickCount()
     {
-        return Math.Max(0, DictionaryUtil.ParseInt(PlayerApi.GetGameVar(SunExpIds.SolarMemoryBlessPickCountKey, "0")));
+        return SolarMemoryPlayerSetupState.GetInt(SunExpIds.SolarMemoryBlessPickCountKey, 0);
     }
 
     private static int OriginRemaining()
     {
-        var total = Math.Max(0, DictionaryUtil.ParseInt(PlayerApi.GetGameVar(SunExpIds.SolarMemoryOriginPointsKey, OriginSetupPointTotal.ToString())));
+        var total = Math.Max(0, SolarMemoryPlayerSetupState.GetInt(SunExpIds.SolarMemoryOriginPointsKey, OriginSetupPointTotal));
         var used = 0;
         foreach (var value in pendingOriginAdds.Values)
         {

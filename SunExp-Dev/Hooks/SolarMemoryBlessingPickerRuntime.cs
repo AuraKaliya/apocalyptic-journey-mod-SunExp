@@ -68,7 +68,7 @@ public static class SolarMemoryBlessingPickerRuntime
                 return;
             }
 
-            if (PlayerApi.GetGameVar(SunExpIds.SolarMemoryBlessConfiguredKey, "0") == "1")
+            if (SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryBlessConfiguredKey))
             {
                 onCompleted();
                 return;
@@ -270,13 +270,13 @@ public static class SolarMemoryBlessingPickerRuntime
             selectedByTier[tier] = new List<string>();
         }
 
-        var saved = PlayerApi.GetGameVar(SunExpIds.SolarMemoryBlessSelectedIdsKey, "");
-        if (string.IsNullOrWhiteSpace(saved))
+        var savedIds = SolarMemoryPlayerSetupState.SelectedBlessings();
+        if (savedIds.Count == 0)
         {
             return;
         }
 
-        foreach (var id in saved.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries))
+        foreach (var id in savedIds)
         {
             var entry = FindEntry(id);
             if (entry == null)
@@ -461,9 +461,8 @@ public static class SolarMemoryBlessingPickerRuntime
         {
             isConfirming = true;
             var ids = SelectedIds().ToList();
-            PlayerApi.SetGameVar(SunExpIds.SolarMemoryBlessSelectedIdsKey, string.Join("|", ids));
-            PlayerApi.SetGameVar(SunExpIds.SolarMemoryBlessPickCountKey, ids.Count.ToString());
-            PlayerApi.SetGameVar(SunExpIds.SolarMemoryBlessConfiguredKey, "1");
+            SolarMemoryPlayerSetupState.SetSelectedBlessings(ids);
+            SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryBlessConfiguredKey, true);
             foreach (var id in ids)
             {
                 PlayerApi.AddBless(id);
@@ -506,8 +505,7 @@ public static class SolarMemoryBlessingPickerRuntime
 
     private static void PersistSelection()
     {
-        PlayerApi.SetGameVar(SunExpIds.SolarMemoryBlessSelectedIdsKey, string.Join("|", SelectedIds()));
-        PlayerApi.SetGameVar(SunExpIds.SolarMemoryBlessPickCountKey, TotalSelectedCount().ToString());
+        SolarMemoryPlayerSetupState.SetSelectedBlessings(SelectedIds());
     }
 
     private static int TotalSelectedCount()

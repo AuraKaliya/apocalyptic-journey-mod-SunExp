@@ -207,7 +207,7 @@ public static class PlayerApi
             ?? type.GetField(name, BindingFlags.Public | BindingFlags.Instance)?.GetValue(target);
     }
 
-    private static bool IsMultiplayerSession()
+    public static bool IsMultiplayerSession()
     {
         try
         {
