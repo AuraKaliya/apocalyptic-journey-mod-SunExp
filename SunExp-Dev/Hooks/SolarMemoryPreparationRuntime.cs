@@ -1,4 +1,5 @@
 using System;
+using StarterDeckArbiter.Shared;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using Witch;
@@ -55,6 +56,7 @@ public static class SolarMemoryPreparationRuntime
 
             SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryDeckConfiguredKey, true);
             WriteStep(SolarMemoryPrepStep.OriginAllocation);
+            SyncPreparationRole("DeckSelection");
             SunExpLog.Info("[SolarMemoryPrep] DeckSelection complete; next=OriginAllocation.");
             EnterStep(SolarMemoryPrepStep.OriginAllocation);
         }
@@ -75,6 +77,7 @@ public static class SolarMemoryPreparationRuntime
 
             SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryOriginConfiguredKey, true);
             WriteStep(SolarMemoryPrepStep.BlessingSelection);
+            SyncPreparationRole("OriginAllocation");
             SunExpLog.Info("[SolarMemoryPrep] OriginAllocation complete; next=BlessingSelection.");
             EnterStep(SolarMemoryPrepStep.BlessingSelection);
         }
@@ -95,6 +98,7 @@ public static class SolarMemoryPreparationRuntime
 
             SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryBlessConfiguredKey, true);
             WriteStep(SolarMemoryPrepStep.Complete);
+            SyncPreparationRole("BlessingSelection");
             SunExpLog.Info("[SolarMemoryPrep] BlessingSelection complete; next=Complete.");
             FinishPreparation();
         }
@@ -141,6 +145,7 @@ public static class SolarMemoryPreparationRuntime
         SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryBlessConfiguredKey, true);
         SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemorySetupFinishedKey, true);
         WriteStep(SolarMemoryPrepStep.Complete);
+        SyncPreparationRole("Complete");
         SolarMemorySetupFlowRuntime.ClosePreparationWindows();
         UIManager.Instance?.ShowTip("日耀回忆整备完成", null);
         SunExpLog.Info("[SolarMemoryPrep] Complete; setupFinished=1; snapshot=" + StateSnapshot());
@@ -217,6 +222,11 @@ public static class SolarMemoryPreparationRuntime
     private static void WriteStep(SolarMemoryPrepStep step)
     {
         SolarMemoryPlayerSetupState.SetValue(SunExpIds.SolarMemoryPrepStepKey, step.ToString());
+    }
+
+    private static void SyncPreparationRole(string source)
+    {
+        StarterDeckArbiterRuntime.SyncRoleTable(RoleTable.Instance, "SunExp.SolarMemory.Preparation." + source);
     }
 
     private static string StateSnapshot()

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Data.Save;
+using StarterDeckArbiter.Shared;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
@@ -1743,22 +1744,33 @@ public static class SolarMemoryModeRuntime
     {
         role.CardTopCount = Math.Max(role.CardTopCount, role.cardList.Count);
         role.CardBottomCount = Math.Min(role.CardBottomCount, role.cardList.Count);
-        role.MaxAlCardCount = Math.Min(role.MaxAlCardCount, role.UnCardList.Count);
+        role.MaxAlCardCount = role.UnCardList == null ? 0 : Math.Min(role.MaxAlCardCount, role.UnCardList.Count);
     }
 
     public static void ClearSolarMemoryReservePool()
     {
-        var role = RoleTable.Instance;
+        ClearSolarMemoryReservePool(RoleTable.Instance);
+    }
+
+    public static void ClearSolarMemoryReservePool(RoleTable? role)
+    {
         if (role == null)
         {
             return;
         }
 
         SanitizeSolarMemoryRoleCards(role, "ClearSolarMemoryReservePool");
-        role.UnCardList.Clear();
+        role.UnCardList?.Clear();
         NormalizeSolarMemoryCardCounts(role);
 
-        SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryDeckConfiguredKey, true);
+        role.SpecialVarMap ??= new Dictionary<string, string>();
+        role.SpecialVarMap[SunExpIds.SolarMemoryDeckConfiguredKey] = "1";
+        if (ReferenceEquals(role, RoleTable.Instance))
+        {
+            SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryDeckConfiguredKey, true);
+        }
+
+        StarterDeckArbiterRuntime.SyncRoleTable(role, "SunExp.SolarMemory.ClearReservePool");
         UIManager.Instance?.ShowTip("\u65e5\u8000\u56de\u5fc6\u5907\u9009\u724c\u5df2\u6e05\u7a7a", null);
     }
 

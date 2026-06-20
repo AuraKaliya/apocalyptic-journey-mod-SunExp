@@ -4,6 +4,7 @@ using System.Linq;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
 using Data.Save;
+using StarterDeckArbiter.Shared;
 using UnityEngine;
 using UnityEngine.UI;
 using Witch.Core;
@@ -16,6 +17,9 @@ public static class AuraToolsStarterDeckRuntime
 {
     private const string AppliedKey = "AuraTools.StarterDeckApplied";
     private const string Owner = "AuraTools.StarterDeck";
+    private const string Scope = "AuraTools.WorldSimulation";
+    private const string Mode = "AuraTools.WorldSimulation";
+    private const string LegacyMode = "aura-world-simulation";
     public const float CardInfoHeaderHeight = 40f;
     public const float CardImageColumnWidth = 44f;
     public const float CardIconSize = 34f;
@@ -23,10 +27,6 @@ public static class AuraToolsStarterDeckRuntime
     public const float CardCostColumnWidth = 56f;
     public const float CardActionColumnWidth = 120f;
     private static readonly Dictionary<string, Sprite?> cardIconCache = new(StringComparer.OrdinalIgnoreCase);
-    private const string CardPackExpAppliedKey = "CardPackExp.StarterDeckApplied";
-    private const string SharedOwnerKey = "StarterDeck.Owner";
-    private const string SharedScopeKey = "StarterDeck.Scope";
-    private const string SharedStateKey = "StarterDeck.State";
     private const string SunExpSolarMemoryModeKey = "SunExp_SolarMemoryMode";
 
     public static void Initialize(ModConfig modConfig)
@@ -80,16 +80,12 @@ public static class AuraToolsStarterDeckRuntime
             }
 
             var originalDeckCount = roleTable.cardList.Count;
-            roleTable.cardList.Clear();
-            foreach (var cardId in deck)
+            if (!StarterDeckArbiterRuntime.ApplyDeck(roleTable, deck, CreateClaim(settings.DeckSize)))
             {
-                roleTable.cardList.Add(new DataConfig(cardId, DataType.Card));
+                return;
             }
 
-            roleTable.CardTopCount = Math.Max(roleTable.CardTopCount, roleTable.cardList.Count);
-            roleTable.CardBottomCount = Math.Min(roleTable.CardBottomCount, roleTable.cardList.Count);
-            MarkApplied(roleTable, "aura-global-preset");
-            AuraToolsLog.Info("[StarterDeck] applied global preset; originalDeck="
+            AuraToolsLog.Info("[StarterDeck] applied world-simulation preset; originalDeck="
                               + originalDeckCount
                               + ", deck=" + roleTable.cardList.Count
                               + ", cards=" + string.Join("|", deck));
@@ -113,15 +109,13 @@ public static class AuraToolsStarterDeckRuntime
             return false;
         }
 
-        if (roleTable.SpecialVarMap.TryGetValue(SharedOwnerKey, out var owner)
-            && !string.IsNullOrWhiteSpace(owner)
-            && !string.Equals(owner, Owner, StringComparison.OrdinalIgnoreCase))
+        if (StarterDeckArbiterRuntime.IsOwnedByOther(roleTable, Owner, out var owner))
         {
             AuraToolsLog.Info("[StarterDeck] skipped: starter deck owner=" + owner + ".");
             return true;
         }
 
-        if (roleTable.SpecialVarMap.TryGetValue(CardPackExpAppliedKey + ".Mode", out var legacyMode)
+        if (roleTable.SpecialVarMap.TryGetValue(StarterDeckArbiterRuntime.LegacyCardPackAppliedKey + ".Mode", out var legacyMode)
             && string.Equals(legacyMode, "sunexp-solar-memory", StringComparison.OrdinalIgnoreCase))
         {
             AuraToolsLog.Info("[StarterDeck] skipped: CardPackExp compatibility owner is SunExp Solar Memory.");
@@ -158,21 +152,34 @@ public static class AuraToolsStarterDeckRuntime
 
     private static bool IsApplied(RoleTable roleTable)
     {
+        if (StarterDeckArbiterRuntime.HasApplied(roleTable, AppliedKey, Owner))
+        {
+            return true;
+        }
+
         return roleTable.SpecialVarMap != null
-               && ((roleTable.SpecialVarMap.TryGetValue(AppliedKey, out var value) && value == "1")
-                   || (roleTable.SpecialVarMap.TryGetValue(CardPackExpAppliedKey, out var oldValue) && oldValue == "1"));
+               && roleTable.SpecialVarMap.TryGetValue(StarterDeckArbiterRuntime.LegacyCardPackAppliedKey, out var oldValue)
+               && oldValue == "1"
+               && roleTable.SpecialVarMap.TryGetValue(StarterDeckArbiterRuntime.LegacyCardPackAppliedKey + ".Mode", out var legacyMode)
+               && legacyMode.StartsWith("aura-", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static void MarkApplied(RoleTable roleTable, string mode)
+    private static StarterDeckClaim CreateClaim(int deckSize)
     {
-        roleTable.SpecialVarMap ??= new Dictionary<string, string>();
-        roleTable.SpecialVarMap[AppliedKey] = "1";
-        roleTable.SpecialVarMap[AppliedKey + ".Mode"] = mode;
-        roleTable.SpecialVarMap[SharedOwnerKey] = Owner;
-        roleTable.SpecialVarMap[SharedScopeKey] = "AuraTools.MatchExperience";
-        roleTable.SpecialVarMap[SharedStateKey] = "applied";
-        roleTable.SpecialVarMap[CardPackExpAppliedKey] = "1";
-        roleTable.SpecialVarMap[CardPackExpAppliedKey + ".Mode"] = mode;
+        return new StarterDeckClaim
+        {
+            Owner = Owner,
+            Scope = Scope,
+            ModeId = Mode,
+            Source = "config",
+            State = StarterDeckArbiterRuntime.StateApplied,
+            AppliedKey = AppliedKey,
+            AppliedModeKey = AppliedKey + ".Mode",
+            AppliedMode = LegacyMode,
+            LegacyMode = LegacyMode,
+            DeckSize = deckSize,
+            SourceName = "AuraTools.WorldSimulation.StarterDeck"
+        };
     }
 
     private static List<string> BuildSelectablePacks()

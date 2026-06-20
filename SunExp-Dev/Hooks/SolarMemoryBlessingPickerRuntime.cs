@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using StarterDeckArbiter.Shared;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using UnityEngine;
@@ -468,6 +469,7 @@ public static class SolarMemoryBlessingPickerRuntime
                 PlayerApi.AddBless(id);
             }
 
+            StarterDeckArbiterRuntime.SyncRoleTable(RoleTable.Instance, "SunExp.SolarMemory.BlessingSelection");
             Close();
             onCompleted();
         }

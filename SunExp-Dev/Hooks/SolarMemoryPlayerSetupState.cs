@@ -59,6 +59,23 @@ public static class SolarMemoryPlayerSetupState
         PlayerApi.SetGameVar(key, value ?? "");
     }
 
+    public static void SetValue(RoleTable? role, string key, string value)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return;
+        }
+
+        if (role == null)
+        {
+            SetValue(key, value);
+            return;
+        }
+
+        role.SpecialVarMap ??= new Dictionary<string, string>();
+        role.SpecialVarMap[key] = value ?? "";
+    }
+
     public static bool IsSet(string key)
     {
         return GetValue(key, "0") == "1";
@@ -87,6 +104,11 @@ public static class SolarMemoryPlayerSetupState
     public static void SetSelectedPacks(IEnumerable<string> packs)
     {
         SetValue(SunExpIds.SolarMemorySelectedPacksKey, JoinList(packs));
+    }
+
+    public static void SetSelectedPacks(RoleTable? role, IEnumerable<string> packs)
+    {
+        SetValue(role, SunExpIds.SolarMemorySelectedPacksKey, JoinList(packs));
     }
 
     public static List<string> SelectedBlessings()

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using StarterDeckArbiter.Shared;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using UnityEngine;
@@ -199,6 +200,7 @@ public static class SolarMemorySetupFlowRuntime
 
         SolarMemoryPlayerSetupState.SetInt(SunExpIds.SolarMemoryOriginPointsKey, 0);
         SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryOriginConfiguredKey, true);
+        StarterDeckArbiterRuntime.SyncRoleTable(role, "SunExp.SolarMemory.OriginSetup");
         CloseOriginWindow();
         SunExpLog.Info("[SolarMemorySetup] origin allocation confirmed.");
         SolarMemoryPreparationRuntime.CompleteOriginAllocation();
@@ -270,6 +272,7 @@ public static class SolarMemorySetupFlowRuntime
     {
         SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryBlessConfiguredKey, true);
         SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemorySetupFinishedKey, true);
+        StarterDeckArbiterRuntime.SyncRoleTable(RoleTable.Instance, "SunExp.SolarMemory.SetupFinished");
         CloseOriginWindow();
         CloseBlessingChrome();
         SolarMemoryBlessingPickerRuntime.Close();

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using StarterDeckArbiter.Shared;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using UnityEngine;
@@ -16,7 +17,6 @@ namespace SunExp.Dll.Hooks;
 public static class SolarMemoryStarterDeckRuntime
 {
     private const int StarterDeckSize = 11;
-    private const string CardPackExpAppliedKey = "CardPackExp.StarterDeckApplied";
     private const string ButtonSpritePath = "Mods/SunExp/ModResource/Images/UI/button-\u4e5d\u5bab\u683c.png";
     private const string PanelSpritePath = "Mods/SunExp/ModResource/Images/UI/background-\u4e5d\u5bab\u683c.png";
     private const float CardInfoHeaderHeight = 40f;
@@ -65,7 +65,7 @@ public static class SolarMemoryStarterDeckRuntime
             selectedPacks.Add(pack);
         }
 
-        SolarMemoryPlayerSetupState.SetSelectedPacks(selectedPacks);
+        SolarMemoryPlayerSetupState.SetSelectedPacks(RoleTable.Instance, selectedPacks);
         pendingRoleTable = null;
         promptShown = false;
         ClosePanel();
@@ -83,7 +83,7 @@ public static class SolarMemoryStarterDeckRuntime
         ClaimStarterDeckOwnership(roleTable, SunExpIds.StarterDeckStatePending);
         if (selectedPacks.Count > 0)
         {
-            SolarMemoryPlayerSetupState.SetSelectedPacks(selectedPacks);
+            SolarMemoryPlayerSetupState.SetSelectedPacks(roleTable, selectedPacks);
         }
 
         promptShown = false;
@@ -196,6 +196,11 @@ public static class SolarMemoryStarterDeckRuntime
         return context.Target as RoleTable ?? RoleTable.Instance;
     }
 
+    private static RoleTable? ActiveRoleTable()
+    {
+        return RoleTable.Instance ?? pendingRoleTable;
+    }
+
     private static void TryShowStarterDeckEditor(ModHookContext context)
     {
         TryShowStarterDeckEditor("hook");
@@ -210,7 +215,7 @@ public static class SolarMemoryStarterDeckRuntime
                 return false;
             }
 
-            var roleTable = pendingRoleTable ?? RoleTable.Instance;
+            var roleTable = ActiveRoleTable();
             if (roleTable == null || promptShown || IsApplied(roleTable))
             {
                 return false;
@@ -221,10 +226,8 @@ public static class SolarMemoryStarterDeckRuntime
             var candidates = BuildCandidateCardIds();
             if (candidates.Count == 0)
             {
-                MarkApplied(roleTable, "no-candidate");
-                SolarMemoryModeRuntime.ClearSolarMemoryReservePool();
+                KeepOfficialDeck(roleTable, "no-candidate");
                 SunExpLog.Warn("[SolarMemoryStarterDeck] no valid card candidates; keeping official starter deck.");
-                SolarMemoryPreparationRuntime.CompleteDeckSelection();
                 return true;
             }
 
@@ -424,7 +427,7 @@ public static class SolarMemoryStarterDeckRuntime
             }
 
             editingDeck.Add(cardId);
-            RefreshDeckList(pendingRoleTable ?? RoleTable.Instance);
+            RefreshDeckList(ActiveRoleTable());
         });
     }
 
@@ -956,17 +959,20 @@ public static class SolarMemoryStarterDeckRuntime
             }
 
             var originalDeckCount = roleTable.cardList.Count;
-            roleTable.cardList.Clear();
-            foreach (var cardId in filteredDeck)
+            if (!StarterDeckArbiterRuntime.ApplyDeck(
+                    roleTable,
+                    filteredDeck,
+                    CreateClaim("custom"),
+                    SolarMemoryModeRuntime.IsSolarMemoryEventCard))
             {
-                roleTable.cardList.Add(new DataConfig(cardId, DataType.Card));
+                UpdateHint("\u5957\u5361\u5199\u5165\u5931\u8d25\uff0c\u8bf7\u91cd\u65b0\u9009\u62e9\u3002");
+                return;
             }
 
-            roleTable.CardTopCount = Math.Max(roleTable.CardTopCount, roleTable.cardList.Count);
-            roleTable.CardBottomCount = Math.Min(roleTable.CardBottomCount, roleTable.cardList.Count);
             SolarMemoryModeRuntime.SanitizeSolarMemoryRoleCards(roleTable, "ApplyStarterDeck");
-            MarkApplied(roleTable, "custom");
-            SolarMemoryModeRuntime.ClearSolarMemoryReservePool();
+            MarkPlayerApplied(roleTable, "custom");
+            SolarMemoryModeRuntime.ClearSolarMemoryReservePool(roleTable);
+            StarterDeckArbiterRuntime.SyncRoleTable(roleTable, "SunExp.SolarMemory.StarterDeck.ApplyStarterDeck");
             ClosePanel();
             SolarMemoryPreparationRuntime.CompleteDeckSelection();
 
@@ -983,9 +989,16 @@ public static class SolarMemoryStarterDeckRuntime
 
     private static void KeepOfficialDeck(RoleTable roleTable)
     {
+        KeepOfficialDeck(roleTable, "official");
+    }
+
+    private static void KeepOfficialDeck(RoleTable roleTable, string mode)
+    {
         SolarMemoryModeRuntime.SanitizeSolarMemoryRoleCards(roleTable, "KeepOfficialDeck");
-        MarkApplied(roleTable, "official");
-        SolarMemoryModeRuntime.ClearSolarMemoryReservePool();
+        StarterDeckArbiterRuntime.KeepOfficialDeck(roleTable, CreateClaim(mode));
+        MarkPlayerApplied(roleTable, mode);
+        SolarMemoryModeRuntime.ClearSolarMemoryReservePool(roleTable);
+        StarterDeckArbiterRuntime.SyncRoleTable(roleTable, "SunExp.SolarMemory.StarterDeck.KeepOfficialDeck");
         ClosePanel();
         SolarMemoryPreparationRuntime.CompleteDeckSelection();
         SunExpLog.Info("[SolarMemoryStarterDeck] kept official starter deck; deck=" + roleTable.cardList.Count);
@@ -994,21 +1007,17 @@ public static class SolarMemoryStarterDeckRuntime
     private static bool IsApplied(RoleTable roleTable)
     {
         return SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryStarterDeckAppliedKey)
-            || roleTable.SpecialVarMap != null
-            && roleTable.SpecialVarMap.TryGetValue(SunExpIds.SolarMemoryStarterDeckAppliedKey, out var value)
-            && value == "1";
+            || StarterDeckArbiterRuntime.HasApplied(
+                roleTable,
+                SunExpIds.SolarMemoryStarterDeckAppliedKey,
+                SunExpIds.StarterDeckOwnerSolarMemory);
     }
 
-    private static void MarkApplied(RoleTable roleTable, string mode)
+    private static void MarkPlayerApplied(RoleTable roleTable, string mode)
     {
         roleTable.SpecialVarMap ??= new Dictionary<string, string>();
         roleTable.SpecialVarMap[SunExpIds.SolarMemoryStarterDeckAppliedKey] = "1";
         roleTable.SpecialVarMap[SunExpIds.SolarMemoryStarterDeckModeKey] = mode;
-        ClaimStarterDeckOwnership(
-            roleTable,
-            string.Equals(mode, "official", StringComparison.OrdinalIgnoreCase)
-                ? SunExpIds.StarterDeckStateOfficial
-                : SunExpIds.StarterDeckStateApplied);
         SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryStarterDeckAppliedKey, true);
         SolarMemoryPlayerSetupState.SetValue(SunExpIds.SolarMemoryStarterDeckModeKey, mode);
         pendingRoleTable = null;
@@ -1016,20 +1025,32 @@ public static class SolarMemoryStarterDeckRuntime
 
     private static void ClaimStarterDeckOwnership(RoleTable roleTable, string state)
     {
-        roleTable.SpecialVarMap ??= new Dictionary<string, string>();
-        roleTable.SpecialVarMap[SunExpIds.StarterDeckOwnerKey] = SunExpIds.StarterDeckOwnerSolarMemory;
-        roleTable.SpecialVarMap[SunExpIds.StarterDeckScopeKey] = SunExpIds.SolarMemoryModeKey;
-        roleTable.SpecialVarMap[SunExpIds.StarterDeckStateKey] = string.IsNullOrWhiteSpace(state)
-            ? SunExpIds.StarterDeckStatePending
-            : state;
-        MarkCardPackExpHandled(roleTable);
+        StarterDeckArbiterRuntime.ClaimOwnership(
+            roleTable,
+            CreateClaim("pending"),
+            string.IsNullOrWhiteSpace(state) ? StarterDeckArbiterRuntime.StatePending : state,
+            false);
     }
 
-    private static void MarkCardPackExpHandled(RoleTable roleTable)
+    private static StarterDeckClaim CreateClaim(string mode)
     {
-        roleTable.SpecialVarMap ??= new Dictionary<string, string>();
-        roleTable.SpecialVarMap[CardPackExpAppliedKey] = "1";
-        roleTable.SpecialVarMap[CardPackExpAppliedKey + ".Mode"] = "sunexp-solar-memory";
+        return new StarterDeckClaim
+        {
+            Owner = SunExpIds.StarterDeckOwnerSolarMemory,
+            Scope = SunExpIds.SolarMemoryModeKey,
+            ModeId = "SunExp.SolarMemory",
+            Source = "direct-ui",
+            State = string.Equals(mode, "official", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(mode, "no-candidate", StringComparison.OrdinalIgnoreCase)
+                ? StarterDeckArbiterRuntime.StateOfficial
+                : StarterDeckArbiterRuntime.StateApplied,
+            AppliedKey = SunExpIds.SolarMemoryStarterDeckAppliedKey,
+            AppliedModeKey = SunExpIds.SolarMemoryStarterDeckModeKey,
+            AppliedMode = mode,
+            LegacyMode = "sunexp-solar-memory",
+            DeckSize = StarterDeckSize,
+            SourceName = "SunExp.SolarMemory.StarterDeck"
+        };
     }
 
     private static void UpdateHint(string message)
