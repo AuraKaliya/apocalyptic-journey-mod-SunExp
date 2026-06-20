@@ -13,11 +13,23 @@ public static class Entry
     [ModInitialize]
     public static void Initialize(ModConfig modConfig)
     {
-        RegisterLuaVisibleAssembly();
-        AudioApi.Initialize(modConfig);
+        RunStep("XLua assembly registration", RegisterLuaVisibleAssembly);
+        RunStep("audio runtime", () => AudioApi.Initialize(modConfig));
         SunExpLog.Info("SunExp C# entry loaded");
-        RuntimeHooks.Initialize(modConfig);
-        SpecialTagRuntime.Initialize();
+        RunStep("gameplay hooks", () => RuntimeHooks.Initialize(modConfig));
+        RunStep("special tags", SpecialTagRuntime.Initialize);
+    }
+
+    private static void RunStep(string name, Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Initialization step failed: " + name, ex);
+        }
     }
 
     private static void RegisterLuaVisibleAssembly()

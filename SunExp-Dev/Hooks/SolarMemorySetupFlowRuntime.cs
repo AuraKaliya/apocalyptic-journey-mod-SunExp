@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using StarterDeckArbiter.Shared;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using UnityEngine;
@@ -200,7 +199,6 @@ public static class SolarMemorySetupFlowRuntime
 
         SolarMemoryPlayerSetupState.SetInt(SunExpIds.SolarMemoryOriginPointsKey, 0);
         SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryOriginConfiguredKey, true);
-        StarterDeckArbiterRuntime.SyncRoleTable(role, "SunExp.SolarMemory.OriginSetup");
         CloseOriginWindow();
         SunExpLog.Info("[SolarMemorySetup] origin allocation confirmed.");
         SolarMemoryPreparationRuntime.CompleteOriginAllocation();
@@ -266,19 +264,6 @@ public static class SolarMemorySetupFlowRuntime
             PaleGold, new Vector2(0f, -8f), new Vector2(680f, 40f));
         AddText(header, "Progress", "\u795d\u798f " + Math.Min(5, step) + "/5", 18, FontStyle.Normal, TextAnchor.MiddleCenter,
             Gold, new Vector2(0f, -46f), new Vector2(680f, 28f));
-    }
-
-    private static void FinishSetup()
-    {
-        SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryBlessConfiguredKey, true);
-        SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemorySetupFinishedKey, true);
-        StarterDeckArbiterRuntime.SyncRoleTable(RoleTable.Instance, "SunExp.SolarMemory.SetupFinished");
-        CloseOriginWindow();
-        CloseBlessingChrome();
-        SolarMemoryBlessingPickerRuntime.Close();
-        blessingStepActive = false;
-        UIManager.Instance?.ShowTip("\u65e5\u8000\u56de\u5fc6\u6574\u5907\u5b8c\u6210", null);
-        SunExpLog.Info("[SolarMemorySetup] setup finished.");
     }
 
     private static void EnsureSetupVars()

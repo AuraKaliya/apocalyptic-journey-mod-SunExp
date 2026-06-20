@@ -17,8 +17,9 @@ public static class BattleBgmArbiterRuntime
 {
     private const string GlobalObjectName = "BattleBgmArbiter.Global";
     private const string ComponentFullName = "BattleBgmArbiter.Shared.BattleBgmArbiterRuntime+BattleBgmArbiterComponent";
-    public const int CurrentProtocolVersion = 2;
-    public const int MinimumSupportedProtocolVersion = 1;
+    public const string CurrentBuildId = "shared-runtime-2026-06-21-v3";
+    public const int CurrentProtocolVersion = 3;
+    public const int MinimumSupportedProtocolVersion = 3;
     public static bool VerboseLogging { get; set; }
     private static readonly HashSet<string> ReuseLogOwners = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> CompatibilityWarningsShown = new(StringComparer.OrdinalIgnoreCase);
@@ -31,6 +32,11 @@ public static class BattleBgmArbiterRuntime
     public static void RegisterProvider(ModConfig modConfig, string ownerModId, object provider)
     {
         var arbiter = EnsureArbiter(modConfig, ownerModId);
+        if (arbiter == null)
+        {
+            return;
+        }
+
         var method = arbiter.GetType().GetMethod("RegisterProvider", BindingFlags.Instance | BindingFlags.Public);
         if (method == null)
         {
@@ -38,17 +44,36 @@ public static class BattleBgmArbiterRuntime
             return;
         }
 
-        method.Invoke(arbiter, new[] { provider });
+        try
+        {
+            method.Invoke(arbiter, new[] { provider });
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning("[BattleBgmArbiter] Provider registration failed for " + ownerModId + ": " + ex.Message);
+        }
     }
 
     public static void Signal(ModConfig modConfig, string ownerModId, string signal, object? payload = null)
     {
         var arbiter = EnsureArbiter(modConfig, ownerModId);
-        var method = arbiter.GetType().GetMethod("Signal", BindingFlags.Instance | BindingFlags.Public);
-        method?.Invoke(arbiter, new[] { signal, payload });
+        if (arbiter == null)
+        {
+            return;
+        }
+
+        try
+        {
+            var method = arbiter.GetType().GetMethod("Signal", BindingFlags.Instance | BindingFlags.Public);
+            method?.Invoke(arbiter, new[] { signal, payload });
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning("[BattleBgmArbiter] Signal failed for " + ownerModId + ": " + ex.Message);
+        }
     }
 
-    private static object EnsureArbiter(ModConfig modConfig, string ownerModId)
+    private static object? EnsureArbiter(ModConfig modConfig, string ownerModId)
     {
         var gameObject = GameObject.Find(GlobalObjectName);
         if (gameObject != null)
@@ -56,8 +81,7 @@ public static class BattleBgmArbiterRuntime
             var existing = FindArbiterComponent(gameObject);
             if (existing != null)
             {
-                ValidateExistingArbiter(existing, ownerModId);
-                return existing;
+                return ValidateExistingArbiter(existing, ownerModId) ? existing : null;
             }
         }
 
@@ -73,47 +97,47 @@ public static class BattleBgmArbiterRuntime
         return component;
     }
 
-    private static void ValidateExistingArbiter(object existing, string ownerModId)
+    private static bool ValidateExistingArbiter(object existing, string ownerModId)
     {
         var existingType = existing.GetType();
         var protocolVersion = ReadIntProperty(existing, "ProtocolVersion", 0);
-        var minimumSupported = ReadIntProperty(existing, "MinimumSupportedProtocolVersion", 0);
+        var minimumSupported = ReadIntProperty(existing, "MinimumSupportedProtocolVersion", int.MaxValue);
+        var buildId = ReadStringProperty(existing, "BuildId");
+        var methodsPresent = new[] { "RegisterProvider", "Signal" }
+            .All(name => existingType.GetMethod(name, BindingFlags.Instance | BindingFlags.Public) != null);
         if (ReuseLogOwners.Add(ownerModId))
         {
             Debug.Log("[BattleBgmArbiter] Reusing global arbiter for " + ownerModId
                 + ", ownerType=" + existingType.Assembly.GetName().Name
                 + ", protocol=" + (protocolVersion <= 0 ? "unknown" : protocolVersion.ToString())
-                + ", minSupported=" + (minimumSupported <= 0 ? "unknown" : minimumSupported.ToString()));
+                + ", minSupported=" + (minimumSupported == int.MaxValue ? "unknown" : minimumSupported.ToString())
+                + ", buildId=" + (string.IsNullOrWhiteSpace(buildId) ? "<missing>" : buildId));
         }
 
-        if (protocolVersion <= 0)
+        var compatible = protocolVersion >= MinimumSupportedProtocolVersion
+            && minimumSupported <= CurrentProtocolVersion
+            && string.Equals(buildId, CurrentBuildId, StringComparison.Ordinal)
+            && methodsPresent;
+        if (!compatible)
         {
             WarnCompatibilityOnce(
-                "unknown-protocol:" + existingType.Assembly.GetName().Name,
-                "Existing arbiter does not expose protocol metadata. It may be an older build; newer provider features might not be available.");
-            return;
+                "incompatible:" + existingType.AssemblyQualifiedName,
+                "Incompatible global arbiter; BGM features disabled for " + ownerModId
+                + ". protocol=" + protocolVersion
+                + ", minSupported=" + minimumSupported
+                + ", buildId=" + (string.IsNullOrWhiteSpace(buildId) ? "<missing>" : buildId)
+                + ", requiredBuildId=" + CurrentBuildId
+                + ", methodsPresent=" + methodsPresent);
         }
 
-        if (protocolVersion < MinimumSupportedProtocolVersion)
-        {
-            WarnCompatibilityOnce(
-                "old-protocol:" + protocolVersion,
-                "Existing arbiter protocol is too old. existing=" + protocolVersion + ", required>=" + MinimumSupportedProtocolVersion);
-        }
-
-        if (minimumSupported > CurrentProtocolVersion)
-        {
-            WarnCompatibilityOnce(
-                "new-protocol:" + minimumSupported,
-                "Existing arbiter requires a newer protocol than this mod provides. existingMin=" + minimumSupported + ", current=" + CurrentProtocolVersion);
-        }
+        return compatible;
     }
 
     private static void WarnCompatibilityOnce(string key, string message)
     {
         if (CompatibilityWarningsShown.Add(key))
         {
-            Debug.LogWarning("[BattleBgmArbiter] " + message);
+            Debug.LogError("[BattleBgmArbiter] " + message);
         }
     }
 
@@ -129,6 +153,20 @@ public static class BattleBgmArbiterRuntime
         catch
         {
             return fallback;
+        }
+    }
+
+    private static string ReadStringProperty(object source, string propertyName)
+    {
+        try
+        {
+            return source.GetType()
+                .GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public)
+                ?.GetValue(source) as string ?? "";
+        }
+        catch
+        {
+            return "";
         }
     }
 
@@ -160,10 +198,13 @@ public static class BattleBgmArbiterRuntime
         private string ownerModId = "";
         private bool hooksRegistered;
         private bool inBattle;
+        private long battleSessionId;
 
         public int ProtocolVersion => CurrentProtocolVersion;
 
         public int MinimumSupportedProtocolVersion => BattleBgmArbiterRuntime.MinimumSupportedProtocolVersion;
+
+        public string BuildId => CurrentBuildId;
 
         public void InitializeOwner(ModConfig modConfig, string owner)
         {
@@ -306,23 +347,23 @@ public static class BattleBgmArbiterRuntime
                 EnsureAdventureContext("fight init before");
                 if (inBattle)
                 {
-                    Warn("A battle is already active; keeping previous pre-battle snapshot");
+                    Warn("A battle is already active; keeping previous pre-battle snapshot. session=" + battleSessionId);
                     return;
                 }
 
+                battleSessionId++;
+                inBattle = true;
+                battleMode = BattleAudioMode.None;
                 var manager = AudioManager.Instance;
                 if (manager == null)
                 {
-                    Warn("AudioManager.Instance is null before battle; no BGM snapshot saved");
+                    Warn("AudioManager.Instance is null before battle; no BGM snapshot saved. session=" + battleSessionId);
                     preBattleSnapshot = null;
-                    inBattle = true;
                     return;
                 }
 
                 preBattleSnapshot = BgmSnapshot.Capture(manager);
-                inBattle = true;
-                battleMode = BattleAudioMode.None;
-                Log("Pre-battle BGM snapshot saved: " + preBattleSnapshot.Describe());
+                Log("Pre-battle BGM snapshot saved. session=" + battleSessionId + ", " + preBattleSnapshot.Describe());
             }
             catch (Exception ex)
             {
@@ -413,31 +454,46 @@ public static class BattleBgmArbiterRuntime
             try
             {
                 var hookTargetName = context.Target == null ? "<null>" : context.Target.GetType().Name;
-                Log("Fight end detected by hook target: " + hookTargetName + ", current battleMode=" + battleMode);
+                if (string.Equals(hookTargetName, "Fight_Loss", StringComparison.Ordinal)
+                    && FightManager.Instance != null
+                    && FightManager.Instance.IsFake)
+                {
+                    Log("Fake loss detected; BGM settlement deferred until escape reset. session=" + battleSessionId);
+                    return;
+                }
+
+                if (!inBattle)
+                {
+                    Log("Duplicate fight end ignored. target=" + hookTargetName + ", lastSession=" + battleSessionId);
+                    return;
+                }
+
+                var completedSession = battleSessionId;
+                var completedMode = battleMode;
+                var snapshot = preBattleSnapshot;
+                ClearBattleState("fight end claimed by " + hookTargetName);
+                Log("Fight end detected. target=" + hookTargetName + ", session=" + completedSession + ", battleMode=" + completedMode);
 
                 var manager = AudioManager.Instance;
                 if (manager == null)
                 {
-                    Warn("AudioManager.Instance is null on fight end; cannot restore BGM");
-                    ResetBattleState();
+                    Warn("AudioManager.Instance is null on fight end; cannot restore BGM. session=" + completedSession);
                     return;
                 }
 
-                if (preBattleSnapshot == null)
+                if (snapshot == null)
                 {
-                    StopMainBgm(manager, "no pre-battle snapshot exists");
-                    ResetBattleState();
+                    Warn("No pre-battle snapshot exists; leaving current BGM unchanged. session=" + completedSession);
                     return;
                 }
 
-                preBattleSnapshot.Restore(manager);
-                Log("Pre-battle BGM restored: " + preBattleSnapshot.Describe());
-                ResetBattleState();
+                snapshot.Restore(manager);
+                Log("Pre-battle BGM restored. session=" + completedSession + ", " + snapshot.Describe());
             }
             catch (Exception ex)
             {
                 Warn("Failed to restore pre-battle BGM: " + ex);
-                ResetBattleState();
+                ClearBattleState("fight end exception");
             }
         }
 
@@ -747,17 +803,9 @@ public static class BattleBgmArbiterRuntime
             }
         }
 
-        private static void StopMainBgm(AudioManager manager, string reason)
+        private void ClearBattleState(string reason)
         {
-            var source = manager.bgmSource;
-            source.Stop();
-            source.clip = null;
-            Debug.LogWarning("[BattleBgmArbiter] Stopped current BGM because " + reason);
-        }
-
-        private void ResetBattleState()
-        {
-            Log("Battle state reset. previousMode=" + battleMode);
+            Log("Battle state cleared. reason=" + reason + ", previousMode=" + battleMode + ", session=" + battleSessionId);
             inBattle = false;
             activeProviderId = "";
             battleMode = BattleAudioMode.None;

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("BackgroundAudioReplaceExp.Aura")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+bd778407459dd6e831a1ebb0d9da7b23c5e4db6d")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+bf22322215e66e949cb339028760e726d5ae5bf7")]
 [assembly: System.Reflection.AssemblyProductAttribute("BackgroundAudioReplaceExp.Aura")]
 [assembly: System.Reflection.AssemblyTitleAttribute("BackgroundAudioReplaceExp.Aura")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

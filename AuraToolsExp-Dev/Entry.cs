@@ -16,21 +16,26 @@ public static class Entry
     [ModInitialize]
     public static void Initialize(ModConfig modConfig)
     {
+        RunStep("config", () => AuraToolsConfigService.Initialize(modConfig));
+        RunStep("file logging", () => AuraToolsFileLogRuntime.Initialize(modConfig));
+        RunStep("audio", () => AuraToolsAudioRuntime.Initialize(modConfig));
+        RunStep("starter deck", () => AuraToolsStarterDeckRuntime.Initialize(modConfig));
+        RunStep("safe box", () => AuraToolsSafeBoxRuntime.Initialize(modConfig));
+        RunStep("skill CG", () => AuraToolsSkillCgRuntime.Initialize(modConfig));
+        RunStep("settings", () => AuraToolsSettingsRuntime.Initialize(modConfig));
+
+        AuraToolsLog.Info("Initialized " + AuraToolsIds.DisplayName + ".");
+    }
+
+    private static void RunStep(string name, Action action)
+    {
         try
         {
-            AuraToolsConfigService.Initialize(modConfig);
-            AuraToolsFileLogRuntime.Initialize(modConfig);
-            AuraToolsAudioRuntime.Initialize(modConfig);
-            AuraToolsStarterDeckRuntime.Initialize(modConfig);
-            AuraToolsSafeBoxRuntime.Initialize(modConfig);
-            AuraToolsSkillCgRuntime.Initialize(modConfig);
-            AuraToolsSettingsRuntime.Initialize(modConfig);
-
-            AuraToolsLog.Info("Initialized " + AuraToolsIds.DisplayName + ".");
+            action();
         }
         catch (Exception ex)
         {
-            AuraToolsLog.Error("Initialization failed", ex);
+            AuraToolsLog.Error("Initialization step failed: " + name, ex);
         }
     }
 }

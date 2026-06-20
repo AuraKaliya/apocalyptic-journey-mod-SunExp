@@ -363,6 +363,11 @@ function Invoke-SourceAssertions {
     $solarMemoryBlessingPickerRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryBlessingPickerRuntime.cs"))
     $solarMemoryPreparationRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryPreparationRuntime.cs"))
     $solarMemoryPlayerSetupState = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryPlayerSetupState.cs"))
+    $solarMemoryRoleCommitApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\SolarMemoryRoleCommitApi.cs"))
+    $solarMemoryRoleCommit = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Network\RpcSolarMemoryRoleCommit.cs"))
+    $audioArbiterRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "AudioArbiterShared\AudioArbiterRuntime.cs"))
+    $battleBgmArbiterRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "BattleBgmArbiterShared\BattleBgmArbiterRuntime.cs"))
+    $modConfig = Get-Content -LiteralPath (Join-Path $RepoRoot "SunExp\ModConfig.json") -Raw | ConvertFrom-Json
     $solarMemoryMapNodePoolFactory = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarMemoryMapNodePoolFactory.cs"))
     $solarMemoryMapNodePoolApplier = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarMemoryMapNodePoolApplier.cs"))
     $mapData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Map\sunexp.csv"))
@@ -632,6 +637,28 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemoryModeRuntime.Contains("SolarMemoryPrepStep.DeckSelection") "Solar memory saves must initialize the preparation state machine."
     Assert-True $solarMemoryPreparationRuntime.Contains("public static void StartOrResume") "Solar memory preparation runtime must expose a stable start/resume entry point."
     Assert-True $solarMemoryPreparationRuntime.Contains("InferStepFromLegacyState") "Solar memory preparation runtime must infer state from old boolean keys."
+    $solarMemorySetupSources = $solarMemoryStarterDeckRuntime + $solarMemorySetupFlowRuntime + $solarMemoryBlessingPickerRuntime + $solarMemoryPreparationRuntime + $solarMemoryModeRuntime
+    Assert-True (-not $solarMemorySetupSources.Contains("StarterDeckArbiterRuntime.SyncRoleTable")) "Solar memory preparation must not use the native RoleTable collector before final setup completion."
+    Assert-True ([regex]::IsMatch($solarMemoryStarterDeckRuntime, 'ApplyDeck\([\s\S]*?sync:\s*false\)')) "Solar memory custom starter deck must suppress intermediate role synchronization."
+    Assert-True ([regex]::IsMatch($solarMemoryStarterDeckRuntime, 'KeepOfficialDeck\(roleTable,\s*CreateClaim\(mode\),\s*sync:\s*false\)')) "Solar memory official starter deck path must suppress intermediate role synchronization."
+    Assert-True $solarMemoryPreparationRuntime.Contains('SolarMemoryRoleCommitApi.CommitFinal(RoleTable.Instance, "SunExp.SolarMemory.SetupFinished")') "Solar memory preparation completion must submit the final role commit."
+    Assert-True (-not $solarMemorySetupFlowRuntime.Contains("FinishSetup()")) "Solar memory setup flow must not retain an unreachable competing completion path."
+    Assert-True $solarMemoryRoleCommitApi.Contains("SendRpcCommand(new RpcSolarMemoryRoleCommit") "Solar memory clients must submit the final role through a dedicated RPC command."
+    Assert-True (-not $solarMemoryRoleCommit.Contains("CmdSyncRoleTable")) "Solar memory final role commit must not call the native role collector."
+    Assert-True (-not $solarMemoryRoleCommit.Contains("ReceiveRoleTable")) "Solar memory final role commit must not increment GameServer.roleCount."
+    Assert-True $solarMemoryRoleCommit.Contains("server.RoleTables[role.Id] = role") "Solar memory final role commit must update the authoritative role dictionary."
+    Assert-True $solarMemoryRoleCommit.Contains("GameSaveManager.UpdateRoles(role)") "Solar memory final role commit must persist the authoritative role."
+    Assert-True $solarMemoryRoleCommit.Contains("SolarMemorySetupFinishedKey") "Solar memory final role commit must reject unfinished preparation state."
+    Assert-True $solarMemoryRoleCommitApi.Contains("SolarMemorySetupCommitTokenKey") "Solar memory final role submission must suppress local re-entry with a per-run token."
+    Assert-True $solarMemoryRoleCommit.Contains("CommittedTokens.Add(commitToken)") "Solar memory final role command must suppress duplicate network delivery."
+    Assert-True ($modConfig.ModVersion -eq "0.4.1") "SunExp network protocol change must ship as version 0.4.1."
+    Assert-True ($modConfig.MustSame -eq $true) "SunExp must require an identical multiplayer mod version."
+    Assert-True $audioArbiterRuntime.Contains('CurrentBuildId = "shared-runtime-2026-06-21-v3"') "Audio arbiter must expose the shared runtime build id."
+    Assert-True $battleBgmArbiterRuntime.Contains('CurrentBuildId = "shared-runtime-2026-06-21-v3"') "Battle BGM arbiter must expose the same shared runtime build id."
+    Assert-True $battleBgmArbiterRuntime.Contains("Fake loss detected; BGM settlement deferred until escape reset") "Battle BGM arbiter must defer fake-loss settlement."
+    Assert-True $battleBgmArbiterRuntime.Contains("Duplicate fight end ignored") "Battle BGM arbiter must ignore duplicate end callbacks."
+    Assert-True $battleBgmArbiterRuntime.Contains("leaving current BGM unchanged") "Battle BGM arbiter must preserve audio when no snapshot exists."
+    Assert-True (-not $battleBgmArbiterRuntime.Contains("StopMainBgm")) "Battle BGM end handling must never stop the current BGM as a missing-snapshot fallback."
     Assert-True $solarMemoryStarterDeckRuntime.Contains("public static bool OpenOrResume") "Solar memory starter deck runtime must expose a resumable preparation entry point."
     Assert-True $eventScripts.Contains("OpenSolarMemoryPreparation") "Solar memory start event must expose a preparation entry point."
     Assert-True $eventScripts.Contains("SolarMemoryPreparationRuntime.IsComplete()") "Solar memory boss rush must be gated by preparation completion."

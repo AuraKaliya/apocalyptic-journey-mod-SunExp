@@ -963,7 +963,8 @@ public static class SolarMemoryStarterDeckRuntime
                     roleTable,
                     filteredDeck,
                     CreateClaim("custom"),
-                    SolarMemoryModeRuntime.IsSolarMemoryEventCard))
+                    SolarMemoryModeRuntime.IsSolarMemoryEventCard,
+                    sync: false))
             {
                 UpdateHint("\u5957\u5361\u5199\u5165\u5931\u8d25\uff0c\u8bf7\u91cd\u65b0\u9009\u62e9\u3002");
                 return;
@@ -972,7 +973,6 @@ public static class SolarMemoryStarterDeckRuntime
             SolarMemoryModeRuntime.SanitizeSolarMemoryRoleCards(roleTable, "ApplyStarterDeck");
             MarkPlayerApplied(roleTable, "custom");
             SolarMemoryModeRuntime.ClearSolarMemoryReservePool(roleTable);
-            StarterDeckArbiterRuntime.SyncRoleTable(roleTable, "SunExp.SolarMemory.StarterDeck.ApplyStarterDeck");
             ClosePanel();
             SolarMemoryPreparationRuntime.CompleteDeckSelection();
 
@@ -995,10 +995,9 @@ public static class SolarMemoryStarterDeckRuntime
     private static void KeepOfficialDeck(RoleTable roleTable, string mode)
     {
         SolarMemoryModeRuntime.SanitizeSolarMemoryRoleCards(roleTable, "KeepOfficialDeck");
-        StarterDeckArbiterRuntime.KeepOfficialDeck(roleTable, CreateClaim(mode));
+        StarterDeckArbiterRuntime.KeepOfficialDeck(roleTable, CreateClaim(mode), sync: false);
         MarkPlayerApplied(roleTable, mode);
         SolarMemoryModeRuntime.ClearSolarMemoryReservePool(roleTable);
-        StarterDeckArbiterRuntime.SyncRoleTable(roleTable, "SunExp.SolarMemory.StarterDeck.KeepOfficialDeck");
         ClosePanel();
         SolarMemoryPreparationRuntime.CompleteDeckSelection();
         SunExpLog.Info("[SolarMemoryStarterDeck] kept official starter deck; deck=" + roleTable.cardList.Count);

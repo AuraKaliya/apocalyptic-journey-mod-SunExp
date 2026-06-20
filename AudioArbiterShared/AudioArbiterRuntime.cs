@@ -17,11 +17,13 @@ public static class AudioArbiterRuntime
 {
     private const string GlobalObjectName = "AudioArbiter.Global";
     private const string ComponentFullName = "AudioArbiter.Shared.AudioArbiterRuntime+AudioArbiterComponent";
-    public const int CurrentProtocolVersion = 2;
-    public const int MinimumSupportedProtocolVersion = 1;
+    public const string CurrentBuildId = "shared-runtime-2026-06-21-v3";
+    public const int CurrentProtocolVersion = 3;
+    public const int MinimumSupportedProtocolVersion = 3;
     public const int SupportedManifestSchemaVersion = 2;
 
     private static readonly HashSet<string> ReuseLogOwners = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly HashSet<string> CompatibilityErrorsShown = new(StringComparer.OrdinalIgnoreCase);
 
     public static void Initialize(ModConfig modConfig, string ownerModId)
     {
@@ -31,24 +33,62 @@ public static class AudioArbiterRuntime
     public static void RegisterSoundProvider(ModConfig modConfig, string ownerModId, object provider)
     {
         var arbiter = EnsureArbiter(modConfig, ownerModId);
-        var method = arbiter.GetType().GetMethod("RegisterSoundProvider", BindingFlags.Instance | BindingFlags.Public);
-        method?.Invoke(arbiter, new[] { provider });
+        if (arbiter == null)
+        {
+            return;
+        }
+
+        try
+        {
+            arbiter.GetType().GetMethod("RegisterSoundProvider", BindingFlags.Instance | BindingFlags.Public)
+                ?.Invoke(arbiter, new[] { provider });
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning("[AudioArbiter] Sound provider registration failed for " + ownerModId + ": " + ex.Message);
+        }
     }
 
     public static bool RegisterManifest(ModConfig modConfig, string ownerModId, string manifestRelativePath = "audio.registry.json")
     {
         var arbiter = EnsureArbiter(modConfig, ownerModId);
-        var method = arbiter.GetType().GetMethod("RegisterManifest", BindingFlags.Instance | BindingFlags.Public);
-        return method != null
-            && method.Invoke(arbiter, new object[] { modConfig, ownerModId, manifestRelativePath }) is bool registered
-            && registered;
+        if (arbiter == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var method = arbiter.GetType().GetMethod("RegisterManifest", BindingFlags.Instance | BindingFlags.Public);
+            return method != null
+                && method.Invoke(arbiter, new object[] { modConfig, ownerModId, manifestRelativePath }) is bool registered
+                && registered;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning("[AudioArbiter] Manifest registration failed for " + ownerModId + ": " + ex.Message);
+            return false;
+        }
     }
 
     public static bool RequestSound(SoundPlaybackRequest request)
     {
         var arbiter = EnsureArbiter(request.ModConfig, request.OwnerModId);
-        var method = arbiter.GetType().GetMethod("RequestSound", BindingFlags.Instance | BindingFlags.Public);
-        return method != null && method.Invoke(arbiter, new object[] { request }) is bool played && played;
+        if (arbiter == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var method = arbiter.GetType().GetMethod("RequestSound", BindingFlags.Instance | BindingFlags.Public);
+            return method != null && method.Invoke(arbiter, new object[] { request }) is bool played && played;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning("[AudioArbiter] Sound request failed for " + request.OwnerModId + ": " + ex.Message);
+            return false;
+        }
     }
 
     public static string ReadString(object? source, string propertyName)
@@ -71,7 +111,7 @@ public static class AudioArbiterRuntime
         return PropertyReader.ReadBool(source, propertyName, fallback);
     }
 
-    private static object EnsureArbiter(ModConfig? modConfig, string ownerModId)
+    private static object? EnsureArbiter(ModConfig? modConfig, string ownerModId)
     {
         var gameObject = GameObject.Find(GlobalObjectName);
         if (gameObject != null)
@@ -79,6 +119,11 @@ public static class AudioArbiterRuntime
             var existing = FindArbiterComponent(gameObject);
             if (existing != null)
             {
+                if (!ValidateExistingArbiter(existing, ownerModId))
+                {
+                    return null;
+                }
+
                 if (ReuseLogOwners.Add(ownerModId))
                 {
                     Debug.Log("[AudioArbiter] Reusing global arbiter for " + ownerModId
@@ -100,6 +145,59 @@ public static class AudioArbiterRuntime
         component.InitializeOwner(modConfig, ownerModId);
         Debug.Log("[AudioArbiter] Created global arbiter, owner=" + ownerModId);
         return component;
+    }
+
+    private static bool ValidateExistingArbiter(object existing, string ownerModId)
+    {
+        var type = existing.GetType();
+        var protocolVersion = ReadIntProperty(existing, "ProtocolVersion", 0);
+        var minimumSupported = ReadIntProperty(existing, "MinimumSupportedProtocolVersion", int.MaxValue);
+        var buildId = ReadStringProperty(existing, "BuildId");
+        var methodsPresent = new[] { "RegisterSoundProvider", "RegisterManifest", "RequestSound" }
+            .All(name => type.GetMethod(name, BindingFlags.Instance | BindingFlags.Public) != null);
+        var compatible = protocolVersion >= MinimumSupportedProtocolVersion
+            && minimumSupported <= CurrentProtocolVersion
+            && string.Equals(buildId, CurrentBuildId, StringComparison.Ordinal)
+            && methodsPresent;
+
+        if (!compatible && CompatibilityErrorsShown.Add(ownerModId + ":" + type.AssemblyQualifiedName))
+        {
+            Debug.LogError("[AudioArbiter] Incompatible global arbiter; audio features disabled for " + ownerModId
+                + ". existingAssembly=" + type.Assembly.GetName().Name
+                + ", protocol=" + protocolVersion
+                + ", minSupported=" + minimumSupported
+                + ", buildId=" + (string.IsNullOrWhiteSpace(buildId) ? "<missing>" : buildId)
+                + ", requiredBuildId=" + CurrentBuildId
+                + ", methodsPresent=" + methodsPresent);
+        }
+
+        return compatible;
+    }
+
+    private static int ReadIntProperty(object source, string propertyName, int fallback)
+    {
+        try
+        {
+            return source.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public)?.GetValue(source) is int value
+                ? value
+                : fallback;
+        }
+        catch
+        {
+            return fallback;
+        }
+    }
+
+    private static string ReadStringProperty(object source, string propertyName)
+    {
+        try
+        {
+            return source.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public)?.GetValue(source) as string ?? "";
+        }
+        catch
+        {
+            return "";
+        }
     }
 
     private static void TryInitializeExisting(object existing, ModConfig? modConfig, string ownerModId)
@@ -145,6 +243,8 @@ public static class AudioArbiterRuntime
         public int ProtocolVersion => CurrentProtocolVersion;
 
         public int MinimumSupportedProtocolVersion => AudioArbiterRuntime.MinimumSupportedProtocolVersion;
+
+        public string BuildId => CurrentBuildId;
 
         public void InitializeOwner(ModConfig? modConfig, string owner)
         {

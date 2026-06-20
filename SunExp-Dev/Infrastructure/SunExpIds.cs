@@ -65,6 +65,7 @@ public static class SunExpIds
     public const string SolarMemoryOriginConfiguredKey = "SunExp_SolarMemoryOriginConfigured";
     public const string SolarMemoryBlessConfiguredKey = "SunExp_SolarMemoryBlessConfigured";
     public const string SolarMemorySetupFinishedKey = "SunExp_SolarMemorySetupFinished";
+    public const string SolarMemorySetupCommitTokenKey = "SunExp_SolarMemorySetupCommitToken";
     public const string SolarMemoryPrepStepKey = "SunExp_SolarMemoryPrepStep";
     public const string SolarMemoryPreparedKey = "SunExp_SolarMemoryPrepared";
     public const string HardSunsetFightCountKey = "SunExp_Hard_SunsetFightCount";
