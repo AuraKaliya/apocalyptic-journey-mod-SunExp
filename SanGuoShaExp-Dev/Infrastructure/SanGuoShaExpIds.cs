@@ -17,9 +17,16 @@ public static class SanGuoShaExpIds
     public const string TimeStop = "buff_timestop";
 
     public const string Wine = "SanGuoShaExp_sanguosha_wine";
+    public const string KillIntent = "SanGuoShaExp_sanguosha_kill_intent";
+    public const string Dodge = "SanGuoShaExp_sanguosha_dodge";
+    public const string Lightning = "SanGuoShaExp_sanguosha_lightning";
     public const string Chain = "SanGuoShaExp_sanguosha_chain";
     public const string SupplyShortage = "SanGuoShaExp_sanguosha_supply_shortage";
     public const string VineArmor = "SanGuoShaExp_sanguosha_vine_armor";
+
+    public const string LinkageTag = "连携";
+    public const string SnatchTag = "顺手";
+    public const string MilitaryTacticTag = "军策";
 
     public const string BaguaArrayRelic = "SanGuoShaExp_sanguosha_bagua_array";
     public const string ZhugeCrossbowRelic = "SanGuoShaExp_sanguosha_zhuge_crossbow";

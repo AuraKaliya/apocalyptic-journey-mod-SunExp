@@ -1,4 +1,6 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using SanGuoShaExp.Dll.GameApi;
 using SanGuoShaExp.Dll.Infrastructure;
@@ -7,13 +9,26 @@ namespace SanGuoShaExp.Dll.Scripting;
 
 public static class SanGuoShaCardScripts
 {
-    private const int WineDamageBonus = 14;
+    private const int LinkageLimit = 16;
+    private const string LinkageResolving = "SanGuoShaExpLinkageResolving";
+    private const string SomethingFromNothingId = "SanGuoShaExp_sanguosha_wuzhong_shengyou";
+    private const string HiddenMilitaryPackId = "SanGuoShaExp_sanguosha_cardpack_military";
+
+    private static readonly HashSet<string> ShaIds = new(StringComparer.Ordinal)
+    {
+        "sha",
+        "huosha",
+        "leisha",
+        "SanGuoShaExp_sanguosha_sha",
+        "SanGuoShaExp_sanguosha_huosha",
+        "SanGuoShaExp_sanguosha_leisha"
+    };
 
     public static void Init(ScriptExecutor self, string id)
     {
         try
         {
-            ExecutorApi.SetBaseScript(self, IsAttackCard(id) ? "AttackCardItem" : "CommonCardItem", canSelf: !IsAttackCard(id));
+            ExecutorApi.SetBaseScript(self, IsTargetCard(id) ? "AttackCardItem" : "CommonCardItem", canSelf: CanTargetSelf(id));
             AddDescriptions(self, id);
         }
         catch (Exception ex)
@@ -26,132 +41,428 @@ public static class SanGuoShaCardScripts
     {
         try
         {
-            switch (id)
-            {
-                case "sha":
-                    UseSha(
-                        self,
-                        HasRelic(SanGuoShaExpIds.VermilionFanRelic) ? "Fire" : "Normal",
-                        14 + Fission(self) * 3,
-                        8,
-                        burn: HasRelic(SanGuoShaExpIds.VermilionFanRelic) ? 12 : 0);
-                    break;
-                case "shan":
-                    self.SetStatus("Self");
-                    self.ChangeDefence((14 + Fission(self) * 2).ToString());
-                    self.AddBuff(SanGuoShaExpIds.Resilient, "1");
-                    if (self.Self != null && self.Self.CurHp < self.Self.MaxHp)
-                    {
-                        self.DrawCount("1");
-                    }
-                    break;
-                case "tao":
-                    self.SetStatus("Self");
-                    self.ChangeHp((16 + Fission(self) * 3 + LowHealthBonus(self, 8)).ToString());
-                    break;
-                case "jiu":
-                    self.SetStatus("Self");
-                    self.AddBuff(SanGuoShaExpIds.Wine, "2");
-                    break;
-                case "juedou":
-                    UseDuel(self);
-                    break;
-                case "wuzhong_shengyou":
-                    self.DrawCount("3");
-                    self.SetStatus("Self");
-                    self.ChangePower("1");
-                    break;
-                case "guohe_chaiqiao":
-                    UseDismantle(self);
-                    break;
-                case "shunshou_qianyang":
-                    self.SetStatus("Target");
-                    self.Damage("12");
-                    self.AddBuff(SanGuoShaExpIds.Weakness, "4");
-                    self.SetStatus("Self");
-                    self.DrawCount("2");
-                    break;
-                case "nanman_ruqin":
-                    var nanmanCombo = Combo(self);
-                    self.SetStatus("AllTarget");
-                    self.Damage(nanmanCombo ? "30" : "22");
-                    if (nanmanCombo)
-                    {
-                        self.Damage("8", "True");
-                    }
-                    break;
-                case "wanjian_qifa":
-                    self.SetStatus("AllTarget");
-                    self.Damage("18");
-                    self.SetStatus("Self");
-                    self.ChangeDefence("18");
-                    if (Combo(self))
-                    {
-                        self.DrawCount("1");
-                    }
-                    break;
-                case "taoyuan_jieyi":
-                    self.SetStatus("Self");
-                    self.ChangeHp("28");
-                    self.RemoveBadBuff("2");
-                    if (self.Self != null && self.Self.CurHp * 100 <= self.Self.MaxHp * 35)
-                    {
-                        self.DrawCount("2");
-                    }
-                    break;
-                case "wuxie_keji":
-                    self.SetStatus("Self");
-                    self.RemoveAllBadBuff("0");
-                    self.ChangeDefence("12");
-                    self.AddBuff(SanGuoShaExpIds.Impregnable, "3");
-                    break;
-                case "shandian":
-                    UseLightning(self);
-                    break;
-                case "wugu_fengdeng":
-                    self.DrawCount((Math.Min(6, 4 + Fission(self))).ToString());
-                    self.SetStatus("Self");
-                    self.ChangePower("1");
-                    break;
-                case "huosha":
-                    UseSha(self, "Fire", 12 + Fission(self) * 2, 0, burn: 8);
-                    break;
-                case "leisha":
-                    UseThunderSha(self);
-                    break;
-                case "tiesuo_lianhuan":
-                    self.SetStatus("AllTarget");
-                    self.AddBuff(SanGuoShaExpIds.Chain, "3");
-                    break;
-                case "huogong":
-                    UseFireAttack(self);
-                    break;
-                case "bingliang_cunduan":
-                    self.SetStatus("Target");
-                    self.AddBuff(SanGuoShaExpIds.SupplyShortage, "1");
-                    self.AddBuff(SanGuoShaExpIds.Weak, "4");
-                    self.AddBuff(SanGuoShaExpIds.Weakness, "4");
-                    break;
-                case "tengjia":
-                    self.SetStatus("Self");
-                    self.ChangeDefence("28");
-                    self.AddBuff(SanGuoShaExpIds.VineArmor, "2");
-                    self.AddBuff(SanGuoShaExpIds.Resilient, "8");
-                    break;
-                case "guding_dao":
-                    self.SetStatus("Self");
-                    self.AddBuff(SanGuoShaExpIds.KeenEdge, "4");
-                    ExecutorApi.SetVar(self, "SanGuoShaAncientScimitar", "1");
-                    break;
-                case "lebu_sishu":
-                    self.SetStatus("Target");
-                    self.AddBuff(SanGuoShaExpIds.TimeStop, "1");
-                    break;
-            }
+            UseCore(self, id, false);
         }
         catch (Exception ex)
         {
             SanGuoShaExpLog.Error("SanGuoSha card use failed: " + id, ex);
+        }
+    }
+
+    public static void ResolveLinkage(ScriptExecutor self)
+    {
+        if (ExecutorApi.GetVar(self, LinkageResolving, "0") == "1")
+        {
+            return;
+        }
+
+        ExecutorApi.SetVar(self, LinkageResolving, "1");
+        try
+        {
+            var cards = UsedPile(self)
+                .Where(card => card?.data != null && HasTag(card, SanGuoShaExpIds.LinkageTag))
+                .Take(LinkageLimit)
+                .ToList();
+
+            foreach (var card in cards)
+            {
+                var localId = LocalId(card.data.GetValueOrDefault("Id", card.InstanceID));
+                if (!string.IsNullOrWhiteSpace(localId))
+                {
+                    UseCore(self, localId, true);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            SanGuoShaExpLog.Error("Resolve linkage failed", ex);
+        }
+        finally
+        {
+            ExecutorApi.SetVar(self, LinkageResolving, "0");
+        }
+    }
+
+    public static void ResolveSnatch(ScriptExecutor self)
+    {
+        try
+        {
+            if (self.HandCard == null || self.HandCard.Count == 0 || !TargetsContainFriend(self))
+            {
+                return;
+            }
+
+            var index = UnityEngine.Random.Range(0, self.HandCard.Count);
+            var card = self.HandCard[index];
+            var config = card?.dataConfig;
+            if (card == null || config == null)
+            {
+                return;
+            }
+
+            card.Burning(0f);
+            self.CreateCard(CopyCardConfig(config));
+        }
+        catch (Exception ex)
+        {
+            SanGuoShaExpLog.Error("Resolve snatch failed", ex);
+        }
+    }
+
+    private static void UseCore(ScriptExecutor self, string id, bool fromLinkage)
+    {
+        switch (id)
+        {
+            case "sha":
+                UseSha(self, "Normal", 12, 0);
+                break;
+            case "shan":
+                UseShan(self);
+                break;
+            case "tao":
+                UseTao(self);
+                break;
+            case "jiu":
+                UseJiu(self);
+                break;
+            case "juedou":
+                UseDuel(self);
+                break;
+            case "wuzhong_shengyou":
+                UseSomethingFromNothing(self);
+                break;
+            case "guohe_chaiqiao":
+                UseDismantle(self);
+                break;
+            case "shunshou_qianyang":
+                UseSnatchCard(self);
+                break;
+            case "nanman_ruqin":
+                UseBarbarianInvasion(self);
+                break;
+            case "wanjian_qifa":
+                UseArrowBarrage(self);
+                break;
+            case "taoyuan_jieyi":
+                UsePeachGarden(self);
+                break;
+            case "wuxie_keji":
+                UseNullification(self);
+                break;
+            case "shandian":
+                self.SetStatus("Self");
+                self.AddBuff(SanGuoShaExpIds.Lightning, "1");
+                break;
+            case "wugu_fengdeng":
+                UseHarvest(self);
+                break;
+            case "huosha":
+                UseSha(self, "Fire", 12, 8);
+                break;
+            case "leisha":
+                UseSha(self, "Thunder", 12, 0);
+                break;
+            case "tiesuo_lianhuan":
+                self.SetStatus("AllTarget");
+                self.AddBuff(SanGuoShaExpIds.Chain, "3");
+                break;
+            case "huogong":
+                self.SetStatus("Target");
+                self.Damage("16", "Fire");
+                self.AddBuff(SanGuoShaExpIds.Burn, "3");
+                break;
+            case "bingliang_cunduan":
+                self.SetStatus("Target");
+                self.AddBuff(SanGuoShaExpIds.SupplyShortage, "1");
+                self.AddBuff(SanGuoShaExpIds.Weak, "4");
+                self.AddBuff(SanGuoShaExpIds.Weakness, "4");
+                break;
+            case "tengjia":
+                self.SetStatus("Self");
+                self.ChangeDefence("28");
+                self.AddBuff(SanGuoShaExpIds.VineArmor, "2");
+                self.AddBuff(SanGuoShaExpIds.Resilient, "8");
+                break;
+            case "guding_dao":
+                self.SetStatus("Self");
+                self.AddBuff(SanGuoShaExpIds.KeenEdge, "4");
+                break;
+            case "lebu_sishu":
+                self.SetStatus("Target");
+                self.AddBuff(SanGuoShaExpIds.TimeStop, "1");
+                break;
+        }
+
+        if (!fromLinkage)
+        {
+            TriggerEngravings(self);
+        }
+    }
+
+    private static void UseSha(ScriptExecutor self, string damageType, int baseDamage, int burn)
+    {
+        var target = self.Target;
+        var damage = ApplyKillIntent(self, baseDamage + ConsumeWineBonus(self));
+
+        self.SetStatus("Target");
+        self.Damage(damage.ToString(), damageType);
+
+        if (Combo(self) && target != null)
+        {
+            var extra = Math.Max(0, Revelation(self) * Math.Max(1, target.MaxHp) / 100);
+            if (extra > 0)
+            {
+                self.SetStatusById(target.InstanceId);
+                self.Damage(extra.ToString(), damageType);
+            }
+        }
+
+        if (burn > 0)
+        {
+            self.SetStatus("Target");
+            self.AddBuff(SanGuoShaExpIds.Burn, burn.ToString());
+        }
+
+        self.SetStatus("Self");
+        self.AddBuff(SanGuoShaExpIds.KillIntent, "1");
+        SplashChain(self, damage, damageType);
+    }
+
+    private static void UseShan(ScriptExecutor self)
+    {
+        self.SetStatus("Self");
+        self.AddBuff(SanGuoShaExpIds.Dodge, "1");
+        if (Combo(self))
+        {
+            self.AddBuff(SanGuoShaExpIds.Resilient, Math.Max(0, Revelation(self) * 2).ToString());
+        }
+    }
+
+    private static void UseTao(ScriptExecutor self)
+    {
+        self.SetStatus("Self");
+        self.ChangeHp("10");
+        if (Combo(self))
+        {
+            var extra = Math.Max(0, (self.Self?.MaxHp ?? 0) * Revelation(self) * 2 / 100);
+            if (extra > 0)
+            {
+                self.ChangeHp(extra.ToString());
+            }
+        }
+    }
+
+    private static void UseJiu(ScriptExecutor self)
+    {
+        self.SetStatus("Self");
+        self.AddBuff(SanGuoShaExpIds.Wine, "2");
+        if (Combo(self))
+        {
+            self.AddBuff(SanGuoShaExpIds.KeenEdge, Math.Max(0, Revelation(self)).ToString());
+        }
+    }
+
+    private static void UseDuel(ScriptExecutor self)
+    {
+        var repeats = 1 + CountShaInHand(self);
+        var totalDamage = 0;
+        for (var i = 0; i < repeats; i++)
+        {
+            var damage = ApplyKillIntent(self, 30 + ConsumeWineBonus(self));
+            totalDamage += damage;
+            self.SetStatus("Target");
+            self.Damage(damage.ToString());
+        }
+
+        self.SetStatus("Self");
+        self.AddBuff(SanGuoShaExpIds.KillIntent, "1");
+
+        if (Combo(self) && totalDamage > 0)
+        {
+            self.SetStatus("AllRandomTarget1");
+            self.Damage(totalDamage.ToString());
+        }
+    }
+
+    private static void UseSomethingFromNothing(ScriptExecutor self)
+    {
+        var pool = SelectedCardPackCards()
+            .Cast<IDataConfig>()
+            .ToList();
+
+        if (pool.Count > 0)
+        {
+            self.PackToDeckAction("1", pool, selected =>
+            {
+                var card = selected?.FirstOrDefault() as DataConfig;
+                if (card != null)
+                {
+                    self.CreateCard(CopyCardConfig(card));
+                }
+
+                self.SetStatus("Self");
+                self.ChangePower("2");
+            });
+            return;
+        }
+
+        self.SetStatus("Self");
+        self.ChangePower("2");
+    }
+
+    private static void UseDismantle(ScriptExecutor self)
+    {
+        var target = self.Target;
+        var removed = 0;
+        if (target != null && target.Defend > 0)
+        {
+            removed += target.Defend;
+            self.SetStatusById(target.InstanceId);
+            self.ChangeDefence((-target.Defend).ToString());
+        }
+
+        removed += RemoveBuffs(target, positiveOnly: true, randomOne: false);
+
+        if (Combo(self) && removed > 0)
+        {
+            self.SetStatus("Self");
+            self.ChangeDefence(removed.ToString());
+        }
+    }
+
+    private static void UseSnatchCard(ScriptExecutor self)
+    {
+        var target = self.Target;
+        var stolen = RandomBuff(target);
+        if (stolen.BuffId != null && target != null)
+        {
+            self.SetStatusById(target.InstanceId);
+            self.RemoveBuff(stolen.BuffId);
+            self.SetStatus("Self");
+            self.AddBuff(stolen.BuffId, Math.Max(1, stolen.Level).ToString());
+        }
+
+        if (Combo(self))
+        {
+            self.SetStatus("Self");
+            self.ChangePower("1");
+        }
+    }
+
+    private static void UseBarbarianInvasion(ScriptExecutor self)
+    {
+        self.SetStatus("AllTarget");
+        self.Damage(ApplyKillIntent(self, 20).ToString());
+        self.SetStatus("Self");
+        self.AddBuff(SanGuoShaExpIds.KillIntent, "1");
+        ResolveMilitaryTactic(self, new[] { "sha", "wuxie_keji" }, 20);
+    }
+
+    private static void UseArrowBarrage(ScriptExecutor self)
+    {
+        self.SetStatus("AllTarget");
+        self.Damage(ApplyKillIntent(self, 20).ToString());
+        self.SetStatus("Self");
+        self.AddBuff(SanGuoShaExpIds.KillIntent, "1");
+        ResolveMilitaryTactic(self, new[] { "shan", "wuxie_keji" }, 20);
+    }
+
+    private static void UsePeachGarden(ScriptExecutor self)
+    {
+        self.SetStatus("All");
+        foreach (var target in self.Object?.Where(target => target != null).ToList() ?? new List<IStatusManager>())
+        {
+            self.SetStatusById(target.InstanceId);
+            self.ChangeHp(Math.Max(1, 1 + target.MaxHp / 3).ToString());
+        }
+
+        if (Combo(self) && self.Self != null)
+        {
+            self.SetStatus("Self");
+            self.ChangeMaxHp(Math.Max(1, self.Self.MaxHp / 10).ToString());
+        }
+    }
+
+    private static void UseNullification(ScriptExecutor self)
+    {
+        self.SetStatus("Target");
+        self.DesEnemyAction();
+    }
+
+    private static void UseHarvest(ScriptExecutor self)
+    {
+        self.SetStatus("AllFriends");
+        var friendCount = Math.Max(1, self.Object?.Count ?? 1);
+        self.DrawCount(friendCount.ToString());
+
+        var burnCount = Math.Max(0, friendCount - 1);
+        if (burnCount <= 0 || self.HandCard == null || self.HandCard.Count == 0)
+        {
+            return;
+        }
+
+        self.ChooseCardToAction(Math.Min(burnCount, self.HandCard.Count).ToString(), selected =>
+        {
+            var burned = selected?.Where(card => card != null).ToList();
+            if (burned == null || burned.Count == 0)
+            {
+                return;
+            }
+
+            var reward = burned[UnityEngine.Random.Range(0, burned.Count)]?.dataConfig;
+            foreach (var card in burned)
+            {
+                card.Burning(0f);
+            }
+
+            if (reward != null)
+            {
+                self.CreateCard(CopyCardConfig(reward));
+            }
+        });
+    }
+
+    private static void ResolveMilitaryTactic(ScriptExecutor self, string[] allowedLocalIds, int damage)
+    {
+        self.SetStatus("AllFriendsExSelf");
+        var friends = self.Object?.Where(target => target != null).ToList();
+        if (friends == null || friends.Count == 0 || self.HandCard == null || self.HandCard.Count == 0)
+        {
+            return;
+        }
+
+        var allowed = new HashSet<string>(allowedLocalIds, StringComparer.Ordinal);
+        var response = self.HandCard.FirstOrDefault(card => allowed.Contains(LocalId(card?.dataConfig?.data.GetValueOrDefault("Id", ""))));
+        if (response == null)
+        {
+            foreach (var friend in friends)
+            {
+                self.SetStatusById(friend.InstanceId);
+                self.Damage(damage.ToString());
+            }
+
+            return;
+        }
+
+        response.Burning(0f);
+    }
+
+    private static void TriggerEngravings(ScriptExecutor self)
+    {
+        var data = self.dataConfig?.data;
+        if (data == null)
+        {
+            return;
+        }
+
+        if (HasTag(data, SanGuoShaExpIds.SnatchTag))
+        {
+            ResolveSnatch(self);
+        }
+
+        if (HasTag(data, SanGuoShaExpIds.LinkageTag))
+        {
+            ResolveLinkage(self);
         }
     }
 
@@ -160,41 +471,32 @@ public static class SanGuoShaCardScripts
         switch (id)
         {
             case "sha":
-                self.AddDescription("1", "Damage", 14 + Fission(self) * 3);
-                break;
-            case "shan":
-                self.AddDescription("1", "Defence", 14 + Fission(self) * 2);
-                break;
-            case "tao":
-                self.AddDescription("1", "Hp", 16 + Fission(self) * 3);
-                break;
             case "huosha":
             case "leisha":
-                self.AddDescription("1", "Damage", 12 + Fission(self) * 2);
+                self.AddDescription("1", "Damage", 12);
+                break;
+            case "tao":
+                self.AddDescription("1", "Hp", 10);
                 break;
             case "juedou":
-                self.AddDescription("1", "Damage", 32);
+                self.AddDescription("1", "Damage", 30);
                 break;
             case "nanman_ruqin":
-                self.AddDescription("1", "Damage", 22);
-                break;
             case "wanjian_qifa":
-                self.AddDescription("1", "Damage", 18);
-                self.AddDescription("2", "Defence", 18);
-                break;
-            case "shandian":
-                self.AddDescription("1", "Damage", 45);
+                self.AddDescription("1", "Damage", 20);
                 break;
         }
     }
 
-    private static bool IsAttackCard(string id)
+    private static bool IsTargetCard(string id)
     {
         switch (id)
         {
             case "sha":
             case "juedou":
+            case "guohe_chaiqiao":
             case "shunshou_qianyang":
+            case "wuxie_keji":
             case "huosha":
             case "leisha":
             case "huogong":
@@ -206,134 +508,282 @@ public static class SanGuoShaCardScripts
         }
     }
 
-    private static void UseSha(ScriptExecutor self, string damageType, int baseDamage, int comboBonus, int burn = 0)
+    private static bool CanTargetSelf(string id)
     {
-        var damage = baseDamage + ConsumeWineBonus(self);
-        var combo = Combo(self);
-        if (combo)
+        return id == "sha" || id == "juedou" || id == "guohe_chaiqiao" || id == "shunshou_qianyang";
+    }
+
+    private static int ConsumeWineBonus(ScriptExecutor self)
+    {
+        var level = BuffLevel(self.Self, SanGuoShaExpIds.Wine);
+        if (level <= 0)
         {
-            damage += comboBonus;
+            return 0;
         }
 
-        if (HasRelic(SanGuoShaExpIds.VermilionFanRelic) && damageType == "Fire")
+        self.SetStatus("Self");
+        self.RemoveBuff(SanGuoShaExpIds.Wine);
+        return level * 10;
+    }
+
+    private static int ApplyKillIntent(ScriptExecutor self, int damage)
+    {
+        return damage * (1 + BuffLevel(self.Self, SanGuoShaExpIds.KillIntent));
+    }
+
+    private static int CountShaInHand(ScriptExecutor self)
+    {
+        return self.HandCard?.Count(card => ShaIds.Contains(LocalId(card?.dataConfig?.data.GetValueOrDefault("Id", "")))) ?? 0;
+    }
+
+    private static int RemoveBuffs(IStatusManager? target, bool positiveOnly, bool randomOne)
+    {
+        var buffs = BuffEntries(target)
+            .Where(buff => buff.BuffId != null && (!positiveOnly || buff.IsPositive))
+            .ToList();
+        if (buffs.Count == 0 || target == null)
         {
-            damage += 2;
-            burn += 1;
+            return 0;
         }
 
-        if (ConsumeAncientScimitar(self))
+        if (randomOne)
         {
-            var target = self.Target;
-            damage += target != null && target.Defend <= 0 ? 24 : 4;
-            if (target != null && target.Defend > 0)
+            buffs = new List<BuffEntry> { buffs[UnityEngine.Random.Range(0, buffs.Count)] };
+        }
+
+        var removed = 0;
+        foreach (var buff in buffs)
+        {
+            removed += Math.Max(1, buff.Level);
+            target.RemoveBuff(buff.BuffId);
+        }
+
+        return removed;
+    }
+
+    private static BuffEntry RandomBuff(IStatusManager? target)
+    {
+        var buffs = BuffEntries(target).Where(buff => buff.BuffId != null).ToList();
+        return buffs.Count == 0 ? default : buffs[UnityEngine.Random.Range(0, buffs.Count)];
+    }
+
+    private static IEnumerable<BuffEntry> BuffEntries(IStatusManager? target)
+    {
+        if (target == null)
+        {
+            yield break;
+        }
+
+        IEnumerable? raw = null;
+        try
+        {
+            raw = target.GetBuffs();
+        }
+        catch
+        {
+            yield break;
+        }
+
+        if (raw == null)
+        {
+            yield break;
+        }
+
+        foreach (var buff in raw)
+        {
+            var config = GetMemberValue(buff, "buffConfig");
+            var level = DictionaryUtil.ParseInt(Convert.ToString(GetMemberValue(config, "Level")), 1);
+            var dataConfig = GetMemberValue(config, "dataConfig");
+            var data = GetMemberValue(dataConfig, "data") as IDictionary<string, string>;
+            var id = data?.GetValueOrDefault("Id", "");
+            var type = data?.GetValueOrDefault("Type", "");
+            if (!string.IsNullOrWhiteSpace(id))
             {
-                self.SetStatus("Target");
-                self.ChangeDefence((-Math.Min(20, target.Defend)).ToString());
+                yield return new BuffEntry(id!, level, type == "\u6b63\u9762");
             }
         }
+    }
 
-        self.SetStatus("Target");
-        if (HasRelic(SanGuoShaExpIds.FangtianHalberdRelic) && self.HandCard.Count <= 2)
+    private static object? GetMemberValue(object? instance, string name)
+    {
+        if (instance == null)
         {
-            self.SetStatus("AllTarget");
-            self.Damage(Math.Max(1, damage * 80 / 100).ToString(), damageType);
-        }
-        else
-        {
-            self.Damage(damage.ToString(), damageType);
+            return null;
         }
 
-        var primaryTarget = self.Target;
-        if (HasRelic(SanGuoShaExpIds.GreenDragonBladeRelic) && primaryTarget != null && primaryTarget.CurHp > 0)
-        {
-            self.SetStatusById(primaryTarget.InstanceId);
-            self.Damage("10", damageType);
-        }
+        var type = instance.GetType();
+        return type.GetProperty(name)?.GetValue(instance) ?? type.GetField(name)?.GetValue(instance);
+    }
 
-        if (burn > 0)
+    private static List<DataConfig> SelectedCardPackCards()
+    {
+        try
         {
-            self.SetStatus("Target");
-            self.AddBuff(SanGuoShaExpIds.Burn, (burn + (damage > baseDamage ? 2 : 0)).ToString());
-            if (combo)
+            var manager = Singleton<GameConfigManager>.Instance;
+            var rows = manager.GetTable(DataType.Card)?.Getlines();
+            if (rows == null || rows.Count == 0)
             {
-                self.RunImmediately(SanGuoShaExpIds.Burn, "StartRound");
+                return new List<DataConfig>();
+            }
+
+            var selectedRows = manager.CardPackCheck(rows)
+                .Where(IsSelectableCardPackRow)
+                .GroupBy(row => row["Id"], StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .OrderBy(row => row["Id"], StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var result = new List<DataConfig>(selectedRows.Count);
+            foreach (var row in selectedRows)
+            {
+                try
+                {
+                    result.Add(new DataConfig(row["Id"], DataType.Card));
+                }
+                catch (Exception ex)
+                {
+                    SanGuoShaExpLog.Debug("Skipped invalid selected-pack card " + row["Id"] + ": " + ex.Message);
+                }
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            SanGuoShaExpLog.Error("Failed to build selected card-pack pool", ex);
+            return new List<DataConfig>();
+        }
+    }
+
+    private static bool IsSelectableCardPackRow(Dictionary<string, string> row)
+    {
+        if (row == null
+            || !row.TryGetValue("Id", out var id)
+            || string.IsNullOrWhiteSpace(id)
+            || id.StartsWith("*", StringComparison.Ordinal)
+            || string.Equals(id, SomethingFromNothingId, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(LocalId(id), "wuzhong_shengyou", StringComparison.OrdinalIgnoreCase)
+            || Singleton<GameRuntimeData>.Instance.IsLocked(id))
+        {
+            return false;
+        }
+
+        if (row.TryGetValue("PackBelong", out var packBelong)
+            && string.Equals(packBelong, HiddenMilitaryPackId, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var tags = row.GetValueOrDefault("Tag", "");
+        var type = row.GetValueOrDefault("Type", "");
+        return tags.IndexOf("Curse", StringComparison.OrdinalIgnoreCase) < 0
+            && type != "诅咒";
+    }
+
+    private static List<DataConfig> UsedPile(ScriptExecutor self)
+    {
+        var result = new List<DataConfig>();
+        try
+        {
+            if (self.UsedCard != null)
+            {
+                foreach (var item in self.UsedCard)
+                {
+                    if (item is DataConfig dataConfig)
+                    {
+                        result.Add(CopyCardConfig(dataConfig));
+                    }
+                    else
+                    {
+                        var config = item?.GetType().GetProperty("dataConfig")?.GetValue(item) as DataConfig;
+                        if (config != null)
+                        {
+                            result.Add(CopyCardConfig(config));
+                        }
+                    }
+                }
             }
         }
-
-        SplashChain(self, damage, damageType);
-    }
-
-    private static void UseThunderSha(ScriptExecutor self)
-    {
-        var damage = 12 + Fission(self) * 2 + ConsumeWineBonus(self);
-        self.SetStatus("Target");
-        self.Damage(damage.ToString(), "Thunder");
-        if (Check(self, 50))
+        catch
         {
-            self.Damage("18", "Thunder");
-            self.AddBuff(SanGuoShaExpIds.Weakness, "4");
+            // Discard-pile APIs vary between game versions; fall back below.
         }
 
-        SplashChain(self, damage, "Thunder");
-    }
-
-    private static void UseDuel(ScriptExecutor self)
-    {
-        var before = self.Target?.CurHp ?? 0;
-        self.SetStatus("Target");
-        self.Damage(Combo(self) ? "48" : "32");
-        if (self.Target != null && self.Target.CurHp > 0 && before > 0)
+        if (result.Count == 0 && FightCardManager.Instance?.usedCardList != null)
         {
-            self.SetStatus("Self");
-            self.ChangeHp("-6");
-        }
-    }
-
-    private static void UseDismantle(ScriptExecutor self)
-    {
-        var target = self.Target;
-        self.SetStatus("Target");
-        if (target != null && target.Defend > 0)
-        {
-            self.ChangeDefence((-target.Defend).ToString());
+            result.AddRange(FightCardManager.Instance.usedCardList.Where(card => card != null).Select(CopyCardConfig));
         }
 
-        self.RemoveBadBuff("2", "true");
-        self.Damage("12");
+        return result;
     }
 
-    private static void UseLightning(ScriptExecutor self)
+    private static DataConfig CopyCardConfig(DataConfig card)
     {
-        if (Check(self, 50))
+        var cardId = card.data.GetValueOrDefault("Id", card.InstanceID);
+        return new DataConfig(cardId, DataType.Card);
+    }
+
+    private static bool TargetsContainFriend(ScriptExecutor self)
+    {
+        var selfId = self.Self?.InstanceId;
+        if (selfId == null)
         {
-            self.SetStatus("AllRandomTarget1");
-            self.Damage("45", "Thunder");
-            self.SetStatus("AllTarget");
-            self.AddBuff(SanGuoShaExpIds.Weakness, "3");
+            return false;
         }
-        else
+
+        var targets = self.Object?.Where(target => target != null).ToList();
+        return targets != null && targets.Any(target => target.InstanceId == selfId || !IsEnemy(self, target));
+    }
+
+    private static bool IsEnemy(ScriptExecutor self, IStatusManager target)
+    {
+        var enemies = ExecutorApi.EnemyTargets(self);
+        return enemies.Any(enemy => enemy.InstanceId == target.InstanceId);
+    }
+
+    private static bool Combo(ScriptExecutor self)
+    {
+        try
         {
-            self.SetStatus("Self");
-            self.Damage("10", "Thunder");
+            return self.ComboCheck();
+        }
+        catch
+        {
+            return false;
         }
     }
 
-    private static void UseFireAttack(ScriptExecutor self)
+    private static int Revelation(ScriptExecutor self)
     {
-        var hasFuel = self.HandCard.Any(card => card?.dataConfig?.data != null
-            && card.dataConfig.data.GetValueOrDefault("Id", "").Contains("huosha"))
-            || BuffLevel(self, SanGuoShaExpIds.Wine) > 0;
-        var damage = hasFuel ? 32 : 16;
-        self.SetStatus("Target");
-        self.Damage(damage.ToString(), "Fire");
-        self.AddBuff(SanGuoShaExpIds.Burn, hasFuel ? "10" : "3");
-        if (Combo(self))
+        return BuffLevel(self.Self, "buff_revelation");
+    }
+
+    private static int BuffLevel(IStatusManager? target, string buffId)
+    {
+        return target?.GetBuff(buffId)?.buffConfig?.Level ?? 0;
+    }
+
+    private static bool HasTag(DataConfig card, string tag)
+    {
+        return HasTag(card.data, tag);
+    }
+
+    private static bool HasTag(IDictionary<string, string> data, string tag)
+    {
+        var tags = data.GetValueOrDefault("Tag", "");
+        return tags.Split(',').Any(value => value.Trim() == tag);
+    }
+
+    private static string LocalId(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
         {
-            self.SetStatus("Self");
-            self.DrawCount("1");
+            return "";
         }
 
-        SplashChain(self, damage, "Fire");
+        const string prefix = "SanGuoShaExp_sanguosha_";
+        var value = id!;
+        return value.StartsWith(prefix, StringComparison.Ordinal) ? value.Substring(prefix.Length) : value;
     }
 
     private static void SplashChain(ScriptExecutor self, int sourceDamage, string damageType)
@@ -349,82 +799,23 @@ public static class SanGuoShaCardScripts
             .ToList();
         foreach (var target in chained)
         {
-            ExecutorApi.AddStatusBuff(self, target, SanGuoShaExpIds.Chain, 0);
             self.SetStatusById(target.InstanceId);
+            self.RemoveBuff(SanGuoShaExpIds.Chain);
             self.Damage(splash.ToString(), damageType);
         }
     }
 
-    private static int ConsumeWineBonus(ScriptExecutor self)
+    private readonly struct BuffEntry
     {
-        var level = BuffLevel(self, SanGuoShaExpIds.Wine);
-        if (level <= 0)
+        public BuffEntry(string buffId, int level, bool isPositive)
         {
-            return 0;
+            BuffId = buffId;
+            Level = level;
+            IsPositive = isPositive;
         }
 
-        self.SetStatus("Self");
-        self.RemoveBuff(SanGuoShaExpIds.Wine);
-        return level * WineDamageBonus;
-    }
-
-    private static bool ConsumeAncientScimitar(ScriptExecutor self)
-    {
-        if (ExecutorApi.GetVar(self, "SanGuoShaAncientScimitar", "0") != "1")
-        {
-            return false;
-        }
-
-        ExecutorApi.SetVar(self, "SanGuoShaAncientScimitar", "0");
-        return true;
-    }
-
-    private static bool Combo(ScriptExecutor self)
-    {
-        try
-        {
-            return self.ComboCheck();
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static bool Check(ScriptExecutor self, int threshold)
-    {
-        try
-        {
-            return self.CheckDice.Roll().Value > threshold;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static int Fission(ScriptExecutor self)
-    {
-        return DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "ThisCount", "0"));
-    }
-
-    private static int LowHealthBonus(ScriptExecutor self, int bonus)
-    {
-        return self.Self != null && self.Self.CurHp * 2 < self.Self.MaxHp ? bonus : 0;
-    }
-
-    private static int BuffLevel(ScriptExecutor self, string buffId)
-    {
-        return BuffLevel(self.Self, buffId);
-    }
-
-    private static int BuffLevel(IStatusManager? target, string buffId)
-    {
-        return target?.GetBuff(buffId)?.buffConfig?.Level ?? 0;
-    }
-
-    private static bool HasRelic(string relicId)
-    {
-        return RoleTable.Instance?.relicList?.Any(relic => relic?.data != null && relic.data.GetValueOrDefault("Id", "") == relicId) == true;
+        public string BuffId { get; }
+        public int Level { get; }
+        public bool IsPositive { get; }
     }
 }

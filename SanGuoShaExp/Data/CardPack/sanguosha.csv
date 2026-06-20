@@ -1,4 +1,4 @@
 "Id","Type","Icon"
 "唯一标识","卡包类型","卡包图标"
-"cardpack_basic","Normal",""
-"cardpack_military","Normal",""
+"cardpack_basic","Normal","Mods/SanGuoShaExp/ModResource/Images/卡包_标准包"
+"*cardpack_military","Normal",""

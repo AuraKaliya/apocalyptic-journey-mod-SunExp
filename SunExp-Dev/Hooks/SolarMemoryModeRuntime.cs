@@ -36,6 +36,7 @@ public static class SolarMemoryModeRuntime
     private static Sprite? entryHighlightedTitleSprite;
     private static bool entryTitleSpriteLoadAttempted;
     private static bool entryHighlightedTitleSpriteLoadAttempted;
+    private static bool handlingSolarMemoryFightAbort;
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -58,6 +59,9 @@ public static class SolarMemoryModeRuntime
         RegisterAfter(modConfig, "NormalMapManager.MapItemInit", ApplySolarMemoryFixedSlotsAfterMapItems);
         RegisterAfter(modConfig, "MapSelectUI.ShowMap", ReapplySolarMemoryFixedSlotLocks);
         RegisterAfter(modConfig, "Fight_Win.ResetStates", SettleSolarMemoryBossAfterWin);
+        RegisterBefore(modConfig, "Fight_Escape.ResetStates", PrepareSolarMemoryFightAbort);
+        RegisterAfter(modConfig, "Fight_Escape.ResetStates", SettleSolarMemoryFightAbort);
+        RegisterAfter(modConfig, "Fight_Loss.Init", SettleSolarMemoryFightLoss);
         RegisterBefore(modConfig, "NormalMapManager.ReadyToChangeMap", FinishSolarMemoryAfterFinalLayer);
     }
 
@@ -1176,6 +1180,72 @@ public static class SolarMemoryModeRuntime
         }
     }
 
+    private static void PrepareSolarMemoryFightAbort(ModHookContext context)
+    {
+        try
+        {
+            if (!IsSolarMemoryRun())
+            {
+                return;
+            }
+
+            handlingSolarMemoryFightAbort = true;
+            EnsureSolarMemoryCurrentNodeForTransition("Fight_Escape.ResetStates:before");
+            CloseSolarMemoryTransientUi("Fight_Escape.ResetStates:before");
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[SolarMemoryFightAbort] prepare failed: " + ex.Message);
+        }
+    }
+
+    private static void SettleSolarMemoryFightAbort(ModHookContext context)
+    {
+        try
+        {
+            if (!IsSolarMemoryRun())
+            {
+                handlingSolarMemoryFightAbort = false;
+                return;
+            }
+
+            ClearSolarFinalePendingBattle("Fight_Escape.ResetStates");
+            EnsureSolarMemoryCurrentNodeForTransition("Fight_Escape.ResetStates:after");
+            CloseSolarMemoryTransientUi("Fight_Escape.ResetStates:after");
+            SunExpLog.Info("[SolarMemoryFightAbort] escape/loss branch settled.");
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[SolarMemoryFightAbort] settle failed: " + ex.Message);
+        }
+        finally
+        {
+            handlingSolarMemoryFightAbort = false;
+        }
+    }
+
+    private static void SettleSolarMemoryFightLoss(ModHookContext context)
+    {
+        try
+        {
+            if (!IsSolarMemoryRun())
+            {
+                return;
+            }
+
+            ClearSolarFinalePendingBattle("Fight_Loss.Init");
+            CloseSolarMemoryTransientUi("Fight_Loss.Init");
+            if (!handlingSolarMemoryFightAbort)
+            {
+                EnsureSolarMemoryCurrentNodeForTransition("Fight_Loss.Init");
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[SolarMemoryFightAbort] loss settle failed: " + ex.Message);
+        }
+    }
+
     private static void SyncSolarMemoryClientLastNodeAfterNextMap(ModHookContext context)
     {
         try
@@ -1276,18 +1346,68 @@ public static class SolarMemoryModeRuntime
         return changed;
     }
 
-    private static bool TryRestoreSolarMemoryCurrentNodeFromMapManager(string source)
-    {
-        var mapManager = MapManager.Instance;
-        return mapManager != null
-            && TryRestoreSolarMemoryCurrentNodeFromSyncArrays(mapManager.mapList, mapManager.mapData, source);
-    }
-
-    private static bool TryRestoreSolarMemoryCurrentNodeFromSyncArrays(string[]? maps, string[]? mapData, string source)
+    private static void EnsureSolarMemoryCurrentNodeForTransition(string source)
     {
         try
         {
-            if (!IsClientOnlyPlayer()
+            var mapManager = MapManager.Instance;
+            var tree = mapManager?.MapTree;
+            if (tree == null)
+            {
+                return;
+            }
+
+            if (IsUsableSolarMemoryMapNode(tree.currentNode))
+            {
+                EnsureSolarMemoryNodeDice(tree.currentNode, tree, source);
+                GameSaveManager.UpdateNode(tree.currentNode);
+                return;
+            }
+
+            var saveNode = GameSaveManager.GetNode();
+            if (IsUsableSolarMemoryMapNode(saveNode))
+            {
+                EnsureSolarMemoryNodeDice(saveNode, tree, source);
+                tree.currentNode = saveNode;
+                GameSaveManager.UpdateNode(saveNode);
+                SunExpLog.Info("[SolarMemoryMapSync] restored current node from save before transition; source=" + source + ".");
+                return;
+            }
+
+            if (TryRestoreSolarMemoryCurrentNodeFromMapManager(source, false))
+            {
+                return;
+            }
+
+            if (mapManager?.ModeMapManager is NormalMapManager manager
+                && EnsureSolarMemoryMapState(manager, source, false)
+                && IsUsableSolarMemoryMapNode(tree.currentNode))
+            {
+                EnsureSolarMemoryNodeDice(tree.currentNode, tree, source);
+                GameSaveManager.UpdateNode(tree.currentNode);
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[SolarMemoryMapSync] transition current node repair failed from "
+                + source
+                + ": "
+                + ex.Message);
+        }
+    }
+
+    private static bool TryRestoreSolarMemoryCurrentNodeFromMapManager(string source, bool clientOnly = true)
+    {
+        var mapManager = MapManager.Instance;
+        return mapManager != null
+            && TryRestoreSolarMemoryCurrentNodeFromSyncArrays(mapManager.mapList, mapManager.mapData, source, clientOnly);
+    }
+
+    private static bool TryRestoreSolarMemoryCurrentNodeFromSyncArrays(string[]? maps, string[]? mapData, string source, bool clientOnly = true)
+    {
+        try
+        {
+            if ((clientOnly && !IsClientOnlyPlayer())
                 || HasSolarMemoryCurrentNodeReady()
                 || maps == null
                 || mapData == null)
@@ -1428,6 +1548,79 @@ public static class SolarMemoryModeRuntime
     private static bool IsUsableSolarMemoryMapNode(MapTree.Node node)
     {
         return node.data != null || node.childrens != null;
+    }
+
+    private static void EnsureSolarMemoryNodeDice(MapTree.Node? node, MapTree tree, string source)
+    {
+        if (node == null || node.NodeDice != null)
+        {
+            return;
+        }
+
+        node.NodeDice = tree.treedice ?? Dice.Default;
+        SunExpLog.Debug("[SolarMemoryMapSync] repaired current node dice from " + source + ".");
+    }
+
+    private static void ClearSolarFinalePendingBattle(string source)
+    {
+        if (PlayerApi.GetGameVar(SunExpIds.SolarFinalePendingSaintBattleKey, "") == "")
+        {
+            return;
+        }
+
+        PlayerApi.SetGameVar(SunExpIds.SolarFinalePendingSaintBattleKey, "");
+        SunExpLog.Info("[SolarMemoryFightAbort] cleared pending saint battle from " + source + ".");
+    }
+
+    private static void CloseSolarMemoryTransientUi(string source)
+    {
+        try
+        {
+            SolarMemorySetupFlowRuntime.ClosePreparationWindows();
+            SolarMemoryBlessingPickerRuntime.Close();
+            CloseExistingPackWindow();
+            DisableRaycastsAndDestroy("SunExpSolarMemoryStarterDeck", source);
+            DisableRaycastsAndDestroy("SunExp_SolarMemoryOriginSetup", source);
+            DisableRaycastsAndDestroy("SunExp_SolarMemoryBlessingSetup", source);
+            DisableRaycastsAndDestroy("SunExp_SolarMemoryBlessingPicker", source);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[SolarMemoryFightAbort] transient UI cleanup failed from "
+                + source
+                + ": "
+                + ex.Message);
+        }
+    }
+
+    private static void DisableRaycastsAndDestroy(string objectName, string source)
+    {
+        var root = GameObject.Find(objectName);
+        if (root == null)
+        {
+            return;
+        }
+
+        DisableRaycasts(root);
+        UnityEngine.Object.Destroy(root);
+        SunExpLog.Debug("[SolarMemoryFightAbort] closed transient UI "
+            + objectName
+            + " from "
+            + source
+            + ".");
+    }
+
+    private static void DisableRaycasts(GameObject root)
+    {
+        foreach (var graphic in root.GetComponentsInChildren<Graphic>(true))
+        {
+            graphic.raycastTarget = false;
+        }
+
+        foreach (var selectable in root.GetComponentsInChildren<Selectable>(true))
+        {
+            selectable.interactable = false;
+        }
     }
 
     private static bool IsClientOnlyPlayer()
@@ -2191,6 +2384,7 @@ public static class SolarMemoryModeRuntime
         var root = GameObject.Find(name);
         if (root != null)
         {
+            DisableRaycasts(root);
             UnityEngine.Object.Destroy(root);
         }
     }

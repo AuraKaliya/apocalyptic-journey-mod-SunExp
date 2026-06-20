@@ -44,7 +44,8 @@ public static class StarterDeckArbiterRuntime
         RoleTable? roleTable,
         IEnumerable<string> cardIds,
         StarterDeckClaim claim,
-        Func<string, bool>? rejectCard = null)
+        Func<string, bool>? rejectCard = null,
+        bool sync = true)
     {
         if (roleTable == null)
         {
@@ -78,7 +79,11 @@ public static class StarterDeckArbiterRuntime
 
         NormalizeRoleCounts(roleTable);
         WriteClaim(roleTable, claim, StateApplied, string.Join("|", cards));
-        SyncRoleTable(roleTable, claim.SourceName + ".ApplyDeck");
+        if (sync)
+        {
+            SyncRoleTable(roleTable, claim.SourceName + ".ApplyDeck");
+        }
+
         Log("Applied deck. owner=" + claim.Owner + ", scope=" + claim.Scope + ", cards=" + cards.Count);
         return true;
     }
@@ -97,7 +102,7 @@ public static class StarterDeckArbiterRuntime
         }
     }
 
-    public static void KeepOfficialDeck(RoleTable? roleTable, StarterDeckClaim claim)
+    public static void KeepOfficialDeck(RoleTable? roleTable, StarterDeckClaim claim, bool sync = true)
     {
         if (roleTable == null)
         {
@@ -106,7 +111,11 @@ public static class StarterDeckArbiterRuntime
 
         NormalizeRoleCounts(roleTable);
         WriteClaim(roleTable, claim, StateOfficial, null);
-        SyncRoleTable(roleTable, claim.SourceName + ".KeepOfficialDeck");
+        if (sync)
+        {
+            SyncRoleTable(roleTable, claim.SourceName + ".KeepOfficialDeck");
+        }
+
         Log("Kept official deck. owner=" + claim.Owner + ", scope=" + claim.Scope);
     }
 

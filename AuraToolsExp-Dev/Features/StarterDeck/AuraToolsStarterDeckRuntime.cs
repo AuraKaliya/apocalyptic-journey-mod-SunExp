@@ -80,7 +80,7 @@ public static class AuraToolsStarterDeckRuntime
             }
 
             var originalDeckCount = roleTable.cardList.Count;
-            if (!StarterDeckArbiterRuntime.ApplyDeck(roleTable, deck, CreateClaim(settings.DeckSize)))
+            if (!StarterDeckArbiterRuntime.ApplyDeck(roleTable, deck, CreateClaim(settings.DeckSize), sync: false))
             {
                 return;
             }

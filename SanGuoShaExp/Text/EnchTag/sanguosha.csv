@@ -1,0 +1,4 @@
+"Id","Note","Name","Description","Name_zh-Hant","Name_en","Description_zh-Hant","Description_en","Name_ja","Description_ja"
+"唯一标识","备注","名称","效果描述","名稱","Name","效果描述","Effect Description","名称","効果説明"
+"linkage","","连携","附着卡打出时，正序触发弃牌堆中所有具有连携铭刻的牌的效果。","連攜","Linkage","附著卡打出時，正序觸發棄牌堆中所有具有連攜銘刻的牌的效果。","When the attached card is played, trigger effects of all Linkage-engraved cards in the discard pile in order.","連携","付与カード使用時、捨て札の連携銘刻カード効果を順に発動する。"
+"snatch","","顺手","附着卡打出时，若目标中包含友方单位，随机焚毁其一张手牌，自己获得一张同样的手牌。","順手","Snatch","附著卡打出時，若目標中包含友方單位，隨機焚毀其一張手牌，自己獲得一張同樣的手牌。","When the attached card is played, if its targets include an ally, burn 1 random hand card from that ally and gain a copy.","順手","付与カード使用時、対象に味方が含まれるなら、その味方の手札1枚をランダムに焼却し、自身は同じカードを得る。"
