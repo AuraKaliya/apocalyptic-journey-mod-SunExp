@@ -244,6 +244,18 @@ public static class StarterDeckArbiterRuntime
         try
         {
             var type = FindType("Data.Save.GameSaveManager") ?? FindType("GameSaveManager");
+            if (IsClientOnlySession())
+            {
+                Log("Skipped GameSaveManager.UpdateRoles on client-only session. source=" + source);
+                return;
+            }
+
+            if (!HasWritableSaveRoleTable(type))
+            {
+                Log("Skipped GameSaveManager.UpdateRoles before writable save role table. source=" + source);
+                return;
+            }
+
             var method = type?.GetMethod("UpdateRoles", PublicStatic, null, new[] { typeof(RoleTable) }, null);
             method?.Invoke(null, new object[] { roleTable });
         }
@@ -270,6 +282,58 @@ public static class StarterDeckArbiterRuntime
         catch (Exception ex)
         {
             Warn("PlayerManager.CmdSyncRoleTable failed from " + source + ": " + RootMessage(ex));
+        }
+    }
+
+    private static bool IsClientOnlySession()
+    {
+        try
+        {
+            var playerManager = StaticMemberValue(FindType("PlayerManager"), "Instance");
+            if (playerManager == null)
+            {
+                return false;
+            }
+
+            if (InstanceMemberValue(playerManager, "isClientOnly") is bool isClientOnly && isClientOnly)
+            {
+                return true;
+            }
+
+            if (InstanceMemberValue(playerManager, "isServer") is bool isServer)
+            {
+                return !isServer;
+            }
+        }
+        catch
+        {
+            // Fall back to the legacy local-save path when multiplayer state cannot be inspected.
+        }
+
+        return false;
+    }
+
+    private static bool HasWritableSaveRoleTable(Type? gameSaveManagerType)
+    {
+        if (gameSaveManagerType == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var getNowSave = gameSaveManagerType.GetMethod("GetNowSave", PublicStatic, null, Type.EmptyTypes, null);
+            if (getNowSave == null)
+            {
+                return true;
+            }
+
+            var save = getNowSave.Invoke(null, Array.Empty<object>());
+            return InstanceMemberValue(save, "roleTable") != null;
+        }
+        catch
+        {
+            return true;
         }
     }
 

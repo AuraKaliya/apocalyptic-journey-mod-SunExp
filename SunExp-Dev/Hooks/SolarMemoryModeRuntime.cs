@@ -52,6 +52,8 @@ public static class SolarMemoryModeRuntime
         RegisterBefore(modConfig, "MapManager.CmdSelectMapIncludeSender", RepairSolarMemoryMapSelection);
         RegisterBefore(modConfig, "MapManager.TargetUpdateMap", RepairSolarMemoryMapSelection);
         RegisterBefore(modConfig, "MapManager.RpcUpdateMap", RepairSolarMemoryMapSelection);
+        RegisterBefore(modConfig, "MapManager.RpcNextMap", EnsureSolarMemoryCurrentNodeBeforeNextMap);
+        RegisterAfter(modConfig, "MapManager.RpcNextMap", SyncSolarMemoryClientLastNodeAfterNextMap);
         RegisterBefore(modConfig, "NormalMapManager.MapItemInit", SettleLegacySolarFinaleBeforeMapItems);
         RegisterAfter(modConfig, "NormalMapManager.MapItemInit", ApplySolarMemoryFixedSlotsAfterMapItems);
         RegisterAfter(modConfig, "MapSelectUI.ShowMap", ReapplySolarMemoryFixedSlotLocks);
@@ -773,6 +775,13 @@ public static class SolarMemoryModeRuntime
                 return;
             }
 
+            if (!HasSolarMemoryCurrentNodeReady()
+                && !TryRestoreSolarMemoryCurrentNodeFromMapManager("MapSelectUI.ShowMap"))
+            {
+                SunExpLog.Debug("[SolarMemoryMapLock] skipped fixed slot apply from MapSelectUI.ShowMap: current node is not ready.");
+                return;
+            }
+
             ApplySolarMemoryFixedSlots(mapSelect, MapManager.Instance?.ModeMapManager as NormalMapManager, false, "MapSelectUI.ShowMap");
         }
         catch (Exception ex)
@@ -836,13 +845,22 @@ public static class SolarMemoryModeRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[SolarMemoryMapLock] skipped fixed slot apply from "
+            var message = "[SolarMemoryMapLock] skipped fixed slot apply from "
                 + source
                 + ": map nodes unavailable ("
                 + ex.GetType().Name
                 + ": "
                 + ex.Message
-                + ").");
+                + ").";
+            if (IsClientOnlyPlayer())
+            {
+                SunExpLog.Debug(message);
+            }
+            else
+            {
+                SunExpLog.Warn(message);
+            }
+
             return null;
         }
     }
@@ -1121,15 +1139,62 @@ public static class SolarMemoryModeRuntime
             var args = context.Arguments ?? Array.Empty<object>();
             for (var i = 0; i < args.Length - 1; i++)
             {
-                if (args[i] is string[] maps && args[i + 1] is string[] mapData && RepairSolarMemoryMapArrays(maps, mapData))
+                if (args[i] is string[] maps && args[i + 1] is string[] mapData)
                 {
-                    SunExpLog.Info("[SolarMemoryMapSync] map selection arrays repaired.");
+                    if (RepairSolarMemoryMapArrays(maps, mapData))
+                    {
+                        SunExpLog.Info("[SolarMemoryMapSync] map selection arrays repaired.");
+                    }
+
+                    TryRestoreSolarMemoryCurrentNodeFromSyncArrays(maps, mapData, "MapManager.MapSelectionSync");
                 }
             }
         }
         catch (Exception ex)
         {
             SunExpLog.Error("Solar memory map selection repair failed", ex);
+        }
+    }
+
+    private static void EnsureSolarMemoryCurrentNodeBeforeNextMap(ModHookContext context)
+    {
+        try
+        {
+            if (!IsSolarMemoryRun() || !IsClientOnlyPlayer())
+            {
+                return;
+            }
+
+            if (MapManager.Instance?.MapTree?.currentNode == null)
+            {
+                TryRestoreSolarMemoryCurrentNodeFromMapManager("MapManager.RpcNextMap");
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[SolarMemoryMapSync] pre-next-map current node repair failed: " + ex.Message);
+        }
+    }
+
+    private static void SyncSolarMemoryClientLastNodeAfterNextMap(ModHookContext context)
+    {
+        try
+        {
+            if (!IsSolarMemoryRun() || !IsClientOnlyPlayer())
+            {
+                return;
+            }
+
+            var node = MapManager.Instance?.MapTree?.currentNode;
+            if (node != null)
+            {
+                GameSaveManager.UpdateNode(node);
+                SunExpLog.Debug("[SolarMemoryMapSync] synced client save node after RpcNextMap.");
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[SolarMemoryMapSync] post-next-map save node sync failed: " + ex.Message);
         }
     }
 
@@ -1209,6 +1274,173 @@ public static class SolarMemoryModeRuntime
         }
 
         return changed;
+    }
+
+    private static bool TryRestoreSolarMemoryCurrentNodeFromMapManager(string source)
+    {
+        var mapManager = MapManager.Instance;
+        return mapManager != null
+            && TryRestoreSolarMemoryCurrentNodeFromSyncArrays(mapManager.mapList, mapManager.mapData, source);
+    }
+
+    private static bool TryRestoreSolarMemoryCurrentNodeFromSyncArrays(string[]? maps, string[]? mapData, string source)
+    {
+        try
+        {
+            if (!IsClientOnlyPlayer()
+                || HasSolarMemoryCurrentNodeReady()
+                || maps == null
+                || mapData == null)
+            {
+                return false;
+            }
+
+            var tree = MapManager.Instance?.MapTree;
+            var count = Math.Min(maps.Length, mapData.Length);
+            if (tree == null || count <= 0)
+            {
+                return false;
+            }
+
+            var first = BuildSolarMemorySyncedNodeChain(tree, maps, mapData, count);
+            if (first == null)
+            {
+                return false;
+            }
+
+            tree.currentNode = first;
+            GameSaveManager.UpdateNode(first);
+            SunExpLog.Info("[SolarMemoryMapSync] restored client current node from sync arrays; source="
+                + source
+                + "; count="
+                + count
+                + ".");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[SolarMemoryMapSync] failed to restore client current node from "
+                + source
+                + ": "
+                + ex.Message);
+            return false;
+        }
+    }
+
+    private static MapTree.Node? BuildSolarMemorySyncedNodeChain(MapTree tree, string[] maps, string[] mapData, int count)
+    {
+        MapTree.Node? first = null;
+        MapTree.Node? previous = null;
+        for (var i = 0; i < count; i++)
+        {
+            var node = CreateSolarMemorySyncedNode(tree, maps[i], mapData[i], i);
+            if (first == null)
+            {
+                first = node;
+            }
+            else
+            {
+                previous?.SetChild(0, node);
+            }
+
+            previous = node;
+        }
+
+        return first;
+    }
+
+    private static MapTree.Node CreateSolarMemorySyncedNode(MapTree tree, string? mapId, string? nodeId, int index)
+    {
+        var data = CreateSolarMemorySyncedNodeData(mapId, nodeId);
+        var type = data == null ? "null" : Field(data, "Note");
+        if (string.IsNullOrWhiteSpace(type))
+        {
+            type = data == null ? "null" : Field(data, "Type");
+        }
+
+        if (string.IsNullOrWhiteSpace(type))
+        {
+            type = "Map";
+        }
+
+        return new MapTree.Node(type)
+        {
+            type = type,
+            data = data,
+            NodeDice = SyncedNodeDice(tree, index)
+        };
+    }
+
+    private static Dictionary<string, string>? CreateSolarMemorySyncedNodeData(string? mapId, string? nodeId)
+    {
+        if (string.IsNullOrWhiteSpace(mapId))
+        {
+            return null;
+        }
+
+        var normalizedMapId = mapId!;
+        var row = MapRow(normalizedMapId);
+        var data = row == null ? new Dictionary<string, string>() : new Dictionary<string, string>(row);
+        data["Id"] = normalizedMapId;
+        if (!string.IsNullOrWhiteSpace(nodeId))
+        {
+            data["NodeId"] = nodeId!;
+        }
+        else if (!data.ContainsKey("NodeId"))
+        {
+            data["NodeId"] = normalizedMapId;
+        }
+
+        if (!data.ContainsKey("Type") || string.IsNullOrWhiteSpace(data["Type"]))
+        {
+            data["Type"] = IsSolarMemoryEventId(nodeId) || IsSolarMemoryMapId(normalizedMapId) ? "Event" : "Fight";
+        }
+
+        if (!data.ContainsKey("Level") || string.IsNullOrWhiteSpace(data["Level"]))
+        {
+            data["Level"] = "-1";
+        }
+
+        return data;
+    }
+
+    private static Dice SyncedNodeDice(MapTree tree, int index)
+    {
+        return tree.treedice ?? Dice.Default;
+    }
+
+    private static bool HasSolarMemoryCurrentNodeReady()
+    {
+        try
+        {
+            var currentNode = MapManager.Instance?.MapTree?.currentNode;
+            var saveNode = GameSaveManager.GetNode();
+            return currentNode != null
+                && saveNode != null
+                && (IsUsableSolarMemoryMapNode(currentNode) || IsUsableSolarMemoryMapNode(saveNode));
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool IsUsableSolarMemoryMapNode(MapTree.Node node)
+    {
+        return node.data != null || node.childrens != null;
+    }
+
+    private static bool IsClientOnlyPlayer()
+    {
+        try
+        {
+            var playerManager = PlayerManager.Instance;
+            return playerManager != null && !playerManager.isServer;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool IsSolarMemoryMapId(string? id)
