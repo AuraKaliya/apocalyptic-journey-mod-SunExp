@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "enabled": true,
+  "syncRemote": true,
+  "maxQueueLength": 8,
+  "maxRequestAgeSeconds": 6.0,
+  "duplicateWindowSeconds": 0.2,
+  "roles": {
+    "career_1": {
+      "enabled": true,
+      "roleId": "career_1",
+      "displayName": "阿米莉娅",
+      "rules": [
+        {
+          "enabled": true,
+          "providerId": "AuraTools.SkillCG.Amelia",
+          "cardId": "careercard_1",
+          "action": "*",
+          "image": "Resources/SkillCG/Roles/1/skill_cg.png",
+          "priority": 10,
+          "fadeIn": 0.35,
+          "hold": 1.0,
+          "fadeOut": 0.45
+        }
+      ]
+    },
+    "career_3": {
+      "enabled": true,
+      "roleId": "career_3",
+      "displayName": "阿黛拉",
+      "rules": [
+        {
+          "enabled": true,
+          "providerId": "AuraTools.SkillCG.Adela",
+          "cardId": "careercard_4",
+          "action": "*",
+          "image": "Resources/SkillCG/Roles/_3/skill_cg.png",
+          "priority": 10,
+          "fadeIn": 0.35,
+          "hold": 1.0,
+          "fadeOut": 0.45
+        }
+      ]
+    }
+  }
+}

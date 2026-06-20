@@ -55,6 +55,13 @@ public static class SunExpIds
     public const string SolarMemoryDeckConfiguredKey = "SunExp_SolarMemoryDeckConfigured";
     public const string SolarMemoryStarterDeckAppliedKey = "SunExp_SolarMemoryStarterDeckApplied";
     public const string SolarMemoryStarterDeckModeKey = "SunExp_SolarMemoryStarterDeckMode";
+    public const string StarterDeckOwnerKey = "StarterDeck.Owner";
+    public const string StarterDeckScopeKey = "StarterDeck.Scope";
+    public const string StarterDeckStateKey = "StarterDeck.State";
+    public const string StarterDeckOwnerSolarMemory = "SunExp.SolarMemory";
+    public const string StarterDeckStatePending = "pending";
+    public const string StarterDeckStateApplied = "applied";
+    public const string StarterDeckStateOfficial = "official";
     public const string SolarMemoryOriginConfiguredKey = "SunExp_SolarMemoryOriginConfigured";
     public const string SolarMemoryBlessConfiguredKey = "SunExp_SolarMemoryBlessConfigured";
     public const string SolarMemorySetupFinishedKey = "SunExp_SolarMemorySetupFinished";

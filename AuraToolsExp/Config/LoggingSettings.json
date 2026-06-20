@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "enabled": true,
+  "fileNamePattern": "AuraTools-{date}.log",
+  "minimumLevel": "Info",
+  "mirrorUnityLog": true,
+  "mirrorCommandsLog": true
+}

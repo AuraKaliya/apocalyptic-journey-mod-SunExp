@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "audioSystemVersion": "2.0.0",
+  "battleBgm": {
+    "enabled": true,
+    "mode": "Common",
+    "common": {
+      "relativePath": "Resources/Audio/Common/battle_bgm.mp3",
+      "priority": -1000,
+      "hardClaim": false,
+      "silenceWhenLoading": false,
+      "fallbackToOriginalWhenFailed": true
+    },
+    "roles": {}
+  },
+  "cardUse": {
+    "enabled": true,
+    "mode": "Common",
+    "common": {
+      "relativePath": "Resources/Audio/Common/card_use.mp3",
+      "priority": -1000,
+      "hardClaim": false,
+      "gainDb": 6.0
+    },
+    "roles": {}
+  }
+}

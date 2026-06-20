@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "audio": {
+    "enabled": true,
+    "configFile": "AudioSettings.json"
+  },
+  "matchExperience": {
+    "enabled": true,
+    "configFile": "MatchExperienceSettings.json"
+  },
+  "skillCg": {
+    "enabled": true,
+    "configFile": "SkillCgSettings.json"
+  },
+  "logging": {
+    "enabled": true,
+    "configFile": "LoggingSettings.json"
+  }
+}

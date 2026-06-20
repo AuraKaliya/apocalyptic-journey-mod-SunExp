@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "starterDeck": {
+    "enabled": false,
+    "deckSize": 11,
+    "cardIds": []
+  },
+  "safeBox": {
+    "enabled": false
+  }
+}

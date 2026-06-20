@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using CardPackExp.Dll.Infrastructure;
+using Data.Save;
 using UnityEngine;
 using UnityEngine.UI;
 using Witch;
@@ -15,6 +16,11 @@ namespace CardPackExp.Dll.Hooks;
 public static class StarterDeckRuntime
 {
     private const string AppliedKey = "CardPackExp.StarterDeckApplied";
+    private const string Owner = "CardPackExp.StarterDeck";
+    private const string SharedOwnerKey = "StarterDeck.Owner";
+    private const string SharedScopeKey = "StarterDeck.Scope";
+    private const string SharedStateKey = "StarterDeck.State";
+    private const string SunExpSolarMemoryModeKey = "SunExp_SolarMemoryMode";
     private const int StarterDeckSize = 11;
     private const string ButtonSpritePath = "Mods/CardPackExp/ui-img/button-\u4e5d\u5bab\u683c.png";
     private const string PanelSpritePath = "Mods/CardPackExp/ui-img/background-\u4e5d\u5bab\u683c.png";
@@ -49,9 +55,14 @@ public static class StarterDeckRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
+        RegisterAfter(modConfig, "RoleTable.Init", MarkPendingFromRoleTableInit);
         RegisterAfter(modConfig, "MapManager.MapUIStart", TryShowStarterDeckEditor);
         RegisterAfter(modConfig, "NormalMapManager.MapUIStart", TryShowStarterDeckEditor);
         RegisterAfter(modConfig, "MapSelectUI.Start", TryShowStarterDeckEditor);
+        RegisterAfter(modConfig, "MapSelectUI.DataUpdate", TryShowStarterDeckEditor);
+        RegisterAfter(modConfig, "MapSelectUI.ReadyToSelect", TryShowStarterDeckEditor);
+        RegisterAfter(modConfig, "MapSelectUI.ShowMap", TryShowStarterDeckEditor);
+        RegisterAfter(modConfig, "MapSelectUI.MapAnimation", TryShowStarterDeckEditor);
     }
 
     public static void CaptureSelectedPacks(IEnumerable<string> packs)
@@ -70,7 +81,7 @@ public static class StarterDeckRuntime
 
     public static void MarkPending(RoleTable roleTable, string source)
     {
-        if (IsApplied(roleTable))
+        if (ShouldSkipForExternalOwner(roleTable) || IsApplied(roleTable))
         {
             return;
         }
@@ -95,12 +106,36 @@ public static class StarterDeckRuntime
 
     private static void TryShowStarterDeckEditor(ModHookContext context)
     {
+        TryShowStarterDeckEditor("hook");
+    }
+
+    private static void MarkPendingFromRoleTableInit(ModHookContext context)
+    {
+        try
+        {
+            var roleTable = context.Target as RoleTable ?? RoleTable.Instance;
+            if (roleTable == null)
+            {
+                CardPackExpLog.Warn("[StarterDeck] RoleTable.Init hook ran but RoleTable is null.");
+                return;
+            }
+
+            MarkPending(roleTable, "RoleTable.Init");
+        }
+        catch (Exception ex)
+        {
+            CardPackExpLog.Error("Failed to mark starter deck pending from RoleTable.Init", ex);
+        }
+    }
+
+    private static bool TryShowStarterDeckEditor(string source)
+    {
         try
         {
             var roleTable = pendingRoleTable ?? RoleTable.Instance;
-            if (roleTable == null || promptShown || IsApplied(roleTable))
+            if (roleTable == null || promptShown || ShouldSkipForExternalOwner(roleTable) || IsApplied(roleTable))
             {
-                return;
+                return false;
             }
 
             var candidates = BuildCandidateCardIds();
@@ -108,21 +143,76 @@ public static class StarterDeckRuntime
             {
                 MarkApplied(roleTable, "no-candidate");
                 CardPackExpLog.Warn("[StarterDeck] no valid card candidates; keeping official starter deck.");
-                return;
+                return true;
             }
 
             promptShown = true;
+            CardPackExpLog.Info("[StarterDeck] opening editor from "
+                + source
+                + "; candidates="
+                + candidates.Count
+                + "; currentDeck="
+                + roleTable.cardList.Count);
             ShowStarterDeckEditor(roleTable, candidates);
+            return true;
         }
         catch (Exception ex)
         {
             CardPackExpLog.Error("Failed to show starter deck editor", ex);
+            return false;
+        }
+    }
+
+    private static bool ShouldSkipForExternalOwner(RoleTable roleTable)
+    {
+        if (IsSunExpSolarMemoryRun())
+        {
+            CardPackExpLog.Info("[StarterDeck] skipped: SunExp Solar Memory owns this run.");
+            return true;
+        }
+
+        if (roleTable.SpecialVarMap == null)
+        {
+            return false;
+        }
+
+        if (roleTable.SpecialVarMap.TryGetValue(SharedOwnerKey, out var owner)
+            && !string.IsNullOrWhiteSpace(owner)
+            && !string.Equals(owner, Owner, StringComparison.OrdinalIgnoreCase))
+        {
+            CardPackExpLog.Info("[StarterDeck] skipped: starter deck owner=" + owner + ".");
+            return true;
+        }
+
+        if (roleTable.SpecialVarMap.TryGetValue(AppliedKey + ".Mode", out var legacyMode)
+            && string.Equals(legacyMode, "sunexp-solar-memory", StringComparison.OrdinalIgnoreCase))
+        {
+            CardPackExpLog.Info("[StarterDeck] skipped: compatibility owner is SunExp Solar Memory.");
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsSunExpSolarMemoryRun()
+    {
+        try
+        {
+            return GameSaveManager.GetValue<string>(SunExpSolarMemoryModeKey) == "1";
+        }
+        catch
+        {
+            return false;
         }
     }
 
     private static List<string> BuildCandidateCardIds()
     {
-        return CardPackSelectionRuntime.CardIdsFromPacks(selectedPacks)
+        var packs = selectedPacks.Count > 0
+            ? selectedPacks
+            : Singleton<GameRuntimeData>.Instance.UseCardPack;
+
+        return CardPackSelectionRuntime.CardIdsFromPacks(packs)
             .Where(id => !string.IsNullOrWhiteSpace(id) && !id.StartsWith("*", StringComparison.Ordinal))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(CardSortKey)
@@ -837,6 +927,11 @@ public static class StarterDeckRuntime
         roleTable.SpecialVarMap ??= new Dictionary<string, string>();
         roleTable.SpecialVarMap[AppliedKey] = "1";
         roleTable.SpecialVarMap[AppliedKey + ".Mode"] = mode;
+        roleTable.SpecialVarMap[SharedOwnerKey] = Owner;
+        roleTable.SpecialVarMap[SharedScopeKey] = "CardPackExp";
+        roleTable.SpecialVarMap[SharedStateKey] = string.Equals(mode, "official", StringComparison.OrdinalIgnoreCase)
+            ? "official"
+            : "applied";
         pendingRoleTable = null;
     }
 

@@ -787,7 +787,12 @@ public static class SolarMemoryModeRuntime
             return;
         }
 
-        var nodes = mapSelect.GetNodes();
+        var nodes = TryGetMapSelectNodes(mapSelect, source);
+        if (nodes == null || nodes.Length == 0)
+        {
+            return;
+        }
+
         var layer = SolarMemoryLayer(manager);
         var changed = false;
         foreach (var spec in FixedNodeSpecs(layer))
@@ -803,9 +808,15 @@ public static class SolarMemoryModeRuntime
                 continue;
             }
 
-            nodes[spec.SlotIndex].data = data;
-            nodes[spec.SlotIndex].NodeDice ??= Dice.Default;
-            EnsureFixedSlotVisual(mapSelect, spec.SlotIndex, nodes[spec.SlotIndex], data);
+            var node = nodes[spec.SlotIndex];
+            if (node == null)
+            {
+                continue;
+            }
+
+            node.data = data;
+            node.NodeDice ??= Dice.Default;
+            EnsureFixedSlotVisual(mapSelect, spec.SlotIndex, node, data);
             changed = true;
         }
 
@@ -813,6 +824,25 @@ public static class SolarMemoryModeRuntime
         {
             mapSelect.SendNode();
             SunExpLog.Info("[SolarMemoryMapLock] fixed slots applied from " + source + "; layer=" + layer + ".");
+        }
+    }
+
+    private static MapTree.Node[]? TryGetMapSelectNodes(MapSelectUI mapSelect, string source)
+    {
+        try
+        {
+            return mapSelect.GetNodes();
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[SolarMemoryMapLock] skipped fixed slot apply from "
+                + source
+                + ": map nodes unavailable ("
+                + ex.GetType().Name
+                + ": "
+                + ex.Message
+                + ").");
+            return null;
         }
     }
 

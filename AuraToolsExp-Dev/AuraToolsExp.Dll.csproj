@@ -1,0 +1,107 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <RootNamespace>AuraToolsExp.Dll</RootNamespace>
+    <AssemblyName>AuraToolsExp.Aura</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ManagedPath Condition="'$(ManagedPath)' == ''">$(MSBuildProjectDirectory)\..\Managed</ManagedPath>
+    <DllPath>$(ManagedPath)</DllPath>
+    <ModScriptsPath>..\AuraToolsExp\Scripts</ModScriptsPath>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DebugType>embedded</DebugType>
+    <IsPublishable>true</IsPublishable>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DebugType>embedded</DebugType>
+    <IsPublishable>true</IsPublishable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\AudioArbiterShared\AudioArbiterRuntime.cs" Link="Shared\AudioArbiterRuntime.cs" />
+    <Compile Include="..\BattleBgmArbiterShared\BattleBgmArbiterRuntime.cs" Link="Shared\BattleBgmArbiterRuntime.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="netstandard">
+      <HintPath>$(DllPath)\netstandard.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(DllPath)\Newtonsoft.Json.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(DllPath)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AudioModule">
+      <HintPath>$(DllPath)\UnityEngine.AudioModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(DllPath)\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Unity.TextMeshPro">
+      <HintPath>$(DllPath)\Unity.TextMeshPro.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>$(DllPath)\UnityEngine.UIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>$(DllPath)\UnityEngine.UI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestModule">
+      <HintPath>$(DllPath)\UnityEngine.UnityWebRequestModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestAudioModule">
+      <HintPath>$(DllPath)\UnityEngine.UnityWebRequestAudioModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestTextureModule">
+      <HintPath>$(DllPath)\UnityEngine.UnityWebRequestTextureModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.JSONSerializeModule">
+      <HintPath>$(DllPath)\UnityEngine.JSONSerializeModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Witch">
+      <HintPath>$(DllPath)\Witch.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Witch.Core">
+      <HintPath>$(DllPath)\Witch.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Plugins">
+      <HintPath>$(DllPath)\Plugins.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Mirror">
+      <HintPath>$(DllPath)\Mirror.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="MemoryPack.Core">
+      <HintPath>$(DllPath)\MemoryPack.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="CopyEntryDllToMod" AfterTargets="Build">
+    <MakeDir Directories="$(ModScriptsPath)" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFiles="$(ModScriptsPath)\Entry.dll" />
+  </Target>
+
+</Project>

@@ -28,7 +28,9 @@ public static class CardPackSelectionRuntime
         RegisterBefore(modConfig, "CardPackUI.Init", EnsureRuntimePacksBeforeCardPackInit);
         RegisterAfter(modConfig, "CardPackUI.Init", SyncSelectedPacksFromCardPackUi);
         RegisterAfter(modConfig, "CardPackUI.SetPackEnabled", SyncSelectedPacksFromCardPackUi);
+        RegisterAfter(modConfig, "CardPackUI.OnDisable", SyncSelectedPacksFromCardPackUi);
         RegisterAfter(modConfig, "CardPackUI.OnDestroy", SyncSelectedPacksFromRuntime);
+        RegisterBefore(modConfig, "GameEntryUI.NormalGame", SyncSelectedPacksBeforeStart);
         RegisterBefore(modConfig, "GameEntryUI.StartGame", SyncSelectedPacksBeforeStart);
         StarterDeckRuntime.Initialize(modConfig);
     }

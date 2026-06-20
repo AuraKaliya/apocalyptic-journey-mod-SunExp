@@ -14,6 +14,7 @@ public static class SanGuoShaExpIds
     public const string Resilient = "buff_resilient";
     public const string Impregnable = "buff_impregnable";
     public const string KeenEdge = "buff_keenedge";
+    public const string TimeStop = "buff_timestop";
 
     public const string Wine = "SanGuoShaExp_sanguosha_wine";
     public const string Chain = "SanGuoShaExp_sanguosha_chain";

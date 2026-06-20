@@ -143,8 +143,9 @@ public static class SanGuoShaCardScripts
                     self.AddBuff(SanGuoShaExpIds.KeenEdge, "4");
                     ExecutorApi.SetVar(self, "SanGuoShaAncientScimitar", "1");
                     break;
-                case "jie_dongfeng":
-                    UseEastWind(self);
+                case "lebu_sishu":
+                    self.SetStatus("Target");
+                    self.AddBuff(SanGuoShaExpIds.TimeStop, "1");
                     break;
             }
         }
@@ -198,6 +199,7 @@ public static class SanGuoShaCardScripts
             case "leisha":
             case "huogong":
             case "bingliang_cunduan":
+            case "lebu_sishu":
                 return true;
             default:
                 return false;
@@ -332,24 +334,6 @@ public static class SanGuoShaCardScripts
         }
 
         SplashChain(self, damage, "Fire");
-    }
-
-    private static void UseEastWind(ScriptExecutor self)
-    {
-        self.SetStatus("AllTarget");
-        self.AddBuff(SanGuoShaExpIds.Weakness, "6");
-        self.RunImmediately(SanGuoShaExpIds.Burn, "StartRound");
-        self.RunImmediately(SanGuoShaExpIds.Burn, "StartRound");
-        if (ExecutorApi.EnemyTargets(self).Any(target => BuffLevel(target, SanGuoShaExpIds.Chain) > 0))
-        {
-            self.Damage("12", "Fire");
-        }
-
-        if (Check(self, 50) || Combo(self))
-        {
-            self.SetStatus("Self");
-            self.DrawCount("2");
-        }
     }
 
     private static void SplashChain(ScriptExecutor self, int sourceDamage, string damageType)

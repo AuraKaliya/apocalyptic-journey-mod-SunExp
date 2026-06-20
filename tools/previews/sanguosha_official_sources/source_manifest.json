@@ -1,0 +1,362 @@
+[
+  {
+    "name": "杀",
+    "source_url": "http://guozhan.sanguosha.com/uploads/allimg/130130/1-1301301K601464.jpg",
+    "source_file": "tools/previews/sanguosha_official_sources/raw/杀.jpg",
+    "source_size": [
+      240,
+      337
+    ],
+    "crop_box": [
+      13,
+      112,
+      227,
+      292
+    ],
+    "output": "SanGuoShaExp/ModResource/Images/杀.png",
+    "note": "",
+    "crop_mode": "art_only_no_text"
+  },
+  {
+    "name": "闪",
+    "source_url": "http://guozhan.sanguosha.com/uploads/allimg/130130/1-1301301KZR58.jpg",
+    "source_file": "tools/previews/sanguosha_official_sources/raw/闪.jpg",
+    "source_size": [
+      240,
+      337
+    ],
+    "crop_box": [
+      13,
+      112,
+      227,
+      292
+    ],
+    "output": "SanGuoShaExp/ModResource/Images/闪.png",
+    "note": "",
+    "crop_mode": "art_only_no_text"
+  },
+  {
+    "name": "桃",
+    "source_url": "http://guozhan.sanguosha.com/uploads/allimg/130130/1-1301301A911Z1.jpg",
+    "source_file": "tools/previews/sanguosha_official_sources/raw/桃.jpg",
+    "source_size": [
+      240,
+      337
+    ],
+    "crop_box": [
+      13,
+      112,
+      227,
+      292
+    ],
+    "output": "SanGuoShaExp/ModResource/Images/桃.png",
+    "note": "",
+    "crop_mode": "art_only_no_text"
+  },
+  {
+    "name": "酒",
+    "source_url": "http://guozhan.sanguosha.com/uploads/allimg/130130/1-1301301KR2B9.jpg",
+    "source_file": "tools/previews/sanguosha_official_sources/raw/酒.jpg",
+    "source_size": [
+      240,
+      337
+    ],
+    "crop_box": [
+      13,
+      112,
+      227,
+      292
+    ],
+    "output": "SanGuoShaExp/ModResource/Images/酒.png",
+    "note": "",
+    "crop_mode": "art_only_no_text"
+  },
+  {
+    "name": "决斗",
+    "source_url": "https://www.sanguosha.com/uploads/201809/5b91063e88427.jpg",
+    "source_file": "tools/previews/sanguosha_official_sources/raw/决斗.jpg",
+    "source_size": [
+      200,
+      281
+    ],
+    "crop_box": [
+      18,
+      56,
+      182,
+      160
+    ],
+    "output": "SanGuoShaExp/ModResource/Images/决斗.png",
+    "note": "",
+    "crop_mode": "art_only_no_text"
+  },
+  {
+    "name": "无中生有",
+    "source_url": "https://www.sanguosha.com/uploads/201809/5b9107bfe9f66.jpg",
+    "source_file": "tools/previews/sanguosha_official_sources/raw/无中生有.jpg",
+    "source_size": [
+      200,
+      281
+    ],
+    "crop_box": [
+      18,
+      56,
+      182,
+      160
+    ],
+    "output": "SanGuoShaExp/ModResource/Images/无中生有.png",
+    "note": "",
+    "crop_mode": "art_only_no_text"
+  },
+  {
+    "name": "过河拆桥",
+    "source_url": "https://www.sanguosha.com/uploads/201809/5b910730cc887.jpg",
+    "source_file": "tools/previews/sanguosha_official_sources/raw/过河拆桥.jpg",
+    "source_size": [
+      200,
+      281
+    ],
+    "crop_box": [
+      18,
+      56,
+      182,
+      160
+    ],
+    "output": "SanGuoShaExp/ModResource/Images/过河拆桥.png",
+    "note": "",
+    "crop_mode": "art_only_no_text"
+  },
+  {
+    "name": "顺手牵羊",
+    "source_url": "https://www.sanguosha.com/uploads/201809/5b91073a34272.jpg",
+    "source_file": "tools/previews/sanguosha_official_sources/raw/顺手牵羊.jpg",
+    "source_size": [
+      200,
+      281
+    ],
+    "crop_box": [
+      18,
+      56,
+      182,
+      160
+    ],
+    "output": "SanGuoShaExp/ModResource/Images/顺手牵羊.png",
+    "note": "",
+    "crop_mode": "art_only_no_text"
+  },
+  {
+    "name": "南蛮入侵",
+    "source_url": "https://www.sanguosha.com/uploads/201809/5b9106236ad45.jpg",
+    "source_file": "tools/previews/sanguosha_official_sources/raw/南蛮入侵.jpg",
+    "source_size": [
+      200,
+      281
+    ],
+    "crop_box": [
+      18,
+      56,
+      182,
+      160
+    ],
+    "output": "SanGuoShaExp/ModResource/Images/南蛮入侵.png",
+    "note": "",
+    "crop_mode": "art_only_no_text"
+  },
+  {
+    "name": "万箭齐发",
+    "source_url": "https://www.sanguosha.com/uploads/201809/5b91062a95222.jpg",
+    "source_file": "tools/previews/sanguosha_official_sources/raw/万箭齐发.jpg",
+    "source_size": [
+      200,
+      281
+    ],
+    "crop_box": [
+      18,
+      56,
+      182,
+      160
+    ],
+    "output": "SanGuoShaExp/ModResource/Images/万箭齐发.png",
+    "note": "",
+    "crop_mode": "art_only_no_text"
+  },
+  {
+    "name": "桃园结义",
+    "source_url": "https://www.sanguosha.com/uploads/201809/5b9107870f113.jpg",
+    "source_file": "tools/previews/sanguosha_official_sources/raw/桃园结义.jpg",
+    "source_size": [
+      200,
+      281
+    ],
+    "crop_box": [
+      18,
+      56,
+      182,
+      160
+    ],
+    "output": "SanGuoShaExp/ModResource/Images/桃园结义.png",
+    "note": "",
+    "crop_mode": "art_only_no_text"
+  },
+  {
+    "name": "无懈可击",
+    "source_url": "https://www.sanguosha.com/uploads/201809/5b9107d43ad81.jpg",
+    "source_file": "tools/previews/sanguosha_official_sources/raw/无懈可击.jpg",
+    "source_size": [
+      200,
+      281
+    ],
+    "crop_box": [
+      18,
+      56,
+      182,
+      160
+    ],
+    "output": "SanGuoShaExp/ModResource/Images/无懈可击.png",
+    "note": "",
+    "crop_mode": "art_only_no_text"
+  },
+  {
+    "name": "闪电",
+    "source_url": "https://www.sanguosha.com/uploads/201809/5b910842c0d1e.jpg",
+    "source_file": "tools/previews/sanguosha_official_sources/raw/闪电.jpg",
+    "source_size": [
+      200,
+      281
+    ],
+    "crop_box": [
+      18,
+      56,
+      182,
+      160
+    ],
+    "output": "SanGuoShaExp/ModResource/Images/闪电.png",
+    "note": "",
+    "crop_mode": "art_only_no_text"
+  },
+  {
+    "name": "五谷丰登",
+    "source_url": "https://www.sanguosha.com/uploads/201809/5b9107a5912e5.jpg",
+    "source_file": "tools/previews/sanguosha_official_sources/raw/五谷丰登.jpg",
+    "source_size": [
+      200,
+      281
+    ],
+    "crop_box": [
+      18,
+      56,
+      182,
+      160
+    ],
+    "output": "SanGuoShaExp/ModResource/Images/五谷丰登.png",
+    "note": "",
+    "crop_mode": "art_only_no_text"
+  },
+  {
+    "name": "铁索连环",
+    "source_url": "https://www.sanguosha.com/uploads/201809/5b9107eb6db3b.png",
+    "source_file": "tools/previews/sanguosha_official_sources/raw/铁索连环.png",
+    "source_size": [
+      200,
+      281
+    ],
+    "crop_box": [
+      18,
+      56,
+      182,
+      160
+    ],
+    "output": "SanGuoShaExp/ModResource/Images/铁索连环.png",
+    "note": "",
+    "crop_mode": "art_only_no_text"
+  },
+  {
+    "name": "火攻",
+    "source_url": "https://www.sanguosha.com/uploads/201809/5b91066833f7f.png",
+    "source_file": "tools/previews/sanguosha_official_sources/raw/火攻.png",
+    "source_size": [
+      200,
+      281
+    ],
+    "crop_box": [
+      18,
+      56,
+      182,
+      160
+    ],
+    "output": "SanGuoShaExp/ModResource/Images/火攻.png",
+    "note": "",
+    "crop_mode": "art_only_no_text"
+  },
+  {
+    "name": "兵粮寸断",
+    "source_url": "https://www.sanguosha.com/uploads/201809/5b9108308bddb.png",
+    "source_file": "tools/previews/sanguosha_official_sources/raw/兵粮寸断.png",
+    "source_size": [
+      200,
+      281
+    ],
+    "crop_box": [
+      18,
+      56,
+      182,
+      160
+    ],
+    "output": "SanGuoShaExp/ModResource/Images/兵粮寸断.png",
+    "note": "",
+    "crop_mode": "art_only_no_text"
+  },
+  {
+    "name": "藤甲",
+    "source_url": "http://guozhan.sanguosha.com/uploads/allimg/130128/1-13012QA635564.png",
+    "source_file": "tools/previews/sanguosha_official_sources/raw/藤甲.png",
+    "source_size": [
+      240,
+      337
+    ],
+    "crop_box": [
+      45,
+      88,
+      200,
+      218
+    ],
+    "output": "SanGuoShaExp/ModResource/Images/藤甲.png",
+    "note": "",
+    "crop_mode": "art_only_no_text"
+  },
+  {
+    "name": "古锭刀",
+    "source_url": "https://static.wikia.nocookie.net/sanguosha/images/7/7d/%E5%8F%A4%E9%8C%A0%E5%88%80.png/revision/latest?cb=20180831081053&path-prefix=zh",
+    "source_file": "tools/previews/sanguosha_official_sources/raw/古锭刀.png",
+    "source_size": [
+      268,
+      365
+    ],
+    "crop_box": [
+      38,
+      86,
+      230,
+      205
+    ],
+    "output": "SanGuoShaExp/ModResource/Images/古锭刀.png",
+    "note": "Sanguosha guide Wiki image API",
+    "crop_mode": "art_only_no_text"
+  },
+  {
+    "name": "乐不思蜀",
+    "source_url": "user-provided card-face reference",
+    "source_file": "tools/previews/sanguosha_official_sources/raw/乐不思蜀.png",
+    "source_size": [
+      151,
+      155
+    ],
+    "crop_box": [
+      0,
+      0,
+      151,
+      155
+    ],
+    "output": "SanGuoShaExp/ModResource/Images/乐不思蜀.png",
+    "note": "User-provided card-face reference",
+    "crop_mode": "art_only_no_text"
+  }
+]
