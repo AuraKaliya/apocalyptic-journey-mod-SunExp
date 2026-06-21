@@ -7,6 +7,7 @@ using AuraToolsExp.Dll.Features.Settings;
 using AuraToolsExp.Dll.Features.SkillCg;
 using AuraToolsExp.Dll.Features.StarterDeck;
 using AuraToolsExp.Dll.Infrastructure;
+using UiTransitionGuardShared;
 using Witch.Mod;
 
 namespace AuraToolsExp.Dll;
@@ -18,6 +19,7 @@ public static class Entry
     {
         RunStep("config", () => AuraToolsConfigService.Initialize(modConfig));
         RunStep("file logging", () => AuraToolsFileLogRuntime.Initialize(modConfig));
+        RunStep("ui transition guard", () => UiTransitionGuardRuntime.Initialize(modConfig, AuraToolsIds.ModId));
         RunStep("audio", () => AuraToolsAudioRuntime.Initialize(modConfig));
         RunStep("starter deck", () => AuraToolsStarterDeckRuntime.Initialize(modConfig));
         RunStep("safe box", () => AuraToolsSafeBoxRuntime.Initialize(modConfig));

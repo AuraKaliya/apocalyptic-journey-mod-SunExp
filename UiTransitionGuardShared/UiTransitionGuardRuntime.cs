@@ -1,0 +1,978 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using UiRaycastSafetyShared;
+using UnityEngine;
+using UnityEngine.UI;
+using Witch.Core;
+using Witch.Mod;
+using Witch.UI;
+
+namespace UiTransitionGuardShared;
+
+public enum UiTransitionGuardLogLevel
+{
+    Normal = 0,
+    Verbose = 1,
+    Trace = 2
+}
+
+public sealed class UiTransitionGuardOptions
+{
+    public UiTransitionGuardLogLevel LogLevel { get; set; } = UiTransitionGuardLogLevel.Normal;
+}
+
+public static class UiTransitionGuardRuntime
+{
+    private const string GlobalObjectName = "UiTransitionGuard.Global";
+    private const string ComponentFullName = "UiTransitionGuardShared.UiTransitionGuardRuntime+UiTransitionGuardComponent";
+    public const string CurrentBuildId = "ui-transition-guard-2026-06-21-v1";
+    public const int CurrentProtocolVersion = 1;
+    public const int MinimumSupportedProtocolVersion = 1;
+
+    private static readonly HashSet<string> ReuseLogOwners = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly HashSet<string> CompatibilityErrorsShown = new(StringComparer.OrdinalIgnoreCase);
+
+    public static void Initialize(ModConfig modConfig, string ownerModId, UiTransitionGuardOptions? options = null)
+    {
+        EnsureGuard(modConfig, ownerModId, options);
+    }
+
+    public static void BeginTransition(ModConfig? modConfig, string ownerModId, string source, int frames = 8)
+    {
+        var guard = EnsureGuard(modConfig, ownerModId, null);
+        Invoke(guard, "BeginTransition", ownerModId, source, frames);
+    }
+
+    public static int DisableRaycasts(ModConfig? modConfig, string ownerModId, GameObject? root, string source)
+    {
+        if (root == null)
+        {
+            return 0;
+        }
+
+        var guard = EnsureGuard(modConfig, ownerModId, null);
+        var result = Invoke(guard, "DisableRaycasts", ownerModId, root, source);
+        return result is int count ? count : UiRaycastSafeDestroyRuntime.DisableRaycasts(root, ownerModId + ":" + source, Log);
+    }
+
+    public static void RunAfterGuard(ModConfig? modConfig, string ownerModId, string source, Action action, int extraFrames = 4)
+    {
+        var guard = EnsureGuard(modConfig, ownerModId, null);
+        if (guard == null)
+        {
+            SafeInvoke(ownerModId + ":" + source, action);
+            return;
+        }
+
+        Invoke(guard, "RunAfterGuard", ownerModId, source, action, extraFrames);
+    }
+
+    public static int ScrubNow(ModConfig? modConfig, string ownerModId, string source)
+    {
+        var guard = EnsureGuard(modConfig, ownerModId, null);
+        var result = Invoke(guard, "ScrubNow", ownerModId, source);
+        return result is int count ? count : UiRaycastSafeDestroyRuntime.ScrubGraphicRegistry(ownerModId + ":" + source, Log);
+    }
+
+    public static bool IsGuardActive(ModConfig? modConfig, string ownerModId)
+    {
+        var guard = EnsureGuard(modConfig, ownerModId, null);
+        if (guard == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            return guard.GetType()
+                .GetProperty("IsGuardActive", BindingFlags.Instance | BindingFlags.Public)
+                ?.GetValue(guard) is true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static object? EnsureGuard(ModConfig? modConfig, string ownerModId, UiTransitionGuardOptions? options)
+    {
+        var gameObject = GameObject.Find(GlobalObjectName);
+        if (gameObject != null)
+        {
+            var existing = FindGuardComponent(gameObject);
+            if (existing != null)
+            {
+                if (!ValidateExistingGuard(existing, ownerModId))
+                {
+                    return null;
+                }
+
+                if (ReuseLogOwners.Add(ownerModId))
+                {
+                    Log("Reusing global guard for " + ownerModId
+                        + ", ownerType=" + existing.GetType().Assembly.GetName().Name
+                        + ", protocol=" + ReadIntProperty(existing, "ProtocolVersion", 0)
+                        + ", buildId=" + ReadStringProperty(existing, "BuildId"));
+                }
+
+                TryInitializeExisting(existing, modConfig, ownerModId, options);
+                return existing;
+            }
+        }
+
+        if (modConfig == null)
+        {
+            return null;
+        }
+
+        if (gameObject == null)
+        {
+            gameObject = new GameObject(GlobalObjectName);
+            UnityEngine.Object.DontDestroyOnLoad(gameObject);
+        }
+
+        var component = gameObject.AddComponent<UiTransitionGuardComponent>();
+        component.InitializeOwner(modConfig, ownerModId, options);
+        Log("Created global guard, owner=" + ownerModId);
+        return component;
+    }
+
+    private static bool ValidateExistingGuard(object existing, string ownerModId)
+    {
+        var type = existing.GetType();
+        var protocolVersion = ReadIntProperty(existing, "ProtocolVersion", 0);
+        var minimumSupported = ReadIntProperty(existing, "MinimumSupportedProtocolVersion", int.MaxValue);
+        var buildId = ReadStringProperty(existing, "BuildId");
+        var methodsPresent = new[] { "InitializeOwner", "BeginTransition", "DisableRaycasts", "RunAfterGuard", "ScrubNow" }
+            .All(name => type.GetMethod(name, BindingFlags.Instance | BindingFlags.Public) != null);
+        var compatible = protocolVersion >= MinimumSupportedProtocolVersion
+            && minimumSupported <= CurrentProtocolVersion
+            && string.Equals(buildId, CurrentBuildId, StringComparison.Ordinal)
+            && methodsPresent;
+
+        if (!compatible && CompatibilityErrorsShown.Add(ownerModId + ":" + type.AssemblyQualifiedName))
+        {
+            Debug.LogError("[UiTransitionGuard] Incompatible global guard; UI transition guard disabled for "
+                           + ownerModId
+                           + ". existingAssembly=" + type.Assembly.GetName().Name
+                           + ", protocol=" + protocolVersion
+                           + ", minSupported=" + minimumSupported
+                           + ", buildId=" + (string.IsNullOrWhiteSpace(buildId) ? "<missing>" : buildId)
+                           + ", requiredBuildId=" + CurrentBuildId
+                           + ", methodsPresent=" + methodsPresent);
+        }
+
+        return compatible;
+    }
+
+    private static object? FindGuardComponent(GameObject gameObject)
+    {
+        foreach (var component in gameObject.GetComponents<MonoBehaviour>())
+        {
+            if (component != null && component.GetType().FullName == ComponentFullName)
+            {
+                return component;
+            }
+        }
+
+        return null;
+    }
+
+    private static void TryInitializeExisting(object existing, ModConfig? modConfig, string ownerModId, UiTransitionGuardOptions? options)
+    {
+        if (modConfig == null)
+        {
+            return;
+        }
+
+        try
+        {
+            existing.GetType()
+                .GetMethod("InitializeOwner", BindingFlags.Instance | BindingFlags.Public)
+                ?.Invoke(existing, new object?[] { modConfig, ownerModId, options });
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning("[UiTransitionGuard] Existing guard initialize failed for " + ownerModId + ": " + ex.Message);
+        }
+    }
+
+    private static object? Invoke(object? target, string methodName, params object?[] args)
+    {
+        if (target == null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return target.GetType()
+                .GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public)
+                ?.Invoke(target, args);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning("[UiTransitionGuard] Call failed: " + methodName + " -> " + UnwrapMessage(ex));
+            return null;
+        }
+    }
+
+    private static int ReadIntProperty(object source, string propertyName, int fallback)
+    {
+        try
+        {
+            return source.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public)?.GetValue(source) is int value
+                ? value
+                : fallback;
+        }
+        catch
+        {
+            return fallback;
+        }
+    }
+
+    private static string ReadStringProperty(object source, string propertyName)
+    {
+        try
+        {
+            return source.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public)?.GetValue(source) as string ?? "";
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    private static void SafeInvoke(string source, Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning("[UiTransitionGuard] Deferred action failed. source=" + source + " -> " + ex.Message);
+        }
+    }
+
+    private static string UnwrapMessage(Exception ex)
+    {
+        return ex is TargetInvocationException { InnerException: not null }
+            ? ex.InnerException.Message
+            : ex.Message;
+    }
+
+    private static void Log(string message)
+    {
+        Debug.Log("[UiTransitionGuard] " + message);
+    }
+
+    [DefaultExecutionOrder(-32000)]
+    public sealed class UiTransitionGuardComponent : MonoBehaviour
+    {
+        private const int DefaultGuardFrames = 8;
+        private const int RegistryScrubFrames = 36;
+        private const int MaxRaycasterDetailsPerPass = 12;
+
+        private readonly Dictionary<int, SuspendedRaycaster> suspendedRaycasters = new();
+        private readonly List<DeferredAction> deferredActions = new();
+        private readonly HashSet<string> owners = new(StringComparer.OrdinalIgnoreCase);
+        private int guardUntilFrame = -1;
+        private int lastScrubFrame = -1;
+        private int lastSuspendFrame = -1;
+        private string guardSource = "";
+        private string primaryOwner = "";
+        private bool hooksRegistered;
+        private UiTransitionGuardLogLevel logLevel = UiTransitionGuardLogLevel.Normal;
+
+        public int ProtocolVersion => CurrentProtocolVersion;
+
+        public int MinimumSupportedProtocolVersion => UiTransitionGuardRuntime.MinimumSupportedProtocolVersion;
+
+        public string BuildId => CurrentBuildId;
+
+        public bool IsGuardActive => IsActive();
+
+        public void InitializeOwner(ModConfig modConfig, string ownerModId, object? options = null)
+        {
+            if (string.IsNullOrWhiteSpace(primaryOwner))
+            {
+                primaryOwner = ownerModId;
+            }
+
+            owners.Add(ownerModId);
+            var requestedLogLevel = ReadLogLevel(options);
+            if (requestedLogLevel > logLevel)
+            {
+                logLevel = requestedLogLevel;
+            }
+
+            if (hooksRegistered)
+            {
+                return;
+            }
+
+            hooksRegistered = true;
+            RegisterBefore(modConfig, "UIManager.CloseUI", BeforeUiManagerCloseUi);
+            RegisterAfter(modConfig, "UIManager.CloseUI", AfterUiLifecycle);
+            RegisterBefore(modConfig, "UIBase.Close", BeforeUiBaseClose);
+            RegisterAfter(modConfig, "UIBase.Close", AfterUiLifecycle);
+            RegisterBefore(modConfig, "UIBase.OnDestroy", BeforeUiLifecycle);
+            RegisterAfter(modConfig, "UIBase.OnDestroy", AfterUiLifecycle);
+            RegisterBefore(modConfig, "DialogueManager.ShowDialogue", BeforeDialogueTransition);
+            RegisterAfter(modConfig, "DialogueManager.ShowDialogue", AfterUiLifecycle);
+            RegisterBefore(modConfig, "DialogueManager.InternalShowDialogue", BeforeDialogueTransition);
+            RegisterAfter(modConfig, "DialogueManager.InternalShowDialogue", AfterUiLifecycle);
+            RegisterBefore(modConfig, "DialogueUI.ShowDialogue", BeforeDialogueTransition);
+            RegisterAfter(modConfig, "DialogueUI.ShowDialogue", AfterUiLifecycle);
+            RegisterBefore(modConfig, "UpperCanvasController.RefreshRaycasterState", BeforeUiLifecycle);
+            RegisterAfter(modConfig, "UpperCanvasController.RefreshRaycasterState", AfterUpperCanvasRaycasterState);
+            RegisterBefore(modConfig, "UpperCanvasController.ChangeRaycaster", BeforeUiLifecycle);
+            RegisterAfter(modConfig, "UpperCanvasController.ChangeRaycaster", AfterUpperCanvasRaycasterState);
+            RegisterBefore(modConfig, "UpperCanvasController.OnTransformChildrenChanged", BeforeUiLifecycle);
+            RegisterAfter(modConfig, "UpperCanvasController.OnTransformChildrenChanged", AfterUpperCanvasRaycasterState);
+            RegisterBefore(modConfig, "Fight_Win.ResetStates", ctx => BeginTransition(primaryOwner, "Fight_Win.ResetStates.before", DefaultGuardFrames));
+            RegisterAfter(modConfig, "Fight_Win.ResetStates", ctx => BeginTransition(primaryOwner, "Fight_Win.ResetStates.after", DefaultGuardFrames));
+            RegisterBefore(modConfig, "Fight_Escape.ResetStates", ctx => BeginTransition(primaryOwner, "Fight_Escape.ResetStates.before", DefaultGuardFrames));
+            RegisterAfter(modConfig, "Fight_Escape.ResetStates", ctx => BeginTransition(primaryOwner, "Fight_Escape.ResetStates.after", DefaultGuardFrames));
+            RegisterBefore(modConfig, "Fight_Loss.Init", ctx => BeginTransition(primaryOwner, "Fight_Loss.Init.before", DefaultGuardFrames));
+            RegisterAfter(modConfig, "Fight_Loss.Init", ctx => BeginTransition(primaryOwner, "Fight_Loss.Init.after", DefaultGuardFrames));
+            Info("Hooks registered by owner=" + primaryOwner);
+        }
+
+        public void BeginTransition(string ownerModId, string source, int frames = DefaultGuardFrames)
+        {
+            var effectiveFrames = Math.Max(1, frames);
+            guardSource = ownerModId + ":" + source;
+            guardUntilFrame = Math.Max(guardUntilFrame, Time.frameCount + effectiveFrames);
+            lastScrubFrame = -1;
+            lastSuspendFrame = -1;
+            Info("Guard armed. source=" + guardSource
+                 + ", frame=" + Time.frameCount
+                 + ", untilFrame=" + guardUntilFrame);
+            ScrubNow(ownerModId, source + ":guard-arm");
+            SuspendRaycasters(guardSource + ":guard-arm");
+            UiRaycastSafeDestroyRuntime.ScrubGraphicRegistryForFrames(
+                RegistryScrubFrames,
+                guardSource + ":registry",
+                Trace);
+        }
+
+        public int DisableRaycasts(string ownerModId, GameObject? root, string source)
+        {
+            return UiRaycastSafeDestroyRuntime.DisableRaycasts(root, ownerModId + ":" + source, Info);
+        }
+
+        public void RunAfterGuard(string ownerModId, string source, Action action, int extraFrames = 4)
+        {
+            var dueFrame = Math.Max(Time.frameCount, guardUntilFrame) + Math.Max(1, extraFrames);
+            deferredActions.Add(new DeferredAction(ownerModId + ":" + source, dueFrame, action));
+            Trace("Deferred action queued. source=" + ownerModId + ":" + source
+                  + ", frame=" + Time.frameCount
+                  + ", dueFrame=" + dueFrame);
+        }
+
+        public int ScrubNow(string ownerModId, string source)
+        {
+            return UiRaycastSafeDestroyRuntime.ScrubGraphicRegistry(ownerModId + ":" + source, Trace);
+        }
+
+        private void BeforeUiManagerCloseUi(ModHookContext context)
+        {
+            var uiName = ArgumentString(context, 0);
+            if (!IsWatchedUiName(uiName) && !IsActive())
+            {
+                return;
+            }
+
+            BeginTransition(primaryOwner, "UIManager.CloseUI.before:" + EmptyAsUnknown(uiName), DefaultGuardFrames);
+            var root = FindUiRoot(uiName);
+            if (root != null)
+            {
+                DisableRaycasts(primaryOwner, root, "UIManager.CloseUI.before:" + EmptyAsUnknown(uiName));
+            }
+        }
+
+        private void BeforeUiBaseClose(ModHookContext context)
+        {
+            var root = TargetGameObject(context);
+            if (root == null)
+            {
+                return;
+            }
+
+            var watched = IsWatchedUiName(root.name) || IsWatchedTransform(root.transform);
+            if (!watched && !IsActive())
+            {
+                return;
+            }
+
+            BeginTransition(primaryOwner, "UIBase.Close.before:" + SafeObjectName(root), DefaultGuardFrames);
+            DisableRaycasts(primaryOwner, root, "UIBase.Close.before:" + SafeObjectName(root));
+        }
+
+        private void BeforeDialogueTransition(ModHookContext context)
+        {
+            BeginTransition(primaryOwner, TargetName(context) + ".before-dialogue", DefaultGuardFrames);
+        }
+
+        private void BeforeUiLifecycle(ModHookContext context)
+        {
+            if (!IsActive())
+            {
+                return;
+            }
+
+            SuspendRaycasters(TargetName(context) + ":before-ui-lifecycle");
+            ScrubNow(primaryOwner, TargetName(context) + ":before-ui-lifecycle");
+        }
+
+        private void AfterUiLifecycle(ModHookContext context)
+        {
+            if (!IsActive())
+            {
+                return;
+            }
+
+            SuspendRaycasters(TargetName(context) + ":after-ui-lifecycle");
+            var removed = ScrubNow(primaryOwner, TargetName(context) + ":after-ui-lifecycle");
+            Verbose("Lifecycle scrub. target=" + TargetName(context)
+                    + ", removed=" + removed
+                    + ", frame=" + Time.frameCount);
+        }
+
+        private void AfterUpperCanvasRaycasterState(ModHookContext context)
+        {
+            if (!IsActive())
+            {
+                return;
+            }
+
+            SuspendRaycasters(TargetName(context) + ":after-upper-canvas");
+            var removed = ScrubNow(primaryOwner, TargetName(context) + ":after-upper-canvas");
+            Verbose("Upper canvas raycaster state scrubbed. target=" + TargetName(context)
+                    + ", removed=" + removed
+                    + ", frame=" + Time.frameCount);
+        }
+
+        private void Update()
+        {
+            MaintainGuard();
+            RunDueDeferredActions();
+        }
+
+        private void LateUpdate()
+        {
+            if (IsActive())
+            {
+                SuspendRaycasters(guardSource + ":runner-late-update");
+            }
+        }
+
+        private void MaintainGuard()
+        {
+            if (IsActive())
+            {
+                SuspendRaycasters(guardSource + ":runner-update");
+                if (lastScrubFrame != Time.frameCount)
+                {
+                    lastScrubFrame = Time.frameCount;
+                    ScrubNow(primaryOwner, guardSource + ":runner-update:frame" + Time.frameCount);
+                }
+
+                return;
+            }
+
+            RestoreRaycasters("guard-expired");
+        }
+
+        private void SuspendRaycasters(string source)
+        {
+            if (lastSuspendFrame == Time.frameCount && source.EndsWith(":runner-update", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            lastSuspendFrame = Time.frameCount;
+            GraphicRaycaster[] raycasters;
+            try
+            {
+                raycasters = Resources.FindObjectsOfTypeAll<GraphicRaycaster>();
+            }
+            catch (Exception ex)
+            {
+                Warn("Failed to enumerate raycasters: " + ex.Message);
+                return;
+            }
+
+            var suspended = 0;
+            var details = 0;
+            foreach (var raycaster in raycasters)
+            {
+                if (raycaster == null || !IsRuntimeSceneObject(raycaster))
+                {
+                    continue;
+                }
+
+                int id;
+                try
+                {
+                    id = raycaster.GetInstanceID();
+                }
+                catch
+                {
+                    continue;
+                }
+
+                if (!suspendedRaycasters.ContainsKey(id))
+                {
+                    suspendedRaycasters[id] = new SuspendedRaycaster(
+                        raycaster,
+                        raycaster.enabled,
+                        RaycasterName(raycaster),
+                        TransformPath(raycaster.transform));
+                }
+
+                if (!raycaster.enabled)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    raycaster.enabled = false;
+                    suspended++;
+                    if (logLevel >= UiTransitionGuardLogLevel.Verbose && details < MaxRaycasterDetailsPerPass)
+                    {
+                        details++;
+                        Verbose("Suspended raycaster. source=" + source
+                                + ", frame=" + Time.frameCount
+                                + ", raycaster=" + RaycasterName(raycaster)
+                                + ", path=" + TransformPath(raycaster.transform));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Warn("Failed to suspend raycaster. source=" + source
+                         + ", raycaster=" + RaycasterName(raycaster)
+                         + " -> " + ex.Message);
+                }
+            }
+
+            if (suspended > 0)
+            {
+                Info("Suspended raycasters. source=" + source
+                     + ", frame=" + Time.frameCount
+                     + ", count=" + suspended
+                     + ", tracked=" + suspendedRaycasters.Count
+                     + ", untilFrame=" + guardUntilFrame);
+            }
+        }
+
+        private void RestoreRaycasters(string source)
+        {
+            if (suspendedRaycasters.Count == 0)
+            {
+                return;
+            }
+
+            var restored = 0;
+            var skipped = 0;
+            foreach (var item in suspendedRaycasters.Values)
+            {
+                var raycaster = item.Raycaster;
+                if (raycaster == null || !item.OriginalEnabled)
+                {
+                    skipped++;
+                    continue;
+                }
+
+                try
+                {
+                    raycaster.enabled = true;
+                    restored++;
+                }
+                catch (Exception ex)
+                {
+                    skipped++;
+                    Warn("Failed to restore raycaster. source=" + source
+                         + ", raycaster=" + item.Name
+                         + " -> " + ex.Message);
+                }
+            }
+
+            Info("Restored raycasters. source=" + source
+                 + ", frame=" + Time.frameCount
+                 + ", restored=" + restored
+                 + ", skipped=" + skipped
+                 + ", tracked=" + suspendedRaycasters.Count);
+            suspendedRaycasters.Clear();
+            ScrubNow(primaryOwner, source + ":after-restore");
+        }
+
+        private void RunDueDeferredActions()
+        {
+            if (deferredActions.Count == 0)
+            {
+                return;
+            }
+
+            for (var i = deferredActions.Count - 1; i >= 0; i--)
+            {
+                var item = deferredActions[i];
+                if (Time.frameCount < item.DueFrame)
+                {
+                    continue;
+                }
+
+                deferredActions.RemoveAt(i);
+                SafeInvoke(item.Source, item.Action);
+            }
+        }
+
+        private bool IsActive()
+        {
+            return guardUntilFrame >= 0 && Time.frameCount <= guardUntilFrame;
+        }
+
+        private void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
+        {
+            try
+            {
+                config.AddMethodHookBefore(target, context => SafeHook(target, () => action(context)));
+                Trace("Hook before registered: " + target);
+            }
+            catch (Exception ex)
+            {
+                Warn("Hook before failed: " + target + " -> " + ex.Message);
+            }
+        }
+
+        private void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
+        {
+            try
+            {
+                config.AddMethodHookAfter(target, context => SafeHook(target, () => action(context)));
+                Trace("Hook after registered: " + target);
+            }
+            catch (Exception ex)
+            {
+                Warn("Hook after failed: " + target + " -> " + ex.Message);
+            }
+        }
+
+        private void SafeHook(string target, Action action)
+        {
+            try
+            {
+                action();
+            }
+            catch (Exception ex)
+            {
+                Warn("Hook failed: " + target + " -> " + ex.Message);
+            }
+        }
+
+        private string ArgumentString(ModHookContext context, int index)
+        {
+            try
+            {
+                if (context.Arguments == null || context.Arguments.Length <= index)
+                {
+                    return "";
+                }
+
+                return context.Arguments[index]?.ToString() ?? "";
+            }
+            catch
+            {
+                return "";
+            }
+        }
+
+        private GameObject? TargetGameObject(ModHookContext context)
+        {
+            try
+            {
+                return context.Target is UnityEngine.Component component ? component.gameObject : null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private GameObject? FindUiRoot(string uiName)
+        {
+            if (string.IsNullOrWhiteSpace(uiName))
+            {
+                return null;
+            }
+
+            try
+            {
+                var manager = UIManager.Instance;
+                if (manager == null)
+                {
+                    return null;
+                }
+
+                return FindChild(manager.canvasTf, uiName)
+                       ?? FindChild(manager.upperCanvasTf, uiName);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static GameObject? FindChild(Transform? root, string uiName)
+        {
+            if (root == null)
+            {
+                return null;
+            }
+
+            var child = root.Find(uiName) ?? root.Find(uiName + "(Clone)");
+            return child == null ? null : child.gameObject;
+        }
+
+        private bool IsWatchedTransform(Transform transform)
+        {
+            try
+            {
+                var current = transform;
+                while (current != null)
+                {
+                    if (IsWatchedUiName(current.name))
+                    {
+                        return true;
+                    }
+
+                    current = current.parent;
+                }
+            }
+            catch
+            {
+            }
+
+            return false;
+        }
+
+        private bool IsWatchedUiName(string? uiName)
+        {
+            if (string.IsNullOrWhiteSpace(uiName))
+            {
+                return false;
+            }
+
+            var name = uiName!.Replace("(Clone)", "").Trim();
+            return string.Equals(name, "FightUI", StringComparison.Ordinal)
+                   || string.Equals(name, "PopUpTextUI", StringComparison.Ordinal)
+                   || string.Equals(name, "BattleRewardsUI", StringComparison.Ordinal)
+                   || string.Equals(name, "DialogueUI", StringComparison.Ordinal)
+                   || string.Equals(name, "InkTurnUI", StringComparison.Ordinal)
+                   || string.Equals(name, "SceneTurnUI", StringComparison.Ordinal)
+                   || string.Equals(name, "CurtainTurnUI", StringComparison.Ordinal)
+                   || string.Equals(name, "HouseUI", StringComparison.Ordinal)
+                   || string.Equals(name, "StatusBarUI", StringComparison.Ordinal)
+                   || string.Equals(name, "BuffBarUI", StringComparison.Ordinal);
+        }
+
+        private string TargetName(ModHookContext context)
+        {
+            try
+            {
+                var target = context.Target;
+                return target == null ? "<null>" : target.GetType().FullName ?? target.GetType().Name;
+            }
+            catch
+            {
+                return "<unreadable>";
+            }
+        }
+
+        private string RaycasterName(GraphicRaycaster raycaster)
+        {
+            try
+            {
+                var canvas = raycaster.GetComponent<Canvas>() ?? raycaster.GetComponentInParent<Canvas>();
+                return raycaster.name + ", canvas=" + CanvasName(canvas);
+            }
+            catch
+            {
+                return raycaster.name;
+            }
+        }
+
+        private string CanvasName(Canvas? canvas)
+        {
+            if (canvas == null)
+            {
+                return "<null>";
+            }
+
+            try
+            {
+                return canvas.name
+                       + ", active=" + canvas.isActiveAndEnabled
+                       + ", renderMode=" + canvas.renderMode
+                       + ", order=" + canvas.sortingOrder;
+            }
+            catch
+            {
+                return "<unreadable>";
+            }
+        }
+
+        private static string TransformPath(Transform? transform)
+        {
+            if (transform == null)
+            {
+                return "<null>";
+            }
+
+            try
+            {
+                var parts = new List<string>();
+                var current = transform;
+                while (current != null && parts.Count < 32)
+                {
+                    parts.Add(current.name);
+                    current = current.parent;
+                }
+
+                parts.Reverse();
+                return string.Join("/", parts);
+            }
+            catch
+            {
+                return "<unreadable>";
+            }
+        }
+
+        private static string SafeObjectName(UnityEngine.Object? target)
+        {
+            try
+            {
+                return target == null ? "<null>" : target.name;
+            }
+            catch
+            {
+                return "<unreadable>";
+            }
+        }
+
+        private static string EmptyAsUnknown(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? "<unknown>" : value;
+        }
+
+        private static bool IsRuntimeSceneObject(UnityEngine.Component component)
+        {
+            try
+            {
+                return component.gameObject.scene.IsValid();
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private void Info(string message)
+        {
+            Debug.Log("[UiTransitionGuard] " + message);
+        }
+
+        private void Verbose(string message)
+        {
+            if (logLevel >= UiTransitionGuardLogLevel.Verbose)
+            {
+                Debug.Log("[UiTransitionGuard] " + message);
+            }
+        }
+
+        private void Trace(string message)
+        {
+            if (logLevel >= UiTransitionGuardLogLevel.Trace)
+            {
+                Debug.Log("[UiTransitionGuard] " + message);
+            }
+        }
+
+        private void Warn(string message)
+        {
+            Debug.LogWarning("[UiTransitionGuard] " + message);
+        }
+
+        private static UiTransitionGuardLogLevel ReadLogLevel(object? options)
+        {
+            if (options == null)
+            {
+                return UiTransitionGuardLogLevel.Normal;
+            }
+
+            if (options is UiTransitionGuardOptions typed)
+            {
+                return typed.LogLevel;
+            }
+
+            try
+            {
+                var value = options.GetType()
+                    .GetProperty("LogLevel", BindingFlags.Instance | BindingFlags.Public)
+                    ?.GetValue(options);
+                if (value == null)
+                {
+                    return UiTransitionGuardLogLevel.Normal;
+                }
+
+                return Enum.TryParse(value.ToString(), out UiTransitionGuardLogLevel parsed)
+                    ? parsed
+                    : UiTransitionGuardLogLevel.Normal;
+            }
+            catch
+            {
+                return UiTransitionGuardLogLevel.Normal;
+            }
+        }
+    }
+
+    private sealed class SuspendedRaycaster
+    {
+        public SuspendedRaycaster(GraphicRaycaster raycaster, bool originalEnabled, string name, string path)
+        {
+            Raycaster = raycaster;
+            OriginalEnabled = originalEnabled;
+            Name = name;
+            Path = path;
+        }
+
+        public GraphicRaycaster Raycaster { get; }
+
+        public bool OriginalEnabled { get; }
+
+        public string Name { get; }
+
+        public string Path { get; }
+    }
+
+    private sealed class DeferredAction
+    {
+        public DeferredAction(string source, int dueFrame, Action action)
+        {
+            Source = source;
+            DueFrame = dueFrame;
+            Action = action;
+        }
+
+        public string Source { get; }
+
+        public int DueFrame { get; }
+
+        public Action Action { get; }
+    }
+}

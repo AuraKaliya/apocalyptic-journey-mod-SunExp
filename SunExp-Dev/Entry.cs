@@ -5,6 +5,7 @@ using Witch.Mod;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks;
 using SunExp.Dll.Infrastructure;
+using UiTransitionGuardShared;
 
 namespace SunExp.Dll;
 
@@ -15,6 +16,7 @@ public static class Entry
     {
         RunStep("XLua assembly registration", RegisterLuaVisibleAssembly);
         RunStep("audio runtime", () => AudioApi.Initialize(modConfig));
+        RunStep("ui transition guard", () => UiTransitionGuardRuntime.Initialize(modConfig, "SunExp"));
         SunExpLog.Info("SunExp C# entry loaded");
         RunStep("gameplay hooks", () => RuntimeHooks.Initialize(modConfig));
         RunStep("special tags", SpecialTagRuntime.Initialize);
