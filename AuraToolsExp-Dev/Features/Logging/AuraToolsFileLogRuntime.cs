@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
+using AuraShared.Core;
 using UnityEngine;
 using Witch.Mod;
 
@@ -132,7 +133,7 @@ public static class AuraToolsFileLogRuntime
         var fileName = AuraToolsConfigService.Logging.FileNamePattern
             .Replace("{date}", date)
             .Replace("{mod}", "AuraTools");
-        return Path.Combine(AuraToolsConfigService.LogsDirectory, fileName);
+        return AuraSharedLogStore.OwnerLogPath("AuraToolsExp", fileName);
     }
 
     private static string Normalize(string? text)

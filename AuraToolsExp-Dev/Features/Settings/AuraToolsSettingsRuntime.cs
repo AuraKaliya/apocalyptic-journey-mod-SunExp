@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.Audio;
 using AuraToolsExp.Dll.Features.Logging;
@@ -115,14 +116,7 @@ public static class AuraToolsSettingsRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        try
-        {
-            config.AddMethodHookAfter(target, action);
-        }
-        catch (Exception ex)
-        {
-            AuraToolsLog.Warn("Hook after failed: " + target + " -> " + ex.Message);
-        }
+        AuraSharedHooks.RegisterAfter(config, target, action, warn: AuraToolsLog.Warn);
     }
 
     private static Transform? ResolveTabParent(SettingUI setting)

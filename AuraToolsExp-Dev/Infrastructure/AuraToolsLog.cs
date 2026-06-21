@@ -1,6 +1,5 @@
 using System;
-using UnityEngine;
-using Witch;
+using AuraShared.Core;
 
 namespace AuraToolsExp.Dll.Infrastructure;
 
@@ -10,32 +9,16 @@ public static class AuraToolsLog
 
     public static void Info(string message)
     {
-        Debug.Log("[" + Tag + "] " + message);
-        TryCommandLog(message);
+        AuraSharedLog.Info(Tag, message);
     }
 
     public static void Warn(string message)
     {
-        Debug.LogWarning("[" + Tag + "] " + message);
-        TryCommandLog("[WARN] " + message);
+        AuraSharedLog.Warn(Tag, message);
     }
 
     public static void Error(string message, Exception? ex = null)
     {
-        var text = ex == null ? message : message + " -> " + ex;
-        Debug.LogError("[" + Tag + "] " + text);
-        TryCommandLog("[ERROR] " + text);
-    }
-
-    private static void TryCommandLog(string message)
-    {
-        try
-        {
-            Commands.Log(Tag, message);
-        }
-        catch
-        {
-            // Commands may not be available during the earliest load phase.
-        }
+        AuraSharedLog.Error(Tag, message, ex);
     }
 }

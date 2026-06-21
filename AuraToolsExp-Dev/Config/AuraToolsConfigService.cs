@@ -1,6 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
-using System.Linq;
+using AuraShared.Core;
 using AuraToolsExp.Dll.Infrastructure;
 using Newtonsoft.Json;
 using Witch.Mod;
@@ -10,11 +11,7 @@ namespace AuraToolsExp.Dll.Config;
 public static class AuraToolsConfigService
 {
     private static readonly object Gate = new();
-    private static JsonSerializerSettings SerializerSettings { get; } = new()
-    {
-        Formatting = Formatting.Indented,
-        NullValueHandling = NullValueHandling.Ignore
-    };
+    private static readonly Dictionary<string, long> Revisions = new(StringComparer.OrdinalIgnoreCase);
 
     public static AuraToolsRootConfig Root { get; private set; } = new();
 
@@ -34,6 +31,12 @@ public static class AuraToolsConfigService
 
     public static string ResourceDirectory => AuraToolsPaths.ResourceDirectory;
 
+    public static string AudioDirectory => AuraToolsPaths.AudioDirectory;
+
+    public static string CgDirectory => AuraToolsPaths.CgDirectory;
+
+    public static string SkinsDirectory => AuraToolsPaths.SkinsDirectory;
+
     public static string LogsDirectory => AuraToolsPaths.LogsDirectory;
 
     public static event Action? Changed;
@@ -43,9 +46,7 @@ public static class AuraToolsConfigService
         lock (Gate)
         {
             AuraToolsPaths.Initialize(config);
-            MigrateLegacyFilesNoLock();
             ReloadNoLock();
-            MigrateLoadedResourcePathsNoLock();
             SaveAllNoLock();
             AuraToolsLog.Info("[Config] package=" + ModDirectory + ", data=" + DataRootDirectory);
         }
@@ -57,7 +58,6 @@ public static class AuraToolsConfigService
         {
             ReloadNoLock();
         }
-
         Changed?.Invoke();
     }
 
@@ -67,7 +67,6 @@ public static class AuraToolsConfigService
         {
             SaveAllNoLock();
         }
-
         Changed?.Invoke();
     }
 
@@ -117,6 +116,7 @@ public static class AuraToolsConfigService
 
     private static void ReloadNoLock()
     {
+        Revisions.Clear();
         Root = LoadOrDefault(AuraToolsIds.RootConfigFileName, new AuraToolsRootConfig());
         Root.Normalize();
         Audio = LoadOrDefault(Root.Audio.ConfigFile, new AuraToolsAudioSettings());
@@ -130,108 +130,6 @@ public static class AuraToolsConfigService
         Logging.Normalize();
     }
 
-    private static void MigrateLegacyFilesNoLock()
-    {
-        CopyDirectoryNoOverwrite(AuraToolsPaths.LegacyConfigDirectory, ConfigDirectory, "*.json");
-        CopyDirectoryNoOverwrite(AuraToolsPaths.LegacyResourceDirectory, ResourceDirectory, "*");
-    }
-
-    private static void MigrateLoadedResourcePathsNoLock()
-    {
-        Audio.BattleBgm.Common.RelativePath = MigrateConfiguredResourcePath(Audio.BattleBgm.Common.RelativePath);
-        Audio.CardUse.Common.RelativePath = MigrateConfiguredResourcePath(Audio.CardUse.Common.RelativePath);
-
-        foreach (var role in Audio.BattleBgm.Roles.Values.Concat(Audio.CardUse.Roles.Values))
-        {
-            if (role != null)
-            {
-                role.RelativePath = MigrateConfiguredResourcePath(role.RelativePath);
-            }
-        }
-
-        foreach (var role in SkillCg.Roles.Values)
-        {
-            if (role?.Rules == null)
-            {
-                continue;
-            }
-
-            foreach (var rule in role.Rules)
-            {
-                if (rule != null)
-                {
-                    rule.Image = MigrateConfiguredResourcePath(rule.Image);
-                }
-            }
-        }
-    }
-
-    private static string MigrateConfiguredResourcePath(string path)
-    {
-        var candidate = NormalizePathInput(path);
-        if (string.IsNullOrWhiteSpace(candidate))
-        {
-            return "";
-        }
-
-        if (StartsWithSegment(candidate, AuraToolsIds.ResourceDirectoryName))
-        {
-            return candidate;
-        }
-
-        var systemPath = candidate.Replace('/', Path.DirectorySeparatorChar);
-        if (!Path.IsPathRooted(systemPath) && AuraToolsPaths.IsLegacyResourcePath(candidate))
-        {
-            var source = Path.Combine(ModDirectory, systemPath);
-            var targetRelative = AuraToolsPaths.ConvertLegacyResourceRelativePath(candidate);
-            return CopyResourceNoOverwrite(source, targetRelative);
-        }
-
-        string sourcePath;
-        try
-        {
-            if (Path.IsPathRooted(systemPath))
-            {
-                sourcePath = Path.GetFullPath(systemPath);
-            }
-            else
-            {
-                var dataPath = Path.GetFullPath(Path.Combine(DataRootDirectory, systemPath));
-                if (File.Exists(dataPath))
-                {
-                    return AuraToolsPaths.ToDataRelativePath(dataPath);
-                }
-
-                sourcePath = Path.GetFullPath(Path.Combine(ModDirectory, systemPath));
-            }
-        }
-        catch
-        {
-            return candidate;
-        }
-
-        if (!File.Exists(sourcePath))
-        {
-            return candidate;
-        }
-
-        if (AuraToolsPaths.IsInsideDataRoot(sourcePath))
-        {
-            return AuraToolsPaths.ToDataRelativePath(sourcePath);
-        }
-
-        if (AuraToolsPaths.IsInsidePackageDirectory(sourcePath)
-            && AuraToolsPaths.IsInsideDirectory(sourcePath, AuraToolsPaths.LegacyResourceDirectory))
-        {
-            var rest = MakeRelative(AuraToolsPaths.LegacyResourceDirectory, sourcePath);
-            return CopyResourceNoOverwrite(sourcePath, AuraToolsIds.ResourceDirectoryName + "/" + rest.Replace('\\', '/'));
-        }
-
-        return CopyResourceNoOverwrite(
-            sourcePath,
-            AuraToolsIds.ResourceDirectoryName + "/Imported/" + Path.GetFileName(sourcePath));
-    }
-
     private static void SaveAllNoLock()
     {
         SaveModule(Root, AuraToolsIds.RootConfigFileName);
@@ -243,20 +141,29 @@ public static class AuraToolsConfigService
 
     private static T LoadOrDefault<T>(string fileName, T fallback)
     {
+        var safeName = SafeConfigFileName(fileName);
+        var bundled = LoadBundledOrDefault(safeName, fallback);
+        var snapshot = AuraSharedConfigStore.ReadOwner(
+            AuraToolsIds.ModId,
+            AuraToolsPaths.ConfigSystem,
+            safeName,
+            bundled);
+        Revisions[safeName] = snapshot.Revision;
+        return snapshot.Value;
+    }
+
+    private static T LoadBundledOrDefault<T>(string fileName, T fallback)
+    {
         try
         {
-            var path = Path.Combine(ConfigDirectory, SafeConfigFileName(fileName));
-            if (!File.Exists(path))
-            {
-                return fallback;
-            }
-
-            var text = File.ReadAllText(path);
-            return JsonConvert.DeserializeObject<T>(text) ?? fallback;
+            var path = Path.Combine(AuraToolsPaths.BundledConfigDirectory, fileName);
+            return File.Exists(path)
+                ? JsonConvert.DeserializeObject<T>(File.ReadAllText(path)) ?? fallback
+                : fallback;
         }
         catch (Exception ex)
         {
-            AuraToolsLog.Warn("Failed to load config " + fileName + ": " + ex.Message);
+            AuraToolsLog.Warn("Failed to load bundled config " + fileName + ": " + ex.Message);
             return fallback;
         }
     }
@@ -265,112 +172,28 @@ public static class AuraToolsConfigService
     {
         lock (Gate)
         {
-            try
+            var safeName = SafeConfigFileName(fileName);
+            var expectedRevision = Revisions.TryGetValue(safeName, out var revision) ? revision : 0;
+            var result = AuraSharedConfigStore.WriteOwner(
+                AuraToolsIds.ModId,
+                AuraToolsPaths.ConfigSystem,
+                safeName,
+                value,
+                expectedRevision,
+                schemaVersion: 1);
+            if (!result.Success)
             {
-                Directory.CreateDirectory(ConfigDirectory);
-                var path = Path.Combine(ConfigDirectory, SafeConfigFileName(fileName));
-                var tempPath = path + ".tmp";
-                var text = JsonConvert.SerializeObject(value, SerializerSettings);
-                File.WriteAllText(tempPath, text);
-                if (File.Exists(path))
-                {
-                    File.Delete(path);
-                }
-
-                File.Move(tempPath, path);
-            }
-            catch (Exception ex)
-            {
-                AuraToolsLog.Error("Failed to save config " + fileName, ex);
-            }
-        }
-    }
-
-    private static void CopyDirectoryNoOverwrite(string sourceDirectory, string targetDirectory, string searchPattern)
-    {
-        try
-        {
-            if (string.IsNullOrWhiteSpace(sourceDirectory)
-                || string.IsNullOrWhiteSpace(targetDirectory)
-                || !Directory.Exists(sourceDirectory))
-            {
+                AuraToolsLog.Warn("Failed to save config " + safeName + ": " + result.Message);
                 return;
             }
 
-            foreach (var sourcePath in Directory.EnumerateFiles(sourceDirectory, searchPattern, SearchOption.AllDirectories))
-            {
-                var relative = MakeRelative(sourceDirectory, sourcePath);
-                var targetPath = Path.Combine(targetDirectory, relative);
-                if (File.Exists(targetPath))
-                {
-                    continue;
-                }
-
-                Directory.CreateDirectory(Path.GetDirectoryName(targetPath) ?? targetDirectory);
-                File.Copy(sourcePath, targetPath, false);
-            }
+            Revisions[safeName] = result.Revision;
         }
-        catch (Exception ex)
-        {
-            AuraToolsLog.Warn("Legacy data migration failed: " + ex.Message);
-        }
-    }
-
-    private static string CopyResourceNoOverwrite(string sourcePath, string targetRelativePath)
-    {
-        var normalizedTarget = NormalizePathInput(targetRelativePath);
-        var targetPath = Path.Combine(DataRootDirectory, normalizedTarget.Replace('/', Path.DirectorySeparatorChar));
-        try
-        {
-            if (File.Exists(sourcePath) && !AuraToolsPaths.IsSamePath(sourcePath, targetPath))
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(targetPath) ?? ResourceDirectory);
-                if (!File.Exists(targetPath))
-                {
-                    File.Copy(sourcePath, targetPath, false);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            AuraToolsLog.Warn("Resource migration failed: " + sourcePath + " -> " + targetPath + ": " + ex.Message);
-        }
-
-        return AuraToolsPaths.ToDataRelativePath(targetPath);
-    }
-
-    private static string MakeRelative(string root, string path)
-    {
-        var rootUri = new Uri(AppendDirectorySeparator(Path.GetFullPath(root)));
-        var pathUri = new Uri(Path.GetFullPath(path));
-        return Uri.UnescapeDataString(rootUri.MakeRelativeUri(pathUri).ToString())
-            .Replace('/', Path.DirectorySeparatorChar);
-    }
-
-    private static string AppendDirectorySeparator(string value)
-    {
-        return value.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)
-            || value.EndsWith(Path.AltDirectorySeparatorChar.ToString(), StringComparison.Ordinal)
-            ? value
-            : value + Path.DirectorySeparatorChar;
-    }
-
-    private static bool StartsWithSegment(string value, string segment)
-    {
-        return value.Equals(segment, StringComparison.OrdinalIgnoreCase)
-               || value.StartsWith(segment + "/", StringComparison.OrdinalIgnoreCase)
-               || value.StartsWith(segment + "\\", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string NormalizePathInput(string value)
-    {
-        return (value ?? "").Trim().Trim('"').Replace('\\', '/');
     }
 
     private static string SafeConfigFileName(string fileName)
     {
-        var candidate = NormalizePathInput(fileName);
-        var safe = Path.GetFileName(candidate);
+        var safe = Path.GetFileName((fileName ?? "").Trim());
         return string.IsNullOrWhiteSpace(safe) ? AuraToolsIds.RootConfigFileName : safe;
     }
 }

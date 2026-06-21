@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "packageId": "SkinExp.BundledSkins",
+  "packageVersion": 1,
+  "resources": [
+    {
+      "source": "career_1/summer_cool"
+    }
+  ]
+}

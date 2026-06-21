@@ -6,7 +6,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$project = Join-Path $repoRoot "SafeBoxExp-Dev\SafeBoxExp.Dll.csproj"
+$project = Join-Path $repoRoot "TestMods\SafeBoxExp-Dev\SafeBoxExp.Dll.csproj"
 $repoManaged = Join-Path $repoRoot "Managed"
 $gameManaged = Join-Path $GamePath "Witch's Apocalyptic Journey_Data\Managed"
 

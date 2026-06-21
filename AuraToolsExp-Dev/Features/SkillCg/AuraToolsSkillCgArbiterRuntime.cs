@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using AuraShared.Core;
 using Network.Command;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.SkillCg;
@@ -22,7 +23,6 @@ public static class SkillCgArbiterRuntime
 {
     private const string GlobalObjectName = "AuraToolsExp.CgArbiter.Global";
     private const string ComponentFullName = "AuraToolsExp.Dll.Features.SkillCg.Arbiter.SkillCgArbiterRuntime+SkillCgArbiterComponent";
-    private const string LegacyResourceDirectoryName = "ModResource";
     private const float SlideDurationSeconds = 2.0f;
     private const float SlideImageHeightRatio = 0.85f;
     private const float SlideStartXRatio = 1.18f;
@@ -35,21 +35,14 @@ public static class SkillCgArbiterRuntime
     public const int CurrentProtocolVersion = 1;
     public const int MinimumSupportedProtocolVersion = 1;
     private static readonly HashSet<string> ReuseLogOwners = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly Dictionary<string, string> ModDirectories = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, string> DataDirectories = new(StringComparer.OrdinalIgnoreCase);
 
     public static void Initialize(ModConfig? modConfig, string ownerModId, SkillCgArbiterOptions? options = null)
     {
-        if (modConfig != null && !string.IsNullOrWhiteSpace(modConfig.DirectoryName))
+        if (modConfig != null)
         {
-            ModDirectories[ownerModId] = SafeFullPath(modConfig.DirectoryName);
-        }
-
-        RegisterOwnerDataDirectory(ownerModId);
-
-        if (modConfig != null && !string.IsNullOrWhiteSpace(modConfig.DirectoryName))
-        {
-            RegisterDerivedDataDirectory(ownerModId, modConfig.DirectoryName);
+            AuraSharedRuntime.Initialize(modConfig, ownerModId);
+            DataDirectories[ownerModId] = AuraSharedPaths.RootDirectory;
         }
 
         var arbiter = EnsureArbiter(ownerModId);
@@ -100,12 +93,6 @@ public static class SkillCgArbiterRuntime
             AddCandidate(candidates, seen, dataDirectory, normalizedResource);
         }
 
-        if (ModDirectories.TryGetValue(ownerModId, out var modDirectory))
-        {
-            AddCandidate(candidates, seen, modDirectory, normalizedResource);
-            AddLegacyResourceCandidate(candidates, seen, modDirectory, normalizedResource);
-        }
-
         AddCandidate(candidates, seen, fallbackPath?.Trim() ?? "");
 
         foreach (var candidate in candidates)
@@ -119,79 +106,14 @@ public static class SkillCgArbiterRuntime
         return candidates.Count > 0 ? candidates[0] : normalizedResource;
     }
 
-    private static void RegisterOwnerDataDirectory(string ownerModId)
-    {
-        if (!string.Equals(ownerModId, AuraToolsIds.ModId, StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
-        var dataDirectory = SafeFullPath(AuraToolsConfigService.DataRootDirectory);
-        if (!string.IsNullOrWhiteSpace(dataDirectory))
-        {
-            DataDirectories[ownerModId] = dataDirectory;
-        }
-    }
-
-    private static void RegisterDerivedDataDirectory(string ownerModId, string modDirectory)
-    {
-        if (DataDirectories.ContainsKey(ownerModId))
-        {
-            return;
-        }
-
-        var packageDirectory = SafeFullPath(modDirectory);
-        if (string.IsNullOrWhiteSpace(packageDirectory))
-        {
-            return;
-        }
-
-        var current = new DirectoryInfo(packageDirectory);
-        while (current != null)
-        {
-            if (string.Equals(current.Name, "Mods", StringComparison.OrdinalIgnoreCase))
-            {
-                var parent = current.Parent;
-                if (parent != null)
-                {
-                    DataDirectories[ownerModId] = Path.Combine(parent.FullName, AuraToolsIds.DataRootDirectoryName, ownerModId);
-                }
-
-                return;
-            }
-
-            current = current.Parent;
-        }
-    }
-
     private static string NormalizeRelativeResourcePath(string value)
     {
-        return (value ?? "")
+        var normalized = (value ?? "")
             .Trim()
             .Trim('"')
             .Replace('\\', '/')
             .TrimStart('/');
-    }
-
-    private static void AddLegacyResourceCandidate(List<string> candidates, HashSet<string> seen, string rootDirectory, string normalizedResource)
-    {
-        if (!StartsWithSegment(normalizedResource, AuraToolsIds.ResourceDirectoryName))
-        {
-            return;
-        }
-
-        var rest = normalizedResource.Substring(AuraToolsIds.ResourceDirectoryName.Length).TrimStart('/', '\\');
-        var legacyResource = string.IsNullOrWhiteSpace(rest)
-            ? LegacyResourceDirectoryName
-            : LegacyResourceDirectoryName + "/" + rest;
-        AddCandidate(candidates, seen, rootDirectory, legacyResource);
-    }
-
-    private static bool StartsWithSegment(string value, string segment)
-    {
-        return value.Equals(segment, StringComparison.OrdinalIgnoreCase)
-               || value.StartsWith(segment + "/", StringComparison.OrdinalIgnoreCase)
-               || value.StartsWith(segment + "\\", StringComparison.OrdinalIgnoreCase);
+        return normalized;
     }
 
     private static void AddCandidate(List<string> candidates, HashSet<string> seen, string rootDirectory, string relativeResource)

@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw, ImageFilter
 from pathlib import Path
 
 repo = Path(r"{repo}")
-out_dir = repo / "GoldExp/ModResource/Images/Relic/GoldExp"
+out_dir = repo / "TestMods/GoldExp/ModResource/Images/Relic/GoldExp"
 preview_dir = repo / "tools/previews"
 out_dir.mkdir(parents=True, exist_ok=True)
 preview_dir.mkdir(parents=True, exist_ok=True)

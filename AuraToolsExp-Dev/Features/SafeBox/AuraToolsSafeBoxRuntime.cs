@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Reflection;
+using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
 using Michsky.MUIP;
@@ -67,26 +68,12 @@ public static class AuraToolsSafeBoxRuntime
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        try
-        {
-            config.AddMethodHookBefore(target, action);
-        }
-        catch (Exception ex)
-        {
-            AuraToolsLog.Warn("Hook before failed: " + target + " -> " + ex.Message);
-        }
+        AuraSharedHooks.RegisterBefore(config, target, action, warn: AuraToolsLog.Warn);
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        try
-        {
-            config.AddMethodHookAfter(target, action);
-        }
-        catch (Exception ex)
-        {
-            AuraToolsLog.Warn("Hook after failed: " + target + " -> " + ex.Message);
-        }
+        AuraSharedHooks.RegisterAfter(config, target, action, warn: AuraToolsLog.Warn);
     }
 
     private static void InjectTopBarButton(ModHookContext context)

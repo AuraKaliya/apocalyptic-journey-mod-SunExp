@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
+using AuraShared.Core;
 using SunExp.Dll.Infrastructure;
 using Witch.Core;
 using Witch.Mod;
@@ -23,15 +24,7 @@ public static class DuskPartnerRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        try
-        {
-            config.AddMethodHookAfter(target, action);
-            SunExpLog.Debug("Dusk partner hook registered: " + target);
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Warn("Dusk partner hook failed: " + target + " -> " + ex.Message);
-        }
+        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Dusk partner " + message));
     }
 
     private static void RemoveDuskPlaceholderBlessing(ModHookContext context)

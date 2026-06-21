@@ -1,4 +1,5 @@
 using System;
+using AuraShared.Core;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using Witch.Core;
@@ -26,28 +27,12 @@ public static class RuntimeHooks
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        try
-        {
-            config.AddMethodHookBefore(target, action);
-            SunExpLog.Debug("Hook before registered: " + target);
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Warn("Hook before failed: " + target + " -> " + ex.Message);
-        }
+        AuraSharedHooks.RegisterBefore(config, target, action, SunExpLog.Debug, SunExpLog.Warn);
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        try
-        {
-            config.AddMethodHookAfter(target, action);
-            SunExpLog.Debug("Hook after registered: " + target);
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Warn("Hook after failed: " + target + " -> " + ex.Message);
-        }
+        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, SunExpLog.Warn);
     }
 
     private static void OnStatusManagerAddBuffBefore(ModHookContext context)

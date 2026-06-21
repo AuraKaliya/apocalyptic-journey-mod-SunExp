@@ -1,0 +1,15 @@
+{
+  "ModName": "SkinExp",
+  "ModVersion": "0.2.0",
+  "ModAuthor": "Aura",
+  "ModDescription": "为世界推演备战界面提供共享皮肤运行时，并内置阿米莉娅【夏日清凉】皮肤。皮肤资源会安装至 ModsData/AuraShared/Skins，供共享皮肤系统统一读取。\n ------ \n 相关代码已开源，供小伙伴们参考。\n 关注日耀MOD喵，关注日耀MOD谢谢喵！",
+  "IconPath": "Icon.png",
+  "Enabled": true,
+  "Dependencies": [],
+  "MustSame": false,
+  "WorkshopVisibility": "Public",
+  "WorkshopTags": [
+    "工具",
+    "角色"
+  ]
+}

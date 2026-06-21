@@ -6,6 +6,6 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$project = Join-Path $repoRoot "CardPackExp-Dev\CardPackExp.Dll.csproj"
+$project = Join-Path $repoRoot "TestMods\CardPackExp-Dev\CardPackExp.Dll.csproj"
 
 dotnet build $project -c $Configuration /p:GamePath="$GamePath" /v:minimal

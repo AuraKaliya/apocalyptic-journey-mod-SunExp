@@ -24,6 +24,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\AuraSharedCore\*.cs" Link="Shared\AuraSharedCore\%(Filename)%(Extension)" />
+    <Compile Include="..\AuraSkinShared\**\*.cs" Link="Shared\AuraSkinShared\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\AudioArbiterShared\AudioArbiterRuntime.cs" Link="Shared\AudioArbiterRuntime.cs" />
     <Compile Include="..\BattleBgmArbiterShared\BattleBgmArbiterRuntime.cs" Link="Shared\BattleBgmArbiterRuntime.cs" />
     <Compile Include="..\StarterDeckArbiterShared\StarterDeckArbiterRuntime.cs" Link="Shared\StarterDeckArbiterRuntime.cs" />

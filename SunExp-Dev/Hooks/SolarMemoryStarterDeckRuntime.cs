@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraShared.Core;
 using StarterDeckArbiter.Shared;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
@@ -118,15 +119,7 @@ public static class SolarMemoryStarterDeckRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        try
-        {
-            config.AddMethodHookAfter(target, action);
-            SunExpLog.Debug("Solar memory starter deck hook registered: " + target);
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Warn("Solar memory starter deck hook failed: " + target + " -> " + ex.Message);
-        }
+        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Solar memory starter deck " + message));
     }
 
     private static void MarkPendingFromRoleInit(ModHookContext context)

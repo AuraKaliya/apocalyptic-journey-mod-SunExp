@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using AuraShared.Core;
 using Witch.Core;
 
 namespace AuraToolsExp.Dll.Infrastructure;
@@ -68,20 +69,7 @@ public static class RoleCatalog
 
     public static string NormalizeRoleId(string? roleId)
     {
-        var value = (roleId ?? "").Trim();
-        if (string.IsNullOrWhiteSpace(value) || string.Equals(value, "*", StringComparison.Ordinal))
-        {
-            return value;
-        }
-
-        value = value.TrimStart('*');
-        if (value.StartsWith("career_", StringComparison.OrdinalIgnoreCase))
-        {
-            var suffix = value.Substring("career_".Length);
-            return suffix.Length > 0 && suffix.All(char.IsDigit) ? "career_" + suffix : value;
-        }
-
-        return value.All(char.IsDigit) ? "career_" + value : value;
+        return AuraSharedIdentity.NormalizeRoleId(roleId);
     }
 
     private static List<RoleInfo> ScanRoles()

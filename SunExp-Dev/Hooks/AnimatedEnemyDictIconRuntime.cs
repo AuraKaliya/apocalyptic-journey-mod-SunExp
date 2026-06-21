@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using AuraShared.Core;
 using SunExp.Dll.Infrastructure;
 using UnityEngine;
 using UnityEngine.UI;
@@ -47,15 +48,7 @@ public static class AnimatedEnemyDictIconRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        try
-        {
-            config.AddMethodHookAfter(target, action);
-            SunExpLog.Debug("Animated enemy dictionary icon hook registered: " + target);
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Warn("Animated enemy dictionary icon hook failed: " + target + " -> " + ex.Message);
-        }
+        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Animated enemy dictionary icon " + message));
     }
 
     private static void AttachFromContext(ModHookContext context)

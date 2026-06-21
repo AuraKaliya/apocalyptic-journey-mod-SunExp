@@ -1,7 +1,6 @@
 using System;
-using System.Diagnostics;
 using System.IO;
-using System.Threading;
+using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 
 namespace AuraToolsExp.Dll.Infrastructure;
@@ -13,27 +12,18 @@ public static class FileResourceUtil
 
     public static string EnsureDirectory(params string[] segments)
     {
-        var path = Path.Combine(segments);
-        Directory.CreateDirectory(path);
-        return path;
+        return AuraSharedFileResource.EnsureDirectory(segments);
     }
 
     public static string SafeFolderName(string id)
     {
-        var value = string.IsNullOrWhiteSpace(id) ? "unknown" : id.Trim();
-        foreach (var c in Path.GetInvalidFileNameChars())
-        {
-            value = value.Replace(c, '_');
-        }
-
-        return value;
+        return AuraSharedFileResource.SafeFolderName(id);
     }
 
     public static string RoleAudioDirectory(string roleId)
     {
         return EnsureDirectory(
-            AuraToolsConfigService.ResourceDirectory,
-            "Audio",
+            AuraToolsConfigService.AudioDirectory,
             "Roles",
             SafeFolderName(roleId));
     }
@@ -41,8 +31,7 @@ public static class FileResourceUtil
     public static string RoleSkillCgDirectory(string roleId)
     {
         return EnsureDirectory(
-            AuraToolsConfigService.ResourceDirectory,
-            "SkillCG",
+            AuraToolsConfigService.CgDirectory,
             "Roles",
             SafeFolderName(roleId));
     }
@@ -50,42 +39,27 @@ public static class FileResourceUtil
     public static string CommonAudioDirectory()
     {
         return EnsureDirectory(
-            AuraToolsConfigService.ResourceDirectory,
-            "Audio",
+            AuraToolsConfigService.AudioDirectory,
             "Common");
     }
 
     public static void OpenDirectory(string directory)
     {
-        string fullPath;
-        try
-        {
-            Directory.CreateDirectory(directory);
-            fullPath = Path.GetFullPath(directory);
-        }
-        catch (Exception ex)
-        {
-            AuraToolsLog.Warn("Failed to open directory " + directory + ": " + ex.Message);
-            return;
-        }
-
-        AuraToolsLog.Info("[FileResource] opening directory: " + fullPath);
-        var thread = new Thread(() => OpenDirectoryOnWorker(fullPath))
-        {
-            IsBackground = true,
-            Name = "AuraTools.OpenDirectory"
-        };
-        thread.Start();
+        AuraSharedFileResource.OpenDirectory(
+            directory,
+            message => AuraToolsLog.Info("[FileResource] " + message),
+            AuraToolsLog.Warn,
+            "AuraTools.OpenDirectory");
     }
 
     public static bool IsSupportedAudioFile(string path)
     {
-        return HasSupportedExtension(path, SupportedAudioExtensions);
+        return AuraSharedFileResource.HasSupportedExtension(path, SupportedAudioExtensions);
     }
 
     public static bool IsSupportedImageFile(string path)
     {
-        return HasSupportedExtension(path, SupportedImageExtensions);
+        return AuraSharedFileResource.HasSupportedExtension(path, SupportedImageExtensions);
     }
 
     public static string ImportAudioPath(string inputPath, string targetDirectory, string targetBaseName, out string message)
@@ -124,20 +98,38 @@ public static class FileResourceUtil
             return "";
         }
 
-        Directory.CreateDirectory(targetDirectory);
         var extension = Path.GetExtension(sourcePath);
         if (string.IsNullOrWhiteSpace(extension))
         {
             extension = ".dat";
         }
 
-        var targetPath = Path.Combine(targetDirectory, targetBaseName + extension);
-        if (!AuraToolsPaths.IsSamePath(sourcePath, targetPath))
+        var targetPath = Path.Combine(
+            targetDirectory,
+            SafeFolderName(targetBaseName) + extension);
+        var destination = AuraToolsConfigService.ToDataRelativePath(targetPath);
+        var system = AuraToolsPaths.IsInsideDirectory(targetPath, AuraToolsConfigService.AudioDirectory)
+            ? AuraSharedSystems.Audio
+            : AuraToolsPaths.IsInsideDirectory(targetPath, AuraToolsConfigService.CgDirectory)
+                ? AuraSharedSystems.Cg
+                : "Files";
+        var response = AuraSharedPackageEngine.Install(AuraToolsIds.ModId, new AuraSharedInstallRequest
         {
-            File.Copy(sourcePath, targetPath, true);
+            OwnerModId = AuraToolsIds.ModId,
+            System = system,
+            LogicalId = destination,
+            PackageId = "AuraTools.UserImports",
+            PackageVersion = DateTime.UtcNow.Ticks,
+            Kind = AuraSharedResourceKinds.File,
+            SourcePath = sourcePath,
+            DestinationRelativePath = destination
+        });
+        if (!response.Success)
+        {
+            throw new IOException("Shared resource import failed: " + response.Message);
         }
 
-        return AuraToolsConfigService.ToDataRelativePath(targetPath);
+        return destination;
     }
 
     private static string ImportPath(
@@ -182,8 +174,20 @@ public static class FileResourceUtil
 
         if (AuraToolsPaths.IsInsideDataRoot(fullPath))
         {
-            message = "已使用 ModsData 内" + label + "。";
-            return AuraToolsConfigService.ToDataRelativePath(fullPath);
+            try
+            {
+                var registered = CopyIntoData(
+                    fullPath,
+                    Path.GetDirectoryName(fullPath) ?? targetDirectory,
+                    Path.GetFileNameWithoutExtension(fullPath));
+                message = "已使用 ModsData 内" + label + "。";
+                return registered;
+            }
+            catch (Exception ex)
+            {
+                message = label + "注册失败：" + ex.Message;
+                return "";
+            }
         }
 
         try
@@ -207,50 +211,8 @@ public static class FileResourceUtil
             : AuraToolsConfigService.ResolveConfiguredPath(inputPath);
     }
 
-    private static bool HasSupportedExtension(string path, string[] supportedExtensions)
-    {
-        var extension = Path.GetExtension(path);
-        if (string.IsNullOrWhiteSpace(extension))
-        {
-            return false;
-        }
-
-        foreach (var supported in supportedExtensions)
-        {
-            if (string.Equals(extension, supported, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     private static string NormalizePathInput(string value)
     {
         return (value ?? "").Trim().Trim('"');
-    }
-
-    private static string QuoteArgument(string value)
-    {
-        return "\"" + value.Replace("\"", "\\\"") + "\"";
-    }
-
-    private static void OpenDirectoryOnWorker(string directory)
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = "explorer.exe",
-                Arguments = QuoteArgument(directory),
-                UseShellExecute = false,
-                CreateNoWindow = true
-            });
-        }
-        catch (Exception ex)
-        {
-            AuraToolsLog.Warn("Failed to open directory " + directory + ": " + ex.Message);
-        }
     }
 }

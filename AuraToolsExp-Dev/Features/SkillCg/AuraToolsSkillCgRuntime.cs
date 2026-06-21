@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
 using UnityEngine;
@@ -183,26 +184,12 @@ public static class AuraToolsSkillCgRuntime
 
     private static void RegisterBefore(ModConfig modConfig, string target, Action<ModHookContext> action)
     {
-        try
-        {
-            modConfig.AddMethodHookBefore(target, action);
-        }
-        catch (Exception ex)
-        {
-            AuraToolsLog.Warn("Hook before failed: " + target + " -> " + ex.Message);
-        }
+        AuraSharedHooks.RegisterBefore(modConfig, target, action, warn: AuraToolsLog.Warn);
     }
 
     private static void RegisterAfter(ModConfig modConfig, string target, Action<ModHookContext> action)
     {
-        try
-        {
-            modConfig.AddMethodHookAfter(target, action);
-        }
-        catch (Exception ex)
-        {
-            AuraToolsLog.Warn("Hook after failed: " + target + " -> " + ex.Message);
-        }
+        AuraSharedHooks.RegisterAfter(modConfig, target, action, warn: AuraToolsLog.Warn);
     }
 }
 
@@ -355,7 +342,7 @@ public static class AuraToolsSkillCgEditor
         toolbarLayout.childControlHeight = true;
         toolbarLayout.childForceExpandWidth = false;
         toolbarLayout.childForceExpandHeight = false;
-        hintText = Settings.AuraToolsUi.AddText(toolbar.transform, "提示：图片会复制到 ModsData/AuraToolsExp/Resources/SkillCG/Roles/{角色ID}/ 下。", 14, TextAnchor.MiddleLeft, Settings.AuraToolsUi.MutedText, 34f, 1f);
+        hintText = Settings.AuraToolsUi.AddText(toolbar.transform, "提示：图片会复制到 ModsData/AuraShared/CG/Roles/{角色ID}/ 下。", 14, TextAnchor.MiddleLeft, Settings.AuraToolsUi.MutedText, 34f, 1f);
         Settings.AuraToolsUi.AddButton(toolbar.transform, "扫描角色", () => RefreshRoles(true), 92f);
         Settings.AuraToolsUi.AddButton(toolbar.transform, "保存", RefreshAndSave, 78f);
 

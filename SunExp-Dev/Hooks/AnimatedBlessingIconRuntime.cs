@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using AuraShared.Core;
 using SunExp.Dll.Infrastructure;
 using UnityEngine;
 using UnityEngine.UI;
@@ -23,15 +24,7 @@ public static class AnimatedBlessingIconRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        try
-        {
-            config.AddMethodHookAfter(target, action);
-            SunExpLog.Debug("Animated blessing icon hook registered: " + target);
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Warn("Animated blessing icon hook failed: " + target + " -> " + ex.Message);
-        }
+        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Animated blessing icon " + message));
     }
 
     private static void AttachFromContext(ModHookContext context)

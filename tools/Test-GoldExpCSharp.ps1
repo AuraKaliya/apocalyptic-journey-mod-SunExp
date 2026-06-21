@@ -27,38 +27,40 @@ function Read-Utf8 {
 }
 
 $repoRoot = Get-RepoRoot
+$goldDevRoot = Join-Path $repoRoot "TestMods\GoldExp-Dev"
+$goldModRoot = Join-Path $repoRoot "TestMods\GoldExp"
 
 if (-not $SkipBuild) {
     & (Join-Path $repoRoot "tools\Build-GoldExpDll.ps1") -Configuration $Configuration -GamePath $GamePath | Out-Host
 }
 
-$ids = Read-Utf8 (Join-Path $repoRoot "GoldExp-Dev\Infrastructure\GoldExpIds.cs")
-$entry = Read-Utf8 (Join-Path $repoRoot "GoldExp-Dev\Entry.cs")
-$service = Read-Utf8 (Join-Path $repoRoot "GoldExp-Dev\Mechanics\GoldDreamService.cs")
-$executorApi = Read-Utf8 (Join-Path $repoRoot "GoldExp-Dev\GameApi\ExecutorApi.cs")
-$cardApi = Read-Utf8 (Join-Path $repoRoot "GoldExp-Dev\GameApi\CardApi.cs")
-$cardConfigApi = Read-Utf8 (Join-Path $repoRoot "GoldExp-Dev\GameApi\CardConfigApi.cs")
-$buffApi = Read-Utf8 (Join-Path $repoRoot "GoldExp-Dev\GameApi\BuffApi.cs")
-$playerApi = Read-Utf8 (Join-Path $repoRoot "GoldExp-Dev\GameApi\PlayerApi.cs")
-$goldDreamRuntime = Read-Utf8 (Join-Path $repoRoot "GoldExp-Dev\Hooks\GoldDreamTagRuntime.cs")
-$cards = Read-Utf8 (Join-Path $repoRoot "GoldExp-Dev\Scripting\CardScripts.cs")
-$enchTags = Read-Utf8 (Join-Path $repoRoot "GoldExp-Dev\Scripting\EnchTagScripts.cs")
-$career = Read-Utf8 (Join-Path $repoRoot "GoldExp-Dev\Scripting\GoldWitchScripts.cs")
-$relics = Read-Utf8 (Join-Path $repoRoot "GoldExp-Dev\Scripting\RelicScripts.cs")
-$partner = Read-Utf8 (Join-Path $repoRoot "GoldExp-Dev\Scripting\PartnerScripts.cs")
-$cardData = Read-Utf8 (Join-Path $repoRoot "GoldExp\Data\Card\goldexp.csv")
-$enchTagData = Read-Utf8 (Join-Path $repoRoot "GoldExp\Data\EnchTag\goldexp.csv")
-$enchTagText = Read-Utf8 (Join-Path $repoRoot "GoldExp\Text\EnchTag\goldexp.csv")
-$careerData = Read-Utf8 (Join-Path $repoRoot "GoldExp\Data\Career\goldwitch.csv")
-$roleData = Read-Utf8 (Join-Path $repoRoot "GoldExp\Data\RoleData\goldwitch.csv")
-$partnerData = Read-Utf8 (Join-Path $repoRoot "GoldExp\Data\Partner\goldexp.csv")
-$relicData = Read-Utf8 (Join-Path $repoRoot "GoldExp\Data\Relic\goldexp.csv")
-$relicText = Read-Utf8 (Join-Path $repoRoot "GoldExp\Text\Relic\goldexp.csv")
-$removedRelicDesign = Read-Utf8 (Join-Path $repoRoot "GoldExp\Design\removed-relics.md")
-$buffData = Read-Utf8 (Join-Path $repoRoot "GoldExp\Data\Buff\goldexp.csv")
-$cardText = Read-Utf8 (Join-Path $repoRoot "GoldExp\Text\Card\goldexp.csv")
-$buffText = Read-Utf8 (Join-Path $repoRoot "GoldExp\Text\Buff\goldexp.csv")
-$keywordText = Read-Utf8 (Join-Path $repoRoot "GoldExp\Text\KeyWordsDic\goldexp.csv")
+$ids = Read-Utf8 (Join-Path $goldDevRoot "Infrastructure\GoldExpIds.cs")
+$entry = Read-Utf8 (Join-Path $goldDevRoot "Entry.cs")
+$service = Read-Utf8 (Join-Path $goldDevRoot "Mechanics\GoldDreamService.cs")
+$executorApi = Read-Utf8 (Join-Path $goldDevRoot "GameApi\ExecutorApi.cs")
+$cardApi = Read-Utf8 (Join-Path $goldDevRoot "GameApi\CardApi.cs")
+$cardConfigApi = Read-Utf8 (Join-Path $goldDevRoot "GameApi\CardConfigApi.cs")
+$buffApi = Read-Utf8 (Join-Path $goldDevRoot "GameApi\BuffApi.cs")
+$playerApi = Read-Utf8 (Join-Path $goldDevRoot "GameApi\PlayerApi.cs")
+$goldDreamRuntime = Read-Utf8 (Join-Path $goldDevRoot "Hooks\GoldDreamTagRuntime.cs")
+$cards = Read-Utf8 (Join-Path $goldDevRoot "Scripting\CardScripts.cs")
+$enchTags = Read-Utf8 (Join-Path $goldDevRoot "Scripting\EnchTagScripts.cs")
+$career = Read-Utf8 (Join-Path $goldDevRoot "Scripting\GoldWitchScripts.cs")
+$relics = Read-Utf8 (Join-Path $goldDevRoot "Scripting\RelicScripts.cs")
+$partner = Read-Utf8 (Join-Path $goldDevRoot "Scripting\PartnerScripts.cs")
+$cardData = Read-Utf8 (Join-Path $goldModRoot "Data\Card\goldexp.csv")
+$enchTagData = Read-Utf8 (Join-Path $goldModRoot "Data\EnchTag\goldexp.csv")
+$enchTagText = Read-Utf8 (Join-Path $goldModRoot "Text\EnchTag\goldexp.csv")
+$careerData = Read-Utf8 (Join-Path $goldModRoot "Data\Career\goldwitch.csv")
+$roleData = Read-Utf8 (Join-Path $goldModRoot "Data\RoleData\goldwitch.csv")
+$partnerData = Read-Utf8 (Join-Path $goldModRoot "Data\Partner\goldexp.csv")
+$relicData = Read-Utf8 (Join-Path $goldModRoot "Data\Relic\goldexp.csv")
+$relicText = Read-Utf8 (Join-Path $goldModRoot "Text\Relic\goldexp.csv")
+$removedRelicDesign = Read-Utf8 (Join-Path $goldModRoot "Design\removed-relics.md")
+$buffData = Read-Utf8 (Join-Path $goldModRoot "Data\Buff\goldexp.csv")
+$cardText = Read-Utf8 (Join-Path $goldModRoot "Text\Card\goldexp.csv")
+$buffText = Read-Utf8 (Join-Path $goldModRoot "Text\Buff\goldexp.csv")
+$keywordText = Read-Utf8 (Join-Path $goldModRoot "Text\KeyWordsDic\goldexp.csv")
 
 Assert-True $ids.Contains('public const string FalseGold = "GoldExp_goldexp_false_gold";') "FalseGold full id is missing or changed."
 Assert-True $ids.Contains('public const string Debt = "GoldExp_goldexp_debt";') "Debt full id is missing or changed."

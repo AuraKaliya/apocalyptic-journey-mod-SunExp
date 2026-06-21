@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "packageId": "SunExp.SharedResources",
+  "packageVersion": 1,
+  "resources": [
+    {
+      "system": "Audio",
+      "resourceId": "SunExp.WuNa.VoicePack",
+      "kind": "Directory",
+      "source": "Audio/WuNa",
+      "destination": "Audio/SunExp/WuNa"
+    }
+  ]
+}

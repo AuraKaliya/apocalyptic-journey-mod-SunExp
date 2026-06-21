@@ -7,7 +7,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$project = Join-Path $repoRoot "SkinExp-Dev\SkinExp.Dll.csproj"
+$project = Join-Path $repoRoot "TestMods\SkinExp-Dev\SkinExp.Dll.csproj"
 
 if ([string]::IsNullOrWhiteSpace($ManagedPath)) {
     if ([string]::IsNullOrWhiteSpace($GamePath)) {

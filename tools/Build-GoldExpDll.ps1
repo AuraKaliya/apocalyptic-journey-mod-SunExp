@@ -6,6 +6,6 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$project = Join-Path $repoRoot "GoldExp-Dev\GoldExp.Dll.csproj"
+$project = Join-Path $repoRoot "TestMods\GoldExp-Dev\GoldExp.Dll.csproj"
 
 dotnet build $project -c $Configuration /p:GamePath="$GamePath" /v:minimal

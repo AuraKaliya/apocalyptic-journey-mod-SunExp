@@ -29,6 +29,7 @@ function New-ProjectXml {
     )
 
     $dictionaryUtil = Join-Path $RepoRoot "SunExp-Dev\Infrastructure\DictionaryUtil.cs"
+    $auraSharedDictionary = Join-Path $RepoRoot "AuraSharedCore\AuraSharedDictionary.cs"
     $sunExpIds = Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpIds.cs"
     $cardConfigApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardConfigApi.cs"
 
@@ -44,6 +45,7 @@ function New-ProjectXml {
 
   <ItemGroup>
     <Compile Include="$SourceDir\Stubs.cs" />
+    <Compile Include="$auraSharedDictionary" />
     <Compile Include="$dictionaryUtil" />
     <Compile Include="$sunExpIds" />
     <Compile Include="$cardConfigApi" />
@@ -653,8 +655,9 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemoryRoleCommit.Contains("CommittedTokens.Add(commitToken)") "Solar memory final role command must suppress duplicate network delivery."
     Assert-True ($modConfig.ModVersion -eq "0.4.1") "SunExp network protocol change must ship as version 0.4.1."
     Assert-True ($modConfig.MustSame -eq $true) "SunExp must require an identical multiplayer mod version."
-    Assert-True $audioArbiterRuntime.Contains('CurrentBuildId = "shared-runtime-2026-06-21-v3"') "Audio arbiter must expose the shared runtime build id."
-    Assert-True $battleBgmArbiterRuntime.Contains('CurrentBuildId = "shared-runtime-2026-06-21-v3"') "Battle BGM arbiter must expose the same shared runtime build id."
+    Assert-True $audioArbiterRuntime.Contains('CurrentBuildId = "audio-arbiter-2026-06-22-v4"') "Audio arbiter must expose the shared-resource-aware runtime build id."
+    Assert-True $audioArbiterRuntime.Contains('const string sharedPrefix = "Shared:"') "Audio arbiter must resolve AuraShared resource paths."
+    Assert-True $battleBgmArbiterRuntime.Contains('CurrentBuildId = "shared-runtime-2026-06-21-v3"') "Battle BGM arbiter must expose its current shared runtime build id."
     Assert-True $battleBgmArbiterRuntime.Contains("Fake loss detected; BGM settlement deferred until escape reset") "Battle BGM arbiter must defer fake-loss settlement."
     Assert-True $battleBgmArbiterRuntime.Contains("Duplicate fight end ignored") "Battle BGM arbiter must ignore duplicate end callbacks."
     Assert-True $battleBgmArbiterRuntime.Contains("leaving current BGM unchanged") "Battle BGM arbiter must preserve audio when no snapshot exists."

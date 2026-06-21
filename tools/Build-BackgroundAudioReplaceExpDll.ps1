@@ -6,6 +6,6 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$project = Join-Path $repoRoot "BackgroundAudioReplaceExp-Dev\BackgroundAudioReplaceExp.Dll.csproj"
+$project = Join-Path $repoRoot "TestMods\BackgroundAudioReplaceExp-Dev\BackgroundAudioReplaceExp.Dll.csproj"
 
 dotnet build $project -c $Configuration /p:GamePath="$GamePath" /v:minimal

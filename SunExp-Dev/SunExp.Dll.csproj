@@ -24,6 +24,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\AuraSharedCore\*.cs" Link="Shared\AuraSharedCore\%(Filename)%(Extension)" />
+    <Compile Include="..\AuraSkinShared\**\*.cs" Link="Shared\AuraSkinShared\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\AudioArbiterShared\AudioArbiterRuntime.cs" Link="Shared\AudioArbiterRuntime.cs" />
     <Compile Include="..\BattleBgmArbiterShared\BattleBgmArbiterRuntime.cs" Link="Shared\BattleBgmArbiterRuntime.cs" />
     <Compile Include="..\StarterDeckArbiterShared\StarterDeckArbiterRuntime.cs" Link="Shared\StarterDeckArbiterRuntime.cs" />
@@ -34,6 +36,10 @@
   <ItemGroup>
     <Reference Include="netstandard">
       <HintPath>$(DllPath)\netstandard.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(DllPath)\Newtonsoft.Json.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
@@ -62,6 +68,10 @@
     </Reference>
     <Reference Include="UnityEngine.TextRenderingModule">
       <HintPath>$(DllPath)\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Unity.TextMeshPro">
+      <HintPath>$(DllPath)\Unity.TextMeshPro.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Witch">

@@ -1,4 +1,6 @@
 using System;
+using AuraShared.Core;
+using AuraSkin.Shared;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.Audio;
 using AuraToolsExp.Dll.Features.Logging;
@@ -17,6 +19,9 @@ public static class Entry
     [ModInitialize]
     public static void Initialize(ModConfig modConfig)
     {
+        RunStep("shared core", () => AuraSharedRuntime.Initialize(modConfig, AuraToolsIds.ModId));
+        RunStep("shared registry", () => AuraSharedRegistry.RegisterManifest(modConfig, AuraToolsIds.ModId));
+        RunStep("shared skin runtime", () => AuraSkinRuntime.Initialize(modConfig, AuraToolsIds.ModId));
         RunStep("config", () => AuraToolsConfigService.Initialize(modConfig));
         RunStep("file logging", () => AuraToolsFileLogRuntime.Initialize(modConfig));
         RunStep("ui transition guard", () => UiTransitionGuardRuntime.Initialize(modConfig, AuraToolsIds.ModId));
@@ -31,13 +36,6 @@ public static class Entry
 
     private static void RunStep(string name, Action action)
     {
-        try
-        {
-            action();
-        }
-        catch (Exception ex)
-        {
-            AuraToolsLog.Error("Initialization step failed: " + name, ex);
-        }
+        AuraSharedHooks.RunStep(name, action, (step, ex) => AuraToolsLog.Error("Initialization step failed: " + step, ex));
     }
 }

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using AuraShared.Core;
 using Network.Command;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -17,9 +18,9 @@ public static class AudioArbiterRuntime
 {
     private const string GlobalObjectName = "AudioArbiter.Global";
     private const string ComponentFullName = "AudioArbiter.Shared.AudioArbiterRuntime+AudioArbiterComponent";
-    public const string CurrentBuildId = "shared-runtime-2026-06-21-v3";
-    public const int CurrentProtocolVersion = 3;
-    public const int MinimumSupportedProtocolVersion = 3;
+    public const string CurrentBuildId = "audio-arbiter-2026-06-22-v4";
+    public const int CurrentProtocolVersion = 4;
+    public const int MinimumSupportedProtocolVersion = 4;
     public const int SupportedManifestSchemaVersion = 2;
 
     private static readonly HashSet<string> ReuseLogOwners = new(StringComparer.OrdinalIgnoreCase);
@@ -113,6 +114,7 @@ public static class AudioArbiterRuntime
 
     private static object? EnsureArbiter(ModConfig? modConfig, string ownerModId)
     {
+        AuraSharedRuntime.Initialize(modConfig, ownerModId);
         var gameObject = GameObject.Find(GlobalObjectName);
         if (gameObject != null)
         {
@@ -443,6 +445,12 @@ public static class AudioArbiterRuntime
             if (string.IsNullOrWhiteSpace(relativeOrAbsolutePath))
             {
                 return "";
+            }
+
+            const string sharedPrefix = "Shared:";
+            if (relativeOrAbsolutePath.StartsWith(sharedPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return AuraSharedPaths.ResolveSharedPath(relativeOrAbsolutePath.Substring(sharedPrefix.Length));
             }
 
             return Path.IsPathRooted(relativeOrAbsolutePath)

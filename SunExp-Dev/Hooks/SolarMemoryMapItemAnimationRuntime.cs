@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using AuraShared.Core;
 using SunExp.Dll.Infrastructure;
 using UnityEngine;
 using Witch.Core;
@@ -23,28 +24,12 @@ public static class SolarMemoryMapItemAnimationRuntime
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        try
-        {
-            config.AddMethodHookBefore(target, action);
-            SunExpLog.Debug("Solar memory map item animation hook before registered: " + target);
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Warn("Solar memory map item animation hook before failed: " + target + " -> " + ex.Message);
-        }
+        AuraSharedHooks.RegisterBefore(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Solar memory map item animation " + message));
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        try
-        {
-            config.AddMethodHookAfter(target, action);
-            SunExpLog.Debug("Solar memory map item animation hook registered: " + target);
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Warn("Solar memory map item animation hook failed: " + target + " -> " + ex.Message);
-        }
+        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Solar memory map item animation " + message));
     }
 
     private static void PrepareMapItemAnimation(ModHookContext context)

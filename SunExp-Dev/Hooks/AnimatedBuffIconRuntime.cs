@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using AuraShared.Core;
 using SunExp.Dll.Infrastructure;
 using UnityEngine;
 using Witch.Core;
@@ -19,15 +20,7 @@ public static class AnimatedBuffIconRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        try
-        {
-            config.AddMethodHookAfter(target, action);
-            SunExpLog.Debug("Animated buff icon hook registered: " + target);
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Warn("Animated buff icon hook failed: " + target + " -> " + ex.Message);
-        }
+        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Animated buff icon " + message));
     }
 
     private static void AttachFromContext(ModHookContext context)

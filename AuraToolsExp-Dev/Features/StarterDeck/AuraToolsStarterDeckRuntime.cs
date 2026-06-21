@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
 using Data.Save;
@@ -139,15 +140,7 @@ public static class AuraToolsStarterDeckRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        try
-        {
-            config.AddMethodHookAfter(target, action);
-            AuraToolsLog.Info("Hook registered: " + target);
-        }
-        catch (Exception ex)
-        {
-            AuraToolsLog.Warn("Hook failed: " + target + " -> " + ex.Message);
-        }
+        AuraSharedHooks.RegisterAfter(config, target, action, message => AuraToolsLog.Info(message), AuraToolsLog.Warn);
     }
 
     private static bool IsApplied(RoleTable roleTable)

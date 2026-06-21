@@ -17,7 +17,7 @@ internal sealed class AuraToolsLogFileWriter : IDisposable
     {
         FilePath = filePath;
         Directory.CreateDirectory(Path.GetDirectoryName(filePath) ?? ".");
-        var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
+        var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.Read);
         writer = new StreamWriter(stream, new UTF8Encoding(false)) { AutoFlush = true };
         worker = new Thread(WriteLoop)
         {

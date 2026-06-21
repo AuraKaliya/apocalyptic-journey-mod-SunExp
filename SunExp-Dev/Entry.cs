@@ -1,6 +1,8 @@
 using System;
 using System.Collections;
 using System.Reflection;
+using AuraShared.Core;
+using AuraSkin.Shared;
 using Witch.Mod;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks;
@@ -15,6 +17,11 @@ public static class Entry
     public static void Initialize(ModConfig modConfig)
     {
         RunStep("XLua assembly registration", RegisterLuaVisibleAssembly);
+        RunStep("shared core", () => AuraSharedRuntime.Initialize(modConfig, "SunExp"));
+        RunStep("shared resource package", () => RegisterSharedResourcePackage(modConfig));
+        RunStep("shared registry", () => AuraSharedRegistry.RegisterManifest(modConfig, "SunExp"));
+        RunStep("shared skin runtime", () => AuraSkinRuntime.Initialize(modConfig, "SunExp"));
+        RunStep("shared skin package", () => RegisterSkinPackage(modConfig));
         RunStep("audio runtime", () => AudioApi.Initialize(modConfig));
         RunStep("ui transition guard", () => UiTransitionGuardRuntime.Initialize(modConfig, "SunExp"));
         SunExpLog.Info("SunExp C# entry loaded");
@@ -24,13 +31,26 @@ public static class Entry
 
     private static void RunStep(string name, Action action)
     {
-        try
+        AuraSharedHooks.RunStep(name, action, (step, ex) => SunExpLog.Error("Initialization step failed: " + step, ex));
+    }
+
+    private static void RegisterSkinPackage(ModConfig modConfig)
+    {
+        if (!AuraSkinRuntime.RegisterPackage(modConfig, "SunExp"))
         {
-            action();
+            throw new InvalidOperationException("SunExp bundled skin package was rejected.");
         }
-        catch (Exception ex)
+    }
+
+    private static void RegisterSharedResourcePackage(ModConfig modConfig)
+    {
+        var responses = AuraSharedPackageEngine.InstallManifest(modConfig, "SunExp");
+        foreach (var response in responses)
         {
-            SunExpLog.Error("Initialization step failed: " + name, ex);
+            if (!response.Success)
+            {
+                throw new InvalidOperationException("SunExp shared resource package was rejected: " + response.Message);
+            }
         }
     }
 

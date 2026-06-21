@@ -8,7 +8,7 @@ $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Drawing
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$modRoot = Join-Path $repoRoot "GoldExp"
+$modRoot = Join-Path $repoRoot "TestMods\GoldExp"
 $bright = [System.Drawing.Color]::FromArgb(253, 251, 200)
 $darkGold = [System.Drawing.Color]::FromArgb(229, 179, 64)
 $accent = [System.Drawing.Color]::FromArgb(171, 244, 156)

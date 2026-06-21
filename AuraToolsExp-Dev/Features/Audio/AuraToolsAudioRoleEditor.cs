@@ -28,7 +28,7 @@ public static class AuraToolsAudioRoleEditor
         toolbarLayout.childControlWidth = true;
         toolbarLayout.childControlHeight = true;
         toolbarLayout.childForceExpandHeight = false;
-        hintText = AuraToolsUi.AddText(toolbar.transform, "提示：选择音频后会复制到 ModsData/AuraToolsExp/Resources/Audio/Roles/ 下。", 14, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 34f, 1f);
+        hintText = AuraToolsUi.AddText(toolbar.transform, "提示：选择音频后会复制到 ModsData/AuraShared/Audio/Roles/ 下。", 14, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 34f, 1f);
         AuraToolsUi.AddButton(toolbar.transform, "扫描角色", () =>
         {
             EnsureRoleEntries(true);
@@ -231,7 +231,7 @@ public static class AuraToolsAudioRoleEditor
 
     private static void Save()
     {
-        Feature.Normalize(editingBattleBgm ? "Resources/Audio/Common/battle_bgm.mp3" : "Resources/Audio/Common/card_use.mp3", -1000, false);
+        Feature.Normalize(editingBattleBgm ? "Audio/Common/battle_bgm.mp3" : "Audio/Common/card_use.mp3", -1000, false);
         AuraToolsConfigService.SaveAudio();
         AuraToolsAudioRuntime.RegisterProviders();
         SetHint("已保存角色音频配置。");

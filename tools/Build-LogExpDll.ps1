@@ -7,7 +7,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$project = Join-Path $repoRoot "LogExp-Dev\LogExp.Dll.csproj"
+$project = Join-Path $repoRoot "TestMods\LogExp-Dev\LogExp.Dll.csproj"
 
 if ([string]::IsNullOrWhiteSpace($ManagedPath)) {
     if ([string]::IsNullOrWhiteSpace($GamePath)) {

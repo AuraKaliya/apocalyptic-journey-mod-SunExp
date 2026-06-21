@@ -65,8 +65,8 @@ public sealed class AuraToolsAudioSettings
         AudioSystemVersion = string.IsNullOrWhiteSpace(AudioSystemVersion) ? "2.0.0" : AudioSystemVersion.Trim();
         BattleBgm ??= AudioFeatureSettings.CreateBattleBgmDefault();
         CardUse ??= AudioFeatureSettings.CreateCardUseDefault();
-        BattleBgm.Normalize("Resources/Audio/Common/battle_bgm.mp3", -1000, false);
-        CardUse.Normalize("Resources/Audio/Common/card_use.mp3", -1000, false);
+        BattleBgm.Normalize("Audio/Common/battle_bgm.mp3", -1000, false);
+        CardUse.Normalize("Audio/Common/card_use.mp3", -1000, false);
     }
 }
 
@@ -92,7 +92,7 @@ public sealed class AudioFeatureSettings
             Mode = AudioModes.Common,
             Common = new AudioCommonSettings
             {
-                RelativePath = "Resources/Audio/Common/battle_bgm.mp3",
+                RelativePath = "Audio/Common/battle_bgm.mp3",
                 Priority = -1000,
                 HardClaim = false,
                 SilenceWhenLoading = false,
@@ -109,7 +109,7 @@ public sealed class AudioFeatureSettings
             Mode = AudioModes.Common,
             Common = new AudioCommonSettings
             {
-                RelativePath = "Resources/Audio/Common/card_use.mp3",
+                RelativePath = "Audio/Common/card_use.mp3",
                 Priority = -1000,
                 HardClaim = false,
                 GainDb = 6f

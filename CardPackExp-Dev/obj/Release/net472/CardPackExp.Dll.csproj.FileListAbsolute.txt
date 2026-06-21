@@ -1,8 +1,0 @@
-D:\Project\Apocalypic-journey-mods-creator\ModExp\CardPackExp-Dev\bin\Release\net472\CardPackExp.Entry.dll
-D:\Project\Apocalypic-journey-mods-creator\ModExp\CardPackExp-Dev\obj\Release\net472\CardPackExp.Dll.csproj.AssemblyReference.cache
-D:\Project\Apocalypic-journey-mods-creator\ModExp\CardPackExp-Dev\obj\Release\net472\CardPackExp.Dll.GeneratedMSBuildEditorConfig.editorconfig
-D:\Project\Apocalypic-journey-mods-creator\ModExp\CardPackExp-Dev\obj\Release\net472\CardPackExp.Dll.AssemblyInfoInputs.cache
-D:\Project\Apocalypic-journey-mods-creator\ModExp\CardPackExp-Dev\obj\Release\net472\CardPackExp.Dll.AssemblyInfo.cs
-D:\Project\Apocalypic-journey-mods-creator\ModExp\CardPackExp-Dev\obj\Release\net472\CardPackExp.Dll.csproj.CoreCompileInputs.cache
-D:\Project\Apocalypic-journey-mods-creator\ModExp\CardPackExp-Dev\obj\Release\net472\CardPackExp.Dll.sourcelink.json
-D:\Project\Apocalypic-journey-mods-creator\ModExp\CardPackExp-Dev\obj\Release\net472\CardPackExp.Entry.dll

@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\AuraSharedCore\AuraSharedJson.cs" Link="Core\AuraSharedJson.cs" />
+    <Compile Include="..\AuraSharedCore\AuraSharedStorageModels.cs" Link="Core\AuraSharedStorageModels.cs" />
+    <Compile Include="..\AuraSharedCore\AuraSharedStorageCoordinator.cs" Link="Core\AuraSharedStorageCoordinator.cs" />
+    <Compile Include="..\AuraSharedCore\AuraSharedPackageModels.cs" Link="Core\AuraSharedPackageModels.cs" />
+    <Compile Include="..\AuraSharedCore\AuraSharedPackageCoordinator.cs" Link="Core\AuraSharedPackageCoordinator.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\Managed\Newtonsoft.Json.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+</Project>

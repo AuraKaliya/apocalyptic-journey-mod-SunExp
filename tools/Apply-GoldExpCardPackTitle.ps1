@@ -1,7 +1,7 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$SourceImage,
-    [string]$OutPath = "GoldExp\ModResource\Images\CardPack\cardpack_gold_dream.png"
+    [string]$OutPath = "TestMods\GoldExp\ModResource\Images\CardPack\cardpack_gold_dream.png"
 )
 
 $ErrorActionPreference = "Stop"

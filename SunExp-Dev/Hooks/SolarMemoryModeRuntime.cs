@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraShared.Core;
 using Data.Save;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
@@ -117,28 +118,12 @@ public static class SolarMemoryModeRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        try
-        {
-            config.AddMethodHookAfter(target, action);
-            SunExpLog.Debug("Solar memory hook registered: " + target);
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Warn("Solar memory hook failed: " + target + " -> " + ex.Message);
-        }
+        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Solar memory " + message));
     }
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        try
-        {
-            config.AddMethodHookBefore(target, action);
-            SunExpLog.Debug("Solar memory hook before registered: " + target);
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Warn("Solar memory hook before failed: " + target + " -> " + ex.Message);
-        }
+        AuraSharedHooks.RegisterBefore(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Solar memory " + message));
     }
 
     private static void InjectEntry(ModHookContext context)

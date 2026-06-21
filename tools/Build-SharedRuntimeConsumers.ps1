@@ -13,9 +13,10 @@ if ([string]::IsNullOrWhiteSpace($ManagedPath)) {
 $projects = @(
     "SunExp-Dev\SunExp.Dll.csproj",
     "AuraToolsExp-Dev\AuraToolsExp.Dll.csproj",
+    "TestMods\SkinExp-Dev\SkinExp.Dll.csproj",
     "SanGuoShaExp-Dev\SanGuoShaExp.Dll.csproj",
-    "BackgroundAudioReplaceExp-Dev\BackgroundAudioReplaceExp.Dll.csproj",
-    "CardUseCialloExp-Dev\CardUseCialloExp.Dll.csproj"
+    "TestMods\BackgroundAudioReplaceExp-Dev\BackgroundAudioReplaceExp.Dll.csproj",
+    "TestMods\CardUseCialloExp-Dev\CardUseCialloExp.Dll.csproj"
 )
 
 foreach ($project in $projects) {

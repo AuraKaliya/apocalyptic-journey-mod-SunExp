@@ -1,5 +1,6 @@
 using System;
 using System.Reflection;
+using AuraShared.Core;
 
 namespace SunExp.Dll.Infrastructure;
 
@@ -9,26 +10,22 @@ public static class SunExpLog
 
     public static void Info(string message)
     {
-        Commands.Log(SunExpIds.ModLogTag, message);
+        AuraSharedLog.Info(SunExpIds.ModLogTag, message);
     }
 
     public static void Warn(string message)
     {
-        Commands.Log(SunExpIds.ModLogTag, "[WARN] " + message);
+        AuraSharedLog.Warn(SunExpIds.ModLogTag, message);
     }
 
     public static void Error(string message, Exception? exception = null)
     {
-        var text = exception == null ? message : message + " :: " + exception;
-        Commands.Log(SunExpIds.ModLogTag, "[ERROR] " + text);
+        AuraSharedLog.Error(SunExpIds.ModLogTag, message, exception);
     }
 
     public static void Debug(string message)
     {
-        if (IsDebugEnabled())
-        {
-            Commands.Log(SunExpIds.ModLogTag, "[DEBUG] " + message);
-        }
+        AuraSharedLog.DebugLog(SunExpIds.ModLogTag, message, IsDebugEnabled());
     }
 
     private static bool IsDebugEnabled()
