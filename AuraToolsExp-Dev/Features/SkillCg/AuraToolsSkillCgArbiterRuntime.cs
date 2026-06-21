@@ -11,6 +11,7 @@ using AuraToolsExp.Dll.Infrastructure;
 using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.UI;
+using UiRaycastSafetyShared;
 using Witch.Core;
 using Witch.Mod;
 using GameUIManager = Witch.UI.UIManager;
@@ -426,18 +427,50 @@ public static class SkillCgArbiterRuntime
             playGeneration++;
             queue.Clear();
             recentKeys.Clear();
+            StopAllCoroutines();
+            HideOverlay();
             playing = false;
+
+            SkillCgExpLog.DebugLog("CG queue cleared: " + (reason as string ?? "<none>"));
+        }
+
+        private void HideOverlay()
+        {
+            if (overlayImage != null)
+            {
+                overlayImage.raycastTarget = false;
+                overlayImage.enabled = false;
+                overlayImage.sprite = null;
+            }
+
             if (overlayGroup != null)
             {
                 overlayGroup.alpha = 0f;
+                overlayGroup.blocksRaycasts = false;
+                overlayGroup.interactable = false;
             }
 
             if (overlayRoot != null)
             {
-                overlayRoot.SetActive(false);
+                UiRaycastSafeDestroyRuntime.DisableAndHide(overlayRoot, "AuraTools SkillCG hide overlay", SkillCgExpLog.DebugLog);
+            }
+        }
+
+        private void DestroyOverlay()
+        {
+            if (overlayRoot == null)
+            {
+                return;
             }
 
-            SkillCgExpLog.DebugLog("CG queue cleared: " + (reason as string ?? "<none>"));
+            UiRaycastSafeDestroyRuntime.DisableAndDestroyAfterFrame(
+                this,
+                overlayRoot,
+                "AuraTools SkillCG destroy overlay",
+                SkillCgExpLog.DebugLog);
+            overlayRoot = null;
+            overlayGroup = null;
+            overlayImage = null;
         }
 
         private bool TryEnqueue(SkillCgRequest request)
@@ -547,8 +580,11 @@ public static class SkillCgArbiterRuntime
             overlayRoot!.SetActive(true);
             overlayRoot.transform.SetAsLastSibling();
             overlayImage!.sprite = sprite;
+            overlayImage.raycastTarget = false;
             overlayImage.enabled = true;
             overlayGroup!.alpha = 0f;
+            overlayGroup.blocksRaycasts = false;
+            overlayGroup.interactable = false;
 
             SkillCgExpLog.DebugLog(
                 "CG play slide: provider=" + request.ProviderId
@@ -562,8 +598,7 @@ public static class SkillCgArbiterRuntime
                 yield break;
             }
 
-            overlayImage.sprite = null;
-            overlayRoot.SetActive(false);
+            HideOverlay();
         }
 
         private IEnumerator SlideRightToLeft(Sprite sprite, int generation)
@@ -707,7 +742,7 @@ public static class SkillCgArbiterRuntime
 
             if (overlayRoot != null)
             {
-                Destroy(overlayRoot);
+                DestroyOverlay();
             }
 
             overlayRoot = new GameObject("AuraToolsExp.SkillCG.OverlayRoot", typeof(RectTransform), typeof(CanvasGroup));
@@ -735,6 +770,7 @@ public static class SkillCgArbiterRuntime
             overlayImage.color = Color.white;
             overlayImage.preserveAspect = true;
             overlayImage.raycastTarget = false;
+            overlayImage.enabled = false;
             overlayRoot.SetActive(false);
             SkillCgExpLog.InfoOnce("overlay-created", "CG overlay created under " + parent.name + ".");
             return true;

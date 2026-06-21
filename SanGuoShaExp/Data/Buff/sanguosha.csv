@@ -5,5 +5,5 @@
 "supply_shortage","","","","1","0","0","1","Icon/Buff/无力","负面","2","","","","TRUE"
 "vine_armor","","","","1","0","0","2","Icon/Buff/坚毅","正面","2","","","","TRUE"
 "kill_intent","","CS.SanGuoShaExp.Dll.Scripting.SanGuoShaBuffScripts.Apply(self, ""kill_intent"");","","99","0","0","99","Icon/Buff/剑意","正面","2","","","","TRUE"
-"dodge","","CS.SanGuoShaExp.Dll.Scripting.SanGuoShaBuffScripts.Apply(self, ""dodge"");","CS.SanGuoShaExp.Dll.Scripting.SanGuoShaBuffScripts.Clear(self, ""dodge"");","0","1","0","9","Icon/Buff/敏锐","正面","2","","","","TRUE"
+"dodge","","CS.SanGuoShaExp.Dll.Scripting.SanGuoShaBuffScripts.Apply(self, ""dodge"");","","0","0","0","9","Icon/Buff/敏锐","正面","2","","","","FALSE"
 "lightning","","CS.SanGuoShaExp.Dll.Scripting.SanGuoShaBuffScripts.Apply(self, ""lightning"");","","0","0","0","1","Icon/Buff/天罚","负面","3","","","","TRUE"

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
+using UiRaycastSafetyShared;
 using Witch.Core;
 using Object = UnityEngine.Object;
 
@@ -354,6 +355,7 @@ internal static class AuraToolsUi
         {
             CloseSelectPopup();
             onClose?.Invoke();
+            UiRaycastSafeDestroyRuntime.DisableAndHide(overlay, "AuraTools overlay close");
             Object.Destroy(overlay);
         }, ButtonMinWidth, ButtonHeight);
 
@@ -364,6 +366,7 @@ internal static class AuraToolsUi
     {
         if (activeSelectPopup != null)
         {
+            UiRaycastSafeDestroyRuntime.DisableAndHide(activeSelectPopup, "AuraTools select popup close");
             Object.Destroy(activeSelectPopup);
             activeSelectPopup = null;
         }

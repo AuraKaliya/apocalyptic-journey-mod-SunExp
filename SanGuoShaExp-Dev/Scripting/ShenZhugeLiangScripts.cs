@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using SanGuoShaExp.Dll.GameApi;
+using SanGuoShaExp.Dll.Hooks;
 using SanGuoShaExp.Dll.Infrastructure;
 
 namespace SanGuoShaExp.Dll.Scripting;
@@ -22,6 +23,12 @@ public static class ShenZhugeLiangScripts
 
     private static readonly Dictionary<string, List<DataConfig>> QixingPiles = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, int> QixingInitialCounts = new(StringComparer.Ordinal);
+
+    public static void ClearAllRuntimeState()
+    {
+        QixingPiles.Clear();
+        QixingInitialCounts.Clear();
+    }
 
     public static void InitCareer(ScriptExecutor self)
     {
@@ -106,6 +113,11 @@ public static class ShenZhugeLiangScripts
 
     private static void BuildQixingPile(ScriptExecutor self)
     {
+        if (!SanGuoShaCombatRuntime.IsCombatActive)
+        {
+            return;
+        }
+
         var key = CombatKey(self);
         var pile = QixingPiles[key] = new List<DataConfig>();
         QixingInitialCounts[key] = 0;
@@ -139,6 +151,11 @@ public static class ShenZhugeLiangScripts
 
     private static void UseQixing(ScriptExecutor self)
     {
+        if (!SanGuoShaCombatRuntime.IsCombatActive)
+        {
+            return;
+        }
+
         var pile = CurrentPile(self);
         if (pile.Count == 0)
         {
@@ -152,8 +169,14 @@ public static class ShenZhugeLiangScripts
             return;
         }
 
+        var generation = SanGuoShaCombatRuntime.Generation;
         self.ChooseCardToAction("1", selectedHands =>
         {
+            if (!SanGuoShaCombatRuntime.IsCurrentGeneration(generation))
+            {
+                return;
+            }
+
             var hand = selectedHands?.FirstOrDefault();
             if (hand == null)
             {
@@ -162,6 +185,11 @@ public static class ShenZhugeLiangScripts
 
             self.PackToDeckAction("1", pile.Cast<IDataConfig>().ToList(), selectedQixing =>
             {
+                if (!SanGuoShaCombatRuntime.IsCurrentGeneration(generation))
+                {
+                    return;
+                }
+
                 var selected = selectedQixing?.FirstOrDefault() as DataConfig;
                 if (selected == null)
                 {
@@ -180,6 +208,11 @@ public static class ShenZhugeLiangScripts
 
     private static void ResolveEndRoundPassives(ScriptExecutor self)
     {
+        if (!SanGuoShaCombatRuntime.IsCombatActive)
+        {
+            return;
+        }
+
         AudioApi.PlayRandomWindMist();
         BurnRandomQixingCard(self);
 
@@ -201,6 +234,11 @@ public static class ShenZhugeLiangScripts
 
     private static void BurnRandomQixingCard(ScriptExecutor self)
     {
+        if (!SanGuoShaCombatRuntime.IsCombatActive)
+        {
+            return;
+        }
+
         var pile = CurrentPile(self);
         if (pile.Count == 0)
         {
@@ -261,9 +299,49 @@ public static class ShenZhugeLiangScripts
         var key = CombatKey(self);
         QixingPiles.Remove(key);
         QixingInitialCounts.Remove(key);
-        self.SetStatus("Self");
-        self.RemoveBuff(SanGuoShaExpIds.QixingStars);
+        IStatusManager? status = null;
+        try
+        {
+            self.SetStatus("Self");
+            status = self.Self;
+        }
+        catch (Exception ex)
+        {
+            SanGuoShaExpLog.Debug("Qixing cleanup status capture skipped: " + ex.Message);
+        }
+
+        if (SanGuoShaUiRaycastGuardRuntime.IsTransitionGuardActive && status != null)
+        {
+            SanGuoShaExpLog.Debug("Qixing visual buff removal deferred until UI transition guard settles.");
+            SanGuoShaUiRaycastGuardRuntime.RunAfterGuard(
+                "ShenZhugeLiang.ClearCareerState.RemoveQixingBuff",
+                () => RemoveQixingBuff(status),
+                extraFrames: 6);
+        }
+        else
+        {
+            RemoveQixingBuff(status, self);
+        }
+
         ExecutorApi.ClearHook(self, SanGuoShaExpIds.CareerHook, SanGuoShaExpIds.CareerToken);
+    }
+
+    private static void RemoveQixingBuff(IStatusManager? status, ScriptExecutor? fallbackSelf = null)
+    {
+        try
+        {
+            if (status != null)
+            {
+                status.RemoveBuff(SanGuoShaExpIds.QixingStars);
+                return;
+            }
+
+            fallbackSelf?.RemoveBuff(SanGuoShaExpIds.QixingStars);
+        }
+        catch (Exception ex)
+        {
+            SanGuoShaExpLog.Debug("Qixing visual buff removal skipped: " + ex.Message);
+        }
     }
 
     private static void SetQixingSkillReady(ScriptExecutor self)
@@ -275,6 +353,16 @@ public static class ShenZhugeLiangScripts
 
         try
         {
+            if (!SanGuoShaCombatRuntime.IsCombatActive || SanGuoShaUiRaycastGuardRuntime.IsTransitionGuardActive)
+            {
+                SanGuoShaExpLog.Debug(
+                    "Qixing skill time UI refresh skipped during inactive/transition state. combatActive="
+                    + SanGuoShaCombatRuntime.IsCombatActive
+                    + ", transitionGuard="
+                    + SanGuoShaUiRaycastGuardRuntime.IsTransitionGuardActive);
+                return;
+            }
+
             self.UpdateSkillTime();
         }
         catch (Exception ex)

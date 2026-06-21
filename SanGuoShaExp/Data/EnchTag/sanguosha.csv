@@ -1,4 +1,4 @@
 "Id","Tag","LoadScript","DrawScript","DropScript","PreUseScript","UseScript","UnloadScript","Rarity","Icon","PackBelong"
 "唯一标识","添加的标签","初始效果","抽到时的效果","进入弃牌堆的效果","","使用时的效果","卸下效果","稀有度","图标","所属卡包"
-"linkage","连携","","","","","CS.SanGuoShaExp.Dll.Scripting.SanGuoShaEnchTagScripts.Use(self, ""linkage"");","","2","","SanGuoShaExp_sanguosha_cardpack_basic"
-"snatch","顺手","","","","","CS.SanGuoShaExp.Dll.Scripting.SanGuoShaEnchTagScripts.Use(self, ""snatch"");","","2","","SanGuoShaExp_sanguosha_cardpack_basic"
+"linkage","连携","","","","","CS.SanGuoShaExp.Dll.Scripting.SanGuoShaEnchTagScripts.Use(self, ""linkage"");","","2","Icon/EnchIcon/末日","SanGuoShaExp_sanguosha_cardpack_basic"
+"snatch","顺手","","","","","CS.SanGuoShaExp.Dll.Scripting.SanGuoShaEnchTagScripts.Use(self, ""snatch"");","","2","Icon/EnchIcon/末日","SanGuoShaExp_sanguosha_cardpack_basic"

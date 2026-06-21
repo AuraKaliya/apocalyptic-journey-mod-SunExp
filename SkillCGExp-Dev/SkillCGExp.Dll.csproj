@@ -24,6 +24,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\UiRaycastSafetyShared\UiRaycastSafeDestroyRuntime.cs" Link="Shared\UiRaycastSafeDestroyRuntime.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="netstandard">
       <HintPath>$(DllPath)\netstandard.dll</HintPath>
       <Private>false</Private>

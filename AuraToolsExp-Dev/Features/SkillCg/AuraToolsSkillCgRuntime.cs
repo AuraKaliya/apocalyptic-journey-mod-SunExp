@@ -32,6 +32,9 @@ public static class AuraToolsSkillCgRuntime
         RegisterBefore(modConfig, "FightUI.CallActionAnimation", BeforeCallActionAnimation);
         RegisterAfter(modConfig, "Fight_Start.Init", OnFightStart);
         RegisterAfter(modConfig, "FightInit.Init", OnFightStart);
+        RegisterBefore(modConfig, "Fight_Win.ResetStates", OnFightEnding);
+        RegisterBefore(modConfig, "Fight_Escape.ResetStates", OnFightEnding);
+        RegisterBefore(modConfig, "Fight_Loss.Init", OnFightEnding);
         RegisterAfter(modConfig, "Fight_Win.ResetStates", OnFightEnded);
         RegisterAfter(modConfig, "Fight_Escape.ResetStates", OnFightEnded);
         RegisterAfter(modConfig, "Fight_Loss.Init", OnFightEnded);
@@ -169,6 +172,12 @@ public static class AuraToolsSkillCgRuntime
     private static void OnFightEnded(ModHookContext context)
     {
         SkillCgArbiterRuntime.Clear(AuraToolsIds.ModId, "fight ended");
+        AuraToolsSkillCgProvider.ClearOwnerRoles();
+    }
+
+    private static void OnFightEnding(ModHookContext context)
+    {
+        SkillCgArbiterRuntime.Clear(AuraToolsIds.ModId, "fight ending");
         AuraToolsSkillCgProvider.ClearOwnerRoles();
     }
 

@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Reflection;
 using SanGuoShaExp.Dll.GameApi;
+using SanGuoShaExp.Dll.Hooks;
 using SanGuoShaExp.Dll.Infrastructure;
 using Witch.Mod;
 
@@ -13,6 +14,9 @@ public static class Entry
     public static void Initialize(ModConfig modConfig)
     {
         RegisterLuaVisibleAssembly();
+        SanGuoShaUiRaycastGuardRuntime.Initialize(modConfig);
+        SanGuoShaCombatRuntime.Initialize(modConfig);
+        SanGuoShaDodgeRuntime.Initialize(modConfig);
         AudioApi.Initialize(modConfig);
         BattleBgmProviderRuntime.Initialize(modConfig);
         SanGuoShaExpLog.Info("SanGuoShaExp C# entry loaded");
@@ -62,6 +66,7 @@ public static class Entry
             luaEnv.DoString(
                 "assert(xlua.import_type('SanGuoShaExp.Dll.Scripting.ShenZhugeLiangScripts'), 'SanGuoShaExp ShenZhugeLiangScripts unavailable');"
                 + "assert(xlua.import_type('SanGuoShaExp.Dll.Scripting.SanGuoShaCardScripts'), 'SanGuoShaExp SanGuoShaCardScripts unavailable');"
+                + "assert(xlua.import_type('SanGuoShaExp.Dll.Scripting.SanGuoShaBuffScripts'), 'SanGuoShaExp SanGuoShaBuffScripts unavailable');"
                 + "assert(xlua.import_type('SanGuoShaExp.Dll.Scripting.SanGuoShaRelicScripts'), 'SanGuoShaExp SanGuoShaRelicScripts unavailable');",
                 "SanGuoShaExp.RegisterLuaVisibleAssembly");
             SanGuoShaExpLog.Info("Registered C# script assembly for XLua: " + assemblyName);

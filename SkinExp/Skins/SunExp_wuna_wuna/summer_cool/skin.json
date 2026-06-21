@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 2,
+  "enabled": true,
+  "skinId": "SkinExp.SunExp_wuna_wuna.summer_cool",
+  "name": "夏日清凉",
+  "author": "Aura",
+  "preview": "Character.png",
+  "assets": {
+    "CareerImage": "Character.png",
+    "Character": "Character.png",
+    "Animation": "."
+  }
+}

@@ -1,5 +1,6 @@
 using System;
 using SanGuoShaExp.Dll.GameApi;
+using SanGuoShaExp.Dll.Hooks;
 using SanGuoShaExp.Dll.Infrastructure;
 
 namespace SanGuoShaExp.Dll.Scripting;
@@ -24,6 +25,11 @@ public static class SanGuoShaRelicScripts
                 case "baiyin_shizi":
                     RegisterSilverLion(self);
                     break;
+                case "qinglong_yanyue_dao":
+                case "fangtian_huaji":
+                case "zhuque_yushan":
+                    // These modify Sha-family cards directly in SanGuoShaCardScripts.
+                    break;
             }
         }
         catch (Exception ex)
@@ -34,9 +40,20 @@ public static class SanGuoShaRelicScripts
 
     private static void RegisterBaguaArray(ScriptExecutor self)
     {
-        self.AddEvent("StartRound", new Action(() => ExecutorApi.SetVar(self, "SanGuoShaBaguaUsed", "0")));
+        self.AddEvent("StartRound", new Action(() =>
+        {
+            if (SanGuoShaCombatRuntime.IsCombatActive)
+            {
+                ExecutorApi.SetVar(self, "SanGuoShaBaguaUsed", "0");
+            }
+        }));
         self.AddEvent<HurtData>("Hurt", new Action<HurtData>(_ =>
         {
+            if (!SanGuoShaCombatRuntime.IsCombatActive)
+            {
+                return;
+            }
+
             if (ExecutorApi.GetVar(self, "SanGuoShaBaguaUsed", "0") == "1" || !Check(self, 50))
             {
                 return;
@@ -51,9 +68,20 @@ public static class SanGuoShaRelicScripts
 
     private static void RegisterZhugeCrossbow(ScriptExecutor self)
     {
-        self.AddEvent("StartRound", new Action(() => ExecutorApi.SetVar(self, "SanGuoShaCrossbowUsed", "0")));
+        self.AddEvent("StartRound", new Action(() =>
+        {
+            if (SanGuoShaCombatRuntime.IsCombatActive)
+            {
+                ExecutorApi.SetVar(self, "SanGuoShaCrossbowUsed", "0");
+            }
+        }));
         self.AddEvent<ActionData>("ActionAfter", new Action<ActionData>(data =>
         {
+            if (!SanGuoShaCombatRuntime.IsCombatActive)
+            {
+                return;
+            }
+
             if (!IsShaData(data) || ExecutorApi.GetVar(self, "SanGuoShaCrossbowUsed", "0") == "1")
             {
                 return;
@@ -73,11 +101,21 @@ public static class SanGuoShaRelicScripts
     {
         self.AddEvent("StartRound", new Action(() =>
         {
+            if (!SanGuoShaCombatRuntime.IsCombatActive)
+            {
+                return;
+            }
+
             self.SetStatus("Self");
             self.ChangeDefence("12");
         }));
         self.AddEvent<HurtData>("Hurt", new Action<HurtData>(data =>
         {
+            if (!SanGuoShaCombatRuntime.IsCombatActive)
+            {
+                return;
+            }
+
             if (!IsShaId(data.fromDataId))
             {
                 return;
@@ -90,9 +128,20 @@ public static class SanGuoShaRelicScripts
 
     private static void RegisterSilverLion(ScriptExecutor self)
     {
-        self.AddEvent("StartRound", new Action(() => ExecutorApi.SetVar(self, "SanGuoShaSilverLionUsed", "0")));
+        self.AddEvent("StartRound", new Action(() =>
+        {
+            if (SanGuoShaCombatRuntime.IsCombatActive)
+            {
+                ExecutorApi.SetVar(self, "SanGuoShaSilverLionUsed", "0");
+            }
+        }));
         self.AddEvent<HurtData>("Hurt", new Action<HurtData>(data =>
         {
+            if (!SanGuoShaCombatRuntime.IsCombatActive)
+            {
+                return;
+            }
+
             if (ExecutorApi.GetVar(self, "SanGuoShaSilverLionUsed", "0") == "1"
                 || DictionaryUtil.ParseInt(data.val) <= 20)
             {

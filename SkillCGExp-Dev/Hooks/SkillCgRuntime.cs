@@ -39,6 +39,9 @@ public static class SkillCgRuntime
         RegisterBefore(modConfig, "FightUI.CallActionAnimation", BeforeCallActionAnimation);
         RegisterAfter(modConfig, "Fight_Start.Init", OnFightStart);
         RegisterAfter(modConfig, "FightInit.Init", OnFightStart);
+        RegisterBefore(modConfig, "Fight_Win.ResetStates", OnFightEnding);
+        RegisterBefore(modConfig, "Fight_Escape.ResetStates", OnFightEnding);
+        RegisterBefore(modConfig, "Fight_Loss.Init", OnFightEnding);
         RegisterAfter(modConfig, "Fight_Win.ResetStates", OnFightEnded);
         RegisterAfter(modConfig, "Fight_Escape.ResetStates", OnFightEnded);
         RegisterAfter(modConfig, "Fight_Loss.Init", OnFightEnded);
@@ -133,6 +136,11 @@ public static class SkillCgRuntime
     private static void OnFightEnded(ModHookContext context)
     {
         SkillCgArbiterRuntime.Clear(ModId, "fight ended");
+    }
+
+    private static void OnFightEnding(ModHookContext context)
+    {
+        SkillCgArbiterRuntime.Clear(ModId, "fight ending");
     }
 
     private static void RegisterBefore(ModConfig modConfig, string target, Action<ModHookContext> action)

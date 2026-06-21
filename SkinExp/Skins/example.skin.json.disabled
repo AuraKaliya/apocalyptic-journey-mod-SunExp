@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "enabled": true,
+  "skinId": "Author.Pack.UniqueSkinId",
+  "targetCareerId": "TargetMod.FullCareerId",
+  "name": "示例皮肤",
+  "author": "作者名",
+  "preview": "Images/CareerImage.png",
+  "assets": {
+    "CareerImage": "Images/CareerImage.png",
+    "Avatar": "Images/Avatar.png",
+    "Character": "Images/Character.png",
+    "DollIcon": "Images/DollIcon.png",
+    "ChoiceIcon": "Images/ChoiceIcon.png",
+    "Animation": "Animation"
+  }
+}

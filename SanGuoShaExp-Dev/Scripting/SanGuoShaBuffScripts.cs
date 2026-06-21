@@ -1,13 +1,16 @@
 using System;
 using System.Linq;
 using SanGuoShaExp.Dll.GameApi;
+using SanGuoShaExp.Dll.Hooks;
 using SanGuoShaExp.Dll.Infrastructure;
 
 namespace SanGuoShaExp.Dll.Scripting;
 
 public static class SanGuoShaBuffScripts
 {
-    private const int DodgeFilter = 100;
+    private const string DodgeCleanupHook = "SanGuoShaExpDodgeCleanupHook";
+    private const string KillIntentCleanupHook = "SanGuoShaExpKillIntentCleanupHook";
+    private const string KillIntentCleanupToken = "SanGuoShaExpKillIntentCleanupToken";
     private const string LightningHook = "SanGuoShaExpLightningHook";
 
     public static void Apply(ScriptExecutor self, string id)
@@ -20,7 +23,7 @@ public static class SanGuoShaBuffScripts
                     RegisterKillIntentCleanup(self);
                     break;
                 case "dodge":
-                    AddDamageFilter(self, DodgeFilter);
+                    RegisterDodgeCleanup(self);
                     break;
                 case "lightning":
                     RegisterLightning(self);
@@ -35,31 +38,66 @@ public static class SanGuoShaBuffScripts
 
     public static void Clear(ScriptExecutor self, string id)
     {
-        try
-        {
-            if (id == "dodge")
-            {
-                AddDamageFilter(self, -DodgeFilter);
-            }
-        }
-        catch (Exception ex)
-        {
-            SanGuoShaExpLog.Error("SanGuoSha buff clear failed: " + id, ex);
-        }
+        // Retained as a stable CSV-callable entry point for older cached data.
     }
 
-    private static void RegisterKillIntentCleanup(ScriptExecutor self)
+    private static void RegisterDodgeCleanup(ScriptExecutor self)
     {
-        ExecutorApi.TryAddEvent(self, "EndRound", new Action(() =>
+        if (ExecutorApi.GetVar(self, DodgeCleanupHook, "0") == "1")
         {
-            if (BuffLevel(self.Self, SanGuoShaExpIds.KillIntent) <= 0)
+            return;
+        }
+
+        if (ExecutorApi.TryAddEvent(self, "StartRound", new Action(() =>
+        {
+            if (!SanGuoShaCombatRuntime.IsCombatActive)
+            {
+                return;
+            }
+
+            if (BuffLevel(self.Self, SanGuoShaExpIds.Dodge) <= 0)
             {
                 return;
             }
 
             self.SetStatus("Self");
+            self.RemoveBuff(SanGuoShaExpIds.Dodge);
+        }), "sanguosha_dodge_cleanup"))
+        {
+            ExecutorApi.SetVar(self, DodgeCleanupHook, "1");
+        }
+    }
+
+    private static void RegisterKillIntentCleanup(ScriptExecutor self)
+    {
+        if (ExecutorApi.GetVar(self, KillIntentCleanupHook, "0") == "1")
+        {
+            return;
+        }
+
+        var token = (DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, KillIntentCleanupToken, "0")) + 1).ToString();
+        if (ExecutorApi.TryAddEvent(self, "EndRound", new Action(() =>
+        {
+            if (!SanGuoShaCombatRuntime.IsCombatActive ||
+                !ExecutorApi.IsHookTokenActive(self, KillIntentCleanupToken, token))
+            {
+                return;
+            }
+
+            if (BuffLevel(self.Self, SanGuoShaExpIds.KillIntent) <= 0)
+            {
+                ExecutorApi.ClearHook(self, KillIntentCleanupHook, KillIntentCleanupToken);
+                return;
+            }
+
+            self.SetStatus("Self");
             self.RemoveBuff(SanGuoShaExpIds.KillIntent);
-        }), "sanguosha_kill_intent");
+            ExecutorApi.ClearHook(self, KillIntentCleanupHook, KillIntentCleanupToken);
+        }), "sanguosha_kill_intent"))
+        {
+            ExecutorApi.SetVar(self, KillIntentCleanupHook, "1");
+            ExecutorApi.SetVar(self, KillIntentCleanupToken, token);
+        }
     }
 
     private static void RegisterLightning(ScriptExecutor self)
@@ -77,6 +115,11 @@ public static class SanGuoShaBuffScripts
 
     private static void ResolveLightning(ScriptExecutor self)
     {
+        if (!SanGuoShaCombatRuntime.IsCombatActive)
+        {
+            return;
+        }
+
         if (BuffLevel(self.Self, SanGuoShaExpIds.Lightning) <= 0)
         {
             return;
@@ -114,32 +157,6 @@ public static class SanGuoShaBuffScripts
         var friend = friends[UnityEngine.Random.Range(0, friends.Count)];
         self.SetStatusById(friend.InstanceId);
         self.AddBuff(SanGuoShaExpIds.Lightning, "1");
-    }
-
-    private static void AddDamageFilter(ScriptExecutor self, int delta)
-    {
-        if (self.Self?.DamageFilter == null)
-        {
-            return;
-        }
-
-        AddDamageFilter(self.Self, "Normal", delta);
-        AddDamageFilter(self.Self, "True", delta);
-        AddDamageFilter(self.Self, "Dot", delta);
-    }
-
-    private static void AddDamageFilter(IStatusManager target, string key, int delta)
-    {
-        var current = target.DamageFilter.TryGetValue(key, out var value) ? value : 0f;
-        var next = current + delta;
-        if (next <= 0.001f)
-        {
-            target.DamageFilter.Remove(key);
-        }
-        else
-        {
-            target.DamageFilter[key] = next;
-        }
     }
 
     private static bool Check(ScriptExecutor self, int threshold)
