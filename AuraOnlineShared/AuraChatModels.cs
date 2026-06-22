@@ -12,6 +12,8 @@ public static class AuraChatAreas
 public static class AuraChatKinds
 {
     public const string PlayerText = "PlayerText";
+    public const string PresetMessage = "PresetMessage";
+    public const string Sticker = "Sticker";
     public const string SystemStatus = "SystemStatus";
 }
 
@@ -33,6 +35,12 @@ public sealed class AuraChatMessage
     public string OwnerModId { get; set; } = "";
 
     public string RawText { get; set; } = "";
+
+    public string ContentKind { get; set; } = "";
+
+    public string ContentId { get; set; } = "";
+
+    public string CatalogHash { get; set; } = "";
 
     public long ServerTimeMs { get; set; }
 }

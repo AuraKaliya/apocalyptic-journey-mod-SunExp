@@ -4,8 +4,10 @@ using AuraOnline.Shared;
 using ChatExp.Dll.GameApi;
 using ChatExp.Dll.Infrastructure;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using Witch.Core;
+using Witch.UI;
 using Object = UnityEngine.Object;
 
 namespace ChatExp.Dll.UI;
@@ -13,59 +15,122 @@ namespace ChatExp.Dll.UI;
 public static class AuraChatUi
 {
     private const string RootName = "ChatExpAuraChatUI";
+    private const string ToggleName = "ChatExpAuraChatToggle";
+    private const float PanelWidth = 420f;
+    private const float PanelHeight = 330f;
+    private const float ToggleSize = 56f;
+    private const float EdgeMargin = 8f;
     private static readonly Color PanelColor = new Color(0.05f, 0.06f, 0.07f, 0.88f);
     private static readonly Color ButtonColor = new Color(0.16f, 0.20f, 0.23f, 0.96f);
     private static readonly Color ActiveButtonColor = new Color(0.25f, 0.39f, 0.45f, 0.96f);
     private static readonly Color TextColor = new Color(0.92f, 0.92f, 0.90f, 1f);
     private static readonly Color MutedTextColor = new Color(0.68f, 0.72f, 0.72f, 1f);
 
+    private static GameObject? toggleButton;
+    private static RectTransform? toggleRect;
     private static GameObject? root;
     private static RectTransform? chatContent;
     private static RectTransform? statusContent;
+    private static RectTransform? choiceContent;
     private static GameObject? chatPage;
     private static GameObject? statusPage;
-    private static InputField? input;
-    private static Text? counter;
     private static Button? chatTab;
     private static Button? statusTab;
     private static Font? font;
     private static bool subscribed;
+    private static bool expanded;
     private static string activeArea = AuraChatAreas.Chat;
+    private static Vector2 savedButtonPosition = new(-24f, 88f);
 
     public static void Ensure()
     {
-        if (root != null)
+        if (toggleButton != null && root != null)
         {
-            root.SetActive(true);
+            ApplyExpandedState();
             RefreshAll();
             return;
         }
 
-        var canvas = FindCanvas();
-        if (canvas == null)
+        DestroyPartialUi();
+        var parent = FindUiParent();
+        if (parent == null)
         {
-            ChatExpLog.Warn("Canvas not found; AuraChatUI creation skipped.");
+            ChatExpLog.Warn("UI parent not found; AuraChatUI creation skipped.");
             return;
         }
 
         font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        BuildToggle(parent);
+        BuildPanel(parent);
+        Subscribe();
+        ShowArea(AuraChatAreas.Chat);
+        RefreshAll();
+        ApplyExpandedState();
+    }
+
+    private static void DestroyPartialUi()
+    {
+        if (toggleButton != null)
+        {
+            Object.Destroy(toggleButton);
+        }
+
+        if (root != null)
+        {
+            Object.Destroy(root);
+        }
+
+        toggleButton = null;
+        toggleRect = null;
+        root = null;
+        chatContent = null;
+        statusContent = null;
+        choiceContent = null;
+        chatPage = null;
+        statusPage = null;
+        chatTab = null;
+        statusTab = null;
+    }
+
+    private static void BuildToggle(Transform parent)
+    {
+        toggleButton = new GameObject(ToggleName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+        toggleButton.transform.SetParent(parent, false);
+        toggleRect = (RectTransform)toggleButton.transform;
+        toggleRect.anchorMin = new Vector2(1f, 0f);
+        toggleRect.anchorMax = new Vector2(1f, 0f);
+        toggleRect.pivot = new Vector2(1f, 0f);
+        toggleRect.sizeDelta = new Vector2(ToggleSize, ToggleSize);
+        toggleRect.anchoredPosition = ClampToParent(savedButtonPosition, toggleRect, new Vector2(ToggleSize, ToggleSize));
+
+        toggleButton.GetComponent<Image>().color = ActiveButtonColor;
+
+        var label = CreateText("Label", toggleButton.transform, "Chat", 15, TextColor, TextAnchor.MiddleCenter);
+        var labelRect = (RectTransform)label.transform;
+        labelRect.anchorMin = Vector2.zero;
+        labelRect.anchorMax = Vector2.one;
+        labelRect.offsetMin = Vector2.zero;
+        labelRect.offsetMax = Vector2.zero;
+
+        var dragHandle = toggleButton.AddComponent<AuraChatDragHandle>();
+        dragHandle.Initialize(toggleRect, OnToggleDragged, ToggleExpanded);
+    }
+
+    private static void BuildPanel(Transform parent)
+    {
         root = new GameObject(RootName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetParent(parent, false);
 
         var rect = (RectTransform)root.transform;
         rect.anchorMin = new Vector2(1f, 0f);
         rect.anchorMax = new Vector2(1f, 0f);
         rect.pivot = new Vector2(1f, 0f);
-        rect.anchoredPosition = new Vector2(-24f, 88f);
-        rect.sizeDelta = new Vector2(420f, 330f);
+        rect.sizeDelta = new Vector2(PanelWidth, PanelHeight);
         root.GetComponent<Image>().color = PanelColor;
 
         BuildHeader(rect);
         BuildPages(rect);
-        BuildInputBar(rect);
-        Subscribe();
-        ShowArea(AuraChatAreas.Chat);
-        RefreshAll();
+        BuildChoiceBar(rect);
     }
 
     private static void BuildHeader(RectTransform parent)
@@ -85,11 +150,12 @@ public static class AuraChatUi
         spacer.GetComponent<LayoutElement>().flexibleWidth = 1f;
 
         CreateButton(header, "清空", 72f, AuraChatRuntime.ClearMessages);
+        CreateButton(header, "收起", 72f, Collapse);
     }
 
     private static void BuildPages(RectTransform parent)
     {
-        chatPage = CreatePage(parent, "ChatPage", 42f, 54f, out chatContent);
+        chatPage = CreatePage(parent, "ChatPage", 42f, 84f, out chatContent);
         statusPage = CreatePage(parent, "StatusPage", 42f, 12f, out statusContent);
     }
 
@@ -123,52 +189,15 @@ public static class AuraChatUi
         return page;
     }
 
-    private static void BuildInputBar(RectTransform parent)
+    private static void BuildChoiceBar(RectTransform parent)
     {
-        var bar = CreateRect("InputBar", parent, new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 8f), new Vector2(-16f, 38f));
+        choiceContent = CreateRect("ChoiceBar", parent, new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 8f), new Vector2(-16f, 68f));
+        var bar = choiceContent;
         var layout = bar.gameObject.AddComponent<HorizontalLayoutGroup>();
-        layout.padding = new RectOffset(0, 0, 0, 0);
+        layout.padding = new RectOffset(0, 0, 4, 4);
         layout.spacing = 6f;
         layout.childControlHeight = true;
         layout.childControlWidth = false;
-
-        input = CreateInput(bar);
-        input.onValueChanged.AddListener(OnInputChanged);
-
-        counter = CreateText("Counter", bar, "0/20", 14, MutedTextColor, TextAnchor.MiddleCenter);
-        counter.gameObject.AddComponent<LayoutElement>().preferredWidth = 46f;
-
-        CreateButton(bar, "发送", 70f, SendCurrentInput);
-    }
-
-    private static InputField CreateInput(Transform parent)
-    {
-        var rootObject = new GameObject("Input", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(InputField), typeof(LayoutElement));
-        rootObject.transform.SetParent(parent, false);
-        rootObject.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.11f);
-        rootObject.GetComponent<LayoutElement>().flexibleWidth = 1f;
-
-        var text = CreateText("Text", rootObject.transform, string.Empty, 15, TextColor, TextAnchor.MiddleLeft);
-        var textRect = (RectTransform)text.transform;
-        textRect.anchorMin = Vector2.zero;
-        textRect.anchorMax = Vector2.one;
-        textRect.offsetMin = new Vector2(8f, 2f);
-        textRect.offsetMax = new Vector2(-8f, -2f);
-        text.supportRichText = false;
-
-        var placeholder = CreateText("Placeholder", rootObject.transform, "输入聊天...", 15, MutedTextColor, TextAnchor.MiddleLeft);
-        var placeholderRect = (RectTransform)placeholder.transform;
-        placeholderRect.anchorMin = Vector2.zero;
-        placeholderRect.anchorMax = Vector2.one;
-        placeholderRect.offsetMin = new Vector2(8f, 2f);
-        placeholderRect.offsetMax = new Vector2(-8f, -2f);
-
-        var field = rootObject.GetComponent<InputField>();
-        field.textComponent = text;
-        field.placeholder = placeholder;
-        field.lineType = InputField.LineType.SingleLine;
-        field.characterLimit = 256;
-        return field;
     }
 
     private static Button CreateButton(Transform parent, string label, float width, UnityEngine.Events.UnityAction action)
@@ -241,10 +270,38 @@ public static class AuraChatUi
 
     private static void RefreshAll()
     {
+        UpdatePanelPosition();
         RefreshMessages();
         RefreshStatus();
-        UpdateCounter();
+        RefreshChoices();
         ShowArea(activeArea);
+    }
+
+    private static void RefreshChoices()
+    {
+        if (choiceContent == null)
+        {
+            return;
+        }
+
+        ClearChildren(choiceContent);
+        if (!AuraChatCatalogStore.IsReady)
+        {
+            var disabled = CreateButton(choiceContent, "资源校验失败", 126f, () => { });
+            disabled.interactable = false;
+            return;
+        }
+
+        foreach (var message in AuraChatCatalogStore.Messages)
+        {
+            var label = string.IsNullOrWhiteSpace(message.Text) ? message.Id : message.Text;
+            CreateButton(choiceContent, label, Mathf.Max(72f, Mathf.Min(118f, label.Length * 18f)), () => ChatExpNetworkApi.SendPresetMessage(message.Id));
+        }
+
+        foreach (var sticker in AuraChatCatalogStore.Stickers)
+        {
+            CreateButton(choiceContent, "[" + sticker.Id + "]", 86f, () => ChatExpNetworkApi.SendSticker(sticker.Id));
+        }
     }
 
     private static void RefreshMessages()
@@ -343,6 +400,12 @@ public static class AuraChatUi
         }
 
         ClearChildren(statusContent);
+        foreach (var line in AuraChatTextLimiter.WrapPlainText(AuraChatCatalogStore.Status).Split('\n'))
+        {
+            var catalogText = CreateText("CatalogStatusLine", statusContent, line, 14, AuraChatCatalogStore.IsReady ? TextColor : new Color(1f, 0.62f, 0.52f, 1f), TextAnchor.UpperLeft);
+            catalogText.gameObject.AddComponent<LayoutElement>().minHeight = 22f;
+        }
+
         var status = AuraChatRuntime.ModSyncStatus;
         if (string.IsNullOrWhiteSpace(status))
         {
@@ -356,49 +419,6 @@ public static class AuraChatUi
         }
     }
 
-    private static void SendCurrentInput()
-    {
-        if (input == null)
-        {
-            return;
-        }
-
-        var text = AuraChatTextLimiter.LimitPlayerText(input.text);
-        if (ChatExpNetworkApi.SendPlayerText(text))
-        {
-            input.text = string.Empty;
-            UpdateCounter();
-        }
-    }
-
-    private static void OnInputChanged(string value)
-    {
-        if (input == null)
-        {
-            return;
-        }
-
-        var limited = AuraChatTextLimiter.LimitPlayerText(value);
-        if (!string.Equals(value, limited, StringComparison.Ordinal))
-        {
-            input.text = limited;
-            input.MoveTextEnd(false);
-            return;
-        }
-
-        UpdateCounter();
-    }
-
-    private static void UpdateCounter()
-    {
-        if (counter == null)
-        {
-            return;
-        }
-
-        counter.text = AuraChatEmojiParser.DisplayLength(input?.text ?? string.Empty).ToString() + "/20";
-    }
-
     private static void Subscribe()
     {
         if (subscribed)
@@ -409,6 +429,57 @@ public static class AuraChatUi
         subscribed = true;
         AuraChatRuntime.Changed += RefreshMessages;
         AuraChatRuntime.StatusChanged += RefreshStatus;
+    }
+
+    private static void ToggleExpanded()
+    {
+        expanded = !expanded;
+        ApplyExpandedState();
+    }
+
+    private static void Collapse()
+    {
+        expanded = false;
+        ApplyExpandedState();
+    }
+
+    private static void ApplyExpandedState()
+    {
+        if (root != null)
+        {
+            root.SetActive(expanded);
+        }
+
+        if (toggleButton != null)
+        {
+            toggleButton.SetActive(true);
+        }
+
+        UpdatePanelPosition();
+    }
+
+    private static void OnToggleDragged(Vector2 anchoredPosition)
+    {
+        if (toggleRect == null)
+        {
+            return;
+        }
+
+        savedButtonPosition = ClampToParent(anchoredPosition, toggleRect, new Vector2(ToggleSize, ToggleSize));
+        toggleRect.anchoredPosition = savedButtonPosition;
+        UpdatePanelPosition();
+    }
+
+    private static void UpdatePanelPosition()
+    {
+        if (root == null || toggleRect == null)
+        {
+            return;
+        }
+
+        var panelRect = (RectTransform)root.transform;
+        var abovePosition = savedButtonPosition + new Vector2(0f, ToggleSize + 12f);
+        panelRect.anchoredPosition = ClampToParent(abovePosition, panelRect, new Vector2(PanelWidth, PanelHeight));
     }
 
     private static void SetButtonColor(Button? button, bool active)
@@ -425,17 +496,67 @@ public static class AuraChatUi
         }
     }
 
-    private static Canvas? FindCanvas()
+    private static Transform? FindUiParent()
     {
-        var gameObject = GameObject.Find("Canvas");
-        if (gameObject != null)
+        var manager = UIManager.Instance;
+        if (manager?.upperCanvasTf != null)
         {
-            return gameObject.GetComponent<Canvas>();
+            return manager.upperCanvasTf;
+        }
+
+        if (manager?.canvasTf != null)
+        {
+            return manager.canvasTf;
+        }
+
+        var upperCanvas = GameObject.Find("Upper Canvas");
+        if (upperCanvas != null)
+        {
+            return upperCanvas.transform;
+        }
+
+        var canvas = GameObject.Find("Canvas");
+        if (canvas != null)
+        {
+            return canvas.transform;
         }
 
 #pragma warning disable CS0618
-        return Object.FindObjectOfType<Canvas>();
+        return Object.FindObjectOfType<Canvas>()?.transform;
 #pragma warning restore CS0618
+    }
+
+    private static Vector2 ClampToParent(Vector2 position, RectTransform rect, Vector2 size)
+    {
+        var parent = rect.parent as RectTransform;
+        if (parent == null)
+        {
+            return position;
+        }
+
+        var bounds = parent.rect;
+        if (bounds.width <= 0f || bounds.height <= 0f)
+        {
+            return position;
+        }
+
+        var minX = -bounds.width + size.x + EdgeMargin;
+        var maxX = -EdgeMargin;
+        var minY = EdgeMargin;
+        var maxY = bounds.height - size.y - EdgeMargin;
+        if (maxX < minX)
+        {
+            minX = maxX = -EdgeMargin;
+        }
+
+        if (maxY < minY)
+        {
+            minY = maxY = EdgeMargin;
+        }
+
+        return new Vector2(
+            Mathf.Clamp(position.x, minX, maxX),
+            Mathf.Clamp(position.y, minY, maxY));
     }
 
     private static void ClearChildren(Transform parent)
@@ -443,6 +564,74 @@ public static class AuraChatUi
         for (var index = parent.childCount - 1; index >= 0; index--)
         {
             Object.Destroy(parent.GetChild(index).gameObject);
+        }
+    }
+
+    private sealed class AuraChatDragHandle : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler, IPointerClickHandler
+    {
+        private RectTransform? target;
+        private Action<Vector2>? onDragged;
+        private Action? onClicked;
+        private Vector2 dragStartPosition;
+        private Vector2 pointerStartPosition;
+        private bool dragged;
+
+        public void Initialize(RectTransform dragTarget, Action<Vector2> dragCallback, Action clickCallback)
+        {
+            target = dragTarget;
+            onDragged = dragCallback;
+            onClicked = clickCallback;
+        }
+
+        public void OnPointerClick(PointerEventData eventData)
+        {
+            if (!dragged)
+            {
+                onClicked?.Invoke();
+            }
+        }
+
+        public void OnBeginDrag(PointerEventData eventData)
+        {
+            if (target == null)
+            {
+                return;
+            }
+
+            dragged = false;
+            dragStartPosition = target.anchoredPosition;
+            pointerStartPosition = eventData.position;
+        }
+
+        public void OnDrag(PointerEventData eventData)
+        {
+            if (target == null || onDragged == null)
+            {
+                return;
+            }
+
+            var scaleFactor = 1f;
+            var canvas = target.GetComponentInParent<Canvas>();
+            if (canvas != null && canvas.scaleFactor > 0f)
+            {
+                scaleFactor = canvas.scaleFactor;
+            }
+
+            var delta = (eventData.position - pointerStartPosition) / scaleFactor;
+            if (delta.sqrMagnitude > 16f)
+            {
+                dragged = true;
+            }
+
+            onDragged(dragStartPosition + delta);
+        }
+
+        public void OnEndDrag(PointerEventData eventData)
+        {
+            if (dragged)
+            {
+                eventData.Use();
+            }
         }
     }
 }

@@ -28,26 +28,38 @@ public static class AuraChatRuntime
         MaxMessages = maxMessages;
     }
 
-    public static AuraChatMessage ConfirmPlayerMessage(string senderId, string senderName, string rawText)
+    public static AuraChatMessage ConfirmCatalogMessage(string senderId, string senderName, string contentKind, string contentId)
     {
-        var text = AuraChatTextLimiter.LimitPlayerText(rawText);
+        if (!AuraChatCatalogStore.TryResolveContent(contentKind, contentId, AuraChatCatalogStore.CatalogHash, out var rawText, out var reason))
+        {
+            throw new InvalidOperationException("Cannot confirm catalog message: " + reason);
+        }
+
         return new AuraChatMessage
         {
             MessageId = ownerModId + ":" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + ":" + (++sequence),
             Sequence = sequence,
             Area = AuraChatAreas.Chat,
-            Kind = AuraChatKinds.PlayerText,
+            Kind = contentKind,
             SenderId = senderId ?? "",
             SenderName = senderName ?? "",
             OwnerModId = ownerModId,
-            RawText = text,
+            RawText = rawText,
+            ContentKind = contentKind ?? "",
+            ContentId = contentId ?? "",
+            CatalogHash = AuraChatCatalogStore.CatalogHash,
             ServerTimeMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
         };
     }
 
     public static void Receive(AuraChatMessage message)
     {
-        if (Store.Add(message))
+        if (!AuraChatCatalogStore.TryNormalizeIncoming(message, out var normalized, out _))
+        {
+            return;
+        }
+
+        if (Store.Add(normalized))
         {
             Changed?.Invoke();
         }

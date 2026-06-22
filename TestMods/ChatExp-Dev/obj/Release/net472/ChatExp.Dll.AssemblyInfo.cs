@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ChatExp.Aura")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+7120f283acd4115c73302df45a885917bc2e05e6")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a1d91787eba14dd0ad086805ba8c6a9f1a9ad45d")]
 [assembly: System.Reflection.AssemblyProductAttribute("ChatExp.Aura")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ChatExp.Aura")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

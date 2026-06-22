@@ -13,25 +13,29 @@ public sealed class AuraChatSubmitCommand : RpcCommandBase
 
     public AuraChatSubmitCommand()
     {
-        RawText = string.Empty;
+        ContentKind = string.Empty;
+        ContentId = string.Empty;
+        CatalogHash = string.Empty;
         SenderId = string.Empty;
-        ClientMessageId = string.Empty;
         RejectionReason = string.Empty;
     }
 
-    public AuraChatSubmitCommand(string rawText, string senderId, string clientMessageId)
+    public AuraChatSubmitCommand(string contentKind, string contentId, string catalogHash, string senderId)
     {
-        RawText = rawText ?? string.Empty;
+        ContentKind = contentKind ?? string.Empty;
+        ContentId = contentId ?? string.Empty;
+        CatalogHash = catalogHash ?? string.Empty;
         SenderId = senderId ?? string.Empty;
-        ClientMessageId = clientMessageId ?? string.Empty;
         RejectionReason = string.Empty;
     }
 
-    public string RawText { get; set; }
+    public string ContentKind { get; set; }
+
+    public string ContentId { get; set; }
+
+    public string CatalogHash { get; set; }
 
     public string SenderId { get; set; }
-
-    public string ClientMessageId { get; set; }
 
     public AuraChatMessage? ConfirmedMessage { get; set; }
 
@@ -42,10 +46,9 @@ public sealed class AuraChatSubmitCommand : RpcCommandBase
         ConfirmedMessage = null;
         RejectionReason = string.Empty;
 
-        var safeText = AuraChatTextLimiter.LimitPlayerText(RawText);
-        if (string.IsNullOrWhiteSpace(safeText))
+        if (!AuraChatCatalogStore.TryResolveContent(ContentKind, ContentId, CatalogHash, out _, out var reason))
         {
-            Reject("empty message");
+            Reject(reason);
             return;
         }
 
@@ -62,7 +65,7 @@ public sealed class AuraChatSubmitCommand : RpcCommandBase
             return;
         }
 
-        ConfirmedMessage = AuraChatRuntime.ConfirmPlayerMessage(player.Id, player.Name, safeText);
+        ConfirmedMessage = AuraChatRuntime.ConfirmCatalogMessage(player.Id, player.Name, ContentKind, ContentId);
     }
 
     public override void RpcExecute()

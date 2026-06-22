@@ -1,0 +1,13 @@
+{
+  "format": "AuraChatCatalogEncrypted",
+  "version": 1,
+  "keyId": "chat-rsa-2026-06",
+  "encAlg": "RSA-OAEP-SHA1+A256CBC-HS256",
+  "sigAlg": "RSA-SHA256",
+  "encryptedKey": "crlwiJjBEkiIhYRhIDXkd+qaO42XFCYeBpyzzTxgACDp8CC4SEZ2rIIJXHWlgnhQu6gbau4QP4870+aBqvtigcjQGu6ZkWgSlM1+sOms8vxiXOwLUBI5jktZ9bT/N3YQRtZCIiSBl5/Iqyd+l6bFetrZhBGcoT6b9ZyN+cosOYGm8U2Ve0IysyOCUBGzjDEnrviTt7tJ91ow5PbwaAg2RHJHQzlkbHkB6BE91jffoZxNNy8e1aovVitZdJup9gOVnUEKYOa+e9W2Qt3T8hFQhAHNefr9iqLPUBvDMVRYjgKxJtEkU3tcU5Z4FbbavRuuCVhkBKmNPKKLAq6Q8tmY6g==",
+  "iv": "IVxowatoUAdTyoIG8o8SeQ==",
+  "ciphertext": "y77y/BAdkF8iKDSOiYAGMWtBP+5bNnMAKMEUR0LRJFSBgFhXYWBiNIktuk5NNpqgiP+bTZuErNTylx7Ye6Zx75qp9qOuBhJdMgj86nZ1HLbS5qoWScYXYZA7q5si5DRE7zyagSnToRFUrnVfs8iyi4Nsf8r2V3ZReH15RJOzGf2NkkoubkHv00K1HE4D9As/ROeerwBPq9DY29mBAiThvRyJbhnyzFUzggOUo41PQ00+yrsOMdCAeeDzYFc6YffaRRp1ybAOok7lWLEc5oHBJNosNObXGa1ZvLkrANoLLJ3hp9VFiuI3hHvwsaQ5d7f0BZMajWQzoCuPSlfGNN3EtA==",
+  "hmac": "fhTgpvrh4AdqtbONzZuxmMG36HMVN+Hp3QUwA0Mca4Q=",
+  "payloadSha256": "07dd056630489cbfaf2c0b47bb45342c69b815320b6e01351d205a52efb55852",
+  "signature": "12o1mmz5i8aMyNHIL1nNmbTKAfTDF0KBhx+GTDvmrboWiE2S3gmy3AWOVzrE6HwHyNoiHHeDNIsoSQo6+3Hv16lO2SjYbEVP6bTVeEBjsQGLX4IDVRnVqqnNmYy9+i8NIFguDDxKyktDdVNGGX2o+wI3wU9FJOIv0+5lbf0Eb12p7oSXQ0R6NqtBKNNOSEMSxrJIdzWAcnjshvWAXz+hTKbWfriQrwF0FLg+dsuj3QA7exQ8G9nxiAsiT4AaRzTw3bdRh6Os8s+m2EL9QRHZDrniMA8l0+te3Mgk9nuWRCmljqfRJHv8EIv8+skJivkGnp1fJQkJ/j0xNXtg6/MaOQ=="
+}

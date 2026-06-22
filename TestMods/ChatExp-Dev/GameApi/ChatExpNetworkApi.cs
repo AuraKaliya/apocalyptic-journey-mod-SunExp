@@ -1,4 +1,3 @@
-using System;
 using AuraOnline.Shared;
 using ChatExp.Dll.Infrastructure;
 using ChatExp.Dll.Network;
@@ -7,11 +6,27 @@ namespace ChatExp.Dll.GameApi;
 
 public static class ChatExpNetworkApi
 {
-    public static bool SendPlayerText(string text)
+    public static bool SendPresetMessage(string messageId)
     {
-        var limited = AuraChatTextLimiter.LimitPlayerText(text ?? string.Empty);
-        if (string.IsNullOrWhiteSpace(limited))
+        return SendCatalogContent(AuraChatKinds.PresetMessage, messageId);
+    }
+
+    public static bool SendSticker(string stickerId)
+    {
+        return SendCatalogContent(AuraChatKinds.Sticker, stickerId);
+    }
+
+    private static bool SendCatalogContent(string contentKind, string contentId)
+    {
+        if (!AuraChatCatalogStore.IsReady)
         {
+            ChatExpLog.Warn("Chat catalog is not ready; send skipped.");
+            return false;
+        }
+
+        if (!AuraChatCatalogStore.TryResolveContent(contentKind, contentId, AuraChatCatalogStore.CatalogHash, out _, out var reason))
+        {
+            ChatExpLog.Warn("Chat content rejected before send: " + reason);
             return false;
         }
 
@@ -22,7 +37,7 @@ public static class ChatExpNetworkApi
             return false;
         }
 
-        manager.SendRpcCommand(new AuraChatSubmitCommand(limited, manager.PlayerId, Guid.NewGuid().ToString("N")));
+        manager.SendRpcCommand(new AuraChatSubmitCommand(contentKind, contentId, AuraChatCatalogStore.CatalogHash, manager.PlayerId));
         return true;
     }
 }
