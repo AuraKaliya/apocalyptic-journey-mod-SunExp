@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using AuraCg.Shared;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
@@ -11,7 +12,6 @@ using Witch;
 using Witch.Core;
 using Witch.Mod;
 using Witch.UI.Window;
-using AuraToolsExp.Dll.Features.SkillCg.Arbiter;
 using Settings = AuraToolsExp.Dll.Features.Settings;
 
 namespace AuraToolsExp.Dll.Features.SkillCg;

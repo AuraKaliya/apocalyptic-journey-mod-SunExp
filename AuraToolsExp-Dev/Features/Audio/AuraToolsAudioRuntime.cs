@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using AuraAudio.Shared;
 using AudioArbiter.Shared;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
@@ -19,7 +20,11 @@ public static class AuraToolsAudioRuntime
     public static void Initialize(ModConfig config)
     {
         modConfig = config;
-        AudioArbiterRuntime.Initialize(config, AuraToolsIds.ModId);
+        var audio = AuraAudioRuntime.Initialize(config, AuraToolsIds.ModId);
+        if (!audio.Success)
+        {
+            AuraToolsLog.Warn("Audio shared runtime initialization reported issues: " + audio.ErrorMessage);
+        }
         BattleBgmArbiterRuntime.Initialize(config, AuraToolsIds.ModId);
         AuraToolsConfigService.Changed += RegisterProviders;
         initialized = true;

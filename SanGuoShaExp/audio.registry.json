@@ -19,7 +19,7 @@
       "bus": "Vocal",
       "policy": "ReplaceOriginal",
       "priority": 200,
-      "path": "ModResource/audio/low_health.mp3",
+      "path": "Shared:Audio/SanGuoShaExp/ShenZhugeLiang/low_health.mp3",
       "gainDb": 20,
       "cooldownSeconds": 1.0,
       "match": {
@@ -50,7 +50,7 @@
       "bus": "Vocal",
       "policy": "ReplaceOriginal",
       "priority": 100,
-      "path": "ModResource/audio/career_selected.mp3",
+      "path": "Shared:Audio/SanGuoShaExp/ShenZhugeLiang/career_selected.mp3",
       "gainDb": 8,
       "match": {
         "careerIds": [
@@ -69,7 +69,7 @@
       "bus": "Effect",
       "policy": "Additive",
       "priority": 100,
-      "path": "ModResource/audio/qixing.mp3",
+      "path": "Shared:Audio/SanGuoShaExp/ShenZhugeLiang/qixing.mp3",
       "gainDb": 8
     },
     {
@@ -78,7 +78,7 @@
       "bus": "Effect",
       "policy": "Additive",
       "priority": 100,
-      "path": "ModResource/audio/gale.mp3",
+      "path": "Shared:Audio/SanGuoShaExp/ShenZhugeLiang/gale.mp3",
       "gainDb": 8
     },
     {
@@ -87,7 +87,7 @@
       "bus": "Effect",
       "policy": "Additive",
       "priority": 100,
-      "path": "ModResource/audio/mist.mp3",
+      "path": "Shared:Audio/SanGuoShaExp/ShenZhugeLiang/mist.mp3",
       "gainDb": 8
     }
   ],
@@ -101,7 +101,7 @@
   "battleBgmProviders": [
     {
       "providerId": "SanGuoShaExp.ShenZhugeLiangBattleBgm",
-      "path": "ModResource/audio/bgm/shen_zhugeliang_battle.mp3",
+      "path": "Shared:Audio/SanGuoShaExp/ShenZhugeLiang/shen_zhugeliang_battle.mp3",
       "isDefault": true,
       "match": {
         "careerIds": [

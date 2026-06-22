@@ -25,6 +25,8 @@
 
   <ItemGroup>
     <Compile Include="..\AuraSharedCore\*.cs" Link="Shared\AuraSharedCore\%(Filename)%(Extension)" />
+    <Compile Include="..\AuraAudioShared\*.cs" Link="Shared\AuraAudioShared\%(Filename)%(Extension)" />
+    <Compile Include="..\AuraLogShared\*.cs" Link="Shared\AuraLogShared\%(Filename)%(Extension)" />
     <Compile Include="..\BattleBgmArbiterShared\BattleBgmArbiterRuntime.cs" Link="Shared\BattleBgmArbiterRuntime.cs" />
     <Compile Include="..\AudioArbiterShared\AudioArbiterRuntime.cs" Link="Shared\AudioArbiterRuntime.cs" />
     <Compile Include="..\UiRaycastSafetyShared\UiRaycastSafeDestroyRuntime.cs" Link="Shared\UiRaycastSafeDestroyRuntime.cs" />

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using AuraShared.Core;
 using BattleBgmArbiter.Shared;
 using SanGuoShaExp.Dll.Infrastructure;
 using Witch.Mod;
@@ -171,6 +172,12 @@ public static class BattleBgmProviderRuntime
         if (string.IsNullOrWhiteSpace(relativeOrAbsolutePath))
         {
             return "";
+        }
+
+        const string sharedPrefix = "Shared:";
+        if (relativeOrAbsolutePath.StartsWith(sharedPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return AuraSharedPaths.ResolveSharedPath(relativeOrAbsolutePath.Substring(sharedPrefix.Length));
         }
 
         return Path.IsPathRooted(relativeOrAbsolutePath)

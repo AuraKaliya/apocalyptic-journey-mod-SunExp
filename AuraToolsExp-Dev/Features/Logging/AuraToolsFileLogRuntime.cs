@@ -3,7 +3,7 @@ using System.Globalization;
 using System.IO;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
-using AuraShared.Core;
+using AuraLog.Shared;
 using UnityEngine;
 using Witch.Mod;
 
@@ -12,7 +12,7 @@ namespace AuraToolsExp.Dll.Features.Logging;
 public static class AuraToolsFileLogRuntime
 {
     private static readonly object Gate = new();
-    private static AuraToolsLogFileWriter? writer;
+    private static AuraLogFileWriter? writer;
     private static bool unityLogHooked;
     private static bool quittingHooked;
 
@@ -31,7 +31,7 @@ public static class AuraToolsFileLogRuntime
             return;
         }
 
-        Enqueue(new AuraToolsLogRecord(DateTime.Now, "Command", level, Normalize(tag), Normalize(message), null));
+        Enqueue(new AuraLogRecord(DateTime.Now, "Command", level, Normalize(tag), Normalize(message), null));
     }
 
     private static void ApplyConfig()
@@ -51,8 +51,8 @@ public static class AuraToolsFileLogRuntime
 
             try
             {
-                writer = new AuraToolsLogFileWriter(BuildLogFilePath());
-                writer.Enqueue(new AuraToolsLogRecord(DateTime.Now, "AuraTools", "Info", null, "File logging initialized. File: " + writer.FilePath, null));
+                writer = new AuraLogFileWriter(BuildLogFilePath());
+                writer.Enqueue(new AuraLogRecord(DateTime.Now, "AuraTools", "Info", null, "File logging initialized. File: " + writer.FilePath, null));
                 if (!unityLogHooked)
                 {
                     Application.logMessageReceivedThreaded += OnUnityLog;
@@ -82,10 +82,10 @@ public static class AuraToolsFileLogRuntime
             return;
         }
 
-        Enqueue(new AuraToolsLogRecord(DateTime.Now, "Unity", type.ToString(), null, Normalize(condition), Normalize(stackTrace)));
+        Enqueue(new AuraLogRecord(DateTime.Now, "Unity", type.ToString(), null, Normalize(condition), Normalize(stackTrace)));
     }
 
-    private static void Enqueue(AuraToolsLogRecord record)
+    private static void Enqueue(AuraLogRecord record)
     {
         lock (Gate)
         {
@@ -119,7 +119,7 @@ public static class AuraToolsFileLogRuntime
         writer = null;
         try
         {
-            current?.Enqueue(new AuraToolsLogRecord(DateTime.Now, "AuraTools", "Info", null, "File logging stopped.", null));
+            current?.Enqueue(new AuraLogRecord(DateTime.Now, "AuraTools", "Info", null, "File logging stopped.", null));
             current?.Dispose();
         }
         catch
@@ -133,7 +133,7 @@ public static class AuraToolsFileLogRuntime
         var fileName = AuraToolsConfigService.Logging.FileNamePattern
             .Replace("{date}", date)
             .Replace("{mod}", "AuraTools");
-        return AuraSharedLogStore.OwnerLogPath("AuraToolsExp", fileName);
+        return AuraLogRuntime.OwnerLogPath("AuraToolsExp", fileName);
     }
 
     private static string Normalize(string? text)

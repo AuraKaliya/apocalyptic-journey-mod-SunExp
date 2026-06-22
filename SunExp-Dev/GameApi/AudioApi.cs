@@ -1,4 +1,5 @@
 using System;
+using AuraAudio.Shared;
 using AudioArbiter.Shared;
 using SunExp.Dll.Infrastructure;
 using Witch.Mod;
@@ -32,10 +33,10 @@ public static class AudioApi
         initialized = true;
         currentModConfig = modConfig;
 
-        AudioArbiterRuntime.Initialize(modConfig, ModId);
-        if (!AudioArbiterRuntime.RegisterManifest(modConfig, ModId, ManifestPath))
+        var audio = AuraAudioRuntime.Initialize(modConfig, ModId, ManifestPath);
+        if (!audio.Success)
         {
-            SunExpLog.Warn("Audio manifest registration failed: " + ManifestPath);
+            SunExpLog.Warn("Audio shared runtime initialization reported issues: " + audio.ErrorMessage);
         }
 
         BattleBgmProviderRuntime.Initialize(modConfig);

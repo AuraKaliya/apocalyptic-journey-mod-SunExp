@@ -1,5 +1,5 @@
 using System;
-using UnityEngine;
+using AuraShared.Core;
 
 namespace SanGuoShaExp.Dll.Infrastructure;
 
@@ -7,30 +7,22 @@ public static class SanGuoShaExpLog
 {
     public static void Info(string message)
     {
-        UnityEngine.Debug.Log(Format(message));
+        AuraSharedLog.Info(SanGuoShaExpIds.ModLogTag, message);
     }
 
     public static void Warn(string message)
     {
-        UnityEngine.Debug.LogWarning(Format(message));
+        AuraSharedLog.Warn(SanGuoShaExpIds.ModLogTag, message);
     }
 
     public static void Error(string message, Exception? exception = null)
     {
-        UnityEngine.Debug.LogError(Format(exception == null ? message : message + "\n" + exception));
+        AuraSharedLog.Error(SanGuoShaExpIds.ModLogTag, message, exception);
     }
 
     public static void Debug(string message)
     {
-        if (IsDebugEnabled())
-        {
-            UnityEngine.Debug.Log(Format(message));
-        }
-    }
-
-    private static string Format(string message)
-    {
-        return "[" + SanGuoShaExpIds.ModLogTag + "] " + message;
+        AuraSharedLog.DebugLog(SanGuoShaExpIds.ModLogTag, message, IsDebugEnabled());
     }
 
     private static bool IsDebugEnabled()

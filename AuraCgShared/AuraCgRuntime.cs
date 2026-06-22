@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -6,9 +6,6 @@ using System.Linq;
 using System.Reflection;
 using AuraShared.Core;
 using Network.Command;
-using AuraToolsExp.Dll.Config;
-using AuraToolsExp.Dll.Features.SkillCg;
-using AuraToolsExp.Dll.Infrastructure;
 using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.UI;
@@ -17,12 +14,12 @@ using Witch.Core;
 using Witch.Mod;
 using GameUIManager = Witch.UI.UIManager;
 
-namespace AuraToolsExp.Dll.Features.SkillCg.Arbiter;
+namespace AuraCg.Shared;
 
 public static class SkillCgArbiterRuntime
 {
-    private const string GlobalObjectName = "AuraToolsExp.CgArbiter.Global";
-    private const string ComponentFullName = "AuraToolsExp.Dll.Features.SkillCg.Arbiter.SkillCgArbiterRuntime+SkillCgArbiterComponent";
+    private const string GlobalObjectName = "AuraCg.Global";
+    private const string ComponentFullName = "AuraCg.Shared.SkillCgArbiterRuntime+SkillCgArbiterComponent";
     private const float SlideDurationSeconds = 2.0f;
     private const float SlideImageHeightRatio = 0.85f;
     private const float SlideStartXRatio = 1.18f;
@@ -169,7 +166,7 @@ public static class SkillCgArbiterRuntime
             {
                 if (ReuseLogOwners.Add(ownerModId))
                 {
-                    SkillCgExpLog.InfoOnce("reuse-arbiter:" + ownerModId, "Reusing global CG arbiter for " + ownerModId + ".");
+                    AuraCgLog.InfoOnce("reuse-arbiter:" + ownerModId, "Reusing global CG arbiter for " + ownerModId + ".");
                 }
 
                 return existing;
@@ -183,7 +180,7 @@ public static class SkillCgArbiterRuntime
         }
 
         var component = gameObject.AddComponent<SkillCgArbiterComponent>();
-        SkillCgExpLog.InfoOnce("create-arbiter", "Created global CG arbiter. owner=" + ownerModId);
+        AuraCgLog.InfoOnce("create-arbiter", "Created global CG arbiter. owner=" + ownerModId);
         return component;
     }
 
@@ -244,7 +241,7 @@ public static class SkillCgArbiterRuntime
                 MaxRequestAgeSeconds = Mathf.Max(options.MaxRequestAgeSeconds, normalized.MaxRequestAgeSeconds),
                 DuplicateWindowSeconds = Mathf.Min(options.DuplicateWindowSeconds, normalized.DuplicateWindowSeconds)
             }.Normalized();
-            SkillCgExpLog.InfoOnce(
+            AuraCgLog.InfoOnce(
                 "arbiter-configured",
                 "CG queue configured. maxQueue=" + options.MaxQueueLength
                 + ", maxAge=" + options.MaxRequestAgeSeconds.ToString("0.##") + "s"
@@ -255,7 +252,7 @@ public static class SkillCgArbiterRuntime
         {
             if (provider == null)
             {
-                SkillCgExpLog.WarnOnce("provider-null", "Provider registration skipped: provider is null.");
+                AuraCgLog.WarnOnce("provider-null", "Provider registration skipped: provider is null.");
                 return;
             }
 
@@ -264,7 +261,7 @@ public static class SkillCgArbiterRuntime
                 var handle = new ProviderHandle(provider);
                 if (string.IsNullOrWhiteSpace(handle.ProviderId))
                 {
-                    SkillCgExpLog.WarnOnce("provider-empty-id:" + provider.GetType().FullName, "Provider registration skipped: ProviderId is empty.");
+                    AuraCgLog.WarnOnce("provider-empty-id:" + provider.GetType().FullName, "Provider registration skipped: ProviderId is empty.");
                     return;
                 }
 
@@ -275,11 +272,11 @@ public static class SkillCgArbiterRuntime
                     var priority = b.Priority.CompareTo(a.Priority);
                     return priority != 0 ? priority : string.Compare(a.ProviderId, b.ProviderId, StringComparison.OrdinalIgnoreCase);
                 });
-                SkillCgExpLog.InfoOnce("provider:" + handle.ProviderId, "CG provider registered: " + handle.Describe());
+                AuraCgLog.InfoOnce("provider:" + handle.ProviderId, "CG provider registered: " + handle.Describe());
             }
             catch (Exception ex)
             {
-                SkillCgExpLog.WarnOnce("provider-failed:" + provider.GetType().FullName, "Provider registration failed: " + ex.Message);
+                AuraCgLog.WarnOnce("provider-failed:" + provider.GetType().FullName, "Provider registration failed: " + ex.Message);
             }
         }
 
@@ -353,7 +350,7 @@ public static class SkillCgArbiterRuntime
             HideOverlay();
             playing = false;
 
-            SkillCgExpLog.DebugLog("CG queue cleared: " + (reason as string ?? "<none>"));
+            AuraCgLog.DebugLog("CG queue cleared: " + (reason as string ?? "<none>"));
         }
 
         private void HideOverlay()
@@ -374,7 +371,7 @@ public static class SkillCgArbiterRuntime
 
             if (overlayRoot != null)
             {
-                UiRaycastSafeDestroyRuntime.DisableAndHide(overlayRoot, "AuraTools SkillCG hide overlay", SkillCgExpLog.DebugLog);
+                UiRaycastSafeDestroyRuntime.DisableAndHide(overlayRoot, "Aura CG hide overlay", AuraCgLog.DebugLog);
             }
         }
 
@@ -388,8 +385,8 @@ public static class SkillCgArbiterRuntime
             UiRaycastSafeDestroyRuntime.DisableAndDestroyAfterFrame(
                 this,
                 overlayRoot,
-                "AuraTools SkillCG destroy overlay",
-                SkillCgExpLog.DebugLog);
+                "Aura CG destroy overlay",
+                AuraCgLog.DebugLog);
             overlayRoot = null;
             overlayGroup = null;
             overlayImage = null;
@@ -400,7 +397,7 @@ public static class SkillCgArbiterRuntime
             request.Normalize();
             if (string.IsNullOrWhiteSpace(request.ImagePath))
             {
-                SkillCgExpLog.WarnOnce("empty-image:" + request.ProviderId, "CG request skipped: image path is empty. provider=" + request.ProviderId);
+                AuraCgLog.WarnOnce("empty-image:" + request.ProviderId, "CG request skipped: image path is empty. provider=" + request.ProviderId);
                 return false;
             }
 
@@ -409,7 +406,7 @@ public static class SkillCgArbiterRuntime
             if (recentKeys.TryGetValue(duplicateKey, out var lastTime)
                 && Time.unscaledTime - lastTime <= options.DuplicateWindowSeconds)
             {
-                SkillCgExpLog.DebugLog("Duplicate CG request skipped: " + duplicateKey);
+                AuraCgLog.DebugLog("Duplicate CG request skipped: " + duplicateKey);
                 return false;
             }
 
@@ -420,11 +417,11 @@ public static class SkillCgArbiterRuntime
                 queue.Sort(QueuedRequest.CompareForQueue);
                 var dropCount = queue.Count - options.MaxQueueLength;
                 queue.RemoveRange(0, dropCount);
-                SkillCgExpLog.WarnOnce("queue-full", "CG queue is full; oldest pending CG requests will be dropped. max=" + options.MaxQueueLength);
+                AuraCgLog.WarnOnce("queue-full", "CG queue is full; oldest pending CG requests will be dropped. max=" + options.MaxQueueLength);
             }
 
             queue.Sort(QueuedRequest.CompareForQueue);
-            SkillCgExpLog.DebugLog("CG queued: provider=" + request.ProviderId + ", card=" + request.CardId + ", queue=" + queue.Count);
+            AuraCgLog.DebugLog("CG queued: provider=" + request.ProviderId + ", card=" + request.CardId + ", queue=" + queue.Count);
             return true;
         }
 
@@ -447,8 +444,8 @@ public static class SkillCgArbiterRuntime
             }
             catch (Exception ex)
             {
-                SkillCgExpLog.WarnOnce("remote-sync-failed", "Remote CG sync failed once; later errors are suppressed. error=" + ex.Message);
-                SkillCgExpLog.DebugLog("Remote CG sync exception: " + ex);
+                AuraCgLog.WarnOnce("remote-sync-failed", "Remote CG sync failed once; later errors are suppressed. error=" + ex.Message);
+                AuraCgLog.DebugLog("Remote CG sync exception: " + ex);
             }
         }
 
@@ -461,7 +458,7 @@ public static class SkillCgArbiterRuntime
                 queue.RemoveAt(0);
                 if (Time.unscaledTime - item.Request.CreatedAt > options.MaxRequestAgeSeconds)
                 {
-                    SkillCgExpLog.WarnOnce("request-stale", "Stale CG requests are being skipped. maxAge=" + options.MaxRequestAgeSeconds.ToString("0.##") + "s");
+                    AuraCgLog.WarnOnce("request-stale", "Stale CG requests are being skipped. maxAge=" + options.MaxRequestAgeSeconds.ToString("0.##") + "s");
                     continue;
                 }
 
@@ -508,7 +505,7 @@ public static class SkillCgArbiterRuntime
             overlayGroup.blocksRaycasts = false;
             overlayGroup.interactable = false;
 
-            SkillCgExpLog.DebugLog(
+            AuraCgLog.DebugLog(
                 "CG play slide: provider=" + request.ProviderId
                 + ", card=" + request.CardId
                 + ", image=" + Path.GetFileName(request.ImagePath)
@@ -617,7 +614,7 @@ public static class SkillCgArbiterRuntime
 
             if (!File.Exists(path))
             {
-                SkillCgExpLog.WarnOnce("missing-image:" + path, "CG image not found: " + path);
+                AuraCgLog.WarnOnce("missing-image:" + path, "CG image not found: " + path);
                 onLoaded(null);
                 yield break;
             }
@@ -626,7 +623,7 @@ public static class SkillCgArbiterRuntime
             yield return request.SendWebRequest();
             if (request.result != UnityWebRequest.Result.Success)
             {
-                SkillCgExpLog.WarnOnce("image-load-failed:" + path, "CG image failed to load: " + Path.GetFileName(path) + ", error=" + request.error);
+                AuraCgLog.WarnOnce("image-load-failed:" + path, "CG image failed to load: " + Path.GetFileName(path) + ", error=" + request.error);
                 onLoaded(null);
                 yield break;
             }
@@ -634,7 +631,7 @@ public static class SkillCgArbiterRuntime
             var texture = DownloadHandlerTexture.GetContent(request);
             if (texture == null)
             {
-                SkillCgExpLog.WarnOnce("image-empty:" + path, "CG image load returned empty texture: " + path);
+                AuraCgLog.WarnOnce("image-empty:" + path, "CG image load returned empty texture: " + path);
                 onLoaded(null);
                 yield break;
             }
@@ -643,7 +640,7 @@ public static class SkillCgArbiterRuntime
             var sprite = Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f);
             sprite.name = texture.name;
             spriteCache[path] = sprite;
-            SkillCgExpLog.InfoOnce("image-loaded:" + path, "CG image loaded: " + Path.GetFileName(path) + " (" + texture.width + "x" + texture.height + ")");
+            AuraCgLog.InfoOnce("image-loaded:" + path, "CG image loaded: " + Path.GetFileName(path) + " (" + texture.width + "x" + texture.height + ")");
             onLoaded(sprite);
         }
 
@@ -653,7 +650,7 @@ public static class SkillCgArbiterRuntime
             var parent = manager?.upperCanvasTf ?? manager?.canvasTf;
             if (parent == null)
             {
-                SkillCgExpLog.WarnOnce("ui-parent-missing", "CG overlay skipped: UI canvas is not ready.");
+                AuraCgLog.WarnOnce("ui-parent-missing", "CG overlay skipped: UI canvas is not ready.");
                 return false;
             }
 
@@ -667,7 +664,7 @@ public static class SkillCgArbiterRuntime
                 DestroyOverlay();
             }
 
-            overlayRoot = new GameObject("AuraToolsExp.SkillCG.OverlayRoot", typeof(RectTransform), typeof(CanvasGroup));
+            overlayRoot = new GameObject("AuraCg.OverlayRoot", typeof(RectTransform), typeof(CanvasGroup));
             overlayRoot.transform.SetParent(parent, false);
             var rect = overlayRoot.GetComponent<RectTransform>();
             rect.anchorMin = Vector2.zero;
@@ -680,7 +677,7 @@ public static class SkillCgArbiterRuntime
             overlayGroup.blocksRaycasts = false;
             overlayGroup.interactable = false;
 
-            var imageObject = new GameObject("AuraToolsExp.SkillCG.Image", typeof(RectTransform), typeof(Image));
+            var imageObject = new GameObject("AuraCg.Image", typeof(RectTransform), typeof(Image));
             imageObject.transform.SetParent(overlayRoot.transform, false);
             var imageRect = imageObject.GetComponent<RectTransform>();
             imageRect.anchorMin = Vector2.zero;
@@ -694,7 +691,7 @@ public static class SkillCgArbiterRuntime
             overlayImage.raycastTarget = false;
             overlayImage.enabled = false;
             overlayRoot.SetActive(false);
-            SkillCgExpLog.InfoOnce("overlay-created", "CG overlay created under " + parent.name + ".");
+            AuraCgLog.InfoOnce("overlay-created", "CG overlay created under " + parent.name + ".");
             return true;
         }
 
@@ -791,8 +788,8 @@ public static class SkillCgArbiterRuntime
             }
             catch (Exception ex)
             {
-                SkillCgExpLog.WarnOnce("provider-build-failed:" + ProviderId, "Provider BuildRequests failed once: " + ProviderId + " -> " + ex.Message);
-                SkillCgExpLog.DebugLog("Provider BuildRequests exception: " + ex);
+                AuraCgLog.WarnOnce("provider-build-failed:" + ProviderId, "Provider BuildRequests failed once: " + ProviderId + " -> " + ex.Message);
+                AuraCgLog.DebugLog("Provider BuildRequests exception: " + ex);
             }
         }
 
@@ -1113,4 +1110,5 @@ internal readonly struct QueuedRequest
         return priorityCompare != 0 ? priorityCompare : a.EnqueueSequence.CompareTo(b.EnqueueSequence);
     }
 }
+
 

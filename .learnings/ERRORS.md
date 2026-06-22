@@ -1,5 +1,37 @@
 # Errors
 
+## [ERR-20260622-001] powershell-variable-colon-interpolation
+
+**Logged**: 2026-06-22T10:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+PowerShell parsed `$required:` inside a double-quoted validation error string as an invalid variable reference.
+
+### Error
+```text
+Variable reference is not valid. ':' was not followed by a valid variable name character.
+```
+
+### Context
+- Command attempted: `tools\Test-MainSharedFramework.ps1`
+- File: `tools/Test-MainSharedFramework.ps1`
+
+### Suggested Fix
+Use `${required}:` when a variable is immediately followed by a colon in a double-quoted PowerShell string.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Test-MainSharedFramework.ps1
+
+### Resolution
+- **Resolved**: 2026-06-22T10:00:00+08:00
+- **Notes**: Changed `$required:` to `${required}:`.
+
+---
+
 ## 2026-06-10 - image generation output size mismatch
 
 - **Context:** Batch-generating SunExp card-face PNGs with the built-in image generation tool.

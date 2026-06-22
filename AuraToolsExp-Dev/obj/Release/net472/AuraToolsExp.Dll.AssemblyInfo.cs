@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("AuraToolsExp.Aura")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+95e47d90237ab60425c9fea462b4eb6b64d1f3ff")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8cfe2a273cbfdc379f0f79f2b6775cc57d33aeca")]
 [assembly: System.Reflection.AssemblyProductAttribute("AuraToolsExp.Aura")]
 [assembly: System.Reflection.AssemblyTitleAttribute("AuraToolsExp.Aura")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
