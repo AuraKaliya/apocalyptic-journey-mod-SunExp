@@ -13,6 +13,13 @@
     <Compile Include="..\AuraSharedCore\AuraSharedStorageCoordinator.cs" Link="Core\AuraSharedStorageCoordinator.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedPackageModels.cs" Link="Core\AuraSharedPackageModels.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedPackageCoordinator.cs" Link="Core\AuraSharedPackageCoordinator.cs" />
+    <Compile Include="..\AuraJourneyShared\AuraJourneyModels.cs" Link="Journey\AuraJourneyModels.cs" />
+    <Compile Include="..\AuraJourneyShared\AuraJourneyRouteModels.cs" Link="Journey\AuraJourneyRouteModels.cs" />
+    <Compile Include="..\AuraJourneyShared\AuraJourneyConditionEvaluator.cs" Link="Journey\AuraJourneyConditionEvaluator.cs" />
+    <Compile Include="..\AuraJourneyShared\AuraJourneyMapIdAliasRegistry.cs" Link="Journey\AuraJourneyMapIdAliasRegistry.cs" />
+    <Compile Include="..\AuraJourneyShared\AuraJourneyMapNodeDataBuilder.cs" Link="Journey\AuraJourneyMapNodeDataBuilder.cs" />
+    <Compile Include="..\AuraJourneyShared\AuraJourneySyncProjection.cs" Link="Journey\AuraJourneySyncProjection.cs" />
+    <Compile Include="..\AuraJourneyShared\AuraJourneyStateReducer.cs" Link="Journey\AuraJourneyStateReducer.cs" />
   </ItemGroup>
 
   <ItemGroup>

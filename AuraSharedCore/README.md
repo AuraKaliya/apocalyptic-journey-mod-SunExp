@@ -28,3 +28,29 @@ commit uses staging, a persistent transaction journal, a resource-index update, 
 
 System modules parse their own manifests and produce generic install requests. Core does not understand skin, audio, or CG
 semantics. Logs remain owner-written and are exposed for shared aggregation through `AuraSharedLogStore`.
+
+## Package manifest contract
+
+`SharedResources/package.json` is the stable entry point for bundled shared resources in main Mods. The main Mods are
+`SunExp`, `SanGuoShaExp`, and `AuraToolsExp`; prototype packages under `TestMods` may exercise the same APIs but must not
+define the production contract.
+
+The schema is stored at `AuraSharedCore/Schemas/resource-package.schema.json`. Version 1 keeps `resources` backward
+compatible and adds optional platform metadata:
+
+- `ownerModId`: the Mod that owns and installs the package. When present it must match the installing Mod.
+- `packageKind`: `Resource`, `RolePack`, `JourneyPack`, `AudioPack`, `CgPack`, `SkinPack`, or `ToolingPack`.
+- `capabilities`: declares the systems the package expects, such as `Audio`, `Skin`, `Journey`, `RolePack`, or
+  `MultiplayerAuthority`.
+- `dependencies`: package-level dependencies with optional minimum versions.
+- Resource `targetRoleIds`, `tags`, and `metadata`: lightweight indexing fields for complete role packs and tooling.
+
+The package engine still installs only files and directories. Higher-level systems such as skins, audio, CG, and journeys
+translate their manifests into generic install or storage requests.
+
+## Diagnostics contract
+
+Shared services should log through `AuraSharedDiagnostics` when a step crosses service boundaries, writes shared state, or
+depends on multiplayer authority. Each record includes service, owner Mod, phase, level, optional authority flag, and an
+optional correlation id such as a journey id or resource id. Owner-specific file logs are still written through
+`AuraLogShared`; diagnostics are the common message shape used by shared services and command-log mirrors.

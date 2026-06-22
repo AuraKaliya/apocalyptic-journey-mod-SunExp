@@ -39,6 +39,45 @@ foreach ($required in @("RecoverTransactions", 'State = "Prepared"', 'journal.St
     }
 }
 
+$journeyRuntimeText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraJourneyShared\AuraJourneyRuntime.cs")
+foreach ($required in @("Only the authoritative side may advance journey state", "AuraJourneyStateReducer.Apply", "WriteRuntime")) {
+    if (-not $journeyRuntimeText.Contains($required)) {
+        throw "AuraJourneyShared authority/storage contract is missing: $required"
+    }
+}
+
+$journeyModelsText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraJourneyShared\AuraJourneyRouteModels.cs")
+foreach ($required in @("AuraJourneyMapNodeSpec", "AuraJourneyRouteGraph", "AuraJourneySlotRule", "DicePolicy")) {
+    if (-not $journeyModelsText.Contains($required)) {
+        throw "AuraJourneyShared route/native-node contract is missing: $required"
+    }
+}
+
+$journeyBridgeText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraJourneyShared\AuraJourneyGameBridge.cs")
+foreach ($required in @("CreateMapNode", "EnsureNodeDice", "RepairSyncArrays", "RestoreCurrentNodeFromSyncArrays", "AuraJourneyMapIdAliasRegistry.Expand")) {
+    if (-not $journeyBridgeText.Contains($required)) {
+        throw "AuraJourneyShared game bridge contract is missing: $required"
+    }
+}
+
+$sharedContentForbidden = @(
+    "SunExp",
+    "SanGuoShaExp",
+    "solar_memory",
+    "SolarMemory",
+    "普通事件",
+    "首领"
+)
+$sharedSourceFiles = Get-ChildItem -LiteralPath (Join-Path $repoRoot "AuraJourneyShared") -File -Filter "*.cs"
+foreach ($file in $sharedSourceFiles) {
+    $text = Get-Content -Raw -LiteralPath $file.FullName
+    foreach ($forbidden in $sharedContentForbidden) {
+        if ($text.Contains($forbidden)) {
+            throw "AuraJourneyShared code contains main-Mod content marker '$forbidden': $($file.FullName)"
+        }
+    }
+}
+
 $auraConfigText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Config\AuraToolsConfigService.cs")
 if (-not $auraConfigText.Contains("AuraSharedConfigStore.ReadOwner") -or
     -not $auraConfigText.Contains("AuraSharedConfigStore.WriteOwner") -or

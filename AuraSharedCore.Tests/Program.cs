@@ -1,4 +1,5 @@
 using AuraShared.Core;
+using AuraJourney.Shared;
 using Newtonsoft.Json.Linq;
 
 var assertions = 0;
@@ -136,6 +137,8 @@ try
     TestRecovery(storage, packages);
     Assert(true, "transaction recovery");
 
+    TestJourneyContracts();
+
     Console.WriteLine($"AuraSharedCore tests passed: {assertions} assertions.");
 }
 finally
@@ -229,6 +232,141 @@ void TestRecovery(AuraSharedStorageCoordinator coordinator, AuraSharedPackageCoo
     {
         throw new InvalidOperationException("Interrupted transaction was not restored.");
     }
+}
+
+void TestJourneyContracts()
+{
+    var context = new AuraJourneyConditionContext
+    {
+        RoleIds = new List<string> { "SunExp_wuna_wuna", "SanGuoShaExp_shenzhugeliang" },
+        PlayerCount = 2,
+        Flags = new Dictionary<string, bool> { ["solar_memory_unlocked"] = true },
+        Values = new Dictionary<string, string> { ["route"] = "sun" },
+        Counters = new Dictionary<string, int> { ["embers"] = 3 }
+    };
+
+    Assert(AuraJourneyConditionEvaluator.EvaluateAll(new[]
+    {
+        new AuraJourneyCondition { Kind = AuraJourneyConditionKinds.Flag, Key = "solar_memory_unlocked" },
+        new AuraJourneyCondition { Kind = AuraJourneyConditionKinds.Equals, Key = "route", Value = "sun" },
+        new AuraJourneyCondition { Kind = AuraJourneyConditionKinds.MinCounter, Key = "embers", Number = 2 },
+        new AuraJourneyCondition { Kind = AuraJourneyConditionKinds.AnyRole, Value = "SunExp_wuna_wuna" },
+        new AuraJourneyCondition { Kind = AuraJourneyConditionKinds.PlayerCountAtLeast, Number = 2 }
+    }, context), "journey condition evaluator");
+
+    var request = new AuraJourneyCommitRequest
+    {
+        JourneyId = "SunExp.SolarMemory",
+        OwnerModId = "SunExp",
+        Action = "SelectNode",
+        NodeId = "memory_1",
+        Message = "selected first memory",
+        Mutation = new AuraJourneyMutation
+        {
+            Run = new AuraJourneyRunBinding
+            {
+                RunId = "solar-memory-run",
+                NativeModeKey = "SunExp_SolarMemoryMode",
+                NativeModeValue = "1",
+                StartedUtc = DateTime.UnixEpoch.ToString("O")
+            },
+            ActiveNodeId = "memory_1",
+            SelectRouteId = "solar_route",
+            SetFlags = new Dictionary<string, bool> { ["entered"] = true },
+            AddCounters = new Dictionary<string, int> { ["embers"] = 1 }
+        }
+    };
+
+    var state = AuraJourneyStateReducer.Apply(null, request, DateTime.UnixEpoch);
+    Assert(state.Version == 1
+           && state.Run.RunId == "solar-memory-run"
+           && state.ActiveNodeId == "memory_1"
+           && state.SelectedRouteIds.Contains("solar_route")
+           && state.Flags["entered"]
+           && state.Counters["embers"] == 1
+           && state.Events.Count == 1,
+        "journey state reducer first event");
+
+    var next = AuraJourneyStateReducer.Apply(state, new AuraJourneyCommitRequest
+    {
+        JourneyId = "SunExp.SolarMemory",
+        OwnerModId = "SunExp",
+        Action = "CompleteNode",
+        NodeId = "memory_1",
+        Mutation = new AuraJourneyMutation
+        {
+            CompleteNodeId = "memory_1",
+            AddCounters = new Dictionary<string, int> { ["embers"] = 2 }
+        }
+    }, DateTime.UnixEpoch.AddSeconds(1));
+
+    Assert(next.Version == 2
+           && next.CompletedNodeIds.Contains("memory_1")
+           && next.Counters["embers"] == 3
+           && next.Events.Count == 2,
+        "journey state reducer append event");
+
+    var projection = AuraJourneyMapNodeDataBuilder.Build(new AuraJourneyMapNodeSpec
+    {
+        MapId = "SunExp_sunexp_solar_memory_black_sun_after",
+        FallbackMapId = "solar_memory_black_sun_after",
+        NodeId = "SunExp_sunexp_Sub_solar_memory_black_sun_after",
+        Type = AuraJourneyNodeKinds.Event,
+        Note = "普通事件",
+        Level = "-1",
+        DicePolicy = AuraJourneyDicePolicies.Default
+    }, id => id == "SunExp_sunexp_solar_memory_black_sun_after"
+        ? new Dictionary<string, string> { ["Id"] = "old", ["Type"] = "", ["Note"] = "", ["Level"] = "" }
+        : null);
+
+    Assert(projection.Valid
+           && projection.Data["Id"] == "SunExp_sunexp_solar_memory_black_sun_after"
+           && projection.Data["Type"] == AuraJourneyNodeKinds.Event
+           && projection.Data["NodeId"] == "SunExp_sunexp_Sub_solar_memory_black_sun_after"
+           && projection.Data["Level"] == "-1"
+           && projection.DicePolicy == AuraJourneyDicePolicies.Default,
+        "journey map node projection fills native fields");
+
+    var maps = new[] { "wrong", "Breaks_keep", "old" };
+    var mapData = new[] { "wrong_event", "Breaks_keep_data", "old_node" };
+    var repair = AuraJourneySyncProjection.Repair(maps, mapData, new[]
+    {
+        new AuraJourneySlotRule
+        {
+            SlotIndex = 0,
+            MapNode = new AuraJourneyMapNodeSpec
+            {
+                MapId = "fixed_event_map",
+                NodeId = "fixed_event_node",
+                Type = AuraJourneyNodeKinds.Event
+            }
+        },
+        new AuraJourneySlotRule
+        {
+            SlotIndex = 1,
+            ReplacementPolicy = AuraJourneyReplacementPolicies.PreserveBreak,
+            MapNode = new AuraJourneyMapNodeSpec
+            {
+                MapId = "should_not_replace",
+                NodeId = "should_not_replace_node"
+            }
+        }
+    });
+
+    Assert(repair.Changed
+           && repair.Repaired == 1
+           && repair.Preserved == 1
+           && maps[0] == "fixed_event_map"
+           && mapData[0] == "fixed_event_node"
+           && maps[1] == "Breaks_keep",
+        "journey sync projection repairs fixed slots and preserves break nodes");
+
+    AuraJourneyMapIdAliasRegistry.RegisterPrefixAlias("test.full-to-short", "TestMod_full_", "");
+    var aliases = AuraJourneyMapIdAliasRegistry.Expand("*TestMod_full_map_1");
+    Assert(aliases.Contains("*TestMod_full_map_1")
+           && aliases.Contains("TestMod_full_map_1")
+           && aliases.Contains("map_1"),
+        "journey map id alias registry expands registered prefixes without shared content rules");
 }
 
 void Assert(bool condition, string name)

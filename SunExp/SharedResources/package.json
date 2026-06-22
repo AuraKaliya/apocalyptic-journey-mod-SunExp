@@ -2,13 +2,19 @@
   "schemaVersion": 1,
   "packageId": "SunExp.SharedResources",
   "packageVersion": 1,
+  "ownerModId": "SunExp",
+  "packageKind": "RolePack",
+  "displayName": "SunExp bundled role resources",
+  "capabilities": ["Audio", "Skin", "Journey", "RolePack", "MultiplayerAuthority"],
   "resources": [
     {
       "system": "Audio",
       "resourceId": "SunExp.WuNa.VoicePack",
       "kind": "Directory",
       "source": "Audio/WuNa",
-      "destination": "Audio/SunExp/WuNa"
+      "destination": "Audio/SunExp/WuNa",
+      "targetRoleIds": ["SunExp_wuna_wuna"],
+      "tags": ["role-pack", "voice"]
     }
   ]
 }

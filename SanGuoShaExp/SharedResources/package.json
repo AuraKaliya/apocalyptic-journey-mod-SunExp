@@ -2,13 +2,19 @@
   "schemaVersion": 1,
   "packageId": "SanGuoShaExp.SharedResources",
   "packageVersion": 1,
+  "ownerModId": "SanGuoShaExp",
+  "packageKind": "RolePack",
+  "displayName": "SanGuoShaExp bundled role resources",
+  "capabilities": ["Audio", "RolePack"],
   "resources": [
     {
       "system": "Audio",
       "resourceId": "SanGuoShaExp.ShenZhugeLiang.AudioPack",
       "kind": "Directory",
       "source": "Audio/ShenZhugeLiang",
-      "destination": "Audio/SanGuoShaExp/ShenZhugeLiang"
+      "destination": "Audio/SanGuoShaExp/ShenZhugeLiang",
+      "targetRoleIds": ["SanGuoShaExp_shenzhugeliang"],
+      "tags": ["role-pack", "voice"]
     }
   ]
 }

@@ -2,6 +2,8 @@ namespace SanGuoShaExp.Dll.Infrastructure;
 
 public static class SanGuoShaExpIds
 {
+    public const string ModId = "SanGuoShaExp";
+
     public const string ModLogTag = "SanGuoShaExp.DLL";
 
     public const string QixingCardId = "SanGuoShaExp_shen_zhugeliang_qixing";

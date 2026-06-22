@@ -15,6 +15,7 @@ public static class AuraSharedSystems
     public const string Cg = "CG";
     public const string Config = "Config";
     public const string Log = "Log";
+    public const string Journey = "Journey";
 }
 
 public sealed class AuraSharedRegistryManifest

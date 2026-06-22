@@ -28,6 +28,7 @@
     <Compile Include="..\AuraAudioShared\*.cs" Link="Shared\AuraAudioShared\%(Filename)%(Extension)" />
     <Compile Include="..\AuraCgShared\*.cs" Link="Shared\AuraCgShared\%(Filename)%(Extension)" />
     <Compile Include="..\AuraLogShared\*.cs" Link="Shared\AuraLogShared\%(Filename)%(Extension)" />
+    <Compile Include="..\AuraJourneyShared\*.cs" Link="Shared\AuraJourneyShared\%(Filename)%(Extension)" />
     <Compile Include="..\AuraSkinShared\**\*.cs" Link="Shared\AuraSkinShared\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\AudioArbiterShared\AudioArbiterRuntime.cs" Link="Shared\AudioArbiterRuntime.cs" />
     <Compile Include="..\BattleBgmArbiterShared\BattleBgmArbiterRuntime.cs" Link="Shared\BattleBgmArbiterRuntime.cs" />

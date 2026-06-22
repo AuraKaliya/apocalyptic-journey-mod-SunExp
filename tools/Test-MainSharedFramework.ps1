@@ -17,7 +17,7 @@ $mainProjects = @(
 foreach ($project in $mainProjects) {
     $projectPath = Join-Path $repoRoot $project
     $text = Get-Content -Raw -LiteralPath $projectPath
-    foreach ($required in @("AuraSharedCore", "AuraAudioShared")) {
+    foreach ($required in @("AuraSharedCore", "AuraAudioShared", "AuraJourneyShared")) {
         if (-not $text.Contains($required)) {
             throw "Main shared consumer is missing ${required}: $project"
         }

@@ -52,10 +52,27 @@ public static class AuraSharedPackageEngine
                 return new[] { new AuraSharedInstallResponse { Success = false, Message = "Package manifest is invalid: " + manifestPath } };
             }
 
+            if (!string.IsNullOrWhiteSpace(manifest.OwnerModId)
+                && !string.Equals(manifest.OwnerModId.Trim(), ownerModId, StringComparison.OrdinalIgnoreCase))
+            {
+                return new[] { new AuraSharedInstallResponse { Success = false, Message = "Package owner does not match installing Mod: " + manifest.OwnerModId } };
+            }
+
             var manifestDirectory = Path.GetDirectoryName(manifestPath) ?? modRoot;
             var responses = new List<AuraSharedInstallResponse>();
             foreach (var resource in manifest.Resources)
             {
+                if (resource == null
+                    || string.IsNullOrWhiteSpace(resource.System)
+                    || string.IsNullOrWhiteSpace(resource.ResourceId)
+                    || string.IsNullOrWhiteSpace(resource.Kind)
+                    || string.IsNullOrWhiteSpace(resource.Source)
+                    || string.IsNullOrWhiteSpace(resource.Destination))
+                {
+                    responses.Add(new AuraSharedInstallResponse { Success = false, Message = "Package resource is invalid in: " + manifest.PackageId });
+                    continue;
+                }
+
                 var source = Path.GetFullPath(Path.Combine(
                     manifestDirectory,
                     AuraSharedPaths.NormalizeRelativePath(resource.Source).Replace('/', Path.DirectorySeparatorChar)));

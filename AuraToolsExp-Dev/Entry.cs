@@ -1,4 +1,5 @@
 using System;
+using AuraJourney.Shared;
 using AuraShared.Core;
 using AuraSkin.Shared;
 using AuraToolsExp.Dll.Config;
@@ -22,6 +23,7 @@ public static class Entry
         RunStep("shared core", () => AuraSharedRuntime.Initialize(modConfig, AuraToolsIds.ModId));
         RunStep("shared registry", () => AuraSharedRegistry.RegisterManifest(modConfig, AuraToolsIds.ModId));
         RunStep("shared skin runtime", () => AuraSkinRuntime.Initialize(modConfig, AuraToolsIds.ModId));
+        RunStep("journey runtime", () => AuraJourneyRuntime.Initialize(modConfig, AuraToolsIds.ModId));
         RunStep("config", () => AuraToolsConfigService.Initialize(modConfig));
         RunStep("file logging", () => AuraToolsFileLogRuntime.Initialize(modConfig));
         RunStep("ui transition guard", () => UiTransitionGuardRuntime.Initialize(modConfig, AuraToolsIds.ModId));

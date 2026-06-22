@@ -1,6 +1,8 @@
 using System;
 using System.Collections;
 using System.Reflection;
+using AuraJourney.Shared;
+using AuraShared.Core;
 using SanGuoShaExp.Dll.GameApi;
 using SanGuoShaExp.Dll.Hooks;
 using SanGuoShaExp.Dll.Infrastructure;
@@ -17,9 +19,15 @@ public static class Entry
         SanGuoShaUiRaycastGuardRuntime.Initialize(modConfig);
         SanGuoShaCombatRuntime.Initialize(modConfig);
         SanGuoShaDodgeRuntime.Initialize(modConfig);
+        RunStep("journey runtime", () => AuraJourneyRuntime.Initialize(modConfig, SanGuoShaExpIds.ModId));
         AudioApi.Initialize(modConfig);
         BattleBgmProviderRuntime.Initialize(modConfig);
         SanGuoShaExpLog.Info("SanGuoShaExp C# entry loaded");
+    }
+
+    private static void RunStep(string name, Action action)
+    {
+        AuraSharedHooks.RunStep(name, action, (step, ex) => SanGuoShaExpLog.Error("Initialization step failed: " + step, ex));
     }
 
     private static void RegisterLuaVisibleAssembly()

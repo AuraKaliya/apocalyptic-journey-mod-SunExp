@@ -21,8 +21,38 @@ public sealed class AuraSharedPackageManifest
     [JsonProperty("packageVersion")]
     public long PackageVersion { get; set; } = 1;
 
+    [JsonProperty("ownerModId")]
+    public string OwnerModId { get; set; } = "";
+
+    [JsonProperty("packageKind")]
+    public string PackageKind { get; set; } = "Resource";
+
+    [JsonProperty("displayName")]
+    public string DisplayName { get; set; } = "";
+
+    [JsonProperty("description")]
+    public string Description { get; set; } = "";
+
+    [JsonProperty("dependencies")]
+    public List<AuraSharedPackageDependency> Dependencies { get; set; } = new();
+
+    [JsonProperty("capabilities")]
+    public List<string> Capabilities { get; set; } = new();
+
     [JsonProperty("resources")]
     public List<AuraSharedPackageResource> Resources { get; set; } = new();
+}
+
+public sealed class AuraSharedPackageDependency
+{
+    [JsonProperty("packageId")]
+    public string PackageId { get; set; } = "";
+
+    [JsonProperty("minVersion")]
+    public long MinVersion { get; set; } = 1;
+
+    [JsonProperty("optional")]
+    public bool Optional { get; set; }
 }
 
 public sealed class AuraSharedPackageResource
@@ -41,6 +71,15 @@ public sealed class AuraSharedPackageResource
 
     [JsonProperty("destination")]
     public string Destination { get; set; } = "";
+
+    [JsonProperty("targetRoleIds")]
+    public List<string> TargetRoleIds { get; set; } = new();
+
+    [JsonProperty("tags")]
+    public List<string> Tags { get; set; } = new();
+
+    [JsonProperty("metadata")]
+    public Dictionary<string, string> Metadata { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 public sealed class AuraSharedInstallRequest

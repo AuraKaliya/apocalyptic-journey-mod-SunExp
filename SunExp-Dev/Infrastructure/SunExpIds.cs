@@ -2,6 +2,8 @@ namespace SunExp.Dll.Infrastructure;
 
 public static class SunExpIds
 {
+    public const string ModId = "SunExp";
+
     public const string ModLogTag = "SunExp.DLL";
 
     public const string WhiteRadianceTag = "白曜";
