@@ -9,6 +9,8 @@
 
   <ItemGroup>
     <Compile Include="..\AuraSharedCore\AuraSharedJson.cs" Link="Core\AuraSharedJson.cs" />
+    <Compile Include="..\AuraSharedCore\AuraSharedOperationLog.cs" Link="Core\AuraSharedOperationLog.cs" />
+    <Compile Include="..\AuraSharedCore\AuraSharedResourceLockTable.cs" Link="Core\AuraSharedResourceLockTable.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedStorageModels.cs" Link="Core\AuraSharedStorageModels.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedStorageCoordinator.cs" Link="Core\AuraSharedStorageCoordinator.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedPackageModels.cs" Link="Core\AuraSharedPackageModels.cs" />
@@ -20,6 +22,7 @@
     <Compile Include="..\AuraJourneyShared\AuraJourneyMapNodeDataBuilder.cs" Link="Journey\AuraJourneyMapNodeDataBuilder.cs" />
     <Compile Include="..\AuraJourneyShared\AuraJourneySyncProjection.cs" Link="Journey\AuraJourneySyncProjection.cs" />
     <Compile Include="..\AuraJourneyShared\AuraJourneyStateReducer.cs" Link="Journey\AuraJourneyStateReducer.cs" />
+    <Compile Include="..\AuraOnlineShared\*.cs" Link="Online\%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

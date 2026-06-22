@@ -26,16 +26,27 @@ foreach ($required in @(
 }
 
 $storageText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedStorageCoordinator.cs")
-foreach ($required in @("ReaderWriterLockSlim", "File.Replace", "FileOptions.WriteThrough", "ExpectedRevision", "CreateWriteMutex")) {
+foreach ($required in @("AuraSharedResourceLockTable", "File.Replace", "FileOptions.WriteThrough", "ExpectedRevision", "CreateWriteMutex", "StorageLockKey")) {
     if (-not $storageText.Contains($required)) {
         throw "AuraShared storage safety contract is missing: $required"
     }
 }
 
 $packageText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedPackageCoordinator.cs")
-foreach ($required in @("RecoverTransactions", 'State = "Prepared"', 'journal.State = "ContentCommitted"', 'journal.State = "RegistryCommitted"')) {
+foreach ($required in @("RecoverTransactions", 'State = "Prepared"', 'journal.State = "ContentCommitted"', 'journal.State = "RegistryCommitted"', '"Completed"', '"RolledBack"', "AuraSharedOperationLog")) {
     if (-not $packageText.Contains($required)) {
         throw "AuraShared package transaction contract is missing: $required"
+    }
+}
+
+$contractPath = Join-Path $repoRoot "docs\aura-shared-core-v2-contract.md"
+if (-not (Test-Path -LiteralPath $contractPath)) {
+    throw "AuraShared Core v2 protocol contract document is missing."
+}
+$contractText = Get-Content -Raw -LiteralPath $contractPath
+foreach ($required in @("Storage Request Template", "Package Install Request Template", "Operation Log", "Lock Keys")) {
+    if (-not $contractText.Contains($required)) {
+        throw "AuraShared Core v2 protocol contract is missing section: $required"
     }
 }
 
@@ -65,8 +76,8 @@ $sharedContentForbidden = @(
     "SanGuoShaExp",
     "solar_memory",
     "SolarMemory",
-    "普通事件",
-    "首领"
+    (-join [char[]](0x666E, 0x901A, 0x4E8B, 0x4EF6)),
+    (-join [char[]](0x9996, 0x9886))
 )
 $sharedSourceFiles = Get-ChildItem -LiteralPath (Join-Path $repoRoot "AuraJourneyShared") -File -Filter "*.cs"
 foreach ($file in $sharedSourceFiles) {

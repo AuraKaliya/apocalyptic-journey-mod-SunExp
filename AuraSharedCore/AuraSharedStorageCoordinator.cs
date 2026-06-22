@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
@@ -10,7 +11,8 @@ namespace AuraShared.Core;
 
 public sealed class AuraSharedStorageCoordinator : IDisposable
 {
-    private readonly ReaderWriterLockSlim gate = new(LockRecursionPolicy.NoRecursion);
+    private readonly object lifecycleGate = new();
+    private readonly AuraSharedResourceLockTable locks = new();
     private string rootDirectory;
     private bool disposed;
 
@@ -30,8 +32,7 @@ public sealed class AuraSharedStorageCoordinator : IDisposable
             throw new ArgumentException("Shared storage root is empty.", nameof(root));
         }
 
-        gate.EnterWriteLock();
-        try
+        lock (lifecycleGate)
         {
             ThrowIfDisposed();
             if (!string.IsNullOrWhiteSpace(rootDirectory)
@@ -43,74 +44,87 @@ public sealed class AuraSharedStorageCoordinator : IDisposable
             rootDirectory = fullRoot;
             EnsureRootDirectories();
         }
-        finally
-        {
-            gate.ExitWriteLock();
-        }
     }
 
     public AuraSharedStorageResponse Read(AuraSharedStorageRequest request)
     {
-        gate.EnterReadLock();
         try
         {
-            ThrowIfDisposed();
-            var path = ResolveDocumentPath(request);
-            if (!File.Exists(path))
+            return ExecuteRead(StorageLockKey(request), () =>
             {
+                ThrowIfDisposed();
+                var path = ResolveDocumentPath(request);
+                if (!File.Exists(path))
+                {
+                    return new AuraSharedStorageResponse
+                    {
+                        Success = true,
+                        Found = false,
+                        Path = path
+                    };
+                }
+
+                var envelope = LoadEnvelope(path);
                 return new AuraSharedStorageResponse
                 {
                     Success = true,
-                    Found = false,
+                    Found = true,
+                    Revision = envelope.Revision,
+                    SchemaVersion = envelope.SchemaVersion,
+                    AuthorityId = envelope.AuthorityId,
+                    PayloadJson = envelope.Data.ToString(Formatting.None),
                     Path = path
                 };
-            }
-
-            var envelope = LoadEnvelope(path);
-            return new AuraSharedStorageResponse
-            {
-                Success = true,
-                Found = true,
-                Revision = envelope.Revision,
-                SchemaVersion = envelope.SchemaVersion,
-                AuthorityId = envelope.AuthorityId,
-                PayloadJson = envelope.Data.ToString(Formatting.None),
-                Path = path
-            };
+            });
         }
         catch (Exception ex)
         {
             return Failure(ex.Message);
         }
-        finally
-        {
-            gate.ExitReadLock();
-        }
     }
 
     public AuraSharedStorageResponse Write(AuraSharedStorageRequest request)
     {
-        return ExecuteWrite(() => WriteNoLock(request));
+        var started = Stopwatch.StartNew();
+        var response = ExecuteWrite(StorageLockKey(request), () => WriteNoLock(request));
+        var owner = request == null || string.IsNullOrWhiteSpace(request.OwnerModId) ? request?.WriterId ?? "" : request.OwnerModId;
+        AuraSharedOperationLog.Write(rootDirectory, AuraSharedOperationLog.Create(
+            operationId: "",
+            transactionId: "",
+            ownerModId: owner,
+            system: request?.System ?? "",
+            logicalId: request?.FileName ?? "",
+            kind: "StorageWrite",
+            phase: response.Conflict ? "Conflict" : "Committed",
+            result: response.Success ? "Success" : response.Conflict ? "Conflict" : "Failure",
+            message: response.Message,
+            revision: response.Revision,
+            elapsedMs: started.ElapsedMilliseconds));
+        return response;
     }
 
     public T ExecuteRead<T>(Func<T> action)
     {
-        gate.EnterReadLock();
-        try
+        return ExecuteRead("Global", action);
+    }
+
+    public T ExecuteRead<T>(string lockKey, Func<T> action)
+    {
+        return locks.ExecuteRead(lockKey, () =>
         {
             ThrowIfDisposed();
             return action();
-        }
-        finally
-        {
-            gate.ExitReadLock();
-        }
+        });
     }
 
     public T ExecuteWrite<T>(Func<T> action)
     {
-        gate.EnterWriteLock();
-        try
+        return ExecuteWrite("Global", action);
+    }
+
+    public T ExecuteWrite<T>(string lockKey, Func<T> action)
+    {
+        return locks.ExecuteWrite(lockKey, () =>
         {
             ThrowIfDisposed();
             using var mutex = CreateWriteMutex();
@@ -140,10 +154,26 @@ public sealed class AuraSharedStorageCoordinator : IDisposable
                     mutex.ReleaseMutex();
                 }
             }
-        }
-        finally
+        });
+    }
+
+    public string StorageLockKey(AuraSharedStorageRequest request)
+    {
+        try
         {
-            gate.ExitWriteLock();
+            ValidateRequest(request);
+            var owner = string.Equals(request.Scope, AuraSharedStorageScopes.Owner, StringComparison.OrdinalIgnoreCase)
+                ? request.OwnerModId
+                : "";
+            return "Config/"
+                   + SafeSegment(request.Scope, "Shared") + "/"
+                   + SafeSegment(owner, "_") + "/"
+                   + SafeSegment(request.System, "General") + "/"
+                   + SafeFileName(request.FileName);
+        }
+        catch (Exception ex)
+        {
+            return "Config/Invalid/" + ex.GetType().Name;
         }
     }
 
@@ -266,7 +296,7 @@ public sealed class AuraSharedStorageCoordinator : IDisposable
         }
 
         disposed = true;
-        gate.Dispose();
+        locks.Dispose();
     }
 
     private AuraSharedStorageResponse WriteNoLock(AuraSharedStorageRequest request)
@@ -444,8 +474,8 @@ public sealed class AuraSharedStorageCoordinator : IDisposable
 
         foreach (var relative in new[]
                  {
-                     "Config/Shared", "Config/Owners", "Config/Runtime", "Registries", "Backups/Storage", "Cache", "Transactions"
-                 })
+                     "Config/Shared", "Config/Owners", "Config/Runtime", "Registries", "Backups/Storage", "Cache", "Transactions", "Logs/Operations"
+                  })
         {
             Directory.CreateDirectory(Path.Combine(rootDirectory, relative.Replace('/', Path.DirectorySeparatorChar)));
         }

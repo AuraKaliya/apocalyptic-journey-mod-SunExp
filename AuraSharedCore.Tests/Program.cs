@@ -1,5 +1,6 @@
 using AuraShared.Core;
 using AuraJourney.Shared;
+using AuraOnline.Shared;
 using Newtonsoft.Json.Linq;
 
 var assertions = 0;
@@ -32,6 +33,12 @@ try
         FileName = "shared.json"
     });
     Assert(snapshot.Success && snapshot.Found && JObject.Parse(snapshot.PayloadJson)["value"]!.Value<int>() == 1, "shared snapshot read");
+    Assert(storage.StorageLockKey(new AuraSharedStorageRequest
+    {
+        Scope = AuraSharedStorageScopes.Shared,
+        System = "Test",
+        FileName = "shared.json"
+    }).Contains("Config/Shared"), "storage document lock key");
 
     var unauthorized = storage.Write(new AuraSharedStorageRequest
     {
@@ -87,6 +94,10 @@ try
     File.WriteAllText(sourceFile, "v1");
     var install = packages.Install(Request("OwnerA", "Audio", "voice", "PackA", 1, sourceFile, "Audio/Test/voice.wav"));
     Assert(install.Success && install.Changed && install.Status == "Installed", "file resource install");
+    Assert(OperationLogContains(tempRoot, "InstallResource", "ContentCommitted")
+           && OperationLogContains(tempRoot, "InstallResource", "RegistryCommitted")
+           && OperationLogContains(tempRoot, "InstallResource", "Completed"),
+        "install operation log phases");
 
     var duplicate = packages.Install(Request("OwnerA", "Audio", "voice", "PackA", 1, sourceFile, "Audio/Test/voice.wav"));
     Assert(duplicate.Success && !duplicate.Changed && duplicate.Status == "Deduplicated", "same owner deduplication");
@@ -138,6 +149,7 @@ try
     Assert(true, "transaction recovery");
 
     TestJourneyContracts();
+    TestOnlineChatContracts();
 
     Console.WriteLine($"AuraSharedCore tests passed: {assertions} assertions.");
 }
@@ -369,6 +381,44 @@ void TestJourneyContracts()
         "journey map id alias registry expands registered prefixes without shared content rules");
 }
 
+void TestOnlineChatContracts()
+{
+    var parsed = AuraChatEmojiParser.Parse("hi #[role:smile] ok").ToList();
+    Assert(parsed.Count == 3
+           && parsed[1].Kind == "Sticker"
+           && parsed[1].PackId == "role"
+           && parsed[1].StickerId == "smile"
+           && AuraChatEmojiParser.DisplayLength("hi #[role:smile] ok") == 7,
+        "chat emoji token parsing");
+
+    var limited = AuraChatTextLimiter.LimitPlayerText("123456789012345678901234");
+    Assert(limited == "12345678901234567890...", "chat player text limit");
+
+    var wrapped = AuraChatTextLimiter.WrapPlainText("123456789012345678901234567890X");
+    Assert(wrapped == "123456789012345678901234567890\nX", "chat display line wrap");
+
+    var status = AuraChatModSyncSnapshot.BuildStatus(new object[]
+    {
+        new FakeLobbyPlayer("p1", "A", new[] { new FakeLobbyMod("ChatExp", "0.1", true), new FakeLobbyMod("Other", "1", true) }),
+        new FakeLobbyPlayer("p2", "B", new[] { new FakeLobbyMod("ChatExp", "0.1", false) })
+    }, "ChatExp");
+    Assert(status.Contains("当前MOD同步状态")
+           && status.Contains("ChatExp: 不一致 缺少=B")
+           && status.Contains("Other: 不一致 缺少=B"),
+        "chat mod sync status");
+
+    AuraChatRuntime.Initialize("ChatExp", 2);
+    AuraChatRuntime.Receive(AuraChatRuntime.ConfirmPlayerMessage("p1", "A", "one"));
+    AuraChatRuntime.Receive(AuraChatRuntime.ConfirmPlayerMessage("p1", "A", "two"));
+    AuraChatRuntime.Receive(AuraChatRuntime.ConfirmPlayerMessage("p1", "A", "three"));
+    Assert(AuraChatRuntime.Messages.Count == 2
+           && AuraChatRuntime.Messages[0].RawText == "two"
+           && AuraChatRuntime.Messages[1].RawText == "three",
+        "chat bounded local store");
+    AuraChatRuntime.ClearMessages();
+    Assert(AuraChatRuntime.Messages.Count == 0, "chat clear local history");
+}
+
 void Assert(bool condition, string name)
 {
     if (!condition)
@@ -376,6 +426,24 @@ void Assert(bool condition, string name)
         throw new InvalidOperationException("Assertion failed: " + name);
     }
     assertions++;
+}
+
+bool OperationLogContains(string root, string kind, string phase)
+{
+    var directory = Path.Combine(root, "Logs", "Operations");
+    if (!Directory.Exists(directory))
+    {
+        return false;
+    }
+
+    return Directory.EnumerateFiles(directory, "*.jsonl", SearchOption.TopDirectoryOnly)
+        .SelectMany(File.ReadAllLines)
+        .Any(line =>
+        {
+            var json = JObject.Parse(line);
+            return string.Equals(json["kind"]?.Value<string>(), kind, StringComparison.OrdinalIgnoreCase)
+                   && string.Equals(json["phase"]?.Value<string>(), phase, StringComparison.OrdinalIgnoreCase);
+        });
 }
 
 void TryDelete(string path)
@@ -390,4 +458,36 @@ void TryDelete(string path)
     catch
     {
     }
+}
+
+sealed class FakeLobbyPlayer
+{
+    public FakeLobbyPlayer(string id, string name, IEnumerable<FakeLobbyMod> mods)
+    {
+        Id = id;
+        Name = name;
+        Mods = mods.ToList();
+    }
+
+    public string Id { get; }
+
+    public string Name { get; }
+
+    public List<FakeLobbyMod> Mods { get; }
+}
+
+sealed class FakeLobbyMod
+{
+    public FakeLobbyMod(string modName, string modVersion, bool enabled)
+    {
+        ModName = modName;
+        ModVersion = modVersion;
+        Enabled = enabled;
+    }
+
+    public string ModName { get; }
+
+    public string ModVersion { get; }
+
+    public bool Enabled { get; }
 }

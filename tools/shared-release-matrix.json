@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "name": "AuraShared release gate",
+  "steps": [
+    {
+      "id": "core-contract",
+      "kind": "script",
+      "path": "tools/Test-AuraSharedCore.ps1",
+      "enabled": true
+    },
+    {
+      "id": "write-entrypoint-scan",
+      "kind": "script",
+      "path": "tools/Test-SharedWriteEntrypoints.ps1",
+      "enabled": true
+    },
+    {
+      "id": "main-consumers",
+      "kind": "script",
+      "path": "tools/Test-MainSharedFramework.ps1",
+      "enabled": true
+    }
+  ],
+  "requiredContracts": {
+    "protocolVersion": 2,
+    "buildId": "aura-shared-core-2026-06-22-v2",
+    "operationLog": "Logs/Operations/yyyyMMdd.jsonl",
+    "lockOrder": ["Resource", "Registry", "WriteMutex"]
+  },
+  "adapterSurfaces": ["Skin", "Audio", "CG", "Log", "Journey"],
+  "releaseScenarios": [
+    "SunExp only",
+    "SunExp + AuraToolsExp",
+    "SkinExp + SunExp",
+    "SanGuoShaExp + SunExp",
+    "SunExp + SanGuoShaExp + AuraToolsExp"
+  ]
+}

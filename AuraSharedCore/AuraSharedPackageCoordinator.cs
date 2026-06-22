@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
@@ -18,12 +19,39 @@ public sealed class AuraSharedPackageCoordinator
 
     public AuraSharedInstallResponse Install(AuraSharedInstallRequest request)
     {
-        return storage.ExecuteWrite(() => InstallNoLock(request));
+        if (request == null)
+        {
+            return new AuraSharedInstallResponse
+            {
+                Success = false,
+                Message = "Resource install request is null."
+            };
+        }
+
+        var started = Stopwatch.StartNew();
+        var response = storage.ExecuteWrite(ResourceLockKey(request), () =>
+            storage.ExecuteWrite(RegistryLockKey(request.System), () => InstallNoLock(request)));
+        if (!response.Success)
+        {
+            AuraSharedOperationLog.Write(storage.RootDirectory, AuraSharedOperationLog.Create(
+                operationId: "",
+                transactionId: "",
+                ownerModId: request.OwnerModId,
+                system: request.System,
+                logicalId: request.LogicalId,
+                kind: "InstallResource",
+                phase: response.Conflict ? "Conflict" : "Failed",
+                result: response.Conflict ? "Conflict" : "Failure",
+                message: response.Message,
+                elapsedMs: started.ElapsedMilliseconds));
+        }
+
+        return response;
     }
 
     public AuraSharedInstalledResource[] GetResources(string system)
     {
-        return storage.ExecuteRead(() =>
+        return storage.ExecuteRead(RegistryLockKey(system), () =>
         {
             var index = LoadIndex(system);
             return index.Resources
@@ -34,7 +62,7 @@ public sealed class AuraSharedPackageCoordinator
 
     public int RecoverTransactions()
     {
-        return storage.ExecuteWrite(RecoverTransactionsNoLock);
+        return storage.ExecuteWrite("Transactions/Recovery", RecoverTransactionsNoLock);
     }
 
     private AuraSharedInstallResponse InstallNoLock(AuraSharedInstallRequest request)
@@ -140,7 +168,9 @@ public sealed class AuraSharedPackageCoordinator
         string destinationPath,
         string status)
     {
+        var operationId = Guid.NewGuid().ToString("N");
         var transactionId = Guid.NewGuid().ToString("N");
+        var started = Stopwatch.StartNew();
         var stagingRoot = Path.Combine(storage.RootDirectory, "Cache", "Packages", transactionId);
         var stagingPayload = Path.Combine(stagingRoot, "payload");
         var registryPath = IndexPath(request.System);
@@ -181,6 +211,7 @@ public sealed class AuraSharedPackageCoordinator
                 File.Copy(registryPath, registryBackup, false);
             }
             storage.WriteRawJsonAtomic(journalPath, journal, false);
+            LogOperation(operationId, transactionId, request, "Prepared", "Started", "Prepared resource transaction.", started);
 
             if (journal.DestinationExisted)
             {
@@ -190,25 +221,30 @@ public sealed class AuraSharedPackageCoordinator
 
             journal.State = "BackupCommitted";
             storage.WriteRawJsonAtomic(journalPath, journal, false);
+            LogOperation(operationId, transactionId, request, "BackupCommitted", "Success", "Previous payload moved to backup.", started);
 
             Directory.CreateDirectory(Path.GetDirectoryName(destinationPath) ?? storage.RootDirectory);
             MovePayload(stagingPayload, destinationPath, request.Kind);
             journal.State = "ContentCommitted";
             storage.WriteRawJsonAtomic(journalPath, journal, false);
+            LogOperation(operationId, transactionId, request, "ContentCommitted", "Success", "Payload committed.", started);
 
             ReplaceRecord(index, existing, replacement);
             SaveIndex(index, request.System);
             journal.State = "RegistryCommitted";
             storage.WriteRawJsonAtomic(journalPath, journal, false);
+            LogOperation(operationId, transactionId, request, "RegistryCommitted", "Success", "Registry committed.", started);
 
             TryDeleteFile(registryBackup);
             TryDeletePath(stagingRoot, AuraSharedResourceKinds.Directory);
             TryDeleteFile(journalPath);
+            LogOperation(operationId, transactionId, request, "Completed", "Success", status, started);
             return Success(status, true, fingerprint.Hash, destinationPath);
         }
         catch (Exception ex)
         {
             Rollback(journal);
+            LogOperation(operationId, transactionId, request, "RolledBack", "Failure", ex.Message, started);
             return new AuraSharedInstallResponse
             {
                 Success = false,
@@ -291,6 +327,28 @@ public sealed class AuraSharedPackageCoordinator
         }
     }
 
+    private void LogOperation(
+        string operationId,
+        string transactionId,
+        AuraSharedInstallRequest request,
+        string phase,
+        string result,
+        string message,
+        Stopwatch started)
+    {
+        AuraSharedOperationLog.Write(storage.RootDirectory, AuraSharedOperationLog.Create(
+            operationId,
+            transactionId,
+            request.OwnerModId,
+            request.System,
+            request.LogicalId,
+            "InstallResource",
+            phase,
+            result,
+            message,
+            elapsedMs: started.ElapsedMilliseconds));
+    }
+
     private AuraSharedResourceIndex LoadIndex(string system)
     {
         var index = storage.LoadRawJsonOrDefault(IndexPath(system), new AuraSharedResourceIndex());
@@ -317,6 +375,18 @@ public sealed class AuraSharedPackageCoordinator
     private string IndexPath(string system)
     {
         return Path.Combine(storage.RootDirectory, "Registries", SafeSegment(system, "General"), "resources.json");
+    }
+
+    private static string ResourceLockKey(AuraSharedInstallRequest? request)
+    {
+        return "Resource/"
+               + SafeSegment(request?.System ?? "General", "General") + "/"
+               + SafeSegment(request?.LogicalId ?? "unknown", "unknown");
+    }
+
+    private static string RegistryLockKey(string system)
+    {
+        return "Registry/" + SafeSegment(system, "General");
     }
 
     private string ResolveDestination(string relativePath)

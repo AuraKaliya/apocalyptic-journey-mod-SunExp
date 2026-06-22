@@ -1,0 +1,8 @@
+D:\workfile\project\Mod_1\apocalyptic-journey-mod-SunExp\TestMods\ChatExp-Dev\obj\Release\net472\ChatExp.Dll.csproj.AssemblyReference.cache
+D:\workfile\project\Mod_1\apocalyptic-journey-mod-SunExp\TestMods\ChatExp-Dev\obj\Release\net472\ChatExp.Dll.GeneratedMSBuildEditorConfig.editorconfig
+D:\workfile\project\Mod_1\apocalyptic-journey-mod-SunExp\TestMods\ChatExp-Dev\obj\Release\net472\ChatExp.Dll.AssemblyInfoInputs.cache
+D:\workfile\project\Mod_1\apocalyptic-journey-mod-SunExp\TestMods\ChatExp-Dev\obj\Release\net472\ChatExp.Dll.AssemblyInfo.cs
+D:\workfile\project\Mod_1\apocalyptic-journey-mod-SunExp\TestMods\ChatExp-Dev\obj\Release\net472\ChatExp.Dll.csproj.CoreCompileInputs.cache
+D:\workfile\project\Mod_1\apocalyptic-journey-mod-SunExp\TestMods\ChatExp-Dev\obj\Release\net472\ChatExp.Dll.sourcelink.json
+D:\workfile\project\Mod_1\apocalyptic-journey-mod-SunExp\TestMods\ChatExp-Dev\bin\Release\net472\ChatExp.Aura.dll
+D:\workfile\project\Mod_1\apocalyptic-journey-mod-SunExp\TestMods\ChatExp-Dev\obj\Release\net472\ChatExp.Aura.dll

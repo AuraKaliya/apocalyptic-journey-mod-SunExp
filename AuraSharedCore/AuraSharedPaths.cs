@@ -48,6 +48,8 @@ public static class AuraSharedPaths
 
     public static string LogsRootDirectory => Path.Combine(RootDirectory, "Logs");
 
+    public static string OperationsLogDirectory => Path.Combine(LogsRootDirectory, "Operations");
+
     public static string RegistriesRootDirectory => Path.Combine(RootDirectory, "Registries");
 
     public static string BackupsDirectory => Path.Combine(RootDirectory, "Backups");
@@ -85,6 +87,7 @@ public static class AuraSharedPaths
         CreateDirectorySafe(CgDirectory);
         CreateDirectorySafe(SkinsDirectory);
         CreateDirectorySafe(LogsRootDirectory);
+        CreateDirectorySafe(OperationsLogDirectory);
         CreateDirectorySafe(RegistriesRootDirectory);
         CreateDirectorySafe(BackupsDirectory);
         CreateDirectorySafe(CacheDirectory);
