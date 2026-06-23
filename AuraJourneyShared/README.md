@@ -37,6 +37,32 @@ protocol and state service first; game-specific hooks stay in the owning Mod unt
 Main Mods should register their own journey definitions and content-specific ID aliases from their own `GameApi` or
 `Mechanics` code. AuraJourneyShared should not contain concrete card, event, boss, role, map, or story IDs.
 
+## Journey Identity
+
+`JourneyId` is a shared technical identity. New definitions should author it as:
+
+```text
+ownerModId:localJourneyId
+```
+
+Examples:
+
+```text
+SunExp:solar-memory
+SanGuoShaExp:lord-trial
+```
+
+Short ids such as `solar-memory` are accepted only as compatibility input.
+`AuraJourneyRuntime.RegisterJourney` and `TryCommit` normalize short ids through
+`AuraJourneyRuntime.QualifyJourneyId(ownerModId, journeyId)` before writing
+shared definition, registry, or runtime state files. Reads try the normalized
+owner-qualified file first, then fall back to the legacy short-id file without
+deleting or rewriting it.
+
+This keeps two Mods from colliding on the same definition/state file while
+preserving older data. If a tool or another Mod needs to read a journey owned by
+a different Mod, pass the owner-qualified id explicitly.
+
 ## Game-Body Extension Boundary
 
 AuraJourneyShared now owns the reusable contract for custom route nodes, but the owning Mod still owns concrete hook timing.

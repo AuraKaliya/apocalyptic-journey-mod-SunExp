@@ -16,10 +16,18 @@ public static class AuraJourneyRuntime
 
     public static AuraSharedConfigWriteResult RegisterJourney(string ownerModId, AuraJourneyDefinition definition)
     {
+        if (definition == null)
+        {
+            throw new ArgumentNullException(nameof(definition));
+        }
+
+        var originalJourneyId = definition.JourneyId ?? "";
         NormalizeDefinition(ownerModId, definition);
-        var fileName = DefinitionFileName(definition.JourneyId);
+        var qualifiedJourneyId = definition.JourneyId ?? "";
+        WarnIfLegacyJourneyId(definition.OwnerModId, originalJourneyId, qualifiedJourneyId, "RegisterJourney");
+        var fileName = DefinitionFileName(qualifiedJourneyId);
         var result = AuraSharedConfigStore.WriteShared(
-            ownerModId,
+            definition.OwnerModId,
             AuraJourneyConstants.SystemName,
             fileName,
             definition,
@@ -27,11 +35,11 @@ public static class AuraJourneyRuntime
 
         if (result.Success)
         {
-            AuraSharedRegistry.RegisterResource(ownerModId, new AuraSharedResourceRecord
+            AuraSharedRegistry.RegisterResource(definition.OwnerModId, new AuraSharedResourceRecord
             {
                 System = AuraJourneyConstants.SystemName,
-                ResourceId = definition.JourneyId,
-                OwnerModId = ownerModId,
+                ResourceId = qualifiedJourneyId,
+                OwnerModId = definition.OwnerModId,
                 Kind = "JourneyDefinition",
                 Tags = definition.Tags.ToArray()
             });
@@ -39,31 +47,83 @@ public static class AuraJourneyRuntime
 
         AuraSharedDiagnostics.Write(AuraSharedDiagnostics.Create(
             AuraJourneyConstants.SystemName,
-            ownerModId,
+            definition.OwnerModId,
             result.Success ? "Info" : "Warn",
             "RegisterJourney",
-            result.Success ? "Journey registered: " + definition.JourneyId : "Journey registration failed: " + result.Message,
+            result.Success ? "Journey registered: " + qualifiedJourneyId : "Journey registration failed: " + result.Message,
             isAuthority: true,
-            correlationId: definition.JourneyId));
+            correlationId: qualifiedJourneyId));
         return result;
     }
 
     public static AuraSharedConfigSnapshot<AuraJourneyDefinition> ReadJourney(string callerId, string journeyId)
     {
-        return AuraSharedConfigStore.ReadShared(
+        var rawJourneyId = (journeyId ?? "").Trim();
+        var qualifiedJourneyId = QualifyJourneyId(callerId, rawJourneyId);
+        var snapshot = AuraSharedConfigStore.ReadShared(
             callerId,
             AuraJourneyConstants.SystemName,
-            DefinitionFileName(journeyId),
-            new AuraJourneyDefinition { JourneyId = journeyId ?? "" });
+            DefinitionFileName(qualifiedJourneyId),
+            new AuraJourneyDefinition { JourneyId = qualifiedJourneyId });
+        if (snapshot.Found || string.Equals(rawJourneyId, qualifiedJourneyId, StringComparison.OrdinalIgnoreCase))
+        {
+            NormalizeSnapshotValue(snapshot.Value, callerId, qualifiedJourneyId);
+            return snapshot;
+        }
+
+        var legacy = AuraSharedConfigStore.ReadShared(
+            callerId,
+            AuraJourneyConstants.SystemName,
+            DefinitionFileName(rawJourneyId),
+            new AuraJourneyDefinition { JourneyId = qualifiedJourneyId });
+        if (legacy.Found)
+        {
+            NormalizeSnapshotValue(legacy.Value, callerId, qualifiedJourneyId);
+            AuraSharedDiagnostics.Warn(
+                AuraJourneyConstants.SystemName,
+                callerId,
+                "ReadJourney",
+                "Read legacy unqualified journey definition: " + rawJourneyId + " -> " + qualifiedJourneyId,
+                true,
+                qualifiedJourneyId);
+        }
+
+        return legacy;
     }
 
     public static AuraSharedConfigSnapshot<AuraJourneyState> ReadState(string callerId, string journeyId)
     {
-        return AuraSharedConfigStore.ReadRuntime(
+        var rawJourneyId = (journeyId ?? "").Trim();
+        var qualifiedJourneyId = QualifyJourneyId(callerId, rawJourneyId);
+        var snapshot = AuraSharedConfigStore.ReadRuntime(
             callerId,
             AuraJourneyConstants.SystemName,
-            StateFileName(journeyId),
-            new AuraJourneyState { JourneyId = journeyId ?? "" });
+            StateFileName(qualifiedJourneyId),
+            new AuraJourneyState { JourneyId = qualifiedJourneyId });
+        if (snapshot.Found || string.Equals(rawJourneyId, qualifiedJourneyId, StringComparison.OrdinalIgnoreCase))
+        {
+            NormalizeSnapshotValue(snapshot.Value, callerId, qualifiedJourneyId);
+            return snapshot;
+        }
+
+        var legacy = AuraSharedConfigStore.ReadRuntime(
+            callerId,
+            AuraJourneyConstants.SystemName,
+            StateFileName(rawJourneyId),
+            new AuraJourneyState { JourneyId = qualifiedJourneyId });
+        if (legacy.Found)
+        {
+            NormalizeSnapshotValue(legacy.Value, callerId, qualifiedJourneyId);
+            AuraSharedDiagnostics.Warn(
+                AuraJourneyConstants.SystemName,
+                callerId,
+                "ReadState",
+                "Read legacy unqualified journey state: " + rawJourneyId + " -> " + qualifiedJourneyId,
+                true,
+                qualifiedJourneyId);
+        }
+
+        return legacy;
     }
 
     public static AuraJourneyCommitResult TryCommit(AuraJourneyCommitRequest request)
@@ -75,13 +135,17 @@ public static class AuraJourneyRuntime
                 return Failure("Journey commit request is null.");
             }
 
-            request.JourneyId = (request.JourneyId ?? "").Trim();
+            var originalJourneyId = (request.JourneyId ?? "").Trim();
+            request.JourneyId = originalJourneyId;
             request.OwnerModId = (request.OwnerModId ?? "").Trim();
             request.AuthorityId = string.IsNullOrWhiteSpace(request.AuthorityId) ? request.OwnerModId : request.AuthorityId.Trim();
             if (string.IsNullOrWhiteSpace(request.JourneyId) || string.IsNullOrWhiteSpace(request.OwnerModId))
             {
                 return Failure("JourneyId and ownerModId are required.");
             }
+
+            request.JourneyId = QualifyJourneyId(request.OwnerModId, request.JourneyId);
+            WarnIfLegacyJourneyId(request.OwnerModId, originalJourneyId, request.JourneyId, "Commit");
 
             if (!request.IsAuthority)
             {
@@ -91,6 +155,8 @@ public static class AuraJourneyRuntime
 
             var snapshot = ReadState(request.OwnerModId, request.JourneyId);
             var next = AuraJourneyStateReducer.Apply(snapshot.Value, request, DateTime.UtcNow);
+            next.JourneyId = request.JourneyId;
+            next.OwnerModId = request.OwnerModId;
             var expectedRevision = request.ExpectedRevision >= 0 ? request.ExpectedRevision : snapshot.Revision;
             var write = AuraSharedConfigStore.WriteRuntime(
                 request.AuthorityId,
@@ -130,6 +196,37 @@ public static class AuraJourneyRuntime
         return AuraJourneyConditionEvaluator.EvaluateAll(node?.Conditions, context);
     }
 
+    public static string QualifyJourneyId(string ownerModId, string journeyId)
+    {
+        var owner = (ownerModId ?? "").Trim();
+        var id = (journeyId ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return "";
+        }
+
+        if (IsQualifiedJourneyId(id) || string.IsNullOrWhiteSpace(owner))
+        {
+            return id;
+        }
+
+        return owner + ":" + id;
+    }
+
+    public static bool IsQualifiedJourneyId(string journeyId)
+    {
+        var id = (journeyId ?? "").Trim();
+        var separator = id.IndexOf(':');
+        return separator > 0 && separator < id.Length - 1;
+    }
+
+    public static string LocalJourneyId(string journeyId)
+    {
+        var id = (journeyId ?? "").Trim();
+        var separator = id.IndexOf(':');
+        return separator >= 0 && separator < id.Length - 1 ? id.Substring(separator + 1) : id;
+    }
+
     private static void NormalizeDefinition(string ownerModId, AuraJourneyDefinition definition)
     {
         if (definition == null)
@@ -139,7 +236,7 @@ public static class AuraJourneyRuntime
 
         definition.SchemaVersion = AuraJourneyConstants.DefinitionSchemaVersion;
         definition.OwnerModId = string.IsNullOrWhiteSpace(definition.OwnerModId) ? ownerModId : definition.OwnerModId.Trim();
-        definition.JourneyId = (definition.JourneyId ?? "").Trim();
+        definition.JourneyId = QualifyJourneyId(definition.OwnerModId, definition.JourneyId);
         definition.DisplayName = (definition.DisplayName ?? "").Trim();
         definition.EntryNodeId = (definition.EntryNodeId ?? "").Trim();
         definition.Tags ??= new System.Collections.Generic.List<string>();
@@ -148,6 +245,65 @@ public static class AuraJourneyRuntime
         {
             throw new InvalidOperationException("JourneyId is required.");
         }
+    }
+
+    private static void NormalizeSnapshotValue(AuraJourneyDefinition value, string ownerModId, string journeyId)
+    {
+        if (value == null)
+        {
+            return;
+        }
+
+        value.OwnerModId = ResolveSnapshotOwner(value.OwnerModId, journeyId, ownerModId);
+        value.JourneyId = QualifyJourneyId(value.OwnerModId, string.IsNullOrWhiteSpace(value.JourneyId) ? journeyId : value.JourneyId);
+    }
+
+    private static void NormalizeSnapshotValue(AuraJourneyState value, string ownerModId, string journeyId)
+    {
+        if (value == null)
+        {
+            return;
+        }
+
+        value.OwnerModId = ResolveSnapshotOwner(value.OwnerModId, journeyId, ownerModId);
+        value.JourneyId = QualifyJourneyId(value.OwnerModId, string.IsNullOrWhiteSpace(value.JourneyId) ? journeyId : value.JourneyId);
+    }
+
+    private static string ResolveSnapshotOwner(string valueOwnerModId, string journeyId, string fallbackOwnerModId)
+    {
+        var owner = (valueOwnerModId ?? "").Trim();
+        if (!string.IsNullOrWhiteSpace(owner))
+        {
+            return owner;
+        }
+
+        var id = (journeyId ?? "").Trim();
+        var separator = id.IndexOf(':');
+        if (separator > 0)
+        {
+            return id.Substring(0, separator);
+        }
+
+        return (fallbackOwnerModId ?? "").Trim();
+    }
+
+    private static void WarnIfLegacyJourneyId(string ownerModId, string originalJourneyId, string qualifiedJourneyId, string phase)
+    {
+        var original = (originalJourneyId ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(original)
+            || string.Equals(original, qualifiedJourneyId, StringComparison.OrdinalIgnoreCase)
+            || IsQualifiedJourneyId(original))
+        {
+            return;
+        }
+
+        AuraSharedDiagnostics.Warn(
+            AuraJourneyConstants.SystemName,
+            ownerModId,
+            phase,
+            "JourneyId should be owner-qualified. Normalized " + original + " -> " + qualifiedJourneyId + ".",
+            true,
+            qualifiedJourneyId);
     }
 
     private static string DefinitionFileName(string journeyId)

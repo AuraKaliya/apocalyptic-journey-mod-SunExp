@@ -3,6 +3,7 @@ using System.Collections;
 using System.Reflection;
 using AuraShared.Core;
 using AuraSkin.Shared;
+using StarterDeckArbiter.Shared;
 using Witch.Mod;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks;
@@ -20,6 +21,7 @@ public static class Entry
         RunStep("shared core", () => AuraSharedRuntime.Initialize(modConfig, "SunExp"));
         RunStep("shared resource package", () => RegisterSharedResourcePackage(modConfig));
         RunStep("shared registry", () => AuraSharedRegistry.RegisterManifest(modConfig, "SunExp"));
+        RunStep("starter deck profiles", () => StarterDeckArbiterRuntime.RegisterProfileManifest(modConfig, "SunExp"));
         RunStep("shared skin runtime", () => AuraSkinRuntime.Initialize(modConfig, "SunExp"));
         RunStep("shared skin package", () => RegisterSkinPackage(modConfig));
         RunStep("journey runtime", () => SolarMemoryJourneyApi.Initialize(modConfig));

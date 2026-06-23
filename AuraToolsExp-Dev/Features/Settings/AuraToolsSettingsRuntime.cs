@@ -12,6 +12,7 @@ using AuraToolsExp.Dll.Features.SkillCg;
 using AuraToolsExp.Dll.Features.StarterDeck;
 using AuraToolsExp.Dll.Infrastructure;
 using Michsky.MUIP;
+using StarterDeckArbiter.Shared;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -654,9 +655,36 @@ public static class AuraToolsSettingsRuntime
             AuraToolsConfigService.SaveMatchExperience();
         }, content =>
         {
+            var settings = AuraToolsConfigService.MatchExperience.StarterDeck;
+            var profileCount = StarterDeckArbiterRuntime.GetRegisteredProfiles(AuraToolsIds.ModId).Count;
             var row = CreateInlineRow(content, "StarterDeckConfigRow");
-            AuraToolsUi.AddText(row.transform, "当前预设：" + AuraToolsConfigService.MatchExperience.StarterDeck.CardIds.Count + "/" + AuraToolsConfigService.MatchExperience.StarterDeck.DeckSize, AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
-            AuraToolsUi.AddButton(row.transform, "配置", () => AuraToolsStarterDeckEditor.Show(activePanel!.transform), 88f);
+            AuraToolsUi.AddText(row.transform,
+                "模式：" + (settings.Mode == StarterDeckModes.RoleSpecific ? "按角色" : "全局")
+                + "；全局：" + settings.GlobalProfile.CardIds.Count + "/" + settings.GlobalProfile.DeckSize
+                + "；角色本地：" + settings.Roles.Count
+                + "；MOD注册：" + profileCount,
+                AuraToolsUi.BodyFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.Text,
+                AuraToolsUi.TextMinHeight,
+                1f);
+            AuraToolsUi.AddButton(row.transform, settings.Mode == StarterDeckModes.RoleSpecific ? "切到全局" : "切到按角色", () =>
+            {
+                settings.Mode = settings.Mode == StarterDeckModes.RoleSpecific ? StarterDeckModes.Global : StarterDeckModes.RoleSpecific;
+                AuraToolsConfigService.SaveMatchExperience();
+                RebuildPanel(activePanel!.transform);
+            }, 96f);
+            AuraToolsUi.AddButton(row.transform, "全局配置", () => AuraToolsStarterDeckEditor.ShowGlobal(activePanel!.transform), 96f);
+            AuraToolsUi.AddButton(row.transform, "角色配置", () => AuraToolsStarterDeckRoleManager.Show(activePanel!.transform), 96f);
+
+            var policyRow = CreateInlineRow(content, "StarterDeckPolicyRow");
+            AuraToolsUi.AddToggle(policyRow.transform, settings.PreferRoleModProfile, value =>
+            {
+                settings.PreferRoleModProfile = value;
+                AuraToolsConfigService.SaveMatchExperience();
+                RebuildPanel(activePanel!.transform);
+            });
+            AuraToolsUi.AddText(policyRow.transform, "优先使用角色所属 MOD 注册的只读开局卡组；用户在角色候选中显式选择后，以显式选择为准。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
         });
 
         CreateSubmodule(parent, "随身保险箱", AuraToolsConfigService.MatchExperience.SafeBox.Enabled, value =>

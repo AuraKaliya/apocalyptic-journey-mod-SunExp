@@ -110,6 +110,13 @@ System adapters should translate their business manifest into Core requests:
 
 Adapters may understand Skin, Audio, CG, Log, or Journey semantics. Core must not.
 
+Domain-specific shared arbiters, such as `StarterDeckArbiterShared`, own their
+own business contracts on top of Core. Core provides registry, storage, locking,
+and diagnostics; it must not decide StarterDeck profile priority, editability, or
+role ownership. See `docs/starter-deck-profile-protocol.md` for the StarterDeck
+domain contract, and `docs/shared-component-architecture-guidelines.md` for the
+general shared-component rules.
+
 ## Operation Log
 
 Operation logs are append-only JSONL files under:
@@ -159,3 +166,7 @@ Resource -> Registry -> cross-process write mutex
 The release gate is `tools/Test-SharedReleaseGate.ps1`. It loads
 `tools/shared-release-matrix.json`, runs enabled steps, and fails the build when a
 contract, scan, adapter, package, or consumer-build check fails.
+
+The architecture guideline scan is `tools/Test-SharedArchitectureGuidelines.ps1`.
+It enforces global-runtime compatibility surfaces, provider identity rules,
+shared-write boundaries, and required shared-component documentation anchors.

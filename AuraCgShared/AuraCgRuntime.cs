@@ -29,9 +29,11 @@ public static class SkillCgArbiterRuntime
     private const float AlphaFadeInEndXRatio = 0.82f;
     private const float AlphaFadeOutStartXRatio = 0.18f;
     private const float AlphaFadeOutEndXRatio = -0.05f;
+    public const string CurrentBuildId = "aura-cg-shared-2026-06-23-v2";
     public const int CurrentProtocolVersion = 1;
     public const int MinimumSupportedProtocolVersion = 1;
     private static readonly HashSet<string> ReuseLogOwners = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly HashSet<string> CompatibilityErrorsShown = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, string> DataDirectories = new(StringComparer.OrdinalIgnoreCase);
 
     public static void Initialize(ModConfig? modConfig, string ownerModId, SkillCgArbiterOptions? options = null)
@@ -164,9 +166,17 @@ public static class SkillCgArbiterRuntime
             var existing = FindArbiterComponent(gameObject);
             if (existing != null)
             {
+                if (!ValidateExistingArbiter(existing, ownerModId))
+                {
+                    return null!;
+                }
+
                 if (ReuseLogOwners.Add(ownerModId))
                 {
-                    AuraCgLog.InfoOnce("reuse-arbiter:" + ownerModId, "Reusing global CG arbiter for " + ownerModId + ".");
+                    AuraCgLog.InfoOnce(
+                        "reuse-arbiter:" + ownerModId,
+                        "Reusing global CG arbiter for " + ownerModId
+                        + ", ownerType=" + existing.GetType().Assembly.GetName().Name);
                 }
 
                 return existing;
@@ -182,6 +192,61 @@ public static class SkillCgArbiterRuntime
         var component = gameObject.AddComponent<SkillCgArbiterComponent>();
         AuraCgLog.InfoOnce("create-arbiter", "Created global CG arbiter. owner=" + ownerModId);
         return component;
+    }
+
+    private static bool ValidateExistingArbiter(object existing, string ownerModId)
+    {
+        var type = existing.GetType();
+        var protocolVersion = ReadIntProperty(existing, "ProtocolVersion", 0);
+        var minimumSupported = ReadIntProperty(existing, "MinimumSupportedProtocolVersion", int.MaxValue);
+        var buildId = ReadStringProperty(existing, "BuildId");
+        var methodsPresent = new[] { "Configure", "RegisterProvider", "Trigger", "RequestCg", "ClearQueue" }
+            .All(name => type.GetMethod(name, BindingFlags.Instance | BindingFlags.Public) != null);
+        var compatible = protocolVersion >= MinimumSupportedProtocolVersion
+            && minimumSupported <= CurrentProtocolVersion
+            && string.Equals(buildId, CurrentBuildId, StringComparison.Ordinal)
+            && methodsPresent;
+
+        if (!compatible && CompatibilityErrorsShown.Add(ownerModId + ":" + type.AssemblyQualifiedName))
+        {
+            AuraCgLog.WarnOnce(
+                "incompatible-arbiter:" + ownerModId,
+                "Incompatible global CG arbiter; CG features disabled for " + ownerModId
+                + ". existingAssembly=" + type.Assembly.GetName().Name
+                + ", protocol=" + protocolVersion
+                + ", minSupported=" + minimumSupported
+                + ", buildId=" + (string.IsNullOrWhiteSpace(buildId) ? "<missing>" : buildId)
+                + ", requiredBuildId=" + CurrentBuildId
+                + ", methodsPresent=" + methodsPresent);
+        }
+
+        return compatible;
+    }
+
+    private static int ReadIntProperty(object source, string propertyName, int fallback)
+    {
+        try
+        {
+            return source.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public)?.GetValue(source) is int value
+                ? value
+                : fallback;
+        }
+        catch
+        {
+            return fallback;
+        }
+    }
+
+    private static string ReadStringProperty(object source, string propertyName)
+    {
+        try
+        {
+            return source.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public)?.GetValue(source) as string ?? "";
+        }
+        catch
+        {
+            return "";
+        }
     }
 
     private static object? FindArbiterComponent(GameObject gameObject)
@@ -227,6 +292,8 @@ public static class SkillCgArbiterRuntime
 
         public int MinimumSupportedProtocolVersion => SkillCgArbiterRuntime.MinimumSupportedProtocolVersion;
 
+        public string BuildId => CurrentBuildId;
+
         public void Configure(object? value)
         {
             if (value is not SkillCgArbiterOptions typed)
@@ -265,12 +332,12 @@ public static class SkillCgArbiterRuntime
                     return;
                 }
 
-                providers.RemoveAll(item => string.Equals(item.ProviderId, handle.ProviderId, StringComparison.OrdinalIgnoreCase));
+                providers.RemoveAll(item => string.Equals(item.QualifiedProviderId, handle.QualifiedProviderId, StringComparison.OrdinalIgnoreCase));
                 providers.Add(handle);
                 providers.Sort((a, b) =>
                 {
                     var priority = b.Priority.CompareTo(a.Priority);
-                    return priority != 0 ? priority : string.Compare(a.ProviderId, b.ProviderId, StringComparison.OrdinalIgnoreCase);
+                    return priority != 0 ? priority : string.Compare(a.QualifiedProviderId, b.QualifiedProviderId, StringComparison.OrdinalIgnoreCase);
                 });
                 AuraCgLog.InfoOnce("provider:" + handle.ProviderId, "CG provider registered: " + handle.Describe());
             }
@@ -309,7 +376,7 @@ public static class SkillCgArbiterRuntime
                 var priorityCompare = b.Priority.CompareTo(a.Priority);
                 return priorityCompare != 0
                     ? priorityCompare
-                    : string.Compare(a.ProviderId, b.ProviderId, StringComparison.OrdinalIgnoreCase);
+                    : string.Compare(a.QualifiedProviderId, b.QualifiedProviderId, StringComparison.OrdinalIgnoreCase);
             });
 
             var accepted = 0;
@@ -757,12 +824,20 @@ public static class SkillCgArbiterRuntime
             providerType = provider.GetType();
             ProviderId = ReadString("ProviderId", providerType.FullName ?? "unknown");
             OwnerModId = ReadString("OwnerModId", "");
+            if (string.IsNullOrWhiteSpace(OwnerModId))
+            {
+                OwnerModId = providerType.Assembly.GetName().Name ?? "";
+            }
+
+            QualifiedProviderId = QualifyProviderId(OwnerModId, ProviderId);
             Priority = ReadInt("Priority", 0);
         }
 
         public string ProviderId { get; }
 
         public string OwnerModId { get; }
+
+        public string QualifiedProviderId { get; }
 
         public int Priority { get; }
 
@@ -779,7 +854,7 @@ public static class SkillCgArbiterRuntime
 
                 foreach (var item in items)
                 {
-                    var request = SkillCgRequest.FromObject(item, ProviderId, OwnerModId, Priority, context);
+                    var request = SkillCgRequest.FromObject(item, QualifiedProviderId, OwnerModId, Priority, context);
                     if (request != null)
                     {
                         output.Add(request);
@@ -795,7 +870,10 @@ public static class SkillCgArbiterRuntime
 
         public string Describe()
         {
-            return "providerId=" + ProviderId + ", owner=" + OwnerModId + ", priority=" + Priority;
+            return "providerId=" + ProviderId
+                + ", qualifiedProviderId=" + QualifiedProviderId
+                + ", owner=" + OwnerModId
+                + ", priority=" + Priority;
         }
 
         private string ReadString(string name, string fallback)
@@ -821,6 +899,23 @@ public static class SkillCgArbiterRuntime
             {
                 return fallback;
             }
+        }
+
+        private static string QualifyProviderId(string ownerModId, string providerId)
+        {
+            var owner = (ownerModId ?? "").Trim();
+            var id = (providerId ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                id = "unknown";
+            }
+
+            if (id.Contains(":") || string.IsNullOrWhiteSpace(owner))
+            {
+                return id;
+            }
+
+            return owner + ":" + id;
         }
     }
 }
@@ -891,6 +986,8 @@ public sealed class SkillCgRequest
 
     public string DuplicateKey => ProviderId + "|" + OwnerInstanceId + "|" + CardId + "|" + (string.IsNullOrWhiteSpace(ImageResource) ? ImagePath : ImageResource);
 
+    public string QualifiedProviderId => QualifyProviderId(OwnerModId, ProviderId);
+
     public void Normalize()
     {
         ProviderId = string.IsNullOrWhiteSpace(ProviderId) ? "unknown" : ProviderId.Trim();
@@ -955,6 +1052,23 @@ public sealed class SkillCgRequest
         {
             return fallback;
         }
+    }
+
+    private static string QualifyProviderId(string ownerModId, string providerId)
+    {
+        var owner = (ownerModId ?? "").Trim();
+        var id = (providerId ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            id = "unknown";
+        }
+
+        if (id.Contains(":") || string.IsNullOrWhiteSpace(owner))
+        {
+            return id;
+        }
+
+        return owner + ":" + id;
     }
 
     private static int ReadInt(Type type, object source, string name, int fallback)

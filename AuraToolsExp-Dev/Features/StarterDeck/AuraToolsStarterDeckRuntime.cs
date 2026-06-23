@@ -37,7 +37,14 @@ public static class AuraToolsStarterDeckRuntime
 
     public static List<string> BuildAllCandidateCardIds()
     {
-        return BuildSelectablePacks()
+        return BuildCandidateCardIds(BuildSelectablePacks());
+    }
+
+    public static List<string> BuildCandidateCardIds(IEnumerable<string> packIds)
+    {
+        return (packIds ?? Array.Empty<string>())
+            .Where(IsValidPackForCurrentLobby)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .SelectMany(CardIdsFromPack)
             .Where(id => !string.IsNullOrWhiteSpace(id) && !id.StartsWith("*", StringComparison.Ordinal))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -68,25 +75,35 @@ public static class AuraToolsStarterDeckRuntime
                 return;
             }
 
-            var settings = AuraToolsConfigService.MatchExperience.StarterDeck;
-            var deck = settings.CardIds
-                .Where(IsValidCard)
-                .Take(settings.DeckSize)
-                .ToList();
-            if (deck.Count != settings.DeckSize)
+            var roleId = ResolveRoleId(roleTable);
+            var selection = ResolveEffectiveProfile(roleId);
+            if (selection == null)
             {
-                AuraToolsLog.Warn("[StarterDeck] skipped: preset is incomplete. "
-                                  + deck.Count + "/" + settings.DeckSize);
+                AuraToolsLog.Warn("[StarterDeck] skipped: no complete profile for role=" + roleId + ".");
+                return;
+            }
+
+            var deck = BuildDeckFromProfile(selection.Profile);
+            if (deck.Count != selection.Profile.DeckSize)
+            {
+                AuraToolsLog.Warn("[StarterDeck] skipped: profile is incomplete. profile="
+                                  + selection.Profile.QualifiedProfileId
+                                  + ", role=" + roleId
+                                  + ", deck=" + deck.Count + "/" + selection.Profile.DeckSize);
                 return;
             }
 
             var originalDeckCount = roleTable.cardList.Count;
-            if (!StarterDeckArbiterRuntime.ApplyDeck(roleTable, deck, CreateClaim(settings.DeckSize), sync: false))
+            if (!StarterDeckArbiterRuntime.ApplyDeck(roleTable, deck, CreateClaim(selection.Profile), sync: false))
             {
                 return;
             }
 
-            AuraToolsLog.Info("[StarterDeck] applied world-simulation preset; originalDeck="
+            AuraToolsLog.Info("[StarterDeck] applied world-simulation profile; role="
+                              + roleId
+                              + ", profile=" + selection.Profile.QualifiedProfileId
+                              + ", reason=" + selection.Reason
+                              + ", originalDeck="
                               + originalDeckCount
                               + ", deck=" + roleTable.cardList.Count
                               + ", cards=" + string.Join("|", deck));
@@ -143,6 +160,290 @@ public static class AuraToolsStarterDeckRuntime
         AuraSharedHooks.RegisterAfter(config, target, action, message => AuraToolsLog.Info(message), AuraToolsLog.Warn);
     }
 
+    internal static StarterDeckResolvedProfile? ResolveEffectiveProfileForPreview(string roleId)
+    {
+        return ResolveEffectiveProfile(RoleCatalog.NormalizeRoleId(roleId));
+    }
+
+    internal static IReadOnlyList<StarterDeckProfile> BuildCandidateProfilesForRole(string roleId)
+    {
+        var normalizedRole = RoleCatalog.NormalizeRoleId(roleId);
+        var settings = AuraToolsConfigService.MatchExperience.StarterDeck;
+        settings.Normalize();
+        var registered = StarterDeckArbiterRuntime.GetRegisteredProfiles(AuraToolsIds.ModId);
+        var roleOwner = ResolveRoleOwnerModId(normalizedRole, registered);
+        var context = CreateResolutionContext(normalizedRole, roleOwner);
+        var policy = CreateResolutionPolicy(settings);
+
+        var profiles = registered
+            .Where(profile => StarterDeckArbiterRuntime.IsProfileEligible(profile, context))
+            .Select(profile => profile.Clone())
+            .ToList();
+
+        profiles.Add(CreateGlobalLocalProfile(settings.GlobalProfile));
+        if (settings.Roles.TryGetValue(normalizedRole, out var roleSettings))
+        {
+            profiles.Add(CreateRoleLocalProfile(normalizedRole, roleSettings));
+        }
+
+        return StarterDeckArbiterRuntime.SortCandidateProfiles(profiles, context, policy);
+    }
+
+    internal static List<string> BuildDeckFromProfile(StarterDeckProfile profile)
+    {
+        var deck = profile.CardIds
+            .Where(id => !string.IsNullOrWhiteSpace(id) && !id.StartsWith("*", StringComparison.Ordinal))
+            .Where(IsValidCard)
+            .Take(profile.DeckSize)
+            .ToList();
+
+        if (deck.Count < profile.DeckSize && profile.CandidatePackIds.Count > 0)
+        {
+            foreach (var cardId in BuildCandidateCardIds(profile.CandidatePackIds))
+            {
+                if (deck.Count >= profile.DeckSize)
+                {
+                    break;
+                }
+
+                deck.Add(cardId);
+            }
+        }
+
+        return deck.Take(profile.DeckSize).ToList();
+    }
+
+    internal static string LocalGlobalProfileId()
+    {
+        return StarterDeckProfile.QualifyProfileId(AuraToolsIds.ModId, "local.global");
+    }
+
+    internal static string LocalRoleProfileId(string roleId)
+    {
+        return StarterDeckProfile.QualifyProfileId(AuraToolsIds.ModId, "local.role." + RoleCatalog.NormalizeRoleId(roleId));
+    }
+
+    internal static bool IsLocalRoleProfileId(string roleId, string profileId)
+    {
+        return string.Equals(profileId, LocalRoleProfileId(roleId), StringComparison.OrdinalIgnoreCase)
+               || string.Equals(profileId, "local.role." + RoleCatalog.NormalizeRoleId(roleId), StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static StarterDeckLocalProfileSettings EnsureRoleProfileSettings(string roleId, string displayName = "")
+    {
+        var normalizedRole = RoleCatalog.NormalizeRoleId(roleId);
+        var settings = AuraToolsConfigService.MatchExperience.StarterDeck;
+        if (!settings.Roles.TryGetValue(normalizedRole, out var roleSettings))
+        {
+            roleSettings = new StarterDeckLocalProfileSettings
+            {
+                Enabled = true,
+                RoleId = normalizedRole,
+                DisplayName = string.IsNullOrWhiteSpace(displayName) ? normalizedRole : displayName,
+                DeckSize = settings.GlobalProfile.DeckSize
+            };
+            settings.Roles[normalizedRole] = roleSettings;
+        }
+
+        roleSettings.Normalize(normalizedRole, string.IsNullOrWhiteSpace(displayName) ? normalizedRole : displayName);
+        return roleSettings;
+    }
+
+    internal static void DeleteRoleProfileSettings(string roleId)
+    {
+        var normalizedRole = RoleCatalog.NormalizeRoleId(roleId);
+        var settings = AuraToolsConfigService.MatchExperience.StarterDeck;
+        settings.Roles.Remove(normalizedRole);
+        if (settings.SelectedProfileByRole.TryGetValue(normalizedRole, out var selected)
+            && IsLocalRoleProfileId(normalizedRole, selected))
+        {
+            settings.SelectedProfileByRole.Remove(normalizedRole);
+        }
+
+        AuraToolsConfigService.SaveMatchExperience();
+    }
+
+    internal static void SelectProfileForRole(string roleId, string profileId)
+    {
+        var normalizedRole = RoleCatalog.NormalizeRoleId(roleId);
+        if (string.IsNullOrWhiteSpace(normalizedRole) || string.IsNullOrWhiteSpace(profileId))
+        {
+            return;
+        }
+
+        AuraToolsConfigService.MatchExperience.StarterDeck.SelectedProfileByRole[normalizedRole] = profileId.Trim();
+        AuraToolsConfigService.SaveMatchExperience();
+    }
+
+    internal static void ClearSelectedProfileForRole(string roleId)
+    {
+        AuraToolsConfigService.MatchExperience.StarterDeck.SelectedProfileByRole.Remove(RoleCatalog.NormalizeRoleId(roleId));
+        AuraToolsConfigService.SaveMatchExperience();
+    }
+
+    private static StarterDeckResolvedProfile? ResolveEffectiveProfile(string roleId)
+    {
+        var normalizedRole = RoleCatalog.NormalizeRoleId(roleId);
+        var settings = AuraToolsConfigService.MatchExperience.StarterDeck;
+        settings.Normalize();
+        var profiles = BuildCandidateProfilesForRole(normalizedRole);
+        var registered = profiles.Where(profile => profile.SourceKind == StarterDeckProfileSourceKind.Registered).ToList();
+        var roleOwner = ResolveRoleOwnerModId(normalizedRole, registered);
+        var result = StarterDeckArbiterRuntime.ResolveEffectiveProfile(
+            profiles,
+            CreateResolutionContext(normalizedRole, roleOwner),
+            CreateResolutionPolicy(settings),
+            IsResolvable);
+        return result.Profile == null ? null : new StarterDeckResolvedProfile(result.Profile, result.Reason);
+    }
+
+    private static bool IsResolvable(StarterDeckProfile profile)
+    {
+        return BuildDeckFromProfile(profile).Count == profile.DeckSize;
+    }
+
+    private static string SelectedProfileId(string roleId)
+    {
+        return AuraToolsConfigService.MatchExperience.StarterDeck.SelectedProfileByRole.TryGetValue(RoleCatalog.NormalizeRoleId(roleId), out var selected)
+            ? selected
+            : "";
+    }
+
+    private static StarterDeckProfileContext CreateResolutionContext(string roleId, string roleOwner)
+    {
+        var normalizedRole = RoleCatalog.NormalizeRoleId(roleId);
+        return new StarterDeckProfileContext
+        {
+            ModeId = Mode,
+            RoleId = normalizedRole,
+            RoleOwnerModId = roleOwner,
+            SelectedProfileId = SelectedProfileId(normalizedRole)
+        };
+    }
+
+    private static StarterDeckProfileResolutionPolicy CreateResolutionPolicy(StarterDeckSettings settings)
+    {
+        return new StarterDeckProfileResolutionPolicy
+        {
+            PreferRoleModProfile = settings.PreferRoleModProfile,
+            UseRoleSpecificLocalProfiles = settings.Mode == StarterDeckModes.RoleSpecific,
+            AllowGlobalLocalProfileFallback = true,
+            IncludeNonOwnerRegisteredFallback = false,
+            RequireCompleteProfile = true
+        };
+    }
+
+    private static StarterDeckProfile CreateGlobalLocalProfile(StarterDeckLocalProfileSettings settings)
+    {
+        var profile = new StarterDeckProfile
+        {
+            ProfileId = "local.global",
+            OwnerModId = AuraToolsIds.ModId,
+            DisplayName = string.IsNullOrWhiteSpace(settings.DisplayName) ? "全局自定义卡组" : settings.DisplayName,
+            ModeIds = new List<string> { Mode },
+            DeckSize = settings.DeckSize,
+            CardIds = settings.CardIds.ToList(),
+            SourceKind = StarterDeckProfileSourceKind.Local,
+            Editable = true,
+            Deletable = false,
+            Enabled = settings.Enabled,
+            Priority = -1000,
+            DerivedFromProfileId = settings.DerivedFromProfileId
+        };
+        profile.Normalize(AuraToolsIds.ModId);
+        return profile;
+    }
+
+    private static StarterDeckProfile CreateRoleLocalProfile(string roleId, StarterDeckLocalProfileSettings settings)
+    {
+        var normalizedRole = RoleCatalog.NormalizeRoleId(roleId);
+        var profile = new StarterDeckProfile
+        {
+            ProfileId = "local.role." + normalizedRole,
+            OwnerModId = AuraToolsIds.ModId,
+            DisplayName = string.IsNullOrWhiteSpace(settings.DisplayName) ? RoleCatalog.GetDisplayName(normalizedRole) + " 自定义卡组" : settings.DisplayName,
+            ModeIds = new List<string> { Mode },
+            TargetRoleIds = new List<string> { normalizedRole },
+            DeckSize = settings.DeckSize,
+            CardIds = settings.CardIds.ToList(),
+            SourceKind = StarterDeckProfileSourceKind.Local,
+            Editable = true,
+            Deletable = true,
+            Enabled = settings.Enabled,
+            Priority = -500,
+            DerivedFromProfileId = settings.DerivedFromProfileId
+        };
+        profile.Normalize(AuraToolsIds.ModId);
+        return profile;
+    }
+
+    private static string ResolveRoleOwnerModId(string roleId, IEnumerable<StarterDeckProfile> registeredProfiles)
+    {
+        var normalizedRole = RoleCatalog.NormalizeRoleId(roleId);
+        var owner = StarterDeckArbiterRuntime.InferOwnerModId(
+            normalizedRole,
+            registeredProfiles.Select(profile => profile.OwnerModId).Concat(new[] { "SunExp", "SanGuoShaExp" }));
+        if (!string.IsNullOrWhiteSpace(owner))
+        {
+            return owner;
+        }
+
+        try
+        {
+            var role = RoleCatalog.GetRoles()
+                .FirstOrDefault(item => string.Equals(item.Id, normalizedRole, StringComparison.OrdinalIgnoreCase));
+            owner = OwnerFromResourcePath(role?.Icon) ?? OwnerFromResourcePath(role?.PackBelong) ?? "";
+        }
+        catch
+        {
+            owner = "";
+        }
+
+        return owner;
+    }
+
+    private static string? OwnerFromResourcePath(string? value)
+    {
+        var text = (value ?? "").Trim().Replace('\\', '/');
+        const string prefix = "Mods/";
+        if (!text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var rest = text.Substring(prefix.Length);
+        var slash = rest.IndexOf('/');
+        return slash > 0 ? rest.Substring(0, slash) : rest;
+    }
+
+    private static string ResolveRoleId(RoleTable roleTable)
+    {
+        var roleId = ReadDataId(roleTable.Career);
+        if (string.IsNullOrWhiteSpace(roleId))
+        {
+            roleId = ReflectionUtil.ReadString(roleTable, "Id", "id");
+        }
+
+        return RoleCatalog.NormalizeRoleId(roleId);
+    }
+
+    private static string ReadDataId(IDataConfig? dataConfig)
+    {
+        try
+        {
+            if (dataConfig?.data != null && dataConfig.data.TryGetValue("Id", out var id))
+            {
+                return id ?? "";
+            }
+
+            return dataConfig?.InstanceID ?? "";
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
     private static bool IsApplied(RoleTable roleTable)
     {
         if (StarterDeckArbiterRuntime.HasApplied(roleTable, AppliedKey, Owner))
@@ -157,20 +458,21 @@ public static class AuraToolsStarterDeckRuntime
                && legacyMode.StartsWith("aura-", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static StarterDeckClaim CreateClaim(int deckSize)
+    private static StarterDeckClaim CreateClaim(StarterDeckProfile profile)
     {
+        var registered = profile.SourceKind == StarterDeckProfileSourceKind.Registered;
         return new StarterDeckClaim
         {
-            Owner = Owner,
+            Owner = registered ? profile.OwnerModId + ".StarterDeckProfile" : Owner,
             Scope = Scope,
             ModeId = Mode,
-            Source = "config",
+            Source = (registered ? "registered:" : "local:") + profile.QualifiedProfileId,
             State = StarterDeckArbiterRuntime.StateApplied,
             AppliedKey = AppliedKey,
             AppliedModeKey = AppliedKey + ".Mode",
             AppliedMode = LegacyMode,
             LegacyMode = LegacyMode,
-            DeckSize = deckSize,
+            DeckSize = profile.DeckSize,
             SourceName = "AuraTools.WorldSimulation.StarterDeck"
         };
     }
@@ -335,19 +637,67 @@ public static class AuraToolsStarterDeckRuntime
     }
 }
 
+internal sealed class StarterDeckResolvedProfile
+{
+    public StarterDeckResolvedProfile(StarterDeckProfile profile, string reason)
+    {
+        Profile = profile;
+        Reason = reason;
+    }
+
+    public StarterDeckProfile Profile { get; }
+
+    public string Reason { get; }
+}
+
 public static class AuraToolsStarterDeckEditor
 {
     private static readonly List<string> editingDeck = new();
+    private static StarterDeckLocalProfileSettings? editingProfile;
+    private static string editingRoleId = "";
     private static Transform? selectedContent;
     private static Text? counterText;
     private static Text? hintText;
 
     public static void Show(Transform parent)
     {
-        editingDeck.Clear();
-        editingDeck.AddRange(AuraToolsConfigService.MatchExperience.StarterDeck.CardIds);
+        ShowGlobal(parent);
+    }
 
-        var window = Settings.AuraToolsUi.CreateOverlay("AuraTools.StarterDeckEditor", parent, "【世界推演】开局卡组配置");
+    public static void ShowGlobal(Transform parent)
+    {
+        var profile = AuraToolsConfigService.MatchExperience.StarterDeck.GlobalProfile;
+        profile.Normalize("", "全局自定义卡组");
+        ShowLocalProfile(parent, profile, "", "【世界推演】全局开局卡组配置");
+    }
+
+    public static void ShowRole(Transform parent, string roleId, string displayName = "")
+    {
+        var normalizedRole = RoleCatalog.NormalizeRoleId(roleId);
+        var profile = AuraToolsStarterDeckRuntime.EnsureRoleProfileSettings(normalizedRole, displayName);
+        ShowLocalProfile(parent, profile, normalizedRole, "【世界推演】角色开局卡组配置 - " + (string.IsNullOrWhiteSpace(displayName) ? normalizedRole : displayName));
+    }
+
+    public static void CopyRegisteredToRole(Transform parent, string roleId, string displayName, StarterDeckProfile source)
+    {
+        var profile = AuraToolsStarterDeckRuntime.EnsureRoleProfileSettings(roleId, displayName);
+        profile.DeckSize = source.DeckSize;
+        profile.CardIds = AuraToolsStarterDeckRuntime.BuildDeckFromProfile(source);
+        profile.DerivedFromProfileId = source.QualifiedProfileId;
+        profile.DisplayName = (string.IsNullOrWhiteSpace(displayName) ? RoleCatalog.NormalizeRoleId(roleId) : displayName) + " 自定义卡组";
+        AuraToolsStarterDeckRuntime.SelectProfileForRole(roleId, AuraToolsStarterDeckRuntime.LocalRoleProfileId(roleId));
+        AuraToolsConfigService.SaveMatchExperience();
+        ShowRole(parent, roleId, displayName);
+    }
+
+    private static void ShowLocalProfile(Transform parent, StarterDeckLocalProfileSettings profile, string roleId, string title)
+    {
+        editingDeck.Clear();
+        editingProfile = profile;
+        editingRoleId = RoleCatalog.NormalizeRoleId(roleId);
+        editingDeck.AddRange(profile.CardIds);
+
+        var window = Settings.AuraToolsUi.CreateOverlay("AuraTools.StarterDeckEditor", parent, title);
         var candidates = AuraToolsStarterDeckRuntime.BuildAllCandidateCardIds();
 
         var body = Settings.AuraToolsUi.CreateLayout("Body", window.transform);
@@ -382,7 +732,7 @@ public static class AuraToolsStarterDeckEditor
         Settings.AuraToolsUi.AddButton(footer.transform, "自动填充", () =>
         {
             editingDeck.Clear();
-            editingDeck.AddRange(candidates.Take(AuraToolsConfigService.MatchExperience.StarterDeck.DeckSize));
+            editingDeck.AddRange(candidates.Take(CurrentDeckSize()));
             RefreshSelected();
         });
         Settings.AuraToolsUi.AddButton(footer.transform, "清空", () =>
@@ -430,7 +780,7 @@ public static class AuraToolsStarterDeckEditor
         Settings.AuraToolsUi.AddText(row.transform, AuraToolsStarterDeckRuntime.CardCost(cardId), Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 0f, AuraToolsStarterDeckRuntime.CardCostColumnWidth);
         Settings.AuraToolsUi.AddButton(row.transform, "添加", () =>
         {
-            if (editingDeck.Count >= AuraToolsConfigService.MatchExperience.StarterDeck.DeckSize)
+            if (editingDeck.Count >= CurrentDeckSize())
             {
                 SetHint("预设已满，请先移除一张。");
                 return;
@@ -468,7 +818,7 @@ public static class AuraToolsStarterDeckEditor
             }, 70f, 30f);
         }
 
-        var size = AuraToolsConfigService.MatchExperience.StarterDeck.DeckSize;
+        var size = CurrentDeckSize();
         if (counterText != null)
         {
             counterText.text = editingDeck.Count + "/" + size;
@@ -542,16 +892,194 @@ public static class AuraToolsStarterDeckEditor
 
     private static void Save()
     {
-        var settings = AuraToolsConfigService.MatchExperience.StarterDeck;
-        if (editingDeck.Count != settings.DeckSize)
+        var profile = editingProfile;
+        if (profile == null)
         {
-            SetHint("保存失败：需要正好 " + settings.DeckSize + " 张牌。");
+            SetHint("保存失败：编辑目标不存在。");
             return;
         }
 
-        settings.CardIds = editingDeck.ToList();
+        if (editingDeck.Count != profile.DeckSize)
+        {
+            SetHint("保存失败：需要正好 " + profile.DeckSize + " 张牌。");
+            return;
+        }
+
+        profile.CardIds = editingDeck.ToList();
+        profile.Enabled = true;
+        profile.Normalize(editingRoleId, profile.DisplayName);
+        if (!string.IsNullOrWhiteSpace(editingRoleId))
+        {
+            AuraToolsStarterDeckRuntime.SelectProfileForRole(editingRoleId, AuraToolsStarterDeckRuntime.LocalRoleProfileId(editingRoleId));
+        }
+
         AuraToolsConfigService.SaveMatchExperience();
-        SetHint("已保存全局开局卡组预设。");
+        SetHint(string.IsNullOrWhiteSpace(editingRoleId) ? "已保存全局开局卡组预设。" : "已保存角色开局卡组预设。");
+    }
+
+    private static int CurrentDeckSize()
+    {
+        return Math.Max(1, editingProfile?.DeckSize ?? AuraToolsConfigService.MatchExperience.StarterDeck.GlobalProfile.DeckSize);
+    }
+
+    private static void SetHint(string message)
+    {
+        if (hintText != null)
+        {
+            hintText.text = message;
+        }
+    }
+}
+
+public static class AuraToolsStarterDeckRoleManager
+{
+    private static Text? hintText;
+
+    public static void Show(Transform parent)
+    {
+        var window = Settings.AuraToolsUi.CreateOverlay("AuraTools.StarterDeckRoleManager", parent, "【世界推演】角色开局卡组");
+        var toolbar = Settings.AuraToolsUi.CreateLayout("Toolbar", window.transform);
+        Settings.AuraToolsUi.SetFixedHeight(toolbar, Settings.AuraToolsUi.ToolbarHeight);
+        var toolbarLayout = toolbar.AddComponent<HorizontalLayoutGroup>();
+        toolbarLayout.spacing = 8f;
+        toolbarLayout.childControlWidth = true;
+        toolbarLayout.childControlHeight = true;
+        toolbarLayout.childForceExpandWidth = false;
+        hintText = Settings.AuraToolsUi.AddText(toolbar.transform, "MOD 注册 Profile 为只读；复制后会生成 AuraTools 本地可编辑卡组。", Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 1f);
+        Settings.AuraToolsUi.AddButton(toolbar.transform, "刷新角色", () => Show(parent), 96f);
+
+        var content = Settings.AuraToolsUi.CreateScroll(window.transform, "StarterDeckRoles");
+        var roles = RoleCatalog.GetRoles(true);
+        if (roles.Count == 0)
+        {
+            Settings.AuraToolsUi.AddText(content, "未扫描到可配置角色。", Settings.AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 1f);
+            return;
+        }
+
+        foreach (var role in roles)
+        {
+            CreateRoleRow(content, window.transform, role);
+        }
+    }
+
+    private static void CreateRoleRow(Transform parent, Transform overlayParent, RoleInfo role)
+    {
+        var row = CreateRow(parent, "Role-" + role.Id, Settings.AuraToolsUi.RoleRowHeight);
+        Settings.AuraToolsUi.AddText(row.transform, role.DisplayName + "\n" + role.Id, Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, Settings.AuraToolsUi.Text, Settings.AuraToolsUi.TextMinHeight, 0f, 260f);
+
+        var resolved = AuraToolsStarterDeckRuntime.ResolveEffectiveProfileForPreview(role.Id);
+        var candidates = AuraToolsStarterDeckRuntime.BuildCandidateProfilesForRole(role.Id);
+        var status = resolved == null
+            ? "生效：无完整卡组 / 候选 " + candidates.Count
+            : "生效：" + resolved.Profile.DisplayName
+              + " [" + DescribeSource(resolved.Profile) + "] "
+              + DeckStatus(resolved.Profile)
+              + " / 候选 " + candidates.Count;
+        Settings.AuraToolsUi.AddText(row.transform, status, Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 1f);
+        Settings.AuraToolsUi.AddButton(row.transform, "候选", () => ShowProfilePicker(overlayParent, role), 82f, 34f);
+        Settings.AuraToolsUi.AddButton(row.transform, "编辑本地", () => AuraToolsStarterDeckEditor.ShowRole(overlayParent, role.Id, role.DisplayName), 94f, 34f);
+        if (AuraToolsConfigService.MatchExperience.StarterDeck.Roles.ContainsKey(role.Id))
+        {
+            Settings.AuraToolsUi.AddButton(row.transform, "删除本地", () =>
+            {
+                AuraToolsStarterDeckRuntime.DeleteRoleProfileSettings(role.Id);
+                SetHint("已删除 " + role.DisplayName + " 的 AuraTools 本地卡组。");
+            }, 94f, 34f);
+        }
+    }
+
+    private static void ShowProfilePicker(Transform parent, RoleInfo role)
+    {
+        var window = Settings.AuraToolsUi.CreateOverlay("AuraTools.StarterDeckProfilePicker", parent, "选择开局卡组 - " + role.DisplayName);
+        var toolbar = Settings.AuraToolsUi.CreateLayout("Toolbar", window.transform);
+        Settings.AuraToolsUi.SetFixedHeight(toolbar, Settings.AuraToolsUi.ToolbarHeight);
+        var toolbarLayout = toolbar.AddComponent<HorizontalLayoutGroup>();
+        toolbarLayout.spacing = 8f;
+        toolbarLayout.childControlWidth = true;
+        toolbarLayout.childControlHeight = true;
+        toolbarLayout.childForceExpandWidth = false;
+        Settings.AuraToolsUi.AddText(toolbar.transform, "同一角色可存在多套候选；默认优先角色所属 MOD 的只读注册 Profile。", Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 1f);
+        Settings.AuraToolsUi.AddButton(toolbar.transform, "恢复自动", () =>
+        {
+            AuraToolsStarterDeckRuntime.ClearSelectedProfileForRole(role.Id);
+            SetHint("已恢复 " + role.DisplayName + " 的自动选择。");
+        }, 96f);
+
+        var content = Settings.AuraToolsUi.CreateScroll(window.transform, "StarterDeckProfiles");
+        var profiles = AuraToolsStarterDeckRuntime.BuildCandidateProfilesForRole(role.Id);
+        if (profiles.Count == 0)
+        {
+            Settings.AuraToolsUi.AddText(content, "暂无可用候选。可以先编辑本地角色卡组，或等待角色 MOD 注册 Profile。", Settings.AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 1f);
+            return;
+        }
+
+        foreach (var profile in profiles)
+        {
+            CreateProfileRow(content, window.transform, role, profile);
+        }
+    }
+
+    private static void CreateProfileRow(Transform parent, Transform overlayParent, RoleInfo role, StarterDeckProfile profile)
+    {
+        var row = CreateRow(parent, "Profile-" + profile.ProfileId, Settings.AuraToolsUi.DataRowHeight);
+        Settings.AuraToolsUi.AddText(row.transform, profile.DisplayName, Settings.AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, Settings.AuraToolsUi.Text, Settings.AuraToolsUi.TextMinHeight, 0f, 220f);
+        Settings.AuraToolsUi.AddText(row.transform, DescribeSource(profile) + " / " + DeckStatus(profile) + "\n" + profile.QualifiedProfileId, Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 1f);
+        Settings.AuraToolsUi.AddButton(row.transform, "启用", () =>
+        {
+            AuraToolsStarterDeckRuntime.SelectProfileForRole(role.Id, profile.QualifiedProfileId);
+            SetHint("已选择 " + role.DisplayName + " 的 Profile：" + profile.DisplayName);
+        }, 78f, 34f);
+
+        if (profile.SourceKind == StarterDeckProfileSourceKind.Registered)
+        {
+            Settings.AuraToolsUi.AddButton(row.transform, "复制", () =>
+            {
+                AuraToolsStarterDeckEditor.CopyRegisteredToRole(overlayParent, role.Id, role.DisplayName, profile);
+                SetHint("已复制只读 Profile 到本地。");
+            }, 78f, 34f);
+            return;
+        }
+
+        if (string.Equals(profile.QualifiedProfileId, AuraToolsStarterDeckRuntime.LocalGlobalProfileId(), StringComparison.OrdinalIgnoreCase))
+        {
+            Settings.AuraToolsUi.AddButton(row.transform, "编辑", () => AuraToolsStarterDeckEditor.ShowGlobal(overlayParent), 78f, 34f);
+            return;
+        }
+
+        Settings.AuraToolsUi.AddButton(row.transform, "编辑", () => AuraToolsStarterDeckEditor.ShowRole(overlayParent, role.Id, role.DisplayName), 78f, 34f);
+        Settings.AuraToolsUi.AddButton(row.transform, "删除", () =>
+        {
+            AuraToolsStarterDeckRuntime.DeleteRoleProfileSettings(role.Id);
+            SetHint("已删除 " + role.DisplayName + " 的 AuraTools 本地卡组。");
+        }, 78f, 34f);
+    }
+
+    private static GameObject CreateRow(Transform parent, string name, float height)
+    {
+        var row = Settings.AuraToolsUi.CreateLayout(name, parent);
+        Settings.AuraToolsUi.SetFixedHeight(row, height);
+        Settings.AuraToolsUi.AddImage(row, Settings.AuraToolsUi.Row);
+        var layout = row.AddComponent<HorizontalLayoutGroup>();
+        layout.padding = new RectOffset(8, 8, 2, 2);
+        layout.spacing = 8f;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
+        return row;
+    }
+
+    private static string DescribeSource(StarterDeckProfile profile)
+    {
+        return profile.SourceKind == StarterDeckProfileSourceKind.Registered
+            ? "MOD只读/" + profile.OwnerModId
+            : "AuraTools本地";
+    }
+
+    private static string DeckStatus(StarterDeckProfile profile)
+    {
+        var validation = StarterDeckArbiterRuntime.ValidateProfile(profile, null, AuraToolsStarterDeckRuntime.BuildDeckFromProfile);
+        return validation.DeckCount + "/" + validation.DeckSize + (validation.Complete ? "" : " " + validation.Summary);
     }
 
     private static void SetHint(string message)

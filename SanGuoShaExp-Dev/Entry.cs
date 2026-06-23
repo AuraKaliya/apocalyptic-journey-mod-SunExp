@@ -6,6 +6,7 @@ using AuraShared.Core;
 using SanGuoShaExp.Dll.GameApi;
 using SanGuoShaExp.Dll.Hooks;
 using SanGuoShaExp.Dll.Infrastructure;
+using StarterDeckArbiter.Shared;
 using Witch.Mod;
 
 namespace SanGuoShaExp.Dll;
@@ -20,6 +21,7 @@ public static class Entry
         SanGuoShaCombatRuntime.Initialize(modConfig);
         SanGuoShaDodgeRuntime.Initialize(modConfig);
         RunStep("journey runtime", () => AuraJourneyRuntime.Initialize(modConfig, SanGuoShaExpIds.ModId));
+        RunStep("starter deck profiles", () => StarterDeckArbiterRuntime.RegisterProfileManifest(modConfig, SanGuoShaExpIds.ModId));
         AudioApi.Initialize(modConfig);
         BattleBgmProviderRuntime.Initialize(modConfig);
         SanGuoShaExpLog.Info("SanGuoShaExp C# entry loaded");

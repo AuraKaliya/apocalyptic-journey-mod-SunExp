@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "ownerModId": "SunExp",
+  "profiles": [
+    {
+      "profileId": "wuna.world-simulation.default",
+      "displayName": "乌娜默认开局卡组",
+      "modeIds": [ "AuraTools.WorldSimulation" ],
+      "targetRoleIds": [ "SunExp_wuna_wuna", "wuna" ],
+      "deckSize": 11,
+      "priority": 1000,
+      "description": "SunExp 为乌娜在 AuraTools 世界推演模式注册的只读默认开局卡组。",
+      "cardIds": [
+        "SunExp_sunexp_spark",
+        "SunExp_sunexp_radiant_flame_slash",
+        "SunExp_sunexp_ember_cloak_card",
+        "SunExp_sunexp_solar_prayer",
+        "SunExp_sunexp_solar_ignition",
+        "SunExp_sunexp_morning_light_bulwark",
+        "SunExp_sunexp_solar_return",
+        "SunExp_sunexp_draw_flame",
+        "SunExp_sunexp_burning_star_hex",
+        "SunExp_sunexp_impurity_purge",
+        "SunExp_sunexp_solar_eclipse"
+      ]
+    }
+  ]
+}

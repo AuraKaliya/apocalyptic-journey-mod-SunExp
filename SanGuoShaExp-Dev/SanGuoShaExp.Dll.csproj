@@ -30,6 +30,7 @@
     <Compile Include="..\AuraJourneyShared\*.cs" Link="Shared\AuraJourneyShared\%(Filename)%(Extension)" />
     <Compile Include="..\BattleBgmArbiterShared\BattleBgmArbiterRuntime.cs" Link="Shared\BattleBgmArbiterRuntime.cs" />
     <Compile Include="..\AudioArbiterShared\AudioArbiterRuntime.cs" Link="Shared\AudioArbiterRuntime.cs" />
+    <Compile Include="..\StarterDeckArbiterShared\StarterDeckArbiterRuntime.cs" Link="Shared\StarterDeckArbiterRuntime.cs" />
     <Compile Include="..\UiRaycastSafetyShared\UiRaycastSafeDestroyRuntime.cs" Link="Shared\UiRaycastSafeDestroyRuntime.cs" />
     <Compile Include="..\UiTransitionGuardShared\UiTransitionGuardRuntime.cs" Link="Shared\UiTransitionGuardRuntime.cs" />
   </ItemGroup>

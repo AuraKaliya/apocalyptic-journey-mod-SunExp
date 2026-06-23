@@ -99,7 +99,10 @@ AudioArbiter.Global
 
 主要字段含义：
 
-- `providerId`: provider 唯一标识。重复注册会替换旧 provider。
+- `providerId`: provider 在 owner 内的稳定标识。运行时技术身份是
+  `ownerModId:providerId`；同 owner 的重复 provider 会替换旧 provider，
+  不同 owner 的同名 provider 会作为独立候选保留。显式请求 provider 时，
+  裸 `providerId` 和 `ownerModId:providerId` 都兼容。
 - `kind`: 事件类型。必须匹配 `SoundPlaybackRequest.Kind`。
 - `bus`: 播放通道，目前核心是 `Effect` 和 `Vocal`。
 - `policy`: 播放策略，支持 `Additive`、`Replace`、`ReplaceOriginal`、`SuppressOriginal`。

@@ -1,0 +1,157 @@
+param()
+
+$ErrorActionPreference = "Stop"
+$repoRoot = Split-Path -Parent $PSScriptRoot
+
+function Read-RepoText {
+    param([string]$RelativePath)
+
+    $path = Join-Path $repoRoot $RelativePath
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        throw "Required file is missing: $RelativePath"
+    }
+
+    return Get-Content -Raw -LiteralPath $path
+}
+
+function Require-Text {
+    param(
+        [string]$Text,
+        [string]$Pattern,
+        [string]$Message
+    )
+
+    if ($Text -notmatch $Pattern) {
+        throw $Message
+    }
+}
+
+$globalRuntimes = @(
+    "AuraSharedCore\AuraSharedRuntime.cs",
+    "AuraSkinShared\AuraSkinRuntime.cs",
+    "AudioArbiterShared\AudioArbiterRuntime.cs",
+    "BattleBgmArbiterShared\BattleBgmArbiterRuntime.cs",
+    "AuraCgShared\AuraCgRuntime.cs",
+    "UiTransitionGuardShared\UiTransitionGuardRuntime.cs"
+)
+
+foreach ($relative in $globalRuntimes) {
+    $text = Read-RepoText $relative
+    Require-Text $text "CurrentProtocolVersion" "$relative must expose CurrentProtocolVersion."
+    Require-Text $text "MinimumSupportedProtocolVersion" "$relative must expose MinimumSupportedProtocolVersion."
+    Require-Text $text "CurrentBuildId" "$relative must expose CurrentBuildId."
+    Require-Text $text "BuildId\s*=>\s*CurrentBuildId" "$relative must expose BuildId from CurrentBuildId."
+    Require-Text $text "ValidateExisting" "$relative must validate existing global component compatibility."
+    Require-Text $text "GetMethod\(" "$relative must check reflected public method shape."
+}
+
+$providerIdentityFiles = @(
+    "AudioArbiterShared\AudioArbiterRuntime.cs",
+    "BattleBgmArbiterShared\BattleBgmArbiterRuntime.cs",
+    "AuraCgShared\AuraCgRuntime.cs"
+)
+
+foreach ($relative in $providerIdentityFiles) {
+    $text = Read-RepoText $relative
+    Require-Text $text "QualifiedProviderId" "$relative must keep an owner-qualified provider identity."
+    Require-Text $text "QualifyProviderId" "$relative must normalize provider identity through QualifyProviderId."
+    Require-Text $text "qualifiedProviderId" "$relative must include qualified provider ids in diagnostics."
+}
+
+$explicitProviderRequestFiles = @(
+    "AudioArbiterShared\AudioArbiterRuntime.cs",
+    "BattleBgmArbiterShared\BattleBgmArbiterRuntime.cs"
+)
+
+foreach ($relative in $explicitProviderRequestFiles) {
+    $text = Read-RepoText $relative
+    Require-Text $text "MatchesProviderId" "$relative must match both bare and qualified provider ids."
+}
+
+$journeyRuntime = Read-RepoText "AuraJourneyShared\AuraJourneyRuntime.cs"
+Require-Text $journeyRuntime "QualifyJourneyId" "AuraJourneyRuntime must expose QualifyJourneyId."
+Require-Text $journeyRuntime "IsQualifiedJourneyId" "AuraJourneyRuntime must expose IsQualifiedJourneyId."
+Require-Text $journeyRuntime "LocalJourneyId" "AuraJourneyRuntime must expose LocalJourneyId."
+Require-Text $journeyRuntime "RegisterJourney[\s\S]*QualifyJourneyId" "RegisterJourney must normalize JourneyId through QualifyJourneyId."
+Require-Text $journeyRuntime "TryCommit[\s\S]*QualifyJourneyId" "TryCommit must normalize JourneyId through QualifyJourneyId."
+Require-Text $journeyRuntime "Read legacy unqualified journey" "AuraJourneyRuntime must keep legacy short-id read fallback."
+
+$sharedRoots = @(
+    "AuraAudioShared",
+    "AudioArbiterShared",
+    "BattleBgmArbiterShared",
+    "AuraCgShared",
+    "AuraJourneyShared",
+    "AuraLogShared",
+    "AuraOnlineShared",
+    "AuraSharedCore",
+    "AuraSkinShared",
+    "StarterDeckArbiterShared",
+    "UiRaycastSafetyShared",
+    "UiTransitionGuardShared"
+)
+
+$rawWriteAllowed = @(
+    "AuraSharedCore\AuraSharedStorageCoordinator.cs",
+    "AuraSharedCore\AuraSharedPackageCoordinator.cs",
+    "AuraSharedCore\AuraSharedOperationLog.cs",
+    "AuraSharedCore\AuraSharedLogStore.cs",
+    "AuraLogShared\AuraLogRuntime.cs"
+)
+
+$rawWritePatterns = @(
+    "File\.WriteAllText",
+    "File\.WriteAllBytes",
+    "new FileStream",
+    "File\.Move",
+    "File\.Copy",
+    "File\.Delete",
+    "Directory\.Move",
+    "Directory\.Delete"
+)
+
+$violations = New-Object System.Collections.Generic.List[string]
+foreach ($root in $sharedRoots) {
+    $path = Join-Path $repoRoot $root
+    if (-not (Test-Path -LiteralPath $path)) {
+        continue
+    }
+
+    $files = Get-ChildItem -LiteralPath $path -Recurse -File -Filter "*.cs" | Where-Object {
+        $_.FullName -notmatch "\\obj\\" -and $_.FullName -notmatch "\\bin\\"
+    }
+
+    foreach ($file in $files) {
+        $relative = $file.FullName.Substring($repoRoot.Length).TrimStart('\', '/').Replace('/', '\')
+        if ($rawWriteAllowed -contains $relative) {
+            continue
+        }
+
+        $text = Get-Content -Raw -LiteralPath $file.FullName
+        foreach ($pattern in $rawWritePatterns) {
+            if ($text -match $pattern) {
+                $violations.Add("${relative}: raw shared write matched ${pattern}")
+            }
+        }
+    }
+}
+
+if ($violations.Count -gt 0) {
+    $violations | ForEach-Object { Write-Host $_ }
+    throw "Shared architecture guideline scan failed: $($violations.Count) raw write violation(s)."
+}
+
+$guidelines = Read-RepoText "docs\shared-component-architecture-guidelines.md"
+Require-Text $guidelines "Ownership And Mutability" "Shared guidelines must document ownership and mutability."
+Require-Text $guidelines "Conflict And Candidate Policy" "Shared guidelines must document conflict and candidate policy."
+Require-Text $guidelines "Resolution Priority" "Shared guidelines must document resolution priority."
+
+$audit = Read-RepoText "docs\shared-component-architecture-audit.md"
+Require-Text $audit "AuraCgShared" "Shared architecture audit must include AuraCgShared."
+Require-Text $audit "provider identity" "Shared architecture audit must include provider identity findings."
+
+$journeyReadme = Read-RepoText "AuraJourneyShared\README.md"
+Require-Text $journeyReadme "ownerModId:localJourneyId" "AuraJourneyShared README must document owner-qualified JourneyId."
+Require-Text $journeyReadme "QualifyJourneyId" "AuraJourneyShared README must document JourneyId normalization."
+
+Write-Host "Shared architecture guideline scan passed."

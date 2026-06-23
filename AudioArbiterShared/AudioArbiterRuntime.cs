@@ -292,18 +292,18 @@ public static class AudioArbiterRuntime
                 }
 
                 foreach (var previous in soundProviders
-                             .Where(item => string.Equals(item.ProviderId, handle.ProviderId, StringComparison.OrdinalIgnoreCase))
+                             .Where(item => string.Equals(item.QualifiedProviderId, handle.QualifiedProviderId, StringComparison.OrdinalIgnoreCase))
                              .ToList())
                 {
                     previous.Dispose("replaced by new registration");
                 }
 
-                soundProviders.RemoveAll(item => string.Equals(item.ProviderId, handle.ProviderId, StringComparison.OrdinalIgnoreCase));
+                soundProviders.RemoveAll(item => string.Equals(item.QualifiedProviderId, handle.QualifiedProviderId, StringComparison.OrdinalIgnoreCase));
                 soundProviders.Add(handle);
                 soundProviders.Sort((a, b) =>
                 {
                     var priority = b.Priority.CompareTo(a.Priority);
-                    return priority != 0 ? priority : string.Compare(a.ProviderId, b.ProviderId, StringComparison.OrdinalIgnoreCase);
+                    return priority != 0 ? priority : string.Compare(a.QualifiedProviderId, b.QualifiedProviderId, StringComparison.OrdinalIgnoreCase);
                 });
                 Log("Sound provider registered: " + handle.Describe() + ", count=" + soundProviders.Count);
             }
@@ -661,7 +661,7 @@ public static class AudioArbiterRuntime
             foreach (var provider in soundProviders)
             {
                 if (!string.IsNullOrWhiteSpace(request.ProviderId)
-                    && !string.Equals(provider.ProviderId, request.ProviderId, StringComparison.OrdinalIgnoreCase))
+                    && !provider.MatchesProviderId(request.ProviderId))
                 {
                     continue;
                 }
@@ -686,7 +686,8 @@ public static class AudioArbiterRuntime
                 var clip = provider.GetClip(request);
                 if (clip != null)
                 {
-                    request.ProviderId = provider.ProviderId;
+                    request.ProviderId = provider.QualifiedProviderId;
+                    request.OwnerModId = provider.OwnerModId;
                     TraceRequest(request, "Provider clip selected: provider=" + provider.ProviderId
                         + ", clip=" + clip.name);
                     return new ResolvedSound(provider, clip);
@@ -703,7 +704,7 @@ public static class AudioArbiterRuntime
 
         private bool CanPassCooldown(SoundProviderHandle provider, SoundPlaybackRequest request)
         {
-            var key = provider.ProviderId + "|" + request.Kind + "|" + request.RoleId + "|" + request.StatusInstanceId;
+            var key = provider.QualifiedProviderId + "|" + request.Kind + "|" + request.RoleId + "|" + request.StatusInstanceId;
             if (cooldownUntil.TryGetValue(key, out var until) && Time.unscaledTime < until)
             {
                 return false;
@@ -1518,6 +1519,12 @@ public static class AudioArbiterRuntime
             providerType = provider.GetType();
             ProviderId = ReadString("ProviderId", providerType.FullName ?? "");
             OwnerModId = ReadString("OwnerModId", "");
+            if (string.IsNullOrWhiteSpace(OwnerModId))
+            {
+                OwnerModId = providerType.Assembly.GetName().Name ?? "";
+            }
+
+            QualifiedProviderId = QualifyProviderId(OwnerModId, ProviderId);
             Priority = ReadInt("Priority", 0);
             HardClaim = ReadBool("HardClaim", false);
             Sync = ReadBool("Sync", true);
@@ -1533,6 +1540,8 @@ public static class AudioArbiterRuntime
         public string ProviderId { get; }
 
         public string OwnerModId { get; }
+
+        public string QualifiedProviderId { get; }
 
         public int Priority { get; }
 
@@ -1557,6 +1566,14 @@ public static class AudioArbiterRuntime
         public bool Evaluate(object request)
         {
             return InvokeBool("Evaluate", request, true);
+        }
+
+        public bool MatchesProviderId(string requestedProviderId)
+        {
+            var request = (requestedProviderId ?? "").Trim();
+            return request.Length == 0
+                   || string.Equals(request, ProviderId, StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(request, QualifiedProviderId, StringComparison.OrdinalIgnoreCase);
         }
 
         public string GetLoadState()
@@ -1589,6 +1606,7 @@ public static class AudioArbiterRuntime
         public string Describe()
         {
             return "providerId=" + ProviderId
+                + ", qualifiedProviderId=" + QualifiedProviderId
                 + ", owner=" + OwnerModId
                 + ", priority=" + Priority
                 + ", bus=" + Bus
@@ -1694,6 +1712,23 @@ public static class AudioArbiterRuntime
             {
                 return fallback;
             }
+        }
+
+        private static string QualifyProviderId(string ownerModId, string providerId)
+        {
+            var owner = (ownerModId ?? "").Trim();
+            var id = (providerId ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                id = "unknown";
+            }
+
+            if (id.Contains(":") || string.IsNullOrWhiteSpace(owner))
+            {
+                return id;
+            }
+
+            return owner + ":" + id;
         }
     }
 

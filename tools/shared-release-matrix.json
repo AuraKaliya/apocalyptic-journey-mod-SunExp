@@ -15,6 +15,12 @@
       "enabled": true
     },
     {
+      "id": "architecture-guideline-scan",
+      "kind": "script",
+      "path": "tools/Test-SharedArchitectureGuidelines.ps1",
+      "enabled": true
+    },
+    {
       "id": "main-consumers",
       "kind": "script",
       "path": "tools/Test-MainSharedFramework.ps1",

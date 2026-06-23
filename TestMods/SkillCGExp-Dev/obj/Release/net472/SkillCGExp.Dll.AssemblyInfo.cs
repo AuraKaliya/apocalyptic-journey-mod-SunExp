@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("SkillCGExp.Aura")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+95e47d90237ab60425c9fea462b4eb6b64d1f3ff")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+007ec907ee60fea54fcd2f37dfa7d473f1e65554")]
 [assembly: System.Reflection.AssemblyProductAttribute("SkillCGExp.Aura")]
 [assembly: System.Reflection.AssemblyTitleAttribute("SkillCGExp.Aura")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -241,21 +241,21 @@ public static class BattleBgmArbiterRuntime
                 }
 
                 var replaced = providers
-                    .Where(item => string.Equals(item.ProviderId, handle.ProviderId, StringComparison.OrdinalIgnoreCase))
+                    .Where(item => string.Equals(item.QualifiedProviderId, handle.QualifiedProviderId, StringComparison.OrdinalIgnoreCase))
                     .ToList();
                 foreach (var previous in replaced)
                 {
                     previous.Dispose("replaced by new registration");
                 }
 
-                providers.RemoveAll(item => string.Equals(item.ProviderId, handle.ProviderId, StringComparison.OrdinalIgnoreCase));
+                providers.RemoveAll(item => string.Equals(item.QualifiedProviderId, handle.QualifiedProviderId, StringComparison.OrdinalIgnoreCase));
                 providers.Add(handle);
                 providers.Sort((a, b) =>
                 {
                     var priorityCompare = b.Priority.CompareTo(a.Priority);
                     return priorityCompare != 0
                         ? priorityCompare
-                        : string.Compare(a.ProviderId, b.ProviderId, StringComparison.OrdinalIgnoreCase);
+                        : string.Compare(a.QualifiedProviderId, b.QualifiedProviderId, StringComparison.OrdinalIgnoreCase);
                 });
 
                 Log("Provider registered: " + handle.Describe() + ", count=" + providers.Count);
@@ -519,7 +519,7 @@ public static class BattleBgmArbiterRuntime
                     return;
                 }
 
-                var provider = providers.FirstOrDefault(item => string.Equals(item.ProviderId, providerId, StringComparison.OrdinalIgnoreCase));
+                var provider = providers.FirstOrDefault(item => item.MatchesProviderId(providerId));
                 if (provider == null)
                 {
                     Warn("Battle switch ignored: provider not registered. provider=" + providerId + ", reason=" + reason);
@@ -596,7 +596,7 @@ public static class BattleBgmArbiterRuntime
             source.loop = true;
             source.time = 0f;
             source.Play();
-            activeProviderId = provider.ProviderId;
+            activeProviderId = provider.QualifiedProviderId;
 
             Log("Battle BGM replaced by provider=" + provider.ProviderId + ", reason=" + reason + ": " + originalClipName + " -> " + clip.name
                 + ", length=" + clip.length.ToString("0.000") + "s");
@@ -618,7 +618,7 @@ public static class BattleBgmArbiterRuntime
             source.loop = true;
             source.time = 0f;
             source.Play();
-            activeProviderId = provider.ProviderId;
+            activeProviderId = provider.QualifiedProviderId;
 
             Log("Battle BGM silenced by provider=" + provider.ProviderId + ", reason=" + reason + ". Original clip=" + originalClipName);
         }
@@ -923,6 +923,12 @@ public static class BattleBgmArbiterRuntime
                 providerType = provider.GetType();
                 ProviderId = ReadString("ProviderId", providerType.FullName ?? "unknown");
                 OwnerModId = ReadString("OwnerModId", "");
+                if (string.IsNullOrWhiteSpace(OwnerModId))
+                {
+                    OwnerModId = providerType.Assembly.GetName().Name ?? "";
+                }
+
+                QualifiedProviderId = QualifyProviderId(OwnerModId, ProviderId);
                 Priority = ReadInt("Priority", 0);
                 HardClaim = ReadBool("HardClaim", false);
                 SilenceWhenLoading = ReadBool("SilenceWhenLoading", false);
@@ -933,6 +939,8 @@ public static class BattleBgmArbiterRuntime
             public string ProviderId { get; }
 
             private string OwnerModId { get; }
+
+            public string QualifiedProviderId { get; }
 
             public int Priority { get; }
 
@@ -952,6 +960,14 @@ public static class BattleBgmArbiterRuntime
             public bool EvaluateBattle(object? context)
             {
                 return InvokeBool("EvaluateBattle", context, true);
+            }
+
+            public bool MatchesProviderId(string requestedProviderId)
+            {
+                var request = (requestedProviderId ?? "").Trim();
+                return request.Length == 0
+                       || string.Equals(request, ProviderId, StringComparison.OrdinalIgnoreCase)
+                       || string.Equals(request, QualifiedProviderId, StringComparison.OrdinalIgnoreCase);
             }
 
             public string GetLoadState()
@@ -981,6 +997,7 @@ public static class BattleBgmArbiterRuntime
             public string Describe()
             {
                 return "providerId=" + ProviderId
+                    + ", qualifiedProviderId=" + QualifiedProviderId
                     + ", owner=" + OwnerModId
                     + ", priority=" + Priority
                     + ", hardClaim=" + HardClaim
@@ -1011,6 +1028,23 @@ public static class BattleBgmArbiterRuntime
                 {
                     Debug.LogWarning("[BattleBgmArbiter] Provider dispose failed: " + ProviderId + " -> " + ex.Message);
                 }
+            }
+
+            private static string QualifyProviderId(string ownerModId, string providerId)
+            {
+                var owner = (ownerModId ?? "").Trim();
+                var id = (providerId ?? "").Trim();
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    id = "unknown";
+                }
+
+                if (id.Contains(":") || string.IsNullOrWhiteSpace(owner))
+                {
+                    return id;
+                }
+
+                return owner + ":" + id;
             }
 
             private string ReadString(string propertyName, string fallback)

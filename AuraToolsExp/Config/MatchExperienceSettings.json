@@ -1,7 +1,19 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "starterDeck": {
     "enabled": false,
+    "mode": "Global",
+    "preferRoleModProfile": true,
+    "globalProfile": {
+      "enabled": true,
+      "roleId": "",
+      "displayName": "全局自定义卡组",
+      "deckSize": 11,
+      "cardIds": [],
+      "derivedFromProfileId": ""
+    },
+    "roles": {},
+    "selectedProfileByRole": {},
     "deckSize": 11,
     "cardIds": []
   },
