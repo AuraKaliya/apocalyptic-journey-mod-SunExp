@@ -609,19 +609,11 @@ public static class AuraToolsSettingsRuntime
                 RebuildPanel(activePanel!.transform);
             }, 92f);
 
+            var autoInstallRow = CreateInlineRow(content, "SkinAutoInstallInfoRow");
+            AuraToolsConfigService.Skin.AutoInstallBundledSkins = true;
+            AuraToolsUi.AddText(autoInstallRow.transform, "说明：AuraToolsExp 内置角色皮肤会自动安装并补齐到共享皮肤目录。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
+
             var toggles = CreateInlineRow(content, "SkinToggleRow");
-            AuraToolsUi.AddToggle(toggles.transform, AuraToolsConfigService.Skin.AutoInstallBundledSkins, value =>
-            {
-                AuraToolsConfigService.Skin.AutoInstallBundledSkins = value;
-                AuraToolsConfigService.SaveSkin();
-                if (value)
-                {
-                    AuraToolsSkinRuntime.RegisterBundledPackage();
-                    AuraToolsSkinRuntime.Reload();
-                }
-                RebuildPanel(activePanel!.transform);
-            });
-            AuraToolsUi.AddText(toggles.transform, "自动安装 AuraToolsExp 内置角色皮肤", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
             AuraToolsUi.AddToggle(toggles.transform, AuraToolsConfigService.Skin.SyncRemote, value =>
             {
                 AuraToolsConfigService.Skin.SyncRemote = value;
@@ -649,7 +641,11 @@ public static class AuraToolsSettingsRuntime
     private static void CreateMatchExperienceSection(Transform parent)
     {
         CreateSectionLabel(parent, "对局体验");
-        CreateSubmodule(parent, "【世界推演】开局卡组配置", AuraToolsConfigService.MatchExperience.StarterDeck.Enabled, value =>
+        var starterDeckEnabled = AuraToolsConfigService.MatchExperience.StarterDeck.Enabled;
+        CreateSubmodule(parent,
+            "【世界推演】开局卡组配置：" + (starterDeckEnabled ? "已启用" : "未启用"),
+            starterDeckEnabled,
+            value =>
         {
             AuraToolsConfigService.MatchExperience.StarterDeck.Enabled = value;
             AuraToolsConfigService.SaveMatchExperience();
@@ -678,14 +674,9 @@ public static class AuraToolsSettingsRuntime
             AuraToolsUi.AddButton(row.transform, "角色配置", () => AuraToolsStarterDeckRoleManager.Show(activePanel!.transform), 96f);
 
             var policyRow = CreateInlineRow(content, "StarterDeckPolicyRow");
-            AuraToolsUi.AddToggle(policyRow.transform, settings.PreferRoleModProfile, value =>
-            {
-                settings.PreferRoleModProfile = value;
-                AuraToolsConfigService.SaveMatchExperience();
-                RebuildPanel(activePanel!.transform);
-            });
-            AuraToolsUi.AddText(policyRow.transform, "优先使用角色所属 MOD 注册的只读开局卡组；用户在角色候选中显式选择后，以显式选择为准。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
-        });
+            settings.PreferRoleModProfile = true;
+            AuraToolsUi.AddText(policyRow.transform, "说明：没有本地角色卡组时，会自动使用角色所属 MOD 注册的推荐开局卡组；没有推荐时再回退到全局卡组。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
+        }, starterDeckEnabled ? new Color(0.58f, 0.94f, 0.62f, 1f) : AuraToolsUi.MutedText);
 
         CreateSubmodule(parent, "随身保险箱", AuraToolsConfigService.MatchExperience.SafeBox.Enabled, value =>
         {
@@ -825,7 +816,7 @@ public static class AuraToolsSettingsRuntime
         AuraToolsUi.AddText(label.transform, title, AuraToolsUi.SectionFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Accent, AuraToolsUi.TextMinHeight, 1f);
     }
 
-    private static void CreateSubmodule(Transform parent, string title, bool enabled, Action<bool> setEnabled, Action<Transform> buildContent)
+    private static void CreateSubmodule(Transform parent, string title, bool enabled, Action<bool> setEnabled, Action<Transform> buildContent, Color? titleColor = null)
     {
         var box = AuraToolsUi.CreateLayout("Submodule-" + title, parent);
         AuraToolsUi.AddPanelImage(box, AuraToolsUi.Panel);
@@ -853,7 +844,7 @@ public static class AuraToolsSettingsRuntime
             setEnabled(value);
             RebuildPanel(activePanel!.transform);
         });
-        AuraToolsUi.AddText(header.transform, title, AuraToolsUi.ModuleTitleFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
+        AuraToolsUi.AddText(header.transform, title, AuraToolsUi.ModuleTitleFontSize, TextAnchor.MiddleLeft, titleColor ?? AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
         var content = AuraToolsUi.CreateLayout("Content", box.transform);
         var contentLayout = content.AddComponent<VerticalLayoutGroup>();
         contentLayout.padding = new RectOffset(34, 6, 0, 4);

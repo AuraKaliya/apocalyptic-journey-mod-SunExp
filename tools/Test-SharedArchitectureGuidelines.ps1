@@ -68,6 +68,15 @@ foreach ($relative in $explicitProviderRequestFiles) {
     Require-Text $text "MatchesProviderId" "$relative must match both bare and qualified provider ids."
 }
 
+$audioRuntime = Read-RepoText "AudioArbiterShared\AudioArbiterRuntime.cs"
+Require-Text $audioRuntime "MatchesProviderRequest" "AudioArbiterRuntime must expose owner-aware provider request matching."
+Require-Text $audioRuntime "ownerStrict:\s*true" "AudioArbiterRuntime must have an owner-strict provider matching path."
+Require-Text $audioRuntime "request\.IsRemote[\s\S]*Remote sound provider mismatch" "AudioArbiterRuntime must fail closed for remote owner/provider mismatches."
+Require-Text $audioRuntime "OwnerModId to disambiguate" "AudioArbiterRuntime must document OwnerModId-based RPC provider disambiguation."
+
+$architectureGuidelines = Read-RepoText "docs\shared-component-architecture-guidelines.md"
+Require-Text $architectureGuidelines "provider identity[\s\S]*BuildId" "Shared architecture guidelines must require BuildId bumps for provider identity semantic changes."
+
 $journeyRuntime = Read-RepoText "AuraJourneyShared\AuraJourneyRuntime.cs"
 Require-Text $journeyRuntime "QualifyJourneyId" "AuraJourneyRuntime must expose QualifyJourneyId."
 Require-Text $journeyRuntime "IsQualifiedJourneyId" "AuraJourneyRuntime must expose IsQualifiedJourneyId."

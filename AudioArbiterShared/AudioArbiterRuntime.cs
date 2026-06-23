@@ -18,7 +18,7 @@ public static class AudioArbiterRuntime
 {
     private const string GlobalObjectName = "AudioArbiter.Global";
     private const string ComponentFullName = "AudioArbiter.Shared.AudioArbiterRuntime+AudioArbiterComponent";
-    public const string CurrentBuildId = "audio-arbiter-2026-06-22-v4";
+    public const string CurrentBuildId = "audio-arbiter-2026-06-23-v5";
     public const int CurrentProtocolVersion = 4;
     public const int MinimumSupportedProtocolVersion = 4;
     public const int SupportedManifestSchemaVersion = 2;
@@ -234,6 +234,7 @@ public static class AudioArbiterRuntime
         private readonly List<SoundProviderHandle> soundProviders = new();
         private readonly HashSet<string> receivedEventIds = new(StringComparer.Ordinal);
         private readonly HashSet<string> lowHealthAnnounced = new(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> providerMismatchWarnings = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, float> cooldownUntil = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, float> lastHpRatioByStatus = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<int, float> suppressNarrationUntil = new();
@@ -658,10 +659,58 @@ public static class AudioArbiterRuntime
 
         private ResolvedSound? Resolve(SoundPlaybackRequest request)
         {
+            var requestedProviderId = (request.ProviderId ?? "").Trim();
+            if (requestedProviderId.Length == 0)
+            {
+                return ResolveWithProviderMatcher(request, _ => true);
+            }
+
+            var requestedOwnerModId = (request.OwnerModId ?? "").Trim();
+            var hasOwnerScope = requestedOwnerModId.Length > 0;
+            var isQualifiedProviderId = requestedProviderId.Contains(":");
+
+            if (hasOwnerScope || isQualifiedProviderId)
+            {
+                var strictIdentityMatched = false;
+                var resolved = ResolveWithProviderMatcher(request, provider =>
+                {
+                    var matched = provider.MatchesProviderRequest(
+                        requestedProviderId,
+                        requestedOwnerModId,
+                        ownerStrict: true);
+                    if (matched)
+                    {
+                        strictIdentityMatched = true;
+                    }
+
+                    return matched;
+                });
+
+                if (resolved.HasValue || strictIdentityMatched || request.IsRemote || isQualifiedProviderId)
+                {
+                    if (!resolved.HasValue && request.IsRemote && !strictIdentityMatched)
+                    {
+                        WarnProviderMismatchOnce(request, "Remote sound provider mismatch");
+                    }
+
+                    return resolved;
+                }
+
+                WarnProviderMismatchOnce(
+                    request,
+                    "Local sound provider owner mismatch; falling back to legacy bare provider id");
+            }
+
+            return ResolveWithProviderMatcher(request, provider => provider.MatchesProviderId(requestedProviderId));
+        }
+
+        private ResolvedSound? ResolveWithProviderMatcher(
+            SoundPlaybackRequest request,
+            Func<SoundProviderHandle, bool> matchesProvider)
+        {
             foreach (var provider in soundProviders)
             {
-                if (!string.IsNullOrWhiteSpace(request.ProviderId)
-                    && !provider.MatchesProviderId(request.ProviderId))
+                if (!matchesProvider(provider))
                 {
                     continue;
                 }
@@ -700,6 +749,35 @@ public static class AudioArbiterRuntime
             }
 
             return null;
+        }
+
+        private void WarnProviderMismatchOnce(SoundPlaybackRequest request, string message)
+        {
+            var key = message
+                + "|" + request.ProviderId
+                + "|" + request.OwnerModId
+                + "|" + request.Kind
+                + "|" + request.RoleId
+                + "|" + request.StatusInstanceId
+                + "|" + request.IsRemote;
+            if (!providerMismatchWarnings.Add(key))
+            {
+                return;
+            }
+
+            Warn(message
+                + ": providerId=" + DisplayLogValue(request.ProviderId)
+                + ", owner=" + DisplayLogValue(request.OwnerModId)
+                + ", kind=" + DisplayLogValue(request.Kind)
+                + ", role=" + DisplayLogValue(request.RoleId)
+                + ", status=" + DisplayLogValue(request.StatusInstanceId)
+                + ", remote=" + request.IsRemote
+                + ".");
+        }
+
+        private static string DisplayLogValue(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? "<empty>" : value.Trim();
         }
 
         private bool CanPassCooldown(SoundProviderHandle provider, SoundPlaybackRequest request)
@@ -900,6 +978,7 @@ public static class AudioArbiterRuntime
                 return;
             }
 
+            // Keep the RPC payload's bare ProviderId for older receivers; new receivers use OwnerModId to disambiguate.
             request.ProviderId = provider.ProviderId;
             request.OwnerModId = provider.OwnerModId;
             try
@@ -1570,10 +1649,31 @@ public static class AudioArbiterRuntime
 
         public bool MatchesProviderId(string requestedProviderId)
         {
+            return MatchesProviderRequest(requestedProviderId, "", ownerStrict: false);
+        }
+
+        public bool MatchesProviderRequest(string requestedProviderId, string requestedOwnerModId, bool ownerStrict)
+        {
             var request = (requestedProviderId ?? "").Trim();
-            return request.Length == 0
-                   || string.Equals(request, ProviderId, StringComparison.OrdinalIgnoreCase)
-                   || string.Equals(request, QualifiedProviderId, StringComparison.OrdinalIgnoreCase);
+            var owner = (requestedOwnerModId ?? "").Trim();
+            if (request.Length == 0)
+            {
+                return true;
+            }
+
+            if (string.Equals(request, QualifiedProviderId, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (!string.Equals(request, ProviderId, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            return !ownerStrict
+                || owner.Length == 0
+                || string.Equals(owner, OwnerModId, StringComparison.OrdinalIgnoreCase);
         }
 
         public string GetLoadState()

@@ -261,6 +261,7 @@ public sealed class StarterDeckSettings
     public void Normalize()
     {
         Mode = StarterDeckModes.Normalize(Mode);
+        PreferRoleModProfile = true;
         DeckSize = Math.Max(1, DeckSize);
         CardIds ??= new List<string>();
         CardIds.RemoveAll(string.IsNullOrWhiteSpace);
@@ -556,6 +557,7 @@ public sealed class AuraToolsSkinSettings
     public void Normalize()
     {
         SchemaVersion = Math.Max(1, SchemaVersion);
+        AutoInstallBundledSkins = true;
     }
 }
 

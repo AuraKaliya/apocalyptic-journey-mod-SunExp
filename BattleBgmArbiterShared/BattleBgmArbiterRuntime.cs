@@ -17,7 +17,7 @@ public static class BattleBgmArbiterRuntime
 {
     private const string GlobalObjectName = "BattleBgmArbiter.Global";
     private const string ComponentFullName = "BattleBgmArbiter.Shared.BattleBgmArbiterRuntime+BattleBgmArbiterComponent";
-    public const string CurrentBuildId = "shared-runtime-2026-06-21-v3";
+    public const string CurrentBuildId = "battle-bgm-arbiter-2026-06-23-v4";
     public const int CurrentProtocolVersion = 3;
     public const int MinimumSupportedProtocolVersion = 3;
     public static bool VerboseLogging { get; set; }

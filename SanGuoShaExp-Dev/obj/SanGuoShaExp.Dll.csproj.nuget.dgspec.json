@@ -1,27 +1,25 @@
 {
   "format": 1,
   "restore": {
-    "D:\\workfile\\project\\Mod_1\\apocalyptic-journey-mod-SunExp\\SanGuoShaExp-Dev\\SanGuoShaExp.Dll.csproj": {}
+    "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\SanGuoShaExp-Dev\\SanGuoShaExp.Dll.csproj": {}
   },
   "projects": {
-    "D:\\workfile\\project\\Mod_1\\apocalyptic-journey-mod-SunExp\\SanGuoShaExp-Dev\\SanGuoShaExp.Dll.csproj": {
+    "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\SanGuoShaExp-Dev\\SanGuoShaExp.Dll.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\workfile\\project\\Mod_1\\apocalyptic-journey-mod-SunExp\\SanGuoShaExp-Dev\\SanGuoShaExp.Dll.csproj",
+        "projectUniqueName": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\SanGuoShaExp-Dev\\SanGuoShaExp.Dll.csproj",
         "projectName": "SanGuoShaExp.Aura",
-        "projectPath": "D:\\workfile\\project\\Mod_1\\apocalyptic-journey-mod-SunExp\\SanGuoShaExp-Dev\\SanGuoShaExp.Dll.csproj",
-        "packagesPath": "C:\\Users\\75601\\.nuget\\packages\\",
-        "outputPath": "D:\\workfile\\project\\Mod_1\\apocalyptic-journey-mod-SunExp\\SanGuoShaExp-Dev\\obj\\",
+        "projectPath": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\SanGuoShaExp-Dev\\SanGuoShaExp.Dll.csproj",
+        "packagesPath": "C:\\Users\\Administrator\\.nuget\\packages\\",
+        "outputPath": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\SanGuoShaExp-Dev\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "C:\\Users\\75601\\AppData\\Roaming\\NuGet\\NuGet.Config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+          "C:\\Users\\Administrator\\AppData\\Roaming\\NuGet\\NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net472"
         ],
         "sources": {
-          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
@@ -39,13 +37,12 @@
           "enableAudit": "true",
           "auditLevel": "low",
           "auditMode": "direct"
-        },
-        "SdkAnalysisLevel": "10.0.100"
+        }
       },
       "frameworks": {
         "net472": {
           "targetAlias": "net472",
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103\\RuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.422\\RuntimeIdentifierGraph.json"
         }
       }
     }

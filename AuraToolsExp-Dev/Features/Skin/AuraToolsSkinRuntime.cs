@@ -42,8 +42,7 @@ public static class AuraToolsSkinRuntime
         }
 
         if (!AuraToolsConfigService.Root.Skin.Enabled
-            || !AuraToolsConfigService.Skin.Enabled
-            || !AuraToolsConfigService.Skin.AutoInstallBundledSkins)
+            || !AuraToolsConfigService.Skin.Enabled)
         {
             lastInstallStatus = "Bundled skin package install is disabled.";
             return;

@@ -20,6 +20,9 @@ internal static class AuraToolsUi
     public static readonly Color Accent = new(0.85f, 0.70f, 0.42f, 1f);
     public static readonly Color Text = new(0.93f, 0.90f, 0.78f, 1f);
     public static readonly Color MutedText = new(0.66f, 0.62f, 0.50f, 1f);
+    public static readonly Color SuccessText = new(0.58f, 0.94f, 0.62f, 1f);
+    public static readonly Color WarningText = new(0.98f, 0.78f, 0.36f, 1f);
+    public static readonly Color ActiveRow = new(0.12f, 0.18f, 0.13f, 0.98f);
     public const int TabFontSize = 19;
     public const int SectionFontSize = 21;
     public const int ModuleTitleFontSize = 18;
@@ -160,7 +163,7 @@ internal static class AuraToolsUi
     {
         var go = CreateLayout("Button-" + label, parent);
         var element = EnsureLayoutElement(go);
-        var resolvedWidth = Mathf.Max(width, ButtonMinWidth);
+        var resolvedWidth = Mathf.Max(width, 48f);
         var resolvedHeight = Mathf.Max(height, ButtonHeight);
         element.minWidth = resolvedWidth;
         element.preferredWidth = resolvedWidth;
@@ -315,10 +318,15 @@ internal static class AuraToolsUi
         return content.transform;
     }
 
-    public static GameObject CreateOverlay(string name, Transform parent, string title, Action? onClose = null)
+    public static GameObject CreateOverlay(string name, Transform parent, string title, Action? onClose = null, bool singleInstance = true, float maxWidth = 1180f)
     {
         var overlayRoot = ResolveOverlayRoot(parent);
-        var overlay = CreateRect(name, overlayRoot, new Vector2(-0.2f, 0f), new Vector2(1.2f, 1f), Vector2.zero, Vector2.zero);
+        if (singleInstance)
+        {
+            CloseOverlay(overlayRoot, name, "AuraTools overlay single instance");
+        }
+
+        var overlay = CreateRect(name, overlayRoot, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
         var overlayRect = overlay.GetComponent<RectTransform>();
         overlayRect.pivot = new Vector2(0.5f, 0.5f);
         overlayRect.offsetMin = new Vector2(8f, 8f);
@@ -327,10 +335,23 @@ internal static class AuraToolsUi
         EnsureLayoutElement(overlay).ignoreLayout = true;
         AddImage(overlay, new Color(0f, 0f, 0f, 0.68f));
 
-        var window = CreateRect("Window", overlay.transform, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero);
+        Canvas.ForceUpdateCanvases();
+        var availableWidth = overlayRect.rect.width;
+        var useFixedWidth = availableWidth > maxWidth + 36f;
+        var window = useFixedWidth
+            ? CreateRect("Window", overlay.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f), Vector2.zero)
+            : CreateRect("Window", overlay.transform, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero);
         var windowRect = window.GetComponent<RectTransform>();
-        windowRect.offsetMin = new Vector2(10f, 8f);
-        windowRect.offsetMax = new Vector2(-10f, -8f);
+        if (useFixedWidth)
+        {
+            windowRect.sizeDelta = new Vector2(maxWidth, -16f);
+            windowRect.anchoredPosition = Vector2.zero;
+        }
+        else
+        {
+            windowRect.offsetMin = new Vector2(10f, 8f);
+            windowRect.offsetMax = new Vector2(-10f, -8f);
+        }
         AddPanelImage(window, Background);
         var layout = window.AddComponent<VerticalLayoutGroup>();
         layout.padding = new RectOffset(18, 18, 14, 14);
@@ -360,6 +381,23 @@ internal static class AuraToolsUi
         }, ButtonMinWidth, ButtonHeight);
 
         return window;
+    }
+
+    public static void CloseOverlay(Transform parent, string name, string source = "AuraTools overlay close")
+    {
+        var overlayRoot = ResolveOverlayRoot(parent);
+        for (var i = overlayRoot.childCount - 1; i >= 0; i--)
+        {
+            var child = overlayRoot.GetChild(i);
+            if (!string.Equals(child.name, name, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            CloseSelectPopup();
+            UiRaycastSafeDestroyRuntime.DisableAndHide(child.gameObject, source);
+            Object.Destroy(child.gameObject);
+        }
     }
 
     public static void CloseSelectPopup()

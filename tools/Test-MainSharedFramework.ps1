@@ -31,6 +31,100 @@ foreach ($required in @("AuraCgShared", "AuraLogShared")) {
     }
 }
 
+$auraToolsStarterDeckRuntime = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\StarterDeck\AuraToolsStarterDeckRuntime.cs")
+$auraToolsUi = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\Settings\AuraToolsUi.cs")
+$auraToolsSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\Settings\AuraToolsSettingsRuntime.cs")
+$auraToolsConfigModels = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Config\AuraToolsConfigModels.cs")
+$auraToolsSkinRuntime = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\Skin\AuraToolsSkinRuntime.cs")
+
+if (-not ($auraToolsStarterDeckRuntime.Contains("IsWorldSimulationRun"))) {
+    throw "AuraTools starter deck must guard application to confirmed World Simulation runs."
+}
+if (-not ($auraToolsStarterDeckRuntime.Contains("!IsWorldSimulationRun(context, allowNormalMapHookFallback)"))) {
+    throw "AuraTools starter deck must skip non-World-Simulation role initialization."
+}
+if (-not ($auraToolsStarterDeckRuntime.Contains('"GameEntryUI.StartGame"')) -or -not ($auraToolsStarterDeckRuntime.Contains("CapturePreparationContext"))) {
+    throw "AuraTools starter deck must capture the final GameEntryUI.StartGame role context before applying decks."
+}
+if (-not ($auraToolsStarterDeckRuntime.Contains('"GameEntryUI.ChangeRole"')) -or -not ($auraToolsStarterDeckRuntime.Contains("CaptureRoleSelectionContext"))) {
+    throw "AuraTools starter deck must track role changes before RoleTable initialization."
+}
+if (-not ($auraToolsStarterDeckRuntime.Contains("ReadDataId(GameEntryUI.career)")) -or -not ($auraToolsStarterDeckRuntime.Contains("ResolveRuntimeRole"))) {
+    throw "AuraTools starter deck must prefer the selected GameEntryUI career over stale RoleTable.Career data."
+}
+if (-not ($auraToolsStarterDeckRuntime.Contains("AppliedRoleKey")) -or -not ($auraToolsStarterDeckRuntime.Contains("WriteAppliedRoleMetadata"))) {
+    throw "AuraTools starter deck must persist the applied role id for stale-role correction."
+}
+if (-not ($auraToolsStarterDeckRuntime.Contains("correcting stale starter deck")) -or -not ($auraToolsStarterDeckRuntime.Contains("HasSelectedRoleConflict"))) {
+    throw "AuraTools starter deck must allow correction when a stale role deck was already applied."
+}
+if (-not ($auraToolsStarterDeckRuntime.Contains("StarterDeckEditorSession"))) {
+    throw "AuraTools starter deck editor must use per-window edit sessions."
+}
+if ($auraToolsStarterDeckRuntime.Contains("private static StarterDeckLocalProfileSettings? editingProfile")) {
+    throw "AuraTools starter deck editor must not keep a static editing profile."
+}
+if (-not ($auraToolsStarterDeckRuntime.Contains("StarterDeckProfileResolutionReasons.LocalRole"))) {
+    throw "AuraTools role-specific starter decks must resolve through the local-role priority path."
+}
+if (-not ($auraToolsStarterDeckRuntime.Contains("settings.Mode == StarterDeckModes.Global")) -or -not ($auraToolsStarterDeckRuntime.Contains("CreateGlobalLocalProfile(settings.GlobalProfile)"))) {
+    throw "AuraTools global starter deck mode must resolve the global profile before any role-specific selection."
+}
+if (-not ($auraToolsStarterDeckRuntime.Contains("ConfiguredSelectedProfileIdForRole")) -or -not ($auraToolsStarterDeckRuntime.Contains("ProfileSelectionStatus"))) {
+    throw "AuraTools starter deck profile picker must visibly mark configured and effective role selections."
+}
+if (-not ($auraToolsStarterDeckRuntime.Contains("StarterDeckProfilePickerSession")) -or -not ($auraToolsStarterDeckRuntime.Contains("RefreshProfiles()"))) {
+    throw "AuraTools starter deck profile picker must refresh the current window after selection changes."
+}
+if (-not ($auraToolsStarterDeckRuntime.Contains("SelectProfileForRole(role.Id, profile.QualifiedProfileId);")) -or -not ($auraToolsStarterDeckRuntime.Contains("enableButton.interactable = !isConfiguredSelected"))) {
+    throw "AuraTools starter deck profile picker must disable the active selection and refresh after enabling another profile."
+}
+if (-not ($auraToolsStarterDeckRuntime.Contains("SetLocalHint")) -or -not ($auraToolsStarterDeckRuntime.Contains("localHintText"))) {
+    throw "AuraTools starter deck profile picker must use its own hint text instead of leaking messages to the role list."
+}
+if (-not ($auraToolsStarterDeckRuntime.Contains("ShowGlobal(overlayParent")) -or -not ($auraToolsStarterDeckRuntime.Contains("ShowRole(overlayParent, role.Id, role.DisplayName)"))) {
+    throw "AuraTools starter deck profile picker must distinguish global and role-local editing."
+}
+if ($auraToolsStarterDeckRuntime.Contains('role.DisplayName + "\n" + role.Id')) {
+    throw "AuraTools starter deck role manager must not display role ids in the role list."
+}
+if (-not ($auraToolsStarterDeckRuntime.Contains('? "生效：无完整卡组"')) -or -not ($auraToolsStarterDeckRuntime.Contains(': "生效：" + resolved.Profile.DisplayName'))) {
+    throw "AuraTools starter deck role manager must keep the effective deck column to a single effective deck name."
+}
+if (-not ($auraToolsUi -like "*CloseOverlay(overlayRoot, name*")) {
+    throw "AuraTools overlays must close same-name windows before creating a new one."
+}
+if (($auraToolsUi.Contains("new Vector2(-0.2f, 0f)")) -or ($auraToolsUi.Contains("new Vector2(1.2f, 1f)"))) {
+    throw "AuraTools overlays must not use off-screen width anchors."
+}
+if (-not ($auraToolsUi.Contains("Mathf.Max(width, 48f)"))) {
+    throw "AuraTools compact action buttons must not be forced to the default 120px minimum width."
+}
+if (-not ($auraToolsUi.Contains("SuccessText")) -or -not ($auraToolsUi.Contains("ActiveRow"))) {
+    throw "AuraTools UI must expose selection highlight colors for starter deck profile rows."
+}
+if (-not ($auraToolsSettings.Contains("starterDeckEnabled ?")) -or -not ($auraToolsSettings.Contains("AuraToolsUi.MutedText"))) {
+    throw "AuraTools starter deck settings must expose an obvious enabled/disabled title state."
+}
+if ($auraToolsSettings -like "*settings.PreferRoleModProfile, value =>*") {
+    throw "AuraTools starter deck role-mod fallback policy must be explanatory text, not a checkbox."
+}
+if (-not ($auraToolsSettings -like "*没有本地角色卡组时，会自动使用角色所属 MOD 注册的推荐开局卡组*")) {
+    throw "AuraTools starter deck settings must explain the always-on role-mod fallback policy."
+}
+if ($auraToolsSettings -like "*AuraToolsConfigService.Skin.AutoInstallBundledSkins, value =>*") {
+    throw "AuraTools skin auto-install policy must be explanatory text, not a checkbox."
+}
+if (-not ($auraToolsSettings -like "*内置角色皮肤会自动安装并补齐到共享皮肤目录*")) {
+    throw "AuraTools skin settings must explain the always-on bundled skin auto-install policy."
+}
+if (-not ($auraToolsConfigModels -like "*PreferRoleModProfile = true;*") -or -not ($auraToolsConfigModels -like "*AutoInstallBundledSkins = true;*")) {
+    throw "AuraTools config normalization must keep always-on starter deck and skin policies enabled."
+}
+if ($auraToolsSkinRuntime -like "*|| !AuraToolsConfigService.Skin.AutoInstallBundledSkins*") {
+    throw "AuraTools skin runtime must not skip bundled package registration because of the removed auto-install checkbox."
+}
+
 foreach ($registry in @("SunExp\audio.registry.json", "SanGuoShaExp\audio.registry.json")) {
     $registryText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot $registry)
     if ($registryText.Contains("ModResource/audio")) {
