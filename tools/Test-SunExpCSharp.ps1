@@ -32,6 +32,8 @@ function New-ProjectXml {
     $auraSharedDictionary = Join-Path $RepoRoot "AuraSharedCore\AuraSharedDictionary.cs"
     $sunExpIds = Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpIds.cs"
     $cardConfigApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardConfigApi.cs"
+    $loneerCombatState = Join-Path $RepoRoot "SunExp-Dev\Mechanics\LoneerCombatState.cs"
+    $starScoreCombatState = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreCombatState.cs"
 
 @"
 <Project Sdk="Microsoft.NET.Sdk">
@@ -49,6 +51,8 @@ function New-ProjectXml {
     <Compile Include="$dictionaryUtil" />
     <Compile Include="$sunExpIds" />
     <Compile Include="$cardConfigApi" />
+    <Compile Include="$loneerCombatState" />
+    <Compile Include="$starScoreCombatState" />
     <Compile Include="$SourceDir\Tests.cs" />
   </ItemGroup>
 </Project>
@@ -66,8 +70,20 @@ public sealed class FightPlayer
     public FakeStatus Status { get; } = new();
 }
 
-public sealed class FakeStatus
+public interface IStatusManager
 {
+    string InstanceId { get; }
+}
+
+public sealed class FakeStatus : IStatusManager
+{
+    public FakeStatus(string instanceId = "local-player")
+    {
+        InstanceId = instanceId;
+    }
+
+    public string InstanceId { get; }
+
     public Dictionary<string, float> dynamicVariables { get; } = new();
 }
 
@@ -137,6 +153,7 @@ using System;
 using System.Collections.Generic;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
+using SunExp.Dll.Mechanics;
 
 internal static class Program
 {
@@ -151,6 +168,8 @@ internal static class Program
         TestWhiteRadianceTags();
         TestTemporaryWhiteRadianceClaim();
         TestSolarMemoryIsolationIds();
+        TestLoneerStateOwnership();
+        TestStarScoreWindow();
 
         Console.WriteLine("SunExp C# tests passed: " + assertions + " assertions.");
     }
@@ -261,6 +280,42 @@ internal static class Program
         NotEqual(config.Vars[SunExpIds.TempWhiteRadianceLockId], stale.Vars[SunExpIds.TempWhiteRadianceLockId], "Renewed stale lock receives a new id");
     }
 
+    private static void TestLoneerStateOwnership()
+    {
+        LoneerCombatStateStore.ClearAll();
+        var owner = new FakeStatus("loneer-a");
+        var other = new FakeStatus("loneer-b");
+        var selectedFromCareer = LoneerCombatStateStore.ResetForFight(owner)!;
+        selectedFromCareer.GuidanceCardId = "selected-guide";
+        selectedFromCareer.ReplaceStones(new[] { "B", "W", "B" });
+
+        var readFromSkill = LoneerCombatStateStore.GetOrCreate(owner)!;
+        True(ReferenceEquals(selectedFromCareer, readFromSkill), "Loneer state is shared across executors for the same owner");
+        Equal("selected-guide", readFromSkill.GuidanceCardId, "Guidance survives executor changes");
+        Equal("B", readFromSkill.DrawStone(), "Stone draws use the shared owner bag");
+        Equal(1, readFromSkill.BlackStoneCount("B"), "Shared stone bag advances exactly once");
+
+        var isolated = LoneerCombatStateStore.GetOrCreate(other)!;
+        Equal("", isolated.GuidanceCardId, "Different owners receive isolated guidance state");
+        LoneerCombatStateStore.Remove(owner);
+        Equal("", LoneerCombatStateStore.GetOrCreate(owner)!.GuidanceCardId, "Removed combat state does not leak into the next fight");
+    }
+
+    private static void TestStarScoreWindow()
+    {
+        StarScoreCombatStateStore.ClearAll();
+        var owner = new FakeStatus("score-owner");
+        var score = StarScoreCombatStateStore.GetOrCreate(owner)!;
+        score.Record("S", 3);
+        score.Record("U", 3);
+        score.Record("T", 3);
+        score.Record("C", 3);
+
+        Equal(3, score.Notes.Count, "Star score keeps a three-card sliding window");
+        Equal("U", score.Notes[0], "Star score drops the oldest note");
+        True(ReferenceEquals(score, StarScoreCombatStateStore.GetOrCreate(owner)), "Star score is shared across card executors for the same owner");
+    }
+
     private static FakeDataConfig NewConfig(
         IDictionary<string, string>? data = null,
         IDictionary<string, string>? vars = null)
@@ -355,6 +410,15 @@ function Invoke-SourceAssertions {
     $wunaScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\WunaScripts.cs"))
     $runtimeHooks = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\RuntimeHooks.cs"))
     $duskPartnerRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\DuskPartnerRuntime.cs"))
+    $starClayDollRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\StarClayDollRuntime.cs"))
+    $loneerRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\LoneerRuntime.cs"))
+    $starScoreRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\StarScoreRuntime.cs"))
+    $loneerService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\LoneerMiracleService.cs"))
+    $loneerState = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\LoneerCombatState.cs"))
+    $starScoreService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreService.cs"))
+    $starScoreState = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreCombatState.cs"))
+    $duskPartnerScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\DuskPartnerScripts.cs"))
+    $starClayDollScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\StarClayDollScripts.cs"))
     $solarEventRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarEventRuntime.cs"))
     $solarMemoryModeRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryModeRuntime.cs"))
     $solarMemoryContentIsolationRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryContentIsolationRuntime.cs"))
@@ -449,6 +513,8 @@ function Invoke-SourceAssertions {
     Assert-True $sunExpIds.Contains("public static bool IsSolarMemoryExclusiveMapId") "SunExpIds must centralize exclusive Solar Memory map identification."
     Assert-True $sunExpIds.Contains("public static bool IsSolarMemoryExclusiveEventId") "SunExpIds must centralize exclusive Solar Memory event identification."
     Assert-True $runtimeHooks.Contains("DuskPartnerRuntime.Initialize(modConfig)") "RuntimeHooks must initialize Dusk partner runtime."
+    Assert-True $runtimeHooks.Contains("StarClayDollRuntime.Initialize(modConfig)") "RuntimeHooks must initialize Star Clay Doll independently from Dusk."
+    Assert-True $runtimeHooks.Contains("LoneerRuntime.Initialize(modConfig)") "RuntimeHooks must initialize Loneer's card-action runtime."
     Assert-True $runtimeHooks.Contains("SolarMemoryMapItemAnimationRuntime.Initialize(modConfig)") "RuntimeHooks must initialize solar memory map-item animation fallback hooks."
     Assert-True $solarMemoryMapItemAnimationRuntime.Contains('RegisterBefore(modConfig, "MapItem.Init", PrepareMapItemAnimation);') "Solar memory map items must patch fixed boss animation paths before native MapItem.Init loads Texture2D frames."
     Assert-True $solarMemoryMapItemAnimationRuntime.Contains('RegisterAfter(modConfig, "MapItem.Init", RestoreMapItemAnimation);') "Solar memory map item animation fallback must restore enemy animation paths after native MapItem.Init."
@@ -456,12 +522,31 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemoryMapItemAnimationRuntime.Contains("SunExpIds.SolarBossSaintWunaLevelId") "Solar memory map item fallback must cover the saint Wuna boss map node."
     Assert-True $solarMemoryMapItemAnimationRuntime.Contains('row["Animation"] = fallbackAnimation') "Solar memory map item fallback must temporarily replace the enemy Animation row."
     Assert-True $solarMemoryMapItemAnimationRuntime.Contains('restore.Row["Animation"] = restore.Animation') "Solar memory map item fallback must restore the original enemy Animation row."
-    Assert-True $duskPartnerRuntime.Contains('"GameEntryUI.CheckCareer"') "Dusk runtime must clean stale partner blessing placeholders after career checks."
-    Assert-True $duskPartnerRuntime.Contains('"Fight_Start.Init"') "Dusk runtime must grant the trait at fight start."
+    Assert-True $duskPartnerRuntime.Contains('"GameEntryUI.CheckCareer"') "Dusk runtime must clean its placeholder blessing after career checks."
+    Assert-True $duskPartnerRuntime.Contains('"Fight_Start.Init"') "Dusk runtime must grant its trait at fight start."
     Assert-True $duskPartnerRuntime.Contains("status.AddBuff(SunExpIds.DuskAfterheatRecoveryTrait, 1)") "Dusk runtime must grant the afterheat recovery trait buff."
-    Assert-True $duskPartnerRuntime.Contains("RemoveDuskPlaceholderBlessing") "Dusk runtime must remove stale technical blessing placeholders from role blessings."
+    Assert-True (-not $duskPartnerRuntime.Contains("StarClay")) "Dusk runtime must not own Star Clay Doll behavior."
+    Assert-True $starClayDollRuntime.Contains("status.AddBuff(SunExpIds.StarClayDollTrait, 1)") "Star Clay Doll runtime must grant its own trait."
+    Assert-True $starClayDollRuntime.Contains('"StatusManager.Hit"') "Star Clay Doll runtime must own lethal-hit protection."
+    Assert-True (-not $starScoreRuntime.Contains("LoneerMiracleService")) "Generic star score runtime must not dispatch Loneer role behavior."
+    Assert-True (-not $starScoreRuntime.Contains("StarClay")) "Generic star score runtime must not own partner behavior."
+    Assert-True $loneerRuntime.Contains("LoneerMiracleService.OnCardActionAfter") "Loneer runtime must own non-derived card action dispatch."
+    Assert-True $loneerState.Contains("Dictionary<string, LoneerCombatState>") "Loneer combat state must be keyed by owner status instead of ScriptExecutor.Vars."
+    Assert-True $loneerService.Contains("LoneerCombatStateStore.GetOrCreate(self.Self)") "Loneer skill and action flows must resolve owner-scoped combat state."
+    Assert-True $loneerService.Contains("SunExpIds.LoneerDerivedTag") "Copied guidance cards must be marked as derived."
+    Assert-True (-not $loneerService.Contains("SunExpIds.LoneerGuidanceCardId")) "Loneer guidance must not be stored in per-executor Vars."
+    Assert-True $starScoreService.Contains("StarScoreCombatStateStore.GetOrCreate(self.Self)") "Star score notes must be owner-scoped across card executors."
+    Assert-True $starScoreState.Contains("while (notes.Count > Math.Max(1, windowSize))") "Star score must maintain a bounded sliding window."
+    Assert-True $duskPartnerScripts.Contains("SunExpDuskAfterheatHook") "Dusk trait scripts must remain in the Dusk module."
+    Assert-True $starClayDollScripts.Contains("SunExpStarClayDollHook") "Star Clay Doll trait scripts must remain in the Star Clay module."
+    Assert-True $starClayDollScripts.Contains('AddEvent("ActionAfter"') "Star Clay Doll must grant starlight after an action resolves."
+    Assert-True $entry.Contains("SunExp.Dll.Scripting.DuskPartnerScripts") "XLua registration must expose the Dusk script entry point."
+    Assert-True $entry.Contains("SunExp.Dll.Scripting.StarClayDollScripts") "XLua registration must expose the Star Clay Doll script entry point."
     Assert-True ([regex]::IsMatch($blessingData, "(?m)^dusk_afterheat_recovery,0,,,Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_1,[^,]*,,5\r?$")) "Dusk afterheat recovery must remain a legal zero-weight technical Blessing for GameEntryUI.CheckCareer."
     Assert-True ([regex]::IsMatch($partnerData, "(?m)^dusk,10,0,0,0,2,,,Mods/SunExp/ModResource/Images/Partner/SunExp/dusk_choice,Mods/SunExp/ModResource/Images/Partner/SunExp/dusk,Mods/SunExp/ModResource/AnimationLib/Dusk,SunExp_sunexp_dusk_afterheat_recovery,Mods/SunExp/ModResource/Images/Partner/SunExp/dusk\r?$")) "Dusk partner must keep a non-empty Bless column because GameEntryUI.CheckCareer creates a DataConfig from it."
+    Assert-True ([regex]::IsMatch($blessingData, "(?m)^star_clay_doll_placeholder,0,,,Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_1,[^,]*,,5\r?$")) "Star Clay Doll must use a non-conflicting technical Blessing id."
+    Assert-True (-not [regex]::IsMatch($blessingData, "(?m)^star_clay_doll_trait,")) "Star Clay Doll Blessing id must not collide with its Buff id."
+    Assert-True ([regex]::IsMatch($partnerData, "(?m)^star_clay_doll,10,0,0,0,2,,,Mods/SunExp/ModResource/Images/Partner/SunExp/dusk_choice,Mods/SunExp/ModResource/Images/Partner/SunExp/dusk,Mods/SunExp/ModResource/AnimationLib/Dusk,SunExp_sunexp_star_clay_doll_placeholder,Mods/SunExp/ModResource/Images/Partner/SunExp/dusk\r?$")) "Star Clay Doll partner must reference its non-conflicting placeholder Blessing."
     Assert-True $solarMemoryBlessingPickerRuntime.Contains("IsTechnicalBlessing(id)") "Solar memory blessing picker must skip technical partner blessings."
     Assert-True $solarMemoryModeRuntime.Contains('RegisterBefore(modConfig, "GameConfigManager.CardPackCheck", FilterSolarMemoryCardPackCheck)') "Solar memory must filter event cards before CardPackCheck builds reward candidates."
     Assert-True $solarMemoryModeRuntime.Contains('RegisterBefore(modConfig, "NormalMapManager.RandomGenerate", CaptureSolarMemoryGenerationState)') "Solar memory must capture event records before base map generation can draw ordinary events."

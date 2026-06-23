@@ -1,3 +1,4 @@
 "Id","Note","Name","Description","Name_zh-Hant","Name_en","Description_zh-Hant","Description_en","Name_ja","Description_ja"
 "唯一标识","备注","名称","效果描述","名稱","Name","效果描述","Effect Description","名称","効果説明"
 "solar_keyword","","白曜","附着卡获得“白曜”。","白曜","White Radiance","附著卡獲得「白曜」。","Attached card gains White Radiance.","白曜","付与されたカードは白曜を得る。"
+"morning_star_seal","","启明星","当持有此火漆的牌触发星辰祝福的序曲生成时，必定获得星辰序曲·启。","啟明星","Morning Star Seal","當持有此火漆的牌觸發星辰祝福的序曲生成時，必定獲得星辰序曲・啟。","When a card with this seal generates an Overture through Star Blessing, it always creates Stellar Overture: Opening.","啓明星","この火漆を持つカードが星辰祝福で序曲を生成する時、必ず星辰序曲・始を得る。"

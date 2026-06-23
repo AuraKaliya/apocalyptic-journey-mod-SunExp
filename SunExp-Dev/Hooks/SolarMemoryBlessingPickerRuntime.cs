@@ -548,7 +548,10 @@ public static class SolarMemoryBlessingPickerRuntime
     {
         return id.Equals("dusk_afterheat_recovery", StringComparison.OrdinalIgnoreCase)
             || id.Equals("SunExp_sunexp_dusk_afterheat_recovery", StringComparison.OrdinalIgnoreCase)
-            || id.EndsWith("_dusk_afterheat_recovery", StringComparison.OrdinalIgnoreCase);
+            || id.EndsWith("_dusk_afterheat_recovery", StringComparison.OrdinalIgnoreCase)
+            || id.Equals("star_clay_doll_placeholder", StringComparison.OrdinalIgnoreCase)
+            || id.Equals(SunExpIds.StarClayDollBlessingId, StringComparison.OrdinalIgnoreCase)
+            || id.EndsWith("_star_clay_doll_placeholder", StringComparison.OrdinalIgnoreCase);
     }
 
     private static IEnumerable<int> OrderedTiers()

@@ -1,0 +1,3 @@
+Id,是否完成,Type,Note,Name,Name_en,Name_zh-Hant,Name_ja,Description,Description_zh-Hant,Description_en,Description_ja
+唯一标识,FALSE,类型,备注,名称,Name,名稱,名称,描述,描述,Description,説明
+"*loneer_morning_star_prayer","TRUE","职业技能","","晨星祈愿","Morning Star Prayer","晨星祈願","晨星祈願","获得一张当前【指引牌】的复制，并从【星石袋】中移除2枚黑石。","獲得一張目前【指引牌】的複製，並從【星石袋】中移除2枚黑石。","Gain a copy of the current Guidance card and remove 2 black stones from the Star Stone Pouch.","現在の【導き札】のコピーを1枚得て、【星石袋】から黒石を2個取り除く。"

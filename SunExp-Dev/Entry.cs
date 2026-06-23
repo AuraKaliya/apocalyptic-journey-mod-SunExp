@@ -101,11 +101,13 @@ public static class Entry
             luaEnv.DoString(
                 "assert(xlua.import_type('SunExp.Dll.Scripting.CardScripts'), 'SunExp CardScripts unavailable');"
                 + "assert(xlua.import_type('SunExp.Dll.Scripting.WunaScripts'), 'SunExp WunaScripts unavailable');"
+                + "assert(xlua.import_type('SunExp.Dll.Scripting.LoneerScripts'), 'SunExp LoneerScripts unavailable');"
                 + "assert(xlua.import_type('SunExp.Dll.Scripting.EventScripts'), 'SunExp EventScripts unavailable');"
                 + "assert(xlua.import_type('SunExp.Dll.Scripting.BossScripts'), 'SunExp BossScripts unavailable');"
                 + "assert(xlua.import_type('SunExp.Dll.Scripting.BuffScripts'), 'SunExp BuffScripts unavailable');"
                 + "assert(xlua.import_type('SunExp.Dll.Scripting.RelicScripts'), 'SunExp RelicScripts unavailable');"
-                + "assert(xlua.import_type('SunExp.Dll.Scripting.PartnerScripts'), 'SunExp PartnerScripts unavailable');",
+                + "assert(xlua.import_type('SunExp.Dll.Scripting.DuskPartnerScripts'), 'SunExp DuskPartnerScripts unavailable');"
+                + "assert(xlua.import_type('SunExp.Dll.Scripting.StarClayDollScripts'), 'SunExp StarClayDollScripts unavailable');",
                 "SunExp.RegisterLuaVisibleAssembly");
             SunExpLog.Info("Registered C# script assembly for XLua: " + assemblyName);
         }

@@ -14,6 +14,7 @@ public static class RuntimeHooks
         RegisterBefore(modConfig, "StatusManager.AddBuff", OnStatusManagerAddBuffBefore);
         RegisterAfter(modConfig, "StatusManager.AddBuff", OnStatusManagerAddBuffAfter);
         DuskPartnerRuntime.Initialize(modConfig);
+        StarClayDollRuntime.Initialize(modConfig);
         SolarMemoryModeRuntime.Initialize(modConfig);
         SolarMemoryContentIsolationRuntime.Initialize(modConfig);
         SolarMemoryStarterDeckRuntime.Initialize(modConfig);
@@ -22,6 +23,8 @@ public static class RuntimeHooks
         AnimatedBuffIconRuntime.Initialize(modConfig);
         AnimatedEnemyDictIconRuntime.Initialize(modConfig);
         SolarMemoryMapItemAnimationRuntime.Initialize(modConfig);
+        StarScoreRuntime.Initialize(modConfig);
+        LoneerRuntime.Initialize(modConfig);
         SunExpLog.Info("Runtime hooks registered");
     }
 
@@ -47,6 +50,7 @@ public static class RuntimeHooks
                 return;
             }
 
+            StarScoreRuntime.TryApplyResonanceBeforeAddBuff(context);
             var amount = BuffAmountFromArgs(args);
             ExecutorApi.PrepareSolarRadianceUpperBound(target, buffId);
             if (buffId != SunExpIds.Burn || amount <= 0)

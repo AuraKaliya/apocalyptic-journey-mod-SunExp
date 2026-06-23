@@ -7,6 +7,7 @@ public static class SunExpIds
     public const string ModLogTag = "SunExp.DLL";
 
     public const string WhiteRadianceTag = "白曜";
+    public const string MorningStarSealTag = "启明星";
 
     public const string SolarRadiance = "SunExp_sunexp_solar_radiance";
     public const string SolarCrown = "SunExp_sunexp_solar_crown";
@@ -25,6 +26,14 @@ public static class SunExpIds
     public const string BossTraitMercilessDaylight = "SunExp_sunexp_boss_trait_merciless_daylight";
     public const string BossTraitWhiteRadianceSaint = "SunExp_sunexp_boss_trait_white_radiance_saint";
     public const string BossWhiteRadianceCrown = "SunExp_sunexp_boss_white_radiance_crown";
+    public const string StarStonePouch = "SunExp_sunexp_star_stone_pouch";
+    public const string MiracleClock = "SunExp_sunexp_miracle_clock";
+    public const string Starlight = "SunExp_sunexp_starlight";
+    public const string StarBlessing = "SunExp_sunexp_star_blessing";
+    public const string StarScore = "SunExp_sunexp_star_score";
+    public const string Resonance = "SunExp_sunexp_resonance";
+    public const string StarClayBody = "SunExp_sunexp_star_clay_body";
+    public const string StarClayDollTrait = "SunExp_sunexp_star_clay_doll_trait";
     public const string Cripple = "buff_cripple";
     public const string Extraordinary = "buff_extraordinary";
     public const string EnemyCardSaintWhiteEdict = "SunExp_sunexp_enemycard_saint_white_edict";
@@ -37,6 +46,16 @@ public static class SunExpIds
 
     public const string WunaActive = "SunExpWunaActive";
     public const string WunaPersistentEmber = "SunExpWunaPersistentEmber";
+    public const string LoneerCareerId = "loneer";
+    public const string LoneerActive = "SunExpLoneerActive";
+    public const string LoneerMorningPrayerSkillCardId = "SunExp_loneer_loneer_morning_star_prayer";
+    public const string StellarOvertureStartCardId = "SunExp_sunexp_stellar_overture_start";
+    public const string StellarOvertureSustainCardId = "SunExp_sunexp_stellar_overture_sustain";
+    public const string StellarOvertureTurnCardId = "SunExp_sunexp_stellar_overture_turn";
+    public const string StellarOvertureCloseCardId = "SunExp_sunexp_stellar_overture_close";
+    public const string StarClayDollPartnerId = "SunExp_sunexp_star_clay_doll";
+    public const string StarClayDollBlessingId = "SunExp_sunexp_star_clay_doll_placeholder";
+    public const string LoneerDerivedTag = "SunExpLoneerDerived";
 
     public const string WunaEventProgressKey = "SunExp_WunaEventProgressV2";
     public const string SolarEventMapId = "SunExp_sunexp_solar_event";

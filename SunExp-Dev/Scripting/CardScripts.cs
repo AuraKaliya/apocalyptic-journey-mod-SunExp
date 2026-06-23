@@ -18,6 +18,12 @@ public static class CardScripts
                     ExecutorApi.SetBaseScript(self, "AttackCardItem", canSelf: false);
                     ExecutorApi.AddDamageDescription(self, "1", 5);
                     break;
+                case "stellar_overture_start":
+                case "stellar_overture_sustain":
+                case "stellar_overture_turn":
+                case "stellar_overture_close":
+                    StarScoreService.Init(self, id);
+                    break;
                 case "radiant_flame_slash":
                     ExecutorApi.SetBaseScript(self, "AttackCardItem", canSelf: false);
                     ExecutorApi.AddDamageDescription(self, "1", ExecutorApi.SolarKeywordDamage(self, 10, ExecutorApi.PrimaryTarget(self)));
@@ -84,6 +90,12 @@ public static class CardScripts
             {
                 case "spark":
                     UseSpark(self);
+                    break;
+                case "stellar_overture_start":
+                case "stellar_overture_sustain":
+                case "stellar_overture_turn":
+                case "stellar_overture_close":
+                    StarScoreService.Use(self, id);
                     break;
                 case "scorching_canopy_card":
                     ExecutorApi.ApplyFieldBuff(self, "scorching_canopy", 1);

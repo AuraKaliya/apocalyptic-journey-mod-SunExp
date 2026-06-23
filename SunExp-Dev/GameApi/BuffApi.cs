@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using SunExp.Dll.Infrastructure;
 
 namespace SunExp.Dll.GameApi;
@@ -20,7 +21,15 @@ public static class BuffApi
         SunExpIds.SolarRadiance,
         SunExpIds.GatheredFlame,
         SunExpIds.SolarCrown,
-        SunExpIds.SolarCrownTier
+        SunExpIds.SolarCrownTier,
+        SunExpIds.StarStonePouch,
+        SunExpIds.MiracleClock,
+        SunExpIds.Starlight,
+        SunExpIds.StarBlessing,
+        SunExpIds.StarScore,
+        SunExpIds.Resonance,
+        SunExpIds.StarClayBody,
+        SunExpIds.StarClayDollTrait
     };
 
     public static int Level(IStatusManager? status, string buffId)
@@ -93,6 +102,36 @@ public static class BuffApi
         return removed;
     }
 
+    public static int PositiveKindCount(IStatusManager? status)
+    {
+        return PositiveBuffs(status).Count();
+    }
+
+    public static int NegativeKindCount(IStatusManager? status)
+    {
+        return NegativeBuffs(status).Count();
+    }
+
+    public static bool IncreaseRandomPositiveBuff(IStatusManager? status, int amount)
+    {
+        return IncreaseRandomBuff(PositiveBuffs(status).ToList(), amount);
+    }
+
+    public static bool IncreaseRandomNegativeBuff(IStatusManager? status, int amount)
+    {
+        return IncreaseRandomBuff(NegativeBuffs(status).ToList(), amount);
+    }
+
+    public static bool IsPositiveBuffId(string buffId)
+    {
+        return IsBuffType(buffId, IsPositiveType);
+    }
+
+    public static bool IsNegativeBuffId(string buffId)
+    {
+        return IsBuffType(buffId, IsNegativeType);
+    }
+
     public static void SetLevelOrRemove(ScriptExecutor executor, IStatusManager status, string buffId, int nextLevel)
     {
         var buff = status.GetBuff(buffId);
@@ -109,6 +148,34 @@ public static class BuffApi
         }
 
         buff.buffConfig.Level = nextLevel;
+    }
+
+    public static void SetExactLevel(IStatusManager? status, string buffId, int nextLevel)
+    {
+        if (status == null || string.IsNullOrWhiteSpace(buffId))
+        {
+            return;
+        }
+
+        var level = Math.Max(0, nextLevel);
+        var buff = status.GetBuff(buffId);
+        if (level <= 0)
+        {
+            if (buff != null)
+            {
+                status.RemoveBuff(buffId);
+            }
+
+            return;
+        }
+
+        if (buff?.buffConfig == null)
+        {
+            status.AddBuff(buffId, level);
+            return;
+        }
+
+        buff.buffConfig.Level = level;
     }
 
     public static int ConsumeEmberBeforeBurn(ScriptExecutor executor, IStatusManager? status)
@@ -143,6 +210,23 @@ public static class BuffApi
         OnEmberConsumed(executor, status, consumed);
         SunExpLog.Debug("Ember consumed before burn: target=" + status.InstanceId + ", count=" + consumed);
         return consumed;
+    }
+
+    private static bool IncreaseRandomBuff(IReadOnlyList<IBuffItem> buffs, int amount)
+    {
+        if (buffs.Count <= 0 || amount <= 0)
+        {
+            return false;
+        }
+
+        var selected = buffs[UnityEngine.Random.Range(0, buffs.Count)];
+        if (selected?.buffConfig == null)
+        {
+            return false;
+        }
+
+        selected.buffConfig.Level += amount;
+        return true;
     }
 
     public static string EmberDamageBonusKey(IStatusManager? status)
@@ -310,6 +394,24 @@ public static class BuffApi
         return type == "Positive"
             || type.Contains("\u6b63\u9762")
             || type.Contains("姝ｉ潰");
+    }
+
+    private static bool IsBuffType(string buffId, Func<string, bool> predicate)
+    {
+        if (string.IsNullOrWhiteSpace(buffId))
+        {
+            return false;
+        }
+
+        try
+        {
+            var config = Singleton<GameConfigManager>.Instance.GetOne(DataType.Buff, buffId);
+            return predicate(DictionaryUtil.Get(config, "Type"));
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool IsPositiveExcluded(string? buffId)

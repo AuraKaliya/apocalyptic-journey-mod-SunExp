@@ -407,6 +407,44 @@ function Test-KindDataTextPairs {
     }
 }
 
+function Test-RuntimeIdCollisions {
+    param([string]$ModRootPath)
+
+    $dataRoot = Join-Path $ModRootPath "Data"
+    $entriesById = @{}
+    foreach ($file in (Get-ChildItem -LiteralPath $dataRoot -Recurse -Filter "*.csv" -File | Sort-Object FullName)) {
+        $kind = $file.Directory.Name
+        $fileStem = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
+        foreach ($row in (Read-Rows $file.FullName)) {
+            $fullId = Full-SunExp-Id $row.Id $fileStem
+            if (-not $entriesById.ContainsKey($fullId)) {
+                $entriesById[$fullId] = New-Object System.Collections.Generic.List[object]
+            }
+            $entriesById[$fullId].Add([pscustomobject]@{
+                Kind = $kind
+                File = $file.FullName
+                LocalId = $row.Id
+            }) | Out-Null
+        }
+    }
+
+    foreach ($fullId in $entriesById.Keys) {
+        $entries = @($entriesById[$fullId].ToArray())
+        if ($entries.Count -le 1) {
+            continue
+        }
+
+        $kinds = @($entries.Kind | Sort-Object -Unique)
+        $isRoleIdentityPair = ($entries.Count -eq 2 -and $kinds.Count -eq 2 -and $kinds -contains "Career" -and $kinds -contains "RoleData")
+        if ($isRoleIdentityPair) {
+            continue
+        }
+
+        $locations = $entries | ForEach-Object { "$($_.Kind)/$([System.IO.Path]::GetFileName($_.File)):$($_.LocalId)" }
+        Add-Failure "Runtime id '$fullId' is declared more than once: $($locations -join ', '). DataConfig uses a global id cache even when a DataType is supplied."
+    }
+}
+
 $repoRoot = Get-RepoRoot
 if (-not $ModRoot) {
     $ModRoot = Join-Path $repoRoot "SunExp"
@@ -420,6 +458,7 @@ $script:Failures = New-Object System.Collections.Generic.List[string]
 $script:Warnings = New-Object System.Collections.Generic.List[string]
 
 Test-NoLuaProductionFiles $modRootPath $repoRoot
+Test-RuntimeIdCollisions $modRootPath
 
 $cardFiles = Get-KindCsvFiles $modRootPath "Data" "Card"
 $buffFiles = Get-KindCsvFiles $modRootPath "Data" "Buff"

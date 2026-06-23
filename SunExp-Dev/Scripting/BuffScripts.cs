@@ -1,6 +1,7 @@
 using System;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
+using SunExp.Dll.Mechanics;
 
 namespace SunExp.Dll.Scripting;
 
@@ -41,9 +42,6 @@ public static class BuffScripts
                     break;
                 case "afterglow_omen":
                     ApplyAfterglowOmen(self);
-                    break;
-                case "dusk_afterheat_recovery_trait":
-                    PartnerScripts.RegisterDuskAfterheatRecovery(self);
                     break;
                 case "boss_trait_mirror_array":
                 case "boss_trait_merciless_daylight":
@@ -97,9 +95,6 @@ public static class BuffScripts
                     break;
                 case "afterglow_omen":
                     ExecutorApi.ClearHook(self, "SunExpAfterglowHook", "SunExpAfterglowToken");
-                    break;
-                case "dusk_afterheat_recovery_trait":
-                    PartnerScripts.ClearDuskAfterheatRecovery(self);
                     break;
                 case "boss_trait_mirror_array":
                 case "boss_trait_merciless_daylight":
@@ -579,4 +574,5 @@ public static class BuffScripts
             }
         }));
     }
+
 }
