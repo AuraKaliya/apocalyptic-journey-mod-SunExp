@@ -16,6 +16,10 @@ SunExp is a card pack, partner, and event mod for Witch's Apocalyptic Journey. I
 - 爆发窗口：圣冕显化、炽冕崩落 / Crown Manifestation, Blazing Crown Collapse
 - C# DLL + CSV + text + image resources / C# DLL、CSV、文本与图片资源
 
+## 开发文档 / Development Notes
+
+- [后续开发路线图：协作、可读性与乌娜成长](SunExpFutureDevelopmentRoadmap.md)
+
 ## 玩法 / Gameplay
 
 用日耀建立基础收益，用炽灼天幕和卡牌给全场制造灼烧，再通过引炎、灼流回收等手段把灼烧吸收为聚炎。聚炎可以继续推高输出，但也会在回合开始时带来自燃压力；烬衣、圣冕显化高层阶段和部分遗物可以帮助你控制风险。炽冕崩落不再焚毁，但若没有圣冕显化，玩家会承受与敌人相同的爆发伤害。
