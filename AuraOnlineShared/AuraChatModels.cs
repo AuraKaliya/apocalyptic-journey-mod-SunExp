@@ -68,11 +68,49 @@ public sealed class AuraChatModPlayerSnapshot
 }
 
 [Serializable]
+public sealed class AuraChatModSyncState
+{
+    public string CurrentModId { get; set; } = "";
+
+    public string LocalPlayerId { get; set; } = "";
+
+    public string HostPlayerId { get; set; } = "";
+
+    public List<AuraChatModPlayerSnapshot> Players { get; set; } = new();
+
+    public List<AuraChatModSyncRow> Rows { get; set; } = new();
+}
+
+[Serializable]
+public sealed class AuraChatModSyncRow
+{
+    public string ModKey { get; set; } = "";
+
+    public string ModName { get; set; } = "";
+
+    public AuraChatModSnapshot? HostMod { get; set; }
+
+    public AuraChatModSnapshot? LocalMod { get; set; }
+}
+
+[Serializable]
 public sealed class AuraChatModSnapshot
 {
+    public string ModId { get; set; } = "";
+
     public string ModName { get; set; } = "";
 
     public string ModVersion { get; set; } = "";
 
+    public string ModAuthor { get; set; } = "";
+
+    public string DirectoryName { get; set; } = "";
+
+    public bool IsWorkshopMod { get; set; }
+
+    public ulong PublishedFileId { get; set; }
+
     public bool Enabled { get; set; }
+
+    public string MatchKey => string.IsNullOrWhiteSpace(ModId) ? ModName : ModId;
 }

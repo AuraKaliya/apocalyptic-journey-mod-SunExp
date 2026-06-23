@@ -33,7 +33,8 @@ public static class SkinRuntimeHooks
         {
             if (context.Arguments != null && context.Arguments.Length > 0)
             {
-                SkinRuntime.EnsureAnimation(context.Arguments[0] as DataConfig);
+                var instanceId = context.Arguments.Length > 1 ? context.Arguments[1] as string ?? "" : "";
+                SkinRuntime.EnsureAnimation(context.Arguments[0] as DataConfig, instanceId);
             }
         }
         catch (Exception ex)

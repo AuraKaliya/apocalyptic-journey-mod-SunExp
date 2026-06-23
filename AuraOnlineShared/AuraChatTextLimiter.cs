@@ -5,9 +5,9 @@ namespace AuraOnline.Shared;
 
 public static class AuraChatTextLimiter
 {
-    public const int PlayerTextLimit = 20;
+    public const int PlayerTextLimit = 40;
     public const int SystemLineLimit = 500;
-    public const int DisplayLineLimit = 30;
+    public const int DisplayLineLimit = 60;
 
     public static string LimitPlayerText(string? rawText)
     {

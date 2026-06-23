@@ -39,7 +39,7 @@ public static class Entry
     {
         if (!AuraSkinRuntime.RegisterPackage(modConfig, "SunExp"))
         {
-            throw new InvalidOperationException("SunExp bundled skin package was rejected.");
+            SunExpLog.Warn("SunExp bundled skin package was rejected; skin package registration skipped.");
         }
     }
 

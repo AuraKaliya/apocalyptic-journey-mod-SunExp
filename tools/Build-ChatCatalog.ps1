@@ -2,7 +2,8 @@ param(
     [string]$OutputPath = "",
     [string]$SignPrivateKeyPath = "",
     [string]$SignPrivateKeyXml = "",
-    [string]$CatalogVersion = "2026.06.22"
+    [string]$CatalogVersion = "2026.06.22",
+    [string]$StickerDirectory = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -10,6 +11,15 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 if ([string]::IsNullOrWhiteSpace($OutputPath)) {
     $OutputPath = Join-Path $repoRoot "TestMods\ChatExp\SharedResources\Chat\catalog.auraenc"
+}
+
+$catalogDirectory = Split-Path -Parent $OutputPath
+if ([string]::IsNullOrWhiteSpace($catalogDirectory)) {
+    $catalogDirectory = (Get-Location).Path
+}
+
+if ([string]::IsNullOrWhiteSpace($StickerDirectory)) {
+    $StickerDirectory = Join-Path $catalogDirectory "Stickers"
 }
 
 if ([string]::IsNullOrWhiteSpace($SignPrivateKeyPath)) {
@@ -42,6 +52,86 @@ function ConvertTo-Hex {
     $builder.ToString()
 }
 
+function Test-IsInsideDirectory {
+    param(
+        [string]$Path,
+        [string]$Directory
+    )
+
+    $fullPath = [System.IO.Path]::GetFullPath($Path).TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+    $fullDirectory = [System.IO.Path]::GetFullPath($Directory).TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+    return $fullPath.StartsWith($fullDirectory + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)
+}
+
+function ConvertTo-RelativeResourcePath {
+    param(
+        [string]$Path,
+        [string]$Directory
+    )
+
+    $fullPath = [System.IO.Path]::GetFullPath($Path)
+    $fullDirectory = [System.IO.Path]::GetFullPath($Directory)
+    if (-not (Test-IsInsideDirectory -Path $fullPath -Directory $fullDirectory)) {
+        throw "Sticker resource must stay under the catalog directory. path=$fullPath directory=$fullDirectory"
+    }
+
+    $baseUri = [Uri]($fullDirectory.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar)
+    $fileUri = [Uri]$fullPath
+    return [Uri]::UnescapeDataString($baseUri.MakeRelativeUri($fileUri).ToString()).Replace('\', '/')
+}
+
+function New-StickerId {
+    param(
+        [int]$Index,
+        [string]$Name
+    )
+
+    $stem = [System.IO.Path]::GetFileNameWithoutExtension($Name).ToLowerInvariant()
+    $id = [regex]::Replace($stem, '[^a-z0-9_.-]+', '-').Trim('-')
+    if ([string]::IsNullOrWhiteSpace($id)) {
+        return "sticker_{0:D3}" -f $Index
+    }
+
+    return $id
+}
+
+function Get-StickerEntries {
+    param(
+        [string]$Directory,
+        [string]$CatalogDirectory
+    )
+
+    if (-not (Test-Path -LiteralPath $Directory)) {
+        return @()
+    }
+
+    $files = @(Get-ChildItem -LiteralPath $Directory -File |
+        Where-Object { $_.Extension -match '^\.(png|jpg|jpeg|webp)$' } |
+        Sort-Object Name)
+
+    $entries = @()
+    $index = 1
+    foreach ($file in $files) {
+        $id = New-StickerId -Index $index -Name $file.Name
+        while ($entries | Where-Object { $_.id -eq $id }) {
+            $id = "sticker_{0:D3}" -f $index
+            $index++
+        }
+
+        $entries += [ordered]@{
+            id = $id
+            packId = "initial"
+            stickerId = $id
+            resourcePath = ConvertTo-RelativeResourcePath -Path $file.FullName -Directory $CatalogDirectory
+            sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName).Hash.ToLowerInvariant()
+            order = 1000 + ($index * 10)
+        }
+        $index++
+    }
+
+    return $entries
+}
+
 function Canonicalize-Envelope {
     param($Envelope)
     "Format=$($Envelope.Format)`n" +
@@ -56,16 +146,25 @@ function Canonicalize-Envelope {
     "PayloadSha256=$($Envelope.PayloadSha256)"
 }
 
+$stickers = @(Get-StickerEntries -Directory $StickerDirectory -CatalogDirectory $catalogDirectory)
+
 $catalog = [ordered]@{
     schemaVersion = 1
     catalogId = "chat_catalog_v1"
     catalogVersion = $CatalogVersion
     messages = @(
-        [ordered]@{ id = "bye"; text = "再见！"; order = 10 },
-        [ordered]@{ id = "thanks"; text = "谢谢！"; order = 20 },
-        [ordered]@{ id = "hello"; text = "你好！"; order = 30 }
+        [ordered]@{ id = "bye"; text = "$([char]0x518D)$([char]0x89C1)$([char]0xFF01)"; order = 10 },
+        [ordered]@{ id = "thanks"; text = "$([char]0x8C22)$([char]0x8C22)$([char]0xFF01)"; order = 20 },
+        [ordered]@{ id = "hello"; text = "$([char]0x4F60)$([char]0x597D)$([char]0xFF01)"; order = 30 },
+        [ordered]@{ id = "guard"; text = "$([char]0x6765)$([char]0x4EBA)$([char]0xFF0C)$([char]0x62A4)$([char]0x9A7E)$([char]0xFF01)"; order = 40 },
+        [ordered]@{ id = "watch_next_time"; text = "$([char]0x4E0B)$([char]0x6B21)$([char]0x6CE8)$([char]0x610F)$([char]0x70B9)~"; order = 50 },
+        [ordered]@{ id = "dare_to_fight"; text = "$([char]0x5C14)$([char]0x7B49)$([char]0x6562)$([char]0x5E94)$([char]0x6218)$([char]0x5426)$([char]0xFF1F)"; order = 60 },
+        [ordered]@{ id = "wait_think"; text = "$([char]0x4E14)$([char]0x6162)$([char]0xFF01)$([char]0x5BB9)$([char]0x6211)$([char]0x4E09)$([char]0x601D)..."; order = 70 },
+        [ordered]@{ id = "watch_me"; text = "$([char]0x6C5D)$([char]0x7B49)$([char]0x7ED9)$([char]0x6211)$([char]0x770B)$([char]0x597D)$([char]0x4E86)$([char]0xFF01)"; order = 80 },
+        [ordered]@{ id = "raise_army"; text = "$([char]0x65F6)$([char]0x673A)$([char]0x5DF2)$([char]0x5230)$([char]0xFF0C)$([char]0x5373)$([char]0x523B)$([char]0x8D77)$([char]0x5175)$([char]0xFF01)"; order = 90 },
+        [ordered]@{ id = "fight_to_death"; text = "$([char]0x552F)$([char]0x6709)$([char]0x6B7B)$([char]0x6218)$([char]0xFF0C)$([char]0x5B89)$([char]0x80FD)$([char]0x8A00)$([char]0x964D)$([char]0xFF1F)"; order = 100 }
     )
-    stickers = @()
+    stickers = $stickers
 }
 
 $catalogJson = $catalog | ConvertTo-Json -Depth 8 -Compress

@@ -1,12 +1,12 @@
 using System;
 using AuraJourney.Shared;
 using AuraShared.Core;
-using AuraSkin.Shared;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.Audio;
 using AuraToolsExp.Dll.Features.Logging;
 using AuraToolsExp.Dll.Features.SafeBox;
 using AuraToolsExp.Dll.Features.Settings;
+using AuraToolsExp.Dll.Features.Skin;
 using AuraToolsExp.Dll.Features.SkillCg;
 using AuraToolsExp.Dll.Features.StarterDeck;
 using AuraToolsExp.Dll.Infrastructure;
@@ -22,11 +22,11 @@ public static class Entry
     {
         RunStep("shared core", () => AuraSharedRuntime.Initialize(modConfig, AuraToolsIds.ModId));
         RunStep("shared registry", () => AuraSharedRegistry.RegisterManifest(modConfig, AuraToolsIds.ModId));
-        RunStep("shared skin runtime", () => AuraSkinRuntime.Initialize(modConfig, AuraToolsIds.ModId));
         RunStep("journey runtime", () => AuraJourneyRuntime.Initialize(modConfig, AuraToolsIds.ModId));
         RunStep("config", () => AuraToolsConfigService.Initialize(modConfig));
         RunStep("file logging", () => AuraToolsFileLogRuntime.Initialize(modConfig));
         RunStep("ui transition guard", () => UiTransitionGuardRuntime.Initialize(modConfig, AuraToolsIds.ModId));
+        RunStep("skin", () => AuraToolsSkinRuntime.Initialize(modConfig));
         RunStep("audio", () => AuraToolsAudioRuntime.Initialize(modConfig));
         RunStep("starter deck", () => AuraToolsStarterDeckRuntime.Initialize(modConfig));
         RunStep("safe box", () => AuraToolsSafeBoxRuntime.Initialize(modConfig));

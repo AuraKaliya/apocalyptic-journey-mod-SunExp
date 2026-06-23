@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "enabled": true,
+  "autoInstallBundledSkins": true,
+  "showEntrySkinButton": true,
+  "syncRemote": true
+}

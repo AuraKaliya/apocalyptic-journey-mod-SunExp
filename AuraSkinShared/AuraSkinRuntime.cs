@@ -17,9 +17,9 @@ public static class AuraSkinRuntime
     private const string GlobalObjectName = "AuraSkin.Global";
     private const string ComponentFullName = "AuraSkin.Shared.AuraSkinRuntime+AuraSkinComponent";
 
-    public const string CurrentBuildId = "aura-skin-shared-2026-06-22-v3";
-    public const int CurrentProtocolVersion = 3;
-    public const int MinimumSupportedProtocolVersion = 3;
+    public const string CurrentBuildId = "aura-skin-shared-2026-06-22-v4";
+    public const int CurrentProtocolVersion = 4;
+    public const int MinimumSupportedProtocolVersion = 4;
 
     private static readonly HashSet<string> ReuseLogOwners = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> CompatibilityErrorsShown = new(StringComparer.OrdinalIgnoreCase);
@@ -146,7 +146,7 @@ public static class AuraSkinRuntime
 
         if (!compatible && CompatibilityErrorsShown.Add(ownerModId + ":" + type.AssemblyQualifiedName))
         {
-            SkinLog.Error("Incompatible global skin runtime; skin features disabled for " + ownerModId
+            SkinLog.Warn("Incompatible global skin runtime; skin features disabled for " + ownerModId
                           + ". existingAssembly=" + type.Assembly.GetName().Name
                           + ", protocol=" + protocolVersion
                           + ", minSupported=" + minimumSupported

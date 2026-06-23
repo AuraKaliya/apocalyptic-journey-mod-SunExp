@@ -391,20 +391,35 @@ void TestOnlineChatContracts()
            && AuraChatEmojiParser.DisplayLength("hi #[role:smile] ok") == 7,
         "chat emoji token parsing");
 
-    var limited = AuraChatTextLimiter.LimitPlayerText("123456789012345678901234");
-    Assert(limited == "12345678901234567890...", "chat player text limit");
+    var limited = AuraChatTextLimiter.LimitPlayerText("12345678901234567890123456789012345678901234");
+    Assert(limited == "1234567890123456789012345678901234567890...", "chat player text limit");
 
-    var wrapped = AuraChatTextLimiter.WrapPlainText("123456789012345678901234567890X");
-    Assert(wrapped == "123456789012345678901234567890\nX", "chat display line wrap");
+    var wrapped = AuraChatTextLimiter.WrapPlainText("123456789012345678901234567890123456789012345678901234567890X");
+    Assert(wrapped == "123456789012345678901234567890123456789012345678901234567890\nX", "chat display line wrap");
 
     var status = AuraChatModSyncSnapshot.BuildStatus(new object[]
     {
-        new FakeLobbyPlayer("p1", "A", new[] { new FakeLobbyMod("ChatExp", "0.1", true), new FakeLobbyMod("Other", "1", true) }),
-        new FakeLobbyPlayer("p2", "B", new[] { new FakeLobbyMod("ChatExp", "0.1", false) })
+        new FakeLobbyPlayer("p1", "A", new[] { new FakeLobbyMod("ChatExp", "0.1", true), new FakeLobbyMod("Other", "1", true), new FakeLobbyMod("SuperLongModName", "2", true), new FakeLobbyMod("中文MOD名称超长", "3", true), new FakeLobbyMod("Unused", "9", false) }),
+        new FakeLobbyPlayer("p2", "LongPlayerName", new[] { new FakeLobbyMod("ChatExp", "0.1", false), new FakeLobbyMod("Unused", "9", false) }),
+        new FakeLobbyPlayer("p3", "玩家甲乙丙丁", new[] { new FakeLobbyMod("ChatExp", "0.1", true) })
     }, "ChatExp");
-    Assert(status.Contains("当前MOD同步状态")
-           && status.Contains("ChatExp: 不一致 缺少=B")
-           && status.Contains("Other: 不一致 缺少=B"),
+    Assert(status.Contains("MOD同步状态")
+           && status.Contains("MOD\tA\tLongPlayer\t玩家甲乙丙")
+           && status.Contains("A")
+           && status.Contains("LongPlayer")
+           && status.Contains("玩家甲乙丙")
+           && !status.Contains("LongPlayerName")
+           && !status.Contains("玩家甲乙丙丁")
+           && status.Contains("ChatExp")
+           && status.Contains("ChatExp\t0.1\tOFF\t0.1")
+           && status.Contains("0.1")
+           && status.Contains("OFF")
+           && status.Contains("Other")
+           && status.Contains("SuperLongM")
+           && !status.Contains("SuperLongModName")
+           && status.Contains("中文MOD名")
+           && !status.Contains("中文MOD名称超长")
+           && !status.Contains("Unused"),
         "chat mod sync status");
 
     AuraChatRuntime.Initialize("ChatExp", 2);

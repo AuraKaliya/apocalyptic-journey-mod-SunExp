@@ -10,6 +10,8 @@ public static class SkinSelectionStore
 {
     private const string AuthorityId = "AuraSkin";
     private const string ConfigFileName = "selections.json";
+    private const string LegacyOfficialSummerSkinId = "SkinExp.career_1.summer_cool";
+    private const string OfficialSummerSkinId = "AuraToolsExp.career_1.summer_cool";
 
     private sealed class SelectionFile
     {
@@ -88,8 +90,10 @@ public static class SkinSelectionStore
                 continue;
             }
 
-            normalized[key] = item.Value;
+            var value = NormalizeSkinId(item.Value);
+            normalized[key] = value;
             changed |= !string.Equals(key, item.Key, StringComparison.OrdinalIgnoreCase);
+            changed |= !string.Equals(value, item.Value, StringComparison.Ordinal);
         }
 
         state.Selections = normalized;
@@ -101,6 +105,7 @@ public static class SkinSelectionStore
 
     private static void ApplySelection(string careerId, string skinId)
     {
+        skinId = NormalizeSkinId(skinId);
         if (string.IsNullOrWhiteSpace(skinId))
         {
             state.Selections.Remove(careerId);
@@ -109,6 +114,13 @@ public static class SkinSelectionStore
         {
             state.Selections[careerId] = skinId;
         }
+    }
+
+    private static string NormalizeSkinId(string skinId)
+    {
+        return string.Equals(skinId?.Trim(), LegacyOfficialSummerSkinId, StringComparison.OrdinalIgnoreCase)
+            ? OfficialSummerSkinId
+            : (skinId ?? "").Trim();
     }
 
     private static bool Save()

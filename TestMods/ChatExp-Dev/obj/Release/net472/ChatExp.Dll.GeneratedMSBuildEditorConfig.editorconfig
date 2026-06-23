@@ -1,8 +1,5 @@
 is_global = true
 build_property.RootNamespace = ChatExp.Dll
-build_property.ProjectDir = D:\workfile\project\Mod_1\apocalyptic-journey-mod-SunExp\TestMods\ChatExp-Dev\
+build_property.ProjectDir = D:\Project\Apocalypic-journey-mods-creator\ModExp\TestMods\ChatExp-Dev\
 build_property.EnableComHosting = 
 build_property.EnableGeneratedComInterfaceComImportInterop = 
-build_property.CsWinRTUseWindowsUIXamlProjections = false
-build_property.EffectiveAnalysisLevelStyle = 
-build_property.EnableCodeStyleSeverity = 

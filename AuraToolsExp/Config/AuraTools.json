@@ -12,6 +12,10 @@
     "enabled": true,
     "configFile": "SkillCgSettings.json"
   },
+  "skin": {
+    "enabled": true,
+    "configFile": "SkinSettings.json"
+  },
   "logging": {
     "enabled": true,
     "configFile": "LoggingSettings.json"

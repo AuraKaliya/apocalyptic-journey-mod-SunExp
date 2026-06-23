@@ -74,4 +74,32 @@ public sealed class SkinDefinition
     public string ManifestPath { get; set; } = "";
     public string PreviewPath { get; set; } = "";
     public SkinAssets Assets { get; set; } = new();
+    public string ContentHash { get; set; } = "";
+    public string PackageId { get; set; } = "";
+    public long PackageVersion { get; set; }
+}
+
+[System.Serializable]
+public sealed class SkinSelectionSnapshot
+{
+    public int SchemaVersion { get; set; } = 1;
+    public string PlayerId { get; set; } = "";
+    public string PlayerName { get; set; } = "";
+    public string CareerId { get; set; } = "";
+    public string SkinId { get; set; } = "";
+    public string ContentHash { get; set; } = "";
+    public string PackageId { get; set; } = "";
+    public long PackageVersion { get; set; }
+    public string OwnerModId { get; set; } = "";
+}
+
+public sealed class SkinSelectionResolveResult
+{
+    public bool Success { get; set; }
+    public bool DefaultSkin { get; set; }
+    public string PlayerId { get; set; } = "";
+    public string CareerId { get; set; } = "";
+    public string SkinId { get; set; } = "";
+    public string Status { get; set; } = "";
+    public string Warning { get; set; } = "";
 }

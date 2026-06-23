@@ -18,7 +18,11 @@ public static class AuraChatRuntime
         set => Store.MaxMessages = Math.Max(1, value);
     }
 
-    public static string ModSyncStatus { get; private set; } = "等待联机玩家信息。";
+    public static string ModSyncStatus { get; private set; } = "\u7b49\u5f85\u8054\u673a\u73a9\u5bb6\u4fe1\u606f\u3002";
+
+    public static string ModSyncActionStatus { get; private set; } = "";
+
+    public static AuraChatModSyncState? ModSyncState { get; private set; }
 
     public static System.Collections.Generic.IReadOnlyList<AuraChatMessage> Messages => Store.Messages;
 
@@ -71,9 +75,16 @@ public static class AuraChatRuntime
         Changed?.Invoke();
     }
 
-    public static void SetModSyncStatus(string status)
+    public static void SetModSyncStatus(string status, AuraChatModSyncState? state = null)
     {
-        ModSyncStatus = AuraChatTextLimiter.WrapPlainText(AuraChatTextLimiter.LimitSystemLine(status));
+        ModSyncState = state;
+        ModSyncStatus = AuraChatTextLimiter.LimitSystemLine(status);
+        StatusChanged?.Invoke();
+    }
+
+    public static void SetModSyncActionStatus(string status)
+    {
+        ModSyncActionStatus = AuraChatTextLimiter.LimitSystemLine(status);
         StatusChanged?.Invoke();
     }
 }

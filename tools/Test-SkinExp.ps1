@@ -9,9 +9,17 @@ if ([string]::IsNullOrWhiteSpace($RepoRoot)) {
 }
 
 $skinModRoot = Join-Path $RepoRoot "TestMods\SkinExp"
+$auraToolsModRoot = Join-Path $RepoRoot "AuraToolsExp"
 $sunModRoot = Join-Path $RepoRoot "SunExp"
 $sharedRoot = Join-Path $RepoRoot "AuraSkinShared"
 $required = @(
+    (Join-Path $auraToolsModRoot "ModConfig.json"),
+    (Join-Path $auraToolsModRoot "Icon.png"),
+    (Join-Path $auraToolsModRoot "Scripts\Entry.dll"),
+    (Join-Path $auraToolsModRoot "skin.schema.json"),
+    (Join-Path $auraToolsModRoot "character.schema.json"),
+    (Join-Path $auraToolsModRoot "SharedResources\Skins\package.json"),
+    (Join-Path $auraToolsModRoot "SharedResources\Skins\README.md"),
     (Join-Path $skinModRoot "ModConfig.json"),
     (Join-Path $skinModRoot "Icon.png"),
     (Join-Path $skinModRoot "Scripts\Entry.dll"),
@@ -30,6 +38,7 @@ foreach ($path in $required) {
 }
 
 foreach ($forbidden in @(
+    (Join-Path $auraToolsModRoot "Skins"),
     (Join-Path $skinModRoot "Skins"),
     (Join-Path $sunModRoot "Skins")
 )) {
@@ -62,7 +71,9 @@ $consumers = @(
 )
 foreach ($consumer in $consumers) {
     $entryText = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot $consumer.Entry)
-    if (-not $entryText.Contains("AuraSkinRuntime.Initialize")) {
+    $hasSkinInitialization = $entryText.Contains("AuraSkinRuntime.Initialize") -or
+        ($consumer.Entry -eq "AuraToolsExp-Dev\Entry.cs" -and $entryText.Contains("AuraToolsSkinRuntime.Initialize"))
+    if (-not $hasSkinInitialization) {
         throw "AuraSkinShared initialization is missing from $($consumer.Entry)"
     }
 
@@ -79,13 +90,25 @@ foreach ($providerEntry in @("TestMods\SkinExp-Dev\Entry.cs", "SunExp-Dev\Entry.
     }
 }
 
+$auraToolsEntryText = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot "AuraToolsExp-Dev\Entry.cs")
+if (-not $auraToolsEntryText.Contains("AuraToolsSkinRuntime.Initialize")) {
+    throw "AuraToolsExp skin runtime initialization is missing."
+}
+
+$auraToolsSkinRuntimeText = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot "AuraToolsExp-Dev\Features\Skin\AuraToolsSkinRuntime.cs")
+foreach ($requiredText in @("AuraSkinRuntime.RegisterPackage", "AuraSkinSelectionCommand", "SendRpcCommandExcludeOwner", "ApplyRemoteSelection")) {
+    if (-not $auraToolsSkinRuntimeText.Contains($requiredText)) {
+        throw "AuraToolsExp skin runtime contract is missing: $requiredText"
+    }
+}
+
 $skinRuntimeText = Get-Content -Raw -LiteralPath (Join-Path $sharedRoot "AuraSkinRuntime.cs")
 if (-not $skinRuntimeText.Contains('private const string GlobalObjectName = "AuraSkin.Global"')) {
     throw "AuraSkinShared global runtime identity is missing."
 }
-if (-not $skinRuntimeText.Contains("CurrentProtocolVersion = 3") -or
+if (-not $skinRuntimeText.Contains("CurrentProtocolVersion = 4") -or
     -not $skinRuntimeText.Contains('"RegisterPackage"')) {
-    throw "AuraSkinShared package protocol v3 is incomplete."
+    throw "AuraSkinShared package protocol v4 is incomplete."
 }
 if ($skinRuntimeText.Contains("RegisterSkinRoot")) {
     throw "Legacy external skin root registration must not remain in AuraSkinShared."
@@ -151,6 +174,11 @@ if ($legacyImplementationFiles.Count -gt 0) {
 $config = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $skinModRoot "ModConfig.json") | ConvertFrom-Json
 if ($config.ModName -ne "SkinExp" -or $config.MustSame -ne $false) {
     throw "SkinExp ModConfig identity or local-cosmetic policy is invalid."
+}
+
+$auraToolsConfig = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $auraToolsModRoot "ModConfig.json") | ConvertFrom-Json
+if ($auraToolsConfig.ModName -ne "AuraToolsExp" -or $auraToolsConfig.ModVersion -ne "0.2.0") {
+    throw "AuraToolsExp ModConfig identity or version is invalid."
 }
 
 function Read-JsonFile([string]$path) {
@@ -257,6 +285,7 @@ $seenPackages = @{}
 $seenIdentities = @{}
 $installedSources = @()
 $packagePaths = @(
+    (Join-Path $auraToolsModRoot "SharedResources\Skins\package.json"),
     (Join-Path $skinModRoot "SharedResources\Skins\package.json"),
     (Join-Path $sunModRoot "SharedResources\Skins\package.json")
 )
@@ -296,6 +325,11 @@ $wuna = @($installedSources | Where-Object { $_.TargetCareerId -eq "SunExp_wuna_
 if ($wuna.Count -ne 1 -or $wuna[0].SkinId -ne "SunExp.SunExp_wuna_wuna.summer_cool" -or
     $wuna[0].Path -notlike "$(Join-Path $sunModRoot '*')") {
     throw "WuNa summer skin must be published exactly once by SunExp."
+}
+
+$official = @($installedSources | Where-Object { $_.TargetCareerId -eq "career_1" -and $_.SkinId -eq "AuraToolsExp.career_1.summer_cool" })
+if ($official.Count -ne 1 -or $official[0].Path -notlike "$(Join-Path $auraToolsModRoot '*')") {
+    throw "Official career_1 summer skin must be published exactly once by AuraToolsExp."
 }
 
 Write-Host "AuraSkinShared validation passed. Packages: $($packagePaths.Count); installable skins: $($installedSources.Count); identities: $($seenIdentities.Count)."

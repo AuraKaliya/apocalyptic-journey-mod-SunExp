@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.auratoolsexp/schema/skin.schema.json",
+  "title": "AuraToolsExp skin manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "skinId", "name", "assets"],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "enabled": { "type": "boolean", "default": true },
+    "skinId": { "type": "string", "minLength": 1 },
+    "targetCareerId": { "type": "string", "minLength": 1 },
+    "name": { "type": "string", "minLength": 1 },
+    "author": { "type": "string" },
+    "preview": { "type": "string" },
+    "assets": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "CareerImage": { "type": "string" },
+        "Avatar": { "type": "string" },
+        "Character": { "type": "string" },
+        "DollIcon": { "type": "string" },
+        "ChoiceIcon": { "type": "string" },
+        "Animation": { "type": "string" }
+      },
+      "minProperties": 1
+    }
+  }
+}

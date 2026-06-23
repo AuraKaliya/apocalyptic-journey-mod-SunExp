@@ -21,6 +21,8 @@ public static class AuraToolsConfigService
 
     public static AuraToolsSkillCgSettings SkillCg { get; private set; } = new();
 
+    public static AuraToolsSkinSettings Skin { get; private set; } = new();
+
     public static AuraToolsLoggingSettings Logging { get; private set; } = new();
 
     public static string ModDirectory => AuraToolsPaths.PackageDirectory;
@@ -88,6 +90,12 @@ public static class AuraToolsConfigService
         Changed?.Invoke();
     }
 
+    public static void SaveSkin()
+    {
+        SaveModule(Skin, Root.Skin.ConfigFile);
+        Changed?.Invoke();
+    }
+
     public static void SaveLogging()
     {
         SaveModule(Logging, Root.Logging.ConfigFile);
@@ -122,11 +130,13 @@ public static class AuraToolsConfigService
         Audio = LoadOrDefault(Root.Audio.ConfigFile, new AuraToolsAudioSettings());
         MatchExperience = LoadOrDefault(Root.MatchExperience.ConfigFile, new AuraToolsMatchExperienceSettings());
         SkillCg = LoadOrDefault(Root.SkillCg.ConfigFile, new AuraToolsSkillCgSettings());
+        Skin = LoadOrDefault(Root.Skin.ConfigFile, new AuraToolsSkinSettings());
         Logging = LoadOrDefault(Root.Logging.ConfigFile, new AuraToolsLoggingSettings());
 
         Audio.Normalize();
         MatchExperience.Normalize();
         SkillCg.Normalize();
+        Skin.Normalize();
         Logging.Normalize();
     }
 
@@ -136,6 +146,7 @@ public static class AuraToolsConfigService
         SaveModule(Audio, Root.Audio.ConfigFile);
         SaveModule(MatchExperience, Root.MatchExperience.ConfigFile);
         SaveModule(SkillCg, Root.SkillCg.ConfigFile);
+        SaveModule(Skin, Root.Skin.ConfigFile);
         SaveModule(Logging, Root.Logging.ConfigFile);
     }
 

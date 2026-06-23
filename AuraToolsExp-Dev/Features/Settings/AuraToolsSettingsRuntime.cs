@@ -7,6 +7,7 @@ using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.Audio;
 using AuraToolsExp.Dll.Features.Logging;
 using AuraToolsExp.Dll.Features.SafeBox;
+using AuraToolsExp.Dll.Features.Skin;
 using AuraToolsExp.Dll.Features.SkillCg;
 using AuraToolsExp.Dll.Features.StarterDeck;
 using AuraToolsExp.Dll.Infrastructure;
@@ -541,6 +542,7 @@ public static class AuraToolsSettingsRuntime
 
         var content = AuraToolsUi.CreateScroll(panel, "AuraToolsSettings");
         CreateDataDirectorySection(content);
+        CreateSkinSection(content);
         CreateAudioSection(content);
         CreateMatchExperienceSection(content);
         CreateLoggingSection(content);
@@ -579,6 +581,67 @@ public static class AuraToolsSettingsRuntime
             CreateModeRow(content, AuraToolsConfigService.Audio.CardUse, false);
             CreateAudioCommonRow(content, AuraToolsConfigService.Audio.CardUse, false);
             AuraToolsUi.AddText(content, "仅替换出牌音效；高级模式可为每个角色指定独立音效。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
+        });
+    }
+
+    private static void CreateSkinSection(Transform parent)
+    {
+        CreateSectionLabel(parent, "角色皮肤");
+        CreateSubmodule(parent, "共享皮肤管理", AuraToolsConfigService.Skin.Enabled, value =>
+        {
+            AuraToolsConfigService.Skin.Enabled = value;
+            AuraToolsConfigService.SaveSkin();
+            if (value)
+            {
+                AuraToolsSkinRuntime.RegisterBundledPackage();
+                AuraToolsSkinRuntime.Reload();
+            }
+        }, content =>
+        {
+            var statusRow = CreateInlineRow(content, "SkinStatusRow");
+            AuraToolsUi.AddText(statusRow.transform, "共享皮肤目录：" + AuraToolsConfigService.SkinsDirectory, AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
+            AuraToolsUi.AddButton(statusRow.transform, "打开目录", () => FileResourceUtil.OpenDirectory(AuraToolsConfigService.SkinsDirectory), 92f);
+            AuraToolsUi.AddButton(statusRow.transform, "重新扫描", () =>
+            {
+                AuraToolsSkinRuntime.RegisterBundledPackage();
+                AuraToolsSkinRuntime.Reload();
+                RebuildPanel(activePanel!.transform);
+            }, 92f);
+
+            var toggles = CreateInlineRow(content, "SkinToggleRow");
+            AuraToolsUi.AddToggle(toggles.transform, AuraToolsConfigService.Skin.AutoInstallBundledSkins, value =>
+            {
+                AuraToolsConfigService.Skin.AutoInstallBundledSkins = value;
+                AuraToolsConfigService.SaveSkin();
+                if (value)
+                {
+                    AuraToolsSkinRuntime.RegisterBundledPackage();
+                    AuraToolsSkinRuntime.Reload();
+                }
+                RebuildPanel(activePanel!.transform);
+            });
+            AuraToolsUi.AddText(toggles.transform, "自动安装 AuraToolsExp 内置角色皮肤", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
+            AuraToolsUi.AddToggle(toggles.transform, AuraToolsConfigService.Skin.SyncRemote, value =>
+            {
+                AuraToolsConfigService.Skin.SyncRemote = value;
+                AuraToolsConfigService.SaveSkin();
+                RebuildPanel(activePanel!.transform);
+            });
+            AuraToolsUi.AddText(toggles.transform, "联机同步皮肤选择", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
+
+            var entryRow = CreateInlineRow(content, "SkinEntryUiRow");
+            AuraToolsUi.AddToggle(entryRow.transform, AuraToolsConfigService.Skin.ShowEntrySkinButton, value =>
+            {
+                AuraToolsConfigService.Skin.ShowEntrySkinButton = value;
+                AuraToolsConfigService.SaveSkin();
+                RebuildPanel(activePanel!.transform);
+            });
+            AuraToolsUi.AddText(entryRow.transform, "在角色选择界面显示皮肤按钮", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
+
+            foreach (var line in AuraToolsSkinRuntime.StatusLines())
+            {
+                AuraToolsUi.AddText(content, line, AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
+            }
         });
     }
 

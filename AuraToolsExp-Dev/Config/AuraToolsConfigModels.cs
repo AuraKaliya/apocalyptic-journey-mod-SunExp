@@ -19,6 +19,9 @@ public sealed class AuraToolsRootConfig
     [JsonProperty("skillCg")]
     public ModuleFileConfig SkillCg { get; set; } = new() { ConfigFile = "SkillCgSettings.json" };
 
+    [JsonProperty("skin")]
+    public ModuleFileConfig Skin { get; set; } = new() { ConfigFile = "SkinSettings.json" };
+
     [JsonProperty("logging")]
     public ModuleFileConfig Logging { get; set; } = new() { Enabled = true, ConfigFile = "LoggingSettings.json" };
 
@@ -28,10 +31,12 @@ public sealed class AuraToolsRootConfig
         Audio ??= new ModuleFileConfig { ConfigFile = "AudioSettings.json" };
         MatchExperience ??= new ModuleFileConfig { ConfigFile = "MatchExperienceSettings.json" };
         SkillCg ??= new ModuleFileConfig { ConfigFile = "SkillCgSettings.json" };
+        Skin ??= new ModuleFileConfig { ConfigFile = "SkinSettings.json" };
         Logging ??= new ModuleFileConfig { Enabled = true, ConfigFile = "LoggingSettings.json" };
         Audio.ConfigFile = string.IsNullOrWhiteSpace(Audio.ConfigFile) ? "AudioSettings.json" : Audio.ConfigFile.Trim();
         MatchExperience.ConfigFile = string.IsNullOrWhiteSpace(MatchExperience.ConfigFile) ? "MatchExperienceSettings.json" : MatchExperience.ConfigFile.Trim();
         SkillCg.ConfigFile = string.IsNullOrWhiteSpace(SkillCg.ConfigFile) ? "SkillCgSettings.json" : SkillCg.ConfigFile.Trim();
+        Skin.ConfigFile = string.IsNullOrWhiteSpace(Skin.ConfigFile) ? "SkinSettings.json" : Skin.ConfigFile.Trim();
         Logging.ConfigFile = string.IsNullOrWhiteSpace(Logging.ConfigFile) ? "LoggingSettings.json" : Logging.ConfigFile.Trim();
     }
 }
@@ -407,6 +412,29 @@ public sealed class SkillCgRuleSettings
         FadeIn = Math.Max(0f, FadeIn);
         Hold = Math.Max(0f, Hold);
         FadeOut = Math.Max(0f, FadeOut);
+    }
+}
+
+public sealed class AuraToolsSkinSettings
+{
+    [JsonProperty("schemaVersion")]
+    public int SchemaVersion { get; set; } = 1;
+
+    [JsonProperty("enabled")]
+    public bool Enabled { get; set; } = true;
+
+    [JsonProperty("autoInstallBundledSkins")]
+    public bool AutoInstallBundledSkins { get; set; } = true;
+
+    [JsonProperty("showEntrySkinButton")]
+    public bool ShowEntrySkinButton { get; set; } = true;
+
+    [JsonProperty("syncRemote")]
+    public bool SyncRemote { get; set; } = true;
+
+    public void Normalize()
+    {
+        SchemaVersion = Math.Max(1, SchemaVersion);
     }
 }
 

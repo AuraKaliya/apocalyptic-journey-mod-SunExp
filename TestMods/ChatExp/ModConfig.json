@@ -1,7 +1,10 @@
 {
-  "Name": "ChatExp",
-  "DisplayName": "ChatExp",
-  "Version": "0.1.0",
-  "Author": "Aura",
-  "Description": "联机共享聊天窗口实验 MOD。"
+  "ModName": "ChatExp",
+  "ModVersion": "0.1.0",
+  "ModAuthor": "Aura",
+  "ModDescription": "联机共享聊天窗口实验MOD，额外测试MOD一键同步功能。",
+  "IconPath": "Icon.png",
+  "Enabled": true,
+  "Dependencies": [],
+  "MustSame": true
 }

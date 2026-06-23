@@ -8,59 +8,89 @@ namespace AuraOnline.Shared;
 
 public static class AuraChatModSyncSnapshot
 {
+    private const int PlayerColumnWidth = 10;
+    private const int ModColumnWidth = 10;
+    private const char ColumnSeparator = '\t';
+
     public static string BuildStatus(IEnumerable<object?> players, string currentModId)
     {
+        return FormatStatus(BuildState(players, currentModId, ""));
+    }
+
+    public static AuraChatModSyncState BuildState(IEnumerable<object?> players, string currentModId, string localPlayerId)
+    {
+        currentModId ??= "";
         var snapshots = players
             .Where(player => player != null)
             .Select(player => ReadPlayer(player!))
             .Where(player => !string.IsNullOrWhiteSpace(player.PlayerName) || !string.IsNullOrWhiteSpace(player.PlayerId))
             .ToList();
 
-        if (snapshots.Count == 0)
+        var state = new AuraChatModSyncState
         {
-            return "当前无联机玩家信息。";
-        }
+            CurrentModId = currentModId ?? "",
+            LocalPlayerId = localPlayerId ?? "",
+            HostPlayerId = snapshots.Count > 0 ? snapshots[0].PlayerId : "",
+            Players = snapshots
+        };
 
-        var allMods = snapshots
+        var host = state.Players.FirstOrDefault(player => string.Equals(player.PlayerId, state.HostPlayerId, StringComparison.Ordinal));
+        var local = state.Players.FirstOrDefault(player => string.Equals(player.PlayerId, state.LocalPlayerId, StringComparison.Ordinal));
+
+        state.Rows = snapshots
             .SelectMany(player => player.Mods)
             .Where(mod => !string.IsNullOrWhiteSpace(mod.ModName))
-            .Select(mod => mod.ModName)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(name => string.Equals(name, currentModId, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
-            .ThenBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(mod => mod.MatchKey, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Any(mod => mod.Enabled))
+            .Select(group =>
+            {
+                var first = group.FirstOrDefault(mod => mod.Enabled) ?? group.First();
+                return new AuraChatModSyncRow
+                {
+                    ModKey = group.Key,
+                    ModName = first.ModName,
+                    HostMod = FindMod(host, group.Key),
+                    LocalMod = FindMod(local, group.Key)
+                };
+            })
+            .OrderBy(row => IsCurrentMod(row, state.CurrentModId) ? 0 : 1)
+            .ThenBy(row => row.ModName, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        if (!string.IsNullOrWhiteSpace(currentModId)
-            && !allMods.Any(name => string.Equals(name, currentModId, StringComparison.OrdinalIgnoreCase)))
+        return state;
+    }
+
+    public static string FormatStatus(AuraChatModSyncState? state)
+    {
+        var snapshots = state?.Players ?? new List<AuraChatModPlayerSnapshot>();
+        if (snapshots.Count == 0)
         {
-            allMods.Insert(0, currentModId);
+            return "\u5f53\u524d\u65e0\u8054\u673a\u73a9\u5bb6\u4fe1\u606f\u3002";
+        }
+
+        var rows = state?.Rows ?? new List<AuraChatModSyncRow>();
+        if (rows.Count == 0)
+        {
+            return "\u5f53\u524d\u6ca1\u6709\u5df2\u542f\u7528\u7684\u8054\u673aMOD\u3002";
         }
 
         var builder = new StringBuilder();
-        builder.AppendLine("当前MOD同步状态");
-        foreach (var modName in allMods)
+        builder.AppendLine("MOD\u540c\u6b65\u72b6\u6001");
+        builder.Append(TruncateCell("MOD", ModColumnWidth));
+        foreach (var player in snapshots)
         {
-            var enabledPlayers = snapshots
-                .Where(player => player.Mods.Any(mod => string.Equals(mod.ModName, modName, StringComparison.OrdinalIgnoreCase) && mod.Enabled))
-                .Select(DisplayName)
-                .ToList();
-            var missingPlayers = snapshots
-                .Where(player => !player.Mods.Any(mod => string.Equals(mod.ModName, modName, StringComparison.OrdinalIgnoreCase) && mod.Enabled))
-                .Select(DisplayName)
-                .ToList();
+            builder.Append(ColumnSeparator);
+            builder.Append(TruncateCell(DisplayName(player), PlayerColumnWidth));
+        }
 
-            builder.Append(modName);
-            builder.Append(": ");
-            builder.Append(missingPlayers.Count == 0 ? "一致" : "不一致");
-            if (missingPlayers.Count > 0)
+        builder.AppendLine();
+        foreach (var row in rows)
+        {
+            builder.Append(TruncateCell(row.ModName, ModColumnWidth));
+            foreach (var player in snapshots)
             {
-                builder.Append(" 缺少=");
-                builder.Append(string.Join(",", missingPlayers));
-            }
-            else if (enabledPlayers.Count > 0)
-            {
-                builder.Append(" 玩家=");
-                builder.Append(string.Join(",", enabledPlayers));
+                builder.Append(ColumnSeparator);
+                builder.Append(TruncateCell(ModCell(player, row.ModKey), PlayerColumnWidth));
             }
 
             builder.AppendLine();
@@ -96,8 +126,13 @@ public static class AuraChatModSyncSnapshot
 
                 snapshot.Mods.Add(new AuraChatModSnapshot
                 {
+                    ModId = ReadString(modType, mod, "ModId"),
                     ModName = modName,
                     ModVersion = ReadString(modType, mod, "ModVersion"),
+                    ModAuthor = ReadString(modType, mod, "ModAuthor"),
+                    DirectoryName = ReadString(modType, mod, "DirectoryName"),
+                    IsWorkshopMod = ReadBool(modType, mod, "IsWorkshopMod", false),
+                    PublishedFileId = ReadPublishedFileId(modType, mod),
                     Enabled = ReadBool(modType, mod, "Enabled", true)
                 });
             }
@@ -111,6 +146,58 @@ public static class AuraChatModSyncSnapshot
         return string.IsNullOrWhiteSpace(player.PlayerName) ? player.PlayerId : player.PlayerName;
     }
 
+    private static string ModCell(AuraChatModPlayerSnapshot player, string modKey)
+    {
+        var mod = FindMod(player, modKey);
+        if (mod == null)
+        {
+            return "-";
+        }
+
+        if (!mod.Enabled)
+        {
+            return "OFF";
+        }
+
+        return string.IsNullOrWhiteSpace(mod.ModVersion) ? "ON" : mod.ModVersion;
+    }
+
+    private static AuraChatModSnapshot? FindMod(AuraChatModPlayerSnapshot? player, string modKey)
+    {
+        return player?.Mods.FirstOrDefault(item => string.Equals(item.MatchKey, modKey, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsCurrentMod(AuraChatModSyncRow row, string currentModId)
+    {
+        return string.Equals(row.ModName, currentModId, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(row.ModKey, currentModId, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string TruncateCell(string? value, int width)
+    {
+        var text = (value ?? "").Trim();
+        var builder = new StringBuilder(text.Length);
+        var used = 0;
+        foreach (var ch in text)
+        {
+            var charWidth = DisplayWidth(ch);
+            if (used + charWidth > width)
+            {
+                break;
+            }
+
+            builder.Append(ch);
+            used += charWidth;
+        }
+
+        return builder.ToString();
+    }
+
+    private static int DisplayWidth(char ch)
+    {
+        return ch < 128 ? 1 : 2;
+    }
+
     private static string ReadString(Type type, object target, string name)
     {
         return Convert.ToString(ReadMember(type, target, name)) ?? "";
@@ -120,6 +207,25 @@ public static class AuraChatModSyncSnapshot
     {
         var value = ReadMember(type, target, name);
         return value is bool boolean ? boolean : fallback;
+    }
+
+    private static ulong ReadPublishedFileId(Type type, object target)
+    {
+        var id = ReadULong(type, target, "WorkshopPublishedFileId");
+        return id != 0UL ? id : ReadULong(type, target, "PublishedFileId");
+    }
+
+    private static ulong ReadULong(Type type, object target, string name)
+    {
+        var value = ReadMember(type, target, name);
+        try
+        {
+            return value == null ? 0UL : Convert.ToUInt64(value);
+        }
+        catch
+        {
+            return 0UL;
+        }
     }
 
     private static object? ReadMember(Type type, object target, string name)

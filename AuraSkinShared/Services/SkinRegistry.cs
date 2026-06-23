@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using AuraShared.Core;
 using Newtonsoft.Json;
 using AuraSkin.Shared.GameApi;
 using AuraSkin.Shared.Infrastructure;
@@ -76,6 +77,16 @@ public static class SkinRegistry
         }
 
         return ByKey.TryGetValue(ResourceKey(careerId, skinId), out var skin) ? skin : null;
+    }
+
+    public static SkinDefinition? FindByKey(string resourceKey)
+    {
+        return !string.IsNullOrWhiteSpace(resourceKey) && ByKey.TryGetValue(resourceKey, out var skin) ? skin : null;
+    }
+
+    public static string ContentHash(string careerId, string skinId)
+    {
+        return Find(careerId, skinId)?.ContentHash ?? "";
     }
 
     public static string ResourceKey(string careerId, string skinId)
@@ -183,6 +194,7 @@ public static class SkinRegistry
                 PreviewPath = SkinPaths.ResolveManifestAsset(path, manifest.Preview, false),
                 Assets = ResolveAssets(path, manifest.Assets ?? new SkinAssets())
             };
+            ApplyInstalledMetadata(definition);
 
             if (string.IsNullOrWhiteSpace(definition.Assets.CareerImage)
                 && string.IsNullOrWhiteSpace(definition.Assets.Avatar)
@@ -221,5 +233,38 @@ public static class SkinRegistry
             ChoiceIcon = SkinPaths.ResolveManifestAsset(manifestPath, assets.ChoiceIcon, false),
             Animation = SkinPaths.ResolveManifestAsset(manifestPath, assets.Animation, true)
         };
+    }
+
+    private static void ApplyInstalledMetadata(SkinDefinition definition)
+    {
+        try
+        {
+            var logicalId = definition.TargetCareerId.Trim().ToLowerInvariant()
+                            + "::"
+                            + definition.SkinId.Trim().ToLowerInvariant();
+            var resource = AuraSharedPackageEngine.GetResources("AuraSkin", AuraSharedSystems.Skin)
+                .FirstOrDefault(item => string.Equals(item.LogicalId, logicalId, StringComparison.OrdinalIgnoreCase));
+            if (resource == null)
+            {
+                return;
+            }
+
+            definition.ContentHash = resource.ContentHash ?? "";
+            var source = resource.Sources?
+                .OrderByDescending(item => item.PackageVersion)
+                .ThenBy(item => item.OwnerModId, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+            if (source == null)
+            {
+                return;
+            }
+
+            definition.PackageId = source.PackageId ?? "";
+            definition.PackageVersion = source.PackageVersion;
+        }
+        catch (Exception ex)
+        {
+            SkinLog.Warn("Failed to read installed skin metadata for " + definition.SkinId + ": " + ex.Message);
+        }
     }
 }

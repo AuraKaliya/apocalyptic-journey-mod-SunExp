@@ -31,7 +31,8 @@
   "releaseScenarios": [
     "SunExp only",
     "SunExp + AuraToolsExp",
-    "SkinExp + SunExp",
+    "AuraToolsExp skin + SunExp",
+    "SkinExp legacy prototype + SunExp",
     "SanGuoShaExp + SunExp",
     "SunExp + SanGuoShaExp + AuraToolsExp"
   ]

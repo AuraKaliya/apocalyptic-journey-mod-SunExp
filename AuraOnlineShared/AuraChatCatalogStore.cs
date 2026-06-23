@@ -36,8 +36,9 @@ public static class AuraChatCatalogStore
         Clear();
         try
         {
+            var catalogDirectory = Path.GetDirectoryName(filePath) ?? "";
             var catalog = AuraChatCatalogCrypto.LoadEncryptedCatalog(filePath, signPublicKeyXml, decryptPrivateKeyXml, out var hash);
-            ValidateCatalog(catalog, Path.GetDirectoryName(filePath) ?? "");
+            ValidateCatalog(catalog, catalogDirectory);
             CatalogId = catalog.CatalogId.Trim();
             CatalogVersion = catalog.CatalogVersion.Trim();
             CatalogHash = hash;
@@ -53,7 +54,10 @@ public static class AuraChatCatalogStore
             {
                 StickersInternal.Add(sticker);
                 StickersById[sticker.Id] = sticker;
-                AuraChatStickerRegistry.Register(sticker.PackId, sticker.StickerId, sticker.ResourcePath);
+                AuraChatStickerRegistry.Register(
+                    sticker.PackId,
+                    sticker.StickerId,
+                    ToRawResourcePath(ResolveStickerFullPath(catalogDirectory, sticker.ResourcePath)));
             }
 
             IsReady = true;
@@ -222,7 +226,7 @@ public static class AuraChatCatalogStore
             return;
         }
 
-        var fullPath = Path.Combine(catalogDirectory, sticker.ResourcePath.Replace('/', Path.DirectorySeparatorChar));
+        var fullPath = ResolveStickerFullPath(catalogDirectory, sticker.ResourcePath);
         if (!File.Exists(fullPath))
         {
             throw new FileNotFoundException("Sticker resource not found.", fullPath);
@@ -252,5 +256,42 @@ public static class AuraChatCatalogStore
         }
 
         return value;
+    }
+
+    private static string ResolveStickerFullPath(string catalogDirectory, string resourcePath)
+    {
+        if (string.IsNullOrWhiteSpace(catalogDirectory))
+        {
+            throw new InvalidOperationException("Chat catalog directory is empty.");
+        }
+
+        var normalizedDirectory = Path.GetFullPath(catalogDirectory);
+        var normalizedResource = (resourcePath ?? "").Trim().Replace('/', Path.DirectorySeparatorChar);
+        if (string.IsNullOrWhiteSpace(normalizedResource) || Path.IsPathRooted(normalizedResource))
+        {
+            throw new InvalidOperationException("Sticker resource path is invalid: " + resourcePath);
+        }
+
+        var fullPath = Path.GetFullPath(Path.Combine(normalizedDirectory, normalizedResource));
+        if (!IsInsideDirectory(fullPath, normalizedDirectory))
+        {
+            throw new InvalidOperationException("Sticker resource path escapes catalog directory: " + resourcePath);
+        }
+
+        return fullPath;
+    }
+
+    private static string ToRawResourcePath(string absolutePath)
+    {
+        return "Raw:" + Path.GetFullPath(absolutePath).Replace('\\', '/');
+    }
+
+    private static bool IsInsideDirectory(string path, string directory)
+    {
+        var fullPath = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var fullDirectory = Path.GetFullPath(directory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return fullPath.StartsWith(
+            fullDirectory + Path.DirectorySeparatorChar,
+            StringComparison.OrdinalIgnoreCase);
     }
 }

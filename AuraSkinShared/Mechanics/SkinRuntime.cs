@@ -18,6 +18,14 @@ public static class SkinRuntime
     };
 
     private static readonly Dictionary<string, string> AppliedAnimationSkin = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, SkinSelectionSnapshot> RemoteSelections = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, SkinSelectionResolveResult> RemoteStatuses = new(StringComparer.OrdinalIgnoreCase);
+
+    public static bool FeatureEnabled { get; private set; } = true;
+
+    public static bool EntryPanelEnabled { get; private set; } = true;
+
+    public static event Action<SkinSelectionSnapshot>? LocalSelectionChanged;
 
     public static void Initialize()
     {
@@ -28,24 +36,54 @@ public static class SkinRuntime
     {
         ResourceRedirectApi.RestoreAll();
         AppliedAnimationSkin.Clear();
+        RemoteSelections.Clear();
+        RemoteStatuses.Clear();
         SkinRegistry.Reload();
         SkinSelectionStore.Load();
     }
 
     public static IReadOnlyList<SkinDefinition> GetSkins(string careerId) => SkinRegistry.GetForCareer(careerId);
 
-    public static SkinDefinition? GetSelectedSkin(string careerId)
+    public static void ConfigurePresentation(bool featureEnabled, bool entryPanelEnabled)
     {
+        FeatureEnabled = featureEnabled;
+        EntryPanelEnabled = entryPanelEnabled;
+        if (!FeatureEnabled)
+        {
+            ResourceRedirectApi.RestoreAll();
+            AppliedAnimationSkin.Clear();
+        }
+    }
+
+    public static SkinDefinition? GetSelectedSkin(string careerId, string instanceId = "")
+    {
+        if (!FeatureEnabled)
+        {
+            return null;
+        }
+
+        var remote = GetRemoteSelection(instanceId);
+        if (remote != null
+            && string.Equals(remote.CareerId, CareerConfigApi.NormalizeId(careerId), StringComparison.OrdinalIgnoreCase))
+        {
+            return SkinRegistry.Find(remote.CareerId, remote.SkinId);
+        }
+
         return SkinRegistry.Find(careerId, SkinSelectionStore.Get(careerId));
     }
 
-    public static string GetSelectedSkinId(string careerId)
+    public static string GetSelectedSkinId(string careerId, string instanceId = "")
     {
-        return GetSelectedSkin(careerId)?.SkinId ?? "";
+        return GetSelectedSkin(careerId, instanceId)?.SkinId ?? "";
     }
 
     public static void Select(DataConfig career, string skinId)
     {
+        if (!FeatureEnabled)
+        {
+            return;
+        }
+
         var careerId = CareerId(career);
         if (string.IsNullOrWhiteSpace(careerId))
         {
@@ -55,13 +93,22 @@ public static class SkinRuntime
         var skin = SkinRegistry.Find(careerId, skinId);
         SkinSelectionStore.Set(careerId, skin?.SkinId ?? "");
         ApplyAnimation(career, true);
+        LocalSelectionChanged?.Invoke(CreateLocalSelectionSnapshot(career, "", ""));
     }
 
     public static void EnsureAnimation(DataConfig? career)
     {
-        if (career != null)
+        if (FeatureEnabled && career != null)
         {
             ApplyAnimation(career, false);
+        }
+    }
+
+    public static void EnsureAnimation(DataConfig? career, string instanceId)
+    {
+        if (FeatureEnabled && career != null)
+        {
+            ApplyAnimation(career, false, instanceId);
         }
     }
 
@@ -94,14 +141,14 @@ public static class SkinRuntime
         }
     }
 
-    public static Sprite? LoadSprite(DataConfig? career, string field)
+    public static Sprite? LoadSprite(DataConfig? career, string field, string instanceId = "")
     {
-        if (career?.data == null || !career.data.TryGetValue(field, out var defaultPath))
+        if (!FeatureEnabled || career?.data == null || !career.data.TryGetValue(field, out var defaultPath))
         {
             return null;
         }
 
-        var resourcePath = ResolveResourcePath(career, field, defaultPath);
+        var resourcePath = ResolveResourcePath(career, field, defaultPath, instanceId);
         if (string.IsNullOrWhiteSpace(resourcePath))
         {
             return null;
@@ -149,14 +196,72 @@ public static class SkinRuntime
             : "";
     }
 
-    private static string ResolveResourcePath(DataConfig career, string field, string defaultPath)
+    public static SkinSelectionSnapshot CreateLocalSelectionSnapshot(DataConfig? career, string playerId, string playerName)
     {
-        var skin = GetSelectedSkin(CareerId(career));
+        var careerId = CareerId(career);
+        var skin = GetSelectedSkin(careerId);
+        return new SkinSelectionSnapshot
+        {
+            PlayerId = playerId?.Trim() ?? "",
+            PlayerName = playerName?.Trim() ?? "",
+            CareerId = careerId,
+            SkinId = skin?.SkinId ?? "",
+            ContentHash = skin?.ContentHash ?? "",
+            PackageId = skin?.PackageId ?? "",
+            PackageVersion = skin?.PackageVersion ?? 0,
+            OwnerModId = SourceOwner(skin)
+        };
+    }
+
+    public static SkinSelectionResolveResult ApplyRemoteSelection(SkinSelectionSnapshot? snapshot)
+    {
+        var result = ResolveRemoteSelection(snapshot);
+        var playerId = snapshot?.PlayerId?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(playerId))
+        {
+            return result;
+        }
+
+        RemoteStatuses[playerId] = result;
+        if (!result.Success || result.DefaultSkin)
+        {
+            RemoteSelections.Remove(playerId);
+            if (!string.IsNullOrWhiteSpace(result.Warning))
+            {
+                SkinLog.Warn(result.Warning);
+            }
+
+            return result;
+        }
+
+        var normalized = CloneSnapshot(snapshot!);
+        normalized.CareerId = CareerConfigApi.NormalizeId(normalized.CareerId);
+        normalized.SkinId = normalized.SkinId.Trim();
+        RemoteSelections[playerId] = normalized;
+        if (CareerConfigApi.TryCreate(normalized.CareerId, out var career) && career != null)
+        {
+            ApplyAnimation(career, true, playerId);
+        }
+
+        return result;
+    }
+
+    public static string[] RemoteStatusLines()
+    {
+        return RemoteStatuses.Values
+            .OrderBy(item => item.PlayerId, StringComparer.OrdinalIgnoreCase)
+            .Select(item => string.IsNullOrWhiteSpace(item.Warning) ? item.Status : item.Status + " / " + item.Warning)
+            .ToArray();
+    }
+
+    private static string ResolveResourcePath(DataConfig career, string field, string defaultPath, string instanceId)
+    {
+        var skin = GetSelectedSkin(CareerId(career), instanceId);
         var assetPath = skin?.Assets.Get(field) ?? "";
         return string.IsNullOrWhiteSpace(assetPath) ? defaultPath : SkinPaths.ToRawResourcePath(assetPath);
     }
 
-    private static void ApplyAnimation(DataConfig career, bool force)
+    private static void ApplyAnimation(DataConfig career, bool force, string instanceId = "")
     {
         var careerId = CareerId(career);
         if (string.IsNullOrWhiteSpace(careerId) || career.data == null)
@@ -164,7 +269,7 @@ public static class SkinRuntime
             return;
         }
 
-        var skin = GetSelectedSkin(careerId);
+        var skin = GetSelectedSkin(careerId, instanceId);
         var selectedId = skin?.SkinId ?? "";
         if (!force
             && AppliedAnimationSkin.TryGetValue(careerId, out var applied)
@@ -202,5 +307,95 @@ public static class SkinRuntime
         }
 
         SkinLog.Info("Applied skin " + skin.SkinId + " to " + careerId + " with " + redirectedCount + " animation state(s)");
+    }
+
+    private static SkinSelectionSnapshot? GetRemoteSelection(string instanceId)
+    {
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return null;
+        }
+
+        return RemoteSelections.TryGetValue(instanceId.Trim(), out var remote) ? remote : null;
+    }
+
+    private static SkinSelectionResolveResult ResolveRemoteSelection(SkinSelectionSnapshot? snapshot)
+    {
+        var playerId = snapshot?.PlayerId?.Trim() ?? "";
+        var careerId = CareerConfigApi.NormalizeId(snapshot?.CareerId);
+        var skinId = snapshot?.SkinId?.Trim() ?? "";
+        var prefix = "player=" + (string.IsNullOrWhiteSpace(playerId) ? "<unknown>" : playerId)
+                     + ", career=" + (string.IsNullOrWhiteSpace(careerId) ? "<missing>" : careerId)
+                     + ", skin=" + (string.IsNullOrWhiteSpace(skinId) ? "<default>" : skinId);
+        var result = new SkinSelectionResolveResult
+        {
+            PlayerId = playerId,
+            CareerId = careerId,
+            SkinId = skinId
+        };
+
+        if (string.IsNullOrWhiteSpace(playerId) || string.IsNullOrWhiteSpace(careerId))
+        {
+            result.Warning = "[SkinSync] Invalid remote skin selection. " + prefix + ". Fallback to default skin.";
+            result.Status = prefix + " / fallback default";
+            return result;
+        }
+
+        if (string.IsNullOrWhiteSpace(skinId))
+        {
+            result.Success = true;
+            result.DefaultSkin = true;
+            result.Status = prefix + " / default";
+            return result;
+        }
+
+        var skin = SkinRegistry.Find(careerId, skinId);
+        if (skin == null)
+        {
+            result.Warning = "[SkinSync] Missing remote skin resource. " + prefix + ". Fallback to default skin.";
+            result.Status = prefix + " / missing resource";
+            return result;
+        }
+
+        var incomingHash = snapshot?.ContentHash ?? "";
+        if (!string.IsNullOrWhiteSpace(incomingHash)
+            && !string.IsNullOrWhiteSpace(skin.ContentHash)
+            && !string.Equals(incomingHash, skin.ContentHash, StringComparison.OrdinalIgnoreCase))
+        {
+            result.Warning = "[SkinSync] Remote skin hash mismatch. " + prefix + ". Fallback to default skin.";
+            result.Status = prefix + " / hash mismatch";
+            return result;
+        }
+
+        result.Success = true;
+        result.Status = prefix + " / synced";
+        return result;
+    }
+
+    private static SkinSelectionSnapshot CloneSnapshot(SkinSelectionSnapshot snapshot)
+    {
+        return new SkinSelectionSnapshot
+        {
+            SchemaVersion = snapshot.SchemaVersion,
+            PlayerId = snapshot.PlayerId ?? "",
+            PlayerName = snapshot.PlayerName ?? "",
+            CareerId = snapshot.CareerId ?? "",
+            SkinId = snapshot.SkinId ?? "",
+            ContentHash = snapshot.ContentHash ?? "",
+            PackageId = snapshot.PackageId ?? "",
+            PackageVersion = snapshot.PackageVersion,
+            OwnerModId = snapshot.OwnerModId ?? ""
+        };
+    }
+
+    private static string SourceOwner(SkinDefinition? skin)
+    {
+        if (skin == null || string.IsNullOrWhiteSpace(skin.PackageId))
+        {
+            return "";
+        }
+
+        var separator = skin.PackageId.IndexOf('.');
+        return separator > 0 ? skin.PackageId.Substring(0, separator) : skin.PackageId;
     }
 }
