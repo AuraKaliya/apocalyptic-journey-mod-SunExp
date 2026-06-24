@@ -12,13 +12,21 @@ public static class LoneerMiracleService
     private const int InitialWhiteStones = 1;
     private const int InitialClockMax = 12;
     private const int MinClockMax = 6;
+    private const int MinBlackStones = 1;
+    private const int PrayerCooldownRounds = 2;
     private const string BlackStone = "B";
     private const string WhiteStone = "W";
+    private static readonly string[] MorningPrayerCooldownKeys =
+    {
+        SunExpIds.LoneerMorningPrayerSkillCardId,
+        "loneer_morning_star_prayer",
+        "*loneer_morning_star_prayer"
+    };
 
     public static void RegisterCareer(ScriptExecutor self)
     {
         PlayerApi.SetGameVar(SunExpIds.LoneerActive, "1");
-        PlayerApi.SetSkillTime(SunExpIds.LoneerMorningPrayerSkillCardId, 0);
+        SetMorningPrayerCooldown(null, 0);
 
         var token = (DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "SunExpLoneerCareerToken", "0")) + 1).ToString();
         var fightStartRegistered = ExecutorApi.TryAddEvent(self, "FightStart", new Action(() =>
@@ -32,7 +40,7 @@ public static class LoneerMiracleService
         {
             if (ExecutorApi.IsHookTokenActive(self, "SunExpLoneerCareerToken", token))
             {
-                TickSkill(SunExpIds.LoneerMorningPrayerSkillCardId);
+                TickMorningPrayerCooldown(self);
             }
         }), "loneer_career");
 
@@ -109,13 +117,6 @@ public static class LoneerMiracleService
 
     public static void UseMorningStarPrayer(ScriptExecutor self)
     {
-        var cooldown = PlayerApi.GetSkillTime(SunExpIds.LoneerMorningPrayerSkillCardId);
-        if (cooldown > 0)
-        {
-            PlayerApi.ShowCaption("\u6668\u661f\u7948\u613f\u5c1a\u672a\u51b7\u5374\u3002");
-            return;
-        }
-
         if (self?.Self == null)
         {
             SunExpLog.Warn("Morning Star Prayer skipped: Loneer owner status unavailable.");
@@ -130,6 +131,14 @@ public static class LoneerMiracleService
         }
 
         EnsureInitialized(self, state);
+        var cooldown = MorningPrayerCooldown(state);
+        if (cooldown > 0)
+        {
+            SetMorningPrayerCooldown(state, cooldown);
+            PlayerApi.ShowCaption("\u6668\u661f\u7948\u613f\u5c1a\u672a\u51b7\u5374\u3002");
+            return;
+        }
+
         if (!TryAddGuidedCard(self, state, "skill"))
         {
             PlayerApi.ShowCaption("\u5c1a\u672a\u9009\u5b9a\u3010\u6307\u5f15\u724c\u3011\u3002");
@@ -137,8 +146,9 @@ public static class LoneerMiracleService
             return;
         }
 
-        RemoveBlackStones(self, state, 2);
-        PlayerApi.SetSkillTime(SunExpIds.LoneerMorningPrayerSkillCardId, 2);
+        state.PrayerUseCount += 1;
+        ReduceBlackStoneMax(self, state, 2);
+        SetMorningPrayerCooldown(state, PrayerCooldownRounds);
     }
 
     public static void EndCombatCleanup(ScriptExecutor self)
@@ -166,10 +176,22 @@ public static class LoneerMiracleService
         ReduceClock(self, state, 1);
     }
 
-    private static void RemoveBlackStones(ScriptExecutor self, LoneerCombatState state, int amount)
+    private static void ReduceBlackStoneMax(ScriptExecutor self, LoneerCombatState state, int amount)
     {
-        var before = state.BlackStoneCount(BlackStone);
-        for (var i = 0; i < Math.Max(0, amount); i++)
+        var beforeMax = Math.Max(MinBlackStones, state.BlackStoneMax <= 0 ? InitialBlackStones : state.BlackStoneMax);
+        state.BlackStoneMax = Math.Max(MinBlackStones, beforeMax - Math.Max(0, amount));
+        TrimBlackStonesToMax(state);
+        SyncBuffs(self, state);
+        SunExpLog.Info("Loneer black stone cap reduced: owner=" + self.Self.InstanceId
+            + ", beforeMax=" + beforeMax
+            + ", afterMax=" + state.BlackStoneMax
+            + ", currentBlack=" + state.BlackStoneCount(BlackStone)
+            + ", prayerUses=" + state.PrayerUseCount);
+    }
+
+    private static void TrimBlackStonesToMax(LoneerCombatState state)
+    {
+        while (state.BlackStoneCount(BlackStone) > state.BlackStoneMax)
         {
             var blackIndexes = state.Stones
                 .Select((stone, index) => stone == BlackStone ? index : -1)
@@ -177,22 +199,20 @@ public static class LoneerMiracleService
                 .ToList();
             if (blackIndexes.Count == 0)
             {
-                break;
+                return;
             }
 
-            var removeIndex = blackIndexes[UnityEngine.Random.Range(0, blackIndexes.Count)];
-            state.RemoveStoneAt(removeIndex);
+            state.RemoveStoneAt(blackIndexes[UnityEngine.Random.Range(0, blackIndexes.Count)]);
         }
-
-        SyncBuffs(self, state);
-        SunExpLog.Info("Loneer black stones removed: owner=" + self.Self.InstanceId + ", before=" + before + ", after=" + state.BlackStoneCount(BlackStone));
     }
 
     private static void TriggerNaturalMorningStar(ScriptExecutor self, LoneerCombatState state)
     {
         var copiedGuide = state.GuidanceCardId;
         var copied = TryAddGuidedCard(self, state, "natural");
-        ResetPouchAndClock(self, state, grantStarlight: true);
+        ResetStoneBag(state);
+        StarScoreService.AddStarlight(self, state.ClockMax);
+        SyncBuffs(self, state);
         PlayerApi.ShowCaption("\u81ea\u7136\u6668\u661f\uff1a\u83b7\u5f97\u6307\u5f15\u724c\u590d\u5236\u3002");
         SunExpLog.Info("Natural Morning Star resolved: owner=" + self.Self.InstanceId + ", copied=" + copiedGuide + ", success=" + copied);
         RequestGuidanceSelection(self, state, "\u91cd\u65b0\u9009\u62e9\u3010\u6307\u5f15\u724c\u3011");
@@ -249,6 +269,9 @@ public static class LoneerMiracleService
     {
         state.ClockMax = InitialClockMax;
         state.ClockValue = InitialClockMax;
+        state.BlackStoneMax = InitialBlackStones;
+        state.PrayerCooldown = 0;
+        state.PrayerUseCount = 0;
         state.ActionResolving = false;
         ResetStoneBag(state);
         state.Initialized = true;
@@ -323,7 +346,9 @@ public static class LoneerMiracleService
     private static void ResetStoneBag(LoneerCombatState state)
     {
         var stones = new List<string>();
-        for (var i = 0; i < InitialBlackStones; i++)
+        var blackStoneMax = Math.Max(MinBlackStones, state.BlackStoneMax <= 0 ? InitialBlackStones : state.BlackStoneMax);
+        state.BlackStoneMax = blackStoneMax;
+        for (var i = 0; i < blackStoneMax; i++)
         {
             stones.Add(BlackStone);
         }
@@ -419,12 +444,43 @@ public static class LoneerMiracleService
         }
     }
 
-    private static void TickSkill(string key)
+    private static int MorningPrayerCooldown(LoneerCombatState? state)
     {
-        var current = PlayerApi.GetSkillTime(key);
-        if (current > 0)
+        return Math.Max(state?.PrayerCooldown ?? 0, MorningPrayerUiCooldown());
+    }
+
+    private static int MorningPrayerUiCooldown()
+    {
+        var cooldown = 0;
+        foreach (var key in MorningPrayerCooldownKeys)
         {
-            PlayerApi.SetSkillTime(key, current - 1);
+            cooldown = Math.Max(cooldown, PlayerApi.GetSkillTime(key));
+        }
+
+        return cooldown;
+    }
+
+    private static void SetMorningPrayerCooldown(LoneerCombatState? state, int cooldown)
+    {
+        var next = Math.Max(0, cooldown);
+        if (state != null)
+        {
+            state.PrayerCooldown = next;
+        }
+
+        foreach (var key in MorningPrayerCooldownKeys)
+        {
+            PlayerApi.SetSkillTime(key, next);
+        }
+    }
+
+    private static void TickMorningPrayerCooldown(ScriptExecutor self)
+    {
+        var state = LoneerCombatStateStore.Get(self?.Self);
+        var cooldown = MorningPrayerCooldown(state);
+        if (cooldown > 0)
+        {
+            SetMorningPrayerCooldown(state, cooldown - 1);
         }
     }
 }

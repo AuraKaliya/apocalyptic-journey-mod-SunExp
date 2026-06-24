@@ -13,6 +13,7 @@ public static class StarScoreRuntime
 {
     private const string PendingPreludeCostVar = "SunExpStarBlessingPreludeCost";
     private const string PendingFreeVar = "SunExpStarBlessingFreePending";
+    private const string PendingSealBlessingVar = "SunExpMorningStarSealBlessingGain";
     private static readonly object EventOwner = new();
     private static readonly Stack<PendingCard> Pending = new();
     private static string? registeredStatusId;
@@ -60,18 +61,27 @@ public static class StarScoreRuntime
                 return;
             }
 
+            DictionaryUtil.Set(config.Vars, PendingPreludeCostVar, "");
+            DictionaryUtil.Set(config.Vars, PendingSealBlessingVar, "");
+            var actualPaidCost = CardConfigApi.CurrentCost(config);
             var player = FightPlayer.Instance?.Status;
-            if (player == null || BuffApi.Level(player, SunExpIds.StarBlessing) <= 0)
+            var hasBlessing = player != null && BuffApi.Level(player, SunExpIds.StarBlessing) > 0;
+            var sealBlessingGain = HasMorningStarSeal(config) ? actualPaidCost : 0;
+            if (hasBlessing && player != null)
             {
-                return;
+                var baseCost = CardConfigApi.BaseCost(config);
+                DictionaryUtil.Set(config.Vars, PendingPreludeCostVar, baseCost.ToString());
+                DictionaryUtil.Set(config.Vars, PendingFreeVar, "1");
+                ConsumeBuff(player, SunExpIds.StarBlessing, 1);
+                MakeCurrentUseFree(config);
+                sealBlessingGain = 0;
+                PlayerApi.ShowCaption("\u661f\u8fb0\u795d\u798f\uff1a\u672c\u6b21\u51fa\u724c\u65e0\u6d88\u8017\u3002");
             }
 
-            var baseCost = HasMorningStarSeal(config) ? 0 : CardConfigApi.BaseCost(config);
-            DictionaryUtil.Set(config.Vars, PendingPreludeCostVar, baseCost.ToString());
-            DictionaryUtil.Set(config.Vars, PendingFreeVar, "1");
-            ConsumeBuff(player, SunExpIds.StarBlessing, 1);
-            MakeCurrentUseFree(config);
-            PlayerApi.ShowCaption("\u661f\u8fb0\u795d\u798f\uff1a\u672c\u6b21\u51fa\u724c\u65e0\u6d88\u8017\u3002");
+            if (sealBlessingGain > 0)
+            {
+                DictionaryUtil.Set(config.Vars, PendingSealBlessingVar, sealBlessingGain.ToString());
+            }
         }
         catch (Exception ex)
         {
@@ -128,7 +138,11 @@ public static class StarScoreRuntime
             var preludeCost = string.IsNullOrWhiteSpace(pendingPreludeCost)
                 ? -1
                 : Math.Max(0, DictionaryUtil.ParseInt(pendingPreludeCost));
-            Pending.Push(new PendingCard(config, executor, preludeCost));
+            var pendingSealBlessing = DictionaryUtil.Get(config.Vars, PendingSealBlessingVar);
+            var sealBlessingGain = string.IsNullOrWhiteSpace(pendingSealBlessing)
+                ? 0
+                : Math.Max(0, DictionaryUtil.ParseInt(pendingSealBlessing));
+            Pending.Push(new PendingCard(config, executor, preludeCost, sealBlessingGain));
             ExecutorApi.CombatIntAdd("SunExpStarScorePlayerActionPending", 1);
         }
         catch (Exception ex)
@@ -153,7 +167,15 @@ public static class StarScoreRuntime
                 PlayerApi.ShowCaption("\u83b7\u5f97" + StarScoreService.PreludeDisplayNameForCost(pending.PreludeCost));
             }
 
+            if (pending.Executor != null && pending.SealBlessingGain > 0)
+            {
+                pending.Executor.SetStatus("Self");
+                pending.Executor.AddBuff(SunExpIds.StarBlessing, pending.SealBlessingGain.ToString());
+                PlayerApi.ShowCaption("\u542f\u660e\u661f\uff1a\u661f\u8fb0\u795d\u798f+" + pending.SealBlessingGain);
+            }
+
             DictionaryUtil.Set(pending.Config.Vars, PendingPreludeCostVar, "");
+            DictionaryUtil.Set(pending.Config.Vars, PendingSealBlessingVar, "");
             DictionaryUtil.Set(pending.Config.Vars, PendingFreeVar, "0");
         }
         catch (Exception ex)
@@ -200,11 +222,12 @@ public static class StarScoreRuntime
 
     private readonly struct PendingCard
     {
-        public PendingCard(IDataConfig config, ScriptExecutor? executor, int preludeCost)
+        public PendingCard(IDataConfig config, ScriptExecutor? executor, int preludeCost, int sealBlessingGain)
         {
             Config = config;
             Executor = executor;
             PreludeCost = preludeCost;
+            SealBlessingGain = sealBlessingGain;
         }
 
         public IDataConfig Config { get; }
@@ -212,5 +235,7 @@ public static class StarScoreRuntime
         public ScriptExecutor? Executor { get; }
 
         public int PreludeCost { get; }
+
+        public int SealBlessingGain { get; }
     }
 }

@@ -83,6 +83,22 @@ public static class BuffApi
         return removed;
     }
 
+    public static int RemoveNegativeBuffsAndCount(ScriptExecutor executor, IStatusManager? status)
+    {
+        var buffIds = NegativeBuffs(status)
+            .Select(buff => buff.buffConfig?.BuffId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        foreach (var id in buffIds)
+        {
+            ExecutorApi.SetStatusForTarget(executor, status, "Self");
+            executor.RemoveBuff(id);
+        }
+
+        return buffIds.Count;
+    }
+
     public static bool RemovePositiveBuffs(ScriptExecutor executor, IStatusManager? status)
     {
         var removed = false;
@@ -112,6 +128,48 @@ public static class BuffApi
         return NegativeBuffs(status).Count();
     }
 
+    public static int BuffKindCount(IStatusManager? status)
+    {
+        if (status == null)
+        {
+            return 0;
+        }
+
+        var buffs = status.GetBuffs();
+        if (buffs == null)
+        {
+            return 0;
+        }
+
+        return buffs
+            .Where(buff => buff?.buffConfig != null && (buff.buffConfig.Level > 0))
+            .Select(buff => buff.buffConfig.BuffId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .Count();
+    }
+
+    public static int PartyBuffKindSum(IEnumerable<IStatusManager> statuses)
+    {
+        var total = 0;
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var status in statuses)
+        {
+            if (status == null)
+            {
+                continue;
+            }
+
+            var key = status.InstanceId ?? status.GetHashCode().ToString();
+            if (seen.Add(key))
+            {
+                total += BuffKindCount(status);
+            }
+        }
+
+        return total;
+    }
+
     public static bool IncreaseRandomPositiveBuff(IStatusManager? status, int amount)
     {
         return IncreaseRandomBuff(PositiveBuffs(status).ToList(), amount);
@@ -120,6 +178,28 @@ public static class BuffApi
     public static bool IncreaseRandomNegativeBuff(IStatusManager? status, int amount)
     {
         return IncreaseRandomBuff(NegativeBuffs(status).ToList(), amount);
+    }
+
+    public static int IncreaseAllNegativeBuffs(IStatusManager? status, int amount)
+    {
+        if (amount <= 0)
+        {
+            return 0;
+        }
+
+        var increased = 0;
+        foreach (var buff in NegativeBuffs(status).ToList())
+        {
+            if (buff?.buffConfig == null)
+            {
+                continue;
+            }
+
+            buff.buffConfig.Level += amount;
+            increased++;
+        }
+
+        return increased;
     }
 
     public static bool IsPositiveBuffId(string buffId)

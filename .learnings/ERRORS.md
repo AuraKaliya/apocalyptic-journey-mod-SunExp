@@ -32,6 +32,35 @@ Use `${required}:` when a variable is immediately followed by a colon in a doubl
 
 ---
 
+## [ERR-20260624-001] aura-shared-core-test-harness
+
+**Logged**: 2026-06-24T17:45:14.7968790+08:00
+**Priority**: medium
+**Status**: pending
+**Area**: tests
+
+### Summary
+`tools\Test-AuraSharedCore.ps1` failed because the test harness still calls a removed or renamed `AuraChatRuntime.ConfirmPlayerMessage` API.
+
+### Error
+```text
+error CS0117: “AuraChatRuntime”未包含“ConfirmPlayerMessage”的定义
+AuraSharedCore test harness failed.
+```
+
+### Context
+- Command attempted after adding the AuraTools DPS meter module.
+- `dotnet build AuraToolsExp-Dev\AuraToolsExp.Dll.csproj -c Release -v:minimal` succeeded with 0 warnings and 0 errors, so this failure is outside the DPS module build path.
+
+### Suggested Fix
+Update `AuraSharedCore.Tests\Program.cs` to the current AuraChatRuntime confirmation API, or remove stale confirmation assertions if the runtime no longer exposes that flow.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraSharedCore.Tests/Program.cs
+
+---
+
 ## 2026-06-10 - image generation output size mismatch
 
 - **Context:** Batch-generating SunExp card-face PNGs with the built-in image generation tool.

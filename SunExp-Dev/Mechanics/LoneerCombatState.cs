@@ -14,6 +14,12 @@ public sealed class LoneerCombatState
 
     public int ClockMax { get; set; }
 
+    public int BlackStoneMax { get; set; }
+
+    public int PrayerCooldown { get; set; }
+
+    public int PrayerUseCount { get; set; }
+
     public bool ActionResolving { get; set; }
 
     public bool SelectionPending { get; set; }
@@ -64,6 +70,9 @@ public sealed class LoneerCombatState
         GuidanceCardId = "";
         ClockValue = 0;
         ClockMax = 0;
+        BlackStoneMax = 0;
+        PrayerCooldown = 0;
+        PrayerUseCount = 0;
         ActionResolving = false;
         SelectionPending = false;
         SelectionVersion = 0;

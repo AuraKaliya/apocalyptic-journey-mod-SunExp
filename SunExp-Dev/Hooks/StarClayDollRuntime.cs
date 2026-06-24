@@ -82,19 +82,17 @@ public static class StarClayDollRuntime
             return;
         }
 
-        BuffApi.SetExactLevel(status, SunExpIds.StarClayBody, BuffApi.Level(status, SunExpIds.StarClayBody) - 1);
-        var nextMax = Math.Max(1, status.MaxHp / 2);
-        status.MaxHp = nextMax;
-        status.CurHp = nextMax;
-        status.state = IStatusManager.State.Default;
-        if (RoleTable.Instance != null)
+        if (StatusApi.HasNativeResurrectionAvailable(status))
         {
-            RoleTable.Instance.maxSan = nextMax;
-            RoleTable.Instance.san = nextMax;
-            RoleTable.Instance.isDead = false;
+            SunExpLog.Info("Star Clay Doll protection yielded to native resurrection: owner=" + status.InstanceId);
+            return;
         }
 
-        status.UpdateStatus(true);
-        PlayerApi.ShowCaption("\u661f\u6ce5\u5080\u8eab\u66ff\u4f60\u627f\u53d7\u4e86\u8fd9\u6b21\u5931\u8d25\u3002");
+        BuffApi.SetExactLevel(status, SunExpIds.StarClayBody, BuffApi.Level(status, SunExpIds.StarClayBody) - 1);
+        var nextMax = Math.Max(1, status.MaxHp / 2);
+        if (StatusApi.TryStarClayResurrection(status, nextMax))
+        {
+            PlayerApi.ShowCaption("\u661f\u6ce5\u5080\u8eab\u66ff\u4f60\u627f\u53d7\u4e86\u8fd9\u6b21\u5931\u8d25\u3002");
+        }
     }
 }

@@ -160,10 +160,7 @@ public static class StarScoreService
     {
         self.SetStatus("Self");
         self.DrawCount("1");
-        if ((self.HandCard?.Count ?? 0) >= 5)
-        {
-            self.AddBuff(SunExpIds.Resonance, "1");
-        }
+        self.AddBuff(SunExpIds.Resonance, "1");
     }
 
     private static void UseSustain(ScriptExecutor self)
@@ -177,10 +174,8 @@ public static class StarScoreService
     {
         var target = ExecutorApi.PrimaryTarget(self);
         ExecutorApi.SetStatusForTarget(self, target, "Target");
-        if (!BuffApi.IncreaseRandomNegativeBuff(target, 1))
-        {
-            self.AddBuff("buff_weak", "1");
-        }
+        self.AddBuff("buff_weak", "1");
+        self.AddBuff("buff_vulnerability", "1");
     }
 
     private static void UseClose(ScriptExecutor self)
@@ -212,74 +207,134 @@ public static class StarScoreService
         switch (pattern)
         {
             case NoteStart + NoteStart + NoteStart:
-                self.SetStatus("Self");
-                self.DrawCount("2");
-                self.AddBuff(SunExpIds.Resonance, "1");
+                DrawCards(self, 2);
+                AddBuffToFriendlyParty(self, SunExpIds.Resonance, 2);
                 PlayerApi.ShowCaption("星律：急板");
                 break;
             case NoteSustain + NoteSustain + NoteSustain:
-                self.SetStatus("Self");
-                self.ChangeDefence("8");
-                BuffApi.IncreaseRandomPositiveBuff(self.Self, 1);
-                BuffApi.IncreaseRandomPositiveBuff(self.Self, 1);
+                ChangeDefenceForFriendlyParty(self, 8);
+                IncreaseRandomPositiveBuffsForFriendlyParty(self, 2);
                 PlayerApi.ShowCaption("星律：长音");
                 break;
             case NoteTurn + NoteTurn + NoteTurn:
                 foreach (var target in ExecutorApi.EnemyTargets(self))
                 {
-                    if (!BuffApi.IncreaseRandomNegativeBuff(target, 1))
-                    {
-                        ExecutorApi.AddStatusBuff(self, target, "buff_weak", 1);
-                    }
+                    BuffApi.IncreaseAllNegativeBuffs(target, 2);
                 }
                 PlayerApi.ShowCaption("星律：失谐");
                 break;
             case NoteClose + NoteClose + NoteClose:
-                foreach (var target in ExecutorApi.EnemyTargets(self))
-                {
-                    ExecutorApi.SetStatusForTarget(self, target, "Target");
-                    ExecutorApi.DealDamage(self, 8);
-                }
+                DealDamageAllEnemies(self, CalcPartyCloseDamage(self, 8));
                 PlayerApi.ShowCaption("星律：终止式");
                 break;
             case NoteStart + NoteSustain + NoteTurn:
                 self.SetStatus("Self");
-                self.AddBuff(SunExpIds.Resonance, "2");
+                self.ChangePower("2");
+                AddBuffToFriendlyParty(self, SunExpIds.Resonance, 2);
                 PlayerApi.ShowCaption("星律：调律");
                 break;
             case NoteSustain + NoteTurn + NoteClose:
-                ExecutorApi.DealDamageToTarget(self, ExecutorApi.PrimaryTarget(self), 10);
+                var hitCount = DealDamageAllEnemies(self, 10);
                 self.SetStatus("Self");
-                self.ChangeDefence("6");
+                self.ChangeDefence(Math.Max(0, hitCount * 10).ToString());
                 PlayerApi.ShowCaption("星律：合奏");
                 break;
             case NoteTurn + NoteSustain + NoteStart:
-                self.SetStatus("Self");
-                if (BuffApi.RemoveNegativeBuffs(self, self.Self))
+                var selfCleared = 0;
+                foreach (var target in ExecutorApi.FriendlyTargets(self, includeSelf: true))
                 {
-                    self.DrawCount("1");
+                    var cleared = BuffApi.RemoveNegativeBuffsAndCount(self, target);
+                    if (ExecutorApi.IsSelf(self, target))
+                    {
+                        selfCleared = cleared;
+                    }
                 }
-                else
+
+                if (selfCleared > 0)
                 {
-                    self.ChangeDefence("6");
+                    DrawCards(self, selfCleared);
                 }
+
                 PlayerApi.ShowCaption("星律：回旋");
                 break;
             default:
-                if (notes.Distinct().Count() == 3)
-                {
-                    self.SetStatus("Self");
-                    self.AddBuff(SunExpIds.Resonance, "1");
-                    self.DrawCount("1");
-                    PlayerApi.ShowCaption("星律：三声和弦");
-                }
+                self.SetStatus("Self");
+                self.AddBuff(SunExpIds.Resonance, "1");
+                self.DrawCount("1");
+                PlayerApi.ShowCaption("星律：三声和弦");
                 break;
         }
     }
 
     private static int CalcCloseDamage(ScriptExecutor self)
     {
-        return 6 + BuffApi.PositiveKindCount(self.Self) + BuffApi.NegativeKindCount(ExecutorApi.PrimaryTarget(self));
+        return 6 + BuffApi.BuffKindCount(self.Self) + BuffApi.BuffKindCount(ExecutorApi.PrimaryTarget(self));
+    }
+
+    private static int CalcPartyCloseDamage(ScriptExecutor self, int baseDamage)
+    {
+        var allies = ExecutorApi.FriendlyTargets(self, includeSelf: true);
+        var enemies = ExecutorApi.EnemyTargets(self);
+        return Math.Max(0, baseDamage)
+            + BuffApi.PartyBuffKindSum(allies)
+            + BuffApi.PartyBuffKindSum(enemies);
+    }
+
+    private static void DrawCards(ScriptExecutor self, int count)
+    {
+        if (count <= 0)
+        {
+            return;
+        }
+
+        self.SetStatus("Self");
+        self.DrawCount(count.ToString());
+    }
+
+    private static void AddBuffToFriendlyParty(ScriptExecutor self, string buffId, int amount)
+    {
+        foreach (var target in ExecutorApi.FriendlyTargets(self, includeSelf: true))
+        {
+            ExecutorApi.AddStatusBuff(self, target, buffId, amount, "Self");
+        }
+    }
+
+    private static void ChangeDefenceForFriendlyParty(ScriptExecutor self, int amount)
+    {
+        foreach (var target in ExecutorApi.FriendlyTargets(self, includeSelf: true))
+        {
+            ExecutorApi.SetStatusForTarget(self, target, "Self");
+            self.ChangeDefence(amount.ToString());
+        }
+    }
+
+    private static void IncreaseRandomPositiveBuffsForFriendlyParty(ScriptExecutor self, int times)
+    {
+        var count = Math.Max(0, times);
+        if (count <= 0)
+        {
+            return;
+        }
+
+        foreach (var target in ExecutorApi.FriendlyTargets(self, includeSelf: true))
+        {
+            ExecutorApi.SetStatusForTarget(self, target, "Self");
+            self.RandomAddGoodBuff(count.ToString());
+        }
+    }
+
+    private static int DealDamageAllEnemies(ScriptExecutor self, int amount)
+    {
+        var hitCount = 0;
+        foreach (var target in ExecutorApi.EnemyTargets(self))
+        {
+            if (ExecutorApi.DealDamageToTarget(self, target, amount))
+            {
+                hitCount++;
+            }
+        }
+
+        return hitCount;
     }
 
     private static void GrantBlessingsForThresholds(ScriptExecutor self, int before, int after)
@@ -305,6 +360,12 @@ public static class StarScoreService
             self.SetStatus("Self");
             self.AddBuff(SunExpIds.StarBlessing, gain.ToString());
             PlayerApi.ShowCaption("星辰祝福+" + gain + "：下一张手牌将生成星辰序曲。");
+        }
+
+        if (before < 30 && after >= 30)
+        {
+            CardApi.AddCardToHand(self, SunExpIds.StellarOvertureCloseCardId);
+            PlayerApi.ShowCaption("星辉抵达30：获得星辰序曲·合。");
         }
     }
 
