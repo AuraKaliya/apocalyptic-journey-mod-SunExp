@@ -11,8 +11,29 @@ namespace SunExp.Dll.Hooks;
 
 public static class AnimatedBlessingIconRuntime
 {
-    private const string FirstFrameSpriteName = "huanghun_1";
+    private const string DuskFirstFrameSpriteName = "huanghun_1";
+    private const string StarClayDollFirstFrameSpriteName = "renkui_1";
     private const float FrameSeconds = 0.2f;
+
+    private static readonly string[] DuskFramePaths =
+    {
+        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_1",
+        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_2",
+        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_3",
+        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_4",
+        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_3",
+        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_2",
+    };
+
+    private static readonly string[] StarClayDollFramePaths =
+    {
+        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_1",
+        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_2",
+        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_3",
+        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_4",
+        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_3",
+        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_2",
+    };
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -70,45 +91,54 @@ public static class AnimatedBlessingIconRuntime
 
         foreach (var image in root.GetComponentsInChildren<Image>(true))
         {
-            if (!IsDuskBlessingIcon(image))
+            var framePaths = GetFramePaths(image);
+            if (framePaths == null)
             {
                 continue;
             }
 
             var animator = image.GetComponent<AnimatedBlessingIcon>() ?? image.gameObject.AddComponent<AnimatedBlessingIcon>();
-            animator.Configure(FrameSeconds);
+            animator.Configure(framePaths, FrameSeconds);
         }
     }
 
-    private static bool IsDuskBlessingIcon(Image image)
+    private static string[]? GetFramePaths(Image image)
     {
         var spriteName = image != null ? image.sprite?.name : null;
-        return spriteName != null
-            && spriteName.IndexOf(FirstFrameSpriteName, StringComparison.OrdinalIgnoreCase) >= 0;
+        if (spriteName == null)
+        {
+            return null;
+        }
+
+        if (spriteName.IndexOf(DuskFirstFrameSpriteName, StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return DuskFramePaths;
+        }
+
+        if (spriteName.IndexOf(StarClayDollFirstFrameSpriteName, StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return StarClayDollFramePaths;
+        }
+
+        return null;
     }
 }
 
 public sealed class AnimatedBlessingIcon : MonoBehaviour
 {
-    private static readonly string[] FramePaths =
-    {
-        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_1",
-        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_2",
-        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_3",
-        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_4",
-        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_3",
-        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_2",
-    };
-
-    private static Sprite[]? frames;
-
+    private string[] framePaths = Array.Empty<string>();
+    private Sprite[]? frames;
     private Image? image;
     private float frameSeconds = 0.2f;
     private float elapsed;
     private int index;
 
-    public void Configure(float seconds)
+    public void Configure(string[] paths, float seconds)
     {
+        framePaths = paths;
+        frames = null;
+        elapsed = 0f;
+        index = 0;
         frameSeconds = Mathf.Max(0.05f, seconds);
         image ??= GetComponent<Image>();
         EnsureFrames();
@@ -159,7 +189,7 @@ public sealed class AnimatedBlessingIcon : MonoBehaviour
         }
     }
 
-    private static void EnsureFrames()
+    private void EnsureFrames()
     {
         if (frames != null)
         {
@@ -167,7 +197,7 @@ public sealed class AnimatedBlessingIcon : MonoBehaviour
         }
 
         var loaded = new List<Sprite>();
-        foreach (var path in FramePaths)
+        foreach (var path in framePaths)
         {
             var sprite = ResourceLoader.Load<Sprite>(path, true);
             if (sprite != null)

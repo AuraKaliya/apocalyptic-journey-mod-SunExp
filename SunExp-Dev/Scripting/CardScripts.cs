@@ -12,6 +12,7 @@ public static class CardScripts
     {
         try
         {
+            id = NormalizeId(id);
             switch (id)
             {
                 case "spark":
@@ -22,6 +23,7 @@ public static class CardScripts
                 case "stellar_overture_sustain":
                 case "stellar_overture_turn":
                 case "stellar_overture_close":
+                case "witch_star_score":
                     StarScoreService.Init(self, id);
                     break;
                 case "radiant_flame_slash":
@@ -55,7 +57,7 @@ public static class CardScripts
                     ExecutorApi.AddValueDescription(self, "2", 7);
                     ExecutorApi.AddValueDescription(self, "3", 1);
                     break;
-                case "*solar_scorching_light":
+                case "solar_scorching_light":
                     ExecutorApi.SetBaseScript(self, "AttackCardItem", canSelf: false);
                     ExecutorApi.AddDamageDescription(self, "1", CalcFlamePierceDamage(self));
                     break;
@@ -86,6 +88,7 @@ public static class CardScripts
     {
         try
         {
+            id = NormalizeId(id);
             switch (id)
             {
                 case "spark":
@@ -95,6 +98,7 @@ public static class CardScripts
                 case "stellar_overture_sustain":
                 case "stellar_overture_turn":
                 case "stellar_overture_close":
+                case "witch_star_score":
                     StarScoreService.Use(self, id);
                     break;
                 case "scorching_canopy_card":
@@ -123,10 +127,10 @@ public static class CardScripts
                 case "crown_radiance":
                     UseCrownRadiance(self);
                     break;
-                case "*canopy_return":
+                case "canopy_return":
                     UseCanopyReturn(self);
                     break;
-                case "*solar_phase_tuning":
+                case "solar_phase_tuning":
                     UseSolarPhaseTuning(self);
                     break;
                 case "solar_coronation":
@@ -137,7 +141,7 @@ public static class CardScripts
                 case "blazing_crown_collapse":
                     UseBlazingCrownCollapse(self);
                     break;
-                case "*radiant_oath":
+                case "radiant_oath":
                     UseRadiantOath(self);
                     break;
                 case "solar_ignition":
@@ -159,7 +163,7 @@ public static class CardScripts
                 case "eclipse_hex":
                     UseEclipseHex(self);
                     break;
-                case "*solar_scorching_light":
+                case "solar_scorching_light":
                     ExecutorApi.DealDamage(self, CalcFlamePierceDamage(self));
                     break;
                 case "burning_calamity":
@@ -176,7 +180,7 @@ public static class CardScripts
                     self.AddBuff(SunExpIds.SolarRadiance, "1");
                     self.DrawCount("1");
                     break;
-                case "*solar_origin_core":
+                case "solar_origin_core":
                     self.SetStatus("Self");
                     self.AddBuff(SunExpIds.OriginCoreRadiance, "1");
                     break;
@@ -186,7 +190,7 @@ public static class CardScripts
                 case "gathered_flame_shield":
                     UseGatheredFlameShield(self);
                     break;
-                case "*gathered_flame_cycle":
+                case "gathered_flame_cycle":
                     self.SetStatus("Self");
                     self.AddBuff(SunExpIds.CycleGatheredFlame, "1");
                     break;
@@ -196,7 +200,7 @@ public static class CardScripts
                 case "smoke_erosion":
                     UseSmokeErosion(self);
                     break;
-                case "*afterglow_omen_card":
+                case "afterglow_omen_card":
                     self.SetStatus("Self");
                     self.AddBuff(SunExpIds.AfterglowOmen, "1");
                     break;
@@ -382,6 +386,11 @@ public static class CardScripts
             ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, level, "Target");
         }
         ExecutorApi.TriggerBurn(self, target);
+    }
+
+    private static string NormalizeId(string id)
+    {
+        return (id ?? "").Replace("*", "").Trim();
     }
 
     private static void UseBurningCalamity(ScriptExecutor self)

@@ -11,7 +11,27 @@ namespace SunExp.Dll.Hooks;
 
 public static class AnimatedBuffIconRuntime
 {
-    private const float DuskFrameSeconds = 0.2f;
+    private const float FrameSeconds = 0.2f;
+
+    private static readonly string[] DuskFramePaths =
+    {
+        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_1",
+        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_2",
+        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_3",
+        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_4",
+        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_3",
+        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_2",
+    };
+
+    private static readonly string[] StarClayDollFramePaths =
+    {
+        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_1",
+        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_2",
+        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_3",
+        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_4",
+        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_3",
+        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_2",
+    };
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -28,7 +48,8 @@ public static class AnimatedBuffIconRuntime
         try
         {
             var buffId = GetBuffId(context.Target);
-            if (buffId != SunExpIds.DuskAfterheatRecoveryTrait)
+            var framePaths = GetFramePaths(buffId);
+            if (framePaths == null)
             {
                 return;
             }
@@ -45,12 +66,27 @@ public static class AnimatedBuffIconRuntime
             }
 
             var animator = image.GetComponent<AnimatedBuffSpriteIcon>() ?? image.gameObject.AddComponent<AnimatedBuffSpriteIcon>();
-            animator.Configure(DuskFrameSeconds);
+            animator.Configure(framePaths, FrameSeconds);
         }
         catch (Exception ex)
         {
             SunExpLog.Error("Animated buff icon attach failed", ex);
         }
+    }
+
+    private static string[]? GetFramePaths(string buffId)
+    {
+        if (buffId == SunExpIds.DuskAfterheatRecoveryTrait)
+        {
+            return DuskFramePaths;
+        }
+
+        if (buffId == SunExpIds.StarClayBody || buffId == SunExpIds.StarClayDollTrait)
+        {
+            return StarClayDollFramePaths;
+        }
+
+        return null;
     }
 
     private static string GetBuffId(object? target)
@@ -74,25 +110,19 @@ public static class AnimatedBuffIconRuntime
 
 public sealed class AnimatedBuffSpriteIcon : MonoBehaviour
 {
-    private static readonly string[] FramePaths =
-    {
-        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_1",
-        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_2",
-        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_3",
-        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_4",
-        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_3",
-        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_2",
-    };
-
-    private static Sprite[]? frames;
-
+    private string[] framePaths = Array.Empty<string>();
+    private Sprite[]? frames;
     private SpriteRenderer? spriteRenderer;
     private float frameSeconds = 0.2f;
     private float elapsed;
     private int index;
 
-    public void Configure(float seconds)
+    public void Configure(string[] paths, float seconds)
     {
+        framePaths = paths;
+        frames = null;
+        elapsed = 0f;
+        index = 0;
         frameSeconds = Mathf.Max(0.05f, seconds);
         spriteRenderer ??= GetComponent<SpriteRenderer>();
         EnsureFrames();
@@ -143,7 +173,7 @@ public sealed class AnimatedBuffSpriteIcon : MonoBehaviour
         }
     }
 
-    private static void EnsureFrames()
+    private void EnsureFrames()
     {
         if (frames != null)
         {
@@ -151,7 +181,7 @@ public sealed class AnimatedBuffSpriteIcon : MonoBehaviour
         }
 
         var loaded = new List<Sprite>();
-        foreach (var path in FramePaths)
+        foreach (var path in framePaths)
         {
             var sprite = ResourceLoader.Load<Sprite>(path, true);
             if (sprite != null)

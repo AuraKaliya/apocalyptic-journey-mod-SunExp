@@ -116,7 +116,6 @@ public static class BattleBgmArbiterRuntime
 
         var compatible = protocolVersion >= MinimumSupportedProtocolVersion
             && minimumSupported <= CurrentProtocolVersion
-            && string.Equals(buildId, CurrentBuildId, StringComparison.Ordinal)
             && methodsPresent;
         if (!compatible)
         {
@@ -126,8 +125,17 @@ public static class BattleBgmArbiterRuntime
                 + ". protocol=" + protocolVersion
                 + ", minSupported=" + minimumSupported
                 + ", buildId=" + (string.IsNullOrWhiteSpace(buildId) ? "<missing>" : buildId)
-                + ", requiredBuildId=" + CurrentBuildId
+                + ", localBuildId=" + CurrentBuildId
                 + ", methodsPresent=" + methodsPresent);
+        }
+
+        if (compatible
+            && !string.IsNullOrWhiteSpace(buildId)
+            && !string.Equals(buildId, CurrentBuildId, StringComparison.Ordinal)
+            && CompatibilityWarningsShown.Add("build:" + ownerModId + ":" + buildId))
+        {
+            Debug.LogWarning("[BattleBgmArbiter] Reusing protocol-compatible arbiter with a different build. owner="
+                + ownerModId + ", existingBuildId=" + buildId + ", localBuildId=" + CurrentBuildId);
         }
 
         return compatible;

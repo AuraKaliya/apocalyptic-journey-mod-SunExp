@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "starterDeck": {
     "enabled": false,
     "mode": "Global",
@@ -25,7 +25,10 @@
     "hotkey": "F8",
     "showPanelByDefault": true,
     "friendlyOnly": false,
+    "includeUnknownTeam": true,
     "countShieldLoss": true,
-    "maxRows": 6
+    "maxRows": 6,
+    "showAverageDpt": true,
+    "showTeamShare": true
   }
 }

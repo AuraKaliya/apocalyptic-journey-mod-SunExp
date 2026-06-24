@@ -6,8 +6,11 @@ namespace SunExp.Dll.Mechanics;
 public sealed class StarScoreCombatState
 {
     private readonly List<string> notes = new();
+    private readonly List<string> completedCadences = new();
 
     public IReadOnlyList<string> Notes => notes;
+
+    public IReadOnlyList<string> CompletedCadences => completedCadences;
 
     public void Record(string note, int windowSize)
     {
@@ -18,9 +21,18 @@ public sealed class StarScoreCombatState
         }
     }
 
+    public void RecordCompletedCadence(string pattern)
+    {
+        if (!string.IsNullOrWhiteSpace(pattern))
+        {
+            completedCadences.Add(pattern);
+        }
+    }
+
     public void Clear()
     {
         notes.Clear();
+        completedCadences.Clear();
     }
 }
 

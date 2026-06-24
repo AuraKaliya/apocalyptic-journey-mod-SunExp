@@ -5,7 +5,7 @@
     "enabled": true,
     "mode": "Common",
     "common": {
-      "relativePath": "Audio/Common/battle_bgm.mp3",
+      "relativePath": "Audio/AuraToolsExp/Common/battle_bgm.mp3",
       "priority": -1000,
       "hardClaim": false,
       "silenceWhenLoading": false,
@@ -17,7 +17,7 @@
     "enabled": true,
     "mode": "Common",
     "common": {
-      "relativePath": "Audio/Common/card_use.mp3",
+      "relativePath": "Audio/AuraToolsExp/Common/card_use.mp3",
       "priority": -1000,
       "hardClaim": false,
       "gainDb": 6.0

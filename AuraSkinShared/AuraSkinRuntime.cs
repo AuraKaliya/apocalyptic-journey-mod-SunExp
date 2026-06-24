@@ -141,7 +141,6 @@ public static class AuraSkinRuntime
             .All(name => type.GetMethod(name, BindingFlags.Instance | BindingFlags.Public) != null);
         var compatible = protocolVersion >= MinimumSupportedProtocolVersion
                          && minimumSupported <= CurrentProtocolVersion
-                         && string.Equals(buildId, CurrentBuildId, StringComparison.Ordinal)
                          && methodsPresent;
 
         if (!compatible && CompatibilityErrorsShown.Add(ownerModId + ":" + type.AssemblyQualifiedName))
@@ -151,8 +150,18 @@ public static class AuraSkinRuntime
                           + ", protocol=" + protocolVersion
                           + ", minSupported=" + minimumSupported
                           + ", buildId=" + (string.IsNullOrWhiteSpace(buildId) ? "<missing>" : buildId)
-                          + ", requiredBuildId=" + CurrentBuildId
+                          + ", localBuildId=" + CurrentBuildId
                           + ", methodsPresent=" + methodsPresent);
+        }
+
+        if (compatible
+            && !string.IsNullOrWhiteSpace(buildId)
+            && !string.Equals(buildId, CurrentBuildId, StringComparison.Ordinal)
+            && ReuseLogOwners.Add("build:" + ownerModId + ":" + buildId))
+        {
+            SkinLog.Warn("Reusing protocol-compatible skin runtime with a different build. owner="
+                         + ownerModId + ", existingBuildId=" + buildId
+                         + ", localBuildId=" + CurrentBuildId);
         }
 
         return compatible;

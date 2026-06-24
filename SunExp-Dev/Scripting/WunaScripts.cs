@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
+using SunExp.Dll.Mechanics;
 
 namespace SunExp.Dll.Scripting;
 
@@ -132,8 +133,12 @@ public static class WunaScripts
 
         self.SetStatus("Self");
         AudioApi.PlayWhiteSunPrayer();
-        TryAddCardToHand(self, CoronationTokenCardId);
-        EnsureHandTags(self, "Burnout", SunExpIds.WhiteRadianceTag);
+        var grant = WunaCardGrantService.GrantCoronationTokenToHand(self, CoronationTokenCardId);
+        if (!grant.Success)
+        {
+            SunExpLog.Warn("Wuna coronation token grant failed: step=" + grant.FailureStep + ", error=" + grant.FailureReason);
+        }
+
         PlayerApi.SetSkillTime(WhiteSunPrayerCardId, 5);
     }
 
@@ -169,78 +174,6 @@ public static class WunaScripts
         self.SetStatus("Self");
         self.AddBuff(SunExpIds.EmberCloak, "1");
         ExecutorApi.TriggerBurnAll(self);
-    }
-
-    private static void TryAddCardToHand(ScriptExecutor self, string cardId)
-    {
-        try
-        {
-            self.AddCardById(cardId);
-        }
-        catch
-        {
-            try
-            {
-                self.AddCardByData(cardId, "");
-            }
-            catch
-            {
-                self.AddCard(cardId);
-            }
-        }
-    }
-
-    private static int EnsureHandTags(ScriptExecutor self, params string[] tags)
-    {
-        var changed = 0;
-        foreach (var card in self.HandCard ?? Enumerable.Empty<CardItem>())
-        {
-            foreach (var tag in tags)
-            {
-                if (EnsureCardTag(card, tag))
-                {
-                    changed++;
-                }
-            }
-        }
-
-        return changed;
-    }
-
-    private static bool EnsureCardTag(CardItem card, string tag)
-    {
-        if (card == null || string.IsNullOrWhiteSpace(tag) || CardHasTag(card, tag))
-        {
-            return false;
-        }
-
-        var existing = DictionaryUtil.Get(card.Vars, "SpecialTag");
-        var next = string.IsNullOrWhiteSpace(existing) ? tag : existing + "," + tag;
-        DictionaryUtil.Set(card.Vars, "SpecialTag", next);
-        DictionaryUtil.Set(card.dataConfig?.Vars, "SpecialTag", next);
-        card.Tags?.Add(tag);
-        if (tag == SunExpIds.WhiteRadianceTag)
-        {
-            DictionaryUtil.Set(card.Vars, SunExpIds.TempWhiteRadiance, "1");
-            var lockId = ExecutorApi.CombatIntAdd("SunExpTempWhiteRadianceLockSeq", 1).ToString();
-            DictionaryUtil.Set(card.Vars, SunExpIds.TempWhiteRadianceLockId, lockId);
-            DictionaryUtil.Set(card.Vars, SunExpIds.TempWhiteRadianceResolved, "0");
-            DictionaryUtil.Set(card.dataConfig?.Vars, SunExpIds.TempWhiteRadiance, "1");
-            DictionaryUtil.Set(card.dataConfig?.Vars, SunExpIds.TempWhiteRadianceLockId, lockId);
-            DictionaryUtil.Set(card.dataConfig?.Vars, SunExpIds.TempWhiteRadianceResolved, "0");
-        }
-
-        card.RefreshTag();
-        card.DataUpdate();
-        FightCardManager.Instance?.RefreshTag(card.dataConfig);
-        return true;
-    }
-
-    private static bool CardHasTag(CardItem card, string tag)
-    {
-        return DictionaryUtil.ContainsToken(DictionaryUtil.Get(card.data, "Tag"), tag)
-            || DictionaryUtil.ContainsToken(DictionaryUtil.Get(card.Vars, "SpecialTag"), tag)
-            || DictionaryUtil.ContainsToken(DictionaryUtil.Get(card.dataConfig?.Vars, "SpecialTag"), tag);
     }
 
     private static void StartRound(ScriptExecutor self)

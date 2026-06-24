@@ -79,9 +79,11 @@ public static class SolarMemoryMapNodePoolApplier
         for (var i = 0; i < count; i++)
         {
             var targetIndex = defaultStart + i;
-            if (!EquivalentNode(tree.DefaultNode[targetIndex], pool.DefaultNodes[i]))
+            var replacement = pool.DefaultNodes[i];
+            MapNodeSafetyService.EnsureNodeDice(tree, replacement, "SolarMemoryMapNodePoolApplier.Default");
+            if (!EquivalentNode(tree.DefaultNode[targetIndex], replacement))
             {
-                tree.DefaultNode[targetIndex] = pool.DefaultNodes[i];
+                tree.DefaultNode[targetIndex] = replacement;
                 changed = true;
             }
         }
@@ -110,13 +112,16 @@ public static class SolarMemoryMapNodePoolApplier
             var targetIndex = selectStart + i;
             if (i != SolarMemoryMapNodePoolFactory.MidLayerSlotIndex && IsBreakNode(tree.SelectNode[targetIndex]))
             {
+                MapNodeSafetyService.EnsureNodeDice(tree, tree.SelectNode[targetIndex], "SolarMemoryMapNodePoolApplier.PreservedBreak");
                 SunExpLog.Debug("[SolarMemoryMapNodePool] preserved Break node at select slot " + i + ".");
                 continue;
             }
 
-            if (!EquivalentNode(tree.SelectNode[targetIndex], pool.SelectNodes[i]))
+            var replacement = pool.SelectNodes[i];
+            MapNodeSafetyService.EnsureNodeDice(tree, replacement, "SolarMemoryMapNodePoolApplier.Select");
+            if (!EquivalentNode(tree.SelectNode[targetIndex], replacement))
             {
-                tree.SelectNode[targetIndex] = pool.SelectNodes[i];
+                tree.SelectNode[targetIndex] = replacement;
                 changed = true;
             }
         }

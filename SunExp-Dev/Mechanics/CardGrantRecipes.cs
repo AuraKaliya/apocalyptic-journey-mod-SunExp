@@ -1,0 +1,55 @@
+using System;
+using SunExp.Dll.GameApi;
+using SunExp.Dll.Infrastructure;
+
+namespace SunExp.Dll.Mechanics;
+
+public static class LoneerCardGrantService
+{
+    public static CardGrantResult GrantGuidanceCopyToHand(ScriptExecutor self, string cardId, string source)
+    {
+        var resolved = CardApi.ResolveCardId(cardId);
+        var isWitchStarScore = string.Equals(resolved, SunExpIds.WitchStarScoreCardId, StringComparison.Ordinal)
+            || string.Equals(NormalizeLocalId(resolved), "witch_star_score", StringComparison.Ordinal);
+
+        var request = CardGrantRequest.ToHand(resolved)
+            .WithSource("loneer-guidance." + source)
+            .Configure(CardMutationService.SetRuntimeMarkersMutation(
+                SunExpIds.LoneerDerivedMarker,
+                SunExpIds.LoneerGuidanceMarker))
+            .Configure(CardMutationService.AddSpecialTagsMutation(
+                SunExpIds.LoneerDerivedTag,
+                SunExpIds.LoneerGuidanceTag));
+
+        if (!isWitchStarScore)
+        {
+            request
+                .WithRuntimeTags("Burnout", "Nihility")
+                .Configure(CardMutationService.SetTemporaryCostMutation(1));
+        }
+
+        return CardApi.GrantCardToHand(self, request);
+    }
+
+    private static string NormalizeLocalId(string id)
+    {
+        var value = (id ?? "").Replace("*", "").Trim();
+        var last = value.LastIndexOf("_", StringComparison.Ordinal);
+        return value.StartsWith("SunExp_", StringComparison.Ordinal) && last >= 0
+            ? value.Substring(last + 1)
+            : value;
+    }
+}
+
+public static class WunaCardGrantService
+{
+    public static CardGrantResult GrantCoronationTokenToHand(ScriptExecutor self, string cardId)
+    {
+        var request = CardGrantRequest.ToHand(cardId)
+            .WithSource("wuna-coronation-token")
+            .WithRuntimeTags("Burnout")
+            .Configure(CardMutationService.MarkTemporaryWhiteRadianceMutation());
+
+        return CardApi.GrantCardToHand(self, request);
+    }
+}

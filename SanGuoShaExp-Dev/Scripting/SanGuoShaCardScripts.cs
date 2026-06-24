@@ -501,9 +501,16 @@ public static class SanGuoShaCardScripts
                 card.Burning(0f);
             }
 
-            if (reward != null)
+            if (reward == null)
             {
-                self.CreateCard(CopyCardConfig(reward));
+                return;
+            }
+
+            var friends = FriendlyTargets(self);
+            foreach (var target in friends)
+            {
+                var randomReward = burned[UnityEngine.Random.Range(0, burned.Count)]?.dataConfig ?? reward;
+                CreateCardForTarget(self, target, randomReward);
             }
         });
     }
@@ -851,6 +858,28 @@ public static class SanGuoShaCardScripts
     {
         var cardId = card.data.GetValueOrDefault("Id", card.InstanceID);
         return new DataConfig(cardId, DataType.Card);
+    }
+
+    private static List<IStatusManager> FriendlyTargets(ScriptExecutor self)
+    {
+        self.SetStatus("AllFriends");
+        return self.Object?
+            .Where(target => target != null)
+            .OrderBy(target => target.InstanceId, StringComparer.Ordinal)
+            .ToList() ?? new List<IStatusManager>();
+    }
+
+    private static void CreateCardForTarget(ScriptExecutor self, IStatusManager target, DataConfig card)
+    {
+        try
+        {
+            self.SetStatusById(target.InstanceId);
+            self.CreateCard(CopyCardConfig(card));
+        }
+        catch (Exception ex)
+        {
+            SanGuoShaExpLog.Warn("Harvest reward delivery failed: target=" + target.InstanceId + ", error=" + ex.Message);
+        }
     }
 
     private static bool TargetsContainFriend(ScriptExecutor self)

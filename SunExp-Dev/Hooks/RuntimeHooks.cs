@@ -50,7 +50,6 @@ public static class RuntimeHooks
                 return;
             }
 
-            StarScoreRuntime.TryApplyResonanceBeforeAddBuff(context);
             var amount = BuffAmountFromArgs(args);
             ExecutorApi.PrepareSolarRadianceUpperBound(target, buffId);
             if (buffId != SunExpIds.Burn || amount <= 0)

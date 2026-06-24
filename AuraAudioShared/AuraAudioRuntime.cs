@@ -15,7 +15,8 @@ public static class AuraAudioRuntime
         ModConfig modConfig,
         string ownerModId,
         string registryRelativePath = DefaultRegistryPath,
-        string packageManifestRelativePath = DefaultPackageManifestPath)
+        string packageManifestRelativePath = DefaultPackageManifestPath,
+        bool installPackage = true)
     {
         var result = new AuraAudioInitializeResult();
         try
@@ -34,7 +35,12 @@ public static class AuraAudioRuntime
 
             AuraSharedRuntime.Initialize(modConfig, ownerModId);
             result.SharedRoot = AuraSharedPaths.RootDirectory;
-            result.PackageInstalled = TryInstallPackage(modConfig, ownerModId, packageManifestRelativePath, result);
+            result.PackageInstalled = !installPackage
+                                      || TryInstallPackage(
+                                          modConfig,
+                                          ownerModId,
+                                          packageManifestRelativePath,
+                                          result);
 
             AudioArbiterRuntime.Initialize(modConfig, ownerModId);
             var registry = string.IsNullOrWhiteSpace(registryRelativePath) ? DefaultRegistryPath : registryRelativePath;
@@ -88,20 +94,21 @@ public static class AuraAudioRuntime
             return false;
         }
 
-        var responses = AuraSharedPackageEngine.InstallManifest(modConfig, ownerModId, normalized);
-        var success = true;
-        foreach (var response in responses)
+        var bootstrap = AuraSharedResourceBootstrapper.Bootstrap(
+            modConfig,
+            ownerModId,
+            normalized);
+        foreach (var response in bootstrap.Responses)
         {
             if (response.Success)
             {
                 continue;
             }
 
-            success = false;
             result.AddError("Shared audio package rejected: " + response.Message);
         }
 
-        return success;
+        return bootstrap.Success;
     }
 }
 

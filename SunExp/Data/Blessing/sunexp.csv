@@ -1,4 +1,4 @@
 Id,Weight,OwnScript,FightScript,Icon,Type,Source,Rarity
 唯一标识,权重,获得物品时执行的,战斗脚本,图片名称,类型,选项,稀有度
 dusk_afterheat_recovery,0,,,Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_1,伙伴占位,,5
-star_clay_doll_placeholder,0,,,Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_1,伙伴占位,,5
+star_clay_doll_placeholder,0,,,Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_1,伙伴占位,,5

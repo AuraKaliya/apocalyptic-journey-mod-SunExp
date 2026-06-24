@@ -29,6 +29,11 @@ commit uses staging, a persistent transaction journal, a resource-index update, 
 System modules parse their own manifests and produce generic install requests. Core does not understand skin, audio, or CG
 semantics. Logs remain owner-written and are exposed for shared aggregation through `AuraSharedLogStore`.
 
+`AuraSharedResourceBootstrapper.Bootstrap` is the common startup entry point for bundled file and directory packages.
+Each Mod invokes it with its own `ModConfig`, owner id, and manifest path. The result reports installed, repaired, updated,
+deduplicated, conflicting, and failed resources. Runtime systems register or reload their providers only after bootstrap;
+the bootstrapper does not scan or install resources on behalf of other Mods.
+
 ## Package manifest contract
 
 `SharedResources/package.json` is the stable entry point for bundled shared resources in main Mods. The main Mods are

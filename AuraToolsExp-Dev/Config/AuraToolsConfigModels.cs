@@ -71,8 +71,18 @@ public sealed class AuraToolsAudioSettings
         AudioSystemVersion = string.IsNullOrWhiteSpace(AudioSystemVersion) ? "2.0.0" : AudioSystemVersion.Trim();
         BattleBgm ??= AudioFeatureSettings.CreateBattleBgmDefault();
         CardUse ??= AudioFeatureSettings.CreateCardUseDefault();
-        BattleBgm.Normalize("Audio/Common/battle_bgm.mp3", -1000, false);
-        CardUse.Normalize("Audio/Common/card_use.mp3", -1000, false);
+        BattleBgm.Normalize("Audio/AuraToolsExp/Common/battle_bgm.mp3", -1000, false);
+        CardUse.Normalize("Audio/AuraToolsExp/Common/card_use.mp3", -1000, false);
+        MigrateBundledPath(BattleBgm.Common, "Audio/Common/battle_bgm.mp3", "Audio/AuraToolsExp/Common/battle_bgm.mp3");
+        MigrateBundledPath(CardUse.Common, "Audio/Common/card_use.mp3", "Audio/AuraToolsExp/Common/card_use.mp3");
+    }
+
+    private static void MigrateBundledPath(AudioCommonSettings settings, string legacy, string current)
+    {
+        if (string.Equals(settings.RelativePath, legacy, StringComparison.OrdinalIgnoreCase))
+        {
+            settings.RelativePath = current;
+        }
     }
 }
 
@@ -98,7 +108,7 @@ public sealed class AudioFeatureSettings
             Mode = AudioModes.Common,
             Common = new AudioCommonSettings
             {
-                RelativePath = "Audio/Common/battle_bgm.mp3",
+                RelativePath = "Audio/AuraToolsExp/Common/battle_bgm.mp3",
                 Priority = -1000,
                 HardClaim = false,
                 SilenceWhenLoading = false,
@@ -115,7 +125,7 @@ public sealed class AudioFeatureSettings
             Mode = AudioModes.Common,
             Common = new AudioCommonSettings
             {
-                RelativePath = "Audio/Common/card_use.mp3",
+                RelativePath = "Audio/AuraToolsExp/Common/card_use.mp3",
                 Priority = -1000,
                 HardClaim = false,
                 GainDb = 6f
@@ -215,7 +225,7 @@ public sealed class AudioRoleSettings
 public sealed class AuraToolsMatchExperienceSettings
 {
     [JsonProperty("schemaVersion")]
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } = 3;
 
     [JsonProperty("starterDeck")]
     public StarterDeckSettings StarterDeck { get; set; } = new();
@@ -228,7 +238,7 @@ public sealed class AuraToolsMatchExperienceSettings
 
     public void Normalize()
     {
-        SchemaVersion = Math.Max(1, SchemaVersion);
+        SchemaVersion = Math.Max(3, SchemaVersion);
         StarterDeck ??= new StarterDeckSettings();
         SafeBox ??= new SafeBoxSettings();
         DamageMeter ??= new DamageMeterSettings();
@@ -385,6 +395,8 @@ public sealed class SafeBoxSettings
 
 public sealed class DamageMeterSettings
 {
+    private const int FixedMaxRows = 6;
+
     [JsonProperty("enabled")]
     public bool Enabled { get; set; }
 
@@ -397,16 +409,30 @@ public sealed class DamageMeterSettings
     [JsonProperty("friendlyOnly")]
     public bool FriendlyOnly { get; set; }
 
+    [JsonProperty("includeUnknownTeam")]
+    public bool IncludeUnknownTeam { get; set; } = true;
+
     [JsonProperty("countShieldLoss")]
     public bool CountShieldLoss { get; set; } = true;
 
     [JsonProperty("maxRows")]
     public int MaxRows { get; set; } = 6;
 
+    [JsonProperty("showAverageDpt")]
+    public bool ShowAverageDpt { get; set; } = true;
+
+    [JsonProperty("showTeamShare")]
+    public bool ShowTeamShare { get; set; } = true;
+
     public void Normalize()
     {
         Hotkey = string.IsNullOrWhiteSpace(Hotkey) ? "F8" : Hotkey.Trim();
-        MaxRows = Math.Max(1, Math.Min(12, MaxRows));
+        ShowPanelByDefault = true;
+        IncludeUnknownTeam = !FriendlyOnly;
+        CountShieldLoss = true;
+        MaxRows = FixedMaxRows;
+        ShowAverageDpt = true;
+        ShowTeamShare = true;
     }
 }
 
@@ -562,6 +588,10 @@ public sealed class SkillCgRuleSettings
         CardId = string.IsNullOrWhiteSpace(CardId) ? "*" : CardId.Trim();
         Action = string.IsNullOrWhiteSpace(Action) ? "*" : Action.Trim();
         Image = Image?.Trim() ?? "";
+        if (Image.StartsWith("CG/Roles/", StringComparison.OrdinalIgnoreCase))
+        {
+            Image = "CG/AuraToolsExp/Roles/" + Image.Substring("CG/Roles/".Length);
+        }
         ProviderId = ProviderId?.Trim() ?? "";
         FadeIn = Math.Max(0f, FadeIn);
         Hold = Math.Max(0f, Hold);

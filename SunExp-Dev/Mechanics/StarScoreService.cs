@@ -26,6 +26,13 @@ public static class StarScoreService
             || value == SunExpIds.StellarOvertureCloseCardId;
     }
 
+    public static bool IsWitchStarScoreCard(string id)
+    {
+        var value = NormalizeId(id);
+        return value == "witch_star_score"
+            || value == SunExpIds.WitchStarScoreCardId;
+    }
+
     public static string PreludeCardForCost(int baseCost)
     {
         if (baseCost <= 0)
@@ -82,6 +89,11 @@ public static class StarScoreService
         }
 
         ExecutorApi.SetBaseScript(self, "CommonCardItem");
+        if (id == "witch_star_score")
+        {
+            return;
+        }
+
         if (id == "stellar_overture_sustain")
         {
             self.AddDescription("1", "Defence", "6");
@@ -107,6 +119,9 @@ public static class StarScoreService
             case "stellar_overture_close":
                 UseClose(self);
                 Record(self, NoteClose);
+                break;
+            case "witch_star_score":
+                ReplayCompletedCadences(self);
                 break;
         }
     }
@@ -197,13 +212,36 @@ public static class StarScoreService
         SyncScoreBuff(self, notes.Count);
         if (notes.Count == 3)
         {
+            state.RecordCompletedCadence(string.Join("", notes));
             ResolveCadence(self, notes);
         }
     }
 
     private static void ResolveCadence(ScriptExecutor self, IReadOnlyList<string> notes)
     {
-        var pattern = string.Join("", notes);
+        ApplyCadenceEffect(self, string.Join("", notes));
+    }
+
+    private static void ReplayCompletedCadences(ScriptExecutor self)
+    {
+        var state = StarScoreCombatStateStore.GetOrCreate(self.Self);
+        var completed = state?.CompletedCadences.ToList() ?? new List<string>();
+        if (completed.Count == 0)
+        {
+            PlayerApi.ShowCaption("\u9b54\u5973\u7684\u661f\u8c31\uff1a\u5c1a\u672a\u5b8c\u6210\u661f\u8c31\u3002");
+            return;
+        }
+
+        foreach (var pattern in completed)
+        {
+            ApplyCadenceEffect(self, pattern);
+        }
+
+        PlayerApi.ShowCaption("\u9b54\u5973\u7684\u661f\u8c31\uff1a\u91cd\u594f\u5df2\u5b8c\u6210\u661f\u8c31\u00d7" + completed.Count + "\u3002");
+    }
+
+    private static void ApplyCadenceEffect(ScriptExecutor self, string pattern)
+    {
         switch (pattern)
         {
             case NoteStart + NoteStart + NoteStart:

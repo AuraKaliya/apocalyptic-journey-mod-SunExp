@@ -39,6 +39,30 @@ foreach ($required in @("RecoverTransactions", 'State = "Prepared"', 'journal.St
     }
 }
 
+$bootstrapText = (Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedResourceBootstrapper.cs")) +
+    (Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedBootstrapResult.cs"))
+foreach ($required in @("AuraSharedResourceBootstrapper", "AuraSharedBootstrapResult", "Installed", "Repaired", "Updated", "Deduplicated", "Conflicts", "Failures")) {
+    if (-not $bootstrapText.Contains($required)) {
+        throw "AuraShared resource bootstrap contract is missing: $required"
+    }
+}
+
+if ($runtimeText.Contains("&& string.Equals(buildId, CurrentBuildId")) {
+    throw "AuraShared compatible global reuse must not depend on exact BuildId equality."
+}
+
+foreach ($relative in @(
+    "AudioArbiterShared\AudioArbiterRuntime.cs",
+    "BattleBgmArbiterShared\BattleBgmArbiterRuntime.cs",
+    "AuraCgShared\AuraCgRuntime.cs",
+    "AuraSkinShared\AuraSkinRuntime.cs"
+)) {
+    $compatibilityText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot $relative)
+    if ($compatibilityText.Contains("&& string.Equals(buildId, CurrentBuildId")) {
+        throw "$relative still treats exact BuildId equality as a compatibility requirement."
+    }
+}
+
 $contractPath = Join-Path $repoRoot "docs\aura-shared-core-v2-contract.md"
 if (-not (Test-Path -LiteralPath $contractPath)) {
     throw "AuraShared Core v2 protocol contract document is missing."
@@ -119,6 +143,32 @@ if (Test-Path -LiteralPath (Join-Path $repoRoot "SunExp\ModResource\audio")) {
 $audioManifestText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "SunExp\audio.registry.json")
 if ($audioManifestText.Contains("ModResource/audio") -or -not $audioManifestText.Contains("Shared:Audio/SunExp/WuNa")) {
     throw "SunExp audio registry does not resolve through the shared resource layer."
+}
+
+$auraToolsPackagePath = Join-Path $repoRoot "AuraToolsExp\SharedResources\package.json"
+$auraToolsPackage = Get-Content -Raw -Encoding UTF8 -LiteralPath $auraToolsPackagePath | ConvertFrom-Json
+if ($auraToolsPackage.ownerModId -ne "AuraToolsExp" -or
+    @($auraToolsPackage.resources).Count -ne 2 -or
+    @($auraToolsPackage.resources | Where-Object { $_.system -eq "Audio" }).Count -ne 1 -or
+    @($auraToolsPackage.resources | Where-Object { $_.system -eq "CG" }).Count -ne 1) {
+    throw "AuraTools bundled Audio/CG package manifest is invalid."
+}
+$auraToolsPackageRoot = Split-Path -Parent $auraToolsPackagePath
+foreach ($resource in $auraToolsPackage.resources) {
+    $source = [System.IO.Path]::GetFullPath((Join-Path $auraToolsPackageRoot $resource.source))
+    if (-not (Test-Path -LiteralPath $source)) {
+        throw "AuraTools bundled resource source is missing: $source"
+    }
+    if (-not $resource.destination.StartsWith($resource.system + "/AuraToolsExp/", [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "AuraTools bundled resource destination is not owner-qualified: $($resource.destination)"
+    }
+}
+
+$auraToolsEntryText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Entry.cs")
+$auraToolsBootstrapText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Infrastructure\AuraToolsResourceBootstrap.cs")
+if (-not $auraToolsEntryText.Contains("AuraToolsResourceBootstrap.Initialize") -or
+    -not $auraToolsBootstrapText.Contains("AuraSharedResourceBootstrapper.Bootstrap")) {
+    throw "AuraTools does not consume the shared resource bootstrap infrastructure."
 }
 
 $audioConsumers = Get-ChildItem -LiteralPath $repoRoot -Recurse -File -Filter "*.csproj" | Where-Object {

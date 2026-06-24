@@ -190,7 +190,9 @@ public static class SolarMemoryMapNodePoolFactory
             if (candidates.Count == 0)
             {
                 SunExpLog.Warn("[SolarMemoryMapNodePool] expanded boss pool empty; falling back to TypeGenerate.");
-                return tree.TypeGenerate(BossMapNote);
+                var fallbackNode = tree.TypeGenerate(BossMapNote);
+                MapNodeSafetyService.EnsureNodeDice(tree, fallbackNode, "SolarMemoryMapNodePoolFactory.TypeGenerateFallback");
+                return fallbackNode;
             }
 
             var data = new RandomPool(candidates, tree.treedice).DrawByCount(1)[0];
@@ -214,7 +216,8 @@ public static class SolarMemoryMapNodePoolFactory
                     ["Note"] = BossMapNote,
                     ["NodeId"] = "map_0",
                     ["Level"] = "-1"
-                }
+                },
+                NodeDice = tree.treedice ?? Dice.Default
             };
         }
     }
@@ -286,7 +289,7 @@ public static class SolarMemoryMapNodePoolFactory
         node.data = new Dictionary<string, string>(row);
         node.data["Type"] = "Fight";
         node.data["Note"] = BossMapNote;
-        node.NodeDice = tree.treedice;
+        node.NodeDice = tree.treedice ?? Dice.Default;
         return node;
     }
 }

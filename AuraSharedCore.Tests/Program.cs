@@ -105,6 +105,21 @@ try
     var secondOwner = packages.Install(Request("OwnerB", "Audio", "voice", "PackB", 1, sourceFile, "Audio/Test/voice.wav"));
     Assert(secondOwner.Success && !secondOwner.Changed, "equal content cross-owner deduplication");
 
+    var bootstrapSummary = AuraSharedBootstrapResult.FromResponses(new[]
+    {
+        install,
+        duplicate,
+        new AuraSharedInstallResponse { Success = true, Changed = true, Status = "Repaired" },
+        new AuraSharedInstallResponse { Success = false, Conflict = true, Status = "Conflict" }
+    });
+    Assert(!bootstrapSummary.Success
+           && bootstrapSummary.Changed
+           && bootstrapSummary.Installed == 1
+           && bootstrapSummary.Repaired == 1
+           && bootstrapSummary.Deduplicated == 1
+           && bootstrapSummary.Conflicts == 1,
+        "resource bootstrap aggregates multi-Mod install outcomes");
+
     File.WriteAllText(sourceFile, "different owner content");
     var crossOwnerConflict = packages.Install(Request("OwnerC", "Audio", "voice", "PackC", 2, sourceFile, "Audio/Test/voice.wav"));
     Assert(!crossOwnerConflict.Success && crossOwnerConflict.Conflict, "cross-owner content conflict");
@@ -422,14 +437,24 @@ void TestOnlineChatContracts()
            && !status.Contains("Unused"),
         "chat mod sync status");
 
-    AuraChatRuntime.Initialize("ChatExp", 2);
-    AuraChatRuntime.Receive(AuraChatRuntime.ConfirmPlayerMessage("p1", "A", "one"));
-    AuraChatRuntime.Receive(AuraChatRuntime.ConfirmPlayerMessage("p1", "A", "two"));
-    AuraChatRuntime.Receive(AuraChatRuntime.ConfirmPlayerMessage("p1", "A", "three"));
-    Assert(AuraChatRuntime.Messages.Count == 2
-           && AuraChatRuntime.Messages[0].RawText == "two"
-           && AuraChatRuntime.Messages[1].RawText == "three",
+    var localStore = new AuraChatLocalStore(2);
+    Assert(localStore.Add(new AuraChatMessage { MessageId = "one", RawText = "one" })
+           && localStore.Add(new AuraChatMessage { MessageId = "two", RawText = "two" })
+           && localStore.Add(new AuraChatMessage { MessageId = "three", RawText = "three" })
+           && !localStore.Add(new AuraChatMessage { MessageId = "three", RawText = "duplicate" })
+           && localStore.Messages.Count == 2
+           && localStore.Messages[0].RawText == "two"
+           && localStore.Messages[1].RawText == "three",
         "chat bounded local store");
+
+    AuraChatRuntime.Initialize("ChatExp", 2);
+    AuraChatRuntime.Receive(new AuraChatMessage
+    {
+        MessageId = "unsigned-free-text",
+        ContentKind = AuraChatKinds.PlayerText,
+        RawText = "must be rejected"
+    });
+    Assert(AuraChatRuntime.Messages.Count == 0, "chat rejects content outside the verified catalog");
     AuraChatRuntime.ClearMessages();
     Assert(AuraChatRuntime.Messages.Count == 0, "chat clear local history");
 }

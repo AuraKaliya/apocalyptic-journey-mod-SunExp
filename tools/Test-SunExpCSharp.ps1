@@ -31,7 +31,10 @@ function New-ProjectXml {
     $dictionaryUtil = Join-Path $RepoRoot "SunExp-Dev\Infrastructure\DictionaryUtil.cs"
     $auraSharedDictionary = Join-Path $RepoRoot "AuraSharedCore\AuraSharedDictionary.cs"
     $sunExpIds = Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpIds.cs"
+    $cardApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardApi.cs"
     $cardConfigApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardConfigApi.cs"
+    $cardMutationService = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardMutationService.cs"
+    $starBlessingCostOverrideStore = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarBlessingCostOverrideStore.cs"
     $loneerCombatState = Join-Path $RepoRoot "SunExp-Dev\Mechanics\LoneerCombatState.cs"
     $starScoreCombatState = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreCombatState.cs"
 
@@ -50,7 +53,10 @@ function New-ProjectXml {
     <Compile Include="$auraSharedDictionary" />
     <Compile Include="$dictionaryUtil" />
     <Compile Include="$sunExpIds" />
+    <Compile Include="$cardApi" />
     <Compile Include="$cardConfigApi" />
+    <Compile Include="$cardMutationService" />
+    <Compile Include="$starBlessingCostOverrideStore" />
     <Compile Include="$loneerCombatState" />
     <Compile Include="$starScoreCombatState" />
     <Compile Include="$SourceDir\Tests.cs" />
@@ -61,6 +67,7 @@ function New-ProjectXml {
 
 function New-StubsSource {
 @'
+using System;
 using System.Collections.Generic;
 
 public sealed class FightPlayer
@@ -91,6 +98,107 @@ public enum DataType
 {
     Card,
     Buff
+}
+
+public sealed class Singleton<T>
+    where T : new()
+{
+    public static T Instance { get; } = new();
+}
+
+public sealed class GameConfigManager
+{
+    public object? GetOne(DataType type, string id)
+    {
+        return string.IsNullOrWhiteSpace(id) ? null : new object();
+    }
+}
+
+public sealed class ScriptExecutor
+{
+    public IStatusManager? Self { get; set; } = FightPlayer.Instance.Status;
+
+    public bool ThrowOnDelivery { get; set; }
+
+    public void SetStatus(string status)
+    {
+    }
+
+    public void AddCardByData(string id, string addTag = "")
+    {
+        var data = new Dictionary<string, string>
+        {
+            ["Id"] = id,
+            ["Expend"] = "2",
+            ["Tag"] = ""
+        };
+        var vars = new Dictionary<string, string>
+        {
+            ["Id"] = id,
+            ["Tag"] = addTag
+        };
+        FightCardManager.Instance.cardList.Add(new DataConfig(data, vars));
+    }
+
+    public void GetCardFromDeck(IDataConfig data)
+    {
+        if (ThrowOnDelivery)
+        {
+            throw new InvalidOperationException("delivery failed");
+        }
+    }
+}
+
+public sealed class FightCardManager
+{
+    public static FightCardManager Instance { get; } = new();
+
+    public List<DataConfig> cardList { get; } = new();
+
+    public void RefreshTag(IDataConfig config)
+    {
+    }
+}
+
+public sealed class CardItem
+{
+    public DataConfig? dataConfig { get; set; }
+
+    public IDictionary<string, string> data { get; set; } = new Dictionary<string, string>();
+
+    public IDictionary<string, string> Vars { get; set; } = new Dictionary<string, string>();
+
+    public List<string> Tags { get; } = new();
+
+    public void RefreshTag()
+    {
+    }
+
+    public void DataUpdate()
+    {
+    }
+}
+
+public sealed class DataConfig : IDataConfig
+{
+    public DataConfig(IDictionary<string, string> data, IDictionary<string, string>? vars = null)
+    {
+        this.data = data;
+        Vars = vars ?? new Dictionary<string, string>();
+        InstanceID = Guid.NewGuid().ToString("N");
+    }
+
+    public IDictionary<string, string> data { get; set; }
+
+    public IDictionary<string, string> Vars { get; }
+
+    public string InstanceID { get; }
+
+    public DataType Type => DataType.Card;
+
+    public IScriptExecutor scriptExecutor => throw new NotSupportedException();
+
+    public bool isCompiling => false;
 }
 
 public interface IScriptExecutor
@@ -144,6 +252,28 @@ namespace SunExp.Dll.GameApi
         }
     }
 }
+
+namespace SunExp.Dll.Infrastructure
+{
+    public static class SunExpLog
+    {
+        public static void Warn(string message)
+        {
+        }
+
+        public static void Debug(string message)
+        {
+        }
+    }
+}
+
+namespace Witch.UI.Window
+{
+    public static class FightUI
+    {
+        public static List<CardItem> cardItemList { get; } = new();
+    }
+}
 '@
 }
 
@@ -164,6 +294,9 @@ internal static class Program
     {
         TestDictionaryUtil();
         TestCardCostHelpers();
+        TestStarBlessingCostOverrideStore();
+        TestCardGrantRequest();
+        TestCardMutationService();
         TestSolarTriggerCostOverride();
         TestWhiteRadianceTags();
         TestTemporaryWhiteRadianceClaim();
@@ -229,6 +362,95 @@ internal static class Program
             new Dictionary<string, string> { ["ExCost"] = "-9" });
         Equal(0, CardConfigApi.CurrentCost(negative), "CurrentCost is clamped to zero");
         Equal(0, CardConfigApi.BaseCost(negative), "BaseCost is clamped to zero");
+    }
+
+    private static void TestStarBlessingCostOverrideStore()
+    {
+        var store = new StarBlessingCostOverrideStore();
+        var config = NewConfig(
+            new Dictionary<string, string>
+            {
+                ["Id"] = "star_blessing_target",
+                ["Expend"] = "3"
+            },
+            new Dictionary<string, string>
+            {
+                ["ExCost"] = "1",
+                ["OnceExCost"] = "-1",
+                ["TotalExCost"] = "0"
+            });
+
+        Equal(3, CardConfigApi.CurrentCost(config), "Star blessing test card starts at its normal modified cost");
+        True(store.BeginPreview(config), "Star blessing begins one preview transaction");
+        Equal(0, CardConfigApi.CurrentCost(config), "Star blessing preview displays zero cost");
+        False(store.BeginPreview(config), "Star blessing preview is idempotent for the same card instance");
+        store.Cancel(config);
+        Equal("-1", config.Vars["OnceExCost"], "Cancelling star blessing restores the original one-use modifier");
+        Equal(3, CardConfigApi.CurrentCost(config), "Cancelling star blessing restores the normal displayed cost");
+
+        True(store.BeginPreview(config), "Star blessing preview can begin again after cancellation");
+        store.MarkBlessingConsumed(config);
+        store.MarkActionObserved(config);
+        True(store.ActionObserved(config), "Confirmed card action marks the preview transaction committed");
+        var committed = store.Commit(config);
+        True(committed.BlessingConsumed, "Committed transaction reports that the blessing was consumed");
+        Equal("0", config.Vars["OnceExCost"], "Successful play consumes all one-use cost modifiers");
+        Equal(4, CardConfigApi.CurrentCost(config), "The card returns to its normal non-once cost after successful play");
+
+        True(store.BeginPreview(config), "A later blessing can preview the same card again");
+        store.CancelAll();
+        Equal("0", config.Vars["OnceExCost"], "Fight cleanup restores every active preview");
+        False(store.Contains(config), "Fight cleanup removes active preview state");
+    }
+
+    private static void TestCardGrantRequest()
+    {
+        var request = CardGrantRequest.ToHand("spark")
+            .WithRuntimeTags("Burnout", "Burnout", "Nihility");
+        Equal("Burnout,Nihility", request.RuntimeTags, "CardGrantRequest deduplicates runtime tags");
+
+        var executor = new ScriptExecutor();
+        FightCardManager.Instance.cardList.Clear();
+        var result = CardApi.GrantCardToHand(
+            executor,
+            CardGrantRequest.ToHand("spark")
+                .Configure(CardMutationService.SetTemporaryCostMutation(1))
+                .Configure(CardMutationService.AddSpecialTagsMutation("A", "A", "B")));
+        True(result.Success, "CardApi grant succeeds through the unified hand-delivery pipeline");
+        Equal("spark", result.CardId, "CardApi grant returns the resolved card id");
+        Equal("-1", result.Config!.Vars["TotalExCost"], "CardApi grant applies request mutations before delivery");
+        Equal("2", result.Config!.data["Expend"], "CardApi grant mutations do not write base data");
+        Equal("A,B", result.Config!.Vars["SpecialTag"], "CardApi grant applies deduplicated SpecialTag mutations");
+
+        var failing = new ScriptExecutor { ThrowOnDelivery = true };
+        var failed = CardApi.GrantCardToHand(failing, CardGrantRequest.ToHand("spark"));
+        False(failed.Success, "CardApi grant returns structured failure on delivery errors");
+        Equal("deliver", failed.FailureStep, "CardApi grant identifies the failing step");
+    }
+
+    private static void TestCardMutationService()
+    {
+        var config = NewConfig(
+            new Dictionary<string, string>
+            {
+                ["Id"] = "guided",
+                ["Expend"] = "3",
+                ["Tag"] = "Native"
+            },
+            new Dictionary<string, string>());
+
+        CardMutationService.SetTemporaryCost(config, 1);
+        Equal("-2", config.Vars["TotalExCost"], "Temporary cost is expressed through TotalExCost");
+        Equal("3", config.data["Expend"], "Temporary cost leaves base Expend read-only");
+
+        True(CardMutationService.AddSpecialTags(config, "Guidance", "Guidance", "Derived"), "Special tags are added once");
+        Equal("Guidance,Derived", config.Vars["SpecialTag"], "Special tags are deduplicated");
+        False(CardMutationService.AddSpecialTags(config, "Guidance"), "Existing SpecialTags are not rewritten");
+
+        CardMutationService.MarkTemporaryWhiteRadiance(config);
+        Equal("1", config.Vars[SunExpIds.TempWhiteRadiance], "Temporary white radiance marker is set");
+        Equal("0", config.Vars[SunExpIds.TempWhiteRadianceResolved], "Temporary white radiance starts unresolved");
+        True(CardMutationService.HasSpecialTag(config, SunExpIds.WhiteRadianceTag), "Temporary white radiance adds the white-radiance SpecialTag");
     }
 
     private static void TestSolarTriggerCostOverride()
@@ -398,6 +620,10 @@ function Invoke-SourceAssertions {
     $sunExpIds = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpIds.cs"))
     $sunExpFieldId = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpFieldId.cs"))
     $playerApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\PlayerApi.cs"))
+    $cardApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\CardApi.cs"))
+    $cardMutationService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardMutationService.cs"))
+    $starBlessingCostOverrideStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarBlessingCostOverrideStore.cs"))
+    $cardGrantRecipes = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardGrantRecipes.cs"))
     $specialTagRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SpecialTagRuntime.cs"))
     $cardConfigApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\CardConfigApi.cs"))
     $gameCompatibilityApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\GameCompatibilityApi.cs"))
@@ -436,6 +662,7 @@ function Invoke-SourceAssertions {
     $modConfig = Get-Content -LiteralPath (Join-Path $RepoRoot "SunExp\ModConfig.json") -Raw | ConvertFrom-Json
     $solarMemoryMapNodePoolFactory = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarMemoryMapNodePoolFactory.cs"))
     $solarMemoryMapNodePoolApplier = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarMemoryMapNodePoolApplier.cs"))
+    $mapNodeSafetyService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\MapNodeSafetyService.cs"))
     $mapData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Map\sunexp.csv"))
     $mapText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\Map\sunexp.csv"))
     $levelData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Level\sunexp.csv"))
@@ -450,6 +677,8 @@ function Invoke-SourceAssertions {
     $eventText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\EventList\sunexp.csv"))
     $blessingData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Blessing\sunexp.csv"))
     $partnerData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Partner\sunexp.csv"))
+    $cardDataPath = Join-Path $RepoRoot "SunExp\Data\Card\sunexp.csv"
+    $loneerCareerText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\Career\loneer.csv"))
 
     $addStatusBuff = [regex]::Match($executorApi, "public\s+static\s+bool\s+AddStatusBuff[\s\S]*?public\s+static\s+bool\s+RemoveStatusBuff")
     Assert-True $addStatusBuff.Success "Could not locate ExecutorApi.AddStatusBuff for source assertion."
@@ -508,8 +737,17 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemoryContentIsolationRuntime.Contains('RegisterAfter(modConfig, "TeachMapManager.GeneratrMap", SanitizeGeneratedMap)') "Solar Memory isolation must sanitize tutorial map generation."
     Assert-True $solarMemoryContentIsolationRuntime.Contains('RegisterAfter(modConfig, "SlotMachineManager.GeneratrMap", SanitizeGeneratedMap)') "Solar Memory isolation must sanitize slot-mode map generation."
     Assert-True $solarMemoryContentIsolationRuntime.Contains('RegisterBefore(modConfig, "MapSelectUI.ReadyToSelect", SanitizeMapBeforeSelect)') "Solar Memory isolation must clean old generated nodes before map selection UI is built."
+    Assert-True $solarMemoryContentIsolationRuntime.Contains('RegisterBefore(modConfig, "MapManager.RpcNextMap", RepairCurrentNodeBeforeNextMap)') "Normal-mode isolation must repair missing client current nodes before RpcNextMap consumes them."
     Assert-True $solarMemoryContentIsolationRuntime.Contains("SanitizeSelectionArrays(maps, mapData, level)") "Solar Memory isolation must repair multiplayer map selection arrays."
+    Assert-True $solarMemoryContentIsolationRuntime.Contains('RestoreCurrentNodeIfMissingOrExclusive(level, "MapSelectUI.ReadyToSelect", clientOnly: true)') "Normal-mode isolation must restore a missing client current node before map selection UI is consumed."
+    Assert-True $solarMemoryContentIsolationRuntime.Contains('RestoreCurrentNodeIfMissingOrExclusive(level, "MapManager.MapSelectionSync", clientOnly: true)') "Normal-mode map sync isolation must repair client currentNode from synchronized arrays."
+    Assert-True $solarMemoryContentIsolationRuntime.Contains("MapNodeSafetyService.EnsureNodeDice") "Normal-mode isolation must ensure replacement nodes have NodeDice."
     Assert-True $solarMemoryContentIsolationRuntime.Contains("if (SolarMemoryModeRuntime.IsSolarMemoryRun())") "Solar Memory isolation must leave Solar Memory runs untouched."
+    Assert-True $mapNodeSafetyService.Contains("public static bool RestoreCurrentNodeIfMissingOrExclusive") "Map node safety service must expose client current-node restoration."
+    Assert-True $mapNodeSafetyService.Contains("clientOnly && !IsClientOnlyPlayer()") "Client current-node restoration must be gated so it does not advance host authority."
+    Assert-True $mapNodeSafetyService.Contains("TryBuildCurrentNodeFromSyncArrays") "Client current-node restoration must prefer synchronized map arrays."
+    Assert-True $mapNodeSafetyService.Contains("GameSaveManager.UpdateNode(node)") "Current-node restoration must update the saved node after assigning MapTree.currentNode."
+    Assert-True $mapNodeSafetyService.Contains("NodeDice = tree.treedice ?? Dice.Default") "Restored synchronized nodes must have deterministic NodeDice."
     Assert-True $sunExpIds.Contains("public static bool IsSolarMemoryExclusiveMapId") "SunExpIds must centralize exclusive Solar Memory map identification."
     Assert-True $sunExpIds.Contains("public static bool IsSolarMemoryExclusiveEventId") "SunExpIds must centralize exclusive Solar Memory event identification."
     Assert-True $runtimeHooks.Contains("DuskPartnerRuntime.Initialize(modConfig)") "RuntimeHooks must initialize Dusk partner runtime."
@@ -530,10 +768,75 @@ function Invoke-SourceAssertions {
     Assert-True $starClayDollRuntime.Contains('"StatusManager.Hit"') "Star Clay Doll runtime must own lethal-hit protection."
     Assert-True (-not $starScoreRuntime.Contains("LoneerMiracleService")) "Generic star score runtime must not dispatch Loneer role behavior."
     Assert-True (-not $starScoreRuntime.Contains("StarClay")) "Generic star score runtime must not own partner behavior."
+    Assert-True $starScoreRuntime.Contains('"CommonCardItem.OnBeginDrag"') "Star Blessing must preview zero cost when a common card begins dragging."
+    Assert-True $starScoreRuntime.Contains('"AttackCardItem.OnPointerDown"') "Star Blessing must preview zero cost when an attack card enters target selection."
+    Assert-True $starScoreRuntime.Contains('"AttackCardItem.CancelLineMode"') "Star Blessing must roll back when attack-card targeting is cancelled."
+    Assert-True $starScoreRuntime.Contains('"CardItem.CancelUseDrag"') "Star Blessing must roll back when a card drag is cancelled."
+    Assert-True $starScoreRuntime.Contains('RegisterAfter(modConfig, "CommonCardItem.TrueUse", OnCardUseAfter);') "Star Blessing must finalize common-card cost state after use."
+    Assert-True $starScoreRuntime.Contains('RegisterAfter(modConfig, "AttackCardItem.TrueUse", OnCardUseAfter);') "Star Blessing must finalize attack-card cost state after use."
+    Assert-True $starScoreRuntime.Contains("RefundBlessing();") "A rejected card use must refund the consumed Star Blessing."
+    Assert-True $starBlessingCostOverrideStore.Contains('DictionaryUtil.Set(config.Vars, "OnceExCost", entry.OriginalOnceCost.ToString())') "Cancelling Star Blessing must restore the exact original one-use cost."
+    Assert-True $starBlessingCostOverrideStore.Contains('DictionaryUtil.Set(config.Vars, "OnceExCost", "0")') "Successful Star Blessing use must clear one-use cost state."
     Assert-True $loneerRuntime.Contains("LoneerMiracleService.OnCardActionAfter") "Loneer runtime must own non-derived card action dispatch."
     Assert-True $loneerState.Contains("Dictionary<string, LoneerCombatState>") "Loneer combat state must be keyed by owner status instead of ScriptExecutor.Vars."
     Assert-True $loneerService.Contains("LoneerCombatStateStore.GetOrCreate(self.Self)") "Loneer skill and action flows must resolve owner-scoped combat state."
-    Assert-True $loneerService.Contains("SunExpIds.LoneerDerivedTag") "Copied guidance cards must be marked as derived."
+    Assert-True $cardGrantRecipes.Contains("SunExpIds.LoneerDerivedMarker") "Copied guidance cards must receive a hidden derived marker."
+    Assert-True $cardGrantRecipes.Contains("SunExpIds.LoneerDerivedTag") "Copied guidance cards must receive a localized visible derived tag."
+    Assert-True $cardMutationService.Contains("public static bool SetRuntimeMarkers") "CardMutationService must separate hidden runtime markers from visible SpecialTags."
+    Assert-True $loneerService.Contains("CardMutationService.HasRuntimeMarker") "Loneer filtering must read hidden runtime markers."
+    Assert-True (-not $cardGrantRecipes.Contains('AddSpecialTagsMutation(SunExpIds.LoneerDerivedMarker')) "Internal Loneer marker ids must never be written to SpecialTag."
+    Assert-True $loneerService.Contains("LoneerCardGrantService.GrantGuidanceCopyToHand") "Loneer must use the shared card-grant recipe for guidance copies."
+    Assert-True $wunaScripts.Contains("WunaCardGrantService.GrantCoronationTokenToHand") "Wuna must use the shared card-grant recipe for coronation tokens."
+    Assert-True $cardApi.Contains("public static CardGrantResult GrantCardToHand") "Generated cards must go through the structured CardApi grant pipeline."
+    Assert-True $cardApi.Contains('self.AddCardByData(resolved, request?.RuntimeTags ?? "");') "Generated cards must receive their runtime tags during DataConfig creation."
+    Assert-True $cardApi.Contains("self.GetCardFromDeck(added);") "Generated cards must deliver the exact tagged DataConfig to the hand queue."
+    Assert-True (-not $cardApi.Contains("LoneerDerivedTag")) "CardApi must not contain Loneer-specific business tags."
+    Assert-True (-not $cardApi.Contains("WhiteRadianceTag")) "CardApi must not contain Wuna/SunExp-specific business tags."
+    Assert-True (-not $wunaScripts.Contains("AddCardByData")) "Wuna must not hand-roll combat card creation."
+    Assert-True (-not $wunaScripts.Contains("EnsureHandTags")) "Wuna must not hand-roll temporary tag propagation."
+    Assert-True $cardMutationService.Contains("public static void SetTemporaryCost") "CardMutationService must own temporary card-cost mutation."
+    Assert-True (-not $cardMutationService.Contains('config.data["Expend')) "Temporary card-cost mutation must not write base data."
+    Assert-True (-not $cardApi.Contains("previousCount")) "Generated-card success must not depend on draw-pile net count."
+    Assert-True (-not $cardApi.Contains("could not verify added card")) "The inverted draw-pile count verifier must remain removed."
+    Assert-True $loneerService.Contains("SetMorningPrayerCooldown(self, state, PrayerCooldownRounds);") "Morning Star Prayer must commit its cooldown after a successful copy."
+    Assert-True $loneerService.Contains("self?.UpdateSkillTime();") "Morning Star Prayer cooldown changes must refresh the skill UI."
+    $loneerActionFlow = [regex]::Match($loneerService, "public\s+static\s+void\s+OnCardActionAfter[\s\S]*?public\s+static\s+void\s+UseMorningStarPrayer")
+    Assert-True $loneerActionFlow.Success "Could not locate Loneer action flow for source assertion."
+    Assert-True (-not $loneerActionFlow.Value.Contains("IsExcludedActionCard(config)")) "Every player card action, including generated and Stellar Overture cards, must draw a Star Stone."
+    $naturalMorningStar = [regex]::Match($loneerService, "private\s+static\s+void\s+TriggerNaturalMorningStar[\s\S]*?private\s+static\s+void\s+TriggerBorrowedMiracle")
+    Assert-True $naturalMorningStar.Success "Could not locate Natural Morning Star for source assertion."
+    Assert-True (-not $naturalMorningStar.Value.Contains("AddStarlight")) "Natural Morning Star must not grant Starlight directly."
+    Assert-True $naturalMorningStar.Value.Contains("RequestGuidanceSelection") "Natural Morning Star must reselect Guidance after copying it."
+    $stoneDraw = [regex]::Match($loneerService, "private\s+static\s+void\s+DrawStone[\s\S]*?private\s+static\s+void\s+ReduceBlackStoneMax")
+    Assert-True $stoneDraw.Success "Could not locate Loneer stone draw flow for source assertion."
+    Assert-True $stoneDraw.Value.Contains("var whiteStarlight = state.BlackStoneCount(BlackStone);") "A white stone must count the black stones currently remaining in the pouch."
+    Assert-True $stoneDraw.Value.Contains("StarScoreService.AddStarlight(self, whiteStarlight);") "A white stone must grant Starlight equal to the current black-stone count."
+    Assert-True $stoneDraw.Value.Contains("StarScoreService.AddStarlight(self, 1);") "A black stone must grant exactly 1 Starlight."
+    $borrowedMiracle = [regex]::Match($loneerService, "private\s+static\s+void\s+TriggerBorrowedMiracle[\s\S]*?private\s+static\s+void\s+ReduceClock")
+    Assert-True $borrowedMiracle.Success "Could not locate Borrowed Miracle for source assertion."
+    Assert-True $borrowedMiracle.Value.Contains("ResetPouchAndClock(self, state, grantStarlight: true);") "Restoring the Miracle Clock must grant Starlight equal to its cap."
+    Assert-True $borrowedMiracle.Value.Contains("RequestGuidanceSelection") "Borrowed Miracle must reselect Guidance after copying it."
+    Assert-True $loneerCareerText.Contains("After each action, draw a Star Stone from the Star Stone Pouch.") "Loneer career text must describe the every-action Star Stone draw."
+    Assert-True $buffText.Contains("When the Miracle Clock is restored to its cap, gain {SunExp_sunexp_starlight} equal to that cap.") "Miracle Clock text must describe its Starlight restoration reward."
+    Assert-True $buffText.Contains("When you draw a black stone, gain 1 {SunExp_sunexp_starlight}.") "Star Stone Pouch text must describe black-stone Starlight gain."
+    Assert-True $buffText.Contains("equal to the current number of black stones.") "Star Stone Pouch text must describe white-stone Starlight gain."
+    Assert-True $keywordText.Contains('"Natural Morning Star"') "Natural Morning Star keyword localization is missing."
+    Assert-True $keywordText.Contains('"Borrowed Miracle"') "Borrowed Miracle keyword localization is missing."
+    Assert-True $cardScripts.Contains('id = NormalizeId(id);') "Card script entry points must normalize generated-card ids."
+    Assert-True (-not [regex]::IsMatch($cardScripts, 'case\s+"\*')) "Card script switches must use normalized, unstarred ids."
+    foreach ($stellarId in @("stellar_overture_start", "stellar_overture_sustain", "stellar_overture_turn", "stellar_overture_close")) {
+        Assert-True $cardScripts.Contains('case "' + $stellarId + '":') ("CardScripts must dispatch " + $stellarId + ".")
+    }
+    $stellarRows = Import-Csv -LiteralPath $cardDataPath | Where-Object { $_.Id -like "*stellar_overture_*" }
+    Assert-True ($stellarRows.Count -eq 4) "SunExp must define all four Stellar Overture cards."
+    foreach ($row in $stellarRows) {
+        Assert-True ($row.InitScript -match 'CardScripts\.Init\(self, "([^"]+)"\)') ("Missing CardScripts.Init dispatch for " + $row.Id)
+        $initId = $Matches[1].Replace("*", "").Trim()
+        Assert-True $cardScripts.Contains('case "' + $initId + '":') ("Normalized Init id is not dispatched: " + $row.Id)
+        Assert-True ($row.UseScript -match 'CardScripts\.Use\(self, "([^"]+)"\)') ("Missing CardScripts.Use dispatch for " + $row.Id)
+        $useId = $Matches[1].Replace("*", "").Trim()
+        Assert-True $cardScripts.Contains('case "' + $useId + '":') ("Normalized Use id is not dispatched: " + $row.Id)
+    }
     Assert-True (-not $loneerService.Contains("SunExpIds.LoneerGuidanceCardId")) "Loneer guidance must not be stored in per-executor Vars."
     Assert-True $starScoreService.Contains("StarScoreCombatStateStore.GetOrCreate(self.Self)") "Star score notes must be owner-scoped across card executors."
     Assert-True $starScoreState.Contains("while (notes.Count > Math.Max(1, windowSize))") "Star score must maintain a bounded sliding window."
@@ -546,7 +849,7 @@ function Invoke-SourceAssertions {
     Assert-True ([regex]::IsMatch($partnerData, "(?m)^dusk,10,0,0,0,2,,,Mods/SunExp/ModResource/Images/Partner/SunExp/dusk_choice,Mods/SunExp/ModResource/Images/Partner/SunExp/dusk,Mods/SunExp/ModResource/AnimationLib/Dusk,SunExp_sunexp_dusk_afterheat_recovery,Mods/SunExp/ModResource/Images/Partner/SunExp/dusk\r?$")) "Dusk partner must keep a non-empty Bless column because GameEntryUI.CheckCareer creates a DataConfig from it."
     Assert-True ([regex]::IsMatch($blessingData, "(?m)^star_clay_doll_placeholder,0,,,Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_1,[^,]*,,5\r?$")) "Star Clay Doll must use a non-conflicting technical Blessing id."
     Assert-True (-not [regex]::IsMatch($blessingData, "(?m)^star_clay_doll_trait,")) "Star Clay Doll Blessing id must not collide with its Buff id."
-    Assert-True ([regex]::IsMatch($partnerData, "(?m)^star_clay_doll,10,0,0,0,2,,,Mods/SunExp/ModResource/Images/Partner/SunExp/dusk_choice,Mods/SunExp/ModResource/Images/Partner/SunExp/dusk,Mods/SunExp/ModResource/AnimationLib/Dusk,SunExp_sunexp_star_clay_doll_placeholder,Mods/SunExp/ModResource/Images/Partner/SunExp/dusk\r?$")) "Star Clay Doll partner must reference its non-conflicting placeholder Blessing."
+    Assert-True ([regex]::IsMatch($partnerData, "(?m)^star_clay_doll,10,0,0,0,2,,,Mods/SunExp/ModResource/Images/Partner/SunExp/RenKui_choice,Mods/SunExp/ModResource/Images/Partner/SunExp/RenKui,Mods/SunExp/ModResource/AnimationLib/Dusk,SunExp_sunexp_star_clay_doll_placeholder,Mods/SunExp/ModResource/Images/Partner/SunExp/RenKui\r?$")) "Star Clay Doll partner must reference its own images and non-conflicting placeholder Blessing."
     Assert-True $solarMemoryBlessingPickerRuntime.Contains("IsTechnicalBlessing(id)") "Solar memory blessing picker must skip technical partner blessings."
     Assert-True $solarMemoryModeRuntime.Contains('RegisterBefore(modConfig, "GameConfigManager.CardPackCheck", FilterSolarMemoryCardPackCheck)') "Solar memory must filter event cards before CardPackCheck builds reward candidates."
     Assert-True $solarMemoryModeRuntime.Contains('RegisterBefore(modConfig, "NormalMapManager.RandomGenerate", CaptureSolarMemoryGenerationState)') "Solar memory must capture event records before base map generation can draw ordinary events."
@@ -589,6 +892,7 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemoryModeRuntime.Contains("stateRoot.GetComponentsInChildren<RawImage>(true)") "Solar memory mode entry must disable cloned RawImage layers."
     Assert-True ([regex]::IsMatch($solarMemoryMapNodePoolApplier, 'defaultStart\s*=\s*pool\.Layer\s*\*\s*pool\.DefaultSegmentSize')) "Solar memory default nodes must be rewritten for the current layer, not only layer 0."
     Assert-True ([regex]::IsMatch($solarMemoryMapNodePoolApplier, 'selectStart\s*=\s*pool\.Layer\s*\*\s*pool\.SelectSegmentSize')) "Solar memory candidate SelectNode entries must be rewritten for the current layer."
+    Assert-True $solarMemoryMapNodePoolApplier.Contains("MapNodeSafetyService.EnsureNodeDice(tree, replacement") "Solar memory node pool application must validate replacement NodeDice before inserting nodes."
     Assert-True $solarMemoryMapNodePoolApplier.Contains("TrimSolarMemoryEventRecord") "Solar memory must roll back ordinary event records consumed during base map generation."
     Assert-True $sunExpIds.Contains("SolarMemoryEventIds") "Solar memory must define all fixed story event ids."
     Assert-True $sunExpIds.Contains("Sub_solar_memory_above_sacred_wheel") "Solar memory id list must include the sixth fixed event."
@@ -606,6 +910,8 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemoryMapNodePoolFactory.Contains("TryCreateFixedBossNode") "Solar memory must reserve fixed story boss nodes for accepted Wuna bosses."
     Assert-True ([regex]::IsMatch($solarMemoryMapNodePoolFactory, 'if\s*\(\s*layer\s*==\s*0\s*\)\s*\{\s*return\s+false\s*;')) "Solar memory must not feed a layer-one ending event into native FightPrefab initialization."
     Assert-True $solarMemoryMapNodePoolFactory.Contains("CreateExpandedBossPoolNode") "Solar memory must use an expanded all-layer boss pool for non-fixed boss nodes."
+    Assert-True $solarMemoryMapNodePoolFactory.Contains("SolarMemoryMapNodePoolFactory.TypeGenerateFallback") "Solar memory TypeGenerate fallback nodes must be normalized for NodeDice."
+    Assert-True $solarMemoryMapNodePoolFactory.Contains("NodeDice = tree.treedice ?? Dice.Default") "Solar memory generated boss nodes must have deterministic NodeDice fallback."
     Assert-True $solarMemoryMapNodePoolFactory.Contains("IsSolarMemoryFixedStoryBoss") "Solar memory expanded boss pool must exclude fixed Wuna story bosses."
     Assert-True $sunExpIds.Contains("SolarBossOrbitMirrorMapId") "Solar memory must define the fixed mirror-array boss map id."
     Assert-True $sunExpIds.Contains("SolarBossSecondSunMapId") "Solar memory must define the fixed second-sun boss map id."

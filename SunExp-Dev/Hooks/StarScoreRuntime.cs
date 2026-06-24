@@ -6,6 +6,7 @@ using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
 using Witch.Core;
 using Witch.Mod;
+using Witch.UI.Window;
 
 namespace SunExp.Dll.Hooks;
 
@@ -16,13 +17,23 @@ public static class StarScoreRuntime
     private const string PendingSealBlessingVar = "SunExpMorningStarSealBlessingGain";
     private static readonly object EventOwner = new();
     private static readonly Stack<PendingCard> Pending = new();
+    private static readonly StarBlessingCostOverrideStore CostOverrides = new();
     private static string? registeredStatusId;
 
     public static void Initialize(ModConfig modConfig)
     {
         RegisterAfter(modConfig, "Fight_Start.Init", OnFightStart);
+        RegisterAfter(modConfig, "CommonCardItem.OnBeginDrag", OnCommonCardBeginDragAfter);
+        RegisterAfter(modConfig, "CommonCardItem.OnEndDrag", OnCardSelectionEndedAfter);
+        RegisterAfter(modConfig, "AttackCardItem.OnPointerDown", OnAttackCardPointerDownAfter);
+        RegisterAfter(modConfig, "AttackCardItem.CancelLineMode", OnCardSelectionEndedAfter);
+        RegisterAfter(modConfig, "AttackCardItem.CommitOrCancelFromKeyboard", OnCardSelectionEndedAfter);
+        RegisterAfter(modConfig, "CardItem.CancelUseDrag", OnCardSelectionEndedAfter);
+        RegisterBefore(modConfig, "CardItem.OnDestroy", OnCardDestroyedBefore);
         RegisterBefore(modConfig, "CommonCardItem.TrueUse", OnCardUseBefore);
         RegisterBefore(modConfig, "AttackCardItem.TrueUse", OnCardUseBefore);
+        RegisterAfter(modConfig, "CommonCardItem.TrueUse", OnCardUseAfter);
+        RegisterAfter(modConfig, "AttackCardItem.TrueUse", OnCardUseAfter);
         SunExpLog.Info("Star score runtime initialized");
     }
 
@@ -38,11 +49,35 @@ public static class StarScoreRuntime
 
     private static void OnFightStart(ModHookContext context)
     {
+        CostOverrides.CancelAll();
         Pending.Clear();
         registeredStatusId = null;
         StarScoreCombatStateStore.ClearAll();
         ExecutorApi.CombatIntSet("SunExpStarScorePlayerActionPending", 0);
         TryRegisterForPlayer("Fight_Start.Init");
+    }
+
+    private static void OnCommonCardBeginDragAfter(ModHookContext context)
+    {
+        TryBeginBlessingPreview(context.Target as CardItem);
+    }
+
+    private static void OnAttackCardPointerDownAfter(ModHookContext context)
+    {
+        if (context.Target is AttackCardItem { isLine: true } card)
+        {
+            TryBeginBlessingPreview(card);
+        }
+    }
+
+    private static void OnCardSelectionEndedAfter(ModHookContext context)
+    {
+        CancelBlessingPreview(context.Target as CardItem);
+    }
+
+    private static void OnCardDestroyedBefore(ModHookContext context)
+    {
+        CancelBlessingPreview(context.Target as CardItem);
     }
 
     private static void OnCardUseBefore(ModHookContext context)
@@ -53,6 +88,7 @@ public static class StarScoreRuntime
             var config = CardConfigApi.FromActionPayload(context.Target);
             if (config == null || StarScoreService.IsStellarOvertureCard(CardConfigApi.Id(config)))
             {
+                CancelBlessingPreview(context.Target as CardItem);
                 return;
             }
 
@@ -63,19 +99,34 @@ public static class StarScoreRuntime
 
             DictionaryUtil.Set(config.Vars, PendingPreludeCostVar, "");
             DictionaryUtil.Set(config.Vars, PendingSealBlessingVar, "");
-            var actualPaidCost = CardConfigApi.CurrentCost(config);
             var player = FightPlayer.Instance?.Status;
             var hasBlessing = player != null && BuffApi.Level(player, SunExpIds.StarBlessing) > 0;
+            if (!hasBlessing)
+            {
+                CancelBlessingPreview(context.Target as CardItem);
+            }
+
+            var actualPaidCost = CardConfigApi.CurrentCost(config);
             var sealBlessingGain = HasMorningStarSeal(config) ? actualPaidCost : 0;
             if (hasBlessing && player != null)
             {
+                CostOverrides.BeginPreview(config);
+                RefreshCard(context.Target as CardItem);
                 var baseCost = CardConfigApi.BaseCost(config);
                 DictionaryUtil.Set(config.Vars, PendingPreludeCostVar, baseCost.ToString());
                 DictionaryUtil.Set(config.Vars, PendingFreeVar, "1");
                 ConsumeBuff(player, SunExpIds.StarBlessing, 1);
-                MakeCurrentUseFree(config);
+                CostOverrides.MarkBlessingConsumed(config);
                 sealBlessingGain = 0;
                 PlayerApi.ShowCaption("\u661f\u8fb0\u795d\u798f\uff1a\u672c\u6b21\u51fa\u724c\u65e0\u6d88\u8017\u3002");
+            }
+            else if (player != null && actualPaidCost > 0)
+            {
+                var paidByResonance = ConsumeResonanceAsCost(player, config, actualPaidCost);
+                if (paidByResonance > 0)
+                {
+                    PlayerApi.ShowCaption("\u4f59\u97f3\uff1a\u4ee3\u66ff\u6d88\u8017" + paidByResonance + "\u70b9\u9b54\u80fd\u3002");
+                }
             }
 
             if (sealBlessingGain > 0)
@@ -86,6 +137,40 @@ public static class StarScoreRuntime
         catch (Exception ex)
         {
             SunExpLog.Error("Star blessing before-use hook failed", ex);
+        }
+    }
+
+    private static void OnCardUseAfter(ModHookContext context)
+    {
+        try
+        {
+            var card = context.Target as CardItem;
+            var config = CardConfigApi.FromActionPayload(context.Target);
+            if (config == null || !CostOverrides.Contains(config))
+            {
+                return;
+            }
+
+            if (CostOverrides.ActionObserved(config))
+            {
+                CostOverrides.Commit(config);
+            }
+            else
+            {
+                var cancelled = CostOverrides.Cancel(config);
+                if (cancelled.BlessingConsumed)
+                {
+                    RefundBlessing();
+                }
+
+                ClearPendingUse(config);
+            }
+
+            RefreshCard(card);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Star blessing after-use hook failed", ex);
         }
     }
 
@@ -133,6 +218,7 @@ public static class StarScoreRuntime
                 return;
             }
 
+            CostOverrides.MarkActionObserved(config);
             var executor = config.scriptExecutor as ScriptExecutor;
             var pendingPreludeCost = DictionaryUtil.Get(config.Vars, PendingPreludeCostVar);
             var preludeCost = string.IsNullOrWhiteSpace(pendingPreludeCost)
@@ -188,16 +274,99 @@ public static class StarScoreRuntime
         }
     }
 
-    private static void MakeCurrentUseFree(IDataConfig config)
+    private static void TryBeginBlessingPreview(CardItem? card)
     {
-        var currentCost = CardConfigApi.CurrentCost(config);
-        if (currentCost <= 0)
+        try
         {
-            return;
+            var config = card?.dataConfig;
+            var player = FightPlayer.Instance?.Status;
+            if (config == null
+                || player == null
+                || StarScoreService.IsStellarOvertureCard(CardConfigApi.Id(config))
+                || BuffApi.Level(player, SunExpIds.StarBlessing) <= 0)
+            {
+                return;
+            }
+
+            if (CostOverrides.BeginPreview(config))
+            {
+                RefreshCard(card);
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Star blessing preview failed", ex);
+        }
+    }
+
+    private static void CancelBlessingPreview(CardItem? card)
+    {
+        try
+        {
+            var config = card?.dataConfig;
+            if (config == null || !CostOverrides.Contains(config))
+            {
+                return;
+            }
+
+            var cancelled = CostOverrides.Cancel(config);
+            if (cancelled.BlessingConsumed)
+            {
+                RefundBlessing();
+                ClearPendingUse(config);
+            }
+
+            RefreshCard(card);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Star blessing preview rollback failed", ex);
+        }
+    }
+
+    private static void ClearPendingUse(IDataConfig config)
+    {
+        DictionaryUtil.Set(config.Vars, PendingPreludeCostVar, "");
+        DictionaryUtil.Set(config.Vars, PendingSealBlessingVar, "");
+        DictionaryUtil.Set(config.Vars, PendingFreeVar, "0");
+    }
+
+    private static void RefundBlessing()
+    {
+        var player = FightPlayer.Instance?.Status;
+        if (player != null)
+        {
+            BuffApi.SetExactLevel(
+                player,
+                SunExpIds.StarBlessing,
+                BuffApi.Level(player, SunExpIds.StarBlessing) + 1);
+        }
+    }
+
+    private static void RefreshCard(CardItem? card)
+    {
+        try
+        {
+            card?.DataUpdate();
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Debug("Star blessing card refresh skipped: " + ex.Message);
+        }
+    }
+
+    private static int ConsumeResonanceAsCost(IStatusManager status, IDataConfig config, int currentCost)
+    {
+        var resonance = Math.Max(0, BuffApi.Level(status, SunExpIds.Resonance));
+        var consumed = Math.Min(Math.Max(0, currentCost), resonance);
+        if (consumed <= 0)
+        {
+            return 0;
         }
 
-        var oldOnce = DictionaryUtil.GetInt(config.Vars, "OnceExCost");
-        DictionaryUtil.Set(config.Vars, "OnceExCost", (oldOnce - currentCost).ToString());
+        CardMutationService.AdjustOnceCost(config, -consumed);
+        ConsumeBuff(status, SunExpIds.Resonance, consumed);
+        return consumed;
     }
 
     private static bool HasMorningStarSeal(IDataConfig config)

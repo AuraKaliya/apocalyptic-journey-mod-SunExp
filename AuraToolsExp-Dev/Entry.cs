@@ -26,6 +26,7 @@ public static class Entry
         RunStep("journey runtime", () => AuraJourneyRuntime.Initialize(modConfig, AuraToolsIds.ModId));
         RunStep("config", () => AuraToolsConfigService.Initialize(modConfig));
         RunStep("file logging", () => AuraToolsFileLogRuntime.Initialize(modConfig));
+        RunStep("bundled resources", () => AuraToolsResourceBootstrap.Initialize(modConfig));
         RunStep("ui transition guard", () => UiTransitionGuardRuntime.Initialize(modConfig, AuraToolsIds.ModId));
         RunStep("skin", () => AuraToolsSkinRuntime.Initialize(modConfig));
         RunStep("audio", () => AuraToolsAudioRuntime.Initialize(modConfig));

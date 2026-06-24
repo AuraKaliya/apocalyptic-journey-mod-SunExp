@@ -20,7 +20,10 @@ public static class AuraToolsAudioRuntime
     public static void Initialize(ModConfig config)
     {
         modConfig = config;
-        var audio = AuraAudioRuntime.Initialize(config, AuraToolsIds.ModId);
+        var audio = AuraAudioRuntime.Initialize(
+            config,
+            AuraToolsIds.ModId,
+            installPackage: false);
         if (!audio.Success)
         {
             AuraToolsLog.Warn("Audio shared runtime initialization reported issues: " + audio.ErrorMessage);

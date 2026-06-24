@@ -53,9 +53,14 @@ public static class SunExpIds
     public const string StellarOvertureSustainCardId = "SunExp_sunexp_stellar_overture_sustain";
     public const string StellarOvertureTurnCardId = "SunExp_sunexp_stellar_overture_turn";
     public const string StellarOvertureCloseCardId = "SunExp_sunexp_stellar_overture_close";
+    public const string WitchStarScoreCardId = "SunExp_sunexp_witch_star_score";
     public const string StarClayDollPartnerId = "SunExp_sunexp_star_clay_doll";
     public const string StarClayDollBlessingId = "SunExp_sunexp_star_clay_doll_placeholder";
-    public const string LoneerDerivedTag = "SunExpLoneerDerived";
+    public const string RuntimeMarkersKey = "SunExpRuntimeMarkers";
+    public const string LoneerDerivedMarker = "SunExpLoneerDerived";
+    public const string LoneerGuidanceMarker = "SunExpLoneerGuidance";
+    public const string LoneerDerivedTag = "衍生牌";
+    public const string LoneerGuidanceTag = "指引牌";
 
     public const string WunaEventProgressKey = "SunExp_WunaEventProgressV2";
     public const string SolarEventMapId = "SunExp_sunexp_solar_event";

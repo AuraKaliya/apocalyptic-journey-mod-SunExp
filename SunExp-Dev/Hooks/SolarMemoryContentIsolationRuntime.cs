@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using AuraShared.Core;
 using SunExp.Dll.Infrastructure;
+using SunExp.Dll.Mechanics;
 using Witch;
 using Witch.Core;
 using Witch.Mod;
@@ -27,6 +28,7 @@ public static class SolarMemoryContentIsolationRuntime
         RegisterBefore(modConfig, "MapManager.CmdSelectMapIncludeSender", SanitizeMapSelection);
         RegisterBefore(modConfig, "MapManager.TargetUpdateMap", SanitizeMapSelection);
         RegisterBefore(modConfig, "MapManager.RpcUpdateMap", SanitizeMapSelection);
+        RegisterBefore(modConfig, "MapManager.RpcNextMap", RepairCurrentNodeBeforeNextMap);
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
@@ -68,7 +70,9 @@ public static class SolarMemoryContentIsolationRuntime
         try
         {
             var manager = MapManager.Instance?.ModeMapManager;
-            SanitizeTree(manager?.MapTree, manager?.Level ?? 0, "map selection");
+            var level = manager?.Level ?? 0;
+            SanitizeTree(manager?.MapTree, level, "map selection");
+            MapNodeSafetyService.RestoreCurrentNodeIfMissingOrExclusive(level, "MapSelectUI.ReadyToSelect", clientOnly: true);
         }
         catch (Exception ex)
         {
@@ -96,10 +100,30 @@ public static class SolarMemoryContentIsolationRuntime
                     SunExpLog.Warn("[SolarMemoryIsolation] removed exclusive content from synchronized map choices.");
                 }
             }
+
+            MapNodeSafetyService.RestoreCurrentNodeIfMissingOrExclusive(level, "MapManager.MapSelectionSync", clientOnly: true);
         }
         catch (Exception ex)
         {
             SunExpLog.Error("Solar memory map-sync isolation failed", ex);
+        }
+    }
+
+    private static void RepairCurrentNodeBeforeNextMap(ModHookContext context)
+    {
+        if (SolarMemoryModeRuntime.IsSolarMemoryRun())
+        {
+            return;
+        }
+
+        try
+        {
+            var level = MapManager.Instance?.ModeMapManager?.Level ?? 0;
+            MapNodeSafetyService.RestoreCurrentNodeIfMissingOrExclusive(level, "MapManager.RpcNextMap", clientOnly: true);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[MapNodeSafety] pre-next-map repair failed: " + ex.Message);
         }
     }
 
@@ -110,8 +134,9 @@ public static class SolarMemoryContentIsolationRuntime
             return false;
         }
 
-        var changed = SanitizeNodes(tree.DefaultNode, level);
-        changed = SanitizeNodes(tree.SelectNode, level) || changed;
+        var changed = SanitizeNodes(tree, tree.DefaultNode, level);
+        changed = SanitizeNodes(tree, tree.SelectNode, level) || changed;
+        changed = SanitizeCurrentNode(tree, level) || changed;
         if (changed)
         {
             SunExpLog.Warn("[SolarMemoryIsolation] removed exclusive nodes from " + source + ".");
@@ -120,7 +145,7 @@ public static class SolarMemoryContentIsolationRuntime
         return changed;
     }
 
-    private static bool SanitizeNodes(IList<MapTree.Node>? nodes, int level)
+    private static bool SanitizeNodes(MapTree tree, IList<MapTree.Node>? nodes, int level)
     {
         if (nodes == null)
         {
@@ -130,8 +155,9 @@ public static class SolarMemoryContentIsolationRuntime
         var changed = false;
         foreach (var node in nodes)
         {
-            if (node?.data == null || !SunExpIds.IsSolarMemoryExclusiveMapId(DictionaryUtil.Get(node.data, "Id")))
+            if (node?.data == null || !MapNodeSafetyService.IsExclusiveNode(node))
             {
+                MapNodeSafetyService.EnsureNodeDice(tree, node, "SolarMemoryIsolation.SanitizeNodes");
                 continue;
             }
 
@@ -143,17 +169,47 @@ public static class SolarMemoryContentIsolationRuntime
                 continue;
             }
 
-            node.data = new Dictionary<string, string>(fallback);
-            node.type = DictionaryUtil.Get(fallback, "Note", node.type);
-            if (string.Equals(DictionaryUtil.Get(fallback, "Type"), "Event", StringComparison.Ordinal))
-            {
-                node.data["NodeId"] = ResolveEventId(oldNodeId, fallback);
-            }
+            ApplyFallbackToNode(node, fallback, oldNodeId);
+            MapNodeSafetyService.EnsureNodeDice(tree, node, "SolarMemoryIsolation.SanitizeNodes");
 
             changed = true;
         }
 
         return changed;
+    }
+
+    private static bool SanitizeCurrentNode(MapTree tree, int level)
+    {
+        var node = tree.currentNode;
+        if (node?.data == null || !MapNodeSafetyService.IsExclusiveNode(node))
+        {
+            MapNodeSafetyService.EnsureNodeDice(tree, node, "SolarMemoryIsolation.CurrentNode");
+            return false;
+        }
+
+        var oldNodeId = DictionaryUtil.Get(node.data, "NodeId");
+        var fallback = FindFallbackMap(node.data, level);
+        if (fallback == null)
+        {
+            SunExpLog.Warn("[SolarMemoryIsolation] no current-node fallback found for "
+                + DictionaryUtil.Get(node.data, "Id")
+                + ".");
+            return false;
+        }
+
+        ApplyFallbackToNode(node, fallback, oldNodeId);
+        MapNodeSafetyService.EnsureNodeDice(tree, node, "SolarMemoryIsolation.CurrentNode");
+        return true;
+    }
+
+    private static void ApplyFallbackToNode(MapTree.Node node, IDictionary<string, string> fallback, string oldNodeId)
+    {
+        node.data = new Dictionary<string, string>(fallback);
+        node.type = DictionaryUtil.Get(fallback, "Note", node.type);
+        if (string.Equals(DictionaryUtil.Get(fallback, "Type"), "Event", StringComparison.Ordinal))
+        {
+            node.data["NodeId"] = ResolveEventId(oldNodeId, fallback);
+        }
     }
 
     private static bool SanitizeSelectionArrays(string[] maps, string[] mapData, int level)

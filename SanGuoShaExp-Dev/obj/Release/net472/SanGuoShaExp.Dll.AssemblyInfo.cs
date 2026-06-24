@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("SanGuoShaExp.Aura")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+22a3cb36bbb175c8f7f3d8e284412ea3af29b412")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+9b57d2f8017db8ca8dcd90e4e72b22e21145139c")]
 [assembly: System.Reflection.AssemblyProductAttribute("SanGuoShaExp.Aura")]
 [assembly: System.Reflection.AssemblyTitleAttribute("SanGuoShaExp.Aura")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

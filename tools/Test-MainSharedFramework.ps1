@@ -88,7 +88,9 @@ if (-not ($auraToolsStarterDeckRuntime.Contains("ShowGlobal(overlayParent")) -or
 if ($auraToolsStarterDeckRuntime.Contains('role.DisplayName + "\n" + role.Id')) {
     throw "AuraTools starter deck role manager must not display role ids in the role list."
 }
-if (-not ($auraToolsStarterDeckRuntime.Contains('? "生效：无完整卡组"')) -or -not ($auraToolsStarterDeckRuntime.Contains(': "生效：" + resolved.Profile.DisplayName'))) {
+$effectiveDeckEmptyText = '? "' + (-join [char[]](0x751F, 0x6548, 0xFF1A, 0x65E0, 0x5B8C, 0x6574, 0x5361, 0x7EC4)) + '"'
+$effectiveDeckNameText = ': "' + (-join [char[]](0x751F, 0x6548, 0xFF1A)) + '" + resolved.Profile.DisplayName'
+if (-not ($auraToolsStarterDeckRuntime.Contains($effectiveDeckEmptyText)) -or -not ($auraToolsStarterDeckRuntime.Contains($effectiveDeckNameText))) {
     throw "AuraTools starter deck role manager must keep the effective deck column to a single effective deck name."
 }
 if (-not ($auraToolsUi -like "*CloseOverlay(overlayRoot, name*")) {
@@ -109,13 +111,15 @@ if (-not ($auraToolsSettings.Contains("starterDeckEnabled ?")) -or -not ($auraTo
 if ($auraToolsSettings -like "*settings.PreferRoleModProfile, value =>*") {
     throw "AuraTools starter deck role-mod fallback policy must be explanatory text, not a checkbox."
 }
-if (-not ($auraToolsSettings -like "*没有本地角色卡组时，会自动使用角色所属 MOD 注册的推荐开局卡组*")) {
+$roleFallbackPolicyText = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("5rKh5pyJ5pys5Zyw6KeS6Imy5Y2h57uE5pe277yM5Lya6Ieq5Yqo5L2/55So6KeS6Imy5omA5bGeIE1PRCDms6jlhoznmoTmjqjojZDlvIDlsYDljaHnu4Q="))
+if (-not ($auraToolsSettings.Contains($roleFallbackPolicyText))) {
     throw "AuraTools starter deck settings must explain the always-on role-mod fallback policy."
 }
 if ($auraToolsSettings -like "*AuraToolsConfigService.Skin.AutoInstallBundledSkins, value =>*") {
     throw "AuraTools skin auto-install policy must be explanatory text, not a checkbox."
 }
-if (-not ($auraToolsSettings -like "*内置角色皮肤会自动安装并补齐到共享皮肤目录*")) {
+$skinInstallPolicyText = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("5YaF572u6KeS6Imy55qu6IKk5Lya6Ieq5Yqo5a6J6KOF5bm26KGl6b2Q5Yiw5YWx5Lqr55qu6IKk55uu5b2V"))
+if (-not ($auraToolsSettings.Contains($skinInstallPolicyText))) {
     throw "AuraTools skin settings must explain the always-on bundled skin auto-install policy."
 }
 if (-not ($auraToolsConfigModels -like "*PreferRoleModProfile = true;*") -or -not ($auraToolsConfigModels -like "*AutoInstallBundledSkins = true;*")) {
