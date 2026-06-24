@@ -3,6 +3,7 @@ using AuraJourney.Shared;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.Audio;
+using AuraToolsExp.Dll.Features.DamageMeter;
 using AuraToolsExp.Dll.Features.Logging;
 using AuraToolsExp.Dll.Features.SafeBox;
 using AuraToolsExp.Dll.Features.Settings;
@@ -30,6 +31,7 @@ public static class Entry
         RunStep("audio", () => AuraToolsAudioRuntime.Initialize(modConfig));
         RunStep("starter deck", () => AuraToolsStarterDeckRuntime.Initialize(modConfig));
         RunStep("safe box", () => AuraToolsSafeBoxRuntime.Initialize(modConfig));
+        RunStep("DPS meter", () => AuraToolsDamageMeterRuntime.Initialize(modConfig));
         RunStep("skill CG", () => AuraToolsSkillCgRuntime.Initialize(modConfig));
         RunStep("settings", () => AuraToolsSettingsRuntime.Initialize(modConfig));
 

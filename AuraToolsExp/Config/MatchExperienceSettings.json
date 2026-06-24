@@ -19,5 +19,13 @@
   },
   "safeBox": {
     "enabled": false
+  },
+  "damageMeter": {
+    "enabled": false,
+    "hotkey": "F8",
+    "showPanelByDefault": true,
+    "friendlyOnly": false,
+    "countShieldLoss": true,
+    "maxRows": 6
   }
 }

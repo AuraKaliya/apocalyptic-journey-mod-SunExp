@@ -223,12 +223,17 @@ public sealed class AuraToolsMatchExperienceSettings
     [JsonProperty("safeBox")]
     public SafeBoxSettings SafeBox { get; set; } = new();
 
+    [JsonProperty("damageMeter")]
+    public DamageMeterSettings DamageMeter { get; set; } = new();
+
     public void Normalize()
     {
         SchemaVersion = Math.Max(1, SchemaVersion);
         StarterDeck ??= new StarterDeckSettings();
         SafeBox ??= new SafeBoxSettings();
+        DamageMeter ??= new DamageMeterSettings();
         StarterDeck.Normalize();
+        DamageMeter.Normalize();
     }
 }
 
@@ -376,6 +381,33 @@ public sealed class SafeBoxSettings
 {
     [JsonProperty("enabled")]
     public bool Enabled { get; set; }
+}
+
+public sealed class DamageMeterSettings
+{
+    [JsonProperty("enabled")]
+    public bool Enabled { get; set; }
+
+    [JsonProperty("hotkey")]
+    public string Hotkey { get; set; } = "F8";
+
+    [JsonProperty("showPanelByDefault")]
+    public bool ShowPanelByDefault { get; set; } = true;
+
+    [JsonProperty("friendlyOnly")]
+    public bool FriendlyOnly { get; set; }
+
+    [JsonProperty("countShieldLoss")]
+    public bool CountShieldLoss { get; set; } = true;
+
+    [JsonProperty("maxRows")]
+    public int MaxRows { get; set; } = 6;
+
+    public void Normalize()
+    {
+        Hotkey = string.IsNullOrWhiteSpace(Hotkey) ? "F8" : Hotkey.Trim();
+        MaxRows = Math.Max(1, Math.Min(12, MaxRows));
+    }
 }
 
 public sealed class AuraToolsSkillCgSettings

@@ -5,6 +5,7 @@ using System.Linq;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.Audio;
+using AuraToolsExp.Dll.Features.DamageMeter;
 using AuraToolsExp.Dll.Features.Logging;
 using AuraToolsExp.Dll.Features.SafeBox;
 using AuraToolsExp.Dll.Features.Skin;
@@ -687,6 +688,70 @@ public static class AuraToolsSettingsRuntime
             AuraToolsUi.AddText(content, "开启后在冒险 TopBar 增加随身保险箱入口；功能只提供总开关。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
         });
 
+        var damageMeter = AuraToolsConfigService.MatchExperience.DamageMeter;
+        CreateSubmodule(parent, "DPS统计模块", damageMeter.Enabled, value =>
+        {
+            damageMeter.Enabled = value;
+            AuraToolsConfigService.SaveMatchExperience();
+            AuraToolsDamageMeterRuntime.SetVisible(value && damageMeter.ShowPanelByDefault);
+        }, content =>
+        {
+            var statusRow = CreateInlineRow(content, "DamageMeterStatusRow");
+            AuraToolsUi.AddText(statusRow.transform,
+                "热键：" + damageMeter.Hotkey
+                + "；最大行数：" + damageMeter.MaxRows
+                + "；护盾：" + (damageMeter.CountShieldLoss ? "计入" : "不计入"),
+                AuraToolsUi.BodyFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.Text,
+                AuraToolsUi.TextMinHeight,
+                1f);
+            AuraToolsUi.AddButton(statusRow.transform, "显示/隐藏", () =>
+            {
+                AuraToolsDamageMeterRuntime.SetVisible(!AuraToolsDamageMeterRuntime.Visible);
+            }, 96f);
+
+            var hotkeyRow = CreateInlineRow(content, "DamageMeterHotkeyRow");
+            AuraToolsUi.AddText(hotkeyRow.transform, "热键", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 0f, 72f);
+            AuraToolsUi.AddInput(hotkeyRow.transform, damageMeter.Hotkey, value =>
+            {
+                damageMeter.Hotkey = string.IsNullOrWhiteSpace(value) ? "F8" : value.Trim();
+                AuraToolsConfigService.SaveMatchExperience();
+                RebuildPanel(activePanel!.transform);
+            }, 120f);
+            AuraToolsUi.AddText(hotkeyRow.transform, "输入 Unity KeyCode 名称，例如 F8、F9、BackQuote。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
+
+            var rowsRow = CreateInlineRow(content, "DamageMeterRowsRow");
+            AuraToolsUi.AddText(rowsRow.transform, "行数", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 0f, 72f);
+            AuraToolsUi.AddInput(rowsRow.transform, damageMeter.MaxRows.ToString(), value =>
+            {
+                if (int.TryParse(value, out var rows))
+                {
+                    damageMeter.MaxRows = Math.Max(1, Math.Min(12, rows));
+                    AuraToolsConfigService.SaveMatchExperience();
+                    RebuildPanel(activePanel!.transform);
+                }
+            }, 120f);
+
+            CreateDamageMeterToggleRow(content, "进入战斗默认显示", damageMeter.ShowPanelByDefault, value =>
+            {
+                damageMeter.ShowPanelByDefault = value;
+                AuraToolsConfigService.SaveMatchExperience();
+            });
+            CreateDamageMeterToggleRow(content, "只显示友方统计", damageMeter.FriendlyOnly, value =>
+            {
+                damageMeter.FriendlyOnly = value;
+                AuraToolsConfigService.SaveMatchExperience();
+            });
+            CreateDamageMeterToggleRow(content, "将护盾损失计入伤害", damageMeter.CountShieldLoss, value =>
+            {
+                damageMeter.CountShieldLoss = value;
+                AuraToolsConfigService.SaveMatchExperience();
+            });
+
+            AuraToolsUi.AddText(content, "说明：统计只读取本地观测到的战斗结果，不写入联机共享进度；本回合以玩家回合开始为重置点。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
+        }, damageMeter.Enabled ? AuraToolsUi.SuccessText : AuraToolsUi.MutedText);
+
         CreateSubmodule(parent, "技能CG", AuraToolsConfigService.SkillCg.Enabled, value =>
         {
             AuraToolsConfigService.SkillCg.Enabled = value;
@@ -895,6 +960,13 @@ public static class AuraToolsSettingsRuntime
         layout.childControlHeight = true;
         layout.childForceExpandWidth = false;
         return row;
+    }
+
+    private static void CreateDamageMeterToggleRow(Transform parent, string label, bool value, Action<bool> changed)
+    {
+        var row = CreateInlineRow(parent, "DamageMeterToggle-" + label);
+        AuraToolsUi.AddToggle(row.transform, value, changed);
+        AuraToolsUi.AddText(row.transform, label, AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
     }
 }
 
