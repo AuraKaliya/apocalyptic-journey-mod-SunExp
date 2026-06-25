@@ -1,6 +1,8 @@
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using AuraToolsExp.Dll.Features.DamageMeter.Input;
+using AuraToolsExp.Dll.Features.DamageMeter.Network;
+using AuraToolsExp.Dll.Infrastructure;
 
 var assertions = 0;
 
@@ -16,6 +18,7 @@ TestDeterministicAllocation();
 TestHotkeyNames();
 TestInputFaultGate();
 TestDamageMeterSettingsNormalization();
+TestDamageMeterAuthorityPolicy();
 
 Console.WriteLine($"AuraToolsExp damage meter tests passed: {assertions} assertions.");
 return;
@@ -155,6 +158,34 @@ void TestDamageMeterSettingsNormalization()
     settings.FriendlyOnly = false;
     settings.Normalize();
     Assert(settings.IncludeUnknownTeam, "unfiltered DPS includes unknown-team damage");
+}
+
+void TestDamageMeterAuthorityPolicy()
+{
+    var host = new AuraToolsRpcSender("host", "Host", true, true, "test", true);
+    var client = new AuraToolsRpcSender("client", "Client", true, false, "test", true);
+    Assert(DamageMeterAuthorityPolicy.RequireHostControl(host, out var hostReject)
+           && hostReject == "",
+        "host control accepted");
+    Assert(!DamageMeterAuthorityPolicy.RequireHostControl(client, out var nonHostReject)
+           && nonHostReject == "control issuer is not host",
+        "non-host control rejected");
+    Assert(!DamageMeterAuthorityPolicy.RequireLobbyMember(AuraToolsRpcSender.Unbound, out var missingReject)
+           && missingReject == "missing server sender",
+        "missing sender rejected");
+
+    var candidate = Event(NewLedger(), 1, "source", 10, 0, DamageTeam.Friendly, "detail");
+    candidate.ReporterPlayerId = "spoofed-host";
+    Assert(DamageMeterAuthorityPolicy.TryBindReporter(candidate, client, out var bound, out var bindReject)
+           && bindReject == "",
+        "reporter binding accepted");
+    Assert(bound.ReporterPlayerId == "client" && candidate.ReporterPlayerId == "spoofed-host",
+        "reporter binding uses server sender and leaves original untouched");
+
+    var outsider = new AuraToolsRpcSender("outsider", "", false, false, "test", true);
+    Assert(!DamageMeterAuthorityPolicy.TryBindReporter(candidate, outsider, out _, out var outsideReject)
+           && outsideReject == "sender not in lobby",
+        "non-lobby sender rejected");
 }
 
 void TestDetailLimit()

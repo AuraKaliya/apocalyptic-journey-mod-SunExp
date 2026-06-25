@@ -36,7 +36,11 @@ public static class SolarMemoryRoleCommitApi
                 return true;
             }
 
-            if (RpcSolarMemoryRoleCommit.ApplyOnServer(role, source))
+            if (RpcSolarMemoryRoleCommit.ApplyOnServer(
+                    role,
+                    source,
+                    SunExpRpcAuthorityRuntime.CreateLocalServerSender(source),
+                    remoteRpc: false))
             {
                 return true;
             }

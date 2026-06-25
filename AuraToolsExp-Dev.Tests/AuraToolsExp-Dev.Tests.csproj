@@ -10,6 +10,8 @@
   <ItemGroup>
     <Compile Include="..\AuraToolsExp-Dev\Infrastructure\AuraToolsIds.cs"
              Link="Infrastructure\AuraToolsIds.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Infrastructure\AuraToolsRpcSender.cs"
+             Link="Infrastructure\AuraToolsRpcSender.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Config\AuraToolsConfigModels.cs"
              Link="Config\AuraToolsConfigModels.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Model\DamageMeterModels.cs"
@@ -20,6 +22,8 @@
              Link="DamageMeter\DamageHistoryStore.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Input\DamageMeterHotkeyCore.cs"
              Link="DamageMeter\DamageMeterHotkeyCore.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Network\DamageMeterAuthorityPolicy.cs"
+             Link="DamageMeter\DamageMeterAuthorityPolicy.cs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -34,7 +34,9 @@ foreach ($step in $matrix.steps) {
     }
 
     Write-Host "Running shared release step: $($step.id)"
-    if ($step.path -match "Test-AuraSharedCore|Test-MainSharedFramework") {
+    $passConfiguration = $step.passConfiguration -eq $true `
+        -or $step.path -match "Test-AuraSharedCore|Test-MainSharedFramework"
+    if ($passConfiguration) {
         & $script -Configuration $Configuration
     }
     else {

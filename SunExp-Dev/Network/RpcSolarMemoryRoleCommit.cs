@@ -8,9 +8,10 @@ using Witch;
 
 namespace SunExp.Dll.Network;
 
-public sealed class RpcSolarMemoryRoleCommit : RpcCommandBase
+public sealed class RpcSolarMemoryRoleCommit : RpcCommandBase, ISunExpServerBoundRpcCommand
 {
     private static readonly HashSet<string> CommittedTokens = new(StringComparer.Ordinal);
+    private SunExpRpcSender serverSender = SunExpRpcSender.Unbound;
 
     public RoleTable? Role { get; set; }
 
@@ -26,9 +27,14 @@ public sealed class RpcSolarMemoryRoleCommit : RpcCommandBase
         Source = source ?? "";
     }
 
+    public void BindServerSender(SunExpRpcSender sender)
+    {
+        serverSender = sender ?? SunExpRpcSender.Unbound;
+    }
+
     public override void CmdExecute()
     {
-        ApplyOnServer(Role, Source);
+        ApplyOnServer(Role, Source, serverSender, remoteRpc: true);
     }
 
     public override void RpcExecute()
@@ -38,12 +44,26 @@ public sealed class RpcSolarMemoryRoleCommit : RpcCommandBase
 
     internal static bool ApplyOnServer(RoleTable? role, string source)
     {
+        return ApplyOnServer(role, source, SunExpRpcSender.Unbound, remoteRpc: false);
+    }
+
+    internal static bool ApplyOnServer(
+        RoleTable? role,
+        string source,
+        SunExpRpcSender sender,
+        bool remoteRpc)
+    {
         var claimedToken = "";
         try
         {
             if (role == null || string.IsNullOrWhiteSpace(role.Id))
             {
                 SunExpLog.Warn("[SolarMemoryRoleCommit] rejected empty role. source=" + source);
+                return false;
+            }
+
+            if (!ValidateSender(role, source, sender, remoteRpc))
+            {
                 return false;
             }
 
@@ -105,5 +125,56 @@ public sealed class RpcSolarMemoryRoleCommit : RpcCommandBase
             SunExpLog.Error("Solar Memory final role commit failed. source=" + source, ex);
             return false;
         }
+    }
+
+    private static bool ValidateSender(
+        RoleTable role,
+        string source,
+        SunExpRpcSender? sender,
+        bool remoteRpc)
+    {
+        sender ??= SunExpRpcSender.Unbound;
+        if ((remoteRpc || IsMultiplayerLobby()) && !sender.IsAvailable)
+        {
+            SunExpLog.Warn("[SolarMemoryRoleCommit] rejected missing server sender. role=" + role.Id + ", source=" + source);
+            return false;
+        }
+
+        if (sender.IsAvailable && !sender.IsLobbyMember)
+        {
+            SunExpLog.Warn("[SolarMemoryRoleCommit] rejected sender outside lobby. role="
+                           + role.Id
+                           + ", sender="
+                           + sender.PlayerId
+                           + ", source="
+                           + source);
+            return false;
+        }
+
+        if (sender.IsAvailable
+            && !string.Equals(role.Id, sender.PlayerId, StringComparison.Ordinal))
+        {
+            SunExpLog.Warn("[SolarMemoryRoleCommit] rejected sender mismatch. role="
+                           + role.Id
+                           + ", sender="
+                           + sender.PlayerId
+                           + ", source="
+                           + source);
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool IsMultiplayerLobby()
+    {
+        var players = global::GameServer.Instance?.LobbyInfo?.AddedPlayers;
+        if (players != null && players.Count > 1)
+        {
+            return true;
+        }
+
+        var playerManager = PlayerManager.Instance;
+        return playerManager != null && (playerManager.isClient || playerManager.isServer);
     }
 }

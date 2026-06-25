@@ -21,6 +21,19 @@
       "enabled": true
     },
     {
+      "id": "network-rpc-authority",
+      "kind": "script",
+      "path": "tools/Test-NetworkRpcAuthority.ps1",
+      "enabled": true
+    },
+    {
+      "id": "auratools-feature-tests",
+      "kind": "script",
+      "path": "tools/Test-AuraToolsExp.ps1",
+      "enabled": true,
+      "passConfiguration": true
+    },
+    {
       "id": "main-consumers",
       "kind": "script",
       "path": "tools/Test-MainSharedFramework.ps1",

@@ -173,7 +173,11 @@ internal static class DamageMeterNetworkRuntime
         Send(new DamageMeterSubmitCommand { Candidate = damage });
     }
 
-    public static bool AcceptOnServer(DamageEvent candidate, out DamageEvent confirmed, out string rejection)
+    public static bool AcceptOnServer(
+        DamageEvent candidate,
+        AuraToolsRpcSender sender,
+        out DamageEvent confirmed,
+        out string rejection)
     {
         confirmed = new DamageEvent();
         rejection = "";
@@ -183,12 +187,17 @@ internal static class DamageMeterNetworkRuntime
             return false;
         }
 
-        if (!ValidateCandidate(candidate, out rejection))
+        if (!DamageMeterAuthorityPolicy.TryBindReporter(candidate, sender, out var boundCandidate, out rejection))
         {
             return false;
         }
 
-        confirmed = candidate.Copy();
+        if (!ValidateCandidate(boundCandidate, out rejection))
+        {
+            return false;
+        }
+
+        confirmed = boundCandidate.Copy();
         var resolvedSource = CombatantTeamResolver.ResolveStatus(confirmed.SourceInstanceId);
         if (resolvedSource != null)
         {
@@ -238,15 +247,24 @@ internal static class DamageMeterNetworkRuntime
         }
     }
 
-    public static bool ApplyControlOnServer(DamageMeterControlCommand command, out string rejection)
+    public static bool ApplyControlOnServer(
+        DamageMeterControlCommand command,
+        AuraToolsRpcSender sender,
+        out string rejection)
     {
         rejection = "";
-        if (!IsHost || !IsHostIdentity(command.IssuerPlayerId))
+        if (!IsHost)
         {
-            rejection = "control issuer is not host";
+            rejection = "not host";
             return false;
         }
 
+        if (!DamageMeterAuthorityPolicy.RequireHostControl(sender, out rejection))
+        {
+            return false;
+        }
+
+        command.IssuerPlayerId = sender.PlayerId;
         switch (command.Kind)
         {
             case DamageMeterControlKind.StartFight:
@@ -304,6 +322,28 @@ internal static class DamageMeterNetworkRuntime
         return snapshot;
     }
 
+    public static bool TryCreateServerSnapshot(
+        AuraToolsRpcSender sender,
+        out DamageMeterSnapshot? snapshot,
+        out string rejection)
+    {
+        snapshot = null;
+        rejection = "";
+        if (!IsHost)
+        {
+            rejection = "not host";
+            return false;
+        }
+
+        if (!DamageMeterAuthorityPolicy.RequireLobbyMember(sender, out rejection))
+        {
+            return false;
+        }
+
+        snapshot = CreateServerSnapshot();
+        return true;
+    }
+
     public static void RequestSnapshot()
     {
         if (!IsMultiplayer || snapshotRequestPending)
@@ -333,12 +373,6 @@ internal static class DamageMeterNetworkRuntime
             || !SessionMatches(value.SessionId))
         {
             rejection = "inactive or mismatched session";
-            return false;
-        }
-
-        if (!LobbyContains(value.ReporterPlayerId))
-        {
-            rejection = "reporter not in lobby";
             return false;
         }
 
@@ -406,34 +440,6 @@ internal static class DamageMeterNetworkRuntime
 
         window.Enqueue(now);
         return true;
-    }
-
-    private static bool LobbyContains(string playerId)
-    {
-        try
-        {
-            return GameServer.Instance?.LobbyInfo?.AddedPlayers == null
-                   || GameServer.Instance.LobbyInfo.AddedPlayers.Any(player => player != null && player.Id == playerId);
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static bool IsHostIdentity(string playerId)
-    {
-        try
-        {
-            var players = GameServer.Instance?.LobbyInfo?.AddedPlayers;
-            return players == null
-                   || players.Count == 0
-                   || string.Equals(players[0].Id, playerId, StringComparison.Ordinal);
-        }
-        catch
-        {
-            return false;
-        }
     }
 
     private static bool SessionMatches(string sessionId)

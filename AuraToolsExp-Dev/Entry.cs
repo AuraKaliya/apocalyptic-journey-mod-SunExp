@@ -24,6 +24,7 @@ public static class Entry
         RunStep("shared core", () => AuraSharedRuntime.Initialize(modConfig, AuraToolsIds.ModId));
         RunStep("shared registry", () => AuraSharedRegistry.RegisterManifest(modConfig, AuraToolsIds.ModId));
         RunStep("journey runtime", () => AuraJourneyRuntime.Initialize(modConfig, AuraToolsIds.ModId));
+        RunStep("rpc authority", () => AuraToolsRpcAuthorityRuntime.Initialize(modConfig));
         RunStep("config", () => AuraToolsConfigService.Initialize(modConfig));
         RunStep("file logging", () => AuraToolsFileLogRuntime.Initialize(modConfig));
         RunStep("bundled resources", () => AuraToolsResourceBootstrap.Initialize(modConfig));

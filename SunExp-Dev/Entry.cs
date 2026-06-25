@@ -8,6 +8,7 @@ using Witch.Mod;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks;
 using SunExp.Dll.Infrastructure;
+using SunExp.Dll.Network;
 using UiTransitionGuardShared;
 
 namespace SunExp.Dll;
@@ -19,6 +20,7 @@ public static class Entry
     {
         RunStep("XLua assembly registration", RegisterLuaVisibleAssembly);
         RunStep("shared core", () => AuraSharedRuntime.Initialize(modConfig, "SunExp"));
+        RunStep("rpc authority", () => SunExpRpcAuthorityRuntime.Initialize(modConfig));
         RunStep("shared resource package", () => RegisterSharedResourcePackage(modConfig));
         RunStep("shared registry", () => AuraSharedRegistry.RegisterManifest(modConfig, "SunExp"));
         RunStep("starter deck profiles", () => StarterDeckArbiterRuntime.RegisterProfileManifest(modConfig, "SunExp"));

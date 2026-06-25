@@ -13,17 +13,24 @@ public static class DamageMeterControlKind
 }
 
 [Serializable]
-public sealed class DamageMeterSubmitCommand : RpcCommandBase
+public sealed class DamageMeterSubmitCommand : RpcCommandBase, IAuraToolsServerBoundRpcCommand
 {
+    private AuraToolsRpcSender serverSender = AuraToolsRpcSender.Unbound;
+
     public DamageEvent Candidate { get; set; } = new();
 
     public DamageEvent? Confirmed { get; set; }
 
     public string RejectionReason { get; set; } = "";
 
+    public void BindServerSender(AuraToolsRpcSender sender)
+    {
+        serverSender = sender ?? AuraToolsRpcSender.Unbound;
+    }
+
     public override void CmdExecute()
     {
-        if (!DamageMeterNetworkRuntime.AcceptOnServer(Candidate, out var confirmed, out var rejection))
+        if (!DamageMeterNetworkRuntime.AcceptOnServer(Candidate, serverSender, out var confirmed, out var rejection))
         {
             RejectionReason = rejection;
             Confirmed = null;
@@ -44,8 +51,10 @@ public sealed class DamageMeterSubmitCommand : RpcCommandBase
 }
 
 [Serializable]
-public sealed class DamageMeterControlCommand : RpcCommandBase
+public sealed class DamageMeterControlCommand : RpcCommandBase, IAuraToolsServerBoundRpcCommand
 {
+    private AuraToolsRpcSender serverSender = AuraToolsRpcSender.Unbound;
+
     public string Kind { get; set; } = "";
 
     public string IssuerPlayerId { get; set; } = "";
@@ -62,9 +71,14 @@ public sealed class DamageMeterControlCommand : RpcCommandBase
 
     public string RejectionReason { get; set; } = "";
 
+    public void BindServerSender(AuraToolsRpcSender sender)
+    {
+        serverSender = sender ?? AuraToolsRpcSender.Unbound;
+    }
+
     public override void CmdExecute()
     {
-        if (!DamageMeterNetworkRuntime.ApplyControlOnServer(this, out var rejection))
+        if (!DamageMeterNetworkRuntime.ApplyControlOnServer(this, serverSender, out var rejection))
         {
             RejectionReason = rejection;
             Snapshot = null;
@@ -82,19 +96,36 @@ public sealed class DamageMeterControlCommand : RpcCommandBase
 }
 
 [Serializable]
-public sealed class DamageMeterSnapshotCommand : RpcCommandBase
+public sealed class DamageMeterSnapshotCommand : RpcCommandBase, IAuraToolsServerBoundRpcCommand
 {
+    private AuraToolsRpcSender serverSender = AuraToolsRpcSender.Unbound;
+
     public int ProtocolVersion { get; set; } = DamageMeterProtocol.Version;
 
     public string RequesterPlayerId { get; set; } = "";
 
     public DamageMeterSnapshot? Snapshot { get; set; }
 
+    public string RejectionReason { get; set; } = "";
+
+    public void BindServerSender(AuraToolsRpcSender sender)
+    {
+        serverSender = sender ?? AuraToolsRpcSender.Unbound;
+    }
+
     public override void CmdExecute()
     {
         if (ProtocolVersion == DamageMeterProtocol.Version)
         {
-            Snapshot = DamageMeterNetworkRuntime.CreateServerSnapshot();
+            if (!DamageMeterNetworkRuntime.TryCreateServerSnapshot(serverSender, out var snapshot, out var rejection))
+            {
+                RejectionReason = rejection;
+                Snapshot = null;
+                AuraToolsLog.Warn("[DamageMeter] snapshot rejected: " + rejection);
+                return;
+            }
+
+            Snapshot = snapshot;
         }
     }
 
