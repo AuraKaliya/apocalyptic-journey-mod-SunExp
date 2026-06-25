@@ -4,6 +4,7 @@ using System.Linq;
 using AuraShared.Core;
 using Data.Save;
 using SunExp.Dll.GameApi;
+using SunExp.Dll.Hooks.Ui;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
 using UnityEngine;
@@ -1563,10 +1564,10 @@ public static class SolarMemoryModeRuntime
             SolarMemorySetupFlowRuntime.ClosePreparationWindows();
             SolarMemoryBlessingPickerRuntime.Close();
             CloseExistingPackWindow();
-            DisableRaycastsAndDestroy("SunExpSolarMemoryStarterDeck", source);
-            DisableRaycastsAndDestroy("SunExp_SolarMemoryOriginSetup", source);
-            DisableRaycastsAndDestroy("SunExp_SolarMemoryBlessingSetup", source);
-            DisableRaycastsAndDestroy("SunExp_SolarMemoryBlessingPicker", source);
+            SunExpUiSafety.DisableRaycastsAndDestroyByName("SunExpSolarMemoryStarterDeck", source, "[SolarMemoryFightAbort]");
+            SunExpUiSafety.DisableRaycastsAndDestroyByName("SunExp_SolarMemoryOriginSetup", source, "[SolarMemoryFightAbort]");
+            SunExpUiSafety.DisableRaycastsAndDestroyByName("SunExp_SolarMemoryBlessingSetup", source, "[SolarMemoryFightAbort]");
+            SunExpUiSafety.DisableRaycastsAndDestroyByName("SunExp_SolarMemoryBlessingPicker", source, "[SolarMemoryFightAbort]");
         }
         catch (Exception ex)
         {
@@ -1574,36 +1575,6 @@ public static class SolarMemoryModeRuntime
                 + source
                 + ": "
                 + ex.Message);
-        }
-    }
-
-    private static void DisableRaycastsAndDestroy(string objectName, string source)
-    {
-        var root = GameObject.Find(objectName);
-        if (root == null)
-        {
-            return;
-        }
-
-        DisableRaycasts(root);
-        UnityEngine.Object.Destroy(root);
-        SunExpLog.Debug("[SolarMemoryFightAbort] closed transient UI "
-            + objectName
-            + " from "
-            + source
-            + ".");
-    }
-
-    private static void DisableRaycasts(GameObject root)
-    {
-        foreach (var graphic in root.GetComponentsInChildren<Graphic>(true))
-        {
-            graphic.raycastTarget = false;
-        }
-
-        foreach (var selectable in root.GetComponentsInChildren<Selectable>(true))
-        {
-            selectable.interactable = false;
         }
     }
 
@@ -2364,11 +2335,6 @@ public static class SolarMemoryModeRuntime
 
     private static void CloseWindow(string name)
     {
-        var root = GameObject.Find(name);
-        if (root != null)
-        {
-            DisableRaycasts(root);
-            UnityEngine.Object.Destroy(root);
-        }
+        SunExpUiSafety.DisableRaycastsAndDestroyByName(name, "CloseWindow", "[SolarMemory]");
     }
 }

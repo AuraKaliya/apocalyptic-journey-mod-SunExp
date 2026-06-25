@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using SunExp.Dll.GameApi;
+using SunExp.Dll.Hooks.Ui;
 using SunExp.Dll.Infrastructure;
 using UnityEngine;
 using UnityEngine.Events;
@@ -512,60 +513,17 @@ public static class SolarMemorySetupFlowRuntime
     private static Text AddText(RectTransform parent, string name, string value, int fontSize, FontStyle style, TextAnchor alignment,
         Color color, Vector2 anchoredPosition, Vector2 size)
     {
-        var rect = CreateRect(name, parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), size);
-        rect.anchoredPosition = anchoredPosition;
-        var text = rect.gameObject.AddComponent<Text>();
-        text.text = value;
-        text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-        text.fontSize = fontSize;
-        text.fontStyle = style;
-        text.alignment = alignment;
-        text.color = color;
-        text.horizontalOverflow = HorizontalWrapMode.Wrap;
-        text.verticalOverflow = VerticalWrapMode.Truncate;
-        text.resizeTextForBestFit = true;
-        text.resizeTextMinSize = Math.Max(10, fontSize - 6);
-        text.resizeTextMaxSize = fontSize;
-        text.raycastTarget = false;
-        return text;
+        return SunExpUiBuilder.AddText(parent, name, value, fontSize, style, alignment, color, anchoredPosition, size);
     }
 
     private static RectTransform CreateRect(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 sizeDelta)
     {
-        var go = new GameObject(name, typeof(RectTransform));
-        go.transform.SetParent(parent, false);
-        var rect = go.GetComponent<RectTransform>();
-        rect.anchorMin = anchorMin;
-        rect.anchorMax = anchorMax;
-        rect.pivot = pivot;
-        rect.sizeDelta = sizeDelta;
-        rect.anchoredPosition = Vector2.zero;
-        return rect;
+        return SunExpUiBuilder.CreateRect(name, parent, anchorMin, anchorMax, pivot, sizeDelta);
     }
 
     private static void ApplyPanelImage(GameObject go, Color fallbackOrTint, bool raycastTarget)
     {
-        var image = go.AddComponent<Image>();
-        image.sprite = GetPanelSprite();
-        image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
-        image.fillCenter = true;
-        image.color = image.sprite != null ? new Color(1f, 1f, 1f, fallbackOrTint.a) : fallbackOrTint;
-        image.raycastTarget = raycastTarget;
-        if (image.sprite != null)
-        {
-            AddPanelTint(go, fallbackOrTint, raycastTarget);
-        }
-    }
-
-    private static void AddPanelTint(GameObject target, Color color, bool raycastTarget)
-    {
-        var tint = CreateRect("PanelTint", target.transform, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero);
-        tint.offsetMin = new Vector2(3f, 3f);
-        tint.offsetMax = new Vector2(-3f, -3f);
-        var image = tint.gameObject.AddComponent<Image>();
-        image.color = new Color(color.r, color.g, color.b, Mathf.Min(0.62f, color.a));
-        image.raycastTarget = raycastTarget;
-        tint.SetAsFirstSibling();
+        SunExpUiBuilder.ApplyPanelImage(go, GetPanelSprite(), fallbackOrTint, raycastTarget);
     }
 
     private static Sprite? GetButtonSprite()

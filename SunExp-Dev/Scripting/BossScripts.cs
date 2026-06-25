@@ -460,10 +460,10 @@ public static class BossScripts
         if (ExecutorApi.AddEnemyAction(self, SunExpIds.EnemyCardSaintWhiteEdict))
         {
             ExecutorApi.SetVar(self, "SunExpBossWhiteRadianceExtraActionQueued", "1");
-            self.AddTempEvent("EndRound", new Action(() =>
+            ExecutorApi.TryAddTempEvent(self, "EndRound", new Action(() =>
             {
                 ExecutorApi.SetVar(self, "SunExpBossWhiteRadianceExtraActionQueued", "0");
-            }));
+            }), "boss_white_radiance_extra_action");
         }
     }
 
@@ -491,10 +491,10 @@ public static class BossScripts
         if (remaining > 0)
         {
             ExecutorApi.SetVar(self, localLockKey, "1");
-            self.AddTempEvent("EndRound", new Action(() =>
+            ExecutorApi.TryAddTempEvent(self, "EndRound", new Action(() =>
             {
                 ExecutorApi.SetVar(self, localLockKey, "0");
-            }));
+            }), "boss_white_radiance_annihilation");
         }
     }
 

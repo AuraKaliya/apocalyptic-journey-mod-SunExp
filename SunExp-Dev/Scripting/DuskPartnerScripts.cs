@@ -42,9 +42,9 @@ public static class DuskPartnerScripts
                 }
             }
 
-            self.AddEvent("FightStart", new Action(RegisterEnemyBurnTriggers));
-            self.AddEvent("Action", new Action(RegisterEnemyBurnTriggers));
-            self.AddEvent("StartRound", new Action(RegisterEnemyBurnTriggers));
+            ExecutorApi.TryAddTokenedEvent(self, "FightStart", "SunExpDuskAfterheatToken", token, new Action(RegisterEnemyBurnTriggers), "dusk_afterheat");
+            ExecutorApi.TryAddTokenedEvent(self, "Action", "SunExpDuskAfterheatToken", token, new Action(RegisterEnemyBurnTriggers), "dusk_afterheat");
+            ExecutorApi.TryAddTokenedEvent(self, "StartRound", "SunExpDuskAfterheatToken", token, new Action(RegisterEnemyBurnTriggers), "dusk_afterheat");
             RegisterEnemyBurnTriggers();
         }
         catch (Exception ex)

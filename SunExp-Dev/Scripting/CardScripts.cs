@@ -526,24 +526,14 @@ public static class CardScripts
         }
 
         var token = (DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "SunExpFlamewheelCostToken", "0")) + 1).ToString();
-        var fightStartRegistered = ExecutorApi.TryAddEvent(self, "FightStart", new Action(() =>
+        var fightStartRegistered = ExecutorApi.TryAddTokenedEvent(self, "FightStart", "SunExpFlamewheelCostToken", token, new Action(() =>
         {
-            if (!ExecutorApi.IsHookTokenActive(self, "SunExpFlamewheelCostToken", token))
-            {
-                return;
-            }
-
             SetFlamewheelUsed(0);
             SetFlamewheelCost(self, 0);
             RefreshFlamewheelHand(self, 0);
         }), "flamewheel_recurrence");
-        var actionRegistered = ExecutorApi.TryAddEvent(self, "Action", new Action(() =>
+        var actionRegistered = ExecutorApi.TryAddTokenedEvent(self, "Action", "SunExpFlamewheelCostToken", token, new Action(() =>
         {
-            if (!ExecutorApi.IsHookTokenActive(self, "SunExpFlamewheelCostToken", token))
-            {
-                return;
-            }
-
             RefreshFlamewheelHand(self, FlamewheelUsed());
         }), "flamewheel_recurrence");
 

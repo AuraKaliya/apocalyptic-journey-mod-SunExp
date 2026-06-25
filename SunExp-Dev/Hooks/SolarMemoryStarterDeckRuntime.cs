@@ -4,6 +4,7 @@ using System.Linq;
 using AuraShared.Core;
 using StarterDeckArbiter.Shared;
 using SunExp.Dll.GameApi;
+using SunExp.Dll.Hooks.Ui;
 using SunExp.Dll.Infrastructure;
 using UnityEngine;
 using UnityEngine.UI;
@@ -610,7 +611,7 @@ public static class SolarMemoryStarterDeckRuntime
         image.color = image.sprite != null ? new Color(1f, 1f, 1f, 0.96f) : new Color(0.04f, 0.04f, 0.18f, 0.96f);
         if (image.sprite != null)
         {
-            AddPanelTint(go, new Color(0.035f, 0.035f, 0.15f, 0.96f));
+            SunExpUiBuilder.AddPanelTint(go, new Color(0.035f, 0.035f, 0.15f, 0.96f));
         }
 
         return image;
@@ -618,33 +619,7 @@ public static class SolarMemoryStarterDeckRuntime
 
     private static void ApplyPanelImage(GameObject go, Color fallbackOrTint)
     {
-        var image = go.AddComponent<Image>();
-        image.sprite = GetPanelSprite();
-        image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
-        image.fillCenter = true;
-        image.color = image.sprite != null ? new Color(1f, 1f, 1f, fallbackOrTint.a) : fallbackOrTint;
-        if (image.sprite != null)
-        {
-            AddPanelTint(go, fallbackOrTint);
-        }
-    }
-
-    private static void AddPanelTint(GameObject target, Color color)
-    {
-        var tint = new GameObject("PanelTint", typeof(RectTransform));
-        tint.transform.SetParent(target.transform, false);
-        tint.transform.SetAsFirstSibling();
-        var rect = tint.GetComponent<RectTransform>();
-        rect.anchorMin = Vector2.zero;
-        rect.anchorMax = Vector2.one;
-        rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.offsetMin = new Vector2(3f, 3f);
-        rect.offsetMax = new Vector2(-3f, -3f);
-        var layout = tint.AddComponent<LayoutElement>();
-        layout.ignoreLayout = true;
-        var image = tint.AddComponent<Image>();
-        image.color = new Color(color.r, color.g, color.b, Mathf.Min(0.62f, color.a));
-        image.raycastTarget = false;
+        SunExpUiBuilder.ApplyPanelImage(go, GetPanelSprite(), fallbackOrTint);
     }
 
     private static GameObject CreateColumnHeader(Transform parent, string title, out Text? counter)

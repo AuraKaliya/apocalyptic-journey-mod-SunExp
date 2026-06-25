@@ -1,6 +1,5 @@
 using System;
 using SunExp.Dll.GameApi;
-using SunExp.Dll.Hooks;
 using SunExp.Dll.Infrastructure;
 
 namespace SunExp.Dll.Scripting;
@@ -102,12 +101,9 @@ public static class EventScripts
     {
         try
         {
-            if (SolarMemoryPlayerSetupState.GetValue(SunExpIds.SolarMemoryOriginPointsKey, "") == "")
-            {
-                SolarMemoryPlayerSetupState.SetInt(SunExpIds.SolarMemoryOriginPointsKey, 50);
-            }
+            SolarMemoryFlowApi.EnsureOriginPoints(50);
 
-            SunExpLog.Info("[SolarMemoryEvent] init start node; prepComplete=" + SolarMemoryPreparationRuntime.IsComplete());
+            SunExpLog.Info("[SolarMemoryEvent] init start node; prepComplete=" + SolarMemoryFlowApi.IsPreparationComplete());
             SetEventChoices(self, "", "", "1", "1");
         }
         catch (Exception ex)
@@ -120,10 +116,7 @@ public static class EventScripts
     {
         try
         {
-            if (SolarMemoryPlayerSetupState.GetValue(SunExpIds.SolarMemoryOriginPointsKey, "") == "")
-            {
-                SolarMemoryPlayerSetupState.SetInt(SunExpIds.SolarMemoryOriginPointsKey, 50);
-            }
+            SolarMemoryFlowApi.EnsureOriginPoints(50);
 
             SetEventChoices(self, "1", "1", "", "");
         }
@@ -137,15 +130,15 @@ public static class EventScripts
     {
         try
         {
-            if (!SolarMemoryPreparationRuntime.IsComplete())
+            if (!SolarMemoryFlowApi.IsPreparationComplete())
             {
                 SunExpLog.Info("[SolarMemoryEvent] continue requested before preparation complete; resuming preparation.");
-                SolarMemoryPreparationRuntime.StartOrResume();
+                SolarMemoryFlowApi.StartOrResumePreparation();
                 return;
             }
 
             SunExpLog.Info("[SolarMemoryEvent] continue accepted; prepared=1.");
-            SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryPreparedKey, true);
+            SolarMemoryFlowApi.MarkPrepared();
             PlayerApi.EndEvent();
         }
         catch (Exception ex)
@@ -158,7 +151,7 @@ public static class EventScripts
     {
         try
         {
-            SolarMemoryModeRuntime.OpenOriginWindow();
+            SolarMemoryFlowApi.OpenOriginWindow();
         }
         catch (Exception ex)
         {
@@ -170,7 +163,7 @@ public static class EventScripts
     {
         try
         {
-            SolarMemoryModeRuntime.OpenBlessingWindow();
+            SolarMemoryFlowApi.OpenBlessingWindow();
         }
         catch (Exception ex)
         {
@@ -182,7 +175,7 @@ public static class EventScripts
     {
         try
         {
-            SolarMemoryModeRuntime.OpenDeckWindow();
+            SolarMemoryFlowApi.OpenDeckWindow();
         }
         catch (Exception ex)
         {
@@ -195,7 +188,7 @@ public static class EventScripts
         try
         {
             SunExpLog.Info("[SolarMemoryEvent] preparation option selected.");
-            SolarMemoryPreparationRuntime.StartOrResume();
+            SolarMemoryFlowApi.StartOrResumePreparation();
         }
         catch (Exception ex)
         {
@@ -207,15 +200,15 @@ public static class EventScripts
     {
         try
         {
-            if (!SolarMemoryPreparationRuntime.IsComplete())
+            if (!SolarMemoryFlowApi.IsPreparationComplete())
             {
                 SunExpLog.Info("[SolarMemoryEvent] boss rush blocked: preparation incomplete; resuming preparation.");
-                SolarMemoryPreparationRuntime.StartOrResume();
+                SolarMemoryFlowApi.StartOrResumePreparation();
                 return;
             }
 
             SunExpLog.Info("[SolarMemoryEvent] boss rush started; prepared=1.");
-            SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryPreparedKey, true);
+            SolarMemoryFlowApi.MarkPrepared();
             PlayerApi.EndEvent();
         }
         catch (Exception ex)
@@ -364,7 +357,7 @@ public static class EventScripts
                 return;
             }
 
-            SolarMemoryModeRuntime.StartSolarFinaleSaintBattle();
+            SolarMemoryFlowApi.StartFinaleSaintBattle();
         }
         catch (Exception ex)
         {
@@ -385,7 +378,7 @@ public static class EventScripts
                 PlayerApi.SetGameVar(SunExpIds.SolarFinaleEndingKey, ResolveSolarFinaleEndingKey());
             }
 
-            SolarMemoryModeRuntime.OpenSolarFinaleEndingEvent();
+            SolarMemoryFlowApi.OpenFinaleEndingEvent();
         }
         catch (Exception ex)
         {
@@ -454,7 +447,7 @@ public static class EventScripts
         {
             PlayerApi.SetGameVar(SunExpIds.SolarFinaleEndingKey, ending);
             PlayerApi.SetGameVar(SunExpIds.SolarFinaleCompletedKey, "1");
-            SolarMemoryModeRuntime.ShowSolarMemorySettlement();
+            SolarMemoryFlowApi.ShowSettlement();
         }
         catch (Exception ex)
         {

@@ -117,13 +117,8 @@ public static class BuffScripts
             return;
         }
 
-        self.AddEvent("Action", new Action(() =>
+        ExecutorApi.TryAddTokenedEvent(self, "Action", "SunExpSolarRadianceToken", token, new Action(() =>
         {
-            if (!ExecutorApi.IsHookTokenActive(self, "SunExpSolarRadianceToken", token))
-            {
-                return;
-            }
-
             var level = ExecutorApi.SelfBuffLevel(self, SunExpIds.SolarRadiance);
             var gain = level * 5;
             if (gain <= 0)
@@ -133,7 +128,7 @@ public static class BuffScripts
 
             self.SetStatus("Self");
             self.AddBuff("buff_extraordinary", gain.ToString());
-        }));
+        }), "solar_radiance");
     }
 
     private static void ApplyGatheredFlame(ScriptExecutor self)
@@ -144,13 +139,8 @@ public static class BuffScripts
             return;
         }
 
-        self.AddEvent("StartRound", new Action(() =>
+        ExecutorApi.TryAddTokenedEvent(self, "StartRound", "SunExpGatheredFlameToken", token, new Action(() =>
         {
-            if (!ExecutorApi.IsHookTokenActive(self, "SunExpGatheredFlameToken", token))
-            {
-                return;
-            }
-
             var count = ExecutorApi.SelfBuffLevel(self, SunExpIds.GatheredFlame);
             if (count <= 0)
             {
@@ -160,7 +150,7 @@ public static class BuffScripts
             ExecutorApi.ApplySelfBurn(self, count, true);
             self.SetStatus("Self");
             self.AddBuff("buff_extraordinary", (count * 10).ToString());
-        }));
+        }), "gathered_flame");
     }
 
     private static void ApplyScorchingCanopy(ScriptExecutor self)
@@ -183,14 +173,12 @@ public static class BuffScripts
         }
 
         var epoch = DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "SunExpActiveFieldEpoch", "0"));
-        self.AddEvent(SunExpIds.ScorchingCanopy + "OnLevelChange", new Action(() =>
+        ExecutorApi.TryAddTokenedEvent(self, SunExpIds.ScorchingCanopy + "OnLevelChange",
+            "SunExpField_scorching_canopyToken", token, new Action(() =>
         {
-            if (ExecutorApi.IsHookTokenActive(self, "SunExpField_scorching_canopyToken", token))
-            {
-                ExecutorApi.SyncFieldStacks(self, SunExpFieldId.ScorchingCanopy);
-            }
-        }));
-        self.AddEvent("StartRound", new Action(() =>
+            ExecutorApi.SyncFieldStacks(self, SunExpFieldId.ScorchingCanopy);
+        }), "scorching_canopy");
+        ExecutorApi.TryAddEvent(self, "StartRound", new Action(() =>
         {
             if (!ExecutorApi.IsActiveField(self, SunExpFieldId.ScorchingCanopy, epoch, token))
             {
@@ -198,7 +186,7 @@ public static class BuffScripts
             }
 
             FieldStartRound(self, SunExpFieldId.ScorchingCanopy);
-        }));
+        }), "scorching_canopy");
     }
 
     private static void ClearScorchingCanopy(ScriptExecutor self)
@@ -260,15 +248,10 @@ public static class BuffScripts
             return;
         }
 
-        self.AddEvent("StartRound", new Action(() =>
+        ExecutorApi.TryAddTokenedEvent(self, "StartRound", "SunExpBodyBurnToken", token, new Action(() =>
         {
-            if (!ExecutorApi.IsHookTokenActive(self, "SunExpBodyBurnToken", token))
-            {
-                return;
-            }
-
             TriggerBodyBurn(self);
-        }));
+        }), "body_burn");
     }
 
     private static bool TriggerBodyBurn(ScriptExecutor self)
@@ -333,17 +316,12 @@ public static class BuffScripts
             }
         }
 
-        executor.AddEvent("SunExp_sunexp_emberOnLevelChange", new Action(Sync));
-        executor.AddEvent("emberOnLevelChange", new Action(Sync));
-        executor.AddEvent("StartRound", new Action(() =>
+        ExecutorApi.TryAddTokenedEvent(executor, "SunExp_sunexp_emberOnLevelChange", "SunExpEmberToken", token, new Action(Sync), "ember");
+        ExecutorApi.TryAddTokenedEvent(executor, "emberOnLevelChange", "SunExpEmberToken", token, new Action(Sync), "ember");
+        ExecutorApi.TryAddTokenedEvent(executor, "StartRound", "SunExpEmberToken", token, new Action(() =>
         {
-            if (!ExecutorApi.IsHookTokenActive(executor, "SunExpEmberToken", token))
-            {
-                return;
-            }
-
             BuffApi.ConsumeEmberBeforeBurn(executor, executor.Self);
-        }));
+        }), "ember");
     }
 
     private static void ApplyEmberCloak(ScriptExecutor self)
@@ -358,13 +336,8 @@ public static class BuffScripts
             return;
         }
 
-        self.AddEvent("StartRound", new Action(() =>
+        ExecutorApi.TryAddTokenedEvent(self, "StartRound", "SunExpBurnWardToken", token, new Action(() =>
         {
-            if (!ExecutorApi.IsHookTokenActive(self, "SunExpBurnWardToken", token))
-            {
-                return;
-            }
-
             var activeWard = ExecutorApi.SelfBuffLevel(self, SunExpIds.EmberCloak) > 0;
             var pending = ExecutorApi.GetVar(self, "SunExpBurnWardPending", "0") == "1";
             if (!activeWard && !pending)
@@ -376,8 +349,8 @@ public static class BuffScripts
             self.RemoveBuff(SunExpIds.Burn);
             self.RemoveBuff(SunExpIds.EmberCloak);
             ExecutorApi.SetVar(self, "SunExpBurnWardPending", "1");
-            self.AddTempEvent("EndRound", new Action(() => ExecutorApi.SetVar(self, "SunExpBurnWardPending", "0")));
-        }));
+            ExecutorApi.TryAddTempEvent(self, "EndRound", new Action(() => ExecutorApi.SetVar(self, "SunExpBurnWardPending", "0")), "ember_cloak");
+        }), "ember_cloak");
     }
 
     private static void ApplySolarCrown(ScriptExecutor self)
@@ -481,17 +454,13 @@ public static class BuffScripts
             ExecutorApi.SetVar(self, "SunExpMiniCoronaLast", ExecutorApi.SelfBuffLevel(self, SunExpIds.SolarRadiance));
         }
 
-        self.AddEvent("StartRound", new Action(() =>
+        ExecutorApi.TryAddTokenedEvent(self, "StartRound", "SunExpMiniCoronaToken", token, new Action(() =>
         {
-            if (ExecutorApi.IsHookTokenActive(self, "SunExpMiniCoronaToken", token))
-            {
-                Reset();
-            }
-        }));
-        self.AddEvent("Action", new Action(() =>
+            Reset();
+        }), "origin_core_radiance");
+        ExecutorApi.TryAddTokenedEvent(self, "Action", "SunExpMiniCoronaToken", token, new Action(() =>
         {
-            if (!ExecutorApi.IsHookTokenActive(self, "SunExpMiniCoronaToken", token)
-                || ExecutorApi.SelfBuffLevel(self, SunExpIds.OriginCoreRadiance) <= 0)
+            if (ExecutorApi.SelfBuffLevel(self, SunExpIds.OriginCoreRadiance) <= 0)
             {
                 return;
             }
@@ -507,7 +476,7 @@ public static class BuffScripts
             }
 
             ExecutorApi.SetVar(self, "SunExpMiniCoronaLast", current);
-        }));
+        }), "origin_core_radiance");
         Reset();
     }
 
@@ -524,10 +493,9 @@ public static class BuffScripts
             ExecutorApi.SetVar(self, "SunExpMeltingWheelLastBurn", ExecutorApi.SelfBuffLevel(self, SunExpIds.Burn));
         }
 
-        self.AddEvent("buff_burnOnLevelChange", new Action(() =>
+        ExecutorApi.TryAddTokenedEvent(self, "buff_burnOnLevelChange", "SunExpMeltingWheelToken", token, new Action(() =>
         {
-            if (!ExecutorApi.IsHookTokenActive(self, "SunExpMeltingWheelToken", token)
-                || ExecutorApi.SelfBuffLevel(self, SunExpIds.CycleGatheredFlame) <= 0)
+            if (ExecutorApi.SelfBuffLevel(self, SunExpIds.CycleGatheredFlame) <= 0)
             {
                 return;
             }
@@ -544,7 +512,7 @@ public static class BuffScripts
             }
 
             ExecutorApi.SetVar(self, "SunExpMeltingWheelLastBurn", current);
-        }));
+        }), "cycle_gathered_flame");
         SyncLast();
     }
 
@@ -556,10 +524,9 @@ public static class BuffScripts
             return;
         }
 
-        self.AddEvent("StartRound", new Action(() =>
+        ExecutorApi.TryAddTokenedEvent(self, "StartRound", "SunExpAfterglowToken", token, new Action(() =>
         {
-            if (!ExecutorApi.IsHookTokenActive(self, "SunExpAfterglowToken", token)
-                || ExecutorApi.SelfBuffLevel(self, SunExpIds.AfterglowOmen) <= 0)
+            if (ExecutorApi.SelfBuffLevel(self, SunExpIds.AfterglowOmen) <= 0)
             {
                 return;
             }
@@ -572,7 +539,7 @@ public static class BuffScripts
                     ExecutorApi.AddStatusBuff(self, target, "buff_vulnerability", vulnerability);
                 }
             }
-        }));
+        }), "afterglow_omen");
     }
 
 }

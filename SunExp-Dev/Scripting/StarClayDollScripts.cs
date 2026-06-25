@@ -23,13 +23,8 @@ public static class StarClayDollScripts
                 return;
             }
 
-            self.AddEvent("ActionAfter", new Action(() =>
-            {
-                if (ExecutorApi.IsHookTokenActive(self, "SunExpStarClayDollToken", token))
-                {
-                    StarScoreService.AddStarlight(self, 1);
-                }
-            }));
+            ExecutorApi.TryAddTokenedEvent(self, "ActionAfter", "SunExpStarClayDollToken", token,
+                new Action(() => StarScoreService.AddStarlight(self, 1)), "star_clay_doll");
         }
         catch (Exception ex)
         {
