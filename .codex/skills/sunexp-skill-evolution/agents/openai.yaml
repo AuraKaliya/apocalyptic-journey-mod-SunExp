@@ -1,0 +1,4 @@
+interface:
+  display_name: "SunExp Skill Evolution"
+  short_description: "Distill SunExp traces into skill updates."
+  default_prompt: "Use $sunexp-skill-evolution to analyze SunExp development traces, update project skills, tune triggers, split references, and add durable validation."

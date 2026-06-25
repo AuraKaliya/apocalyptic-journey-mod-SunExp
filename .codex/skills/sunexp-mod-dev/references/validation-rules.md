@@ -8,14 +8,19 @@ Run:
 
 ```powershell
 tools\Build-SunExpDll.ps1
+tools\Test-SunExpArchitecture.ps1
 tools\Test-SunExpCSharp.ps1
 .codex\skills\sunexp-event-dev\scripts\validate-sunexp-events.ps1 # when EventList or Map changes
 .codex\skills\sunexp-mod-dev\scripts\validate-sunexp.ps1
 ```
 
+Run these serially. `Build-SunExpDll.ps1` and `Test-SunExpCSharp.ps1` can both
+write `SunExp-Dev/obj/Release/net472/SunExp.Aura.dll` and should not be
+parallelized.
+
 This checks:
 
-- C# compile and focused SunExp C# regression tests.
+- C# compile, architecture assertions, and focused SunExp C# regression tests.
 - Old dynamic helper calls, inline script blocks, or production `.lua` files.
 - Data/Text ID pairing for matching SunExp CSV files under `Data/` and `Text/`, including role-specific files such as `wuna.csv`.
 - Data/Text ID pairing for Map when present. Tables with no Text side, such as current `Data/Level`, are allowed.

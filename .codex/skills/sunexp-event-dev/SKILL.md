@@ -3,15 +3,17 @@ name: sunexp-event-dev
 description: >-
   Project-local skill for designing, adding, reviewing, or fixing SunExp
   EventList rows, Text/EventList localization, card-pack story event chains,
-  map-visible or mode-exclusive events and bosses, random-pool isolation,
-  multiplayer map synchronization, event reward/progress behavior, and C#
-  event scripts for Witch's Apocalyptic Journey.
+  non-Solar-Memory map-visible events, random-pool isolation, event
+  reward/progress behavior, EventScripts entry points, and CSV/Text alignment
+  for Witch's Apocalyptic Journey. Use sunexp-solar-memory-dev for Solar Memory
+  mode, fixed bosses, finale routing, preparation, and multiplayer role commit.
 ---
 
 # SunExp Event Dev
 
 Use this skill inside the SunExp repository for event work. Pair it with
-`sunexp-mod-dev`; this skill only adds event-specific guardrails.
+`sunexp-mod-dev`; this skill only adds event-specific guardrails. Use
+`sunexp-solar-memory-dev` for Solar Memory mode-level work.
 
 ## Workflow
 
@@ -19,7 +21,7 @@ Use this skill inside the SunExp repository for event work. Pair it with
    - Ordinary event: may enter the base random event pool.
    - Story chain event: use `Sub_` ids so it is not randomly drawn as an ordinary event.
    - Map-visible special event: needs `Data/Map`, `Text/Map`, runtime selection handling, and narrow selection sync repair.
-   - Mode-exclusive event or boss: must be excluded from every global map pool and admitted only by that mode's guarded factory.
+   - Mode-exclusive event or boss: use `sunexp-solar-memory-dev` if the mode is Solar Memory; otherwise exclude it from every global map pool and admit it only by that mode's guarded factory.
    - Repeat event: must be entered only by explicit progress logic.
 2. Inspect the current rows and C# behavior before editing:
    - `SunExp/Data/EventList/sunexp.csv`
@@ -43,6 +45,7 @@ Use this skill inside the SunExp repository for event work. Pair it with
 - Do not treat `Breaks_` or an unreachable `Level` as complete mode isolation. Use `Rarity=7` for internal fixed Map rows, retain a mode guard, and sanitize old generated nodes/sync arrays outside the owning mode.
 - Do not invent a custom `Text/Map.Note` merely to isolate content. Native map weighting expects known Note keys and may select unknown keys before crashing.
 - Keep `Data/EventList` option scripts aligned with `Text/EventList` option descriptions.
+- Do not expand Solar Memory preparation, finale, fixed-boss, or role-commit logic here; route to `sunexp-solar-memory-dev`.
 
 ## References
 
@@ -70,6 +73,7 @@ Run full validation:
 
 ```powershell
 tools\Build-SunExpDll.ps1
+tools\Test-SunExpArchitecture.ps1
 tools\Test-SunExpCSharp.ps1
 .codex\skills\sunexp-mod-dev\scripts\validate-sunexp.ps1
 ```
