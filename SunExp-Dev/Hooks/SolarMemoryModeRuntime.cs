@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using AuraShared.Core;
 using Data.Save;
 using SunExp.Dll.GameApi;
@@ -144,7 +145,9 @@ public static class SolarMemoryModeRuntime
         try
         {
             ConfigureEntryUnlocked(entry.transform);
+            ConfigureEntryHoverState(entry);
             ConfigureEntryTexts(entry.transform);
+            ResetEntryVisualState(entry);
             ConfigureEntryClick(entry, modeChoice);
             entry.SetActive(true);
         }
@@ -228,11 +231,13 @@ public static class SolarMemoryModeRuntime
 
         var normalTitle = entry.Find("Normal/Title");
         var highlightedTitle = entry.Find("HighLighted/Title");
+        var pressedTitle = entry.Find("Pressed/Title");
         ClearEntryStateImages(entry.Find("Normal"), normalTitle);
         ClearEntryStateImages(entry.Find("HighLighted"), highlightedTitle);
-        ClearEntryStateImages(entry.Find("Pressed"), highlightedTitle);
+        ClearEntryStateImages(entry.Find("Pressed"), pressedTitle);
         SetImageSprite(normalTitle, normalSprite);
         SetImageSprite(highlightedTitle, highlightedSprite);
+        SetImageSprite(pressedTitle, highlightedSprite);
         return true;
     }
 
@@ -373,14 +378,14 @@ public static class SolarMemoryModeRuntime
 
     private static void ClearEntryStateImages(Transform? stateRoot, Transform? keep)
     {
-        if (stateRoot == null || keep == null)
+        if (stateRoot == null)
         {
             return;
         }
 
         foreach (var image in stateRoot.GetComponentsInChildren<Image>(true))
         {
-            if (image.transform == keep)
+            if (keep != null && image.transform == keep)
             {
                 continue;
             }
@@ -391,7 +396,7 @@ public static class SolarMemoryModeRuntime
 
         foreach (var rawImage in stateRoot.GetComponentsInChildren<RawImage>(true))
         {
-            if (rawImage.transform == keep)
+            if (keep != null && rawImage.transform == keep)
             {
                 continue;
             }
@@ -399,6 +404,91 @@ public static class SolarMemoryModeRuntime
             rawImage.texture = null;
             rawImage.enabled = false;
         }
+    }
+
+    private static void ConfigureEntryHoverState(GameObject entry)
+    {
+        var switchButton = entry.GetComponent<SwitchButton>();
+        if (switchButton != null)
+        {
+            switchButton.Normal = FindStateCanvasGroup(entry.transform, "Normal");
+            switchButton.Highlighted = FindStateCanvasGroup(entry.transform, "HighLighted", "Highlighted");
+            switchButton.Pressed = FindStateCanvasGroup(entry.transform, "Pressed");
+            switchButton.isAnimated = false;
+            switchButton.animationType = SwitchButton.AnimationType.None;
+            switchButton.transitionTime = 0f;
+        }
+
+        foreach (var component in entry.GetComponentsInChildren<MonoBehaviour>(true))
+        {
+            if (component == null || component.GetType().Name != "ButtonManager")
+            {
+                continue;
+            }
+
+            component.StopAllCoroutines();
+            SetCanvasGroupField(component, "normalCG", 1f);
+            SetCanvasGroupField(component, "highlightCG", 0f);
+            SetCanvasGroupField(component, "disabledCG", 0f);
+            component.enabled = false;
+        }
+    }
+
+    private static CanvasGroup? FindStateCanvasGroup(Transform entry, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            var state = entry.Find(name);
+            if (state == null)
+            {
+                continue;
+            }
+
+            return state.GetComponent<CanvasGroup>() ?? state.gameObject.AddComponent<CanvasGroup>();
+        }
+
+        return null;
+    }
+
+    private static void SetCanvasGroupField(MonoBehaviour component, string fieldName, float alpha)
+    {
+        var field = component.GetType().GetField(
+            fieldName,
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        if (field?.GetValue(component) is not CanvasGroup canvasGroup)
+        {
+            return;
+        }
+
+        canvasGroup.alpha = alpha;
+        canvasGroup.blocksRaycasts = alpha > 0.99f;
+        canvasGroup.interactable = alpha > 0.99f;
+    }
+
+    private static void ResetEntryVisualState(GameObject entry)
+    {
+        var switchButton = entry.GetComponent<SwitchButton>();
+        if (switchButton != null)
+        {
+            switchButton.SetOffImmediate();
+            return;
+        }
+
+        SetCanvasGroupState(FindStateCanvasGroup(entry.transform, "Normal"), true);
+        SetCanvasGroupState(FindStateCanvasGroup(entry.transform, "HighLighted", "Highlighted"), false);
+        SetCanvasGroupState(FindStateCanvasGroup(entry.transform, "Pressed"), false);
+    }
+
+    private static void SetCanvasGroupState(CanvasGroup? canvasGroup, bool active)
+    {
+        if (canvasGroup == null)
+        {
+            return;
+        }
+
+        canvasGroup.alpha = active ? 1f : 0f;
+        canvasGroup.blocksRaycasts = active;
+        canvasGroup.interactable = active;
     }
 
     private static void ConfigureEntryClick(GameObject entry, ModeChoiceUI modeChoice)
@@ -415,7 +505,7 @@ public static class SolarMemoryModeRuntime
         {
             if (component != null && component.GetType().Name == "ButtonManager")
             {
-                BindUnityEvent(component, "onClick", () => SolarMemoryRunLauncher.Start(modeChoice, InitialPackSelection().ToList()));
+                component.enabled = false;
             }
         }
 

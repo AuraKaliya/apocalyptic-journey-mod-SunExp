@@ -31,6 +31,7 @@ public static class ModeChoiceLayoutRuntime
     private const string NativeProxySlotPrefix = "SunExp_NativeProxy_";
     private const string CustomSlotPrefix = "SunExp_CustomSlot_";
     private const string LegacyDragSurfaceName = "SunExp_ModeChoiceDragSurface";
+    private const string BackgroundDragSurfaceName = "SunExp_ModeChoiceBackgroundDragSurface";
     private static readonly string[] KnownNativeEntryNames =
     {
         "NormalMode",
@@ -115,7 +116,7 @@ public static class ModeChoiceLayoutRuntime
         if (!string.IsNullOrWhiteSpace(preferredName))
         {
             var preferred = modeList.Find(preferredName);
-            if (preferred != null)
+            if (preferred != null && preferred.gameObject.activeSelf)
             {
                 return preferred;
             }
@@ -130,7 +131,7 @@ public static class ModeChoiceLayoutRuntime
             }
         }
 
-        return null;
+        return string.IsNullOrWhiteSpace(preferredName) ? null : modeList.Find(preferredName);
     }
 
     private static void AppendRegisteredEntries(
@@ -593,8 +594,15 @@ public static class ModeChoiceLayoutRuntime
             ModeChoiceSidePadding);
 
         DisableLegacyDragSurface(modeChoice);
+        var backgroundSurface = EnsureBackgroundDragSurface(modeChoice, range.DragEnabled);
+        var oldModeListDrag = modeList.GetComponent<ModeChoiceHorizontalDrag>();
+        if (oldModeListDrag != null)
+        {
+            oldModeListDrag.enabled = false;
+        }
+
         ConfigureDragComponent(
-            modeList.gameObject,
+            modeChoice.gameObject,
             modeList,
             range.MinOffset,
             range.MaxOffset,
@@ -602,7 +610,8 @@ public static class ModeChoiceLayoutRuntime
             range.DragEnabled);
 
         return "dragEnabled=" + range.DragEnabled
-            + "; dragHost=ModeList"
+            + "; dragHost=ModeChoiceUI"
+            + "; backgroundSurface=" + backgroundSurface
             + "; contentWidth=" + contentWidth.ToString("0.###")
             + "; viewportWidth=" + range.ViewportWidth.ToString("0.###")
             + "; parentViewportWidth=" + parentViewportWidth.ToString("0.###")
@@ -611,6 +620,41 @@ public static class ModeChoiceLayoutRuntime
             + "; minOffset=" + range.MinOffset.ToString("0.###")
             + "; maxOffset=" + range.MaxOffset.ToString("0.###")
             + "; anchoredX=" + modeList.anchoredPosition.x.ToString("0.###");
+    }
+
+    private static string EnsureBackgroundDragSurface(ModeChoiceUI modeChoice, bool dragEnabled)
+    {
+        var root = modeChoice.transform as RectTransform;
+        if (root == null)
+        {
+            return "false; reason=no-root";
+        }
+
+        var surface = root.Find(BackgroundDragSurfaceName) as RectTransform;
+        if (surface == null)
+        {
+            var surfaceObject = new GameObject(
+                BackgroundDragSurfaceName,
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(Image));
+            surfaceObject.transform.SetParent(root, false);
+            surface = (RectTransform)surfaceObject.transform;
+        }
+
+        surface.anchorMin = Vector2.zero;
+        surface.anchorMax = Vector2.one;
+        surface.pivot = new Vector2(0.5f, 0.5f);
+        surface.offsetMin = Vector2.zero;
+        surface.offsetMax = Vector2.zero;
+        surface.localScale = Vector3.one;
+        surface.SetAsFirstSibling();
+
+        var image = surface.GetComponent<Image>();
+        image.color = Color.clear;
+        image.raycastTarget = dragEnabled;
+        surface.gameObject.SetActive(dragEnabled);
+        return dragEnabled + "; sibling=" + surface.GetSiblingIndex() + "; bounds=" + RectSummary(surface);
     }
 
     private static void ConfigureDragComponent(

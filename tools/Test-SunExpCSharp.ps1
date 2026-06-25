@@ -698,6 +698,14 @@ function Assert-True {
 function Invoke-SourceAssertions {
     param([string]$RepoRoot)
 
+    $bossMirrorName = [regex]::Unescape('\u767d\u66dc\u955c\u9635')
+    $bossMirrorOldName = [regex]::Unescape('\u767d\u66dc\u955c\u9635\u00b7\u4e09\u5343\u73af\u65e5\u955c')
+    $bossSecondSunName = [regex]::Unescape('\u65e0\u6148\u7b2c\u4e8c\u65e5\u8f6e')
+    $bossSecondSunOldName = [regex]::Unescape('\u65e0\u6148\u7b2c\u4e8c\u65e5\u8f6e\u00b7\u7ec8\u65e5\u6001')
+    $bossSaintWunaName = [regex]::Unescape('\u767d\u66dc\u5723\u5973\u00b7\u4e4c\u5a1c')
+    $solarMemoryPrefix = [regex]::Unescape('\u65e5\u8000\u56de\u5fc6\u00b7')
+    $solarMemoryTraditionalPrefix = [regex]::Unescape('\u65e5\u8000\u56de\u61b6\u00b7')
+
     $executorApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\ExecutorApi.cs"))
     $sunExpIds = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpIds.cs"))
     $sunExpFieldId = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpFieldId.cs"))
@@ -1009,6 +1017,12 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemoryModeRuntime.Contains("ClearEntryStateImages") "Solar memory mode entry must clear native mode art layers before applying custom art."
     Assert-True $solarMemoryModeRuntime.Contains("stateRoot.GetComponentsInChildren<Image>(true)") "Solar memory mode entry must disable cloned Image layers."
     Assert-True $solarMemoryModeRuntime.Contains("stateRoot.GetComponentsInChildren<RawImage>(true)") "Solar memory mode entry must disable cloned RawImage layers."
+    Assert-True $solarMemoryModeRuntime.Contains("ConfigureEntryHoverState(entry)") "Solar memory mode entry must isolate inherited hover animation state."
+    Assert-True $solarMemoryModeRuntime.Contains("switchButton.isAnimated = false") "Solar memory mode entry must use immediate SwitchButton state changes."
+    Assert-True $solarMemoryModeRuntime.Contains("component.StopAllCoroutines()") "Solar memory mode entry must stop inherited ButtonManager hover transitions."
+    Assert-True $solarMemoryModeRuntime.Contains("component.enabled = false") "Solar memory mode entry must disable duplicate ButtonManager hover controllers."
+    Assert-True $solarMemoryModeRuntime.Contains('entry.Find("Pressed/Title")') "Solar memory mode entry must provide custom art for the pressed state."
+    Assert-True $solarMemoryModeRuntime.Contains("switchButton.SetOffImmediate()") "Solar memory mode entry must reset cloned CanvasGroup state deterministically."
     Assert-True $solarMemoryModeRuntime.Contains("RegisterModeChoiceEntry()") "Solar memory mode entry must register itself through the shared mode-choice entry registry."
     Assert-True $solarMemoryModeRuntime.Contains("ModeChoiceLayoutRuntime.Initialize(modConfig)") "Solar memory mode entry must use the shared mode-choice layout runtime."
     Assert-True (-not $solarMemoryModeRuntime.Contains('"ModeChoiceUI.Init", InjectEntry')) "Solar memory mode entry must not directly inject and position itself from ModeChoiceUI.Init."
@@ -1037,7 +1051,11 @@ function Invoke-SourceAssertions {
     Assert-True $modeChoiceLayoutRuntime.Contains("DisableLegacyDragSurface") "Mode choice layout runtime must disable stale raycast-blocking drag surfaces."
     Assert-True $modeChoiceLayoutRuntime.Contains("image.raycastTarget = false") "Mode choice layout runtime must clear stale drag-surface raycasts before hiding it."
     Assert-True (-not $modeChoiceLayoutRuntime.Contains("ConfigureDragSurface")) "Mode choice layout runtime must not create a full-screen raycast-blocking drag surface."
-    Assert-True (-not $modeChoiceLayoutRuntime.Contains("raycastTarget = true")) "Mode choice layout runtime must not add a raycast-blocking overlay."
+    Assert-True $modeChoiceLayoutRuntime.Contains("EnsureBackgroundDragSurface") "Mode choice layout runtime must provide a background-only drag raycast surface."
+    Assert-True $modeChoiceLayoutRuntime.Contains("surface.SetAsFirstSibling()") "Mode choice background drag surface must stay behind clickable mode entries."
+    Assert-True $modeChoiceLayoutRuntime.Contains("image.raycastTarget = dragEnabled") "Mode choice background drag surface must receive events only while dragging is available."
+    Assert-True $modeChoiceLayoutRuntime.Contains("modeChoice.gameObject") "Mode choice dragging must be handled by the common UI root."
+    Assert-True $modeChoiceLayoutRuntime.Contains("preferred.gameObject.activeSelf") "Mode choice custom entries must prefer an active native visual template."
     Assert-True $modeChoiceLayoutRuntime.Contains("var targetChanged = !configured || modeList != modeListRect") "Mode choice drag configuration must retain a stable baseline across repeated UI refreshes."
     Assert-True $modeChoiceLayoutRuntime.Contains("ModeChoiceSidePadding") "Mode choice layout runtime must reserve left and right breathing room."
     Assert-True $modeChoiceLayoutRuntime.Contains("defaultOffset") "Mode choice layout runtime must start at a padded default offset."
@@ -1136,6 +1154,11 @@ function Invoke-SourceAssertions {
     Assert-True ([regex]::IsMatch($enemyData, "(?m)^boss_orbit_mirror_array,[^,]*,180,12,8,2,3,")) "Mirror-array boss must use enemy rarity 3 so it appears under the official Boss dictionary filter."
     Assert-True ([regex]::IsMatch($enemyData, "(?m)^boss_second_sun_last_day,[^,]*,360,16,12,2,3,")) "Second-sun boss must use enemy rarity 3 so it appears under the official Boss dictionary filter."
     Assert-True ([regex]::IsMatch($enemyData, "(?m)^boss_saint_wuna,[^,]*,320,14,14,2,3,")) "Saint Wuna boss must use enemy rarity 3 so it appears under the official Boss dictionary filter."
+    Assert-True $enemyData.Contains("boss_orbit_mirror_array,$bossMirrorName,180") "Mirror-array boss must use the compact White Radiance Mirror Array name."
+    Assert-True $enemyData.Contains("boss_second_sun_last_day,$bossSecondSunName,360") "Second-sun boss must use the compact Merciless Second Sun name."
+    Assert-True $enemyData.Contains("boss_saint_wuna,$bossSaintWunaName,320") "Saint Wuna boss must keep the requested White Radiance Saint name."
+    Assert-True (-not $enemyData.Contains($bossMirrorOldName)) "Enemy data must not keep the overlong mirror-array boss name."
+    Assert-True (-not $enemyData.Contains($bossSecondSunOldName)) "Enemy data must not keep the overlong second-sun boss name."
     Assert-True $enemyText.Contains("<title>Mirror Array</title>") "Mirror-array bestiary text must use the renamed mirror-array entry."
     Assert-True $enemyText.Contains("<title>Last Day</title>") "Second-sun bestiary text must use the renamed last-day entry."
     Assert-True $enemyText.Contains("<title>Saint Prayer</title>") "Saint Wuna bestiary text must use the renamed saint-prayer entry."
@@ -1184,8 +1207,15 @@ function Invoke-SourceAssertions {
     Assert-True $levelData.Contains("level_saint_wuna,SunExp_sunexp_boss_saint_wuna,boss,-1") "Solar memory level data must define the hidden saint fight as a boss level."
     Assert-True $mapText.Contains("solar_memory_polluted_light") "Solar memory map text must include the polluted light node."
     Assert-True ($mapText.Contains("solar_memory_boss_saint_wuna") -and $mapText.Contains("Hidden Boss")) "Solar memory map text must mark the hidden saint fight as a boss node."
+    Assert-True (-not $mapText.Contains($solarMemoryPrefix)) "Solar memory map event names must not repeat the mode prefix."
+    Assert-True (-not $mapText.Contains("Solar Memory - ")) "Localized Solar Memory map event names must stay compact."
+    Assert-True ($mapText.Contains("solar_memory_boss_orbit_mirror_array,") -and $mapText.Contains(",$bossMirrorName,")) "Solar memory map text must use the compact mirror-array boss name."
+    Assert-True ($mapText.Contains("solar_memory_boss_second_sun_last_day,") -and $mapText.Contains(",$bossSecondSunName,")) "Solar memory map text must use the compact second-sun boss name."
     Assert-True $eventData.Contains("Sub_solar_memory_grief_struggle,CS.SunExp.Dll.Scripting.EventScripts.ContinueSolarMemory();") "Solar memory event data must route story choices through C# continue."
     Assert-True $eventText.Contains("Sub_solar_memory_above_sacred_wheel") "Solar memory event text must include the sixth fixed story row."
+    Assert-True (-not $eventText.Contains($solarMemoryPrefix)) "Solar Memory event titles must not repeat the mode prefix."
+    Assert-True (-not $eventText.Contains($solarMemoryTraditionalPrefix)) "Traditional Solar Memory event titles must not repeat the mode prefix."
+    Assert-True (-not $eventText.Contains("Solar Memory - ")) "Localized Solar Memory event titles must stay compact."
     Assert-True (-not $eventText.Contains("Alderin")) "Solar finale ending text must not refer to Alderin as Wuna's world."
     Assert-True $solarMemoryModeRuntime.Contains("public static int SanitizeSolarMemoryRoleCards") "Solar memory must expose a role-card sanitizer."
     Assert-True $solarMemoryModeRuntime.Contains("RemoveEventConfigs(role.cardList") "Solar memory sanitizer must remove event cards from the actual deck."
