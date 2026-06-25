@@ -24,6 +24,7 @@ public static class SolarMemoryModeRuntime
     private const string PackWindowName = "SunExp_SolarMemoryPackWindow";
     private const string EntryTitleSpritePath = "Mods/SunExp/ModResource/Images/UI/solar_memory_title_c.png";
     private const string EntryHighlightedTitleSpritePath = "Mods/SunExp/ModResource/Images/UI/solar_memory_title_c_h.png";
+    private const string SolarMemoryEventMapCardTexturePath = "Mods/SunExp/ModResource/Images/MapNode/日耀回忆-事件.png";
     private const float EntryTitleArtHeightRatio = 0.735f;
     private const int SolarMemoryOpeningSlotIndex = 0;
     private const int SolarMemoryMidLayerSlotIndex = 3;
@@ -41,8 +42,8 @@ public static class SolarMemoryModeRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
-        RegisterAfter(modConfig, "ModeChoiceUI.Init", InjectEntry);
-        RegisterAfter(modConfig, "ModeChoiceUI.DataUpdate", InjectEntry);
+        RegisterModeChoiceEntry();
+        ModeChoiceLayoutRuntime.Initialize(modConfig);
         RegisterAfter(modConfig, "MapSelectUI.DataUpdate", ApplySolarMemoryLayerTitle);
         RegisterBefore(modConfig, "GameConfigManager.CardPackCheck", FilterSolarMemoryCardPackCheck);
         RegisterBefore(modConfig, "NormalMapManager.RandomGenerate", CaptureSolarMemoryGenerationState);
@@ -64,6 +65,17 @@ public static class SolarMemoryModeRuntime
         RegisterAfter(modConfig, "Fight_Escape.ResetStates", SettleSolarMemoryFightAbort);
         RegisterAfter(modConfig, "Fight_Loss.Init", SettleSolarMemoryFightLoss);
         RegisterBefore(modConfig, "NormalMapManager.ReadyToChangeMap", FinishSolarMemoryAfterFinalLayer);
+    }
+
+    private static void RegisterModeChoiceEntry()
+    {
+        ModeChoiceEntryRegistry.Register(new ModeChoiceEntryDefinition(
+            EntryObjectName,
+            "SublimationMode",
+            100,
+            ConfigureRegisteredEntry,
+            modeChoice => SolarMemoryRunLauncher.Start(modeChoice, InitialPackSelection().ToList()),
+            SunExpIds.SolarMemoryTitle));
     }
 
     public static void OpenOriginWindow()
@@ -127,31 +139,10 @@ public static class SolarMemoryModeRuntime
         AuraSharedHooks.RegisterBefore(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Solar memory " + message));
     }
 
-    private static void InjectEntry(ModHookContext context)
+    private static void ConfigureRegisteredEntry(GameObject entry, ModeChoiceUI modeChoice)
     {
         try
         {
-            if (context.Target is not ModeChoiceUI modeChoice)
-            {
-                return;
-            }
-
-            var modeList = modeChoice.transform.Find("ModeList");
-            var template = modeList?.Find("SublimationMode") ?? modeList?.Find("NormalMode");
-            if (modeList == null || template == null)
-            {
-                return;
-            }
-
-            var entry = modeList.Find(EntryObjectName)?.gameObject;
-            if (entry == null)
-            {
-                entry = UnityEngine.Object.Instantiate(template.gameObject, modeList);
-                entry.name = EntryObjectName;
-                entry.transform.SetAsLastSibling();
-                entry.transform.localScale = template.localScale;
-            }
-
             ConfigureEntryUnlocked(entry.transform);
             ConfigureEntryTexts(entry.transform);
             ConfigureEntryClick(entry, modeChoice);
@@ -869,11 +860,11 @@ public static class SolarMemoryModeRuntime
         var fixedItem = UnityEngine.Object.Instantiate(template.gameObject, content);
         fixedItem.name = prefabName;
         fixedItem.transform.localScale = Vector3.one;
-        ApplyMapCardTexture(fixedItem.transform, data);
         fixedItem.SetActive(true);
 
         var item = fixedItem.GetComponent<MapItem>() ?? fixedItem.AddComponent<MapItem>();
         item.Init(node);
+        ApplyMapCardTexture(fixedItem.transform, data);
 
         if (fixedItem.TryGetComponent<ObjectGroup>(out var objectGroup))
         {
@@ -936,11 +927,37 @@ public static class SolarMemoryModeRuntime
         var type = Field(data, "Type");
         if (type == "Event")
         {
+            var customTexture = LoadMapCardTexture(SolarMemoryEventMapCardTexturePath);
+            if (customTexture != null)
+            {
+                var icon = item.Find("Front/icon");
+                if (icon != null)
+                {
+                    icon.gameObject.SetActive(false);
+                }
+
+                background.material.mainTexture = customTexture;
+                return;
+            }
+
             background.material.mainTexture = ResourceLoader.Load<Texture>("Icon/CardTemplate/故事牌", true);
         }
         else if (type == "Build")
         {
             background.material.mainTexture = ResourceLoader.Load<Texture>("Icon/CardTemplate/建筑牌", true);
+        }
+    }
+
+    private static Texture? LoadMapCardTexture(string path)
+    {
+        try
+        {
+            return ResourceLoader.Load<Texture>(path, true);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[SolarMemoryMapLock] failed to load map card texture " + path + ": " + ex.Message);
+            return null;
         }
     }
 

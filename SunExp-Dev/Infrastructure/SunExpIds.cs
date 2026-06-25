@@ -177,6 +177,8 @@ public static class SunExpIds
     public const string SolarBossOrbitMirrorEnemyId = "SunExp_sunexp_boss_orbit_mirror_array";
     public const string SolarBossSecondSunEnemyId = "SunExp_sunexp_boss_second_sun_last_day";
     public const string SolarBossSaintWunaEnemyId = "SunExp_sunexp_boss_saint_wuna";
+    public const string SolarBossSecondSunMapTexturePath = "Mods/SunExp/ModResource/AnimationLib/SecondSunWeel_e/Map/Map_00.png";
+    public const string SolarBossSaintWunaMapTexturePath = "Mods/SunExp/ModResource/AnimationLib/WuNa_e/Map/Map_00.png";
     public const string BlazingCrownCollapseCardId = "SunExp_sunexp_blazing_crown_collapse";
     public const int SolarFinaleMapLevel = 30;
     public const int SolarFinaleNameCount = 8;

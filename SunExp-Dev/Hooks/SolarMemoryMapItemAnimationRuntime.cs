@@ -59,7 +59,7 @@ public static class SolarMemoryMapItemAnimationRuntime
 
             PendingRestores[node] = new AnimationRestore(row, original);
             row["Animation"] = fallbackAnimation;
-            SunExpLog.Info("[SolarMemoryMapItem] applied map animation fallback for "
+            SunExpLog.Info("[SolarMemoryMapItem] applied safe map animation fallback for "
                 + enemyId
                 + "; original="
                 + original
@@ -167,12 +167,12 @@ public static class SolarMemoryMapItemAnimationRuntime
 
         try
         {
-            if (ResourceLoader.LoadAll<Texture2D>(animationPath + "/Map").Length > 0)
+            if ((ResourceLoader.LoadAll<Texture2D>(animationPath + "/Map")?.Length ?? 0) > 0)
             {
                 return true;
             }
 
-            return ResourceLoader.LoadAll<Texture2D>(animationPath + "/Idle").Length > 0;
+            return (ResourceLoader.LoadAll<Texture2D>(animationPath + "/Idle")?.Length ?? 0) > 0;
         }
         catch (Exception ex)
         {

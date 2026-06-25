@@ -37,6 +37,11 @@ function New-ProjectXml {
     $starBlessingCostOverrideStore = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarBlessingCostOverrideStore.cs"
     $loneerCombatState = Join-Path $RepoRoot "SunExp-Dev\Mechanics\LoneerCombatState.cs"
     $starScoreCombatState = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreCombatState.cs"
+    $mapNodeCardArtFitMode = Join-Path $RepoRoot "SunExp-Dev\Mechanics\MapNodeCardArtFitMode.cs"
+    $mapNodeCardArtFitResult = Join-Path $RepoRoot "SunExp-Dev\Mechanics\MapNodeCardArtFitResult.cs"
+    $mapNodeTextureBounds = Join-Path $RepoRoot "SunExp-Dev\Mechanics\MapNodeTextureBounds.cs"
+    $mapNodeTextureFitService = Join-Path $RepoRoot "SunExp-Dev\Mechanics\MapNodeTextureFitService.cs"
+    $modeChoiceDragRange = Join-Path $RepoRoot "SunExp-Dev\Mechanics\ModeChoiceDragRange.cs"
 
 @"
 <Project Sdk="Microsoft.NET.Sdk">
@@ -59,6 +64,11 @@ function New-ProjectXml {
     <Compile Include="$starBlessingCostOverrideStore" />
     <Compile Include="$loneerCombatState" />
     <Compile Include="$starScoreCombatState" />
+    <Compile Include="$mapNodeCardArtFitMode" />
+    <Compile Include="$mapNodeCardArtFitResult" />
+    <Compile Include="$mapNodeTextureBounds" />
+    <Compile Include="$mapNodeTextureFitService" />
+    <Compile Include="$modeChoiceDragRange" />
     <Compile Include="$SourceDir\Tests.cs" />
   </ItemGroup>
 </Project>
@@ -301,6 +311,8 @@ internal static class Program
         TestWhiteRadianceTags();
         TestTemporaryWhiteRadianceClaim();
         TestSolarMemoryIsolationIds();
+        TestMapNodeTextureFitService();
+        TestModeChoiceDragRange();
         TestLoneerStateOwnership();
         TestStarScoreWindow();
 
@@ -332,6 +344,67 @@ internal static class Program
         True(SunExpIds.IsSolarMemoryExclusiveEventId("SunExp_sunexp_Sub_solar_memory_second_sun"), "Full Solar Memory story event ids are exclusive");
         True(SunExpIds.IsSolarMemoryExclusiveEventId("Sub_wuna_event_1"), "Legacy Wuna story event ids are exclusive");
         False(SunExpIds.IsSolarMemoryExclusiveEventId("event_2001"), "Base game event ids are not Solar Memory exclusive");
+    }
+
+    private static void TestMapNodeTextureFitService()
+    {
+        var secondSun = MapNodeTextureFitService.Fit(
+            new MapNodeTextureBounds(320, 476, 20, 20, 90, 91),
+            MapNodeCardArtFitMode.ContainTrimmed);
+        True(secondSun.ShouldApplyTransform, "Trimmed map-node art owns the icon transform");
+        Approximately(182.86f, secondSun.ScaleX, 0.01f, "Wide second-sun art scales the full canvas from the visible-width fit");
+        Approximately(272f, secondSun.ScaleY, 0.01f, "Wide second-sun art preserves canvas aspect while fitting visible width");
+        Approximately(-0.29f, secondSun.OffsetY, 0.02f, "Asymmetric transparent trim recenters the visible subject");
+
+        var saint = MapNodeTextureFitService.Fit(
+            new MapNodeTextureBounds(320, 476, 63, 64, 70, 130),
+            MapNodeCardArtFitMode.ContainTrimmed);
+        Approximately(265.28f, saint.ScaleX, 0.01f, "Tall saint art scales the full canvas from the visible-width fit");
+        Approximately(394.61f, saint.ScaleY, 0.01f, "Tall saint art keeps the original canvas ratio");
+        Approximately(-24.87f, saint.OffsetY, 0.01f, "Large bottom transparency is compensated by a vertical offset");
+
+        var canvas = MapNodeTextureFitService.Fit(
+            new MapNodeTextureBounds(320, 476, 63, 64, 70, 130),
+            MapNodeCardArtFitMode.ContainCanvas);
+        Approximately(160f, canvas.ScaleX, 0.01f, "Canvas mode fits the full 320px canvas width");
+        Approximately(238f, canvas.ScaleY, 0.01f, "Canvas mode fits the full 476px canvas height");
+        Approximately(0f, canvas.OffsetY, 0.01f, "Canvas mode does not compensate transparent padding");
+
+        var legacy = MapNodeTextureFitService.Fit(
+            new MapNodeTextureBounds(320, 476, 0, 0, 0, 0),
+            MapNodeCardArtFitMode.StretchLegacy);
+        False(legacy.ShouldApplyTransform, "Legacy mode leaves native MapItem transform untouched");
+    }
+
+    private static void TestModeChoiceDragRange()
+    {
+        var fiveSlots = ModeChoiceDragRangeService.Calculate(
+            -987.5f,
+            987.5f,
+            355f,
+            5,
+            50f,
+            1920f,
+            4,
+            96f);
+        Approximately(1570f, fiveSlots.ViewportWidth, 0.01f, "Four visible mode slots define the viewport width");
+        Approximately(-202.5f, fiveSlots.MinOffset, 0.01f, "Left drag limit fully reveals the fifth mode");
+        Approximately(202.5f, fiveSlots.MaxOffset, 0.01f, "Right drag limit fully reveals the first four modes");
+        Approximately(202.5f, fiveSlots.DefaultOffset, 0.01f, "Initial position shows the native four modes");
+        True(fiveSlots.DragEnabled, "Five mode slots enable horizontal dragging");
+
+        var fourSlots = ModeChoiceDragRangeService.Calculate(
+            -785f,
+            785f,
+            355f,
+            4,
+            50f,
+            1920f,
+            4,
+            96f);
+        Approximately(0f, fourSlots.MinOffset, 0.01f, "Four fitting slots need no negative offset");
+        Approximately(0f, fourSlots.MaxOffset, 0.01f, "Four fitting slots need no positive offset");
+        False(fourSlots.DragEnabled, "Four fitting slots keep dragging disabled");
     }
 
     private static void TestCardCostHelpers()
@@ -568,6 +641,15 @@ internal static class Program
         }
     }
 
+    private static void Approximately(float expected, float actual, float tolerance, string message)
+    {
+        assertions++;
+        if (Math.Abs(expected - actual) > tolerance)
+        {
+            throw new InvalidOperationException("Assertion failed: " + message + ". Expected <" + expected + ">, got <" + actual + ">.");
+        }
+    }
+
     private static void NotEqual<T>(T unexpected, T actual, string message)
     {
         assertions++;
@@ -651,9 +733,16 @@ function Invoke-SourceAssertions {
     $scriptingSource = [string]::Join("`n", (Get-ChildItem -LiteralPath (Join-Path $RepoRoot "SunExp-Dev\Scripting") -File -Filter "*.cs" | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }))
     $solarEventRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarEventRuntime.cs"))
     $solarMemoryModeRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryModeRuntime.cs"))
+    $modeChoiceEntryDefinition = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\ModeChoiceEntryDefinition.cs"))
+    $modeChoiceEntryRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\ModeChoiceEntryRegistry.cs"))
+    $modeChoiceLayoutRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\ModeChoiceLayoutRuntime.cs"))
     $solarMemoryRunLauncher = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryRunLauncher.cs"))
     $solarMemoryContentIsolationRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryContentIsolationRuntime.cs"))
     $solarMemoryMapItemAnimationRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryMapItemAnimationRuntime.cs"))
+    $mapNodeCardArtRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\MapNodeCardArtRuntime.cs"))
+    $mapNodeCardArtRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\MapNodeCardArtRegistry.cs"))
+    $mapItemApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\MapItemApi.cs"))
+    $mapNodeTextureFitService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\MapNodeTextureFitService.cs"))
     $sunExpHardTagRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SunExpHardTagRuntime.cs"))
     $solarMemoryStarterDeckRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryStarterDeckRuntime.cs"))
     $solarMemorySetupFlowRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemorySetupFlowRuntime.cs"))
@@ -766,12 +855,24 @@ function Invoke-SourceAssertions {
     Assert-True $runtimeHooks.Contains("StarClayDollRuntime.Initialize(modConfig)") "RuntimeHooks must initialize Star Clay Doll independently from Dusk."
     Assert-True $runtimeHooks.Contains("LoneerRuntime.Initialize(modConfig)") "RuntimeHooks must initialize Loneer's card-action runtime."
     Assert-True $runtimeHooks.Contains("SolarMemoryMapItemAnimationRuntime.Initialize(modConfig)") "RuntimeHooks must initialize solar memory map-item animation fallback hooks."
+    Assert-True $runtimeHooks.Contains("MapNodeCardArtRuntime.Initialize(modConfig)") "RuntimeHooks must initialize generic map-node card art hooks after animation fallback hooks."
     Assert-True $solarMemoryMapItemAnimationRuntime.Contains('RegisterBefore(modConfig, "MapItem.Init", PrepareMapItemAnimation);') "Solar memory map items must patch fixed boss animation paths before native MapItem.Init loads Texture2D frames."
     Assert-True $solarMemoryMapItemAnimationRuntime.Contains('RegisterAfter(modConfig, "MapItem.Init", RestoreMapItemAnimation);') "Solar memory map item animation fallback must restore enemy animation paths after native MapItem.Init."
     Assert-True $solarMemoryMapItemAnimationRuntime.Contains("SunExpIds.SolarBossSecondSunLevelId") "Solar memory map item fallback must cover the second-sun boss map node."
     Assert-True $solarMemoryMapItemAnimationRuntime.Contains("SunExpIds.SolarBossSaintWunaLevelId") "Solar memory map item fallback must cover the saint Wuna boss map node."
     Assert-True $solarMemoryMapItemAnimationRuntime.Contains('row["Animation"] = fallbackAnimation') "Solar memory map item fallback must temporarily replace the enemy Animation row."
     Assert-True $solarMemoryMapItemAnimationRuntime.Contains('restore.Row["Animation"] = restore.Animation') "Solar memory map item fallback must restore the original enemy Animation row."
+    Assert-True (-not $solarMemoryMapItemAnimationRuntime.Contains("ApplyFixedBossMapTexture")) "Solar memory animation fallback must not own map-node texture replacement."
+    Assert-True $mapNodeCardArtRuntime.Contains('RegisterBefore(modConfig, "MapItem.Init", CaptureMapItemBaseline);') "Map-node art runtime must capture icon baseline before native MapItem.Init mutates transform."
+    Assert-True $mapNodeCardArtRuntime.Contains('RegisterAfter(modConfig, "MapItem.Init", ApplyMapNodeCardArt);') "Map-node art runtime must apply configured art after native MapItem.Init."
+    Assert-True $mapNodeCardArtRuntime.Contains("ResourceLoader.Load<Texture>(spec.TexturePath, true)") "Map-node art runtime must load textures through the mod-aware ResourceLoader path."
+    Assert-True $mapNodeCardArtRegistry.Contains("SunExpIds.SolarBossSecondSunMapTexturePath") "Map-node art registry must cover the second-sun boss map texture."
+    Assert-True $mapNodeCardArtRegistry.Contains("SunExpIds.SolarBossSaintWunaMapTexturePath") "Map-node art registry must cover the saint Wuna boss map texture."
+    Assert-True $mapNodeCardArtRegistry.Contains("MapNodeCardArtFitMode.ContainTrimmed") "Fixed boss map-node art must use transparent-edge contain fitting."
+    Assert-True $mapItemApi.Contains("TextureTransparencyAnalyzer.AnalyzeAllEdges") "MapItemApi must analyze transparent edges before applying fitted map-node textures."
+    Assert-True $mapItemApi.Contains("MapNodeTextureFitService.Fit") "MapItemApi must delegate map-node texture geometry to the fit service."
+    Assert-True $mapNodeTextureFitService.Contains("DefaultFightBoundsWidth = 160f") "Map-node texture fit service must preserve native fight-node width."
+    Assert-True $mapNodeTextureFitService.Contains("DefaultFightBoundsHeight = 238f") "Map-node texture fit service must preserve native fight-node height."
     Assert-True $duskPartnerRuntime.Contains('"GameEntryUI.CheckCareer"') "Dusk runtime must clean its placeholder blessing after career checks."
     Assert-True $duskPartnerRuntime.Contains('"Fight_Start.Init"') "Dusk runtime must grant its trait at fight start."
     Assert-True $duskPartnerRuntime.Contains("status.AddBuff(SunExpIds.DuskAfterheatRecoveryTrait, 1)") "Dusk runtime must grant the afterheat recovery trait buff."
@@ -908,6 +1009,49 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemoryModeRuntime.Contains("ClearEntryStateImages") "Solar memory mode entry must clear native mode art layers before applying custom art."
     Assert-True $solarMemoryModeRuntime.Contains("stateRoot.GetComponentsInChildren<Image>(true)") "Solar memory mode entry must disable cloned Image layers."
     Assert-True $solarMemoryModeRuntime.Contains("stateRoot.GetComponentsInChildren<RawImage>(true)") "Solar memory mode entry must disable cloned RawImage layers."
+    Assert-True $solarMemoryModeRuntime.Contains("RegisterModeChoiceEntry()") "Solar memory mode entry must register itself through the shared mode-choice entry registry."
+    Assert-True $solarMemoryModeRuntime.Contains("ModeChoiceLayoutRuntime.Initialize(modConfig)") "Solar memory mode entry must use the shared mode-choice layout runtime."
+    Assert-True (-not $solarMemoryModeRuntime.Contains('"ModeChoiceUI.Init", InjectEntry')) "Solar memory mode entry must not directly inject and position itself from ModeChoiceUI.Init."
+    Assert-True (-not $solarMemoryModeRuntime.Contains('"ModeChoiceUI.DataUpdate", InjectEntry')) "Solar memory mode entry must not directly inject and position itself from ModeChoiceUI.DataUpdate."
+    Assert-True $modeChoiceEntryRegistry.Contains("public static class ModeChoiceEntryRegistry") "Mode choice custom entries must be registered through a shared registry."
+    Assert-True $modeChoiceLayoutRuntime.Contains('"ModeChoiceUI.Init", ApplyRegisteredEntries') "Mode choice layout runtime must refresh entries after native Init."
+    Assert-True $modeChoiceLayoutRuntime.Contains('"ModeChoiceUI.DataUpdate", ApplyRegisteredEntries') "Mode choice layout runtime must refresh entries after native DataUpdate."
+    Assert-True $modeChoiceLayoutRuntime.Contains("AppendRegisteredEntries") "Mode choice layout runtime must append custom entries after native entries."
+    Assert-True $modeChoiceLayoutRuntime.Contains("FindNativeEntries") "Mode choice layout runtime must discover actual native entries from ModeList."
+    Assert-True $modeChoiceLayoutRuntime.Contains("PlaceAfterNativeEntries") "Mode choice layout runtime must place custom entries after the real last native entry."
+    Assert-True $modeChoiceLayoutRuntime.Contains("KnownNativeEntryNames") "Mode choice layout runtime must use an explicit native entry list before heuristic scanning."
+    Assert-True $modeChoiceLayoutRuntime.Contains('"StoryMode"') "Mode choice layout runtime must treat the native StoryMode card as a protected fourth entry."
+    Assert-True $modeChoiceLayoutRuntime.Contains("rect.GetWorldCorners(corners)") "Mode choice layout runtime must measure actual RectTransform bounds instead of assuming anchored-position spacing."
+    Assert-True $modeChoiceLayoutRuntime.Contains("Intersects(blocker.Bounds, placedBounds") "Mode choice layout runtime must reject placements that overlap native entries."
+    Assert-True $modeChoiceLayoutRuntime.Contains("EnsureFallbackButton") "Mode choice layout runtime must expose a separate fallback entry when fifth-card placement is unsafe."
+    Assert-True $modeChoiceLayoutRuntime.Contains("EnsureLayoutSlot") "Mode choice layout runtime must create transparent LayoutGroup slots for reserved native and custom positions."
+    Assert-True $modeChoiceLayoutRuntime.Contains("PlaceRegisteredEntriesInLayoutSlots") "Mode choice layout runtime must append custom entries through LayoutGroup placeholder slots."
+    Assert-True $modeChoiceLayoutRuntime.Contains("FindProtectedNativeEntries") "Mode choice layout runtime must include inactive known native slots when reserving native positions."
+    Assert-True $modeChoiceLayoutRuntime.Contains("NativeReserveSlotPrefix") "Mode choice layout runtime must reserve inactive native mode slots explicitly."
+    Assert-True $modeChoiceLayoutRuntime.Contains("NativeProxySlotPrefix") "Mode choice layout runtime must render inactive native mode slots through visible proxy entries."
+    Assert-True $modeChoiceLayoutRuntime.Contains("EnsureNativeProxySlot") "Mode choice layout runtime must clone inactive native entries into visible LayoutGroup proxies."
+    Assert-True $modeChoiceLayoutRuntime.Contains("CustomSlotPrefix") "Mode choice layout runtime must create a real fifth LayoutGroup slot for custom mode entries."
+    Assert-True $modeChoiceLayoutRuntime.Contains("EnsureIgnoredByLayout(customEntry.Rect, ignored: true)") "Mode choice custom cards must stay active but ignored by the native LayoutGroup."
+    Assert-True $modeChoiceLayoutRuntime.Contains("ModeChoiceHorizontalDrag") "Mode choice layout runtime must provide horizontal dragging for overflowed mode entries."
+    Assert-True $modeChoiceLayoutRuntime.Contains("ModeChoiceDragRangeService.Calculate") "Mode choice layout runtime must calculate overflow through testable mechanics."
+    Assert-True $modeChoiceLayoutRuntime.Contains("DisableLegacyDragSurface") "Mode choice layout runtime must disable stale raycast-blocking drag surfaces."
+    Assert-True $modeChoiceLayoutRuntime.Contains("image.raycastTarget = false") "Mode choice layout runtime must clear stale drag-surface raycasts before hiding it."
+    Assert-True (-not $modeChoiceLayoutRuntime.Contains("ConfigureDragSurface")) "Mode choice layout runtime must not create a full-screen raycast-blocking drag surface."
+    Assert-True (-not $modeChoiceLayoutRuntime.Contains("raycastTarget = true")) "Mode choice layout runtime must not add a raycast-blocking overlay."
+    Assert-True $modeChoiceLayoutRuntime.Contains("var targetChanged = !configured || modeList != modeListRect") "Mode choice drag configuration must retain a stable baseline across repeated UI refreshes."
+    Assert-True $modeChoiceLayoutRuntime.Contains("ModeChoiceSidePadding") "Mode choice layout runtime must reserve left and right breathing room."
+    Assert-True $modeChoiceLayoutRuntime.Contains("defaultOffset") "Mode choice layout runtime must start at a padded default offset."
+    Assert-True $modeChoiceLayoutRuntime.Contains("DragStartThreshold") "Mode choice layout runtime must distinguish clicks from horizontal drags."
+    Assert-True $modeChoiceLayoutRuntime.Contains("strategy=layout-slot-placeholder") "Mode choice layout diagnostics must identify the placeholder LayoutGroup strategy."
+    Assert-True (-not $modeChoiceLayoutRuntime.Contains("strategy=overlay-layout-group")) "Mode choice layout runtime must not use the failed overlay strategy."
+    Assert-True (-not $modeChoiceLayoutRuntime.Contains("layout-group=sibling-order")) "Mode choice layout runtime must not rely on sibling order under a native LayoutGroup."
+    Assert-True $modeChoiceLayoutRuntime.Contains("CopyRectShape(rightmostNative.Rect, target)") "Mode choice custom entries must copy native RectTransform shape instead of inventing anchors."
+    Assert-True $modeChoiceLayoutRuntime.Contains("SetCenterInReference") "Mode choice custom entries must be appended in ModeList local coordinates."
+    Assert-True $modeChoiceEntryDefinition.Contains("Action<ModeChoiceUI>? Activate") "Mode choice entries must carry a launch callback for fallback UI."
+    Assert-True $solarMemoryModeRuntime.Contains("SunExpIds.SolarMemoryTitle") "Solar memory mode entry must provide its display name to fallback UI."
+    Assert-True (-not $modeChoiceLayoutRuntime.Contains("Screen.width")) "Mode choice layout runtime must not mix screen pixels with RectTransform local coordinates."
+    Assert-True (-not $modeChoiceLayoutRuntime.Contains("rect.anchorMin = new Vector2(0.5f, 0.5f)")) "Mode choice layout runtime must not recenter every native entry."
+    Assert-True (-not $modeChoiceLayoutRuntime.Contains("LayoutScale")) "Mode choice layout runtime must not globally scale mode entries."
     Assert-True ([regex]::IsMatch($solarMemoryMapNodePoolApplier, 'defaultStart\s*=\s*pool\.Layer\s*\*\s*pool\.DefaultSegmentSize')) "Solar memory default nodes must be rewritten for the current layer, not only layer 0."
     Assert-True ([regex]::IsMatch($solarMemoryMapNodePoolApplier, 'selectStart\s*=\s*pool\.Layer\s*\*\s*pool\.SelectSegmentSize')) "Solar memory candidate SelectNode entries must be rewritten for the current layer."
     Assert-True $solarMemoryMapNodePoolApplier.Contains("MapNodeSafetyService.EnsureNodeDice(tree, replacement") "Solar memory node pool application must validate replacement NodeDice before inserting nodes."
