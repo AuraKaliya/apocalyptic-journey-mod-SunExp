@@ -1,6 +1,7 @@
 using System;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
+using SunExp.Dll.Mechanics;
 
 namespace SunExp.Dll.Scripting;
 
@@ -221,7 +222,7 @@ public static class EventScripts
     {
         try
         {
-            EnsureSolarFinaleLedger();
+            SolarFinaleStateService.EnsureLedger();
             SetEventChoices(self, "1", "1", "1", "");
         }
         catch (Exception ex)
@@ -234,9 +235,7 @@ public static class EventScripts
     {
         try
         {
-            PlayerApi.SetGameVar(SunExpIds.SolarFinaleSavedNamesKey, SunExpIds.SolarFinaleNameCount.ToString());
-            PlayerApi.SetGameVar(SunExpIds.SolarFinaleBurnedNamesKey, "0");
-            PlayerApi.SetGameVar(SunExpIds.SolarFinaleNamelessNamesKey, "0");
+            SolarFinaleStateService.PreserveLedger();
             PlayerApi.ShowCaption("名册已整理：八个名字仍在余烬中发亮。");
             PlayerApi.EndEvent();
         }
@@ -250,8 +249,7 @@ public static class EventScripts
     {
         try
         {
-            EnsureSolarFinaleLedger();
-            BurnFinaleNames(1);
+            SolarFinaleStateService.BurnNames(1);
             PlayerApi.ShowCaption("一个名字被烧掉，换来终日前的一次喘息。");
             PlayerApi.EndEvent();
         }
@@ -265,8 +263,7 @@ public static class EventScripts
     {
         try
         {
-            EnsureSolarFinaleLedger();
-            MoveFinaleNamesToNameless(1);
+            SolarFinaleStateService.MakeNameless(1);
             PlayerApi.ShowCaption("一个名字被写回白曜名册，字迹完整，却再也无法被呼唤。");
             PlayerApi.EndEvent();
         }
@@ -280,7 +277,7 @@ public static class EventScripts
     {
         try
         {
-            EnsureSolarFinaleLedger();
+            SolarFinaleStateService.EnsureLedger();
             SetEventChoices(self, "1", "1", "1", "");
         }
         catch (Exception ex)
@@ -293,17 +290,17 @@ public static class EventScripts
     {
         try
         {
-            EnsureSolarFinaleLedger();
-            PlayerApi.SetGameVar(SunExpIds.SolarFinaleSecondSunDefeatedKey, "1");
+            SolarFinaleStateService.EnsureLedger();
+            SolarFinaleStateService.MarkSecondSunDefeated(true);
 
             if (string.Equals(result, "burn_name", StringComparison.OrdinalIgnoreCase))
             {
-                BurnFinaleNames(1);
+                SolarFinaleStateService.BurnNames(1);
             }
             else if (string.Equals(result, "overload", StringComparison.OrdinalIgnoreCase))
             {
-                BurnFinaleNames(3);
-                PlayerApi.SetGameVar(SunExpIds.SolarFinaleEndingKey, "witch");
+                SolarFinaleStateService.BurnNames(3);
+                SolarFinaleStateService.SetEnding("witch");
             }
 
             PlayerApi.EndEvent();
@@ -318,9 +315,9 @@ public static class EventScripts
     {
         try
         {
-            EnsureSolarFinaleLedger();
-            var canReachHiddenBoss = SavedFinaleNames() >= SunExpIds.SolarFinaleHiddenBossNameThreshold
-                && BurnedFinaleNames() < SunExpIds.SolarFinaleHiddenBossNameThreshold;
+            SolarFinaleStateService.EnsureLedger();
+            var canReachHiddenBoss = SolarFinaleStateService.SavedNames() >= SunExpIds.SolarFinaleHiddenBossNameThreshold
+                && SolarFinaleStateService.BurnedNames() < SunExpIds.SolarFinaleHiddenBossNameThreshold;
             SetEventChoices(self, canReachHiddenBoss ? "1" : "", "1", "1", "");
         }
         catch (Exception ex)
@@ -333,10 +330,10 @@ public static class EventScripts
     {
         try
         {
-            EnsureSolarFinaleLedger();
-            PlayerApi.SetGameVar(SunExpIds.SolarFinaleSecondSunDefeatedKey, "1");
-            PlayerApi.SetGameVar(SunExpIds.SolarFinaleSaintGateOpenedKey, "shown");
-            var canReachHiddenBoss = CanReachSolarFinaleSaintBattle();
+            SolarFinaleStateService.EnsureLedger();
+            SolarFinaleStateService.MarkSecondSunDefeated(true);
+            SolarFinaleStateService.MarkSaintGateOpened();
+            var canReachHiddenBoss = SolarFinaleStateService.CanReachSaintBattle();
             SetEventChoices(self, canReachHiddenBoss ? "1" : "", "1", "", "");
         }
         catch (Exception ex)
@@ -349,8 +346,8 @@ public static class EventScripts
     {
         try
         {
-            EnsureSolarFinaleLedger();
-            if (!CanReachSolarFinaleSaintBattle())
+            SolarFinaleStateService.EnsureLedger();
+            if (!SolarFinaleStateService.CanReachSaintBattle())
             {
                 PlayerApi.ShowCaption("剩余名字不足以呼唤白曜圣女。");
                 SkipSolarFinaleSaintBattle();
@@ -370,13 +367,9 @@ public static class EventScripts
     {
         try
         {
-            EnsureSolarFinaleLedger();
-            PlayerApi.SetGameVar(SunExpIds.SolarFinaleSaintGateResolvedKey, "1");
-            PlayerApi.SetGameVar(SunExpIds.SolarFinalePendingSaintBattleKey, "");
-            if (string.IsNullOrWhiteSpace(PlayerApi.GetGameVar(SunExpIds.SolarFinaleEndingKey, "")))
-            {
-                PlayerApi.SetGameVar(SunExpIds.SolarFinaleEndingKey, ResolveSolarFinaleEndingKey());
-            }
+            SolarFinaleStateService.EnsureLedger();
+            SolarFinaleStateService.MarkSaintGateResolved();
+            SolarFinaleStateService.EnsureEnding();
 
             SolarMemoryFlowApi.OpenFinaleEndingEvent();
         }
@@ -390,21 +383,21 @@ public static class EventScripts
     {
         try
         {
-            EnsureSolarFinaleLedger();
+            SolarFinaleStateService.EnsureLedger();
             if (string.Equals(result, "star_echo", StringComparison.OrdinalIgnoreCase)
-                && SavedFinaleNames() >= SunExpIds.SolarFinaleHiddenBossNameThreshold)
+                && SolarFinaleStateService.SavedNames() >= SunExpIds.SolarFinaleHiddenBossNameThreshold)
             {
-                PlayerApi.SetGameVar(SunExpIds.SolarFinaleEndingKey, "stars");
+                SolarFinaleStateService.SetEnding("stars");
             }
             else if (string.Equals(result, "burn_names", StringComparison.OrdinalIgnoreCase))
             {
-                BurnFinaleNames(2);
-                PlayerApi.SetGameVar(SunExpIds.SolarFinaleEndingKey, BurnedFinaleNames() >= SunExpIds.SolarFinaleHiddenBossNameThreshold ? "witch" : "white_city");
+                SolarFinaleStateService.BurnNames(2);
+                SolarFinaleStateService.SetEnding(SolarFinaleStateService.BurnedNames() >= SunExpIds.SolarFinaleHiddenBossNameThreshold ? "witch" : "white_city");
             }
             else
             {
-                MoveFinaleNamesToNameless(SavedFinaleNames());
-                PlayerApi.SetGameVar(SunExpIds.SolarFinaleEndingKey, "white_city");
+                SolarFinaleStateService.MakeNameless(SolarFinaleStateService.SavedNames());
+                SolarFinaleStateService.SetEnding("white_city");
             }
 
             PlayerApi.EndEvent();
@@ -419,15 +412,8 @@ public static class EventScripts
     {
         try
         {
-            EnsureSolarFinaleLedger();
-            var ending = PlayerApi.GetGameVar(SunExpIds.SolarFinaleEndingKey, "");
-            if (string.IsNullOrWhiteSpace(ending))
-            {
-                ending = BurnedFinaleNames() >= SunExpIds.SolarFinaleHiddenBossNameThreshold
-                    ? "witch"
-                    : SavedFinaleNames() >= SunExpIds.SolarFinaleHiddenBossNameThreshold ? "stars" : "white_city";
-                PlayerApi.SetGameVar(SunExpIds.SolarFinaleEndingKey, ending);
-            }
+            SolarFinaleStateService.EnsureLedger();
+            var ending = SolarFinaleStateService.EnsureEnding();
 
             SetEventChoices(self,
                 string.Equals(ending, "stars", StringComparison.OrdinalIgnoreCase) ? "1" : "",
@@ -445,8 +431,8 @@ public static class EventScripts
     {
         try
         {
-            PlayerApi.SetGameVar(SunExpIds.SolarFinaleEndingKey, ending);
-            PlayerApi.SetGameVar(SunExpIds.SolarFinaleCompletedKey, "1");
+            SolarFinaleStateService.SetEnding(ending);
+            SolarFinaleStateService.MarkCompleted();
             SolarMemoryFlowApi.ShowSettlement();
         }
         catch (Exception ex)
@@ -515,66 +501,4 @@ public static class EventScripts
         return DictionaryUtil.ParseInt(id.Substring(id.Length - 2));
     }
 
-    private static void EnsureSolarFinaleLedger()
-    {
-        if (string.IsNullOrWhiteSpace(PlayerApi.GetGameVar(SunExpIds.SolarFinaleSavedNamesKey, "")))
-        {
-            PlayerApi.SetGameVar(SunExpIds.SolarFinaleSavedNamesKey, SunExpIds.SolarFinaleNameCount.ToString());
-        }
-
-        if (string.IsNullOrWhiteSpace(PlayerApi.GetGameVar(SunExpIds.SolarFinaleBurnedNamesKey, "")))
-        {
-            PlayerApi.SetGameVar(SunExpIds.SolarFinaleBurnedNamesKey, "0");
-        }
-
-        if (string.IsNullOrWhiteSpace(PlayerApi.GetGameVar(SunExpIds.SolarFinaleNamelessNamesKey, "")))
-        {
-            PlayerApi.SetGameVar(SunExpIds.SolarFinaleNamelessNamesKey, "0");
-        }
-    }
-
-    private static int SavedFinaleNames()
-    {
-        return Math.Max(0, DictionaryUtil.ParseInt(PlayerApi.GetGameVar(SunExpIds.SolarFinaleSavedNamesKey, SunExpIds.SolarFinaleNameCount.ToString())));
-    }
-
-    private static int BurnedFinaleNames()
-    {
-        return Math.Max(0, DictionaryUtil.ParseInt(PlayerApi.GetGameVar(SunExpIds.SolarFinaleBurnedNamesKey, "0")));
-    }
-
-    private static bool CanReachSolarFinaleSaintBattle()
-    {
-        return PlayerApi.GetGameVar(SunExpIds.SolarFinaleSecondSunDefeatedKey, "0") == "1"
-            && SavedFinaleNames() >= SunExpIds.SolarFinaleHiddenBossNameThreshold
-            && BurnedFinaleNames() < SunExpIds.SolarFinaleHiddenBossNameThreshold;
-    }
-
-    private static string ResolveSolarFinaleEndingKey()
-    {
-        if (BurnedFinaleNames() >= SunExpIds.SolarFinaleHiddenBossNameThreshold)
-        {
-            return "witch";
-        }
-
-        return SavedFinaleNames() >= SunExpIds.SolarFinaleHiddenBossNameThreshold ? "stars" : "white_city";
-    }
-
-    private static void BurnFinaleNames(int count)
-    {
-        var saved = SavedFinaleNames();
-        var burned = BurnedFinaleNames();
-        var actual = Math.Min(saved, Math.Max(0, count));
-        PlayerApi.SetGameVar(SunExpIds.SolarFinaleSavedNamesKey, Math.Max(0, saved - actual).ToString());
-        PlayerApi.SetGameVar(SunExpIds.SolarFinaleBurnedNamesKey, (burned + actual).ToString());
-    }
-
-    private static void MoveFinaleNamesToNameless(int count)
-    {
-        var saved = SavedFinaleNames();
-        var nameless = Math.Max(0, DictionaryUtil.ParseInt(PlayerApi.GetGameVar(SunExpIds.SolarFinaleNamelessNamesKey, "0")));
-        var actual = Math.Min(saved, Math.Max(0, count));
-        PlayerApi.SetGameVar(SunExpIds.SolarFinaleSavedNamesKey, Math.Max(0, saved - actual).ToString());
-        PlayerApi.SetGameVar(SunExpIds.SolarFinaleNamelessNamesKey, (nameless + actual).ToString());
-    }
 }

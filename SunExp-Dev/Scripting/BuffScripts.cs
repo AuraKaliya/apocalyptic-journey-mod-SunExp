@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
@@ -7,47 +8,54 @@ namespace SunExp.Dll.Scripting;
 
 public static class BuffScripts
 {
+    private static readonly Dictionary<string, Action<ScriptExecutor>> ApplyHandlers = new(StringComparer.Ordinal)
+    {
+        ["solar_radiance"] = ApplySolarRadiance,
+        ["gathered_flame"] = ApplyGatheredFlame,
+        ["scorching_canopy"] = ApplyScorchingCanopy,
+        ["body_burn"] = ApplyBodyBurn,
+        ["ember"] = ApplyEmber,
+        ["ember_cloak"] = ApplyEmberCloak,
+        ["solar_crown"] = ApplySolarCrown,
+        ["origin_core_radiance"] = ApplyOriginCoreRadiance,
+        ["cycle_gathered_flame"] = ApplyCycleGatheredFlame,
+        ["afterglow_omen"] = ApplyAfterglowOmen
+    };
+
+    private static readonly Dictionary<string, Action<ScriptExecutor>> ClearHandlers = new(StringComparer.Ordinal)
+    {
+        ["solar_radiance"] = ClearSolarRadiance,
+        ["gathered_flame"] = ClearGatheredFlame,
+        ["scorching_canopy"] = ClearScorchingCanopy,
+        ["body_burn"] = ClearBodyBurn,
+        ["ember"] = ClearEmber,
+        ["ember_cloak"] = ClearEmberCloak,
+        ["solar_crown"] = ClearSolarCrown,
+        ["origin_core_radiance"] = ClearOriginCoreRadiance,
+        ["cycle_gathered_flame"] = ClearCycleGatheredFlame,
+        ["afterglow_omen"] = ClearAfterglowOmen
+    };
+
+    private static readonly HashSet<string> BossTraitIds = new(StringComparer.Ordinal)
+    {
+        "boss_trait_mirror_array",
+        "boss_trait_merciless_daylight",
+        "boss_trait_white_radiance_saint"
+    };
+
     public static void Apply(ScriptExecutor self, string id)
     {
         try
         {
-            switch (id)
+            if (!string.IsNullOrWhiteSpace(id) && ApplyHandlers.TryGetValue(id, out var handler))
             {
-                case "solar_radiance":
-                    ApplySolarRadiance(self);
-                    break;
-                case "gathered_flame":
-                    ApplyGatheredFlame(self);
-                    break;
-                case "scorching_canopy":
-                    ApplyScorchingCanopy(self);
-                    break;
-                case "body_burn":
-                    ApplyBodyBurn(self);
-                    break;
-                case "ember":
-                    ApplyEmber(self);
-                    break;
-                case "ember_cloak":
-                    ApplyEmberCloak(self);
-                    break;
-                case "solar_crown":
-                    ApplySolarCrown(self);
-                    break;
-                case "origin_core_radiance":
-                    ApplyOriginCoreRadiance(self);
-                    break;
-                case "cycle_gathered_flame":
-                    ApplyCycleGatheredFlame(self);
-                    break;
-                case "afterglow_omen":
-                    ApplyAfterglowOmen(self);
-                    break;
-                case "boss_trait_mirror_array":
-                case "boss_trait_merciless_daylight":
-                case "boss_trait_white_radiance_saint":
-                    BossScripts.ApplyTrait(self, id);
-                    break;
+                handler(self);
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(id) && BossTraitIds.Contains(id))
+            {
+                BossScripts.ApplyTrait(self, id);
             }
         }
         catch (Exception ex)
@@ -60,53 +68,65 @@ public static class BuffScripts
     {
         try
         {
-            switch (id)
+            if (!string.IsNullOrWhiteSpace(id) && ClearHandlers.TryGetValue(id, out var handler))
             {
-                case "solar_radiance":
-                    ExecutorApi.ClearHook(self, "SunExpSolarRadianceHook", "SunExpSolarRadianceToken");
-                    break;
-                case "gathered_flame":
-                    ExecutorApi.ClearHook(self, "SunExpGatheredFlameHook", "SunExpGatheredFlameToken");
-                    break;
-                case "scorching_canopy":
-                    ClearScorchingCanopy(self);
-                    break;
-                case "body_burn":
-                    ExecutorApi.ClearHook(self, "SunExpBodyBurnHook", "SunExpBodyBurnToken");
-                    break;
-                case "ember":
-                    BuffApi.ClearEmberDamageBonus(self, self?.Self);
-                    ExecutorApi.ClearHook(self, "SunExpEmberHook", "SunExpEmberToken");
-                    break;
-                case "ember_cloak":
-                    ExecutorApi.ClearHook(self, "SunExpBurnWardHook", "SunExpBurnWardToken");
-                    ExecutorApi.SetVar(self, "SunExpBurnWardPending", "0");
-                    break;
-                case "solar_crown":
-                    ClearSolarCrown(self);
-                    break;
-                case "origin_core_radiance":
-                    ExecutorApi.ClearHook(self, "SunExpMiniCoronaHook", "SunExpMiniCoronaToken");
-                    ExecutorApi.SetVar(self, "SunExpMiniCoronaDone", "0");
-                    break;
-                case "cycle_gathered_flame":
-                    ExecutorApi.ClearHook(self, "SunExpMeltingWheelHook", "SunExpMeltingWheelToken");
-                    ExecutorApi.SetVar(self, "SunExpMeltingWheelLastBurn", "0");
-                    break;
-                case "afterglow_omen":
-                    ExecutorApi.ClearHook(self, "SunExpAfterglowHook", "SunExpAfterglowToken");
-                    break;
-                case "boss_trait_mirror_array":
-                case "boss_trait_merciless_daylight":
-                case "boss_trait_white_radiance_saint":
-                    BossScripts.ClearTrait(self, id);
-                    break;
+                handler(self);
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(id) && BossTraitIds.Contains(id))
+            {
+                BossScripts.ClearTrait(self, id);
             }
         }
         catch (Exception ex)
         {
             SunExpLog.Error("Buff Clear failed: " + id, ex);
         }
+    }
+
+    private static void ClearSolarRadiance(ScriptExecutor self)
+    {
+        ExecutorApi.ClearHook(self, "SunExpSolarRadianceHook", "SunExpSolarRadianceToken");
+    }
+
+    private static void ClearGatheredFlame(ScriptExecutor self)
+    {
+        ExecutorApi.ClearHook(self, "SunExpGatheredFlameHook", "SunExpGatheredFlameToken");
+    }
+
+    private static void ClearBodyBurn(ScriptExecutor self)
+    {
+        ExecutorApi.ClearHook(self, "SunExpBodyBurnHook", "SunExpBodyBurnToken");
+    }
+
+    private static void ClearEmber(ScriptExecutor self)
+    {
+        BuffApi.ClearEmberDamageBonus(self, self?.Self);
+        ExecutorApi.ClearHook(self, "SunExpEmberHook", "SunExpEmberToken");
+    }
+
+    private static void ClearEmberCloak(ScriptExecutor self)
+    {
+        ExecutorApi.ClearHook(self, "SunExpBurnWardHook", "SunExpBurnWardToken");
+        ExecutorApi.SetVar(self, "SunExpBurnWardPending", "0");
+    }
+
+    private static void ClearOriginCoreRadiance(ScriptExecutor self)
+    {
+        ExecutorApi.ClearHook(self, "SunExpMiniCoronaHook", "SunExpMiniCoronaToken");
+        ExecutorApi.SetVar(self, "SunExpMiniCoronaDone", "0");
+    }
+
+    private static void ClearCycleGatheredFlame(ScriptExecutor self)
+    {
+        ExecutorApi.ClearHook(self, "SunExpMeltingWheelHook", "SunExpMeltingWheelToken");
+        ExecutorApi.SetVar(self, "SunExpMeltingWheelLastBurn", "0");
+    }
+
+    private static void ClearAfterglowOmen(ScriptExecutor self)
+    {
+        ExecutorApi.ClearHook(self, "SunExpAfterglowHook", "SunExpAfterglowToken");
     }
 
     private static void ApplySolarRadiance(ScriptExecutor self)
@@ -275,22 +295,7 @@ public static class BuffScripts
 
     private static int BodyBurnDamagePerStack(IStatusManager? target)
     {
-        if (target == null)
-        {
-            return 1;
-        }
-
-        try
-        {
-            var value = target.GetType().GetProperty("MaxHp")?.GetValue(target)
-                ?? target.GetType().GetField("MaxHp")?.GetValue(target);
-            var maxHp = value is int intValue ? intValue : DictionaryUtil.ParseInt(Convert.ToString(value));
-            return maxHp / 100 + 1;
-        }
-        catch
-        {
-            return 1;
-        }
+        return StatusApi.MaxHp(target) / 100 + 1;
     }
 
     private static void ApplyEmber(ScriptExecutor self)

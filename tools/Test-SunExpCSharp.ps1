@@ -630,6 +630,9 @@ function Invoke-SourceAssertions {
     $cardScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\CardScripts.cs"))
     $buffScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\BuffScripts.cs"))
     $buffApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\BuffApi.cs"))
+    $scriptEventApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\ScriptEventApi.cs"))
+    $fieldApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\FieldApi.cs"))
+    $buffOverflowApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\BuffOverflowApi.cs"))
     $eventScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\EventScripts.cs"))
     $bossScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\BossScripts.cs"))
     $entry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Entry.cs"))
@@ -648,6 +651,7 @@ function Invoke-SourceAssertions {
     $scriptingSource = [string]::Join("`n", (Get-ChildItem -LiteralPath (Join-Path $RepoRoot "SunExp-Dev\Scripting") -File -Filter "*.cs" | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }))
     $solarEventRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarEventRuntime.cs"))
     $solarMemoryModeRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryModeRuntime.cs"))
+    $solarMemoryRunLauncher = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryRunLauncher.cs"))
     $solarMemoryContentIsolationRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryContentIsolationRuntime.cs"))
     $solarMemoryMapItemAnimationRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryMapItemAnimationRuntime.cs"))
     $sunExpHardTagRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SunExpHardTagRuntime.cs"))
@@ -687,8 +691,8 @@ function Invoke-SourceAssertions {
     $addStatusBuff = [regex]::Match($executorApi, "public\s+static\s+bool\s+AddStatusBuff[\s\S]*?public\s+static\s+bool\s+RemoveStatusBuff")
     Assert-True $addStatusBuff.Success "Could not locate ExecutorApi.AddStatusBuff for source assertion."
     Assert-True (-not $addStatusBuff.Value.Contains("HandleBurnOverflow")) "AddStatusBuff must not call HandleBurnOverflow; burn overflow is handled by the StatusManager.AddBuff hook."
-    $tryAddEvent = [regex]::Match($executorApi, "public\s+static\s+bool\s+TryAddEvent[\s\S]*?public\s+static\s+void\s+SetBaseScript")
-    Assert-True $tryAddEvent.Success "Could not locate ExecutorApi.TryAddEvent for source assertion."
+    $tryAddEvent = [regex]::Match($scriptEventApi, "public\s+static\s+bool\s+TryAddEvent[\s\S]*?public\s+static\s+bool\s+TryAddTokenedEvent")
+    Assert-True $tryAddEvent.Success "Could not locate ScriptEventApi.TryAddEvent for source assertion."
     Assert-True $tryAddEvent.Value.Contains("executor.Self == null") "TryAddEvent must skip preview/dictionary executors without Self before calling AddEvent."
     Assert-True $tryAddEvent.Value.Contains("catch (Exception ex)") "TryAddEvent must catch all event registration failures and degrade safely."
     Assert-True $executorApi.Contains("public static bool TryAddTokenedEvent") "ExecutorApi must expose a token-guarded event registration wrapper."
@@ -697,24 +701,24 @@ function Invoke-SourceAssertions {
     Assert-True $executorApi.Contains("public static bool ClearFieldBuff") "ExecutorApi.ClearFieldBuff is missing."
     Assert-True $sunExpFieldId.Contains("public enum SunExpFieldId") "SunExpFieldId must define enum-like field ids."
     Assert-True $sunExpFieldId.Contains("ScorchingCanopy") "SunExpFieldId must include ScorchingCanopy."
-    Assert-True $executorApi.Contains("private static int TotalFieldBuffStacks") "Field stacks must be recomputed from combat statuses."
-    Assert-True $executorApi.Contains("foreach (var status in FightManager.Instance.statuses.Values)") "Field sync must scan FightManager statuses."
-    Assert-True $executorApi.Contains('CombatIntAdd(FieldCombatKey(field, "Epoch"), 1);') "Field state changes must advance a shared epoch."
-    Assert-True $executorApi.Contains("SyncFieldStacks(ScriptExecutor? executor, SunExpFieldId field)") "Field sync must expose the enum-based overload."
-    Assert-True (-not [regex]::IsMatch($executorApi, 'ClearFieldBuff[\s\S]*?SetSharedFieldState\(fieldId,\s*0\)')) "ClearFieldBuff must resync field state instead of blindly clearing shared stacks."
+    Assert-True $fieldApi.Contains("private static int TotalFieldBuffStacks") "Field stacks must be recomputed from combat statuses."
+    Assert-True $fieldApi.Contains("foreach (var status in FightManager.Instance.statuses.Values)") "Field sync must scan FightManager statuses."
+    Assert-True $fieldApi.Contains('CombatVarApi.AddInt(FieldCombatKey(field, "Epoch"), 1);') "Field state changes must advance a shared epoch."
+    Assert-True $fieldApi.Contains("SyncFieldStacks(ScriptExecutor? executor, SunExpFieldId field)") "Field sync must expose the enum-based overload."
+    Assert-True (-not [regex]::IsMatch($fieldApi, 'ClearFieldBuff[\s\S]*?SetSharedFieldState\(fieldId,\s*0\)')) "ClearFieldBuff must resync field state instead of blindly clearing shared stacks."
     Assert-True $buffScripts.Contains("ExecutorApi.TryAddTokenedEvent(self, SunExpIds.ScorchingCanopy + ""OnLevelChange""") "Scorching Canopy must resync when its carrier buff level changes through the shared event wrapper."
     Assert-True $buffScripts.Contains("ExecutorApi.SyncFieldStacks(self, SunExpFieldId.ScorchingCanopy);") "Scorching Canopy apply/clear must use enum-based field sync."
     Assert-True $executorApi.Contains("public static int BurnUpperBound(IStatusManager? target)") "ExecutorApi must expose a dynamic burn upper bound helper."
-    Assert-True $executorApi.Contains("private const int BurnUpperBoundFallback = 1;") "Invalid burn upper bounds must fall back to the minimum valid stack count."
-    Assert-True $executorApi.Contains("target.GetBuff(buffId)?.buffConfig?.UpperBound") "Burn upper bound must prefer the live BuffItemConfig.UpperBound."
-    Assert-True $executorApi.Contains('GetOne(DataType.Buff, buffId)') "Burn upper bound must fall back to the current Buff data row."
-    Assert-True $executorApi.Contains("var upperBound = BurnUpperBound(target);") "Burn overflow must use the dynamic burn upper bound."
+    Assert-True $buffOverflowApi.Contains("private const int BurnUpperBoundFallback = 1;") "Invalid burn upper bounds must fall back to the minimum valid stack count."
+    Assert-True $buffOverflowApi.Contains("target.GetBuff(buffId)?.buffConfig?.UpperBound") "Burn upper bound must prefer the live BuffItemConfig.UpperBound."
+    Assert-True $buffOverflowApi.Contains('GetOne(DataType.Buff, buffId)') "Burn upper bound must fall back to the current Buff data row."
+    Assert-True $buffOverflowApi.Contains("var upperBound = BurnUpperBound(target);") "Burn overflow must use the dynamic burn upper bound."
     Assert-True $runtimeHooks.Contains('RegisterBefore(modConfig, "StatusManager.AddBuff", OnStatusManagerAddBuffBefore);') "Burn overflow must hook StatusManager.AddBuff so the real target is known."
     Assert-True $runtimeHooks.Contains('RegisterAfter(modConfig, "StatusManager.AddBuff", OnStatusManagerAddBuffAfter);') "Solar Radiance cap repair must hook StatusManager.AddBuff after creation so first gains above 12 can be restored for Wuna."
     Assert-True (-not $runtimeHooks.Contains('RegisterBefore(modConfig, "ScriptExecutor.AddBuff", OnScriptExecutorAddBuffBefore);')) "Burn overflow must not hook ScriptExecutor.AddBuff because it can mutate the active target list."
-    Assert-True $executorApi.Contains("target.AddBuff(SunExpIds.BodyBurn, overflow);") "Burn overflow must add body burn directly to the resolved status target."
-    Assert-True $executorApi.Contains("private const int SolarRadianceDefaultUpperBound = 12;") "Solar Radiance default upper bound must be 12."
-    Assert-True $executorApi.Contains("private const int WunaSolarRadianceUpperBound = 15;") "Wuna Solar Radiance upper bound must be 15."
+    Assert-True $buffOverflowApi.Contains("target.AddBuff(SunExpIds.BodyBurn, overflow);") "Burn overflow must add body burn directly to the resolved status target."
+    Assert-True $buffOverflowApi.Contains("private const int SolarRadianceDefaultUpperBound = 12;") "Solar Radiance default upper bound must be 12."
+    Assert-True $buffOverflowApi.Contains("private const int WunaSolarRadianceUpperBound = 15;") "Wuna Solar Radiance upper bound must be 15."
     Assert-True $executorApi.Contains("public static void PrepareSolarRadianceUpperBound") "ExecutorApi must prepare live Solar Radiance caps before AddBuff."
     Assert-True $executorApi.Contains("public static void FinalizeSolarRadianceUpperBound") "ExecutorApi must repair Wuna Solar Radiance caps after AddBuff."
     Assert-True $buffApi.Contains("public static bool IsWunaPlayerStatus") "BuffApi must expose a target-specific Wuna player status check."
@@ -728,11 +732,12 @@ function Invoke-SourceAssertions {
     Assert-True $buffApi.Contains("PlayerApi.SetScopedGameVar(SunExpIds.WunaPersistentEmber, status") "BuffApi.SavePersistentEmber must write to a player-scoped GameVar."
     Assert-True $buffApi.Contains("return string.IsNullOrWhiteSpace(careerId)") "Wuna active fallback must not override an explicit non-Wuna career."
     Assert-True (-not [regex]::IsMatch($buffApi + $wunaScripts, "SetGameVar\s*\(\s*SunExpIds\.WunaPersistentEmber")) "Persistent Ember must not write to the legacy unscoped GameVar."
-    Assert-True ([regex]::IsMatch($cardScripts, 'case\s+"draw_flame":\s+ExecutorApi\.SetBaseScript\(self,\s+"AttackCardItem"\);\s+break;')) "draw_flame must allow self-targeting during initialization."
+    Assert-True $cardScripts.Contains('["draw_flame"] = InitDrawFlame') "draw_flame must be registered for initialization."
+    Assert-True ([regex]::IsMatch($cardScripts, 'private\s+static\s+void\s+InitDrawFlame[\s\S]*?ExecutorApi\.SetBaseScript\(self,\s+"AttackCardItem"\);')) "draw_flame must allow self-targeting during initialization."
     Assert-True $cardScripts.Contains("var target = ExecutorApi.PrimaryTargetIncludingSelf(self);") "draw_flame must resolve targets without excluding self."
     Assert-True $cardScripts.Contains("ExecutorApi.TriggerBurnAllEnemies(self, times * 2);") "flamewheel_recurrence must trigger enemy burn 2*N times while keeping N as the cost."
     Assert-True $cardScripts.Contains("ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, level, ""Target"");") "eclipse_hex must add current Burn stacks instead of directly setting a capped level."
-    Assert-True $buffScripts.Contains("return maxHp / 100 + 1;") "body_burn must deal 1% max HP + 1 true damage per stack."
+    Assert-True $buffScripts.Contains("return StatusApi.MaxHp(target) / 100 + 1;") "body_burn must deal 1% max HP + 1 true damage per stack."
     Assert-True (-not $specialTagRuntime.Contains("CardConfigApi.BaseCost")) "White radiance should use current actual play cost, not BaseCost."
     Assert-True $cardConfigApi.Contains("ReadPlayerCardCostMultiplier") "CardConfigApi must read the player CardCost multiplier."
     Assert-True (-not $runtimeHooks.Contains("SolarEventRuntime.EnsureInCurrentLayer")) "RuntimeHooks must not inject SunExp events into normal adventure maps."
@@ -831,18 +836,19 @@ function Invoke-SourceAssertions {
     Assert-True $keywordText.Contains('"Borrowed Miracle"') "Borrowed Miracle keyword localization is missing."
     Assert-True $cardScripts.Contains('id = NormalizeId(id);') "Card script entry points must normalize generated-card ids."
     Assert-True (-not [regex]::IsMatch($cardScripts, 'case\s+"\*')) "Card script switches must use normalized, unstarred ids."
+    Assert-True $cardScripts.Contains("IsStarScoreEntry(id)") "CardScripts must route Stellar Overture cards through the shared StarScore entry predicate."
     foreach ($stellarId in @("stellar_overture_start", "stellar_overture_sustain", "stellar_overture_turn", "stellar_overture_close")) {
-        Assert-True $cardScripts.Contains('case "' + $stellarId + '":') ("CardScripts must dispatch " + $stellarId + ".")
+        Assert-True $starScoreService.Contains('value == "' + $stellarId + '"') ("StarScoreService must dispatch " + $stellarId + ".")
     }
     $stellarRows = Import-Csv -LiteralPath $cardDataPath | Where-Object { $_.Id -like "*stellar_overture_*" }
     Assert-True ($stellarRows.Count -eq 4) "SunExp must define all four Stellar Overture cards."
     foreach ($row in $stellarRows) {
         Assert-True ($row.InitScript -match 'CardScripts\.Init\(self, "([^"]+)"\)') ("Missing CardScripts.Init dispatch for " + $row.Id)
         $initId = $Matches[1].Replace("*", "").Trim()
-        Assert-True $cardScripts.Contains('case "' + $initId + '":') ("Normalized Init id is not dispatched: " + $row.Id)
+        Assert-True $starScoreService.Contains('value == "' + $initId + '"') ("Normalized Init id is not dispatched: " + $row.Id)
         Assert-True ($row.UseScript -match 'CardScripts\.Use\(self, "([^"]+)"\)') ("Missing CardScripts.Use dispatch for " + $row.Id)
         $useId = $Matches[1].Replace("*", "").Trim()
-        Assert-True $cardScripts.Contains('case "' + $useId + '":') ("Normalized Use id is not dispatched: " + $row.Id)
+        Assert-True $starScoreService.Contains('value == "' + $useId + '"') ("Normalized Use id is not dispatched: " + $row.Id)
     }
     Assert-True (-not $loneerService.Contains("SunExpIds.LoneerGuidanceCardId")) "Loneer guidance must not be stored in per-executor Vars."
     Assert-True $starScoreService.Contains("StarScoreCombatStateStore.GetOrCreate(self.Self)") "Star score notes must be owner-scoped across card executors."
@@ -881,8 +887,8 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemorySetupFlowRuntime.Contains("SunExpUiBuilder.ApplyPanelImage") "Solar memory setup flow UI must reuse SunExpUiBuilder panel creation."
     Assert-True $solarMemoryModeRuntime.Contains("CompleteSolarMemoryRun") "Solar memory must settle immediately after the third layer boss."
     Assert-True $solarMemoryModeRuntime.Contains("manager.Level = levelForNativeFlow") "Solar memory completion must route through the native settlement level."
-    Assert-True $eventScripts.Contains("PlayerApi.SetGameVar(SunExpIds.SolarFinaleSaintGateOpenedKey, ""shown"")") "Solar finale saint gate init must mark that the event actually displayed."
-    Assert-True $eventScripts.Contains("PlayerApi.SetGameVar(SunExpIds.SolarFinaleCompletedKey, ""1"")") "Solar finale ending must mark completion before showing settlement."
+    Assert-True $eventScripts.Contains("SolarFinaleStateService.MarkSaintGateOpened()") "Solar finale saint gate init must mark display through the finale state service."
+    Assert-True $eventScripts.Contains("SolarFinaleStateService.MarkCompleted()") "Solar finale ending must mark completion through the finale state service before showing settlement."
     Assert-True $sunExpIds.Contains("SolarFinaleFinalLayerEnteredKey") "Solar finale must define a persisted final-layer state key."
     Assert-True $sunExpIds.Contains("SolarFinaleSaintGateOpenedKey") "Solar finale must define a persisted gate-opened state key."
     Assert-True $sunExpIds.Contains("SolarFinaleCompletedKey") "Solar finale must define a persisted completion state key."
@@ -937,9 +943,11 @@ function Invoke-SourceAssertions {
     Assert-True $sunExpIds.Contains("BossTraitMirrorArray") "SunExpIds must define the mirror-array boss trait buff id."
     Assert-True $sunExpIds.Contains("BossTraitMercilessDaylight") "SunExpIds must define the merciless-daylight boss trait buff id."
     Assert-True $sunExpIds.Contains("BossTraitWhiteRadianceSaint") "SunExpIds must define the white-radiance-saint boss trait buff id."
-    Assert-True $buffScripts.Contains('case "boss_trait_mirror_array":') "BuffScripts must route mirror-array boss trait apply/clear."
-    Assert-True $buffScripts.Contains('case "boss_trait_merciless_daylight":') "BuffScripts must route merciless-daylight boss trait apply/clear."
-    Assert-True $buffScripts.Contains('case "boss_trait_white_radiance_saint":') "BuffScripts must route white-radiance-saint boss trait apply/clear."
+    Assert-True $buffScripts.Contains('"boss_trait_mirror_array"') "BuffScripts must route mirror-array boss trait apply/clear."
+    Assert-True $buffScripts.Contains('"boss_trait_merciless_daylight"') "BuffScripts must route merciless-daylight boss trait apply/clear."
+    Assert-True $buffScripts.Contains('"boss_trait_white_radiance_saint"') "BuffScripts must route white-radiance-saint boss trait apply/clear."
+    Assert-True $buffScripts.Contains("BossScripts.ApplyTrait(self, id)") "BuffScripts must delegate boss trait apply to BossScripts."
+    Assert-True $buffScripts.Contains("BossScripts.ClearTrait(self, id)") "BuffScripts must delegate boss trait clear to BossScripts."
     Assert-True $bossScripts.Contains("ApplyBossTraitBuff(self, SunExpIds.BossTraitMirrorArray)") "Mirror-array boss init must grant its trait buff."
     Assert-True $bossScripts.Contains("ApplyBossTraitBuff(self, SunExpIds.BossTraitMercilessDaylight)") "Second-sun boss init must grant its trait buff."
     Assert-True $bossScripts.Contains("ApplyBossTraitBuff(self, SunExpIds.BossTraitWhiteRadianceSaint)") "Saint Wuna boss init must grant its trait buff."
@@ -1043,12 +1051,12 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemoryStarterDeckRuntime.Contains('SanitizeSolarMemoryRoleCards(roleTable, "ApplyStarterDeck")') "Solar memory custom starter deck application must sanitize the final deck."
     Assert-True $solarMemoryStarterDeckRuntime.Contains('SanitizeSolarMemoryRoleCards(roleTable, "KeepOfficialDeck")') "Solar memory official starter deck path must sanitize before continuing."
     Assert-True $solarMemoryStarterDeckRuntime.Contains("!SolarMemoryModeRuntime.IsSolarMemoryEventCard(id)") "Solar memory starter deck candidates must exclude event cards."
-    Assert-True $solarMemoryModeRuntime.Contains('saveInfo.GameVars[SunExpIds.SolarMemoryOriginPointsKey] = "50"') "Solar memory must initialize origin setup with 50 points."
+    Assert-True $solarMemoryRunLauncher.Contains('saveInfo.GameVars[SunExpIds.SolarMemoryOriginPointsKey] = "50"') "Solar memory must initialize origin setup with 50 points."
     Assert-True $sunExpIds.Contains("SolarMemoryPrepStepKey") "Solar memory preparation must persist an explicit preparation step."
-    Assert-True $solarMemoryModeRuntime.Contains("SolarMemoryPrepStep.DeckSelection") "Solar memory saves must initialize the preparation state machine."
+    Assert-True $solarMemoryRunLauncher.Contains("SolarMemoryPrepStep.DeckSelection") "Solar memory saves must initialize the preparation state machine."
     Assert-True $solarMemoryPreparationRuntime.Contains("public static void StartOrResume") "Solar memory preparation runtime must expose a stable start/resume entry point."
     Assert-True $solarMemoryPreparationRuntime.Contains("InferStepFromLegacyState") "Solar memory preparation runtime must infer state from old boolean keys."
-    $solarMemorySetupSources = $solarMemoryStarterDeckRuntime + $solarMemorySetupFlowRuntime + $solarMemoryBlessingPickerRuntime + $solarMemoryPreparationRuntime + $solarMemoryModeRuntime
+    $solarMemorySetupSources = $solarMemoryStarterDeckRuntime + $solarMemorySetupFlowRuntime + $solarMemoryBlessingPickerRuntime + $solarMemoryPreparationRuntime + $solarMemoryModeRuntime + $solarMemoryRunLauncher
     Assert-True (-not $solarMemorySetupSources.Contains("StarterDeckArbiterRuntime.SyncRoleTable")) "Solar memory preparation must not use the native RoleTable collector before final setup completion."
     Assert-True ([regex]::IsMatch($solarMemoryStarterDeckRuntime, 'ApplyDeck\([\s\S]*?sync:\s*false\)')) "Solar memory custom starter deck must suppress intermediate role synchronization."
     Assert-True ([regex]::IsMatch($solarMemoryStarterDeckRuntime, 'KeepOfficialDeck\(roleTable,\s*CreateClaim\(mode\),\s*sync:\s*false\)')) "Solar memory official starter deck path must suppress intermediate role synchronization."

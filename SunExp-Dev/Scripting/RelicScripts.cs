@@ -8,96 +8,95 @@ namespace SunExp.Dll.Scripting;
 
 public static class RelicScripts
 {
+    private static readonly Dictionary<string, Action<ScriptExecutor>> FightHandlers = new(StringComparer.Ordinal)
+    {
+        ["morning_shard"] = RegisterMorningShard,
+        ["ember_cloak_lining"] = RegisterEmberCloakLining,
+        ["sun_orbit_mirror"] = RegisterSunOrbitMirror,
+        ["sun_bottle"] = RegisterSunBottle,
+        ["solar_phase_dial"] = RegisterSolarPhaseDial,
+        ["miniature_sunwheel"] = RegisterMiniatureSunwheel,
+        ["blazing_crown_heart"] = RegisterBlazingCrownHeart,
+        ["solar_prism"] = RegisterSolarPrism,
+        ["coronation_throne"] = RegisterCoronationThrone,
+        ["gathered_flame_charm"] = RegisterGatheredFlameCharm,
+        ["ash_charm"] = RegisterAshCharm,
+        ["blazing_sundial"] = RegisterBlazingSundial,
+        ["burning_calamity_wind_belt"] = RegisterBurningCalamityWindBelt
+    };
+
     public static void Fight(ScriptExecutor self, string id)
     {
         try
         {
-            switch (id)
+            if (!string.IsNullOrWhiteSpace(id) && FightHandlers.TryGetValue(id, out var handler))
             {
-                case "morning_shard":
-                    ExecutorApi.TryAddEvent(self, "FightStart", new Action(() =>
-                    {
-                        self.SetStatus("Self");
-                        self.AddBuff(SunExpIds.SolarRadiance, "2");
-                        UpdateRelicShow(self);
-                    }), "morning_shard");
-                    break;
-                case "ember_cloak_lining":
-                    ExecutorApi.TryAddEvent(self, "StartRound", new Action(() =>
-                    {
-                        var burn = ExecutorApi.SelfBuffLevel(self, SunExpIds.Burn);
-                        if (burn <= 0)
-                        {
-                            return;
-                        }
-
-                        ExecutorApi.RemoveBuffStacks(self, self.Self, SunExpIds.Burn, 1);
-                        self.SetStatus("Self");
-                        self.AddBuff(SunExpIds.GatheredFlame, "2");
-                    }), "ember_cloak_lining");
-                    break;
-                case "sun_orbit_mirror":
-                    RegisterSunOrbitMirror(self);
-                    break;
-                case "sun_bottle":
-                    ExecutorApi.TryAddEvent(self, "StartRound", new Action(() =>
-                    {
-                        var target = ExecutorApi.RandomEnemyTarget(self, true);
-                        if (ExecutorApi.TriggerBurn(self, target))
-                        {
-                            UpdateRelicShow(self);
-                        }
-                    }), "sun_bottle");
-                    break;
-                case "solar_phase_dial":
-                    RegisterSolarPhaseDial(self);
-                    break;
-                case "miniature_sunwheel":
-                    ExecutorApi.TryAddEvent(self, "StartRound", new Action(() =>
-                    {
-                        if (ExecutorApi.SelfBuffLevel(self, SunExpIds.ScorchingCanopy) <= 0)
-                        {
-                            return;
-                        }
-
-                        var total = BuffApi.NegativeTotal(self.Self);
-                        if (total <= 0)
-                        {
-                            return;
-                        }
-
-                        self.SetStatus("Self");
-                        self.AddBuff(SunExpIds.GatheredFlame, total.ToString());
-                        UpdateRelicShow(self);
-                    }), "miniature_sunwheel");
-                    break;
-                case "blazing_crown_heart":
-                    RegisterBlazingCrownHeart(self);
-                    break;
-                case "solar_prism":
-                    RegisterSolarPrism(self);
-                    break;
-                case "coronation_throne":
-                    RegisterCoronationThrone(self);
-                    break;
-                case "gathered_flame_charm":
-                    RegisterGatheredFlameCharm(self);
-                    break;
-                case "ash_charm":
-                    RegisterAshCharm(self);
-                    break;
-                case "blazing_sundial":
-                    RegisterBlazingSundial(self);
-                    break;
-                case "burning_calamity_wind_belt":
-                    RegisterBurningCalamityWindBelt(self);
-                    break;
+                handler(self);
             }
         }
         catch (Exception ex)
         {
             SunExpLog.Error("Relic Fight failed: " + id, ex);
         }
+    }
+
+    private static void RegisterMorningShard(ScriptExecutor self)
+    {
+        ExecutorApi.TryAddEvent(self, "FightStart", new Action(() =>
+        {
+            self.SetStatus("Self");
+            self.AddBuff(SunExpIds.SolarRadiance, "2");
+            UpdateRelicShow(self);
+        }), "morning_shard");
+    }
+
+    private static void RegisterEmberCloakLining(ScriptExecutor self)
+    {
+        ExecutorApi.TryAddEvent(self, "StartRound", new Action(() =>
+        {
+            var burn = ExecutorApi.SelfBuffLevel(self, SunExpIds.Burn);
+            if (burn <= 0)
+            {
+                return;
+            }
+
+            ExecutorApi.RemoveBuffStacks(self, self.Self, SunExpIds.Burn, 1);
+            self.SetStatus("Self");
+            self.AddBuff(SunExpIds.GatheredFlame, "2");
+        }), "ember_cloak_lining");
+    }
+
+    private static void RegisterSunBottle(ScriptExecutor self)
+    {
+        ExecutorApi.TryAddEvent(self, "StartRound", new Action(() =>
+        {
+            var target = ExecutorApi.RandomEnemyTarget(self, true);
+            if (ExecutorApi.TriggerBurn(self, target))
+            {
+                UpdateRelicShow(self);
+            }
+        }), "sun_bottle");
+    }
+
+    private static void RegisterMiniatureSunwheel(ScriptExecutor self)
+    {
+        ExecutorApi.TryAddEvent(self, "StartRound", new Action(() =>
+        {
+            if (ExecutorApi.SelfBuffLevel(self, SunExpIds.ScorchingCanopy) <= 0)
+            {
+                return;
+            }
+
+            var total = BuffApi.NegativeTotal(self.Self);
+            if (total <= 0)
+            {
+                return;
+            }
+
+            self.SetStatus("Self");
+            self.AddBuff(SunExpIds.GatheredFlame, total.ToString());
+            UpdateRelicShow(self);
+        }), "miniature_sunwheel");
     }
 
     private static void RegisterSunOrbitMirror(ScriptExecutor self)

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
+using SunExp.Dll.Mechanics;
 
 namespace SunExp.Dll.Scripting;
 
@@ -36,7 +37,7 @@ public static class BossScripts
                     ApplyBossTraitBuff(self, SunExpIds.BossTraitMirrorArray);
                     break;
                 case "second_sun_last_day":
-                    PlayerApi.SetGameVar(SunExpIds.SolarFinaleSecondSunDefeatedKey, "0");
+                    SolarFinaleStateService.MarkSecondSunDefeated(false);
                     ApplyBossTraitBuff(self, SunExpIds.BossTraitMercilessDaylight);
                     break;
                 case "saint_wuna":
@@ -545,30 +546,12 @@ public static class BossScripts
 
     private static bool MoveSavedNameToNameless()
     {
-        var saved = Math.Max(0, DictionaryUtil.ParseInt(PlayerApi.GetGameVar(SunExpIds.SolarFinaleSavedNamesKey, "0")));
-        if (saved <= 0)
-        {
-            return false;
-        }
-
-        var nameless = Math.Max(0, DictionaryUtil.ParseInt(PlayerApi.GetGameVar(SunExpIds.SolarFinaleNamelessNamesKey, "0")));
-        PlayerApi.SetGameVar(SunExpIds.SolarFinaleSavedNamesKey, (saved - 1).ToString());
-        PlayerApi.SetGameVar(SunExpIds.SolarFinaleNamelessNamesKey, (nameless + 1).ToString());
-        return true;
+        return SolarFinaleStateService.MakeNameless(1) > 0;
     }
 
     private static bool MoveSavedNameToBurned()
     {
-        var saved = Math.Max(0, DictionaryUtil.ParseInt(PlayerApi.GetGameVar(SunExpIds.SolarFinaleSavedNamesKey, "0")));
-        if (saved <= 0)
-        {
-            return false;
-        }
-
-        var burned = Math.Max(0, DictionaryUtil.ParseInt(PlayerApi.GetGameVar(SunExpIds.SolarFinaleBurnedNamesKey, "0")));
-        PlayerApi.SetGameVar(SunExpIds.SolarFinaleSavedNamesKey, (saved - 1).ToString());
-        PlayerApi.SetGameVar(SunExpIds.SolarFinaleBurnedNamesKey, (burned + 1).ToString());
-        return true;
+        return SolarFinaleStateService.BurnNames(1) > 0;
     }
 
     private readonly struct BossCardSpec

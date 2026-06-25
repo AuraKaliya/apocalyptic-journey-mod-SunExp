@@ -21,6 +21,11 @@ public static class StatusApi
             || BuffApi.Level(status, NativeRebirthBuff) >= 30;
     }
 
+    public static int MaxHp(IStatusManager? status)
+    {
+        return Math.Max(0, status?.MaxHp ?? ReadInt(status, "MaxHp"));
+    }
+
     public static bool TryStarClayResurrection(IStatusManager? status, int nextMaxHp)
     {
         if (status == null)
@@ -124,6 +129,19 @@ public static class StatusApi
         }
 
         return 0f;
+    }
+
+    private static int ReadInt(object? target, string name)
+    {
+        try
+        {
+            var value = Member(target, name);
+            return value is int intValue ? intValue : DictionaryUtil.ParseInt(Convert.ToString(value));
+        }
+        catch
+        {
+            return 0;
+        }
     }
 
     private static object? Member(object? target, string name)

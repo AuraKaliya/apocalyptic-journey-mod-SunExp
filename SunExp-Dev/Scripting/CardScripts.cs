@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
@@ -8,75 +9,75 @@ namespace SunExp.Dll.Scripting;
 
 public static class CardScripts
 {
+    private static readonly Dictionary<string, Action<ScriptExecutor>> InitHandlers = new(StringComparer.Ordinal)
+    {
+        ["spark"] = InitSpark,
+        ["radiant_flame_slash"] = InitRadiantFlameSlash,
+        ["burning_star_hex"] = InitBurningStarHex,
+        ["blazing_crown_collapse"] = InitBlazingCrownCollapse,
+        ["morning_light_bulwark"] = InitMorningLightBulwark,
+        ["gathered_flame_shield"] = InitGatheredFlameShield,
+        ["smoke_erosion"] = InitSmokeErosion,
+        ["solar_scorching_light"] = InitSolarScorchingLight,
+        ["draw_flame"] = InitDrawFlame,
+        ["scorching_flow_reclaim"] = InitTargetedAttackCard,
+        ["eclipse_hex"] = InitTargetedAttackCard,
+        ["burning_calamity"] = InitTargetedAttackCard,
+        ["flamewheel_recurrence"] = InitFlamewheelCard
+    };
+
+    private static readonly Dictionary<string, Action<ScriptExecutor>> UseHandlers = new(StringComparer.Ordinal)
+    {
+        ["spark"] = UseSpark,
+        ["scorching_canopy_card"] = UseScorchingCanopyCard,
+        ["radiant_flame_slash"] = UseRadiantFlameSlash,
+        ["ember_cloak_card"] = UseEmberCloakCard,
+        ["draw_flame"] = UseDrawFlame,
+        ["solar_prayer"] = UseSolarPrayer,
+        ["burning_star_hex"] = UseBurningStarHex,
+        ["crown_radiance"] = UseCrownRadiance,
+        ["canopy_return"] = UseCanopyReturn,
+        ["solar_phase_tuning"] = UseSolarPhaseTuning,
+        ["solar_coronation"] = UseSolarCoronation,
+        ["blazing_crown_collapse"] = UseBlazingCrownCollapse,
+        ["radiant_oath"] = UseRadiantOath,
+        ["solar_ignition"] = UseSolarIgnition,
+        ["scorching_flow_reclaim"] = UseScorchingFlowReclaim,
+        ["impurity_purge"] = UseImpurityPurge,
+        ["flamewheel_recurrence"] = UseFlamewheel,
+        ["eclipse_hex"] = UseEclipseHex,
+        ["solar_scorching_light"] = UseSolarScorchingLight,
+        ["burning_calamity"] = UseBurningCalamity,
+        ["burning_crown_oath"] = UseBurningCrownOath,
+        ["morning_light_bulwark"] = UseMorningLightBulwark,
+        ["solar_return"] = UseSolarReturn,
+        ["solar_origin_core"] = UseSolarOriginCore,
+        ["ember_tower"] = UseEmberTower,
+        ["gathered_flame_shield"] = UseGatheredFlameShield,
+        ["gathered_flame_cycle"] = UseGatheredFlameCycle,
+        ["solar_eclipse"] = UseSolarEclipse,
+        ["smoke_erosion"] = UseSmokeErosion,
+        ["afterglow_omen_card"] = UseAfterglowOmenCard
+    };
+
     public static void Init(ScriptExecutor self, string id)
     {
         try
         {
             id = NormalizeId(id);
-            switch (id)
+            if (IsStarScoreEntry(id))
             {
-                case "spark":
-                    ExecutorApi.SetBaseScript(self, "AttackCardItem", canSelf: false);
-                    ExecutorApi.AddDamageDescription(self, "1", 5);
-                    break;
-                case "stellar_overture_start":
-                case "stellar_overture_sustain":
-                case "stellar_overture_turn":
-                case "stellar_overture_close":
-                case "witch_star_score":
-                    StarScoreService.Init(self, id);
-                    break;
-                case "radiant_flame_slash":
-                    ExecutorApi.SetBaseScript(self, "AttackCardItem", canSelf: false);
-                    ExecutorApi.AddDamageDescription(self, "1", ExecutorApi.SolarKeywordDamage(self, 10, ExecutorApi.PrimaryTarget(self)));
-                    ExecutorApi.AddValueDescription(self, "2", 10);
-                    ExecutorApi.AddValueDescription(self, "3", 1);
-                    break;
-                case "burning_star_hex":
-                    ExecutorApi.SetBaseScript(self, "AttackCardItem", canSelf: false);
-                    var baseDamage = CalcSolarSparkBaseDamage(self);
-                    ExecutorApi.AddDamageDescription(self, "1", ExecutorApi.SolarKeywordDamage(self, baseDamage, ExecutorApi.PrimaryTarget(self)));
-                    ExecutorApi.AddValueDescription(self, "2", baseDamage);
-                    ExecutorApi.AddValueDescription(self, "3", 1);
-                    break;
-                case "blazing_crown_collapse":
-                    ExecutorApi.SetBaseScript(self, "CommonCardItem");
-                    ExecutorApi.AddDamageDescription(self, "1", ExecutorApi.SolarKeywordDamage(self, 40, ExecutorApi.PrimaryTarget(self), ExecutorApi.SolarCrownTier(self)));
-                    break;
-                case "morning_light_bulwark":
-                    ExecutorApi.SetBaseScript(self, "CommonCardItem");
-                    self.AddDescription("1", "Defence", ExecutorApi.SolarKeywordBlock(self, 6).ToString());
-                    break;
-                case "gathered_flame_shield":
-                    ExecutorApi.SetBaseScript(self, "CommonCardItem");
-                    self.AddDescription("1", "Defence", (6 + ExecutorApi.SelfBuffLevel(self, SunExpIds.GatheredFlame)).ToString());
-                    break;
-                case "smoke_erosion":
-                    ExecutorApi.SetBaseScript(self, "AttackCardItem", canSelf: false);
-                    ExecutorApi.AddDamageDescription(self, "1", CalcSmokeErosionDamage(self));
-                    ExecutorApi.AddValueDescription(self, "2", 7);
-                    ExecutorApi.AddValueDescription(self, "3", 1);
-                    break;
-                case "solar_scorching_light":
-                    ExecutorApi.SetBaseScript(self, "AttackCardItem", canSelf: false);
-                    ExecutorApi.AddDamageDescription(self, "1", CalcFlamePierceDamage(self));
-                    break;
-                case "draw_flame":
-                    ExecutorApi.SetBaseScript(self, "AttackCardItem");
-                    break;
-                case "scorching_flow_reclaim":
-                case "eclipse_hex":
-                case "burning_calamity":
-                    ExecutorApi.SetBaseScript(self, "AttackCardItem", canSelf: false);
-                    break;
-                default:
-                    ExecutorApi.SetBaseScript(self, "CommonCardItem");
-                    if (id == "flamewheel_recurrence")
-                    {
-                        InitFlamewheel(self);
-                    }
-                    break;
+                StarScoreService.Init(self, id);
+                return;
             }
+
+            if (InitHandlers.TryGetValue(id, out var handler))
+            {
+                handler(self);
+                return;
+            }
+
+            ExecutorApi.SetBaseScript(self, "CommonCardItem");
         }
         catch (Exception ex)
         {
@@ -89,127 +90,97 @@ public static class CardScripts
         try
         {
             id = NormalizeId(id);
-            switch (id)
+            if (IsStarScoreEntry(id))
             {
-                case "spark":
-                    UseSpark(self);
-                    break;
-                case "stellar_overture_start":
-                case "stellar_overture_sustain":
-                case "stellar_overture_turn":
-                case "stellar_overture_close":
-                case "witch_star_score":
-                    StarScoreService.Use(self, id);
-                    break;
-                case "scorching_canopy_card":
-                    ExecutorApi.ApplyFieldBuff(self, "scorching_canopy", 1);
-                    self.SetStatus("All");
-                    self.AddBuff(SunExpIds.Burn, "2");
-                    ExecutorApi.ClearSelfBurnIfProtected(self, includePending: false);
-                    break;
-                case "radiant_flame_slash":
-                    ExecutorApi.DealSolarKeywordDamage(self, 10, ExecutorApi.PrimaryTarget(self));
-                    break;
-                case "ember_cloak_card":
-                    UseEmberCloakCard(self);
-                    break;
-                case "draw_flame":
-                    UseDrawFlame(self);
-                    break;
-                case "solar_prayer":
-                    self.SetStatus("Self");
-                    self.AddBuff(SunExpIds.SolarRadiance, "2");
-                    ExecutorApi.TransferSelfBurnToRandomFriendly(self);
-                    break;
-                case "burning_star_hex":
-                    UseBurningStarHex(self);
-                    break;
-                case "crown_radiance":
-                    UseCrownRadiance(self);
-                    break;
-                case "canopy_return":
-                    UseCanopyReturn(self);
-                    break;
-                case "solar_phase_tuning":
-                    UseSolarPhaseTuning(self);
-                    break;
-                case "solar_coronation":
-                    self.SetStatus("Self");
-                    self.AddBuff(SunExpIds.SolarRadiance, "3");
-                    self.AddBuff(SunExpIds.SolarCrown, "2");
-                    break;
-                case "blazing_crown_collapse":
-                    UseBlazingCrownCollapse(self);
-                    break;
-                case "radiant_oath":
-                    UseRadiantOath(self);
-                    break;
-                case "solar_ignition":
-                    foreach (var target in ExecutorApi.EnemyTargets(self))
-                    {
-                        ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, 2);
-                    }
-                    ExecutorApi.TriggerBurnAllEnemies(self);
-                    break;
-                case "scorching_flow_reclaim":
-                    UseScorchingFlowReclaim(self);
-                    break;
-                case "impurity_purge":
-                    UseImpurityPurge(self);
-                    break;
-                case "flamewheel_recurrence":
-                    UseFlamewheel(self);
-                    break;
-                case "eclipse_hex":
-                    UseEclipseHex(self);
-                    break;
-                case "solar_scorching_light":
-                    ExecutorApi.DealDamage(self, CalcFlamePierceDamage(self));
-                    break;
-                case "burning_calamity":
-                    UseBurningCalamity(self);
-                    break;
-                case "burning_crown_oath":
-                    UseBurningCrownOath(self);
-                    break;
-                case "morning_light_bulwark":
-                    ExecutorApi.ApplySolarKeywordSkill(self, 6);
-                    break;
-                case "solar_return":
-                    self.SetStatus("Self");
-                    self.AddBuff(SunExpIds.SolarRadiance, "1");
-                    self.DrawCount("1");
-                    break;
-                case "solar_origin_core":
-                    self.SetStatus("Self");
-                    self.AddBuff(SunExpIds.OriginCoreRadiance, "1");
-                    break;
-                case "ember_tower":
-                    UseEmberTower(self);
-                    break;
-                case "gathered_flame_shield":
-                    UseGatheredFlameShield(self);
-                    break;
-                case "gathered_flame_cycle":
-                    self.SetStatus("Self");
-                    self.AddBuff(SunExpIds.CycleGatheredFlame, "1");
-                    break;
-                case "solar_eclipse":
-                    UseSolarEclipse(self);
-                    break;
-                case "smoke_erosion":
-                    UseSmokeErosion(self);
-                    break;
-                case "afterglow_omen_card":
-                    self.SetStatus("Self");
-                    self.AddBuff(SunExpIds.AfterglowOmen, "1");
-                    break;
+                StarScoreService.Use(self, id);
+                return;
+            }
+
+            if (UseHandlers.TryGetValue(id, out var handler))
+            {
+                handler(self);
             }
         }
         catch (Exception ex)
         {
             SunExpLog.Error("Card Use failed: " + id, ex);
         }
+    }
+
+    private static bool IsStarScoreEntry(string id)
+    {
+        return StarScoreService.IsStellarOvertureCard(id) || StarScoreService.IsWitchStarScoreCard(id);
+    }
+
+    private static void InitSpark(ScriptExecutor self)
+    {
+        ExecutorApi.SetBaseScript(self, "AttackCardItem", canSelf: false);
+        ExecutorApi.AddDamageDescription(self, "1", 5);
+    }
+
+    private static void InitRadiantFlameSlash(ScriptExecutor self)
+    {
+        ExecutorApi.SetBaseScript(self, "AttackCardItem", canSelf: false);
+        ExecutorApi.AddDamageDescription(self, "1", ExecutorApi.SolarKeywordDamage(self, 10, ExecutorApi.PrimaryTarget(self)));
+        ExecutorApi.AddValueDescription(self, "2", 10);
+        ExecutorApi.AddValueDescription(self, "3", 1);
+    }
+
+    private static void InitBurningStarHex(ScriptExecutor self)
+    {
+        ExecutorApi.SetBaseScript(self, "AttackCardItem", canSelf: false);
+        var baseDamage = CalcSolarSparkBaseDamage(self);
+        ExecutorApi.AddDamageDescription(self, "1", ExecutorApi.SolarKeywordDamage(self, baseDamage, ExecutorApi.PrimaryTarget(self)));
+        ExecutorApi.AddValueDescription(self, "2", baseDamage);
+        ExecutorApi.AddValueDescription(self, "3", 1);
+    }
+
+    private static void InitBlazingCrownCollapse(ScriptExecutor self)
+    {
+        ExecutorApi.SetBaseScript(self, "CommonCardItem");
+        ExecutorApi.AddDamageDescription(self, "1", ExecutorApi.SolarKeywordDamage(self, 40, ExecutorApi.PrimaryTarget(self), ExecutorApi.SolarCrownTier(self)));
+    }
+
+    private static void InitMorningLightBulwark(ScriptExecutor self)
+    {
+        ExecutorApi.SetBaseScript(self, "CommonCardItem");
+        self.AddDescription("1", "Defence", ExecutorApi.SolarKeywordBlock(self, 6).ToString());
+    }
+
+    private static void InitGatheredFlameShield(ScriptExecutor self)
+    {
+        ExecutorApi.SetBaseScript(self, "CommonCardItem");
+        self.AddDescription("1", "Defence", (6 + ExecutorApi.SelfBuffLevel(self, SunExpIds.GatheredFlame)).ToString());
+    }
+
+    private static void InitSmokeErosion(ScriptExecutor self)
+    {
+        ExecutorApi.SetBaseScript(self, "AttackCardItem", canSelf: false);
+        ExecutorApi.AddDamageDescription(self, "1", CalcSmokeErosionDamage(self));
+        ExecutorApi.AddValueDescription(self, "2", 7);
+        ExecutorApi.AddValueDescription(self, "3", 1);
+    }
+
+    private static void InitSolarScorchingLight(ScriptExecutor self)
+    {
+        ExecutorApi.SetBaseScript(self, "AttackCardItem", canSelf: false);
+        ExecutorApi.AddDamageDescription(self, "1", CalcFlamePierceDamage(self));
+    }
+
+    private static void InitDrawFlame(ScriptExecutor self)
+    {
+        ExecutorApi.SetBaseScript(self, "AttackCardItem");
+    }
+
+    private static void InitTargetedAttackCard(ScriptExecutor self)
+    {
+        ExecutorApi.SetBaseScript(self, "AttackCardItem", canSelf: false);
+    }
+
+    private static void InitFlamewheelCard(ScriptExecutor self)
+    {
+        ExecutorApi.SetBaseScript(self, "CommonCardItem");
+        InitFlamewheel(self);
     }
 
     private static void UseSpark(ScriptExecutor self)
@@ -220,6 +191,19 @@ public static class CardScripts
         ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, 1, "Target");
         self.SetStatus("Self");
         self.AddBuff(SunExpIds.SolarRadiance, "1");
+    }
+
+    private static void UseScorchingCanopyCard(ScriptExecutor self)
+    {
+        ExecutorApi.ApplyFieldBuff(self, "scorching_canopy", 1);
+        self.SetStatus("All");
+        self.AddBuff(SunExpIds.Burn, "2");
+        ExecutorApi.ClearSelfBurnIfProtected(self, includePending: false);
+    }
+
+    private static void UseRadiantFlameSlash(ScriptExecutor self)
+    {
+        ExecutorApi.DealSolarKeywordDamage(self, 10, ExecutorApi.PrimaryTarget(self));
     }
 
     private static void UseEmberCloakCard(ScriptExecutor self)
@@ -245,6 +229,13 @@ public static class CardScripts
             self.SetStatus("Self");
             self.AddBuff(SunExpIds.GatheredFlame, gain.ToString());
         }
+    }
+
+    private static void UseSolarPrayer(ScriptExecutor self)
+    {
+        self.SetStatus("Self");
+        self.AddBuff(SunExpIds.SolarRadiance, "2");
+        ExecutorApi.TransferSelfBurnToRandomFriendly(self);
     }
 
     private static void UseBurningStarHex(ScriptExecutor self)
@@ -314,6 +305,13 @@ public static class CardScripts
         }
     }
 
+    private static void UseSolarCoronation(ScriptExecutor self)
+    {
+        self.SetStatus("Self");
+        self.AddBuff(SunExpIds.SolarRadiance, "3");
+        self.AddBuff(SunExpIds.SolarCrown, "2");
+    }
+
     private static void UseBlazingCrownCollapse(ScriptExecutor self)
     {
         var crown = self.Self?.GetBuff(SunExpIds.SolarCrown);
@@ -344,6 +342,16 @@ public static class CardScripts
         {
             self.DrawCount("1");
         }
+    }
+
+    private static void UseSolarIgnition(ScriptExecutor self)
+    {
+        foreach (var target in ExecutorApi.EnemyTargets(self))
+        {
+            ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, 2);
+        }
+
+        ExecutorApi.TriggerBurnAllEnemies(self);
     }
 
     private static void UseScorchingFlowReclaim(ScriptExecutor self)
@@ -386,6 +394,41 @@ public static class CardScripts
             ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, level, "Target");
         }
         ExecutorApi.TriggerBurn(self, target);
+    }
+
+    private static void UseSolarScorchingLight(ScriptExecutor self)
+    {
+        ExecutorApi.DealDamage(self, CalcFlamePierceDamage(self));
+    }
+
+    private static void UseMorningLightBulwark(ScriptExecutor self)
+    {
+        ExecutorApi.ApplySolarKeywordSkill(self, 6);
+    }
+
+    private static void UseSolarReturn(ScriptExecutor self)
+    {
+        self.SetStatus("Self");
+        self.AddBuff(SunExpIds.SolarRadiance, "1");
+        self.DrawCount("1");
+    }
+
+    private static void UseSolarOriginCore(ScriptExecutor self)
+    {
+        self.SetStatus("Self");
+        self.AddBuff(SunExpIds.OriginCoreRadiance, "1");
+    }
+
+    private static void UseGatheredFlameCycle(ScriptExecutor self)
+    {
+        self.SetStatus("Self");
+        self.AddBuff(SunExpIds.CycleGatheredFlame, "1");
+    }
+
+    private static void UseAfterglowOmenCard(ScriptExecutor self)
+    {
+        self.SetStatus("Self");
+        self.AddBuff(SunExpIds.AfterglowOmen, "1");
     }
 
     private static string NormalizeId(string id)
