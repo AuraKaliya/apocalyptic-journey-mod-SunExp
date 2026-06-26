@@ -83,7 +83,11 @@ public static class SunExpIds
     public const string SolarMemorySetupCommitTokenKey = "SunExp_SolarMemorySetupCommitToken";
     public const string SolarMemoryPrepStepKey = "SunExp_SolarMemoryPrepStep";
     public const string SolarMemoryPreparedKey = "SunExp_SolarMemoryPrepared";
+    public const string SolarMemoryPostPreparationDialogueSeenKey = "SunExp_SolarMemoryPostPreparationDialogueSeen";
+    public const string SolarMemoryPostPreparationDialoguePendingKey = "SunExp_SolarMemoryPostPreparationDialoguePending";
     public const string HardSunsetFightCountKey = "SunExp_Hard_SunsetFightCount";
+    public const string SolarMemoryPostPreparationDialogueFlowId = "SunExp.SolarMemory.PostPreparationDialogue";
+    public const string SolarMemoryPostPreparationDialogueId = "SunExp_sunexp_solar_memory_post_prep_test_1";
     public const string SolarMemoryEventId = "Sub_solar_memory_black_sun_after";
     public const string SolarMemoryFullEventId = "SunExp_sunexp_Sub_solar_memory_black_sun_after";
     public const string SolarMemoryMapId = "SunExp_sunexp_solar_memory_black_sun_after";

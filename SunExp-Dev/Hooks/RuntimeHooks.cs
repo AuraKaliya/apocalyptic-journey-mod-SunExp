@@ -13,6 +13,7 @@ public static class RuntimeHooks
     {
         RegisterBefore(modConfig, "StatusManager.AddBuff", OnStatusManagerAddBuffBefore);
         RegisterAfter(modConfig, "StatusManager.AddBuff", OnStatusManagerAddBuffAfter);
+        DialogueFlowRuntime.Initialize(modConfig);
         DuskPartnerRuntime.Initialize(modConfig);
         StarClayDollRuntime.Initialize(modConfig);
         SolarMemoryModeRuntime.Initialize(modConfig);

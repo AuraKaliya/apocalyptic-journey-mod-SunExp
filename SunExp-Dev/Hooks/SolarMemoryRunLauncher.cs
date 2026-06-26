@@ -77,6 +77,8 @@ public static class SolarMemoryRunLauncher
         saveInfo.GameVars[SunExpIds.SolarMemorySetupFinishedKey] = "0";
         saveInfo.GameVars[SunExpIds.SolarMemoryPrepStepKey] = SolarMemoryPrepStep.DeckSelection.ToString();
         saveInfo.GameVars[SunExpIds.SolarMemoryPreparedKey] = "0";
+        saveInfo.GameVars[SunExpIds.SolarMemoryPostPreparationDialogueSeenKey] = "0";
+        saveInfo.GameVars[SunExpIds.SolarMemoryPostPreparationDialoguePendingKey] = "0";
         saveInfo.GameVars[SunExpIds.HardSunsetFightCountKey] = "0";
         saveInfo.GameVars["MapScene1"] = (random.Next(0, 100) < 50 ? SceneType.Courtyard : SceneType.Forest).ToString();
         saveInfo.GameVars["MapScene2"] = SceneType.SlotMachScene.ToString();

@@ -757,6 +757,9 @@ function Invoke-SourceAssertions {
     $solarMemoryBlessingPickerRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryBlessingPickerRuntime.cs"))
     $solarMemoryPreparationRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryPreparationRuntime.cs"))
     $solarMemoryPlayerSetupState = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryPlayerSetupState.cs"))
+    $dialogueFlowRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\DialogueFlowRuntime.cs"))
+    $dialogueFlowService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\DialogueFlowService.cs"))
+    $solarMemoryStoryGateService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarMemoryStoryGateService.cs"))
     $solarMemoryFlowApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\SolarMemoryFlowApi.cs"))
     $solarMemoryRoleCommitApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\SolarMemoryRoleCommitApi.cs"))
     $solarMemoryRoleCommit = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Network\RpcSolarMemoryRoleCommit.cs"))
@@ -780,6 +783,7 @@ function Invoke-SourceAssertions {
     $keywordText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\KeyWordsDic\sunexp.csv"))
     $eventData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\EventList\sunexp.csv"))
     $eventText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\EventList\sunexp.csv"))
+    $dialogueData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Dialogue\sunexp.csv"))
     $blessingData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Blessing\sunexp.csv"))
     $partnerData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Partner\sunexp.csv"))
     $cardDataPath = Join-Path $RepoRoot "SunExp\Data\Card\sunexp.csv"
@@ -1190,8 +1194,16 @@ function Invoke-SourceAssertions {
     Assert-True $eventScripts.Contains("public static void ContinueSolarMemory") "Solar memory fixed story events must expose a continue method."
     Assert-True (-not $eventScripts.Contains("SunExp.Dll.Hooks")) "Solar memory event scripts must not import Hooks directly."
     Assert-True (-not [regex]::IsMatch($eventScripts, "SolarMemory(?:ModeRuntime|PreparationRuntime|PlayerSetupState)")) "Solar memory event scripts must call the GameApi flow facade instead of Hook runtimes."
-    Assert-True $eventScripts.Contains("SolarMemoryFlowApi.IsPreparationComplete()") "Solar memory event scripts must gate preparation through SolarMemoryFlowApi."
-    Assert-True $eventScripts.Contains("SolarMemoryFlowApi.StartOrResumePreparation()") "Solar memory event scripts must start preparation through SolarMemoryFlowApi."
+    Assert-True $eventScripts.Contains("SolarMemoryFlowApi.ContinueAfterPreparation()") "Solar memory event scripts must delegate preparation and story gating through SolarMemoryFlowApi."
+    Assert-True $solarMemoryFlowApi.Contains("if (!IsPreparationComplete())") "SolarMemoryFlowApi must gate continuation on preparation completion."
+    Assert-True $solarMemoryFlowApi.Contains("StartOrResumePreparation();") "SolarMemoryFlowApi must start preparation when continuation is requested early."
+    Assert-True $solarMemoryFlowApi.Contains("SolarMemoryPostPreparationDialoguePendingKey") "SolarMemoryFlowApi must distinguish dialogue confirmation from first-time dialogue opening."
+    Assert-True $solarMemoryFlowApi.Contains("SolarMemoryStoryGateService.TryStartPostPreparationDialogue") "SolarMemoryFlowApi must route completed preparation through the managed story dialogue flow."
+    Assert-True $solarMemoryStoryGateService.Contains("DialogueFlowService.Start") "Solar Memory story gates must start reusable managed dialogue flows."
+    Assert-True $dialogueFlowRuntime.Contains("DialogueUI.ChooseOption") "DialogueFlowRuntime must hook native dialogue choice completion."
+    Assert-True $dialogueFlowService.Contains("DialogueApi.EndDialogue") "DialogueFlowService must close native dialogue UI from C# after managed choice handling."
+    Assert-True (-not $dialogueData.Contains("CS.SunExp.Dll.Scripting.EventScripts.ContinueSolarMemory();")) "Solar Memory Dialogue rows must not call C# through ChoiceScript columns."
+    Assert-True $dialogueData.Contains("solar_memory_post_prep_test_1,,,wuna,,1,,") "Solar Memory post-preparation dialogue must keep content choices but leave script columns empty."
     Assert-True $solarMemoryFlowApi.Contains("SolarMemoryPreparationRuntime.IsComplete()") "SolarMemoryFlowApi must bridge preparation completion to the Hook runtime."
     Assert-True $solarMemoryFlowApi.Contains("SolarMemoryModeRuntime.OpenOriginWindow()") "SolarMemoryFlowApi must bridge origin setup UI to the Hook runtime."
     Assert-True (-not $eventScripts.Contains('PlayerApi.SetGameVar(SunExpIds.SolarMemoryOriginPointsKey, "50")')) "Solar memory event initialization must not reset origin points to the old value."

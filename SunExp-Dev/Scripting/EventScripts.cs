@@ -24,20 +24,23 @@ public static class EventScripts
     {
         try
         {
-            if (!SolarMemoryFlowApi.IsPreparationComplete())
-            {
-                SunExpLog.Info("[SolarMemoryEvent] continue requested before preparation complete; resuming preparation.");
-                SolarMemoryFlowApi.StartOrResumePreparation();
-                return;
-            }
-
-            SunExpLog.Info("[SolarMemoryEvent] continue accepted; prepared=1.");
-            SolarMemoryFlowApi.MarkPrepared();
-            PlayerApi.EndEvent();
+            SolarMemoryFlowApi.ContinueAfterPreparation();
         }
         catch (Exception ex)
         {
             SunExpLog.Error("Solar memory continue failed", ex);
+        }
+    }
+
+    public static void CompleteSolarMemoryPostPreparationDialogue()
+    {
+        try
+        {
+            SolarMemoryFlowApi.CompletePostPreparationDialogue();
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar memory post-preparation dialogue completion failed", ex);
         }
     }
 

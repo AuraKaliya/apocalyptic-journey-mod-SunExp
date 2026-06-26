@@ -74,11 +74,18 @@ $requiredFiles = @(
     "SunExp-Dev\GameApi\SolarCombatApi.cs",
     "SunExp-Dev\GameApi\FieldApi.cs",
     "SunExp-Dev\GameApi\BuffOverflowApi.cs",
+    "SunExp-Dev\GameApi\DialogueApi.cs",
+    "SunExp-Dev\GameApi\DialogueUiApi.cs",
     "SunExp-Dev\GameApi\MapItemApi.cs",
+    "SunExp-Dev\Mechanics\DialogueFlowDefinition.cs",
+    "SunExp-Dev\Mechanics\DialogueFlowRegistry.cs",
+    "SunExp-Dev\Mechanics\DialogueFlowService.cs",
     "SunExp-Dev\Mechanics\MapNodeCardArtRegistry.cs",
     "SunExp-Dev\Mechanics\MapNodeTextureFitService.cs",
     "SunExp-Dev\Mechanics\ModeChoiceDragRange.cs",
     "SunExp-Dev\Mechanics\SolarFinaleStateService.cs",
+    "SunExp-Dev\Mechanics\SolarMemoryStoryGateService.cs",
+    "SunExp-Dev\Hooks\DialogueFlowRuntime.cs",
     "SunExp-Dev\Hooks\MapNodeCardArtRuntime.cs",
     "SunExp-Dev\Hooks\SolarMemoryRunLauncher.cs"
 )
@@ -91,6 +98,8 @@ $executorApi = Read-RepoText "SunExp-Dev\GameApi\ExecutorApi.cs"
 $fieldApi = Read-RepoText "SunExp-Dev\GameApi\FieldApi.cs"
 $buffOverflowApi = Read-RepoText "SunExp-Dev\GameApi\BuffOverflowApi.cs"
 $mapItemApi = Read-RepoText "SunExp-Dev\GameApi\MapItemApi.cs"
+$dialogueApi = Read-RepoText "SunExp-Dev\GameApi\DialogueApi.cs"
+$dialogueUiApi = Read-RepoText "SunExp-Dev\GameApi\DialogueUiApi.cs"
 $statusApi = Read-RepoText "SunExp-Dev\GameApi\StatusApi.cs"
 $cardScripts = Read-RepoText "SunExp-Dev\Scripting\CardScripts.cs"
 $buffScripts = Read-RepoText "SunExp-Dev\Scripting\BuffScripts.cs"
@@ -101,7 +110,11 @@ $mapNodeCardArtRegistry = Read-RepoText "SunExp-Dev\Mechanics\MapNodeCardArtRegi
 $mapNodeTextureFitService = Read-RepoText "SunExp-Dev\Mechanics\MapNodeTextureFitService.cs"
 $modeChoiceDragRange = Read-RepoText "SunExp-Dev\Mechanics\ModeChoiceDragRange.cs"
 $solarFinaleService = Read-RepoText "SunExp-Dev\Mechanics\SolarFinaleStateService.cs"
+$dialogueFlowService = Read-RepoText "SunExp-Dev\Mechanics\DialogueFlowService.cs"
+$solarMemoryStoryGateService = Read-RepoText "SunExp-Dev\Mechanics\SolarMemoryStoryGateService.cs"
+$dialogueFlowRuntime = Read-RepoText "SunExp-Dev\Hooks\DialogueFlowRuntime.cs"
 $mapNodeCardArtRuntime = Read-RepoText "SunExp-Dev\Hooks\MapNodeCardArtRuntime.cs"
+$runtimeHooks = Read-RepoText "SunExp-Dev\Hooks\RuntimeHooks.cs"
 $solarMemoryModeRuntime = Read-RepoText "SunExp-Dev\Hooks\SolarMemoryModeRuntime.cs"
 $modeChoiceEntryDefinition = Read-RepoText "SunExp-Dev\Hooks\ModeChoiceEntryDefinition.cs"
 $modeChoiceEntryRegistry = Read-RepoText "SunExp-Dev\Hooks\ModeChoiceEntryRegistry.cs"
@@ -122,6 +135,16 @@ Assert-Contains $fieldApi "public static class FieldApi" "FieldApi must own fiel
 Assert-Contains $buffOverflowApi "public static class BuffOverflowApi" "BuffOverflowApi must own buff upper-bound and overflow behavior."
 Assert-Contains $mapItemApi "public static class MapItemApi" "MapItemApi must own Unity MapItem icon access."
 Assert-Contains $mapItemApi "MapNodeTextureFitService.Fit" "MapItemApi must delegate node-card geometry to Mechanics."
+Assert-Contains $dialogueApi "public static bool ShowDialogue" "DialogueApi must own game dialogue display calls."
+Assert-Contains $dialogueApi "Singleton<DialogueManager>.Instance.ShowDialogue(dialogueId)" "DialogueApi must route dialogue display through the native dialogue manager."
+Assert-Contains $dialogueUiApi "public static bool TryGetDialogueId" "DialogueUiApi must own reflected DialogueUI state access."
+Assert-Contains $dialogueUiApi 'GetField(' "DialogueUiApi must centralize DialogueUI private-field reflection."
+Assert-Contains $dialogueFlowService "public static class DialogueFlowService" "DialogueFlowService must own reusable managed dialogue session behavior."
+Assert-Contains $dialogueFlowService "DialogueApi.ShowDialogue" "DialogueFlowService must open managed dialogues through DialogueApi."
+Assert-Contains $dialogueFlowService "DialogueApi.EndDialogue" "DialogueFlowService must close managed dialogues through DialogueApi after C# choice handling."
+Assert-Contains $dialogueFlowRuntime "DialogueUI.ChooseOption" "DialogueFlowRuntime must hook native dialogue choices."
+Assert-Contains $dialogueFlowRuntime "DialogueFlowService.CompleteChoice" "DialogueFlowRuntime must route native choices into the C# dialogue flow service."
+Assert-Contains $runtimeHooks "DialogueFlowRuntime.Initialize(modConfig)" "RuntimeHooks must initialize managed dialogue flow hooks."
 Assert-Contains $mapNodeTextureFitService "public static class MapNodeTextureFitService" "MapNodeTextureFitService must own map-node texture fitting math."
 Assert-Contains $modeChoiceDragRange "public static class ModeChoiceDragRangeService" "ModeChoiceDragRangeService must own mode-choice viewport and overflow math."
 Assert-Contains $mapNodeCardArtRegistry "public static class MapNodeCardArtRegistry" "MapNodeCardArtRegistry must own map-node art specs."
@@ -140,6 +163,9 @@ Assert-NotMatches $buffScripts "switch\s*\(\s*id\s*\)" "BuffScripts must not rou
 Assert-NotMatches $relicScripts "switch\s*\(\s*id\s*\)" "RelicScripts must not route relic ids with a top-level switch."
 
 Assert-Contains $solarFinaleService "public static class SolarFinaleStateService" "Solar finale state must be centralized in SolarFinaleStateService."
+Assert-Contains $solarMemoryStoryGateService "public static class SolarMemoryStoryGateService" "Solar Memory story gates must be centralized in Mechanics."
+Assert-Contains $solarMemoryStoryGateService "DialogueFlowService.Start" "Solar Memory story gates must start managed dialogue flows instead of owning native choice scripts."
+Assert-NotContains $solarMemoryStoryGateService "SunExp.Dll.Hooks" "Mechanics story gates must not depend on Hook runtime classes."
 Assert-NotMatches ($eventScripts + "`n" + $bossScripts) "PlayerApi\.SetGameVar\(SunExpIds\.SolarFinale" "Solar finale GameVar writes must stay inside SolarFinaleStateService."
 Assert-NotContains $eventScripts "SolarFinaleStateService" "Retired solar finale events must not leave EventScripts coupled to finale state."
 Assert-Contains $bossScripts "SolarFinaleStateService.MakeNameless(1)" "BossScripts must keep name-ledger changes centralized in SolarFinaleStateService."
@@ -189,5 +215,8 @@ foreach ($file in $dataFiles) {
         Assert-True ($target.StartsWith("Scripting.", [System.StringComparison]::Ordinal)) "Data script target must route through Scripting: $($file.FullName) -> $($match.Value)"
     }
 }
+
+$dialogueData = Read-RepoText "SunExp\Data\Dialogue\sunexp.csv"
+Assert-NotContains $dialogueData "CS.SunExp.Dll.Scripting.EventScripts.ContinueSolarMemory();" "Managed dialogue choices must not call C# through Dialogue ChoiceScript columns."
 
 Write-Host "SunExp architecture assertions passed."
