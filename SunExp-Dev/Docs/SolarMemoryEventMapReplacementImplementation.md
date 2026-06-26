@@ -1,6 +1,6 @@
 # Solar Memory 事件替换与固定地图节点实现说明
 
-本文档整理 SunExp 当前“日耀回忆 / Solar Memory”的地图事件替换、固定地图节点、整备入口与终局隐藏战路由。它描述的是当前实现链路，不是未来草案。
+本文档整理 SunExp 当前“日耀回忆 / Solar Memory”的地图事件替换、固定地图节点、整备入口与终局结算路由。它描述的是当前实现链路，不是未来草案。
 
 ## 总体方案
 
@@ -79,7 +79,6 @@ public const int SolarMemoryMaxLayer = 3;
 | 事件入口 ID | `SolarMemoryFullEventIds` / `SolarMemoryEventIds` |
 | 地图层标题 | `SolarMemoryLayerNames` |
 | 固定 Boss Map / Level / Enemy | `SolarBoss*MapId`、`SolarBoss*LevelId`、`SolarBoss*EnemyId` |
-| 终局状态 | `SolarFinale*Key` |
 | 整备状态 | `SolarMemoryPrepStepKey` 与旧布尔 key |
 
 后续新增固定事件或固定 Boss 时，应先扩展这里的 ID 常量，再修改 Map / EventList / Text 和节点池逻辑。
@@ -95,7 +94,6 @@ public const int SolarMemoryMaxLayer = 3;
 日耀回忆事件全部使用 `Sub_` 前缀，例如：
 
 ```csv
-Sub_solar_memory_start
 Sub_solar_memory_black_sun_after
 Sub_solar_memory_second_sun
 Sub_solar_memory_saint_daily
@@ -109,19 +107,11 @@ Sub_solar_memory_above_sacred_wheel
 事件选项不写长逻辑，只调用 C#：
 
 ```csharp
-CS.SunExp.Dll.Scripting.EventScripts.OpenSolarMemoryPreparation();
-CS.SunExp.Dll.Scripting.EventScripts.StartSolarMemoryBossRush();
 CS.SunExp.Dll.Scripting.EventScripts.ContinueSolarMemory();
 CS.SunExp.Dll.Scripting.EventScripts.OpenSolarMemoryDeck();
 ```
 
-终局事件也保持同一模式：
-
-```csharp
-CS.SunExp.Dll.Scripting.EventScripts.EnterSolarFinaleSaintBattle();
-CS.SunExp.Dll.Scripting.EventScripts.SkipSolarFinaleSaintBattle();
-CS.SunExp.Dll.Scripting.EventScripts.FinishSolarFinaleEnding("stars");
-```
+整备流程由模式入口启动与恢复，不再通过 `Sub_solar_memory_start` EventList 行承载。第三层完成后由运行时直接进入结算 UI，不再打开 `Sub_solar_finale_*` 旧终幕事件。
 
 ## Hook 层：原生生成后覆盖当前层
 
@@ -315,14 +305,6 @@ expectedNodeId = fixed boss level id
 文件：
 
 - `SunExp-Dev/Hooks/SolarMemoryPreparationRuntime.cs`
-- `SunExp-Dev/Scripting/EventScripts.cs`
-
-`Sub_solar_memory_start` 的两个关键选项是：
-
-```csharp
-OpenSolarMemoryPreparation();
-StartSolarMemoryBossRush();
-```
 
 整备状态机：
 
@@ -346,41 +328,22 @@ SolarMemoryBlessConfiguredKey
 SolarMemorySetupFinishedKey
 ```
 
-`StartSolarMemoryBossRush()` 的行为：
-
-1. 如果整备未完成，调用 `SolarMemoryPreparationRuntime.StartOrResume()`，回到当前缺失步骤。
-2. 如果整备完成，写入 `SolarMemoryPreparedKey = "1"` 并结束事件。
-
-这保证了事件入口不会绕过套卡、本源、祝福整备。
+整备流程由模式入口创建新 run 时启动；重新进入整备 UI 时由 `SolarMemoryPreparationRuntime.StartOrResume()` 回到当前缺失步骤。旧 `Sub_solar_memory_start` 事件已退休，不再作为开始连战入口。
 
 ## 终局与隐藏 Boss
 
 文件：
 
 - `SunExp-Dev/Hooks/SolarMemoryModeRuntime.cs`
-- `SunExp-Dev/Scripting/EventScripts.cs`
-- `SunExp/Data/EventList/sunexp.csv`
-- `SunExp/Text/EventList/sunexp.csv`
-
-终局事件：
-
-```text
-Sub_solar_finale_saint_gate
-Sub_solar_finale_saint
-Sub_solar_finale_ending
-```
 
 流程：
 
 1. 击破 `无慈第二日轮·终日态`。
-2. 写入 `SolarFinaleSecondSunDefeatedKey = "1"`。
-3. 根据状态进入 `Sub_solar_finale_saint_gate`。
-4. 如果满足隐藏战条件，事件选项显示“呼唤白曜圣女”。
-5. 玩家选择挑战时，`StartSolarFinaleSaintBattle()` 构造固定乌娜 Fight 节点并调用 `CmdNextMap()`。
-6. 玩家跳过或条件不足时，进入 `Sub_solar_finale_ending`。
-7. 乌娜战胜利后设置 `SolarFinaleSaintDefeatedKey`，再进入终幕或结算。
+2. 若当前卡组拥有关键卡 `炽冕崩落`，继续进入固定 Boss 节点 `solar_memory_boss_saint_wuna`。
+3. 若没有关键卡，则直接进入结算 UI。
+4. 击破 `白曜圣女·乌娜` 后直接进入结算 UI。
 
-隐藏战不是普通首领池的一部分。它只由终局门扉事件触发。
+旧 `Sub_solar_finale_*` 终幕事件已退休。隐藏战不是普通首领池的一部分，它由固定地图节点流程承载。
 
 ## 后续改动检查清单
 
@@ -396,7 +359,7 @@ Sub_solar_finale_ending
 - `FixedNodeSpecs` 是否锁定 UI 可见槽位。
 - `RepairSolarMemoryMapSelection` 是否同步修正 `maps[]` 与 `mapData[]`。
 - 固定剧情 Boss 是否被 `IsSolarMemoryFixedStoryBoss` 排除出扩展 Boss 池。
-- 终局事件是否通过 `EventScripts` 控制分支，而不是直接在 CSV 写复杂逻辑。
+- 第三层终局是否直接结算，且不会重新打开旧 `Sub_solar_finale_*` EventUI。
 
 推荐验证命令：
 

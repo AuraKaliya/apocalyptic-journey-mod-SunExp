@@ -62,18 +62,7 @@ public static class SunExpIds
     public const string LoneerDerivedTag = "衍生牌";
     public const string LoneerGuidanceTag = "指引牌";
 
-    public const string WunaEventProgressKey = "SunExp_WunaEventProgressV2";
-    public const string SolarEventMapId = "SunExp_sunexp_solar_event";
-    public const string SolarEventShortMapId = "solar_event";
-    public const string WunaEventPrefix = "Sub_wuna_event_";
-    public const string WunaEventFullPrefix = "SunExp_sunexp_Sub_wuna_event_";
-    public const string WunaEventRepeat = "Sub_wuna_event_repeat";
-    public const string WunaEventFullRepeat = "SunExp_sunexp_Sub_wuna_event_repeat";
-    public const int WunaEventMaxProgress = 6;
-
     public const string SolarMemoryModeKey = "SunExp_SolarMemoryMode";
-    public const string SolarMemoryStartMapId = "SunExp_sunexp_solar_memory_start";
-    public const string SolarMemoryStartShortMapId = "solar_memory_start";
     public const string SolarMemorySelectedPacksKey = "SunExp_SolarMemorySelectedPacks";
     public const string SolarMemoryOriginPointsKey = "SunExp_SolarMemoryOriginPoints";
     public const string SolarMemoryBlessPickCountKey = "SunExp_SolarMemoryBlessPickCount";
@@ -153,18 +142,6 @@ public static class SunExpIds
     public const string SolarFinaleSavedNamesKey = "SunExp_SolarFinaleSavedNames";
     public const string SolarFinaleBurnedNamesKey = "SunExp_SolarFinaleBurnedNames";
     public const string SolarFinaleNamelessNamesKey = "SunExp_SolarFinaleNamelessNames";
-    public const string SolarFinaleSecondSunDefeatedKey = "SunExp_SolarFinaleSecondSunDefeated";
-    public const string SolarFinaleEndingKey = "SunExp_SolarFinaleEnding";
-    public const string SolarFinaleSaintGateEventId = "Sub_solar_finale_saint_gate";
-    public const string SolarFinaleFullSaintGateEventId = "SunExp_sunexp_Sub_solar_finale_saint_gate";
-    public const string SolarFinaleEndingEventId = "Sub_solar_finale_ending";
-    public const string SolarFinaleFullEndingEventId = "SunExp_sunexp_Sub_solar_finale_ending";
-    public const string SolarFinaleFinalLayerEnteredKey = "SunExp_SolarFinaleFinalLayerEntered";
-    public const string SolarFinaleSaintGateOpenedKey = "SunExp_SolarFinaleSaintGateOpened";
-    public const string SolarFinaleSaintGateResolvedKey = "SunExp_SolarFinaleSaintGateResolved";
-    public const string SolarFinalePendingSaintBattleKey = "SunExp_SolarFinalePendingSaintBattle";
-    public const string SolarFinaleSaintDefeatedKey = "SunExp_SolarFinaleSaintDefeated";
-    public const string SolarFinaleCompletedKey = "SunExp_SolarFinaleCompleted";
     public const string SolarBossOrbitMirrorMapId = "SunExp_sunexp_solar_memory_boss_orbit_mirror_array";
     public const string SolarBossSecondSunMapId = "SunExp_sunexp_solar_memory_boss_second_sun_last_day";
     public const string SolarBossSaintWunaMapId = "SunExp_sunexp_solar_memory_boss_saint_wuna";
@@ -180,9 +157,7 @@ public static class SunExpIds
     public const string SolarBossSecondSunMapTexturePath = "Mods/SunExp/ModResource/AnimationLib/SecondSunWeel_e/Map/Map_00.png";
     public const string SolarBossSaintWunaMapTexturePath = "Mods/SunExp/ModResource/AnimationLib/WuNa_e/Map/Map_00.png";
     public const string BlazingCrownCollapseCardId = "SunExp_sunexp_blazing_crown_collapse";
-    public const int SolarFinaleMapLevel = 30;
     public const int SolarFinaleNameCount = 8;
-    public const int SolarFinaleHiddenBossNameThreshold = 5;
 
     public static bool IsSolarMemoryExclusiveMapId(string? id)
     {
@@ -191,11 +166,7 @@ public static class SunExpIds
             return false;
         }
 
-        if (string.Equals(id, SolarEventMapId, System.StringComparison.Ordinal)
-            || string.Equals(id, SolarEventShortMapId, System.StringComparison.Ordinal)
-            || string.Equals(id, SolarMemoryStartMapId, System.StringComparison.Ordinal)
-            || string.Equals(id, SolarMemoryStartShortMapId, System.StringComparison.Ordinal)
-            || string.Equals(id, SolarBossOrbitMirrorMapId, System.StringComparison.Ordinal)
+        if (string.Equals(id, SolarBossOrbitMirrorMapId, System.StringComparison.Ordinal)
             || string.Equals(id, SolarBossOrbitMirrorShortMapId, System.StringComparison.Ordinal)
             || string.Equals(id, SolarBossSecondSunMapId, System.StringComparison.Ordinal)
             || string.Equals(id, SolarBossSecondSunShortMapId, System.StringComparison.Ordinal)
@@ -232,13 +203,8 @@ public static class SunExpIds
         }
 
         var value = id ?? "";
-        return value.StartsWith("Breaks_solar_event", System.StringComparison.Ordinal)
-            || value.StartsWith("Breaks_solar_memory_", System.StringComparison.Ordinal)
+        return value.StartsWith("Breaks_solar_memory_", System.StringComparison.Ordinal)
             || value.StartsWith("Sub_solar_memory_", System.StringComparison.Ordinal)
-            || value.StartsWith("SunExp_sunexp_Sub_solar_memory_", System.StringComparison.Ordinal)
-            || value.StartsWith("Sub_solar_finale_", System.StringComparison.Ordinal)
-            || value.StartsWith("SunExp_sunexp_Sub_solar_finale_", System.StringComparison.Ordinal)
-            || value.StartsWith(WunaEventPrefix, System.StringComparison.Ordinal)
-            || value.StartsWith(WunaEventFullPrefix, System.StringComparison.Ordinal);
+            || value.StartsWith("SunExp_sunexp_Sub_solar_memory_", System.StringComparison.Ordinal);
     }
 }

@@ -2,6 +2,8 @@
 
 来源：当前仓库 `SunExp/Data/*/sunexp.csv` 与 `SunExp/Text/*/sunexp.csv`。
 
+> 2026-06-26 更新：旧版日耀事件链、`Sub_solar_memory_start` 与 `Sub_solar_finale_*` 旧终幕事件已从正式数据删除；本文中对应段落仅作为历史文案素材归档，不再代表当前可触发事件。
+
 ## 遗物文本
 
 ### 晨辉碎片 (`morning_shard`)

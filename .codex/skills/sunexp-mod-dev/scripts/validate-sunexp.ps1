@@ -272,23 +272,15 @@ function Test-EventListTexts {
     }
 }
 
-function Test-SunExpWunaEventIds {
+function Test-RetiredSunExpEventIds {
     param([object[]]$EventRows)
-    $ids = @{}
     foreach ($event in $EventRows) {
         $id = Normalize-Id $event.Id
-        if (-not [string]::IsNullOrWhiteSpace($id)) {
-            $ids[$id] = $true
+        if ([string]::IsNullOrWhiteSpace($id)) {
+            continue
         }
-    }
-    for ($i = 1; $i -le 6; $i++) {
-        $topLevel = "wuna_event_{0:D2}" -f $i
-        $subEvent = "Sub_wuna_event_{0:D2}" -f $i
-        if ($ids.ContainsKey($topLevel)) {
-            Add-Failure "EventList '$topLevel' must not be a top-level event; use '$subEvent' so the ordinary event pool cannot draw it."
-        }
-        if (-not $ids.ContainsKey($subEvent)) {
-            Add-Failure "EventList '$subEvent' is missing from the ordered WuNa solar event chain."
+        if ($id -match '^(Sub_)?wuna_event_' -or $id -match '^Sub_solar_finale_' -or $id -eq 'Sub_solar_memory_start') {
+            Add-Failure "EventList '$id' is retired and must not be shipped."
         }
     }
 }
@@ -524,7 +516,7 @@ foreach ($kind in $optionalKinds) {
         Test-ResourcePaths $kind $dataRows $repoRoot
         if ($kind -eq "EventList") {
             Test-EventListTexts $dataRows $textRows
-            Test-SunExpWunaEventIds $dataRows
+            Test-RetiredSunExpEventIds $dataRows
         }
         if ($kind -eq "Map") {
             Test-MapTextNotes $textRows

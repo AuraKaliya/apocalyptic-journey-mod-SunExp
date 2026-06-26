@@ -43,16 +43,6 @@ public static class SolarMemoryFlowApi
         SolarMemoryModeRuntime.OpenDeckWindow();
     }
 
-    public static void StartFinaleSaintBattle()
-    {
-        SolarMemoryModeRuntime.StartSolarFinaleSaintBattle();
-    }
-
-    public static void OpenFinaleEndingEvent()
-    {
-        SolarMemoryModeRuntime.OpenSolarFinaleEndingEvent();
-    }
-
     public static void ShowSettlement()
     {
         SolarMemoryModeRuntime.ShowSolarMemorySettlement();
