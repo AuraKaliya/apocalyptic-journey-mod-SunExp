@@ -27,6 +27,7 @@ public static class SolarMemoryModeRuntime
     private const string EntryHighlightedTitleSpritePath = "Mods/SunExp/ModResource/Images/UI/solar_memory_title_c_h.png";
     private const string SolarMemoryEventMapCardTexturePath = "Mods/SunExp/ModResource/Images/MapNode/日耀回忆-事件.png";
     private const float EntryTitleArtHeightRatio = 0.735f;
+    private const int LegacySolarFinaleMapLevel = 30;
     private const int SolarMemoryOpeningSlotIndex = 0;
     private const int SolarMemoryMidLayerSlotIndex = 3;
     private static readonly Color PanelColor = new(0.11f, 0.09f, 0.08f, 0.96f);
@@ -58,7 +59,7 @@ public static class SolarMemoryModeRuntime
         RegisterBefore(modConfig, "MapManager.RpcUpdateMap", RepairSolarMemoryMapSelection);
         RegisterBefore(modConfig, "MapManager.RpcNextMap", EnsureSolarMemoryCurrentNodeBeforeNextMap);
         RegisterAfter(modConfig, "MapManager.RpcNextMap", SyncSolarMemoryClientLastNodeAfterNextMap);
-        RegisterBefore(modConfig, "NormalMapManager.MapItemInit", SettleLegacySolarFinaleBeforeMapItems);
+        RegisterBefore(modConfig, "NormalMapManager.MapItemInit", SettleLegacyTerminalLevelBeforeMapItems);
         RegisterAfter(modConfig, "NormalMapManager.MapItemInit", ApplySolarMemoryFixedSlotsAfterMapItems);
         RegisterAfter(modConfig, "MapSelectUI.ShowMap", ReapplySolarMemoryFixedSlotLocks);
         RegisterAfter(modConfig, "Fight_Win.ResetStates", SettleSolarMemoryBossAfterWin);
@@ -1223,7 +1224,6 @@ public static class SolarMemoryModeRuntime
                 return;
             }
 
-            ClearSolarFinalePendingBattle("Fight_Escape.ResetStates");
             EnsureSolarMemoryCurrentNodeForTransition("Fight_Escape.ResetStates:after");
             CloseSolarMemoryTransientUi("Fight_Escape.ResetStates:after");
             SunExpLog.Info("[SolarMemoryFightAbort] escape/loss branch settled.");
@@ -1247,7 +1247,6 @@ public static class SolarMemoryModeRuntime
                 return;
             }
 
-            ClearSolarFinalePendingBattle("Fight_Loss.Init");
             CloseSolarMemoryTransientUi("Fight_Loss.Init");
             if (!handlingSolarMemoryFightAbort)
             {
@@ -1575,17 +1574,6 @@ public static class SolarMemoryModeRuntime
         SunExpLog.Debug("[SolarMemoryMapSync] repaired current node dice from " + source + ".");
     }
 
-    private static void ClearSolarFinalePendingBattle(string source)
-    {
-        if (PlayerApi.GetGameVar(SunExpIds.SolarFinalePendingSaintBattleKey, "") == "")
-        {
-            return;
-        }
-
-        PlayerApi.SetGameVar(SunExpIds.SolarFinalePendingSaintBattleKey, "");
-        SunExpLog.Info("[SolarMemoryFightAbort] cleared pending saint battle from " + source + ".");
-    }
-
     private static void CloseSolarMemoryTransientUi(string source)
     {
         try
@@ -1628,9 +1616,7 @@ public static class SolarMemoryModeRuntime
         }
 
         return SunExpIds.SolarMemoryMapIds.Any(value => string.Equals(id, value, StringComparison.Ordinal))
-            || SunExpIds.SolarMemoryShortMapIds.Any(value => string.Equals(id, value, StringComparison.Ordinal))
-            || string.Equals(id, "SunExp_sunexp_solar_memory_start", StringComparison.Ordinal)
-            || string.Equals(id, "solar_memory_start", StringComparison.Ordinal);
+            || SunExpIds.SolarMemoryShortMapIds.Any(value => string.Equals(id, value, StringComparison.Ordinal));
     }
 
     private static bool IsSolarMemoryEventId(string? id)
@@ -1641,9 +1627,7 @@ public static class SolarMemoryModeRuntime
         }
 
         return SunExpIds.SolarMemoryFullEventIds.Any(value => string.Equals(id, value, StringComparison.Ordinal))
-            || SunExpIds.SolarMemoryEventIds.Any(value => string.Equals(id, value, StringComparison.Ordinal))
-            || string.Equals(id, "SunExp_sunexp_Sub_solar_memory_start", StringComparison.Ordinal)
-            || string.Equals(id, "Sub_solar_memory_start", StringComparison.Ordinal);
+            || SunExpIds.SolarMemoryEventIds.Any(value => string.Equals(id, value, StringComparison.Ordinal));
     }
 
     private static void FinishSolarMemoryAfterFinalLayer(ModHookContext context)
@@ -1656,8 +1640,7 @@ public static class SolarMemoryModeRuntime
                 return;
             }
 
-            if (manager.Level < SunExpIds.SolarMemoryMaxLayer * 6
-                && !IsSolarFinaleLayerActive(manager))
+            if (manager.Level < SunExpIds.SolarMemoryMaxLayer * 6)
             {
                 return;
             }
@@ -1672,12 +1655,6 @@ public static class SolarMemoryModeRuntime
 
     private static void CompleteSolarMemoryRun(NormalMapManager manager, string source, int levelForNativeFlow)
     {
-        PlayerApi.SetGameVar(SunExpIds.SolarFinaleSecondSunDefeatedKey, "1");
-        PlayerApi.SetGameVar(SunExpIds.SolarFinaleFinalLayerEnteredKey, "0");
-        PlayerApi.SetGameVar(SunExpIds.SolarFinaleSaintGateOpenedKey, "");
-        PlayerApi.SetGameVar(SunExpIds.SolarFinaleSaintGateResolvedKey, "");
-        PlayerApi.SetGameVar(SunExpIds.SolarFinalePendingSaintBattleKey, "");
-        PlayerApi.SetGameVar(SunExpIds.SolarFinaleCompletedKey, "1");
         manager.Level = levelForNativeFlow;
         SunExpLog.Info("[SolarMemory] third layer complete from "
             + source
@@ -1686,13 +1663,13 @@ public static class SolarMemoryModeRuntime
             + ".");
     }
 
-    private static void SettleLegacySolarFinaleBeforeMapItems(ModHookContext context)
+    private static void SettleLegacyTerminalLevelBeforeMapItems(ModHookContext context)
     {
         try
         {
             if (!IsSolarMemoryRun()
                 || context.Target is not NormalMapManager manager
-                || !IsSolarFinaleLayerActive(manager))
+                || manager.Level < LegacySolarFinaleMapLevel)
             {
                 return;
             }
@@ -1702,64 +1679,7 @@ public static class SolarMemoryModeRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory legacy finale settlement failed", ex);
-        }
-    }
-
-    private static bool IsSolarFinaleLayerActive(NormalMapManager? manager = null)
-    {
-        manager ??= MapManager.Instance?.ModeMapManager as NormalMapManager;
-        return PlayerApi.GetGameVar(SunExpIds.SolarFinaleFinalLayerEnteredKey, "0") == "1"
-            || (manager != null && manager.Level >= SunExpIds.SolarFinaleMapLevel);
-    }
-
-    public static void StartSolarFinaleSaintBattle()
-    {
-        try
-        {
-            if (!IsSolarMemoryRun())
-            {
-                PlayerApi.EndEvent();
-                return;
-            }
-
-            var mapManager = MapManager.Instance;
-            var tree = mapManager?.MapTree;
-            if (mapManager == null || tree == null)
-            {
-                SunExpLog.Warn("[SolarFinale] unable to start saint battle: MapManager or MapTree missing.");
-                OpenSolarFinaleEndingEvent();
-                return;
-            }
-
-            var node = SolarMemoryMapNodePoolFactory.CreateFixedBossNode(tree, SunExpIds.SolarBossSaintWunaMapId);
-            tree.currentNode = node;
-            GameSaveManager.UpdateNode(node);
-            PlayerApi.SetGameVar(SunExpIds.SolarFinaleSaintGateResolvedKey, "1");
-            PlayerApi.SetGameVar(SunExpIds.SolarFinalePendingSaintBattleKey, "in_progress");
-            UIManager.Instance?.CloseUI("EventUI");
-            mapManager.CmdNextMap();
-            SunExpLog.Info("[SolarFinale] starting fixed saint battle node.");
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Error("Solar finale saint battle start failed", ex);
-            OpenSolarFinaleEndingEvent();
-        }
-    }
-
-    public static void OpenSolarFinaleEndingEvent()
-    {
-        try
-        {
-            UIManager.Instance?.CloseUI("MapSelectUI");
-            UIManager.Instance?.CloseUI("EventUI");
-            UIManager.Instance?.ShowEventUI(SunExpIds.SolarFinaleFullEndingEventId);
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Error("Solar finale ending event failed", ex);
-            UIManager.Instance?.ShowUI<GameExitUI>("GameExitUI", true);
+            SunExpLog.Error("Solar memory legacy terminal-level settlement failed", ex);
         }
     }
 
@@ -1789,7 +1709,6 @@ public static class SolarMemoryModeRuntime
             var levelId = FightManager.Instance?.level ?? "";
             if (string.Equals(levelId, SunExpIds.SolarBossSecondSunLevelId, StringComparison.Ordinal))
             {
-                PlayerApi.SetGameVar(SunExpIds.SolarFinaleSecondSunDefeatedKey, "1");
                 if (RoleDeckHasCard(SunExpIds.BlazingCrownCollapseCardId))
                 {
                     SunExpLog.Info("[SolarMemoryBoss] second sun defeated; blazing crown collapse found, continuing memory.");
@@ -1802,7 +1721,6 @@ public static class SolarMemoryModeRuntime
 
             if (string.Equals(levelId, SunExpIds.SolarBossSaintWunaLevelId, StringComparison.Ordinal))
             {
-                PlayerApi.SetGameVar(SunExpIds.SolarFinaleSaintDefeatedKey, "1");
                 CompleteSolarMemoryRunForSettlement("Fight_Win.ResetStates:saint_wuna");
             }
         }
@@ -1845,19 +1763,6 @@ public static class SolarMemoryModeRuntime
     {
         const string prefix = "SunExp_sunexp_";
         return id.StartsWith(prefix, StringComparison.Ordinal) ? id.Substring(prefix.Length) : id;
-    }
-
-    private static void FinishSolarFinaleSaintBattle()
-    {
-        PlayerApi.SetGameVar(SunExpIds.SolarFinalePendingSaintBattleKey, "");
-        PlayerApi.SetGameVar(SunExpIds.SolarFinaleSaintDefeatedKey, "1");
-        if (string.IsNullOrWhiteSpace(PlayerApi.GetGameVar(SunExpIds.SolarFinaleEndingKey, "")))
-        {
-            PlayerApi.SetGameVar(SunExpIds.SolarFinaleEndingKey, "stars");
-        }
-
-        OpenSolarFinaleEndingEvent();
-        SunExpLog.Info("[SolarFinale] saint battle finished; opening ending event.");
     }
 
     private static MapTree.Node CreateSolarMemoryEventNode(MapTree tree, int layer, int mapSlotIndex)
@@ -1998,10 +1903,10 @@ public static class SolarMemoryModeRuntime
         return ContainsEventTypeMarker(Field(data, "Type"))
             || ContainsEventTypeMarker(Field(data, "Note"))
             || HasLocalizedEventCardType(id)
-            || ContainsSolarEventScriptMarker(Field(data, "Tag"))
-            || ContainsSolarEventScriptMarker(Field(data, "Action"))
-            || ContainsSolarEventScriptMarker(Field(data, "InitScript"))
-            || ContainsSolarEventScriptMarker(Field(data, "UseScript"));
+            || ContainsSolarMemoryEventScriptMarker(Field(data, "Tag"))
+            || ContainsSolarMemoryEventScriptMarker(Field(data, "Action"))
+            || ContainsSolarMemoryEventScriptMarker(Field(data, "InitScript"))
+            || ContainsSolarMemoryEventScriptMarker(Field(data, "UseScript"));
     }
 
     private static bool HasLocalizedEventCardType(string cardId)
@@ -2030,13 +1935,12 @@ public static class SolarMemoryModeRuntime
 
     private static bool ContainsEventMarker(string value)
     {
-        return ContainsEventCardIdMarker(value) || ContainsEventTypeMarker(value) || ContainsSolarEventScriptMarker(value);
+        return ContainsEventCardIdMarker(value) || ContainsEventTypeMarker(value) || ContainsSolarMemoryEventScriptMarker(value);
     }
 
     private static bool ContainsEventCardIdMarker(string value)
     {
-        return value.IndexOf("solar_event", StringComparison.OrdinalIgnoreCase) >= 0
-            || value.IndexOf("solar_memory_event", StringComparison.OrdinalIgnoreCase) >= 0
+        return value.IndexOf("solar_memory_event", StringComparison.OrdinalIgnoreCase) >= 0
             || value.IndexOf("SolarMemoryEvent", StringComparison.OrdinalIgnoreCase) >= 0
             || value.StartsWith("event_", StringComparison.OrdinalIgnoreCase)
             || value.StartsWith("card_event", StringComparison.OrdinalIgnoreCase)
@@ -2055,10 +1959,9 @@ public static class SolarMemoryModeRuntime
             || value.Contains("事件卡");
     }
 
-    private static bool ContainsSolarEventScriptMarker(string value)
+    private static bool ContainsSolarMemoryEventScriptMarker(string value)
     {
-        return value.IndexOf("solar_event", StringComparison.OrdinalIgnoreCase) >= 0
-            || value.IndexOf("solar_memory_event", StringComparison.OrdinalIgnoreCase) >= 0
+        return value.IndexOf("solar_memory_event", StringComparison.OrdinalIgnoreCase) >= 0
             || value.IndexOf("SolarMemoryEvent", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 

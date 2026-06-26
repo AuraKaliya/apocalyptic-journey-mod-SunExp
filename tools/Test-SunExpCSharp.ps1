@@ -339,10 +339,10 @@ internal static class Program
     {
         True(SunExpIds.IsSolarMemoryExclusiveMapId("solar_memory_black_sun_after"), "Short Solar Memory story map ids are exclusive");
         True(SunExpIds.IsSolarMemoryExclusiveMapId("SunExp_sunexp_solar_memory_boss_saint_wuna"), "Full Solar Memory boss map ids are exclusive");
-        True(SunExpIds.IsSolarMemoryExclusiveMapId("solar_event"), "Legacy solar event map ids are exclusive");
+        False(SunExpIds.IsSolarMemoryExclusiveMapId("solar_event"), "Retired solar event map ids are no longer shipped exclusive maps");
         False(SunExpIds.IsSolarMemoryExclusiveMapId("map_0"), "Base game map ids are not Solar Memory exclusive");
         True(SunExpIds.IsSolarMemoryExclusiveEventId("SunExp_sunexp_Sub_solar_memory_second_sun"), "Full Solar Memory story event ids are exclusive");
-        True(SunExpIds.IsSolarMemoryExclusiveEventId("Sub_wuna_event_1"), "Legacy Wuna story event ids are exclusive");
+        False(SunExpIds.IsSolarMemoryExclusiveEventId("Sub_wuna_event_1"), "Retired Wuna story event ids are no longer shipped exclusive events");
         False(SunExpIds.IsSolarMemoryExclusiveEventId("event_2001"), "Base game event ids are not Solar Memory exclusive");
     }
 
@@ -739,7 +739,7 @@ function Invoke-SourceAssertions {
     $duskPartnerScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\DuskPartnerScripts.cs"))
     $starClayDollScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\StarClayDollScripts.cs"))
     $scriptingSource = [string]::Join("`n", (Get-ChildItem -LiteralPath (Join-Path $RepoRoot "SunExp-Dev\Scripting") -File -Filter "*.cs" | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }))
-    $solarEventRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarEventRuntime.cs"))
+    $solarEventRuntimePath = Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarEventRuntime.cs"
     $solarMemoryModeRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryModeRuntime.cs"))
     $modeChoiceEntryDefinition = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\ModeChoiceEntryDefinition.cs"))
     $modeChoiceEntryRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\ModeChoiceEntryRegistry.cs"))
@@ -839,7 +839,7 @@ function Invoke-SourceAssertions {
     Assert-True $cardConfigApi.Contains("ReadPlayerCardCostMultiplier") "CardConfigApi must read the player CardCost multiplier."
     Assert-True (-not $runtimeHooks.Contains("SolarEventRuntime.EnsureInCurrentLayer")) "RuntimeHooks must not inject SunExp events into normal adventure maps."
     Assert-True (-not $runtimeHooks.Contains("SolarEventRuntime.RepairMapSelection")) "RuntimeHooks must not repair normal adventure map selections for SunExp events."
-    Assert-True $solarEventRuntime.Contains("Retired: Solar Memory content must never be injected into other game modes.") "The legacy normal-mode solar event injector must remain retired."
+    Assert-True (-not [System.IO.File]::Exists($solarEventRuntimePath)) "The retired normal-mode solar event injector file must be removed."
     Assert-True $runtimeHooks.Contains("SolarMemoryContentIsolationRuntime.Initialize(modConfig)") "RuntimeHooks must initialize the Solar Memory content isolation guard."
     Assert-True $solarMemoryContentIsolationRuntime.Contains('RegisterAfter(modConfig, "NormalMapManager.GeneratrMap", SanitizeGeneratedMap)') "Solar Memory isolation must sanitize World Simulation map generation."
     Assert-True $solarMemoryContentIsolationRuntime.Contains('RegisterAfter(modConfig, "SublimationManager.GeneratrMap", SanitizeGeneratedMap)') "Solar Memory isolation must sanitize Sublimation map generation."
@@ -980,13 +980,13 @@ function Invoke-SourceAssertions {
     Assert-True (-not $solarMemoryModeRuntime.Contains('ShowEventUIWithTurn<MapSelectUI>("MapSelectUI", SunExpIds.SolarFinaleFullSaintGateEventId)')) "Solar finale must not open the saint gate event from map transition hooks."
     Assert-True (-not $solarMemoryModeRuntime.Contains("EnterSolarFinaleLayer")) "Solar memory must not route into a dedicated finale map layer."
     Assert-True (-not $solarMemoryModeRuntime.Contains("RepairSolarFinaleMapArrays")) "Solar memory must not force finale map candidates into a pre-boss dialogue or saint boss."
-    Assert-True $solarMemoryModeRuntime.Contains('"NormalMapManager.MapItemInit", SettleLegacySolarFinaleBeforeMapItems') "Solar memory must settle legacy level-30 saves before native MapItemInit indexes map lists."
+    Assert-True $solarMemoryModeRuntime.Contains('"NormalMapManager.MapItemInit", SettleLegacyTerminalLevelBeforeMapItems') "Solar memory must settle legacy level-30 saves before native MapItemInit indexes map lists."
     Assert-True $solarMemoryModeRuntime.Contains('RegisterBefore(modConfig, "Fight_Escape.ResetStates", PrepareSolarMemoryFightAbort)') "Solar memory fight escape must prepare map state and UI cleanup before native reset."
     Assert-True $solarMemoryModeRuntime.Contains('RegisterAfter(modConfig, "Fight_Escape.ResetStates", SettleSolarMemoryFightAbort)') "Solar memory fight escape must settle map state after native reset."
     Assert-True $solarMemoryModeRuntime.Contains('RegisterAfter(modConfig, "Fight_Loss.Init", SettleSolarMemoryFightLoss)') "Solar memory fight loss must clear transient state before fake-loss escape transition."
     Assert-True $solarMemoryModeRuntime.Contains('EnsureSolarMemoryCurrentNodeForTransition("Fight_Escape.ResetStates:before")') "Solar memory escape must repair current node before MapManager.TryChange can consume it."
     Assert-True $solarMemoryModeRuntime.Contains('CloseSolarMemoryTransientUi("Fight_Escape.ResetStates:after")') "Solar memory escape must close transient setup UI after native fight reset."
-    Assert-True $solarMemoryModeRuntime.Contains('ClearSolarFinalePendingBattle("Fight_Escape.ResetStates")') "Solar memory escape must clear pending finale battle state."
+    Assert-True (-not $solarMemoryModeRuntime.Contains("ClearSolarFinalePendingBattle")) "Solar memory must not retain pending finale-battle cleanup after retiring finale events."
     Assert-True $solarMemoryModeRuntime.Contains('SunExpUiSafety.DisableRaycastsAndDestroyByName("SunExpSolarMemoryStarterDeck", source, "[SolarMemoryFightAbort]")') "Solar memory UI cleanup must route starter-deck teardown through SunExpUiSafety."
     Assert-True $sunExpUiSafety.Contains("UiRaycastSafeDestroyRuntime.DisableRaycasts") "Solar memory UI cleanup must reuse the shared raycast-safe destroy runtime."
     Assert-True $sunExpUiSafety.Contains("Object.Destroy(root)") "Solar memory UI cleanup must destroy only after disabling raycasts."
@@ -996,11 +996,9 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemorySetupFlowRuntime.Contains("SunExpUiBuilder.ApplyPanelImage") "Solar memory setup flow UI must reuse SunExpUiBuilder panel creation."
     Assert-True $solarMemoryModeRuntime.Contains("CompleteSolarMemoryRun") "Solar memory must settle immediately after the third layer boss."
     Assert-True $solarMemoryModeRuntime.Contains("manager.Level = levelForNativeFlow") "Solar memory completion must route through the native settlement level."
-    Assert-True $eventScripts.Contains("SolarFinaleStateService.MarkSaintGateOpened()") "Solar finale saint gate init must mark display through the finale state service."
-    Assert-True $eventScripts.Contains("SolarFinaleStateService.MarkCompleted()") "Solar finale ending must mark completion through the finale state service before showing settlement."
-    Assert-True $sunExpIds.Contains("SolarFinaleFinalLayerEnteredKey") "Solar finale must define a persisted final-layer state key."
-    Assert-True $sunExpIds.Contains("SolarFinaleSaintGateOpenedKey") "Solar finale must define a persisted gate-opened state key."
-    Assert-True $sunExpIds.Contains("SolarFinaleCompletedKey") "Solar finale must define a persisted completion state key."
+    Assert-True (-not $eventScripts.Contains("InitSolarFinale")) "Retired solar finale EventList entries must not leave script entry points behind."
+    Assert-True (-not $eventScripts.Contains("FinishSolarFinaleEnding")) "Retired solar finale ending must not be opened through EventScripts."
+    Assert-True (-not $sunExpIds.Contains("SolarFinaleFullEndingEventId")) "Retired solar finale ending event id must not remain in SunExpIds."
     Assert-True $solarMemoryModeRuntime.Contains("RepairSolarMemoryMapSelection") "Solar memory must repair synced map arrays for its fixed first node."
     Assert-True $solarMemoryModeRuntime.Contains("Mods/SunExp/ModResource/Images/UI/solar_memory_title_c.png") "Solar memory mode entry must load its cropped normal title sprite."
     Assert-True $solarMemoryModeRuntime.Contains("Mods/SunExp/ModResource/Images/UI/solar_memory_title_c_h.png") "Solar memory mode entry must load its cropped highlighted title sprite."
@@ -1261,9 +1259,8 @@ function Invoke-SourceAssertions {
     Assert-True $battleBgmArbiterRuntime.Contains("leaving current BGM unchanged") "Battle BGM arbiter must preserve audio when no snapshot exists."
     Assert-True (-not $battleBgmArbiterRuntime.Contains("StopMainBgm")) "Battle BGM end handling must never stop the current BGM as a missing-snapshot fallback."
     Assert-True $solarMemoryStarterDeckRuntime.Contains("public static bool OpenOrResume") "Solar memory starter deck runtime must expose a resumable preparation entry point."
-    Assert-True $eventScripts.Contains("OpenSolarMemoryPreparation") "Solar memory start event must expose a preparation entry point."
-    Assert-True $eventScripts.Contains("SolarMemoryFlowApi.IsPreparationComplete()") "Solar memory boss rush must be gated by preparation completion through the flow facade."
-    Assert-True $eventData.Contains("Sub_solar_memory_start,,,CS.SunExp.Dll.Scripting.EventScripts.OpenSolarMemoryPreparation();") "Solar memory start event must route its preparation option through C# preparation."
+    Assert-True (-not $eventScripts.Contains("OpenSolarMemoryPreparation")) "Retired solar memory start event must not leave a preparation EventScript entry point."
+    Assert-True (-not $eventData.Contains("Sub_solar_memory_start")) "Retired solar memory start event must not remain in EventList data."
     Assert-True $solarMemorySetupFlowRuntime.Contains("private const int OriginSetupPointTotal = 50") "Solar memory origin setup must expose 50 assignable points."
     Assert-True (-not $solarMemorySetupFlowRuntime.Contains("private const int OriginStatCap = 40")) "Solar memory origin setup must not use a fixed 40 cap for every origin."
     Assert-True $solarMemorySetupFlowRuntime.Contains("private const int OriginLargeStep = 10") "Solar memory origin setup must support ten-point increments."
@@ -1291,16 +1288,14 @@ function Invoke-SourceAssertions {
     Assert-True (-not $solarMemoryBlessingPickerRuntime.Contains("private static bool IsSelected")) "Solar memory blessing picker must not globally deduplicate blessing ids."
     Assert-True (-not $solarMemoryBlessingPickerRuntime.Contains("if (IsSelected(entry.Id))")) "Solar memory blessing picker must allow duplicate manual selections."
     Assert-True (-not $solarMemoryBlessingPickerRuntime.Contains("CreateBlessUI")) "Solar memory custom blessing picker must not call the native blessing choice UI."
-    Assert-True $eventScripts.Contains("CanClaim(progress)") "Event rewards must be guarded by current progress."
-    Assert-True $eventScripts.Contains("GetProgress() == progress - 1") "Event reward progress must match exactly before advancing."
-    Assert-True $mapData.Contains("solar_event,Event,Breaks_solar_event,-1,7") "The legacy solar event map must stay hidden from every RandomPool draw."
-    $exclusiveMapRows = @($mapData -split "`r?`n" | Where-Object { $_ -match '^solar_(event|memory_)' })
-    Assert-True ($exclusiveMapRows.Count -eq 11) "Solar Memory isolation assertions must cover every shipped exclusive map row."
+    Assert-True (-not $eventScripts.Contains("CanClaim(progress)")) "Retired Wuna event rewards must not leave progress-claim code behind."
+    Assert-True (-not $mapData.Contains("solar_event,Event,Breaks_solar_event,-1,7")) "Retired legacy solar event map must be removed from Map data."
+    Assert-True (-not $eventData.Contains("Sub_wuna_event_")) "Retired Wuna event rows must be removed from EventList data."
+    Assert-True (-not $eventData.Contains("Sub_solar_finale_")) "Retired solar finale event rows must be removed from EventList data."
+    $exclusiveMapRows = @($mapData -split "`r?`n" | Where-Object { $_ -match '^solar_memory_' })
+    Assert-True ($exclusiveMapRows.Count -eq 9) "Solar Memory isolation assertions must cover every shipped exclusive map row."
     Assert-True (@($exclusiveMapRows | Where-Object { $_ -notmatch ',7$' }).Count -eq 0) "Every Solar Memory map, event, and boss row must use Rarity 7."
-    $normalEventNote = -join ([char]0x666E, [char]0x901A, [char]0x4E8B, [char]0x4EF6)
-    $solarNote = -join ([char]0x65E5, [char]0x8000, [char]0x4E8B, [char]0x4EF6)
-    Assert-True $mapText.Contains("solar_event,$normalEventNote,") "solar_event map text Note must use a base-game map note to avoid NormalMapManager weight lookup crashes."
-    Assert-True (-not $mapText.Contains("solar_event,$solarNote,")) "solar_event must not use a custom solar Note; the base game does not know that map weight key."
+    Assert-True (-not $mapText.Contains("solar_event,")) "Retired legacy solar event map text must be removed."
 
     Write-Host "C# source assertions passed."
 }

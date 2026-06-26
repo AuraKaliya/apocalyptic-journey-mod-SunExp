@@ -141,8 +141,8 @@ Assert-NotMatches $relicScripts "switch\s*\(\s*id\s*\)" "RelicScripts must not r
 
 Assert-Contains $solarFinaleService "public static class SolarFinaleStateService" "Solar finale state must be centralized in SolarFinaleStateService."
 Assert-NotMatches ($eventScripts + "`n" + $bossScripts) "PlayerApi\.SetGameVar\(SunExpIds\.SolarFinale" "Solar finale GameVar writes must stay inside SolarFinaleStateService."
-Assert-Contains $eventScripts "SolarFinaleStateService.EnsureLedger()" "EventScripts must use SolarFinaleStateService for ledger initialization."
-Assert-Contains $bossScripts "SolarFinaleStateService.MarkSecondSunDefeated(false)" "BossScripts must use SolarFinaleStateService for finale boss state."
+Assert-NotContains $eventScripts "SolarFinaleStateService" "Retired solar finale events must not leave EventScripts coupled to finale state."
+Assert-Contains $bossScripts "SolarFinaleStateService.MakeNameless(1)" "BossScripts must keep name-ledger changes centralized in SolarFinaleStateService."
 
 Assert-Contains $solarMemoryModeRuntime "SolarMemoryRunLauncher.Start" "SolarMemoryModeRuntime must delegate run startup to SolarMemoryRunLauncher."
 Assert-Contains $solarMemoryModeRuntime "ModeChoiceEntryRegistry.Register" "SolarMemoryModeRuntime must register its mode-choice entry instead of owning layout."

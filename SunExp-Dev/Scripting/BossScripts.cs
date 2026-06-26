@@ -37,7 +37,6 @@ public static class BossScripts
                     ApplyBossTraitBuff(self, SunExpIds.BossTraitMirrorArray);
                     break;
                 case "second_sun_last_day":
-                    SolarFinaleStateService.MarkSecondSunDefeated(false);
                     ApplyBossTraitBuff(self, SunExpIds.BossTraitMercilessDaylight);
                     break;
                 case "saint_wuna":
