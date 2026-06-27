@@ -12,7 +12,8 @@ public static class CardSelectionApi
         IReadOnlyList<IDataConfig> source,
         Func<IDataConfig, bool> predicate,
         Action<IDataConfig> onSelected,
-        string caption)
+        string caption,
+        Action? onCancelled = null)
     {
         var cards = source?
             .Where(card => card != null && (predicate == null || predicate(card)))
@@ -30,6 +31,7 @@ public static class CardSelectionApi
                 var card = selected?.FirstOrDefault();
                 if (card == null)
                 {
+                    onCancelled?.Invoke();
                     return;
                 }
 
@@ -48,7 +50,8 @@ public static class CardSelectionApi
         ScriptExecutor self,
         Func<IDataConfig, bool> predicate,
         Action<IDataConfig> onSelected,
-        string caption)
+        string caption,
+        Action? onCancelled = null)
     {
         var source = RoleDeckCards(predicate);
         if (self == null || source.Count == 0 || onSelected == null)
@@ -64,6 +67,7 @@ public static class CardSelectionApi
                 var card = selected?.FirstOrDefault();
                 if (card == null)
                 {
+                    onCancelled?.Invoke();
                     return;
                 }
 

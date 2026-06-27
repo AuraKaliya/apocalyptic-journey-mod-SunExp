@@ -8,9 +8,6 @@ using UnityEngine.Events;
 using UnityEngine.UI;
 using Witch;
 using Witch.Core;
-using Witch.UI;
-using Witch.UI.Window;
-using Object = UnityEngine.Object;
 
 namespace SunExp.Dll.Hooks;
 
@@ -20,8 +17,6 @@ public static class SolarMemorySetupFlowRuntime
     private const int OriginLargeStep = 10;
     private const string OriginWindowName = "SunExp_SolarMemoryOriginSetup";
     private const string BlessingChromeName = "SunExp_SolarMemoryBlessingSetup";
-    private const string ButtonSpritePath = "Mods/SunExp/ModResource/Images/UI/button-\u4e5d\u5bab\u683c.png";
-    private const string PanelSpritePath = "Mods/SunExp/ModResource/Images/UI/background-\u4e5d\u5bab\u683c.png";
     private static readonly Color Gold = new(0.82f, 0.72f, 0.42f);
     private static readonly Color PaleGold = new(0.93f, 0.86f, 0.58f);
     private static readonly Color DeepBlue = new(0.02f, 0.02f, 0.16f, 0.98f);
@@ -33,10 +28,6 @@ public static class SolarMemorySetupFlowRuntime
     private static GameObject? activeBlessingChrome;
     private static Text? originSummaryText;
     private static Text? originHintText;
-    private static Sprite? buttonSprite;
-    private static Sprite? panelSprite;
-    private static bool buttonSpriteLoadAttempted;
-    private static bool panelSpriteLoadAttempted;
     private static bool blessingStepActive;
 
     public static bool IsBlessingStepActive => blessingStepActive;
@@ -55,7 +46,7 @@ public static class SolarMemorySetupFlowRuntime
             CloseOriginWindow();
             EnsureSetupVars();
 
-            var parent = UIManager.Instance?.upperCanvasTf ?? UIManager.Instance?.canvasTf;
+            var parent = SunExpModalHost.ModalParent();
             if (parent == null || RoleTable.Instance == null)
             {
                 return;
@@ -68,10 +59,10 @@ public static class SolarMemorySetupFlowRuntime
                 pendingOriginAdds[spec.Key] = 0;
             }
 
-            activeOriginRoot = CreateRect(OriginWindowName, parent, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero).gameObject;
-            activeOriginRoot.transform.SetAsLastSibling();
-            var blocker = activeOriginRoot.AddComponent<Image>();
-            blocker.color = new Color(0f, 0f, 0f, 0.74f);
+            activeOriginRoot = SunExpModalHost.CreateFullscreenRoot(
+                OriginWindowName,
+                parent,
+                new Color(0f, 0f, 0f, 0.74f));
 
             var window = CreateRect("Window", activeOriginRoot.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f), new Vector2(760f, 520f));
@@ -475,7 +466,7 @@ public static class SolarMemorySetupFlowRuntime
         var rect = CreateRect(name, parent, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), size);
         rect.anchoredPosition = anchoredPosition;
         var image = rect.gameObject.AddComponent<Image>();
-        image.sprite = GetButtonSprite();
+        image.sprite = SunExpUiSprites.Button("[SolarMemorySetup]");
         image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
         image.color = image.sprite != null ? Color.white : new Color(0.05f, 0.05f, 0.22f, 0.96f);
         var button = rect.gameObject.AddComponent<Button>();
@@ -500,7 +491,7 @@ public static class SolarMemorySetupFlowRuntime
     {
         var rect = CreateLayoutBox(parent, "Button-" + label, size);
         var image = rect.gameObject.AddComponent<Image>();
-        image.sprite = GetButtonSprite();
+        image.sprite = SunExpUiSprites.Button("[SolarMemorySetup]");
         image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
         image.color = image.sprite != null ? Color.white : new Color(0.05f, 0.05f, 0.22f, 0.96f);
         var button = rect.gameObject.AddComponent<Button>();
@@ -523,72 +514,12 @@ public static class SolarMemorySetupFlowRuntime
 
     private static void ApplyPanelImage(GameObject go, Color fallbackOrTint, bool raycastTarget)
     {
-        SunExpUiBuilder.ApplyPanelImage(go, GetPanelSprite(), fallbackOrTint, raycastTarget);
-    }
-
-    private static Sprite? GetButtonSprite()
-    {
-        if (buttonSprite != null)
-        {
-            return buttonSprite;
-        }
-
-        if (buttonSpriteLoadAttempted)
-        {
-            return null;
-        }
-
-        buttonSpriteLoadAttempted = true;
-        buttonSprite = CreateNineSliceSprite(ButtonSpritePath, new Vector4(24f, 12f, 24f, 12f));
-        return buttonSprite;
-    }
-
-    private static Sprite? GetPanelSprite()
-    {
-        if (panelSprite != null)
-        {
-            return panelSprite;
-        }
-
-        if (panelSpriteLoadAttempted)
-        {
-            return null;
-        }
-
-        panelSpriteLoadAttempted = true;
-        panelSprite = CreateNineSliceSprite(PanelSpritePath, new Vector4(4f, 4f, 4f, 4f));
-        return panelSprite;
-    }
-
-    private static Sprite? CreateNineSliceSprite(string path, Vector4 border)
-    {
-        try
-        {
-            var source = ResourceLoader.Load<Sprite>(path, true);
-            if (source == null || source.texture == null)
-            {
-                return null;
-            }
-
-            var texture = source.texture;
-            texture.filterMode = FilterMode.Point;
-            texture.wrapMode = TextureWrapMode.Clamp;
-            return Sprite.Create(texture, source.rect, new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, border);
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Warn("[SolarMemorySetup] failed to load UI sprite " + path + ": " + ex.Message);
-            return null;
-        }
+        SunExpUiBuilder.ApplyPanelImage(go, SunExpUiSprites.Panel("[SolarMemorySetup]"), fallbackOrTint, raycastTarget);
     }
 
     private static void CloseOriginWindow()
     {
-        if (activeOriginRoot != null)
-        {
-            Object.Destroy(activeOriginRoot);
-            activeOriginRoot = null;
-        }
+        SunExpModalHost.Close(ref activeOriginRoot, "SolarMemorySetup.CloseOriginWindow", "[SolarMemorySetup]");
 
         originValueTexts.Clear();
         originSummaryText = null;
@@ -598,10 +529,6 @@ public static class SolarMemorySetupFlowRuntime
 
     private static void CloseBlessingChrome()
     {
-        if (activeBlessingChrome != null)
-        {
-            Object.Destroy(activeBlessingChrome);
-            activeBlessingChrome = null;
-        }
+        SunExpModalHost.Close(ref activeBlessingChrome, "SolarMemorySetup.CloseBlessingChrome", "[SolarMemorySetup]");
     }
 }

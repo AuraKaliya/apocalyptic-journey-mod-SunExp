@@ -11,26 +11,35 @@ public static class RuntimeHooks
 {
     public static void Initialize(ModConfig modConfig)
     {
-        RegisterBefore(modConfig, "StatusManager.AddBuff", OnStatusManagerAddBuffBefore);
-        RegisterAfter(modConfig, "StatusManager.AddBuff", OnStatusManagerAddBuffAfter);
-        DialogueFlowRuntime.Initialize(modConfig);
-        DuskPartnerRuntime.Initialize(modConfig);
-        StarClayDollRuntime.Initialize(modConfig);
-        SolarMemoryModeRuntime.Initialize(modConfig);
-        SolarMemoryCombatRuntime.Initialize(modConfig);
-        SolarMemoryRewardRuntime.Initialize();
-        BattleRewardAdjustmentRuntime.Initialize(modConfig);
-        SolarMemoryContentIsolationRuntime.Initialize(modConfig);
-        SolarMemoryStarterDeckRuntime.Initialize(modConfig);
-        SunExpHardTagRuntime.Initialize(modConfig);
-        AnimatedBlessingIconRuntime.Initialize(modConfig);
-        AnimatedBuffIconRuntime.Initialize(modConfig);
-        AnimatedEnemyDictIconRuntime.Initialize(modConfig);
-        SolarMemoryMapItemAnimationRuntime.Initialize(modConfig);
-        MapNodeCardArtRuntime.Initialize(modConfig);
-        StarScoreRuntime.Initialize(modConfig);
-        LoneerRuntime.Initialize(modConfig);
+        RunHookStep("status buff hooks", () =>
+        {
+            RegisterBefore(modConfig, "StatusManager.AddBuff", OnStatusManagerAddBuffBefore);
+            RegisterAfter(modConfig, "StatusManager.AddBuff", OnStatusManagerAddBuffAfter);
+        });
+        RunHookStep("dialogue flow", () => DialogueFlowRuntime.Initialize(modConfig));
+        RunHookStep("dusk partner", () => DuskPartnerRuntime.Initialize(modConfig));
+        RunHookStep("star clay doll", () => StarClayDollRuntime.Initialize(modConfig));
+        RunHookStep("solar memory mode", () => SolarMemoryModeRuntime.Initialize(modConfig));
+        RunHookStep("solar memory combat", () => SolarMemoryCombatRuntime.Initialize(modConfig));
+        RunHookStep("solar memory reward", () => SolarMemoryRewardRuntime.Initialize());
+        RunHookStep("battle reward adjustment", () => BattleRewardAdjustmentRuntime.Initialize(modConfig));
+        RunHookStep("solar memory content isolation", () => SolarMemoryContentIsolationRuntime.Initialize(modConfig));
+        RunHookStep("solar memory starter deck", () => SolarMemoryStarterDeckRuntime.Initialize(modConfig));
+        RunHookStep("hard tags", () => SunExpHardTagRuntime.Initialize(modConfig));
+        RunHookStep("animated blessing icons", () => AnimatedBlessingIconRuntime.Initialize(modConfig));
+        RunHookStep("animated buff icons", () => AnimatedBuffIconRuntime.Initialize(modConfig));
+        RunHookStep("animated enemy dictionary icons", () => AnimatedEnemyDictIconRuntime.Initialize(modConfig));
+        RunHookStep("solar memory map item animation", () => SolarMemoryMapItemAnimationRuntime.Initialize(modConfig));
+        RunHookStep("map node card art", () => MapNodeCardArtRuntime.Initialize(modConfig));
+        RunHookStep("star score runtime", () => StarScoreRuntime.Initialize(modConfig));
+        RunHookStep("star score HUD", () => StarScoreHudRuntime.Initialize(modConfig));
+        RunHookStep("loneer runtime", () => LoneerRuntime.Initialize(modConfig));
         SunExpLog.Info("Runtime hooks registered");
+    }
+
+    private static void RunHookStep(string name, Action action)
+    {
+        AuraSharedHooks.RunStep(name, action, (step, ex) => SunExpLog.Error("Runtime hook step failed: " + step, ex));
     }
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)

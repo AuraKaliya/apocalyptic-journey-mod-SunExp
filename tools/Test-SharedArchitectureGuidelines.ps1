@@ -77,6 +77,16 @@ Require-Text $audioRuntime "OwnerModId to disambiguate" "AudioArbiterRuntime mus
 $architectureGuidelines = Read-RepoText "docs\shared-component-architecture-guidelines.md"
 Require-Text $architectureGuidelines "provider identity[\s\S]*BuildId" "Shared architecture guidelines must require BuildId bumps for provider identity semantic changes."
 
+$auraCgRuntime = Read-RepoText "AuraCgShared\AuraCgRuntime.cs"
+Require-Text $auraCgRuntime "RenderMode\.ScreenSpaceOverlay" "AuraCgShared overlay must render on an independent screen-space canvas."
+Require-Text $auraCgRuntime "overlayCanvas\.overrideSorting\s*=\s*true" "AuraCgShared overlay canvas must control its own sorting order."
+Require-Text $auraCgRuntime "overlayGroup\.blocksRaycasts\s*=\s*false" "AuraCgShared overlay canvas group must not block raycasts."
+Require-Text $auraCgRuntime "overlayImage\.raycastTarget\s*=\s*false" "AuraCgShared overlay image must not receive raycasts."
+Require-Text $auraCgRuntime "DontDestroyOnLoad\(overlayRoot\)" "AuraCgShared overlay root must survive scene transitions without attaching to game UI canvases."
+if ($auraCgRuntime -match "manager\?\.(upperCanvasTf|canvasTf)|GameUIManager|GraphicRaycaster") {
+    throw "AuraCgShared overlay must not attach to game UI canvases or add a GraphicRaycaster."
+}
+
 $journeyRuntime = Read-RepoText "AuraJourneyShared\AuraJourneyRuntime.cs"
 Require-Text $journeyRuntime "QualifyJourneyId" "AuraJourneyRuntime must expose QualifyJourneyId."
 Require-Text $journeyRuntime "IsQualifiedJourneyId" "AuraJourneyRuntime must expose IsQualifiedJourneyId."

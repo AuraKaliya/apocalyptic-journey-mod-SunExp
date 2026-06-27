@@ -12,7 +12,6 @@ using UnityEngine.UI;
 using UiRaycastSafetyShared;
 using Witch.Core;
 using Witch.Mod;
-using GameUIManager = Witch.UI.UIManager;
 
 namespace AuraCg.Shared;
 
@@ -29,7 +28,8 @@ public static class SkillCgArbiterRuntime
     private const float AlphaFadeInEndXRatio = 0.82f;
     private const float AlphaFadeOutStartXRatio = 0.18f;
     private const float AlphaFadeOutEndXRatio = -0.05f;
-    public const string CurrentBuildId = "aura-cg-shared-2026-06-27-v3";
+    private const int OverlaySortingOrder = 32760;
+    public const string CurrentBuildId = "aura-cg-shared-2026-06-27-v4";
     public const int CurrentProtocolVersion = 2;
     public const int MinimumSupportedProtocolVersion = 1;
     private static readonly HashSet<string> ReuseLogOwners = new(StringComparer.OrdinalIgnoreCase);
@@ -294,6 +294,7 @@ public static class SkillCgArbiterRuntime
         private bool playing;
         private long enqueueSequence;
         private GameObject? overlayRoot;
+        private Canvas? overlayCanvas;
         private CanvasGroup? overlayGroup;
         private Image? overlayImage;
         private int playGeneration;
@@ -454,17 +455,17 @@ public static class SkillCgArbiterRuntime
 
         private void DestroyOverlay()
         {
-            if (overlayRoot == null)
+            if (overlayRoot != null)
             {
-                return;
+                UiRaycastSafeDestroyRuntime.DisableAndDestroyAfterFrame(
+                    this,
+                    overlayRoot,
+                    "Aura CG destroy overlay",
+                    AuraCgLog.DebugLog);
             }
 
-            UiRaycastSafeDestroyRuntime.DisableAndDestroyAfterFrame(
-                this,
-                overlayRoot,
-                "Aura CG destroy overlay",
-                AuraCgLog.DebugLog);
             overlayRoot = null;
+            overlayCanvas = null;
             overlayGroup = null;
             overlayImage = null;
         }
@@ -574,7 +575,11 @@ public static class SkillCgArbiterRuntime
             }
 
             overlayRoot!.SetActive(true);
-            overlayRoot.transform.SetAsLastSibling();
+            if (overlayRoot.transform.parent != null)
+            {
+                overlayRoot.transform.SetAsLastSibling();
+            }
+
             overlayImage!.sprite = sprite;
             overlayImage.raycastTarget = false;
             overlayImage.enabled = true;
@@ -842,31 +847,31 @@ public static class SkillCgArbiterRuntime
 
         private bool EnsureOverlay()
         {
-            var manager = GameUIManager.Instance;
-            var parent = manager?.upperCanvasTf ?? manager?.canvasTf;
-            if (parent == null)
-            {
-                AuraCgLog.WarnOnce("ui-parent-missing", "CG overlay skipped: UI canvas is not ready.");
-                return false;
-            }
-
-            if (overlayRoot != null && overlayRoot.transform.parent == parent)
+            if (overlayRoot != null
+                && overlayCanvas != null
+                && overlayGroup != null
+                && overlayImage != null)
             {
                 return true;
             }
 
-            if (overlayRoot != null)
+            if (overlayRoot != null || overlayCanvas != null || overlayGroup != null || overlayImage != null)
             {
                 DestroyOverlay();
             }
 
-            overlayRoot = new GameObject("AuraCg.OverlayRoot", typeof(RectTransform), typeof(CanvasGroup));
-            overlayRoot.transform.SetParent(parent, false);
+            overlayRoot = new GameObject("AuraCg.OverlayRoot", typeof(RectTransform), typeof(Canvas), typeof(CanvasGroup));
+            UnityEngine.Object.DontDestroyOnLoad(overlayRoot);
             var rect = overlayRoot.GetComponent<RectTransform>();
             rect.anchorMin = Vector2.zero;
             rect.anchorMax = Vector2.one;
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
+
+            overlayCanvas = overlayRoot.GetComponent<Canvas>();
+            overlayCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            overlayCanvas.overrideSorting = true;
+            overlayCanvas.sortingOrder = OverlaySortingOrder;
 
             overlayGroup = overlayRoot.GetComponent<CanvasGroup>();
             overlayGroup.alpha = 0f;
@@ -887,7 +892,7 @@ public static class SkillCgArbiterRuntime
             overlayImage.raycastTarget = false;
             overlayImage.enabled = false;
             overlayRoot.SetActive(false);
-            AuraCgLog.InfoOnce("overlay-created", "CG overlay created under " + parent.name + ".");
+            AuraCgLog.InfoOnce("overlay-created", "CG overlay created on an independent non-interactive canvas.");
             return true;
         }
 

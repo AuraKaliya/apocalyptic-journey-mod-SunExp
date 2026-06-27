@@ -8,8 +8,6 @@ using UnityEngine;
 using UnityEngine.UI;
 using Witch;
 using Witch.Core;
-using Witch.UI;
-using Object = UnityEngine.Object;
 
 namespace SunExp.Dll.Hooks;
 
@@ -22,8 +20,6 @@ public static class SolarMemoryBlessingPickerRuntime
     public const int TotalBlessingQuota = Tier4Quota + Tier3Quota + Tier2Quota + Tier1Quota;
 
     private const string PanelName = "SunExp_SolarMemoryBlessingPicker";
-    private const string ButtonSpritePath = "Mods/SunExp/ModResource/Images/UI/button-\u4e5d\u5bab\u683c.png";
-    private const string PanelSpritePath = "Mods/SunExp/ModResource/Images/UI/background-\u4e5d\u5bab\u683c.png";
     private const float HeaderHeight = 42f;
     private const float BlessRowHeight = 54f;
     private const float IconColumnWidth = 44f;
@@ -51,10 +47,6 @@ public static class SolarMemoryBlessingPickerRuntime
     private static Transform? selectedListContent;
     private static Text? selectedCounterText;
     private static Text? hintText;
-    private static Sprite? buttonSprite;
-    private static Sprite? panelSprite;
-    private static bool buttonSpriteLoadAttempted;
-    private static bool panelSpriteLoadAttempted;
     private static bool isConfirming;
     private static int activeTier = 4;
 
@@ -91,11 +83,7 @@ public static class SolarMemoryBlessingPickerRuntime
 
     public static void Close()
     {
-        if (activePanel != null)
-        {
-            Object.Destroy(activePanel);
-            activePanel = null;
-        }
+        SunExpModalHost.Close(ref activePanel, "SolarMemoryBlessingPicker.Close", "[SolarMemoryBlessingPicker]");
 
         candidateListContent = null;
         selectedListContent = null;
@@ -106,16 +94,16 @@ public static class SolarMemoryBlessingPickerRuntime
 
     private static void ShowPanel(Action onCompleted)
     {
-        var parent = UIManager.Instance?.upperCanvasTf ?? UIManager.Instance?.canvasTf;
+        var parent = SunExpModalHost.ModalParent();
         if (parent == null)
         {
             return;
         }
 
-        activePanel = CreateRect(PanelName, parent, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-        activePanel.transform.SetAsLastSibling();
-        var blocker = activePanel.AddComponent<Image>();
-        blocker.color = new Color(0f, 0f, 0f, 0.74f);
+        activePanel = SunExpModalHost.CreateFullscreenRoot(
+            PanelName,
+            parent,
+            new Color(0f, 0f, 0f, 0.74f));
 
         var window = CreateRect("Window", activePanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
             new Vector2(0.5f, 0.5f), ResolveWindowSize(parent));
@@ -710,7 +698,7 @@ public static class SolarMemoryBlessingPickerRuntime
     {
         var image = go.AddComponent<Image>();
         image.color = Color.white;
-        image.sprite = GetButtonSprite();
+        image.sprite = SunExpUiSprites.Button("[SolarMemoryBlessingPicker]");
         image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
         image.fillCenter = true;
         if (image.sprite == null)
@@ -724,7 +712,7 @@ public static class SolarMemoryBlessingPickerRuntime
     private static Image ApplyInlineButtonImage(GameObject go)
     {
         var image = go.AddComponent<Image>();
-        image.sprite = GetPanelSprite();
+        image.sprite = SunExpUiSprites.Panel("[SolarMemoryBlessingPicker]");
         image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
         image.fillCenter = true;
         image.color = image.sprite != null ? new Color(1f, 1f, 1f, 0.96f) : new Color(0.04f, 0.04f, 0.18f, 0.96f);
@@ -738,7 +726,7 @@ public static class SolarMemoryBlessingPickerRuntime
 
     private static void ApplyPanelImage(GameObject go, Color fallbackOrTint)
     {
-        SunExpUiBuilder.ApplyPanelImage(go, GetPanelSprite(), fallbackOrTint);
+        SunExpUiBuilder.ApplyPanelImage(go, SunExpUiSprites.Panel("[SolarMemoryBlessingPicker]"), fallbackOrTint);
     }
 
     private static GameObject CreateColumnHeader(Transform parent, string title, out Text? counter)
@@ -865,63 +853,6 @@ public static class SolarMemoryBlessingPickerRuntime
         return go;
     }
 
-    private static Sprite? GetButtonSprite()
-    {
-        if (buttonSprite != null)
-        {
-            return buttonSprite;
-        }
-
-        if (buttonSpriteLoadAttempted)
-        {
-            return null;
-        }
-
-        buttonSpriteLoadAttempted = true;
-        buttonSprite = CreateNineSliceSprite(ButtonSpritePath, new Vector4(24f, 12f, 24f, 12f));
-        return buttonSprite;
-    }
-
-    private static Sprite? GetPanelSprite()
-    {
-        if (panelSprite != null)
-        {
-            return panelSprite;
-        }
-
-        if (panelSpriteLoadAttempted)
-        {
-            return null;
-        }
-
-        panelSpriteLoadAttempted = true;
-        panelSprite = CreateNineSliceSprite(PanelSpritePath, new Vector4(4f, 4f, 4f, 4f));
-        return panelSprite;
-    }
-
-    private static Sprite? CreateNineSliceSprite(string path, Vector4 border)
-    {
-        try
-        {
-            var source = ResourceLoader.Load<Sprite>(path, true);
-            if (source == null || source.texture == null)
-            {
-                SunExpLog.Warn("[SolarMemoryBlessingPicker] UI sprite missing: " + path);
-                return null;
-            }
-
-            var texture = source.texture;
-            texture.filterMode = FilterMode.Point;
-            texture.wrapMode = TextureWrapMode.Clamp;
-            return Sprite.Create(texture, source.rect, new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, border);
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Warn("[SolarMemoryBlessingPicker] failed to load UI sprite " + path + ": " + ex.Message);
-            return null;
-        }
-    }
-
     private static Vector2 ResolveWindowSize(Transform parent)
     {
         var available = new Vector2(Screen.width, Screen.height);
@@ -1011,10 +942,7 @@ public static class SolarMemoryBlessingPickerRuntime
 
     private static void ClearChildren(Transform parent)
     {
-        foreach (Transform child in parent)
-        {
-            Object.Destroy(child.gameObject);
-        }
+        SunExpUiSafety.DestroyChildren(parent, "SolarMemoryBlessingPicker.ClearChildren", "[SolarMemoryBlessingPicker]");
     }
 
     private static void UpdateHint(string message)

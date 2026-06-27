@@ -11,16 +11,12 @@ using UnityEngine.UI;
 using Witch;
 using Witch.Core;
 using Witch.Mod;
-using Witch.UI;
-using Object = UnityEngine.Object;
 
 namespace SunExp.Dll.Hooks;
 
 public static class SolarMemoryStarterDeckRuntime
 {
     private const int StarterDeckSize = 11;
-    private const string ButtonSpritePath = "Mods/SunExp/ModResource/Images/UI/button-\u4e5d\u5bab\u683c.png";
-    private const string PanelSpritePath = "Mods/SunExp/ModResource/Images/UI/background-\u4e5d\u5bab\u683c.png";
     private const float CardInfoHeaderHeight = 40f;
     private const float CardRowHeight = 40f;
     private const float CardImageColumnWidth = 38f;
@@ -44,10 +40,6 @@ public static class SolarMemoryStarterDeckRuntime
     private static Transform? deckListContent;
     private static Text? deckCounterText;
     private static Text? hintText;
-    private static Sprite? buttonSprite;
-    private static Sprite? panelSprite;
-    private static bool buttonSpriteLoadAttempted;
-    private static bool panelSpriteLoadAttempted;
     private static bool promptShown;
 
     public static void Initialize(ModConfig modConfig)
@@ -283,13 +275,17 @@ public static class SolarMemoryStarterDeckRuntime
         editingDeck.Clear();
         editingDeck.AddRange(BuildAutoDeck(candidates));
 
-        var parent = UIManager.Instance.upperCanvasTf != null
-            ? UIManager.Instance.upperCanvasTf
-            : UIManager.Instance.canvasTf;
-        activePanel = CreateRect("SunExpSolarMemoryStarterDeck", parent, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-        activePanel.transform.SetAsLastSibling();
-        var blocker = activePanel.AddComponent<Image>();
-        blocker.color = new Color(0f, 0f, 0f, 0.74f);
+        var parent = SunExpModalHost.ModalParent();
+        if (parent == null)
+        {
+            SunExpLog.Warn("[SolarMemoryStarterDeck] skipped: UI canvas unavailable.");
+            return;
+        }
+
+        activePanel = SunExpModalHost.CreateFullscreenRoot(
+            "SunExpSolarMemoryStarterDeck",
+            parent,
+            new Color(0f, 0f, 0f, 0.74f));
 
         var window = CreateRect("Window", activePanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), ResolveWindowSize(parent));
         ApplyPanelImage(window, DeepBlue);
@@ -432,10 +428,7 @@ public static class SolarMemoryStarterDeckRuntime
             return;
         }
 
-        foreach (Transform child in deckListContent)
-        {
-            Object.Destroy(child.gameObject);
-        }
+        SunExpUiSafety.DestroyChildren(deckListContent, "SolarMemoryStarterDeck.RefreshDeckList", "[SolarMemoryStarterDeck]");
 
         for (var i = 0; i < editingDeck.Count; i++)
         {
@@ -591,7 +584,7 @@ public static class SolarMemoryStarterDeckRuntime
     {
         var image = go.AddComponent<Image>();
         image.color = Color.white;
-        image.sprite = GetButtonSprite();
+        image.sprite = SunExpUiSprites.Button("[SolarMemoryStarterDeck]");
         image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
         image.fillCenter = true;
         if (image.sprite == null)
@@ -605,7 +598,7 @@ public static class SolarMemoryStarterDeckRuntime
     private static Image ApplyInlineButtonImage(GameObject go)
     {
         var image = go.AddComponent<Image>();
-        image.sprite = GetPanelSprite();
+        image.sprite = SunExpUiSprites.Panel("[SolarMemoryStarterDeck]");
         image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
         image.fillCenter = true;
         image.color = image.sprite != null ? new Color(1f, 1f, 1f, 0.96f) : new Color(0.04f, 0.04f, 0.18f, 0.96f);
@@ -619,7 +612,7 @@ public static class SolarMemoryStarterDeckRuntime
 
     private static void ApplyPanelImage(GameObject go, Color fallbackOrTint)
     {
-        SunExpUiBuilder.ApplyPanelImage(go, GetPanelSprite(), fallbackOrTint);
+        SunExpUiBuilder.ApplyPanelImage(go, SunExpUiSprites.Panel("[SolarMemoryStarterDeck]"), fallbackOrTint);
     }
 
     private static GameObject CreateColumnHeader(Transform parent, string title, out Text? counter)
@@ -739,70 +732,6 @@ public static class SolarMemoryStarterDeckRuntime
         rect.sizeDelta = sizeDelta;
         rect.anchoredPosition = Vector2.zero;
         return go;
-    }
-
-    private static Sprite? GetButtonSprite()
-    {
-        if (buttonSprite != null)
-        {
-            return buttonSprite;
-        }
-
-        if (buttonSpriteLoadAttempted)
-        {
-            return null;
-        }
-
-        buttonSpriteLoadAttempted = true;
-        buttonSprite = CreateNineSliceSprite(ButtonSpritePath, new Vector4(24f, 12f, 24f, 12f));
-        return buttonSprite;
-    }
-
-    private static Sprite? GetPanelSprite()
-    {
-        if (panelSprite != null)
-        {
-            return panelSprite;
-        }
-
-        if (panelSpriteLoadAttempted)
-        {
-            return null;
-        }
-
-        panelSpriteLoadAttempted = true;
-        panelSprite = CreateNineSliceSprite(PanelSpritePath, new Vector4(4f, 4f, 4f, 4f));
-        return panelSprite;
-    }
-
-    private static Sprite? CreateNineSliceSprite(string path, Vector4 border)
-    {
-        try
-        {
-            var source = ResourceLoader.Load<Sprite>(path, true);
-            if (source == null || source.texture == null)
-            {
-                SunExpLog.Warn("[SolarMemoryStarterDeck] UI sprite missing: " + path);
-                return null;
-            }
-
-            var texture = source.texture;
-            texture.filterMode = FilterMode.Point;
-            texture.wrapMode = TextureWrapMode.Clamp;
-            return Sprite.Create(
-                texture,
-                source.rect,
-                new Vector2(0.5f, 0.5f),
-                100f,
-                0,
-                SpriteMeshType.FullRect,
-                border);
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Warn("[SolarMemoryStarterDeck] failed to load UI sprite " + path + ": " + ex.Message);
-            return null;
-        }
     }
 
     private static Vector2 ResolveWindowSize(Transform parent)
@@ -1030,11 +959,7 @@ public static class SolarMemoryStarterDeckRuntime
 
     private static void ClosePanel()
     {
-        if (activePanel != null)
-        {
-            Object.Destroy(activePanel);
-            activePanel = null;
-        }
+        SunExpModalHost.Close(ref activePanel, "SolarMemoryStarterDeck.ClosePanel", "[SolarMemoryStarterDeck]");
 
         deckListContent = null;
         deckCounterText = null;

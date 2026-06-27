@@ -5,19 +5,31 @@ namespace SunExp.Dll.Mechanics;
 
 public sealed class StarScoreCombatState
 {
-    private readonly List<string> notes = new();
+    private readonly List<StarScoreNote> notes = new();
     private readonly List<string> completedCadences = new();
 
-    public IReadOnlyList<string> Notes => notes;
+    public IReadOnlyList<StarScoreNote> Notes => notes;
 
     public IReadOnlyList<string> CompletedCadences => completedCadences;
 
-    public void Record(string note, int windowSize)
+    public int Version { get; private set; }
+
+    public void Record(StarScoreNote note, int windowSize)
     {
         notes.Add(note);
         while (notes.Count > Math.Max(1, windowSize))
         {
             notes.RemoveAt(0);
+        }
+
+        Version++;
+    }
+
+    public void Record(string note, int windowSize)
+    {
+        if (StarScoreNoteCodes.TryFromPatternCode(note, out var parsed))
+        {
+            Record(parsed, windowSize);
         }
     }
 
@@ -39,12 +51,19 @@ public sealed class StarScoreCombatState
         var last = notes[notes.Count - 1];
         notes.Clear();
         notes.Add(last);
+        Version++;
     }
 
     public void Clear()
     {
         notes.Clear();
         completedCadences.Clear();
+        Version++;
+    }
+
+    public StarScoreDisplaySnapshot Snapshot(string ownerStatusId, bool isCadencePreview = false, string completedCadencePattern = "")
+    {
+        return new StarScoreDisplaySnapshot(ownerStatusId, notes, Version, isCadencePreview, completedCadencePattern);
     }
 }
 
@@ -67,6 +86,14 @@ public static class StarScoreCombatStateStore
         }
 
         return state;
+    }
+
+    public static StarScoreCombatState? Get(IStatusManager? owner)
+    {
+        var key = owner?.InstanceId ?? "";
+        return !string.IsNullOrWhiteSpace(key) && States.TryGetValue(key, out var state)
+            ? state
+            : null;
     }
 
     public static void Remove(IStatusManager? owner)

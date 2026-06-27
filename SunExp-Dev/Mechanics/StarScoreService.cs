@@ -8,22 +8,16 @@ namespace SunExp.Dll.Mechanics;
 
 public static class StarScoreService
 {
-    private const string NoteStart = "S";
-    private const string NoteSustain = "U";
-    private const string NoteTurn = "T";
-    private const string NoteClose = "C";
+    private const string NoteStart = StarScoreNoteCodes.Opening;
+    private const string NoteSustain = StarScoreNoteCodes.Sustain;
+    private const string NoteTurn = StarScoreNoteCodes.Turn;
+    private const string NoteClose = StarScoreNoteCodes.Close;
+
+    public static event Action<StarScoreDisplaySnapshot>? Changed;
 
     public static bool IsStellarOvertureCard(string id)
     {
-        var value = NormalizeId(id);
-        return value == "stellar_overture_start"
-            || value == "stellar_overture_sustain"
-            || value == "stellar_overture_turn"
-            || value == "stellar_overture_close"
-            || value == SunExpIds.StellarOvertureStartCardId
-            || value == SunExpIds.StellarOvertureSustainCardId
-            || value == SunExpIds.StellarOvertureTurnCardId
-            || value == SunExpIds.StellarOvertureCloseCardId;
+        return StarScoreNoteCodes.TryFromCardId(id, out _);
     }
 
     public static bool IsWitchStarScoreCard(string id)
@@ -67,8 +61,14 @@ public static class StarScoreService
 
     public static void ClearScore(ScriptExecutor? self)
     {
-        StarScoreCombatStateStore.GetOrCreate(self?.Self)?.Clear();
+        var owner = self?.Self;
+        var state = StarScoreCombatStateStore.GetOrCreate(owner);
+        state?.Clear();
         SyncScoreBuff(self, 0);
+        if (state != null)
+        {
+            PublishChanged(owner, state);
+        }
     }
 
     public static void RemoveState(IStatusManager? owner)
@@ -78,10 +78,11 @@ public static class StarScoreService
 
     public static void Init(ScriptExecutor self, string id)
     {
-        if (id == "stellar_overture_turn" || id == "stellar_overture_close")
+        if (StarScoreNoteCodes.TryFromCardId(id, out var note)
+            && (note == StarScoreNote.Turn || note == StarScoreNote.Close))
         {
             ExecutorApi.SetBaseScript(self, "AttackCardItem", canSelf: false);
-            if (id == "stellar_overture_close")
+            if (note == StarScoreNote.Close)
             {
                 ExecutorApi.AddDamageDescription(self, "1", CalcCloseDamage(self));
             }
@@ -89,12 +90,12 @@ public static class StarScoreService
         }
 
         ExecutorApi.SetBaseScript(self, "CommonCardItem");
-        if (id == "witch_star_score")
+        if (IsWitchStarScoreCard(id))
         {
             return;
         }
 
-        if (id == "stellar_overture_sustain")
+        if (note == StarScoreNote.Sustain)
         {
             self.AddDescription("1", "Defence", "6");
         }
@@ -102,27 +103,31 @@ public static class StarScoreService
 
     public static void Use(ScriptExecutor self, string id)
     {
-        switch (id)
+        if (StarScoreNoteCodes.TryFromCardId(id, out var note))
         {
-            case "stellar_overture_start":
+            switch (note)
+            {
+                case StarScoreNote.Opening:
                 UseStart(self);
-                Record(self, NoteStart);
-                break;
-            case "stellar_overture_sustain":
-                UseSustain(self);
-                Record(self, NoteSustain);
-                break;
-            case "stellar_overture_turn":
-                UseTurn(self);
-                Record(self, NoteTurn);
-                break;
-            case "stellar_overture_close":
-                UseClose(self);
-                Record(self, NoteClose);
-                break;
-            case "witch_star_score":
-                ReplayCompletedCadences(self);
-                break;
+                    break;
+                case StarScoreNote.Sustain:
+                    UseSustain(self);
+                    break;
+                case StarScoreNote.Turn:
+                    UseTurn(self);
+                    break;
+                case StarScoreNote.Close:
+                    UseClose(self);
+                    break;
+            }
+
+            Record(self, note);
+            return;
+        }
+
+        if (IsWitchStarScoreCard(id))
+        {
+            ReplayCompletedCadences(self);
         }
     }
 
@@ -198,7 +203,7 @@ public static class StarScoreService
         ExecutorApi.DealDamage(self, CalcCloseDamage(self));
     }
 
-    private static void Record(ScriptExecutor self, string note)
+    private static void Record(ScriptExecutor self, StarScoreNote note)
     {
         var state = StarScoreCombatStateStore.GetOrCreate(self.Self);
         if (state == null)
@@ -212,16 +217,22 @@ public static class StarScoreService
         SyncScoreBuff(self, notes.Count);
         if (notes.Count == 3)
         {
-            state.RecordCompletedCadence(string.Join("", notes));
+            var pattern = StarScoreNoteCodes.PatternFromNotes(notes);
+            state.RecordCompletedCadence(pattern);
+            PublishChanged(self.Self, state, isCadencePreview: true, completedCadencePattern: pattern);
             ResolveCadence(self, notes);
             state.RetainLastNoteAsCadenceStart();
             SyncScoreBuff(self, state.Notes.Count);
+            PublishChanged(self.Self, state);
+            return;
         }
+
+        PublishChanged(self.Self, state);
     }
 
-    private static void ResolveCadence(ScriptExecutor self, IReadOnlyList<string> notes)
+    private static void ResolveCadence(ScriptExecutor self, IReadOnlyList<StarScoreNote> notes)
     {
-        ApplyCadenceEffect(self, string.Join("", notes));
+        ApplyCadenceEffect(self, StarScoreNoteCodes.PatternFromNotes(notes));
     }
 
     private static void ReplayCompletedCadences(ScriptExecutor self)
@@ -471,5 +482,31 @@ public static class StarScoreService
     private static string NormalizeId(string id)
     {
         return (id ?? "").Replace("*", "").Trim();
+    }
+
+    private static void PublishChanged(
+        IStatusManager? owner,
+        StarScoreCombatState state,
+        bool isCadencePreview = false,
+        string completedCadencePattern = "")
+    {
+        var handlers = Changed;
+        if (handlers == null)
+        {
+            return;
+        }
+
+        var snapshot = state.Snapshot(owner?.InstanceId ?? "", isCadencePreview, completedCadencePattern);
+        foreach (Action<StarScoreDisplaySnapshot> handler in handlers.GetInvocationList())
+        {
+            try
+            {
+                handler(snapshot);
+            }
+            catch (Exception ex)
+            {
+                SunExpLog.Error("Star score display subscriber failed", ex);
+            }
+        }
     }
 }

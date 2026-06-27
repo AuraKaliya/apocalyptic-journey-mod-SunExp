@@ -309,34 +309,73 @@ public static class LoneerMiracleService
             self,
             source,
             card => !IsExcludedActionCard(card),
-            card =>
-            {
-                var current = LoneerCombatStateStore.Get(owner);
-                if (!ReferenceEquals(current, state) || state.SelectionVersion != selectionVersion)
-                {
-                    return;
-                }
-
-                state.SelectionPending = false;
-                SetGuidance(state, CardConfigApi.Id(card));
-                PlayerApi.ShowCaption("\u6307\u5f15\u724c\uff1a" + CardDisplayName(card));
-                SunExpLog.Info("Loneer guidance selected: owner=" + owner.InstanceId + ", card=" + state.GuidanceCardId + ", version=" + selectionVersion);
-            },
-            caption);
+            card => ApplyGuidanceSelection(owner, state, selectionVersion, card, "selected"),
+            caption,
+            () => ResolveRandomGuidanceFallback(owner, state, selectionVersion, source, "cancelled"));
 
         if (opened)
         {
             return;
         }
 
-        state.SelectionPending = false;
-        var fallback = FirstGuidanceCardId(self);
-        SetGuidance(state, fallback);
-        SunExpLog.Warn("Loneer guidance selection UI unavailable; deterministic fallback=" + state.GuidanceCardId);
-        if (!string.IsNullOrWhiteSpace(state.GuidanceCardId))
+        ResolveRandomGuidanceFallback(owner, state, selectionVersion, source, "ui_unavailable");
+    }
+
+    private static void ApplyGuidanceSelection(
+        IStatusManager owner,
+        LoneerCombatState state,
+        int selectionVersion,
+        IDataConfig card,
+        string source)
+    {
+        if (!IsCurrentGuidanceSelection(owner, state, selectionVersion))
         {
-            PlayerApi.ShowCaption("\u6307\u5f15\u724c\uff1a" + state.GuidanceCardId);
+            return;
         }
+
+        state.SelectionPending = false;
+        SetGuidance(state, CardConfigApi.Id(card));
+        PlayerApi.ShowCaption("\u6307\u5f15\u724c\uff1a" + CardDisplayName(card));
+        SunExpLog.Info("Loneer guidance " + source + ": owner=" + owner.InstanceId + ", card=" + state.GuidanceCardId + ", version=" + selectionVersion);
+    }
+
+    private static void ResolveRandomGuidanceFallback(
+        IStatusManager owner,
+        LoneerCombatState state,
+        int selectionVersion,
+        IReadOnlyList<IDataConfig> candidates,
+        string reason)
+    {
+        if (!IsCurrentGuidanceSelection(owner, state, selectionVersion))
+        {
+            return;
+        }
+
+        var card = RandomGuidanceCard(candidates);
+        if (card != null)
+        {
+            ApplyGuidanceSelection(owner, state, selectionVersion, card, "random_" + reason);
+            return;
+        }
+
+        state.SelectionPending = false;
+        SetGuidance(state, SunExpIds.WitchStarScoreCardId);
+        PlayerApi.ShowCaption("\u6307\u5f15\u724c\uff1a\u9b54\u5973\u7684\u661f\u8c31");
+        SunExpLog.Warn("Loneer guidance random fallback exhausted candidates; owner=" + owner.InstanceId + ", reason=" + reason + ", version=" + selectionVersion);
+    }
+
+    private static bool IsCurrentGuidanceSelection(IStatusManager owner, LoneerCombatState state, int selectionVersion)
+    {
+        var current = LoneerCombatStateStore.Get(owner);
+        return ReferenceEquals(current, state) && state.SelectionVersion == selectionVersion;
+    }
+
+    private static IDataConfig? RandomGuidanceCard(IReadOnlyList<IDataConfig> candidates)
+    {
+        var pool = candidates?
+            .Where(card => card != null && !IsExcludedActionCard(card))
+            .ToList() ?? new List<IDataConfig>();
+        return pool.Count == 0 ? null : pool[UnityEngine.Random.Range(0, pool.Count)];
     }
 
     private static bool TryAddGuidedCard(ScriptExecutor self, LoneerCombatState state, string source)
@@ -393,16 +432,6 @@ public static class LoneerMiracleService
             var j = UnityEngine.Random.Range(0, i + 1);
             (stones[i], stones[j]) = (stones[j], stones[i]);
         }
-    }
-
-    private static string FirstGuidanceCardId(ScriptExecutor self)
-    {
-        foreach (var card in CardSelectionApi.CombatDrawAndDiscardCards(self, candidate => !IsExcludedActionCard(candidate)))
-        {
-            return CardApi.ResolveCardId(CardConfigApi.Id(card));
-        }
-
-        return SunExpIds.WitchStarScoreCardId;
     }
 
     private static string CardDisplayName(IDataConfig card)

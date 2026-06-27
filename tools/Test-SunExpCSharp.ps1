@@ -36,6 +36,9 @@ function New-ProjectXml {
     $cardMutationService = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardMutationService.cs"
     $starBlessingCostOverrideStore = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarBlessingCostOverrideStore.cs"
     $loneerCombatState = Join-Path $RepoRoot "SunExp-Dev\Mechanics\LoneerCombatState.cs"
+    $starScoreNote = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreNote.cs"
+    $starScoreDisplaySnapshot = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreDisplaySnapshot.cs"
+    $starScoreCadenceCatalog = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreCadenceCatalog.cs"
     $starScoreCombatState = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreCombatState.cs"
     $mapNodeCardArtFitMode = Join-Path $RepoRoot "SunExp-Dev\Mechanics\MapNodeCardArtFitMode.cs"
     $mapNodeCardArtFitResult = Join-Path $RepoRoot "SunExp-Dev\Mechanics\MapNodeCardArtFitResult.cs"
@@ -63,6 +66,9 @@ function New-ProjectXml {
     <Compile Include="$cardMutationService" />
     <Compile Include="$starBlessingCostOverrideStore" />
     <Compile Include="$loneerCombatState" />
+    <Compile Include="$starScoreNote" />
+    <Compile Include="$starScoreDisplaySnapshot" />
+    <Compile Include="$starScoreCadenceCatalog" />
     <Compile Include="$starScoreCombatState" />
     <Compile Include="$mapNodeCardArtFitMode" />
     <Compile Include="$mapNodeCardArtFitResult" />
@@ -291,6 +297,7 @@ function New-TestsSource {
 @'
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
@@ -605,15 +612,30 @@ internal static class Program
         score.Record("U", 3);
         score.Record("T", 3);
         score.RecordCompletedCadence("SUT");
+        var preview = score.Snapshot(owner.InstanceId, isCadencePreview: true, completedCadencePattern: "SUT");
+        Equal(3, preview.Notes.Count, "Star score HUD preview exposes the full completed cadence");
+        Equal(StarScoreNote.Turn, preview.Notes[2], "Star score HUD preview keeps typed note identity");
+        True(preview.IsCadencePreview, "Star score HUD preview is flagged before cadence collapse");
+        Equal("SUT", preview.CompletedCadencePattern, "Star score HUD preview records the completed cadence pattern");
+
         score.RetainLastNoteAsCadenceStart();
 
         Equal(1, score.Notes.Count, "Star score keeps the last note after a completed cadence");
-        Equal("T", score.Notes[0], "Star score reuses the last overture as the next cadence start");
+        Equal(StarScoreNote.Turn, score.Notes[0], "Star score reuses the last overture as the next cadence start");
+        Equal("T", StarScoreNoteCodes.PatternFromNotes(score.Notes), "Star score converts retained notes back to cadence pattern codes");
         score.Record("C", 3);
         score.Record("S", 3);
         Equal(3, score.Notes.Count, "Star score builds the next cadence from the retained note");
-        Equal("T", score.Notes[0], "Star score retained note remains the first note of the next cadence");
+        Equal(StarScoreNote.Turn, score.Notes[0], "Star score retained note remains the first note of the next cadence");
         True(ReferenceEquals(score, StarScoreCombatStateStore.GetOrCreate(owner)), "Star score is shared across card executors for the same owner");
+
+        var openingCadence = StarScoreCadenceCatalog.Resolve(new[] { StarScoreNote.Opening, StarScoreNote.Opening, StarScoreNote.Opening });
+        Equal("\u542f\u542f\u542f\uff1a\u6025\u677f\u3002\u62bd1\u5f20\u724c\uff1b\u53cb\u65b9\u5168\u4f53\u4f59\u97f3+1", openingCadence.DisplayText, "Opening cadence tooltip text matches the design copy");
+        var defaultCadence = StarScoreCadenceCatalog.Resolve(new[] { StarScoreNote.Opening, StarScoreNote.Sustain, StarScoreNote.Opening });
+        Equal("\u542f\u627f\u542f\uff1a\u4e09\u58f0\u548c\u5f26\u3002\u4f59\u97f3+1\uff1b\u62bd1\u5f20\u724c", defaultCadence.DisplayText, "Default cadence tooltip text matches the design copy");
+        var candidates = StarScoreCadenceCatalog.CandidatesForPrefix(new[] { StarScoreNote.Opening, StarScoreNote.Sustain });
+        Equal(4, candidates.Count, "Two-note star score prefixes enumerate four possible third notes");
+        True(candidates.Any(row => row.DisplayText == "\u542f\u627f\u8f6c\uff1a\u8c03\u5f8b\u3002\u9b54\u80fd+1\uff1b\u53cb\u65b9\u5168\u4f53\u4f59\u97f3+1"), "Candidate list includes the named tuning cadence");
     }
 
     private static FakeDataConfig NewConfig(
@@ -737,10 +759,15 @@ function Invoke-SourceAssertions {
     $starClayDollRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\StarClayDollRuntime.cs"))
     $loneerRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\LoneerRuntime.cs"))
     $starScoreRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\StarScoreRuntime.cs"))
+    $starScoreHudRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\StarScoreHudRuntime.cs"))
     $loneerService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\LoneerMiracleService.cs"))
     $loneerState = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\LoneerCombatState.cs"))
+    $cardSelectionApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\CardSelectionApi.cs"))
     $starScoreService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreService.cs"))
     $starScoreState = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreCombatState.cs"))
+    $starScoreNote = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreNote.cs"))
+    $starScoreSnapshot = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreDisplaySnapshot.cs"))
+    $starScoreCadenceCatalog = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreCadenceCatalog.cs"))
     $duskPartnerScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\DuskPartnerScripts.cs"))
     $starClayDollScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\StarClayDollScripts.cs"))
     $scriptingSource = [string]::Join("`n", (Get-ChildItem -LiteralPath (Join-Path $RepoRoot "SunExp-Dev\Scripting") -File -Filter "*.cs" | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }))
@@ -775,6 +802,13 @@ function Invoke-SourceAssertions {
     $solarMemoryRoleCommit = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Network\RpcSolarMemoryRoleCommit.cs"))
     $sunExpUiSafety = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\SunExpUiSafety.cs"))
     $sunExpUiBuilder = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\SunExpUiBuilder.cs"))
+    $sunExpModalHost = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\SunExpModalHost.cs"))
+    $sunExpUiSprites = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\SunExpUiSprites.cs"))
+    $starScoreHudAssets = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\StarScoreHudAssets.cs"))
+    $starScoreHudView = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\StarScoreHudView.cs"))
+    $starScoreHudHoverProbe = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\StarScoreHudHoverProbe.cs"))
+    $starScoreHudTooltipView = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\StarScoreHudTooltipView.cs"))
+    $sunExpProject = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\SunExp.Dll.csproj"))
     $audioArbiterRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "AudioArbiterShared\AudioArbiterRuntime.cs"))
     $battleBgmArbiterRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "BattleBgmArbiterShared\BattleBgmArbiterRuntime.cs"))
     $modConfig = Get-Content -LiteralPath (Join-Path $RepoRoot "SunExp\ModConfig.json") -Raw | ConvertFrom-Json
@@ -891,9 +925,40 @@ function Invoke-SourceAssertions {
     Assert-True $sunExpIds.Contains("public static bool IsSolarMemoryExclusiveEventId") "SunExpIds must centralize exclusive Solar Memory event identification."
     Assert-True $runtimeHooks.Contains("DuskPartnerRuntime.Initialize(modConfig)") "RuntimeHooks must initialize Dusk partner runtime."
     Assert-True $runtimeHooks.Contains("StarClayDollRuntime.Initialize(modConfig)") "RuntimeHooks must initialize Star Clay Doll independently from Dusk."
+    Assert-True $runtimeHooks.Contains("StarScoreHudRuntime.Initialize(modConfig)") "RuntimeHooks must initialize the star score HUD independently from card logic."
     Assert-True $runtimeHooks.Contains("LoneerRuntime.Initialize(modConfig)") "RuntimeHooks must initialize Loneer's card-action runtime."
     Assert-True $runtimeHooks.Contains("SolarMemoryMapItemAnimationRuntime.Initialize(modConfig)") "RuntimeHooks must initialize solar memory map-item animation fallback hooks."
     Assert-True $runtimeHooks.Contains("MapNodeCardArtRuntime.Initialize(modConfig)") "RuntimeHooks must initialize generic map-node card art hooks after animation fallback hooks."
+    Assert-True $starScoreService.Contains("public static event Action<StarScoreDisplaySnapshot>? Changed") "Star score mechanics must publish typed display snapshots for UI runtimes."
+    Assert-True $starScoreService.Contains("PublishChanged(self.Self, state, isCadencePreview: true") "Star score HUD must receive a full three-note cadence preview before state collapse."
+    Assert-True $starScoreState.Contains("public StarScoreDisplaySnapshot Snapshot") "Star score combat state must expose a display snapshot instead of leaking mutable note lists."
+    Assert-True $starScoreNote.Contains("public enum StarScoreNote") "Star score notes must be modeled as typed values."
+    Assert-True $starScoreSnapshot.Contains("IReadOnlyList<StarScoreNote> Notes") "Star score display snapshots must expose typed notes."
+    Assert-True $starScoreCadenceCatalog.Contains("public static class StarScoreCadenceCatalog") "Star score tooltip cadence copy must live in Mechanics."
+    Assert-True $starScoreCadenceCatalog.Contains("CandidatesForPrefix") "Star score tooltip cadence candidates must be calculated from the current prefix."
+    Assert-True $starScoreHudRuntime.Contains("StarScoreService.Changed += OnStarScoreChanged") "Star score HUD runtime must subscribe to mechanics snapshots."
+    Assert-True $starScoreHudRuntime.Contains('"Fight_Start.Init"') "Star score HUD runtime must clear its UI on fight start."
+    Assert-True $starScoreHudRuntime.Contains('"Fight_Win.Init"') "Star score HUD runtime must clear its UI on fight win."
+    Assert-True $starScoreHudRuntime.Contains('"Fight_Loss.Init"') "Star score HUD runtime must clear its UI on fight loss."
+    Assert-True $starScoreHudRuntime.Contains('"Fight_Escape.Init"') "Star score HUD runtime must clear its UI on fight escape."
+    Assert-True $starScoreHudRuntime.Contains("UIManager.Instance?.canvasTf") "Star score HUD must attach to the main canvas, not modal upper UI by default."
+    Assert-True $starScoreHudRuntime.Contains("FightPlayer.Instance?.Status?.InstanceId") "Star score HUD must filter snapshots to the local player owner."
+    Assert-True (-not $starScoreHudView.Contains("ProgressPartThresholds")) "Star score HUD must keep the full frame visible instead of lighting progress parts."
+    Assert-True $starScoreHudView.Contains("SlotTops = { 0f, 146f, 226f }") "Star score HUD lighting masks must merge head and space art into the three overture stages."
+    Assert-True $starScoreHudView.Contains("SlotHeights = { 146f, 80f, 100f }") "Star score HUD lighting masks must cover head+slot1, space+slot2, and space+slot3."
+    Assert-True $starScoreHudView.Contains("StarScoreHudTooltipView.Create") "Star score HUD must create a hover tooltip view."
+    Assert-True (-not $starScoreHudView.Contains("Input.mousePosition")) "Star score HUD must not use legacy input polling for hover."
+    Assert-True (-not $starScoreHudView.Contains("RectTransformUtility.RectangleContainsScreenPoint")) "Star score HUD hover detection must use UI pointer events."
+    Assert-True $starScoreHudHoverProbe.Contains("IPointerEnterHandler") "Star score HUD hover probe must receive pointer enter events."
+    Assert-True $starScoreHudHoverProbe.Contains("IPointerExitHandler") "Star score HUD hover probe must receive pointer exit events."
+    Assert-True $starScoreHudView.Contains("image.raycastTarget = true") "Star score HUD must expose a hover hotspot for pointer events."
+    Assert-True $starScoreHudView.Contains("image.raycastTarget = false") "Star score HUD images must not intercept pointer input."
+    Assert-True $starScoreHudTooltipView.Contains("group.blocksRaycasts = false") "Star score tooltip must not block native battle controls."
+    Assert-True $starScoreHudTooltipView.Contains("image.raycastTarget = false") "Star score tooltip rows must not intercept pointer input."
+    Assert-True $starScoreHudView.Contains("LayoutScale = 0.61f") "Star score HUD must use a single root scale for fixed placement."
+    Assert-True $starScoreHudAssets.Contains('OpeningIconPath = Root + "\u542f.png"') "Star score HUD assets must map the Opening icon resource."
+    Assert-True $starScoreHudAssets.Contains("StarScoreNote.Opening => Load(OpeningIconPath)") "Star score HUD assets must map typed notes to icon sprites."
+    Assert-True (-not $sunExpProject.Contains("UnityEngine.InputLegacyModule")) "Star score HUD hover detection must not depend on the Unity input legacy module."
     Assert-True $solarMemoryMapItemAnimationRuntime.Contains('RegisterBefore(modConfig, "MapItem.Init", PrepareMapItemAnimation);') "Solar memory map items must patch fixed boss animation paths before native MapItem.Init loads Texture2D frames."
     Assert-True $solarMemoryMapItemAnimationRuntime.Contains('RegisterAfter(modConfig, "MapItem.Init", RestoreMapItemAnimation);') "Solar memory map item animation fallback must restore enemy animation paths after native MapItem.Init."
     Assert-True $solarMemoryMapItemAnimationRuntime.Contains("SunExpIds.SolarBossSecondSunLevelId") "Solar memory map item fallback must cover the second-sun boss map node."
@@ -931,6 +996,12 @@ function Invoke-SourceAssertions {
     Assert-True $loneerRuntime.Contains("LoneerMiracleService.OnCardActionAfter") "Loneer runtime must own non-derived card action dispatch."
     Assert-True $loneerState.Contains("Dictionary<string, LoneerCombatState>") "Loneer combat state must be keyed by owner status instead of ScriptExecutor.Vars."
     Assert-True $loneerService.Contains("LoneerCombatStateStore.GetOrCreate(self.Self)") "Loneer skill and action flows must resolve owner-scoped combat state."
+    Assert-True $cardSelectionApi.Contains("Action? onCancelled = null") "Card selection API must expose cancellation separately from empty candidate pools."
+    Assert-True $cardSelectionApi.Contains("onCancelled?.Invoke();") "Card selection API must notify callers when the selection UI closes without a card."
+    Assert-True $loneerService.Contains("ResolveRandomGuidanceFallback") "Loneer must randomize Guidance when a non-empty selection UI is cancelled."
+    Assert-True $loneerService.Contains("RandomGuidanceCard") "Loneer random fallback must choose from the current selectable Guidance pool."
+    Assert-True ([regex]::IsMatch($loneerService, "RandomGuidanceCard[\s\S]*UnityEngine\.Random\.Range\(0,\s*pool\.Count\)")) "Cancelled Guidance selection must randomize within the current candidate pool."
+    Assert-True (-not $loneerService.Contains("FirstGuidanceCardId")) "Cancelled Guidance selection must not use the old deterministic first-card fallback."
     Assert-True $cardGrantRecipes.Contains("SunExpIds.LoneerDerivedMarker") "Copied guidance cards must receive a hidden derived marker."
     Assert-True $cardGrantRecipes.Contains("SunExpIds.LoneerDerivedTag") "Copied guidance cards must receive a localized visible derived tag."
     Assert-True $cardMutationService.Contains("public static bool SetRuntimeMarkers") "CardMutationService must separate hidden runtime markers from visible SpecialTags."
@@ -977,17 +1048,17 @@ function Invoke-SourceAssertions {
     Assert-True (-not [regex]::IsMatch($cardScripts, 'case\s+"\*')) "Card script switches must use normalized, unstarred ids."
     Assert-True $cardScripts.Contains("IsStarScoreEntry(id)") "CardScripts must route Stellar Overture cards through the shared StarScore entry predicate."
     foreach ($stellarId in @("stellar_overture_start", "stellar_overture_sustain", "stellar_overture_turn", "stellar_overture_close")) {
-        Assert-True $starScoreService.Contains('value == "' + $stellarId + '"') ("StarScoreService must dispatch " + $stellarId + ".")
+        Assert-True $starScoreNote.Contains('case "' + $stellarId + '":') ("StarScoreNoteCodes must dispatch " + $stellarId + ".")
     }
     $stellarRows = Import-Csv -LiteralPath $cardDataPath | Where-Object { $_.Id -like "*stellar_overture_*" }
     Assert-True ($stellarRows.Count -eq 4) "SunExp must define all four Stellar Overture cards."
     foreach ($row in $stellarRows) {
         Assert-True ($row.InitScript -match 'CardScripts\.Init\(self, "([^"]+)"\)') ("Missing CardScripts.Init dispatch for " + $row.Id)
         $initId = $Matches[1].Replace("*", "").Trim()
-        Assert-True $starScoreService.Contains('value == "' + $initId + '"') ("Normalized Init id is not dispatched: " + $row.Id)
+        Assert-True $starScoreNote.Contains('case "' + $initId + '":') ("Normalized Init id is not dispatched: " + $row.Id)
         Assert-True ($row.UseScript -match 'CardScripts\.Use\(self, "([^"]+)"\)') ("Missing CardScripts.Use dispatch for " + $row.Id)
         $useId = $Matches[1].Replace("*", "").Trim()
-        Assert-True $starScoreService.Contains('value == "' + $useId + '"') ("Normalized Use id is not dispatched: " + $row.Id)
+        Assert-True $starScoreNote.Contains('case "' + $useId + '":') ("Normalized Use id is not dispatched: " + $row.Id)
     }
     Assert-True (-not $loneerService.Contains("SunExpIds.LoneerGuidanceCardId")) "Loneer guidance must not be stored in per-executor Vars."
     Assert-True $starScoreService.Contains("StarScoreCombatStateStore.GetOrCreate(self.Self)") "Star score notes must be owner-scoped across card executors."
@@ -1022,12 +1093,26 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemoryModeRuntime.Contains('CloseSolarMemoryTransientUi("Fight_Escape.ResetStates:after")') "Solar memory escape must close transient setup UI after native fight reset."
     Assert-True (-not $solarMemoryModeRuntime.Contains("ClearSolarFinalePendingBattle")) "Solar memory must not retain pending finale-battle cleanup after retiring finale events."
     Assert-True $solarMemoryModeRuntime.Contains('SunExpUiSafety.DisableRaycastsAndDestroyByName("SunExpSolarMemoryStarterDeck", source, "[SolarMemoryFightAbort]")') "Solar memory UI cleanup must route starter-deck teardown through SunExpUiSafety."
-    Assert-True $sunExpUiSafety.Contains("UiRaycastSafeDestroyRuntime.DisableRaycasts") "Solar memory UI cleanup must reuse the shared raycast-safe destroy runtime."
+    Assert-True $sunExpUiSafety.Contains("UiRaycastSafeDestroyRuntime.DisableAndHide") "Solar memory UI cleanup must disable and hide UI before destroying it."
+    Assert-True $sunExpUiSafety.Contains("ScrubGraphicRegistryForFrames") "Solar memory UI cleanup must scrub stale graphics after transient UI teardown."
     Assert-True $sunExpUiSafety.Contains("Object.Destroy(root)") "Solar memory UI cleanup must destroy only after disabling raycasts."
+    Assert-True $sunExpModalHost.Contains("SunExpUiSafety.CloseTransient") "SunExp modal host must centralize transient UI teardown."
+    Assert-True $sunExpUiSprites.Contains("private static readonly Dictionary<string, Sprite?> Cache") "SunExp UI sprites must share a cache across modal windows."
     Assert-True $sunExpUiBuilder.Contains("public static Image ApplyPanelImage") "SunExp local UI builder must expose reusable panel image creation."
     Assert-True $solarMemoryStarterDeckRuntime.Contains("SunExpUiBuilder.ApplyPanelImage") "Solar memory starter deck UI must reuse SunExpUiBuilder panel creation."
     Assert-True $solarMemoryBlessingPickerRuntime.Contains("SunExpUiBuilder.ApplyPanelImage") "Solar memory blessing picker UI must reuse SunExpUiBuilder panel creation."
     Assert-True $solarMemorySetupFlowRuntime.Contains("SunExpUiBuilder.ApplyPanelImage") "Solar memory setup flow UI must reuse SunExpUiBuilder panel creation."
+    Assert-True $solarMemoryStarterDeckRuntime.Contains("SunExpModalHost.Close(ref activePanel") "Solar memory starter deck close must route through SunExpModalHost."
+    Assert-True $solarMemorySetupFlowRuntime.Contains("SunExpModalHost.Close(ref activeOriginRoot") "Solar memory origin setup close must route through SunExpModalHost."
+    Assert-True $solarMemorySetupFlowRuntime.Contains("SunExpModalHost.Close(ref activeBlessingChrome") "Solar memory blessing setup chrome close must route through SunExpModalHost."
+    Assert-True $solarMemoryBlessingPickerRuntime.Contains("SunExpModalHost.Close(ref activePanel") "Solar memory blessing picker close must route through SunExpModalHost."
+    Assert-True $solarMemoryStarterDeckRuntime.Contains("SunExpUiSprites.Button") "Solar memory starter deck must use cached shared button sprites."
+    Assert-True $solarMemorySetupFlowRuntime.Contains("SunExpUiSprites.Button") "Solar memory setup flow must use cached shared button sprites."
+    Assert-True $solarMemoryBlessingPickerRuntime.Contains("SunExpUiSprites.Button") "Solar memory blessing picker must use cached shared button sprites."
+    $solarMemorySetupUiSources = $solarMemoryStarterDeckRuntime + $solarMemorySetupFlowRuntime + $solarMemoryBlessingPickerRuntime
+    Assert-True (-not $solarMemorySetupUiSources.Contains("CreateNineSliceSprite")) "Solar memory setup windows must not duplicate nine-slice sprite construction."
+    Assert-True (-not $solarMemorySetupUiSources.Contains("GetButtonSprite")) "Solar memory setup windows must not keep per-window button sprite caches."
+    Assert-True (-not $solarMemorySetupUiSources.Contains("Object.Destroy(active")) "Solar memory setup windows must not directly destroy active modal roots."
     Assert-True $solarMemoryModeRuntime.Contains("CompleteSolarMemoryRun") "Solar memory must settle immediately after the third layer boss."
     Assert-True $solarMemoryModeRuntime.Contains("manager.Level = levelForNativeFlow") "Solar memory completion must route through the native settlement level."
     Assert-True (-not $eventScripts.Contains("InitSolarFinale")) "Retired solar finale EventList entries must not leave script entry points behind."
