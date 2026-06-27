@@ -214,6 +214,8 @@ public static class StarScoreService
         {
             state.RecordCompletedCadence(string.Join("", notes));
             ResolveCadence(self, notes);
+            state.RetainLastNoteAsCadenceStart();
+            SyncScoreBuff(self, state.Notes.Count);
         }
     }
 
@@ -245,8 +247,8 @@ public static class StarScoreService
         switch (pattern)
         {
             case NoteStart + NoteStart + NoteStart:
-                DrawCards(self, 2);
-                AddBuffToFriendlyParty(self, SunExpIds.Resonance, 2);
+                DrawCards(self, 1);
+                AddBuffToFriendlyParty(self, SunExpIds.Resonance, 1);
                 PlayerApi.ShowCaption("星律：急板");
                 break;
             case NoteSustain + NoteSustain + NoteSustain:
@@ -267,8 +269,8 @@ public static class StarScoreService
                 break;
             case NoteStart + NoteSustain + NoteTurn:
                 self.SetStatus("Self");
-                self.ChangePower("2");
-                AddBuffToFriendlyParty(self, SunExpIds.Resonance, 2);
+                self.ChangePower("1");
+                AddBuffToFriendlyParty(self, SunExpIds.Resonance, 1);
                 PlayerApi.ShowCaption("星律：调律");
                 break;
             case NoteSustain + NoteTurn + NoteClose:

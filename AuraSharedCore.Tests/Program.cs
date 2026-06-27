@@ -163,6 +163,8 @@ try
     TestRecovery(storage, packages);
     Assert(true, "transaction recovery");
 
+    TestIdentityContracts();
+    TestSecureEnvelopeContracts();
     TestJourneyContracts();
     TestOnlineChatContracts();
 
@@ -259,6 +261,67 @@ void TestRecovery(AuraSharedStorageCoordinator coordinator, AuraSharedPackageCoo
     {
         throw new InvalidOperationException("Interrupted transaction was not restored.");
     }
+}
+
+void TestSecureEnvelopeContracts()
+{
+    using var encryptionKey = new System.Security.Cryptography.RSACryptoServiceProvider(2048);
+    using var signatureKey = new System.Security.Cryptography.RSACryptoServiceProvider(2048);
+    var envelopeJson = AuraSharedSecureEnvelope.EncryptJson(
+        "TestEnvelope",
+        "test-key",
+        "{\"value\":42}",
+        encryptionKey.ToXmlString(false),
+        signatureKey.ToXmlString(true));
+
+    Assert(envelopeJson.Contains("RSA-OAEP-SHA1+A256CBC-HS256")
+           && envelopeJson.Contains("RSA-SHA256"),
+        "secure envelope records crypto algorithms");
+
+    var plainJson = AuraSharedSecureEnvelope.DecryptJson(
+        envelopeJson,
+        "TestEnvelope",
+        encryptionKey.ToXmlString(true),
+        signatureKey.ToXmlString(false));
+    Assert(JObject.Parse(plainJson)["value"]!.Value<int>() == 42,
+        "secure envelope decrypts signed payload");
+
+    var tamperedEnvelope = JObject.Parse(envelopeJson);
+    tamperedEnvelope["ciphertext"] = "AA" + tamperedEnvelope["ciphertext"]!.Value<string>();
+    var tampered = tamperedEnvelope.ToString(Newtonsoft.Json.Formatting.None);
+    try
+    {
+        AuraSharedSecureEnvelope.DecryptJson(
+            tampered,
+            "TestEnvelope",
+            encryptionKey.ToXmlString(true),
+            signatureKey.ToXmlString(false));
+        throw new InvalidOperationException("Tampered envelope was accepted.");
+    }
+    catch (System.Security.Cryptography.CryptographicException)
+    {
+        Assert(true, "secure envelope rejects tampered payload");
+    }
+    catch (InvalidOperationException)
+    {
+        Assert(true, "secure envelope rejects tampered payload");
+    }
+    catch (FormatException)
+    {
+        Assert(true, "secure envelope rejects malformed payload");
+    }
+}
+
+void TestIdentityContracts()
+{
+    Assert(AuraSharedIdentity.NormalizeRoleId("1") == "career_1", "short numeric career id normalizes");
+    Assert(AuraSharedIdentity.NormalizeRoleId("*SunExp_wuna_wuna") == "SunExp_wuna_wuna", "mod role id trims legacy star prefix");
+    Assert(AuraSharedIdentity.IsRuntimeNumericId("76561198326385152"), "long numeric runtime owner id detected");
+    Assert(!AuraSharedIdentity.IsUsableRoleId("76561198326385152"), "long numeric runtime owner id is not a role");
+    Assert(AuraSharedIdentity.SelectRoleId("76561198326385152", "SunExp_wuna_wuna") == "SunExp_wuna_wuna",
+        "role selector falls back past runtime owner id");
+    Assert(AuraSharedIdentity.SelectRoleId("wuna", "SunExp_wuna_wuna") == "wuna",
+        "role selector preserves usable short mod role id");
 }
 
 void TestJourneyContracts()

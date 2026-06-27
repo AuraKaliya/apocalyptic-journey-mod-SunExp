@@ -1,10 +1,20 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "enabled": true,
   "syncRemote": true,
   "maxQueueLength": 8,
   "maxRequestAgeSeconds": 6.0,
   "duplicateWindowSeconds": 0.2,
+  "defaultPresentation": {
+    "mode": "slide",
+    "fit": "contain",
+    "fadeIn": 0.35,
+    "hold": 1.0,
+    "fadeOut": 0.45,
+    "focusX": 0.5,
+    "focusY": 0.5,
+    "safeScale": 1.0
+  },
   "roles": {
     "career_1": {
       "enabled": true,
@@ -20,7 +30,17 @@
           "priority": 10,
           "fadeIn": 0.35,
           "hold": 1.0,
-          "fadeOut": 0.45
+          "fadeOut": 0.45,
+          "presentation": {
+            "mode": "fullscreenFade",
+            "fit": "contain",
+            "fadeIn": 0.35,
+            "hold": 1.5,
+            "fadeOut": 0.5,
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "safeScale": 1.0
+          }
         }
       ]
     },
@@ -38,7 +58,67 @@
           "priority": 10,
           "fadeIn": 0.35,
           "hold": 1.0,
-          "fadeOut": 0.45
+          "fadeOut": 0.45,
+          "presentation": {
+            "mode": "fullscreenFade",
+            "fit": "contain",
+            "fadeIn": 0.35,
+            "hold": 1.5,
+            "fadeOut": 0.5,
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "safeScale": 1.0
+          }
+        }
+      ]
+    },
+    "SunExp_loneer_loneer": {
+      "enabled": true,
+      "roleId": "SunExp_loneer_loneer",
+      "displayName": "洛奈尔",
+      "rules": [
+        {
+          "enabled": true,
+          "providerId": "AuraTools.SkillCG.SunExp.Loneer.MorningStarPrayer",
+          "cardId": "SunExp_loneer_loneer_morning_star_prayer",
+          "action": "*",
+          "image": "CG/SunExp/Loneer/Loneer_晨星祈愿.png",
+          "priority": 20,
+          "presentation": {
+            "mode": "slide",
+            "fit": "contain",
+            "fadeIn": 0.35,
+            "hold": 1.0,
+            "fadeOut": 0.45,
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "safeScale": 1.0
+          }
+        }
+      ]
+    },
+    "SunExp_wuna_wuna": {
+      "enabled": true,
+      "roleId": "SunExp_wuna_wuna",
+      "displayName": "乌娜",
+      "rules": [
+        {
+          "enabled": true,
+          "providerId": "AuraTools.SkillCG.SunExp.WuNa.WhiteSunPrayer",
+          "cardId": "SunExp_wuna_wuna_white_sun_prayer",
+          "action": "*",
+          "image": "CG/SunExp/WuNa/WuNa_白曜圣祷.png",
+          "priority": 20,
+          "presentation": {
+            "mode": "fullscreenFade",
+            "fit": "cover",
+            "fadeIn": 0.35,
+            "hold": 1.5,
+            "fadeOut": 0.5,
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "safeScale": 1.0
+          }
         }
       ]
     }

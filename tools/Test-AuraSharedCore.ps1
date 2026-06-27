@@ -5,10 +5,27 @@ param(
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $project = Join-Path $repoRoot "AuraSharedCore.Tests\AuraSharedCore.Tests.csproj"
+$sharedProject = Join-Path $repoRoot "AuraSharedRuntime-Dev\Aura.Shared.csproj"
+$managedPath = Join-Path $repoRoot "Managed"
 
 dotnet run --project $project -c $Configuration
 if ($LASTEXITCODE -ne 0) {
     throw "AuraSharedCore test harness failed."
+}
+
+dotnet build $sharedProject -c $Configuration /p:ManagedPath="$managedPath" /v:minimal
+if ($LASTEXITCODE -ne 0) {
+    throw "Aura.Shared runtime build failed."
+}
+
+$sharedDll = Join-Path $repoRoot "AuraSharedRuntime-Dev\bin\$Configuration\net472\Aura.Shared.dll"
+if (-not (Test-Path -LiteralPath $sharedDll -PathType Leaf)) {
+    throw "Aura.Shared runtime DLL was not produced: $sharedDll"
+}
+
+$sharedAssemblyName = [System.Reflection.AssemblyName]::GetAssemblyName($sharedDll)
+if ($sharedAssemblyName.Name -ne "Aura.Shared") {
+    throw "Aura.Shared runtime DLL has the wrong assembly name: $($sharedAssemblyName.Name)"
 }
 
 $runtimeText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedRuntime.cs")
@@ -23,6 +40,18 @@ foreach ($required in @(
     if (-not $runtimeText.Contains($required)) {
         throw "AuraShared Core v2 runtime contract is missing: $required"
     }
+}
+
+$identityText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedIdentity.cs")
+foreach ($required in @("SelectRoleId", "IsRuntimeNumericId", "IsUsableRoleId", "RuntimeNumericIdLength")) {
+    if (-not $identityText.Contains($required)) {
+        throw "AuraShared identity runtime-role contract is missing: $required"
+    }
+}
+
+$jsonText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedJson.cs")
+if (-not $jsonText.Contains("public static class AuraSharedJson")) {
+    throw "AuraSharedJson must be public because product Mods now consume it through Aura.Shared.dll."
 }
 
 $storageText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedStorageCoordinator.cs")
@@ -55,11 +84,29 @@ foreach ($relative in @(
     "AudioArbiterShared\AudioArbiterRuntime.cs",
     "BattleBgmArbiterShared\BattleBgmArbiterRuntime.cs",
     "AuraCgShared\AuraCgRuntime.cs",
+    "AuraCgShared\AuraCgRegistry.cs",
     "AuraSkinShared\AuraSkinRuntime.cs"
 )) {
     $compatibilityText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot $relative)
     if ($compatibilityText.Contains("&& string.Equals(buildId, CurrentBuildId")) {
         throw "$relative still treats exact BuildId equality as a compatibility requirement."
+    }
+}
+
+$cgRegistryText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraCgShared\AuraCgRegistry.cs")
+foreach ($required in @("AuraCgRegistryRuntime", "RegistryAuthorityId", "AuraCgRegistryDocument", "AuraCgManifest", "AuraCgRegistryEntry", "WriteShared")) {
+    if (-not $cgRegistryText.Contains($required)) {
+        throw "AuraCgShared registry contract is missing: $required"
+    }
+}
+$cgRuntimeText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraCgShared\AuraCgRuntime.cs")
+$removedCoverMode = (-join @("fullscreen", "Cover", "Fade"))
+if ($cgRuntimeText.Contains($removedCoverMode) -or $cgRegistryText.Contains($removedCoverMode)) {
+    throw "AuraCgShared must use fullscreenFade plus fit=cover instead of the removed cover-specific mode."
+}
+foreach ($required in @("FocusX", "FocusY", "SafeScale", "CalculateCoverImageOffset")) {
+    if (-not $cgRuntimeText.Contains($required)) {
+        throw "AuraCgShared cover-focus contract is missing: $required"
     }
 }
 
@@ -119,6 +166,9 @@ if (-not $auraConfigText.Contains("AuraSharedConfigStore.ReadOwner") -or
     $auraConfigText.Contains("File.WriteAllText")) {
     throw "AuraTools owner configuration does not use Core v2 storage exclusively."
 }
+if (-not $auraConfigText.Contains("ResolveRegisteredRoleDisplayName")) {
+    throw "AuraTools registered CG import must resolve role display names separately from CG display names."
+}
 
 $fileResourceText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Infrastructure\FileResourceUtil.cs")
 if (-not $fileResourceText.Contains("AuraSharedPackageEngine.Install") -or $fileResourceText.Contains("File.Copy")) {
@@ -127,14 +177,59 @@ if (-not $fileResourceText.Contains("AuraSharedPackageEngine.Install") -or $file
 
 $sunPackagePath = Join-Path $repoRoot "SunExp\SharedResources\package.json"
 $sunPackage = Get-Content -Raw -Encoding UTF8 -LiteralPath $sunPackagePath | ConvertFrom-Json
-if ($sunPackage.packageId -ne "SunExp.SharedResources" -or $sunPackage.resources.Count -ne 1 -or
-    $sunPackage.resources[0].system -ne "Audio" -or $sunPackage.resources[0].kind -ne "Directory") {
-    throw "SunExp shared Audio package manifest is invalid."
+if ($sunPackage.packageId -ne "SunExp.SharedResources" -or $sunPackage.ownerModId -ne "SunExp" -or
+    -not ($sunPackage.capabilities -contains "Audio") -or -not ($sunPackage.capabilities -contains "CG")) {
+    throw "SunExp shared resource package manifest is invalid."
 }
 $sunPackageRoot = Split-Path -Parent $sunPackagePath
-$sunAudioSource = [System.IO.Path]::GetFullPath((Join-Path $sunPackageRoot $sunPackage.resources[0].source))
+$sunAudioResource = $sunPackage.resources | Where-Object {
+    $_.system -eq "Audio" -and $_.resourceId -eq "SunExp.WuNa.VoicePack" -and $_.kind -eq "Directory"
+} | Select-Object -First 1
+if ($null -eq $sunAudioResource) {
+    throw "SunExp shared Audio package manifest is missing WuNa voice pack."
+}
+$sunAudioSource = [System.IO.Path]::GetFullPath((Join-Path $sunPackageRoot $sunAudioResource.source))
 if (-not (Test-Path -LiteralPath $sunAudioSource -PathType Container)) {
     throw "SunExp shared Audio package source is missing: $sunAudioSource"
+}
+$requiredSunCgResources = @(
+    "SunExp.Loneer.MorningStarPrayer.SkillCg",
+    "SunExp.WuNa.WhiteSunPrayer.SkillCg"
+)
+foreach ($resourceId in $requiredSunCgResources) {
+    $resource = $sunPackage.resources | Where-Object {
+        $_.system -eq "CG" -and $_.resourceId -eq $resourceId -and $_.kind -eq "File"
+    } | Select-Object -First 1
+    if ($null -eq $resource) {
+        throw "SunExp shared CG package manifest is missing resource: $resourceId"
+    }
+
+    $source = [System.IO.Path]::GetFullPath((Join-Path $sunPackageRoot $resource.source))
+    if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+        throw "SunExp shared CG package source is missing: $source"
+    }
+}
+$sunCgManifestPath = Join-Path $repoRoot "SunExp\SharedResources\cg.registry.json"
+$sunCgManifest = Get-Content -Raw -Encoding UTF8 -LiteralPath $sunCgManifestPath | ConvertFrom-Json
+if ($sunCgManifest.ownerModId -ne "SunExp" -or @($sunCgManifest.entries).Count -lt 2) {
+    throw "SunExp CG registry manifest is invalid."
+}
+foreach ($cgId in @("loneer.morning-star-prayer", "wuna.white-sun-prayer")) {
+    $entry = $sunCgManifest.entries | Where-Object { $_.cgId -eq $cgId } | Select-Object -First 1
+    if ($null -eq $entry -or $entry.kind -ne "skill" -or $entry.media.type -ne "image" -or
+        [string]::IsNullOrWhiteSpace($entry.media.resource) -or [string]::IsNullOrWhiteSpace($entry.defaultPresentation.mode)) {
+        throw "SunExp CG registry manifest is missing a valid entry: $cgId"
+    }
+}
+$wunaCgEntry = $sunCgManifest.entries | Where-Object { $_.cgId -eq "wuna.white-sun-prayer" } | Select-Object -First 1
+if ($wunaCgEntry.defaultPresentation.mode -ne "fullscreenFade" -or $wunaCgEntry.defaultPresentation.fit -ne "cover") {
+    throw "WuNa skill CG must use fullscreenFade with cover fitting."
+}
+$sunEntryText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Entry.cs")
+$sunProjectText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "SunExp-Dev\SunExp.Dll.csproj")
+if (-not $sunEntryText.Contains("AuraCgRegistryRuntime.RegisterManifest") -or
+    -not $sunProjectText.Contains("AuraSharedRuntime-Dev\Aura.Shared.csproj")) {
+    throw "SunExp does not register CG manifests through AuraCgShared."
 }
 if (Test-Path -LiteralPath (Join-Path $repoRoot "SunExp\ModResource\audio")) {
     throw "SunExp still carries a direct ModResource/audio runtime source."
@@ -170,14 +265,46 @@ if (-not $auraToolsEntryText.Contains("AuraToolsResourceBootstrap.Initialize") -
     -not $auraToolsBootstrapText.Contains("AuraSharedResourceBootstrapper.Bootstrap")) {
     throw "AuraTools does not consume the shared resource bootstrap infrastructure."
 }
-
-$audioConsumers = Get-ChildItem -LiteralPath $repoRoot -Recurse -File -Filter "*.csproj" | Where-Object {
-    (Get-Content -Raw -LiteralPath $_.FullName).Contains("AudioArbiterShared")
+$skillCgEditorText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\SkillCg\AuraToolsSkillCgRuntime.cs")
+foreach ($required in @("OpenRuleImageDirectory", '"本地目录"', '"图片目录"', "BuildPresentationModeOptions", "BuildFitOptions")) {
+    if (-not $skillCgEditorText.Contains($required)) {
+        throw "AuraTools SkillCG editor is missing unified CG controls: $required"
+    }
 }
-foreach ($project in $audioConsumers) {
-    $projectText = Get-Content -Raw -LiteralPath $project.FullName
-    if (-not $projectText.Contains("AuraSharedCore")) {
-        throw "AudioArbiter consumer does not compile AuraSharedCore v2: $($project.FullName)"
+if ($skillCgEditorText.Contains('"打开目录"')) {
+    throw "AuraTools SkillCG editor still uses the old generic open-directory button label."
+}
+
+foreach ($required in @("AuraSharedIdentity.SelectRoleId", "activation-skip:", "no AuraTools rule emitted")) {
+    if (-not $skillCgEditorText.Contains($required)) {
+        throw "AuraTools SkillCG runtime is missing trigger diagnostics/role fallback: $required"
+    }
+}
+
+$sunSkillCgRuntimeText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Features\SkillCg\SunExpSkillCgRuntime.cs")
+foreach ($required in @("AuraSharedIdentity.SelectRoleId", "TrimStart('*')", "ignored runtime owner id", "no CG request matched")) {
+    if (-not $sunSkillCgRuntimeText.Contains($required)) {
+        throw "SunExp SkillCG runtime is missing trigger diagnostics/role fallback: $required"
+    }
+}
+
+$sharedConsumerProjects = @(
+    "SunExp-Dev\SunExp.Dll.csproj",
+    "SanGuoShaExp-Dev\SanGuoShaExp.Dll.csproj",
+    "AuraToolsExp-Dev\AuraToolsExp.Dll.csproj",
+    "TestMods\SkinExp-Dev\SkinExp.Dll.csproj",
+    "TestMods\BackgroundAudioReplaceExp-Dev\BackgroundAudioReplaceExp.Dll.csproj",
+    "TestMods\CardUseCialloExp-Dev\CardUseCialloExp.Dll.csproj",
+    "TestMods\ChatExp-Dev\ChatExp.Dll.csproj"
+)
+$linkedSharedPattern = 'Compile Include="[^"]*(AuraSharedCore|AuraAudioShared|AuraLogShared|AuraJourneyShared|AuraSkinShared|AudioArbiterShared|BattleBgmArbiterShared|StarterDeckArbiterShared|UiRaycastSafetyShared|UiTransitionGuardShared|AuraCgShared|AuraOnlineShared)'
+foreach ($relativeProject in $sharedConsumerProjects) {
+    $consumerText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot $relativeProject)
+    if (-not $consumerText.Contains("AuraSharedRuntime-Dev\Aura.Shared.csproj")) {
+        throw "Shared consumer must reference Aura.Shared.dll through the shared runtime project: $relativeProject"
+    }
+    if ($consumerText -match $linkedSharedPattern) {
+        throw "Shared consumer still links shared source directly: $relativeProject"
     }
 }
 

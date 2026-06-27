@@ -24,16 +24,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\AuraSharedCore\*.cs" Link="Shared\AuraSharedCore\%(Filename)%(Extension)" />
-    <Compile Include="..\AuraAudioShared\*.cs" Link="Shared\AuraAudioShared\%(Filename)%(Extension)" />
-    <Compile Include="..\AuraLogShared\*.cs" Link="Shared\AuraLogShared\%(Filename)%(Extension)" />
-    <Compile Include="..\AuraJourneyShared\*.cs" Link="Shared\AuraJourneyShared\%(Filename)%(Extension)" />
-    <Compile Include="..\AuraSkinShared\**\*.cs" Link="Shared\AuraSkinShared\%(RecursiveDir)%(Filename)%(Extension)" />
-    <Compile Include="..\AudioArbiterShared\AudioArbiterRuntime.cs" Link="Shared\AudioArbiterRuntime.cs" />
-    <Compile Include="..\BattleBgmArbiterShared\BattleBgmArbiterRuntime.cs" Link="Shared\BattleBgmArbiterRuntime.cs" />
-    <Compile Include="..\StarterDeckArbiterShared\StarterDeckArbiterRuntime.cs" Link="Shared\StarterDeckArbiterRuntime.cs" />
-    <Compile Include="..\UiRaycastSafetyShared\UiRaycastSafeDestroyRuntime.cs" Link="Shared\UiRaycastSafeDestroyRuntime.cs" />
-    <Compile Include="..\UiTransitionGuardShared\UiTransitionGuardRuntime.cs" Link="Shared\UiTransitionGuardRuntime.cs" />
+    <ProjectReference Include="..\AuraSharedRuntime-Dev\Aura.Shared.csproj" Private="true" ReferenceOutputAssembly="true" />
   </ItemGroup>
 
   <ItemGroup>
@@ -63,6 +54,10 @@
     </Reference>
     <Reference Include="UnityEngine.UnityWebRequestAudioModule">
       <HintPath>$(DllPath)\UnityEngine.UnityWebRequestAudioModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestTextureModule">
+      <HintPath>$(DllPath)\UnityEngine.UnityWebRequestTextureModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.UI">
@@ -102,6 +97,11 @@
   <Target Name="CopyEntryDllToMod" AfterTargets="Build">
     <MakeDir Directories="$(ModScriptsPath)" />
     <Copy SourceFiles="$(TargetPath)" DestinationFiles="$(ModScriptsPath)\Entry.dll" />
+  </Target>
+
+  <Target Name="CopyAuraSharedDllToMod" AfterTargets="Build">
+    <MakeDir Directories="$(ModScriptsPath)" />
+    <Copy SourceFiles="..\AuraSharedRuntime-Dev\bin\$(Configuration)\net472\Aura.Shared.dll" DestinationFiles="$(ModScriptsPath)\Aura.Shared.dll" SkipUnchangedFiles="true" />
   </Target>
 
 </Project>

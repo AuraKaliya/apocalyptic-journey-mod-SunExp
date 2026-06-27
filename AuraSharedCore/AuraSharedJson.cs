@@ -3,7 +3,7 @@ using Newtonsoft.Json;
 
 namespace AuraShared.Core;
 
-internal static class AuraSharedJson
+public static class AuraSharedJson
 {
     private static readonly JsonSerializerSettings SerializerSettings = new()
     {

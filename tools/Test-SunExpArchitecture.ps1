@@ -77,6 +77,8 @@ $requiredFiles = @(
     "SunExp-Dev\GameApi\DialogueApi.cs",
     "SunExp-Dev\GameApi\DialogueUiApi.cs",
     "SunExp-Dev\GameApi\MapItemApi.cs",
+    "SunExp-Dev\GameApi\BattleRewardApi.cs",
+    "SunExp-Dev\Mechanics\BattleRewardAdjustmentService.cs",
     "SunExp-Dev\Mechanics\DialogueFlowDefinition.cs",
     "SunExp-Dev\Mechanics\DialogueFlowRegistry.cs",
     "SunExp-Dev\Mechanics\DialogueFlowService.cs",
@@ -86,6 +88,8 @@ $requiredFiles = @(
     "SunExp-Dev\Mechanics\SolarFinaleStateService.cs",
     "SunExp-Dev\Mechanics\SolarMemoryStoryGateService.cs",
     "SunExp-Dev\Hooks\DialogueFlowRuntime.cs",
+    "SunExp-Dev\Hooks\BattleRewardAdjustmentRuntime.cs",
+    "SunExp-Dev\Hooks\SolarMemoryRewardRuntime.cs",
     "SunExp-Dev\Hooks\MapNodeCardArtRuntime.cs",
     "SunExp-Dev\Hooks\SolarMemoryRunLauncher.cs"
 )
@@ -100,6 +104,7 @@ $buffOverflowApi = Read-RepoText "SunExp-Dev\GameApi\BuffOverflowApi.cs"
 $mapItemApi = Read-RepoText "SunExp-Dev\GameApi\MapItemApi.cs"
 $dialogueApi = Read-RepoText "SunExp-Dev\GameApi\DialogueApi.cs"
 $dialogueUiApi = Read-RepoText "SunExp-Dev\GameApi\DialogueUiApi.cs"
+$battleRewardApi = Read-RepoText "SunExp-Dev\GameApi\BattleRewardApi.cs"
 $statusApi = Read-RepoText "SunExp-Dev\GameApi\StatusApi.cs"
 $cardScripts = Read-RepoText "SunExp-Dev\Scripting\CardScripts.cs"
 $buffScripts = Read-RepoText "SunExp-Dev\Scripting\BuffScripts.cs"
@@ -111,8 +116,11 @@ $mapNodeTextureFitService = Read-RepoText "SunExp-Dev\Mechanics\MapNodeTextureFi
 $modeChoiceDragRange = Read-RepoText "SunExp-Dev\Mechanics\ModeChoiceDragRange.cs"
 $solarFinaleService = Read-RepoText "SunExp-Dev\Mechanics\SolarFinaleStateService.cs"
 $dialogueFlowService = Read-RepoText "SunExp-Dev\Mechanics\DialogueFlowService.cs"
+$battleRewardAdjustmentService = Read-RepoText "SunExp-Dev\Mechanics\BattleRewardAdjustmentService.cs"
 $solarMemoryStoryGateService = Read-RepoText "SunExp-Dev\Mechanics\SolarMemoryStoryGateService.cs"
 $dialogueFlowRuntime = Read-RepoText "SunExp-Dev\Hooks\DialogueFlowRuntime.cs"
+$battleRewardAdjustmentRuntime = Read-RepoText "SunExp-Dev\Hooks\BattleRewardAdjustmentRuntime.cs"
+$solarMemoryRewardRuntime = Read-RepoText "SunExp-Dev\Hooks\SolarMemoryRewardRuntime.cs"
 $mapNodeCardArtRuntime = Read-RepoText "SunExp-Dev\Hooks\MapNodeCardArtRuntime.cs"
 $runtimeHooks = Read-RepoText "SunExp-Dev\Hooks\RuntimeHooks.cs"
 $solarMemoryModeRuntime = Read-RepoText "SunExp-Dev\Hooks\SolarMemoryModeRuntime.cs"
@@ -139,6 +147,16 @@ Assert-Contains $dialogueApi "public static bool ShowDialogue" "DialogueApi must
 Assert-Contains $dialogueApi "Singleton<DialogueManager>.Instance.ShowDialogue(dialogueId)" "DialogueApi must route dialogue display through the native dialogue manager."
 Assert-Contains $dialogueUiApi "public static bool TryGetDialogueId" "DialogueUiApi must own reflected DialogueUI state access."
 Assert-Contains $dialogueUiApi 'GetField(' "DialogueUiApi must centralize DialogueUI private-field reflection."
+Assert-Contains $battleRewardApi "public static bool AppendRandomRelicReward" "BattleRewardApi must own native battle reward UI mutation."
+Assert-Contains $battleRewardApi "rewardUi.RandomSetRelic(candidates)" "BattleRewardApi must reuse the native relic reward item flow."
+Assert-Contains $battleRewardAdjustmentService "public static class BattleRewardAdjustmentService" "Reusable battle reward adjustment rules must live in Mechanics."
+Assert-Contains $battleRewardAdjustmentService "ConditionalWeakTable<BattleRewardsUI, AppliedRuleSet>" "Battle reward adjustments must be applied once per reward UI."
+Assert-Contains $battleRewardAdjustmentRuntime '"BattleRewardsUI.ModeSetReward"' "Battle reward adjustment runtime must hook reward generation after native rewards are set."
+Assert-Contains $battleRewardAdjustmentRuntime "BattleRewardAdjustmentService.ApplyAll" "Battle reward hooks must delegate rule application to Mechanics."
+Assert-Contains $solarMemoryRewardRuntime "SolarMemoryModeRuntime.IsSolarMemoryRun()" "Solar memory reward adjustments must be gated to Solar Memory runs."
+Assert-Contains $solarMemoryRewardRuntime "BattleRewardApi.AppendRandomRelicReward" "Solar memory reward runtime must add its relic through BattleRewardApi."
+Assert-Contains $runtimeHooks "BattleRewardAdjustmentRuntime.Initialize(modConfig)" "RuntimeHooks must initialize generic battle reward adjustment hooks."
+Assert-Contains $runtimeHooks "SolarMemoryRewardRuntime.Initialize()" "RuntimeHooks must register Solar Memory reward adjustment rules."
 Assert-Contains $dialogueFlowService "public static class DialogueFlowService" "DialogueFlowService must own reusable managed dialogue session behavior."
 Assert-Contains $dialogueFlowService "DialogueApi.ShowDialogue" "DialogueFlowService must open managed dialogues through DialogueApi."
 Assert-Contains $dialogueFlowService "DialogueApi.EndDialogue" "DialogueFlowService must close managed dialogues through DialogueApi after C# choice handling."

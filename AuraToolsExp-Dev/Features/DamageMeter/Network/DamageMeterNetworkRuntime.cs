@@ -12,6 +12,7 @@ internal static class DamageMeterNetworkRuntime
 {
     private static readonly DamageLedger LedgerInstance = new();
     private static readonly DamageHistoryStore HistoryInstance = new();
+    private static readonly OutOfRunDamageHistoryStore OutOfRunHistoryInstance = new();
     private static readonly Dictionary<string, long> LastReporterSequence =
         new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, Queue<long>> ReporterRateWindows =
@@ -19,10 +20,15 @@ internal static class DamageMeterNetworkRuntime
     private static long localReporterSequence;
     private static int hostRoundSignalCount;
     private static bool snapshotRequestPending;
+    private static string currentAdventureId = "";
 
     public static DamageLedger Ledger => LedgerInstance;
 
     public static DamageHistoryStore History => HistoryInstance;
+
+    public static OutOfRunDamageHistoryStore OutOfRunHistory => OutOfRunHistoryInstance;
+
+    public static string CurrentAdventureId => EnsureAdventureId();
 
     public static bool IsMultiplayer => PlayerManager.Instance != null;
 
@@ -68,6 +74,7 @@ internal static class DamageMeterNetworkRuntime
     public static void BeginAdventure()
     {
         ResetTransient();
+        currentAdventureId = Guid.NewGuid().ToString("N");
         HistoryInstance.Clear();
         LedgerInstance.ApplySnapshot(new DamageMeterSnapshot());
         if (IsHost)
@@ -445,6 +452,16 @@ internal static class DamageMeterNetworkRuntime
     private static bool SessionMatches(string sessionId)
     {
         return string.Equals(LedgerInstance.SessionId, sessionId, StringComparison.Ordinal);
+    }
+
+    private static string EnsureAdventureId()
+    {
+        if (string.IsNullOrWhiteSpace(currentAdventureId))
+        {
+            currentAdventureId = Guid.NewGuid().ToString("N");
+        }
+
+        return currentAdventureId;
     }
 
     private static void ArchiveFight(string result)

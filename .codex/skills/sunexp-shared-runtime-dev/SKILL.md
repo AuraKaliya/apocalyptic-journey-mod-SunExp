@@ -44,6 +44,9 @@ Journey, starter deck, or Solar Memory role setup work.
   and delegate; domain arbiters validate and resolve.
 - Keep linked shared source compatible with all consumers listed in shared
   release checks, not only SunExp.
+- Preserve the content/tool split: content mods own, install, and register
+  resources plus manifest semantics; tool mods only read shared registries,
+  parse them by protocol, and manage local overrides.
 
 ## Validation
 

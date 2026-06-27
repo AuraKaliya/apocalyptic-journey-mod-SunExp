@@ -38,6 +38,13 @@
       "kind": "script",
       "path": "tools/Test-MainSharedFramework.ps1",
       "enabled": true
+    },
+    {
+      "id": "shared-dll-packaging",
+      "kind": "script",
+      "path": "tools/Test-SharedDllPackaging.ps1",
+      "enabled": true,
+      "passConfiguration": true
     }
   ],
   "requiredContracts": {

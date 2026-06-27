@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using AuraCg.Shared;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Infrastructure;
 using Newtonsoft.Json;
@@ -136,8 +138,31 @@ public static class AuraToolsConfigService
         Audio.Normalize();
         MatchExperience.Normalize();
         SkillCg.Normalize();
+        ImportRegisteredSkillCgDefaultsNoLock();
+        SkillCg.Normalize();
         Skin.Normalize();
         Logging.Normalize();
+    }
+
+    public static bool ImportRegisteredSkillCgDefaults()
+    {
+        bool changed;
+        lock (Gate)
+        {
+            changed = ImportRegisteredSkillCgDefaultsNoLock();
+            if (changed)
+            {
+                SkillCg.Normalize();
+                SaveModule(SkillCg, Root.SkillCg.ConfigFile);
+            }
+        }
+
+        if (changed)
+        {
+            Changed?.Invoke();
+        }
+
+        return changed;
     }
 
     private static void SaveAllNoLock()
@@ -177,6 +202,284 @@ public static class AuraToolsConfigService
             AuraToolsLog.Warn("Failed to load bundled config " + fileName + ": " + ex.Message);
             return fallback;
         }
+    }
+
+    private static bool ImportRegisteredSkillCgDefaultsNoLock()
+    {
+        try
+        {
+            var entries = AuraCgRegistryRuntime.GetRegisteredEntries()
+                .Where(entry => string.Equals(entry.Kind, "skill", StringComparison.OrdinalIgnoreCase))
+                .Where(entry => string.Equals(entry.Media.Type, "image", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            var added = 0;
+            foreach (var entry in entries)
+            {
+                added += ImportRegisteredSkillCgEntryNoLock(entry);
+            }
+
+            if (added > 0)
+            {
+                AuraToolsLog.Info("[SkillCG] imported " + added + " registered CG rule(s) from AuraCgShared.");
+            }
+
+            return added > 0;
+        }
+        catch (Exception ex)
+        {
+            AuraToolsLog.Warn("[SkillCG] failed to import registered CG defaults: " + ex.Message);
+            return false;
+        }
+    }
+
+    private static int ImportRegisteredSkillCgEntryNoLock(AuraCgRegistryEntry entry)
+    {
+        var roleId = ResolveRegisteredRoleId(entry);
+        var image = ResolveRegisteredImage(entry);
+        if (string.IsNullOrWhiteSpace(roleId) || string.IsNullOrWhiteSpace(image))
+        {
+            return 0;
+        }
+
+        if (!SkillCg.Roles.TryGetValue(roleId, out var role) || role == null)
+        {
+            role = new SkillCgRoleSettings
+            {
+                Enabled = true,
+                RoleId = roleId,
+                DisplayName = ResolveRegisteredRoleDisplayName(roleId)
+            };
+            SkillCg.Roles[roleId] = role;
+        }
+        else if (string.IsNullOrWhiteSpace(role.DisplayName)
+                 || string.Equals(role.DisplayName, entry.DisplayName, StringComparison.OrdinalIgnoreCase))
+        {
+            role.DisplayName = ResolveRegisteredRoleDisplayName(roleId);
+        }
+
+        role.Rules ??= new List<SkillCgRuleSettings>();
+        var cardIds = ResolveRegisteredCardIds(entry).ToList();
+        var added = 0;
+        for (var i = 0; i < cardIds.Count; i++)
+        {
+            var cardId = cardIds[i];
+            var providerId = RegisteredProviderId(entry, i);
+            var existing = role.Rules.FirstOrDefault(rule => IsSameRegisteredRule(rule, providerId, cardId, image));
+            if (existing != null)
+            {
+                if (ApplyRegisteredRuleDefaults(existing, entry, providerId, cardId, image))
+                {
+                    added++;
+                }
+
+                continue;
+            }
+
+            role.Rules.Add(CreateRegisteredRule(entry, providerId, cardId, image));
+            added++;
+        }
+
+        return added;
+    }
+
+    private static SkillCgRuleSettings CreateRegisteredRule(AuraCgRegistryEntry entry, string providerId, string cardId, string image)
+    {
+        return new SkillCgRuleSettings
+        {
+            Enabled = true,
+            ProviderId = providerId,
+            DisplayName = entry.DisplayName,
+            SourceOwnerModId = entry.OwnerModId,
+            SourceCgId = entry.CgId,
+            CardId = cardId,
+            Action = "*",
+            Image = image,
+            Priority = entry.Priority,
+            Presentation = CreatePresentationSettings(entry)
+        };
+    }
+
+    private static bool ApplyRegisteredRuleDefaults(SkillCgRuleSettings rule, AuraCgRegistryEntry entry, string providerId, string cardId, string image)
+    {
+        var changed = false;
+        if (!string.Equals(rule.ProviderId, providerId, StringComparison.OrdinalIgnoreCase))
+        {
+            rule.ProviderId = providerId;
+            changed = true;
+        }
+
+        if (!string.Equals(rule.DisplayName, entry.DisplayName, StringComparison.OrdinalIgnoreCase))
+        {
+            rule.DisplayName = entry.DisplayName;
+            changed = true;
+        }
+
+        if (!string.Equals(rule.SourceOwnerModId, entry.OwnerModId, StringComparison.OrdinalIgnoreCase))
+        {
+            rule.SourceOwnerModId = entry.OwnerModId;
+            changed = true;
+        }
+
+        if (!string.Equals(rule.SourceCgId, entry.CgId, StringComparison.OrdinalIgnoreCase))
+        {
+            rule.SourceCgId = entry.CgId;
+            changed = true;
+        }
+
+        if (!string.Equals(rule.CardId, cardId, StringComparison.OrdinalIgnoreCase))
+        {
+            rule.CardId = cardId;
+            changed = true;
+        }
+
+        if (!string.Equals(AuraSharedPaths.NormalizeRelativePath(rule.Image), image, StringComparison.OrdinalIgnoreCase))
+        {
+            rule.Image = image;
+            changed = true;
+        }
+
+        if (rule.Priority != entry.Priority)
+        {
+            rule.Priority = entry.Priority;
+            changed = true;
+        }
+
+        var presentation = CreatePresentationSettings(entry);
+        if (!SamePresentation(rule.Presentation, presentation))
+        {
+            rule.Presentation = presentation;
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private static SkillCgPresentationSettings CreatePresentationSettings(AuraCgRegistryEntry entry)
+    {
+        return new SkillCgPresentationSettings
+        {
+            Mode = entry.DefaultPresentation.Mode,
+            Fit = entry.DefaultPresentation.Fit,
+            FadeIn = entry.DefaultPresentation.FadeIn,
+            Hold = entry.DefaultPresentation.Hold,
+            FadeOut = entry.DefaultPresentation.FadeOut,
+            FocusX = entry.DefaultPresentation.FocusX,
+            FocusY = entry.DefaultPresentation.FocusY,
+            SafeScale = entry.DefaultPresentation.SafeScale
+        };
+    }
+
+    private static bool SamePresentation(SkillCgPresentationSettings? left, SkillCgPresentationSettings right)
+    {
+        left ??= SkillCgPresentationSettings.CreateInherited();
+        return string.Equals(left.Mode, right.Mode, StringComparison.OrdinalIgnoreCase)
+               && string.Equals(left.Fit, right.Fit, StringComparison.OrdinalIgnoreCase)
+               && Math.Abs(left.FadeIn - right.FadeIn) < 0.001f
+               && Math.Abs(left.Hold - right.Hold) < 0.001f
+               && Math.Abs(left.FadeOut - right.FadeOut) < 0.001f
+               && Math.Abs(left.FocusX - right.FocusX) < 0.001f
+               && Math.Abs(left.FocusY - right.FocusY) < 0.001f
+               && Math.Abs(left.SafeScale - right.SafeScale) < 0.001f;
+    }
+
+    private static string ResolveRegisteredRoleId(AuraCgRegistryEntry entry)
+    {
+        foreach (var value in entry.TargetRoleIds ?? new List<string>())
+        {
+            var roleId = RoleCatalog.NormalizeRoleId(value);
+            if (!string.IsNullOrWhiteSpace(roleId))
+            {
+                return roleId;
+            }
+        }
+
+        return "";
+    }
+
+    private static string ResolveRegisteredRoleDisplayName(string roleId)
+    {
+        var displayName = RoleCatalog.GetDisplayName(roleId);
+        return string.IsNullOrWhiteSpace(displayName)
+               || string.Equals(displayName, roleId, StringComparison.OrdinalIgnoreCase)
+            ? ""
+            : displayName;
+    }
+
+    private static string ResolveRegisteredImage(AuraCgRegistryEntry entry)
+    {
+        var image = entry.Media.Resource;
+        if (string.IsNullOrWhiteSpace(image))
+        {
+            image = entry.Media.FallbackImage;
+        }
+
+        return AuraSharedPaths.NormalizeRelativePath(image);
+    }
+
+    private static IEnumerable<string> ResolveRegisteredCardIds(AuraCgRegistryEntry entry)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var value in entry.CardIds ?? new List<string>())
+        {
+            var cardId = (value ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(cardId))
+            {
+                continue;
+            }
+
+            if (cardId.Contains("*") && !string.Equals(cardId, "*", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (seen.Add(cardId))
+            {
+                yield return cardId;
+            }
+        }
+
+        if (seen.Count == 0)
+        {
+            yield return "*";
+        }
+    }
+
+    private static bool IsSameRegisteredRule(SkillCgRuleSettings rule, string providerId, string cardId, string image)
+    {
+        return string.Equals(rule.ProviderId, providerId, StringComparison.OrdinalIgnoreCase)
+               || (string.Equals(rule.CardId, cardId, StringComparison.OrdinalIgnoreCase)
+                   && string.Equals(AuraSharedPaths.NormalizeRelativePath(rule.Image), image, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string RegisteredProviderId(AuraCgRegistryEntry entry, int index)
+    {
+        return AuraToolsIds.ModId
+               + ".RegisteredCG."
+               + SafeProviderSegment(entry.OwnerModId)
+               + "."
+               + SafeProviderSegment(entry.CgId)
+               + "."
+               + (index + 1);
+    }
+
+    private static string SafeProviderSegment(string value)
+    {
+        var text = (value ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return "unknown";
+        }
+
+        var chars = text
+            .Select(c => char.IsLetterOrDigit(c) || c == '_' || c == '-' ? c : '.')
+            .ToArray();
+        var result = new string(chars).Trim('.');
+        while (result.Contains(".."))
+        {
+            result = result.Replace("..", ".");
+        }
+
+        return string.IsNullOrWhiteSpace(result) ? "unknown" : result;
     }
 
     private static void SaveModule<T>(T value, string fileName)

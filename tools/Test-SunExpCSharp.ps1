@@ -604,10 +604,15 @@ internal static class Program
         score.Record("S", 3);
         score.Record("U", 3);
         score.Record("T", 3);
-        score.Record("C", 3);
+        score.RecordCompletedCadence("SUT");
+        score.RetainLastNoteAsCadenceStart();
 
-        Equal(3, score.Notes.Count, "Star score keeps a three-card sliding window");
-        Equal("U", score.Notes[0], "Star score drops the oldest note");
+        Equal(1, score.Notes.Count, "Star score keeps the last note after a completed cadence");
+        Equal("T", score.Notes[0], "Star score reuses the last overture as the next cadence start");
+        score.Record("C", 3);
+        score.Record("S", 3);
+        Equal(3, score.Notes.Count, "Star score builds the next cadence from the retained note");
+        Equal("T", score.Notes[0], "Star score retained note remains the first note of the next cadence");
         True(ReferenceEquals(score, StarScoreCombatStateStore.GetOrCreate(owner)), "Star score is shared across card executors for the same owner");
     }
 
@@ -740,7 +745,12 @@ function Invoke-SourceAssertions {
     $starClayDollScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\StarClayDollScripts.cs"))
     $scriptingSource = [string]::Join("`n", (Get-ChildItem -LiteralPath (Join-Path $RepoRoot "SunExp-Dev\Scripting") -File -Filter "*.cs" | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }))
     $solarEventRuntimePath = Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarEventRuntime.cs"
+    $battleRewardApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\BattleRewardApi.cs"))
+    $battleRewardAdjustmentService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\BattleRewardAdjustmentService.cs"))
+    $battleRewardAdjustmentRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\BattleRewardAdjustmentRuntime.cs"))
+    $solarMemoryRewardRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryRewardRuntime.cs"))
     $solarMemoryModeRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryModeRuntime.cs"))
+    $solarMemoryCombatRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryCombatRuntime.cs"))
     $modeChoiceEntryDefinition = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\ModeChoiceEntryDefinition.cs"))
     $modeChoiceEntryRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\ModeChoiceEntryRegistry.cs"))
     $modeChoiceLayoutRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\ModeChoiceLayoutRuntime.cs"))
@@ -845,6 +855,22 @@ function Invoke-SourceAssertions {
     Assert-True (-not $runtimeHooks.Contains("SolarEventRuntime.RepairMapSelection")) "RuntimeHooks must not repair normal adventure map selections for SunExp events."
     Assert-True (-not [System.IO.File]::Exists($solarEventRuntimePath)) "The retired normal-mode solar event injector file must be removed."
     Assert-True $runtimeHooks.Contains("SolarMemoryContentIsolationRuntime.Initialize(modConfig)") "RuntimeHooks must initialize the Solar Memory content isolation guard."
+    Assert-True $runtimeHooks.Contains("SolarMemoryCombatRuntime.Initialize(modConfig)") "RuntimeHooks must initialize Solar Memory combat tuning."
+    Assert-True $runtimeHooks.Contains("SolarMemoryRewardRuntime.Initialize()") "RuntimeHooks must register Solar Memory battle reward adjustment rules."
+    Assert-True $runtimeHooks.Contains("BattleRewardAdjustmentRuntime.Initialize(modConfig)") "RuntimeHooks must initialize generic battle reward adjustment hooks."
+    Assert-True $battleRewardAdjustmentRuntime.Contains('RegisterAfter(modConfig, "BattleRewardsUI.ModeSetReward", ApplyRewardAdjustments)') "Battle reward adjustments must run after native reward generation."
+    Assert-True $battleRewardAdjustmentRuntime.Contains("BattleRewardAdjustmentService.ApplyAll(context.Target as BattleRewardsUI)") "Battle reward runtime must delegate to the shared adjustment service."
+    Assert-True $battleRewardAdjustmentService.Contains("ConditionalWeakTable<BattleRewardsUI, AppliedRuleSet>") "Battle reward adjustment service must prevent duplicate rule application per UI."
+    Assert-True $battleRewardAdjustmentService.Contains("Rules.RemoveAll") "Battle reward adjustment rule registration must replace duplicate rule ids."
+    Assert-True $solarMemoryRewardRuntime.Contains("SolarMemoryModeRuntime.IsSolarMemoryRun()") "Solar Memory reward rule must only apply during Solar Memory runs."
+    Assert-True $solarMemoryRewardRuntime.Contains("BattleRewardApi.IsCurrentBattleReward()") "Solar Memory reward rule must target battle rewards."
+    Assert-True $solarMemoryRewardRuntime.Contains("BattleRewardApi.AppendRandomRelicReward") "Solar Memory battle rewards must append a random relic reward."
+    Assert-True $battleRewardApi.Contains("rewardUi.RandomSetRelic(candidates)") "Random relic rewards must reuse the native BattleRewardsUI relic flow."
+    Assert-True $battleRewardApi.Contains('DictionaryUtil.Get(row, "Rarity") != "4"') "Solar Memory extra random relics must not draw special rarity-4 relics by default."
+    Assert-True $battleRewardApi.Contains("manager.CardPackCheck(candidates)") "Extra random relic candidates must respect active card-pack filtering."
+    Assert-True $solarMemoryCombatRuntime.Contains('RegisterAfter(modConfig, "Enemy.Init", ScaleEnemyHpAfterInit)') "Solar Memory combat tuning must scale enemies after native Enemy.Init."
+    Assert-True $solarMemoryCombatRuntime.Contains("EnemyHpMultiplier = 3") "Solar Memory enemies must use the configured 3x HP multiplier."
+    Assert-True $solarMemoryCombatRuntime.Contains("SolarMemoryModeRuntime.IsSolarMemoryRun()") "Solar Memory enemy HP scaling must be gated to Solar Memory runs."
     Assert-True $solarMemoryContentIsolationRuntime.Contains('RegisterAfter(modConfig, "NormalMapManager.GeneratrMap", SanitizeGeneratedMap)') "Solar Memory isolation must sanitize World Simulation map generation."
     Assert-True $solarMemoryContentIsolationRuntime.Contains('RegisterAfter(modConfig, "SublimationManager.GeneratrMap", SanitizeGeneratedMap)') "Solar Memory isolation must sanitize Sublimation map generation."
     Assert-True $solarMemoryContentIsolationRuntime.Contains('RegisterAfter(modConfig, "TeachMapManager.GeneratrMap", SanitizeGeneratedMap)') "Solar Memory isolation must sanitize tutorial map generation."
@@ -966,6 +992,10 @@ function Invoke-SourceAssertions {
     Assert-True (-not $loneerService.Contains("SunExpIds.LoneerGuidanceCardId")) "Loneer guidance must not be stored in per-executor Vars."
     Assert-True $starScoreService.Contains("StarScoreCombatStateStore.GetOrCreate(self.Self)") "Star score notes must be owner-scoped across card executors."
     Assert-True $starScoreState.Contains("while (notes.Count > Math.Max(1, windowSize))") "Star score must maintain a bounded sliding window."
+    Assert-True $starScoreState.Contains("RetainLastNoteAsCadenceStart") "Star score must retain the last overture after a completed cadence."
+    Assert-True $starScoreService.Contains("state.RetainLastNoteAsCadenceStart();") "Star score cadence resolution must seed the next cadence with the final overture."
+    Assert-True $starScoreService.Contains("DrawCards(self, 1);") "Start-Start-Start cadence must draw exactly one card."
+    Assert-True $starScoreService.Contains('self.ChangePower("1");') "Start-Sustain-Turn cadence must restore exactly one power."
     Assert-True $duskPartnerScripts.Contains("SunExpDuskAfterheatHook") "Dusk trait scripts must remain in the Dusk module."
     Assert-True $starClayDollScripts.Contains("SunExpStarClayDollHook") "Star Clay Doll trait scripts must remain in the Star Clay module."
     Assert-True $starClayDollScripts.Contains('ExecutorApi.TryAddTokenedEvent(self, "ActionAfter"') "Star Clay Doll must grant starlight after an action resolves through the shared tokened event wrapper."
@@ -1093,7 +1123,10 @@ function Invoke-SourceAssertions {
     Assert-True ([regex]::IsMatch($solarMemoryMapNodePoolFactory, 'if\s*\(\s*layer\s*==\s*0\s*\)\s*\{\s*return\s+false\s*;')) "Solar memory must not feed a layer-one ending event into native FightPrefab initialization."
     Assert-True $solarMemoryMapNodePoolFactory.Contains("CreateExpandedBossPoolNode") "Solar memory must use an expanded all-layer boss pool for non-fixed boss nodes."
     Assert-True $solarMemoryMapNodePoolFactory.Contains("SolarMemoryMapNodePoolFactory.TypeGenerateFallback") "Solar memory TypeGenerate fallback nodes must be normalized for NodeDice."
-    Assert-True $solarMemoryMapNodePoolFactory.Contains("NodeDice = tree.treedice ?? Dice.Default") "Solar memory generated boss nodes must have deterministic NodeDice fallback."
+    Assert-True $solarMemoryMapNodePoolFactory.Contains("CreateFightNodeDice(tree)") "Solar memory generated boss nodes must receive per-node fight dice."
+    Assert-True $solarMemoryMapNodePoolFactory.Contains('"WithCursor"') "Solar memory boss node dice must route through the game's cursor forking API."
+    Assert-True $solarMemoryMapNodePoolFactory.Contains("dice.Roll().Value") "Solar memory boss nodes must consume a unique tree-dice cursor per node."
+    Assert-True (-not $solarMemoryMapNodePoolFactory.Contains("node.NodeDice = tree.treedice ?? Dice.Default")) "Solar memory boss nodes must not reuse the shared tree dice directly."
     Assert-True $solarMemoryMapNodePoolFactory.Contains("IsSolarMemoryFixedStoryBoss") "Solar memory expanded boss pool must exclude fixed Wuna story bosses."
     Assert-True $sunExpIds.Contains("SolarBossOrbitMirrorMapId") "Solar memory must define the fixed mirror-array boss map id."
     Assert-True $sunExpIds.Contains("SolarBossSecondSunMapId") "Solar memory must define the fixed second-sun boss map id."

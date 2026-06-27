@@ -1,0 +1,131 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <RootNamespace>Aura.Shared</RootNamespace>
+    <AssemblyName>Aura.Shared</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ManagedPath Condition="'$(ManagedPath)' == ''">$(MSBuildProjectDirectory)\..\Managed</ManagedPath>
+    <DllPath>$(ManagedPath)</DllPath>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DebugType>embedded</DebugType>
+    <IsPublishable>true</IsPublishable>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DebugType>embedded</DebugType>
+    <IsPublishable>true</IsPublishable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\AuraSharedCore\*.cs" Link="AuraSharedCore\%(Filename)%(Extension)" />
+    <Compile Include="..\AuraAudioShared\*.cs" Link="AuraAudioShared\%(Filename)%(Extension)" />
+    <Compile Include="..\AuraCgShared\*.cs" Link="AuraCgShared\%(Filename)%(Extension)" />
+    <Compile Include="..\AuraLogShared\*.cs" Link="AuraLogShared\%(Filename)%(Extension)" />
+    <Compile Include="..\AuraJourneyShared\*.cs" Link="AuraJourneyShared\%(Filename)%(Extension)" />
+    <Compile Include="..\AuraSkinShared\**\*.cs" Link="AuraSkinShared\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\AuraOnlineShared\*.cs" Link="AuraOnlineShared\%(Filename)%(Extension)" />
+    <Compile Include="..\AudioArbiterShared\AudioArbiterRuntime.cs" Link="AudioArbiterShared\AudioArbiterRuntime.cs" />
+    <Compile Include="..\BattleBgmArbiterShared\BattleBgmArbiterRuntime.cs" Link="BattleBgmArbiterShared\BattleBgmArbiterRuntime.cs" />
+    <Compile Include="..\StarterDeckArbiterShared\StarterDeckArbiterRuntime.cs" Link="StarterDeckArbiterShared\StarterDeckArbiterRuntime.cs" />
+    <Compile Include="..\UiRaycastSafetyShared\UiRaycastSafeDestroyRuntime.cs" Link="UiRaycastSafetyShared\UiRaycastSafeDestroyRuntime.cs" />
+    <Compile Include="..\UiTransitionGuardShared\UiTransitionGuardRuntime.cs" Link="UiTransitionGuardShared\UiTransitionGuardRuntime.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="netstandard">
+      <HintPath>$(DllPath)\netstandard.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(DllPath)\Newtonsoft.Json.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(DllPath)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AudioModule">
+      <HintPath>$(DllPath)\UnityEngine.AudioModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(DllPath)\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.ImageConversionModule">
+      <HintPath>$(DllPath)\UnityEngine.ImageConversionModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>$(DllPath)\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Unity.InputSystem">
+      <HintPath>$(DllPath)\Unity.InputSystem.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Unity.TextMeshPro">
+      <HintPath>$(DllPath)\Unity.TextMeshPro.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>$(DllPath)\UnityEngine.UIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>$(DllPath)\UnityEngine.UI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestModule">
+      <HintPath>$(DllPath)\UnityEngine.UnityWebRequestModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestAudioModule">
+      <HintPath>$(DllPath)\UnityEngine.UnityWebRequestAudioModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestTextureModule">
+      <HintPath>$(DllPath)\UnityEngine.UnityWebRequestTextureModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.JSONSerializeModule">
+      <HintPath>$(DllPath)\UnityEngine.JSONSerializeModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UniTask">
+      <HintPath>$(DllPath)\UniTask.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Witch">
+      <HintPath>$(DllPath)\Witch.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Witch.Core">
+      <HintPath>$(DllPath)\Witch.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Plugins">
+      <HintPath>$(DllPath)\Plugins.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="ZLinq">
+      <HintPath>$(DllPath)\ZLinq.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Mirror">
+      <HintPath>$(DllPath)\Mirror.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="MemoryPack.Core">
+      <HintPath>$(DllPath)\MemoryPack.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

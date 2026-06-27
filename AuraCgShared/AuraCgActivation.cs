@@ -1,0 +1,461 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using AuraShared.Core;
+using Newtonsoft.Json;
+
+namespace AuraCg.Shared;
+
+public static class AuraCgActivationRuntime
+{
+    public const string ActivationFileName = "cg.activation.json";
+    public const int CurrentActivationSchemaVersion = 1;
+    public const string SourceManifestDefault = "ManifestDefault";
+    public const string SourceUserOverride = "UserOverride";
+
+    public static bool ApplyManifestDefaults(string ownerModId, IEnumerable<AuraCgRegistryEntry> entries)
+    {
+        var normalizedEntries = (entries ?? Array.Empty<AuraCgRegistryEntry>())
+            .Where(entry => entry != null && entry.Enabled && !string.IsNullOrWhiteSpace(entry.CgId))
+            .ToList();
+        if (normalizedEntries.Count == 0)
+        {
+            return false;
+        }
+
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            var snapshot = ReadDocument();
+            var document = snapshot.Value ?? new AuraCgActivationDocument();
+            document.Normalize();
+            var changed = false;
+            foreach (var entry in normalizedEntries)
+            {
+                entry.Normalize(ownerModId);
+                changed |= document.ApplyManifestDefault(entry);
+            }
+
+            if (!changed)
+            {
+                return true;
+            }
+
+            var result = AuraSharedConfigStore.WriteShared(
+                AuraCgRegistryRuntime.RegistryAuthorityId,
+                AuraSharedSystems.Cg,
+                ActivationFileName,
+                document,
+                snapshot.Found ? snapshot.Revision : 0,
+                CurrentActivationSchemaVersion);
+            if (result.Success)
+            {
+                AuraCgLog.InfoOnce(
+                    "cg-activation-defaults:" + ownerModId,
+                    "CG activation defaults applied. owner=" + ownerModId + ", entries=" + normalizedEntries.Count);
+                return true;
+            }
+
+            if (!result.Conflict)
+            {
+                AuraCgLog.WarnOnce("cg-activation-write-failed:" + ownerModId, "CG activation write failed: " + result.Message);
+                return false;
+            }
+        }
+
+        AuraCgLog.WarnOnce("cg-activation-conflict:" + ownerModId, "CG activation write conflicted repeatedly for " + ownerModId + ".");
+        return false;
+    }
+
+    public static bool CanConsumerPlay(AuraCgRegistryEntry entry, string consumerModId)
+    {
+        if (entry == null || !entry.Enabled)
+        {
+            return false;
+        }
+
+        var state = GetEffectiveState(entry);
+        return CanConsumerPlayState(entry.OwnerModId, state, consumerModId);
+    }
+
+    public static bool CanConsumerPlay(string ownerModId, string cgId, string consumerModId)
+    {
+        if (string.IsNullOrWhiteSpace(ownerModId) || string.IsNullOrWhiteSpace(cgId))
+        {
+            return true;
+        }
+
+        var registered = AuraCgRegistryRuntime.GetRegisteredEntries(ownerModId)
+            .FirstOrDefault(entry => string.Equals(entry.CgId, cgId, StringComparison.OrdinalIgnoreCase));
+        if (registered != null)
+        {
+            return CanConsumerPlay(registered, consumerModId);
+        }
+
+        var state = GetStoredState(AuraCgRegistryEntry.Qualify(ownerModId, cgId));
+        return state == null || CanConsumerPlayState(ownerModId, state, consumerModId);
+    }
+
+    public static bool SetOverride(string ownerModId, string cgId, bool enabled, string consumerMode, string consumerModId)
+    {
+        var key = AuraCgRegistryEntry.Qualify(ownerModId, cgId);
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return false;
+        }
+
+        return UpdateState(key, state =>
+        {
+            state.OwnerModId = ownerModId;
+            state.CgId = cgId;
+            state.QualifiedCgId = key;
+            state.Enabled = enabled;
+            state.ConsumerMode = consumerMode;
+            state.ConsumerModId = consumerModId;
+            state.Source = AuraCgActivationRuntime.SourceUserOverride;
+            state.UserOverridden = true;
+            state.Normalize();
+        });
+    }
+
+    public static bool ClearOverride(string ownerModId, string cgId)
+    {
+        var registered = AuraCgRegistryRuntime.GetRegisteredEntries(ownerModId)
+            .FirstOrDefault(entry => string.Equals(entry.CgId, cgId, StringComparison.OrdinalIgnoreCase));
+        if (registered == null)
+        {
+            return false;
+        }
+
+        return UpdateState(registered.QualifiedCgId, state =>
+        {
+            var desired = AuraCgActivationEntryState.FromManifest(registered);
+            state.OwnerModId = desired.OwnerModId;
+            state.CgId = desired.CgId;
+            state.QualifiedCgId = desired.QualifiedCgId;
+            state.Enabled = desired.Enabled;
+            state.ConsumerMode = desired.ConsumerMode;
+            state.ConsumerModId = desired.ConsumerModId;
+            state.Source = desired.Source;
+            state.UserOverridden = false;
+            state.Normalize();
+        });
+    }
+
+    public static AuraCgActivationEntryState GetEffectiveState(AuraCgRegistryEntry entry)
+    {
+        if (entry == null)
+        {
+            return new AuraCgActivationEntryState();
+        }
+
+        var stored = GetStoredState(entry.QualifiedCgId);
+        if (stored != null)
+        {
+            return stored;
+        }
+
+        var fallback = AuraCgActivationEntryState.FromManifest(entry);
+        fallback.Normalize();
+        return fallback;
+    }
+
+    private static bool UpdateState(string qualifiedCgId, Action<AuraCgActivationEntryState> update)
+    {
+        if (string.IsNullOrWhiteSpace(qualifiedCgId) || update == null)
+        {
+            return false;
+        }
+
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            var snapshot = ReadDocument();
+            var document = snapshot.Value ?? new AuraCgActivationDocument();
+            document.Normalize();
+            var state = document.Entries.FirstOrDefault(entry =>
+                string.Equals(entry.QualifiedCgId, qualifiedCgId, StringComparison.OrdinalIgnoreCase));
+            if (state == null)
+            {
+                state = new AuraCgActivationEntryState { QualifiedCgId = qualifiedCgId };
+                document.Entries.Add(state);
+            }
+
+            update(state);
+            document.Normalize();
+            var result = AuraSharedConfigStore.WriteShared(
+                AuraCgRegistryRuntime.RegistryAuthorityId,
+                AuraSharedSystems.Cg,
+                ActivationFileName,
+                document,
+                snapshot.Found ? snapshot.Revision : 0,
+                CurrentActivationSchemaVersion);
+            if (result.Success)
+            {
+                return true;
+            }
+
+            if (!result.Conflict)
+            {
+                AuraCgLog.WarnOnce("cg-activation-override-failed:" + qualifiedCgId, "CG activation override write failed: " + result.Message);
+                return false;
+            }
+        }
+
+        AuraCgLog.WarnOnce("cg-activation-override-conflict:" + qualifiedCgId, "CG activation override write conflicted repeatedly for " + qualifiedCgId + ".");
+        return false;
+    }
+
+    private static AuraCgActivationEntryState? GetStoredState(string qualifiedCgId)
+    {
+        if (string.IsNullOrWhiteSpace(qualifiedCgId))
+        {
+            return null;
+        }
+
+        var snapshot = ReadDocument();
+        var document = snapshot.Value ?? new AuraCgActivationDocument();
+        document.Normalize();
+        return document.Entries.FirstOrDefault(entry =>
+            string.Equals(entry.QualifiedCgId, qualifiedCgId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool CanConsumerPlayState(string ownerModId, AuraCgActivationEntryState state, string consumerModId)
+    {
+        state ??= new AuraCgActivationEntryState();
+        state.Normalize();
+        if (!state.Enabled)
+        {
+            return false;
+        }
+
+        var consumer = (consumerModId ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(consumer))
+        {
+            return false;
+        }
+
+        if (string.Equals(state.ConsumerMode, AuraCgConsumerModes.ContentOwned, StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Equals(ownerModId, consumer, StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (string.Equals(state.ConsumerMode, AuraCgConsumerModes.ToolManaged, StringComparison.OrdinalIgnoreCase))
+        {
+            return string.IsNullOrWhiteSpace(state.ConsumerModId)
+                   || string.Equals(state.ConsumerModId, consumer, StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (string.Equals(state.ConsumerMode, AuraCgConsumerModes.SharedRuntime, StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Equals(AuraCgRegistryRuntime.RegistryAuthorityId, consumer, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return false;
+    }
+
+    private static AuraSharedConfigSnapshot<AuraCgActivationDocument> ReadDocument()
+    {
+        return AuraSharedConfigStore.ReadShared(
+            AuraCgRegistryRuntime.RegistryAuthorityId,
+            AuraSharedSystems.Cg,
+            ActivationFileName,
+            new AuraCgActivationDocument());
+    }
+}
+
+public static class AuraCgConsumerModes
+{
+    public const string Disabled = "disabled";
+    public const string ContentOwned = "contentOwned";
+    public const string ToolManaged = "toolManaged";
+    public const string SharedRuntime = "sharedRuntime";
+
+    public static string Normalize(string? value)
+    {
+        var mode = value?.Trim() ?? "";
+        if (string.Equals(mode, Disabled, StringComparison.OrdinalIgnoreCase))
+        {
+            return Disabled;
+        }
+
+        if (string.Equals(mode, ToolManaged, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mode, "tool", StringComparison.OrdinalIgnoreCase))
+        {
+            return ToolManaged;
+        }
+
+        if (string.Equals(mode, SharedRuntime, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mode, "shared", StringComparison.OrdinalIgnoreCase))
+        {
+            return SharedRuntime;
+        }
+
+        return ContentOwned;
+    }
+}
+
+public sealed class AuraCgActivationDocument
+{
+    [JsonProperty("schemaVersion")]
+    public int SchemaVersion { get; set; } = AuraCgActivationRuntime.CurrentActivationSchemaVersion;
+
+    [JsonProperty("entries")]
+    public List<AuraCgActivationEntryState> Entries { get; set; } = new();
+
+    public void Normalize()
+    {
+        SchemaVersion = Math.Max(AuraCgActivationRuntime.CurrentActivationSchemaVersion, SchemaVersion);
+        Entries ??= new List<AuraCgActivationEntryState>();
+        var normalized = new Dictionary<string, AuraCgActivationEntryState>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in Entries)
+        {
+            if (entry == null)
+            {
+                continue;
+            }
+
+            entry.Normalize();
+            if (string.IsNullOrWhiteSpace(entry.QualifiedCgId))
+            {
+                continue;
+            }
+
+            normalized[entry.QualifiedCgId] = entry;
+        }
+
+        Entries = normalized.Values
+            .OrderBy(entry => entry.OwnerModId, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(entry => entry.CgId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    public bool ApplyManifestDefault(AuraCgRegistryEntry entry)
+    {
+        var key = entry.QualifiedCgId;
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return false;
+        }
+
+        var existing = Entries.FirstOrDefault(state =>
+            string.Equals(state.QualifiedCgId, key, StringComparison.OrdinalIgnoreCase));
+        var desired = AuraCgActivationEntryState.FromManifest(entry);
+        if (existing == null)
+        {
+            Entries.Add(desired);
+            Normalize();
+            return true;
+        }
+
+        existing.OwnerModId = entry.OwnerModId;
+        existing.CgId = entry.CgId;
+        existing.QualifiedCgId = key;
+        if (existing.UserOverridden
+            || string.Equals(existing.Source, AuraCgActivationRuntime.SourceUserOverride, StringComparison.OrdinalIgnoreCase))
+        {
+            existing.Normalize();
+            return false;
+        }
+
+        var changed = false;
+        if (existing.Enabled != desired.Enabled)
+        {
+            existing.Enabled = desired.Enabled;
+            changed = true;
+        }
+
+        if (!string.Equals(existing.ConsumerMode, desired.ConsumerMode, StringComparison.Ordinal))
+        {
+            existing.ConsumerMode = desired.ConsumerMode;
+            changed = true;
+        }
+
+        if (!string.Equals(existing.ConsumerModId, desired.ConsumerModId, StringComparison.Ordinal))
+        {
+            existing.ConsumerModId = desired.ConsumerModId;
+            changed = true;
+        }
+
+        if (!string.Equals(existing.Source, AuraCgActivationRuntime.SourceManifestDefault, StringComparison.Ordinal))
+        {
+            existing.Source = AuraCgActivationRuntime.SourceManifestDefault;
+            changed = true;
+        }
+
+        existing.Normalize();
+        return changed;
+    }
+}
+
+public sealed class AuraCgActivationEntryState
+{
+    [JsonProperty("qualifiedCgId")]
+    public string QualifiedCgId { get; set; } = "";
+
+    [JsonProperty("ownerModId")]
+    public string OwnerModId { get; set; } = "";
+
+    [JsonProperty("cgId")]
+    public string CgId { get; set; } = "";
+
+    [JsonProperty("enabled")]
+    public bool Enabled { get; set; } = true;
+
+    [JsonProperty("consumerMode")]
+    public string ConsumerMode { get; set; } = AuraCgConsumerModes.ContentOwned;
+
+    [JsonProperty("consumerModId")]
+    public string ConsumerModId { get; set; } = "";
+
+    [JsonProperty("source")]
+    public string Source { get; set; } = AuraCgActivationRuntime.SourceManifestDefault;
+
+    [JsonProperty("userOverridden")]
+    public bool UserOverridden { get; set; }
+
+    public static AuraCgActivationEntryState FromManifest(AuraCgRegistryEntry entry)
+    {
+        entry.DefaultActivation ??= new AuraCgDefaultActivationSpec();
+        entry.DefaultActivation.Normalize();
+        return new AuraCgActivationEntryState
+        {
+            QualifiedCgId = entry.QualifiedCgId,
+            OwnerModId = entry.OwnerModId,
+            CgId = entry.CgId,
+            Enabled = entry.Enabled && entry.DefaultActivation.Enabled,
+            ConsumerMode = entry.DefaultActivation.ConsumerMode,
+            ConsumerModId = entry.DefaultActivation.ConsumerModId,
+            Source = AuraCgActivationRuntime.SourceManifestDefault,
+            UserOverridden = false
+        };
+    }
+
+    public void Normalize()
+    {
+        OwnerModId = (OwnerModId ?? "").Trim();
+        CgId = (CgId ?? "").Trim();
+        QualifiedCgId = string.IsNullOrWhiteSpace(QualifiedCgId)
+            ? AuraCgRegistryEntry.Qualify(OwnerModId, CgId)
+            : QualifiedCgId.Trim();
+        ConsumerMode = AuraCgConsumerModes.Normalize(ConsumerMode);
+        ConsumerModId = (ConsumerModId ?? "").Trim();
+        Source = string.IsNullOrWhiteSpace(Source) ? AuraCgActivationRuntime.SourceManifestDefault : Source.Trim();
+    }
+}
+
+public sealed class AuraCgDefaultActivationSpec
+{
+    [JsonProperty("enabled")]
+    public bool Enabled { get; set; } = true;
+
+    [JsonProperty("consumerMode")]
+    public string ConsumerMode { get; set; } = AuraCgConsumerModes.ContentOwned;
+
+    [JsonProperty("consumerModId")]
+    public string ConsumerModId { get; set; } = "";
+
+    public void Normalize()
+    {
+        ConsumerMode = AuraCgConsumerModes.Normalize(ConsumerMode);
+        ConsumerModId = (ConsumerModId ?? "").Trim();
+    }
+}

@@ -1,11 +1,13 @@
 # AuraSharedCore v2 Contract
 
-AuraSharedCore v2 is the shared runtime protocol used by participating Mod DLLs.
-The first compatible consumer creates `AuraShared.Global`; later consumers call
-that global component through a reflected JSON protocol. Core owns shared writes,
-resource installation, revision checks, package transaction recovery, operation
-logs, and deterministic snapshots. System adapters own business parsing and
-runtime behavior.
+AuraSharedCore v2 is the shared runtime protocol used by participating Mod DLLs
+through the real `Aura.Shared.dll` assembly. Product Mods reference and package
+that shared DLL; they must not compile private copies of shared source. The first
+compatible consumer creates `AuraShared.Global`; later consumers reuse the same
+shared assembly and call that global component through a reflected JSON protocol.
+Core owns shared writes, resource installation, revision checks, package
+transaction recovery, operation logs, and deterministic snapshots. System
+adapters own business parsing and runtime behavior.
 
 ## Compatibility
 
@@ -166,6 +168,10 @@ Resource -> Registry -> cross-process write mutex
 The release gate is `tools/Test-SharedReleaseGate.ps1`. It loads
 `tools/shared-release-matrix.json`, runs enabled steps, and fails the build when a
 contract, scan, adapter, package, or consumer-build check fails.
+
+`tools/Test-SharedDllPackaging.ps1` verifies that main shared consumers package
+the same `Aura.Shared.dll` binary and that product projects reference
+`AuraSharedRuntime-Dev/Aura.Shared.csproj` instead of linking shared source.
 
 The architecture guideline scan is `tools/Test-SharedArchitectureGuidelines.ps1`.
 It enforces global-runtime compatibility surfaces, provider identity rules,

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using Data.Save;
 using SunExp.Dll.Infrastructure;
 using Witch;
@@ -14,6 +15,9 @@ public static class SolarMemoryMapNodePoolFactory
     public const int MidLayerSlotIndex = 3;
     public const int PenultimateSlotIndex = 4;
     public const int EndingSlotIndex = 5;
+    private static readonly MethodInfo? DiceWithCursorMethod = typeof(Dice).GetMethod(
+        "WithCursor",
+        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
     private const string BossMapNote = "首领";
 
     public static SolarMemoryMapNodePool GenerateLayer(NormalMapManager manager, MapTree tree)
@@ -217,7 +221,7 @@ public static class SolarMemoryMapNodePoolFactory
                     ["NodeId"] = "map_0",
                     ["Level"] = "-1"
                 },
-                NodeDice = tree.treedice ?? Dice.Default
+                NodeDice = CreateFightNodeDice(tree)
             };
         }
     }
@@ -289,7 +293,27 @@ public static class SolarMemoryMapNodePoolFactory
         node.data = new Dictionary<string, string>(row);
         node.data["Type"] = "Fight";
         node.data["Note"] = BossMapNote;
-        node.NodeDice = tree.treedice ?? Dice.Default;
+        node.NodeDice = CreateFightNodeDice(tree);
         return node;
+    }
+
+    private static Dice CreateFightNodeDice(MapTree tree)
+    {
+        var dice = tree?.treedice;
+        if (dice == null)
+        {
+            return Dice.Default;
+        }
+
+        try
+        {
+            var cursor = dice.Roll().Value;
+            return DiceWithCursorMethod?.Invoke(dice, new object[] { cursor }) as Dice ?? dice;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[SolarMemoryMapNodePool] failed to fork fight NodeDice: " + ex.Message);
+            return dice;
+        }
     }
 }

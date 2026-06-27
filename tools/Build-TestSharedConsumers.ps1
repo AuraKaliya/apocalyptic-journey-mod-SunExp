@@ -14,7 +14,8 @@ $projects = @(
     "TestMods\SkinExp-Dev\SkinExp.Dll.csproj",
     "TestMods\BackgroundAudioReplaceExp-Dev\BackgroundAudioReplaceExp.Dll.csproj",
     "TestMods\CardUseCialloExp-Dev\CardUseCialloExp.Dll.csproj",
-    "TestMods\ChatExp-Dev\ChatExp.Dll.csproj"
+    "TestMods\ChatExp-Dev\ChatExp.Dll.csproj",
+    "TestMods\SkillCGExp-Dev\SkillCGExp.Dll.csproj"
 )
 
 foreach ($project in $projects) {

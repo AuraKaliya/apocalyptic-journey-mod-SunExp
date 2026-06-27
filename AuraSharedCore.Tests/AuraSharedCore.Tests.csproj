@@ -9,6 +9,8 @@
 
   <ItemGroup>
     <Compile Include="..\AuraSharedCore\AuraSharedJson.cs" Link="Core\AuraSharedJson.cs" />
+    <Compile Include="..\AuraSharedCore\AuraSharedIdentity.cs" Link="Core\AuraSharedIdentity.cs" />
+    <Compile Include="..\AuraSharedCore\AuraSharedSecureEnvelope.cs" Link="Core\AuraSharedSecureEnvelope.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedOperationLog.cs" Link="Core\AuraSharedOperationLog.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedResourceLockTable.cs" Link="Core\AuraSharedResourceLockTable.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedStorageModels.cs" Link="Core\AuraSharedStorageModels.cs" />

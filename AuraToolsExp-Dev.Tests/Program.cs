@@ -2,6 +2,7 @@ using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using AuraToolsExp.Dll.Features.DamageMeter.Input;
 using AuraToolsExp.Dll.Features.DamageMeter.Network;
+using AuraToolsExp.Dll.Features.DamageMeter.SettlementCg;
 using AuraToolsExp.Dll.Infrastructure;
 
 var assertions = 0;
@@ -14,10 +15,16 @@ TestLongRunningTotals();
 TestFilteringAndGrandTotal();
 TestDetailLimit();
 TestAdventureHistory();
+TestBestHitAndScientificFormat();
+TestOutOfRunHistoryBuilder();
 TestDeterministicAllocation();
 TestHotkeyNames();
 TestInputFaultGate();
 TestDamageMeterSettingsNormalization();
+TestDamageSettlementCgSettingsAndLayout();
+TestDamageSettlementCgPayloadOrdering();
+TestDamageSettlementCgAnimationSpec();
+TestSkillCgPresentationNormalization();
 TestDamageMeterAuthorityPolicy();
 
 Console.WriteLine($"AuraToolsExp damage meter tests passed: {assertions} assertions.");
@@ -154,10 +161,172 @@ void TestDamageMeterSettingsNormalization()
     Assert(settings.MaxRows == 6, "DPS row count uses the fixed default");
     Assert(settings.ShowAverageDpt, "average DPT display is always enabled");
     Assert(settings.ShowTeamShare, "team damage share display is always enabled");
+    Assert(settings.SettlementCg.Enabled
+           && settings.SettlementCg.BackgroundResource == "Mods/AuraToolsExp/ModResource/DPSCG/DPS-CG.png"
+           && settings.SettlementCg.BaseWidth == 1600
+           && settings.SettlementCg.BaseHeight == 900
+           && settings.SettlementCg.SlotSize == 180,
+        "DPS settlement CG defaults normalize with the damage meter");
 
     settings.FriendlyOnly = false;
     settings.Normalize();
     Assert(settings.IncludeUnknownTeam, "unfiltered DPS includes unknown-team damage");
+}
+
+void TestDamageSettlementCgSettingsAndLayout()
+{
+    var settings = new DamageSettlementCgSettings
+    {
+        BackgroundResource = "",
+        BaseWidth = 0,
+        BaseHeight = -1,
+        SlotSize = 0,
+        FadeIn = -1f,
+        Hold = 100f,
+        FadeOut = 99f
+    };
+    settings.Normalize();
+    Assert(settings.BackgroundResource == "Mods/AuraToolsExp/ModResource/DPSCG/DPS-CG.png",
+        "settlement CG background falls back to bundled resource");
+    Assert(settings.BaseWidth == 1 && settings.BaseHeight == 1 && settings.SlotSize == 1,
+        "settlement CG dimensions are clamped positive");
+    Assert(settings.FadeIn == 0f && Math.Abs(settings.Hold - 30f) < 0.001f && Math.Abs(settings.FadeOut - 5f) < 0.001f,
+        "settlement CG timing is clamped");
+
+    settings = new DamageSettlementCgSettings();
+    settings.Normalize();
+    var layout = DamageSettlementCgLayout.Calculate(1920f, 1080f, settings);
+    Assert(Math.Abs(layout.Scale - 1.2f) < 0.001f, "settlement CG uses cover scale at 16:9");
+    var first = layout.SlotForRank(1)!.Rect;
+    Assert(Math.Abs(first.X - 780f) < 0.001f
+           && Math.Abs(first.Y - 336f) < 0.001f
+           && Math.Abs(first.Width - 216f) < 0.001f,
+        "rank one slot scales from 1600x900 coordinates");
+
+    var wide = DamageSettlementCgLayout.Calculate(2560f, 1080f, settings);
+    Assert(Math.Abs(wide.Scale - 1.6f) < 0.001f
+           && Math.Abs(wide.Background.Y + 180f) < 0.001f,
+        "settlement CG cover crops vertically on ultrawide viewports");
+}
+
+void TestDamageSettlementCgPayloadOrdering()
+{
+    var record = new OutOfRunDamageHistoryRecord
+    {
+        AdventureId = "adventure",
+        EndedUtc = "now",
+        TeamMembers = new List<OutOfRunTeamMemberSnapshot>
+        {
+            new() { InstanceId = "p4", PlayerId = "p4", RoleId = "role4", RoleDisplayName = "D", TotalDamage = 10, Dps = 10 },
+            new() { InstanceId = "p1", PlayerId = "p1", RoleId = "role1", RoleDisplayName = "A", TotalDamage = 100, Dps = 20 },
+            new() { InstanceId = "p3", PlayerId = "p3", RoleId = "role3", RoleDisplayName = "C", TotalDamage = 50, Dps = 30 },
+            new() { InstanceId = "p2", PlayerId = "p2", RoleId = "role2", RoleDisplayName = "B", TotalDamage = 100, Dps = 15 },
+            new() { InstanceId = "p5", PlayerId = "p5", RoleId = "role5", RoleDisplayName = "E", TotalDamage = 1, Dps = 1 }
+        }
+    };
+
+    var payload = DamageSettlementCgBuilder.Build(record, new DamageSettlementCgSettings());
+    Assert(payload.Entries.Count == 4, "settlement CG payload keeps the four display slots");
+    Assert(payload.Entries[0].InstanceId == "p1"
+           && payload.Entries[1].InstanceId == "p2"
+           && payload.Entries[2].InstanceId == "p3"
+           && payload.Entries[3].InstanceId == "p4",
+        "settlement CG payload orders by total DPS damage with deterministic tie breakers");
+    Assert(payload.Entries.Select(entry => entry.Rank).SequenceEqual(new[] { 1, 2, 3, 4 }),
+        "settlement CG payload assigns rank numbers");
+
+    payload = DamageSettlementCgBuilder.Build(new OutOfRunDamageHistoryRecord
+    {
+        TeamMembers = new List<OutOfRunTeamMemberSnapshot>
+        {
+            new() { InstanceId = "solo", PlayerId = "solo", RoleId = "role1", RoleDisplayName = "A", TotalDamage = 100, Dps = 20 }
+        }
+    }, new DamageSettlementCgSettings());
+    Assert(payload.Entries.Count == 1 && payload.Entries[0].InstanceId == "solo",
+        "settlement CG payload does not pad missing display slots with test data");
+}
+
+void TestDamageSettlementCgAnimationSpec()
+{
+    var native = DamageSettlementCgAnimationSpec.FromJson(
+        "{\"FrameCount\":2,\"FrameRate\":8}",
+        new[] { "Idle_10", "Idle_00", "Idle_01" });
+    Assert(native.OrderedFrameNames.SequenceEqual(new[] { "Idle_00", "Idle_01" })
+           && Math.Abs(native.FrameSeconds - 0.125f) < 0.001f,
+        "native idle animation config uses frame count and frame rate");
+
+    var shared = DamageSettlementCgAnimationSpec.FromJson(
+        "{\"AnimationPerFrame\":0.2,\"isLoop\":false,\"Direction\":\"Left\"}",
+        new[] { "matte_00002", "matte_00001" });
+    Assert(shared.OrderedFrameNames.SequenceEqual(new[] { "matte_00001", "matte_00002" })
+           && Math.Abs(shared.FrameSeconds - 0.2f) < 0.001f
+           && !shared.Loop
+           && shared.Direction == "Left",
+        "shared skin idle animation config uses AnimationPerFrame and natural frame order");
+}
+
+void TestSkillCgPresentationNormalization()
+{
+    var settings = new AuraToolsSkillCgSettings
+    {
+        DefaultPresentation = new SkillCgPresentationSettings
+        {
+            Mode = "fullscreenFade",
+            Fit = "cover",
+            FadeIn = 0.2f,
+            Hold = 2f,
+            FadeOut = 0.3f,
+            FocusX = 0.4f,
+            FocusY = 0.6f,
+            SafeScale = 1.1f
+        },
+        Roles = new Dictionary<string, SkillCgRoleSettings>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["career_1"] = new()
+            {
+                RoleId = "career_1",
+                Rules =
+                {
+                    new SkillCgRuleSettings
+                    {
+                        CardId = "careercard_1",
+                        Image = "CG/AuraToolsExp/Roles/1/skill_cg.png"
+                    },
+                    new SkillCgRuleSettings
+                    {
+                        CardId = "careercard_2",
+                        Image = "CG/AuraToolsExp/Roles/1/skill_cg_2.png",
+                        Presentation = new SkillCgPresentationSettings
+                        {
+                            Mode = "centerFade",
+                            Fit = "stretch",
+                            Hold = 1.25f,
+                            FocusX = 2f,
+                            SafeScale = 0.5f
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    settings.Normalize();
+    var rules = settings.Roles["career_1"].Rules;
+    Assert(rules[0].EffectivePresentation.Mode == "fullscreenFade"
+           && rules[0].EffectivePresentation.Fit == "cover"
+           && Math.Abs(rules[0].EffectivePresentation.Hold - 2f) < 0.001f
+           && Math.Abs(rules[0].EffectivePresentation.FocusX - 0.4f) < 0.001f
+           && Math.Abs(rules[0].EffectivePresentation.FocusY - 0.6f) < 0.001f
+           && Math.Abs(rules[0].EffectivePresentation.SafeScale - 1.1f) < 0.001f,
+        "skill CG presentation inherits global defaults");
+    Assert(rules[1].EffectivePresentation.Mode == "centerFade"
+           && rules[1].EffectivePresentation.Fit == "stretch"
+           && Math.Abs(rules[1].EffectivePresentation.FadeIn - 0.2f) < 0.001f
+           && Math.Abs(rules[1].EffectivePresentation.Hold - 1.25f) < 0.001f
+           && Math.Abs(rules[1].EffectivePresentation.FocusX - 1f) < 0.001f
+           && Math.Abs(rules[1].EffectivePresentation.FocusY - 0.6f) < 0.001f
+           && Math.Abs(rules[1].EffectivePresentation.SafeScale - 1f) < 0.001f,
+        "skill CG rule presentation overrides selected fields");
 }
 
 void TestDamageMeterAuthorityPolicy()
@@ -236,6 +405,109 @@ void TestAdventureHistory()
            && restored.Records[^1].Snapshot.Combatants.Single().TotalHpDamage
            == history.Records[^1].Snapshot.Combatants.Single().TotalHpDamage,
         "history snapshot round-trips with combat details");
+}
+
+void TestBestHitAndScientificFormat()
+{
+    Assert(DamageMeterFormatters.FormatScientific(12345) == "1.234 E+04",
+        "scientific formatter truncates mantissa and keeps exponent width");
+    Assert(DamageMeterFormatters.TrimDisplayName("ABCDEFGHIJKLMN") == "ABCDEFGHIJKL",
+        "display name keeps exactly twelve visible characters");
+
+    var ledger = NewLedger();
+    ledger.StartRound(1);
+    Apply(ledger, 1, "p1", 25, 0, DamageTeam.Friendly, "small");
+    Apply(ledger, 2, "p2", 200, 10, DamageTeam.Friendly, "big");
+    Apply(ledger, 3, "p1", 150, 100, DamageTeam.Friendly, "bigger");
+
+    var bestHit = ledger.BestHit();
+    Assert(bestHit != null
+           && bestHit.RecordName == DamageMeterRecordNames.BestHit
+           && bestHit.Damage == 250
+           && bestHit.SourceInstanceId == "p1",
+        "best hit tracks the largest single event");
+
+    ledger.EndFight();
+    var history = new DamageHistoryStore();
+    Assert(history.Archive(ledger.CreateSnapshot(), "Win", "2026-06-27T00:00:00Z"),
+        "best-hit fight archived");
+    Assert(history.Records[0].Snapshot.BestHit?.Damage == 250,
+        "best hit survives adventure history snapshot");
+}
+
+void TestOutOfRunHistoryBuilder()
+{
+    var history = new DamageHistoryStore();
+    var fightOne = NewLedger();
+    fightOne.StartRound(1);
+    Apply(fightOne, 1, "alpha", 100, 20, DamageTeam.Friendly, "a");
+    Apply(fightOne, 2, "beta", 70, 0, DamageTeam.Friendly, "b");
+    fightOne.EndFight();
+    Assert(history.Archive(fightOne.CreateSnapshot(), "Win", "one"),
+        "first source fight archived for out-of-run build");
+
+    var fightTwo = new DamageLedger();
+    fightTwo.StartFight("session-two", true);
+    fightTwo.StartRound(1);
+    Apply(fightTwo, 1, "alpha", 30, 0, DamageTeam.Friendly, "a2");
+    fightTwo.EndFight();
+    Assert(history.Archive(fightTwo.CreateSnapshot(), "Win", "two"),
+        "second source fight archived for out-of-run build");
+
+    var record = OutOfRunDamageHistoryBuilder.Build(
+        history.Records,
+        new OutOfRunDamageHistoryBuildRequest
+        {
+            AdventureId = "adventure",
+            ModeId = "Normal",
+            ModeDisplayName = "世界推演",
+            Status = OutOfRunDamageHistoryStatus.Completed,
+            TeamMembers = new[]
+            {
+                new OutOfRunTeamMemberSnapshot
+                {
+                    InstanceId = "alpha",
+                    PlayerId = "player-alpha",
+                    PlayerDisplayName = "PlayerAlphaLongName",
+                    RoleId = "role-alpha",
+                    RoleDisplayName = "AlphaLongNameForTrim",
+                    DisplayName = "PlayerAlphaLongName",
+                    AvatarPngBase64 = "avatar"
+                },
+                new OutOfRunTeamMemberSnapshot
+                {
+                    InstanceId = "beta",
+                    PlayerId = "player-beta",
+                    PlayerDisplayName = "BetaPlayer",
+                    RoleId = "role-beta",
+                    RoleDisplayName = "Beta",
+                    DisplayName = "BetaPlayer"
+                }
+            }
+        });
+
+    Assert(record.TotalRounds == 2
+           && record.TeamTotalDamage == 220
+           && Math.Abs(record.TeamDps - 110d) < 0.001d,
+        "out-of-run history aggregates total damage and rounds");
+    Assert(record.BestHit?.Damage == 120 && record.Mvp.InstanceId == "alpha",
+        "out-of-run history records best hit and highest-DPS MVP");
+    Assert(record.TeamMembers.Count == 2
+           && record.TeamMembers[0].TotalDamage == 150
+           && record.TeamMembers[0].PlayerDisplayName == "PlayerAlphaLongName"
+           && record.TeamMembers[0].RoleDisplayName == "AlphaLongNameForTrim"
+           && record.TeamMembers[0].AvatarPngBase64 == "avatar",
+        "out-of-run history preserves copied member identity and avatar data");
+
+    var store = new OutOfRunDamageHistoryStore();
+    Assert(store.Add(record) && !store.Add(record), "out-of-run history rejects duplicate adventure id");
+    var restored = new OutOfRunDamageHistoryStore();
+    restored.ApplyFile(store.CreateFile());
+    Assert(restored.Records.Count == 1
+           && restored.Records[0].Mvp.InstanceId == "alpha"
+           && restored.Records[0].TeamMembers[0].PlayerDisplayName == "PlayerAlphaLongName"
+           && restored.Records[0].TeamMembers[0].RoleDisplayName == "AlphaLongNameForTrim",
+        "out-of-run history store file round-trips");
 }
 
 void TestDeterministicAllocation()

@@ -29,6 +29,18 @@ public sealed class StarScoreCombatState
         }
     }
 
+    public void RetainLastNoteAsCadenceStart()
+    {
+        if (notes.Count <= 1)
+        {
+            return;
+        }
+
+        var last = notes[notes.Count - 1];
+        notes.Clear();
+        notes.Add(last);
+    }
+
     public void Clear()
     {
         notes.Clear();

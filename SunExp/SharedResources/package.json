@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "packageId": "SunExp.SharedResources",
-  "packageVersion": 1,
+  "packageVersion": 3,
   "ownerModId": "SunExp",
   "packageKind": "RolePack",
   "displayName": "SunExp bundled role resources",
-  "capabilities": ["Audio", "Skin", "Journey", "RolePack", "MultiplayerAuthority"],
+  "capabilities": ["Audio", "CG", "Skin", "Journey", "RolePack", "MultiplayerAuthority"],
   "resources": [
     {
       "system": "Audio",
@@ -15,6 +15,40 @@
       "destination": "Audio/SunExp/WuNa",
       "targetRoleIds": ["SunExp_wuna_wuna"],
       "tags": ["role-pack", "voice"]
+    },
+    {
+      "system": "CG",
+      "resourceId": "SunExp.Loneer.MorningStarPrayer.SkillCg",
+      "kind": "File",
+      "source": "CG/Loneer/Loneer_晨星祈愿.png",
+      "destination": "CG/SunExp/Loneer/Loneer_晨星祈愿.png",
+      "targetRoleIds": ["SunExp_loneer_loneer", "loneer"],
+      "tags": ["skill-cg", "active-skill"],
+      "metadata": {
+        "cardId": "SunExp_loneer_loneer_morning_star_prayer",
+        "presentationMode": "slide",
+        "fit": "contain",
+        "focusX": "0.5",
+        "focusY": "0.5",
+        "safeScale": "1.0"
+      }
+    },
+    {
+      "system": "CG",
+      "resourceId": "SunExp.WuNa.WhiteSunPrayer.SkillCg",
+      "kind": "File",
+      "source": "CG/WuNa/WuNa_白曜圣祷.png",
+      "destination": "CG/SunExp/WuNa/WuNa_白曜圣祷.png",
+      "targetRoleIds": ["SunExp_wuna_wuna", "wuna"],
+      "tags": ["skill-cg", "active-skill"],
+      "metadata": {
+        "cardId": "SunExp_wuna_wuna_white_sun_prayer",
+        "presentationMode": "fullscreenFade",
+        "fit": "cover",
+        "focusX": "0.5",
+        "focusY": "0.5",
+        "safeScale": "1.0"
+      }
     }
   ]
 }

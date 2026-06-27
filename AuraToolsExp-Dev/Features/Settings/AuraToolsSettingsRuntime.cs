@@ -703,6 +703,21 @@ public static class AuraToolsSettingsRuntime
                 AuraToolsConfigService.SaveMatchExperience();
             });
 
+            var historyRow = CreateInlineRow(content, "DamageMeterOutOfRunHistoryRow");
+            AuraToolsUi.AddText(
+                historyRow.transform,
+                "局外历史记录：" + AuraToolsDamageMeterRuntime.OutOfRunHistoryCount + " 条",
+                AuraToolsUi.BodyFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.Text,
+                AuraToolsUi.TextMinHeight,
+                1f);
+            AuraToolsUi.AddButton(
+                historyRow.transform,
+                "查看局外历史",
+                AuraToolsDamageMeterRuntime.OpenOutOfRunHistory,
+                128f);
+
             AuraToolsUi.AddText(content, "声明：该模块初始版本代码由【哈基米】提供，后续由【Aura】进行维护和功能开发。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
         }, damageMeter.Enabled ? AuraToolsUi.SuccessText : AuraToolsUi.MutedText);
 

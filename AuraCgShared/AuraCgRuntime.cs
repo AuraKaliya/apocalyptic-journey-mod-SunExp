@@ -29,8 +29,8 @@ public static class SkillCgArbiterRuntime
     private const float AlphaFadeInEndXRatio = 0.82f;
     private const float AlphaFadeOutStartXRatio = 0.18f;
     private const float AlphaFadeOutEndXRatio = -0.05f;
-    public const string CurrentBuildId = "aura-cg-shared-2026-06-23-v2";
-    public const int CurrentProtocolVersion = 1;
+    public const string CurrentBuildId = "aura-cg-shared-2026-06-27-v3";
+    public const int CurrentProtocolVersion = 2;
     public const int MinimumSupportedProtocolVersion = 1;
     private static readonly HashSet<string> ReuseLogOwners = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> CompatibilityErrorsShown = new(StringComparer.OrdinalIgnoreCase);
@@ -583,11 +583,24 @@ public static class SkillCgArbiterRuntime
             overlayGroup.interactable = false;
 
             AuraCgLog.DebugLog(
-                "CG play slide: provider=" + request.ProviderId
+                "CG play: provider=" + request.ProviderId
                 + ", card=" + request.CardId
                 + ", image=" + Path.GetFileName(request.ImagePath)
-                + ", duration=" + SlideDurationSeconds.ToString("0.##") + "s");
-            yield return SlideRightToLeft(sprite, generation);
+                + ", mode=" + request.PresentationMode
+                + ", fit=" + request.FitMode);
+
+            if (string.Equals(request.PresentationMode, SkillCgPresentationModes.FullscreenFade, StringComparison.OrdinalIgnoreCase))
+            {
+                yield return FullscreenFade(sprite, request, generation);
+            }
+            else if (string.Equals(request.PresentationMode, SkillCgPresentationModes.CenterFade, StringComparison.OrdinalIgnoreCase))
+            {
+                yield return CenterFade(sprite, request, generation);
+            }
+            else
+            {
+                yield return SlideRightToLeft(sprite, generation);
+            }
 
             if (generation != playGeneration)
             {
@@ -605,6 +618,7 @@ public static class SkillCgArbiterRuntime
             }
 
             var imageRect = overlayImage.rectTransform;
+            overlayImage.preserveAspect = true;
             imageRect.anchorMin = new Vector2(0.5f, 0.5f);
             imageRect.anchorMax = new Vector2(0.5f, 0.5f);
             imageRect.pivot = new Vector2(0.5f, 0.5f);
@@ -632,6 +646,86 @@ public static class SkillCgArbiterRuntime
             }
         }
 
+        private IEnumerator FullscreenFade(Sprite sprite, SkillCgRequest request, int generation)
+        {
+            if (overlayGroup == null || overlayImage == null)
+            {
+                yield break;
+            }
+
+            ConfigureFullscreenImage(sprite, request);
+            yield return Fade(0f, 1f, request.FadeIn, generation);
+            yield return Wait(request.Hold, generation);
+            yield return Fade(1f, 0f, request.FadeOut, generation);
+        }
+
+        private IEnumerator CenterFade(Sprite sprite, SkillCgRequest request, int generation)
+        {
+            if (overlayGroup == null || overlayImage == null)
+            {
+                yield break;
+            }
+
+            ConfigureCenteredImage(sprite);
+            yield return Fade(0f, 1f, request.FadeIn, generation);
+            yield return Wait(request.Hold, generation);
+            yield return Fade(1f, 0f, request.FadeOut, generation);
+        }
+
+        private void ConfigureFullscreenImage(Sprite sprite, SkillCgRequest request)
+        {
+            if (overlayImage == null)
+            {
+                return;
+            }
+
+            var imageRect = overlayImage.rectTransform;
+            imageRect.pivot = new Vector2(0.5f, 0.5f);
+
+            if (string.Equals(request.FitMode, SkillCgFitModes.Stretch, StringComparison.OrdinalIgnoreCase))
+            {
+                overlayImage.preserveAspect = false;
+                imageRect.anchorMin = Vector2.zero;
+                imageRect.anchorMax = Vector2.one;
+                imageRect.offsetMin = Vector2.zero;
+                imageRect.offsetMax = Vector2.zero;
+                imageRect.anchoredPosition = Vector2.zero;
+                imageRect.sizeDelta = Vector2.zero;
+                return;
+            }
+
+            overlayImage.preserveAspect = true;
+            imageRect.anchorMin = new Vector2(0.5f, 0.5f);
+            imageRect.anchorMax = new Vector2(0.5f, 0.5f);
+            var viewport = GetOverlayViewportSize();
+            if (string.Equals(request.FitMode, SkillCgFitModes.Cover, StringComparison.OrdinalIgnoreCase))
+            {
+                var imageSize = CalculateCoverImageSize(sprite, viewport, request.SafeScale);
+                imageRect.sizeDelta = imageSize;
+                imageRect.anchoredPosition = CalculateCoverImageOffset(imageSize, viewport, request.FocusX, request.FocusY);
+                return;
+            }
+
+            imageRect.anchoredPosition = Vector2.zero;
+            imageRect.sizeDelta = viewport;
+        }
+
+        private void ConfigureCenteredImage(Sprite sprite)
+        {
+            if (overlayImage == null)
+            {
+                return;
+            }
+
+            var imageRect = overlayImage.rectTransform;
+            overlayImage.preserveAspect = true;
+            imageRect.anchorMin = new Vector2(0.5f, 0.5f);
+            imageRect.anchorMax = new Vector2(0.5f, 0.5f);
+            imageRect.pivot = new Vector2(0.5f, 0.5f);
+            imageRect.anchoredPosition = Vector2.zero;
+            imageRect.sizeDelta = CalculateImageSize(sprite, GetOverlayViewportSize());
+        }
+
         private Vector2 GetOverlayViewportSize()
         {
             if (overlayRoot != null)
@@ -652,6 +746,31 @@ public static class SkillCgArbiterRuntime
             var aspect = spriteRect.height <= 0f ? 1f : spriteRect.width / spriteRect.height;
             var height = Mathf.Max(1f, viewport.y * SlideImageHeightRatio);
             return new Vector2(height * aspect, height);
+        }
+
+        private static Vector2 CalculateCoverImageSize(Sprite sprite, Vector2 viewport, float safeScale)
+        {
+            var spriteRect = sprite.rect;
+            var aspect = spriteRect.height <= 0f ? 1f : spriteRect.width / spriteRect.height;
+            var viewportAspect = viewport.y <= 0f ? 1f : viewport.x / viewport.y;
+            var scale = Mathf.Clamp(safeScale <= 0f ? 1f : safeScale, 1f, 3f);
+            if (aspect >= viewportAspect)
+            {
+                var height = Mathf.Max(1f, viewport.y) * scale;
+                return new Vector2(height * aspect, height);
+            }
+
+            var width = Mathf.Max(1f, viewport.x) * scale;
+            return new Vector2(width, width / Mathf.Max(0.001f, aspect));
+        }
+
+        private static Vector2 CalculateCoverImageOffset(Vector2 imageSize, Vector2 viewport, float focusX, float focusY)
+        {
+            var overflowX = Mathf.Max(0f, imageSize.x - viewport.x);
+            var overflowY = Mathf.Max(0f, imageSize.y - viewport.y);
+            return new Vector2(
+                Mathf.Clamp((0.5f - Mathf.Clamp01(focusX)) * overflowX, -overflowX * 0.5f, overflowX * 0.5f),
+                Mathf.Clamp((Mathf.Clamp01(focusY) - 0.5f) * overflowY, -overflowY * 0.5f, overflowY * 0.5f));
         }
 
         private static float EvaluateSlideXRatio(float progress)
@@ -960,6 +1079,8 @@ public sealed class SkillCgTriggerContext
 
     public string OwnerInstanceId { get; set; } = "";
 
+    public string OwnerRoleId { get; set; } = "";
+
     public float CreatedAt { get; set; }
 }
 
@@ -986,6 +1107,16 @@ public sealed class SkillCgRequest
 
     public float FadeOut { get; set; } = 0.45f;
 
+    public string PresentationMode { get; set; } = SkillCgPresentationModes.Slide;
+
+    public string FitMode { get; set; } = SkillCgFitModes.Contain;
+
+    public float FocusX { get; set; } = 0.5f;
+
+    public float FocusY { get; set; } = 0.5f;
+
+    public float SafeScale { get; set; } = 1f;
+
     public float CreatedAt { get; set; }
 
     public long ActionSequence { get; set; }
@@ -994,7 +1125,7 @@ public sealed class SkillCgRequest
 
     public bool DisableSync { get; set; }
 
-    public string DuplicateKey => ProviderId + "|" + OwnerInstanceId + "|" + CardId + "|" + (string.IsNullOrWhiteSpace(ImageResource) ? ImagePath : ImageResource);
+    public string DuplicateKey => ProviderId + "|" + OwnerInstanceId + "|" + CardId + "|" + (string.IsNullOrWhiteSpace(ImageResource) ? ImagePath : ImageResource) + "|" + PresentationMode + "|" + FitMode + "|" + FocusX.ToString("0.###") + "|" + FocusY.ToString("0.###") + "|" + SafeScale.ToString("0.###");
 
     public string QualifiedProviderId => QualifyProviderId(OwnerModId, ProviderId);
 
@@ -1014,6 +1145,12 @@ public sealed class SkillCgRequest
         FadeIn = Mathf.Max(0f, FadeIn);
         Hold = Mathf.Max(0f, Hold);
         FadeOut = Mathf.Max(0f, FadeOut);
+        PresentationMode = SkillCgPresentationModes.Normalize(PresentationMode);
+        FitMode = SkillCgFitModes.Normalize(FitMode);
+        FocusX = Mathf.Clamp01(FocusX);
+        FocusY = Mathf.Clamp01(FocusY);
+        SafeScale = Mathf.Clamp(SafeScale <= 0f ? 1f : SafeScale, 1f, 3f);
+
         if (CreatedAt <= 0f)
         {
             CreatedAt = Time.unscaledTime;
@@ -1045,6 +1182,11 @@ public sealed class SkillCgRequest
             FadeIn = ReadFloat(type, source, "FadeIn", 0.35f),
             Hold = ReadFloat(type, source, "Hold", 1f),
             FadeOut = ReadFloat(type, source, "FadeOut", 0.45f),
+            PresentationMode = ReadString(type, source, "PresentationMode", SkillCgPresentationModes.Slide),
+            FitMode = ReadString(type, source, "FitMode", SkillCgFitModes.Contain),
+            FocusX = ReadFloat(type, source, "FocusX", 0.5f),
+            FocusY = ReadFloat(type, source, "FocusY", 0.5f),
+            SafeScale = ReadFloat(type, source, "SafeScale", 1f),
             CreatedAt = ReadFloat(type, source, "CreatedAt", Time.unscaledTime),
             ActionSequence = ReadLong(type, source, "ActionSequence", context.ActionSequence),
             IsRemote = ReadBool(type, source, "IsRemote", false),
@@ -1155,6 +1297,16 @@ public sealed class SkillCgNetworkEvent
 
     public float FadeOut { get; set; } = 0.45f;
 
+    public string PresentationMode { get; set; } = SkillCgPresentationModes.Slide;
+
+    public string FitMode { get; set; } = SkillCgFitModes.Contain;
+
+    public float FocusX { get; set; } = 0.5f;
+
+    public float FocusY { get; set; } = 0.5f;
+
+    public float SafeScale { get; set; } = 1f;
+
     public long ActionSequence { get; set; }
 }
 
@@ -1180,6 +1332,11 @@ public sealed class RpcSkillCgEvent : RpcCommandBase
             FadeIn = request.FadeIn,
             Hold = request.Hold,
             FadeOut = request.FadeOut,
+            PresentationMode = request.PresentationMode,
+            FitMode = request.FitMode,
+            FocusX = request.FocusX,
+            FocusY = request.FocusY,
+            SafeScale = request.SafeScale,
             ActionSequence = request.ActionSequence
         };
     }
@@ -1202,11 +1359,68 @@ public sealed class RpcSkillCgEvent : RpcCommandBase
             FadeIn = Event.FadeIn,
             Hold = Event.Hold,
             FadeOut = Event.FadeOut,
+            PresentationMode = Event.PresentationMode,
+            FitMode = Event.FitMode,
+            FocusX = Event.FocusX,
+            FocusY = Event.FocusY,
+            SafeScale = Event.SafeScale,
             CreatedAt = Time.unscaledTime,
             ActionSequence = Event.ActionSequence,
             IsRemote = true,
             DisableSync = true
         });
+    }
+}
+
+public static class SkillCgPresentationModes
+{
+    public const string Slide = "slide";
+    public const string FullscreenFade = "fullscreenFade";
+    public const string CenterFade = "centerFade";
+
+    public static string Normalize(string? value)
+    {
+        var mode = value?.Trim() ?? "";
+        if (string.Equals(mode, FullscreenFade, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mode, "fullScreenFade", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mode, "fullscreen", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mode, "fullScreen", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mode, "fade", StringComparison.OrdinalIgnoreCase))
+        {
+            return FullscreenFade;
+        }
+
+        if (string.Equals(mode, CenterFade, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mode, "center", StringComparison.OrdinalIgnoreCase))
+        {
+            return CenterFade;
+        }
+
+        return Slide;
+    }
+}
+
+public static class SkillCgFitModes
+{
+    public const string Contain = "contain";
+    public const string Cover = "cover";
+    public const string Stretch = "stretch";
+
+    public static string Normalize(string? value)
+    {
+        var mode = value?.Trim() ?? "";
+        if (string.Equals(mode, Cover, StringComparison.OrdinalIgnoreCase))
+        {
+            return Cover;
+        }
+
+        if (string.Equals(mode, Stretch, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mode, "fill", StringComparison.OrdinalIgnoreCase))
+        {
+            return Stretch;
+        }
+
+        return Contain;
     }
 }
 

@@ -2,10 +2,11 @@
 
 Use this reference for SunExp-specific shared runtime entry points.
 
-## Linked Source
+## Shared Runtime DLL
 
-`SunExp-Dev/SunExp.Dll.csproj` links shared source directly into the mod
-assembly. Current linked surfaces include:
+`SunExp-Dev/SunExp.Dll.csproj` references the real shared runtime assembly via
+`AuraSharedRuntime-Dev/Aura.Shared.csproj`. Do not link shared source directly
+into product Mod assemblies. Current shared runtime surfaces include:
 
 - `AuraSharedCore`
 - `AuraAudioShared`
@@ -18,8 +19,9 @@ assembly. Current linked surfaces include:
 - `UiRaycastSafetyShared`
 - `UiTransitionGuardShared`
 
-Changes to these shared roots can affect other mods. Check the shared release
-matrix and affected consumers before finishing.
+Changes to these shared roots affect every Mod that packages `Aura.Shared.dll`.
+Check the shared release matrix, rebuild affected consumers, and verify all
+packaged `Aura.Shared.dll` copies have the same hash before finishing.
 
 ## Entry Initialization
 

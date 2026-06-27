@@ -24,8 +24,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\..\AuraSharedCore\*.cs" Link="Shared\AuraSharedCore\%(Filename)%(Extension)" />
-    <Compile Include="..\..\AudioArbiterShared\AudioArbiterRuntime.cs" Link="Shared\AudioArbiterRuntime.cs" />
+    <ProjectReference Include="..\..\AuraSharedRuntime-Dev\Aura.Shared.csproj" Private="true" ReferenceOutputAssembly="true" />
   </ItemGroup>
 
   <ItemGroup>
@@ -74,6 +73,11 @@
   <Target Name="CopyEntryDllToMod" AfterTargets="Build">
     <MakeDir Directories="$(ModScriptsPath)" />
     <Copy SourceFiles="$(TargetPath)" DestinationFiles="$(ModScriptsPath)\Entry.dll" />
+  </Target>
+
+  <Target Name="CopyAuraSharedDllToMod" AfterTargets="Build">
+    <MakeDir Directories="$(ModScriptsPath)" />
+    <Copy SourceFiles="..\..\AuraSharedRuntime-Dev\bin\$(Configuration)\net472\Aura.Shared.dll" DestinationFiles="$(ModScriptsPath)\Aura.Shared.dll" SkipUnchangedFiles="true" />
   </Target>
 
 </Project>

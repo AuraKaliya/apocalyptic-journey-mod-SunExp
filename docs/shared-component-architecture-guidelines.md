@@ -114,6 +114,12 @@ For provider-driven domains such as audio, BGM, and CG, the equivalent rule is:
 
 ## Compatibility
 
+Shared runtime code is built once into `Aura.Shared.dll`. Product Mods should
+reference that DLL through `AuraSharedRuntime-Dev/Aura.Shared.csproj` and package
+the produced binary beside `Entry.dll`. Do not link shared component source into
+product Mod assemblies; doing so creates separate CLR types with the same names
+and breaks cross-Mod provider/request flows.
+
 Any shared component that creates a persistent global `GameObject` component
 must expose:
 
@@ -153,3 +159,21 @@ When adding a shared component or a new registered artifact type, check:
 - Does the global runtime have protocol/build/method compatibility checks?
 - Are multiplayer state changes authority-gated?
 - Is the contract documented with a manifest example or integration checklist?
+
+## UI Overlay And Raycast Safety
+
+For full-screen temporary visuals, transitions, or diagnostic UI:
+
+- Prefer an independent `ScreenSpaceOverlay` `Canvas` owned by the feature
+  instead of parenting under `UIManager.upperCanvasTf`; the upper canvas is
+  controlled by the game and child changes can affect native raycaster state.
+- Do not add `GraphicRaycaster` to purely visual overlays. Every `Graphic` in
+  the overlay should set `raycastTarget = false`, and the root `CanvasGroup`
+  should keep `blocksRaycasts = false` and `interactable = false`.
+- Keep coroutine runners separate from visible overlay roots. A hidden or
+  destroyed overlay must not own long-running coroutines.
+- On close, disable raycasts, hide, clear children, scrub the Unity
+  `GraphicRegistry` for a few frames, then destroy temporary overlay roots
+  instead of leaving inactive objects in native UI trees.
+- Validate UI features by checking the log for `UiTransitionGuard` restore
+  counts and by manually clicking the next native UI after the overlay closes.

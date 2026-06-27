@@ -17,18 +17,18 @@ $mainProjects = @(
 foreach ($project in $mainProjects) {
     $projectPath = Join-Path $repoRoot $project
     $text = Get-Content -Raw -LiteralPath $projectPath
-    foreach ($required in @("AuraSharedCore", "AuraAudioShared", "AuraJourneyShared")) {
-        if (-not $text.Contains($required)) {
-            throw "Main shared consumer is missing ${required}: $project"
-        }
+    if (-not $text.Contains("AuraSharedRuntime-Dev\Aura.Shared.csproj")) {
+        throw "Main shared consumer must reference Aura.Shared instead of linked shared source: $project"
+    }
+
+    if ($text -match 'Compile Include="[^"]*(AuraSharedCore|AuraAudioShared|AuraLogShared|AuraJourneyShared|AuraSkinShared|AudioArbiterShared|BattleBgmArbiterShared|StarterDeckArbiterShared|UiRaycastSafetyShared|UiTransitionGuardShared|AuraCgShared|AuraOnlineShared)') {
+        throw "Main shared consumer still links shared source directly: $project"
     }
 }
 
 $auraToolsProject = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\AuraToolsExp.Dll.csproj")
-foreach ($required in @("AuraCgShared", "AuraLogShared")) {
-    if (-not $auraToolsProject.Contains($required)) {
-        throw "AuraToolsExp service surface is missing $required."
-    }
+if (-not $auraToolsProject.Contains("AuraSharedRuntime-Dev\Aura.Shared.csproj")) {
+    throw "AuraToolsExp service surface must come from Aura.Shared."
 }
 
 $auraToolsStarterDeckRuntime = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\StarterDeck\AuraToolsStarterDeckRuntime.cs")

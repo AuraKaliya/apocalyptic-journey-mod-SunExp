@@ -17,6 +17,9 @@ public static class RuntimeHooks
         DuskPartnerRuntime.Initialize(modConfig);
         StarClayDollRuntime.Initialize(modConfig);
         SolarMemoryModeRuntime.Initialize(modConfig);
+        SolarMemoryCombatRuntime.Initialize(modConfig);
+        SolarMemoryRewardRuntime.Initialize();
+        BattleRewardAdjustmentRuntime.Initialize(modConfig);
         SolarMemoryContentIsolationRuntime.Initialize(modConfig);
         SolarMemoryStarterDeckRuntime.Initialize(modConfig);
         SunExpHardTagRuntime.Initialize(modConfig);

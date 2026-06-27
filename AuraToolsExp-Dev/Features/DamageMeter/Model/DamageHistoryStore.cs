@@ -101,6 +101,7 @@ public sealed class DamageHistoryStore
             CurrentRoundIndex = source.CurrentRoundIndex,
             CompletedRoundCount = source.CompletedRoundCount,
             ServerSequence = source.ServerSequence,
+            BestHit = source.BestHit?.Copy(),
             Combatants = source.Combatants ?? new List<CombatantDamageStat>()
         };
         return ledger.ApplySnapshot(cloneSource)

@@ -1,10 +1,12 @@
 using System;
 using System.Collections;
 using System.Reflection;
+using AuraCg.Shared;
 using AuraShared.Core;
 using AuraSkin.Shared;
 using StarterDeckArbiter.Shared;
 using Witch.Mod;
+using SunExp.Dll.Features.SkillCg;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks;
 using SunExp.Dll.Infrastructure;
@@ -23,6 +25,8 @@ public static class Entry
         RunStep("rpc authority", () => SunExpRpcAuthorityRuntime.Initialize(modConfig));
         RunStep("shared resource package", () => RegisterSharedResourcePackage(modConfig));
         RunStep("shared registry", () => AuraSharedRegistry.RegisterManifest(modConfig, "SunExp"));
+        RunStep("CG registry", () => AuraCgRegistryRuntime.RegisterManifest(modConfig, "SunExp"));
+        RunStep("skill CG runtime", () => SunExpSkillCgRuntime.Initialize(modConfig));
         RunStep("starter deck profiles", () => StarterDeckArbiterRuntime.RegisterProfileManifest(modConfig, "SunExp"));
         RunStep("shared skin runtime", () => AuraSkinRuntime.Initialize(modConfig, "SunExp"));
         RunStep("shared skin package", () => RegisterSkinPackage(modConfig));

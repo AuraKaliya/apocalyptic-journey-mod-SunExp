@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "ownerModId": "SunExp",
+  "protocol": {
+    "minVersion": 1,
+    "preferredVersion": 1
+  },
+  "entries": [
+    {
+      "cgId": "loneer.morning-star-prayer",
+      "displayName": "Loneer - 晨星祈愿",
+      "kind": "skill",
+      "targetRoleIds": [
+        "SunExp_loneer_loneer",
+        "loneer"
+      ],
+      "cardIds": [
+        "SunExp_loneer_loneer_morning_star_prayer",
+        "*loneer_morning_star_prayer"
+      ],
+      "media": {
+        "type": "image",
+        "resource": "CG/SunExp/Loneer/Loneer_晨星祈愿.png",
+        "fallbackImage": "CG/SunExp/Loneer/Loneer_晨星祈愿.png"
+      },
+      "defaultPresentation": {
+        "mode": "slide",
+        "fit": "contain",
+        "fadeIn": 0.35,
+        "hold": 1.0,
+        "fadeOut": 0.45,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1.0
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "contentOwned"
+      },
+      "priority": 20,
+      "tags": [
+        "skill-cg",
+        "active-skill"
+      ],
+      "enabled": true
+    },
+    {
+      "cgId": "wuna.white-sun-prayer",
+      "displayName": "WuNa - 白曜圣祷",
+      "kind": "skill",
+      "targetRoleIds": [
+        "SunExp_wuna_wuna",
+        "wuna"
+      ],
+      "cardIds": [
+        "SunExp_wuna_wuna_white_sun_prayer",
+        "*wuna_white_sun_prayer"
+      ],
+      "media": {
+        "type": "image",
+        "resource": "CG/SunExp/WuNa/WuNa_白曜圣祷.png",
+        "fallbackImage": "CG/SunExp/WuNa/WuNa_白曜圣祷.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.4,
+        "hold": 1.4,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1.0
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "contentOwned"
+      },
+      "priority": 20,
+      "tags": [
+        "skill-cg",
+        "active-skill"
+      ],
+      "enabled": true
+    }
+  ]
+}

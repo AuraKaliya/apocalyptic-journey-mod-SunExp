@@ -6,12 +6,20 @@ namespace AuraToolsExp.Dll.Features.DamageMeter.Model;
 
 public static class DamageMeterProtocol
 {
-    public const int Version = 2;
+    public const int Version = 3;
     public const int MaxDamagePerEvent = 100000000;
     public const int MaxStringLength = 160;
     public const int MaxDetailsPerCombatant = 64;
     public const int MaxRoundsKept = 100;
     public const int MaxFightHistory = 30;
+    public const int MaxOutOfRunHistory = 100;
+    public const int MaxTeamMembers = 4;
+    public const int MaxHistoryNameLength = 12;
+}
+
+public static class DamageMeterRecordNames
+{
+    public const string BestHit = "摧枯拉朽";
 }
 
 public static class DamageAllocation
@@ -144,6 +152,41 @@ public sealed class DamageDetailStat
 }
 
 [Serializable]
+public sealed class DamageBestHitRecord
+{
+    public string RecordName { get; set; } = DamageMeterRecordNames.BestHit;
+
+    public string SessionId { get; set; } = "";
+
+    public string SourceInstanceId { get; set; } = "";
+
+    public string SourceDisplayName { get; set; } = "";
+
+    public DamageTeam SourceTeam { get; set; }
+
+    public string TargetInstanceId { get; set; } = "";
+
+    public string SourceDataId { get; set; } = "";
+
+    public string DetailLabel { get; set; } = "";
+
+    public string DamageType { get; set; } = "";
+
+    public long Damage { get; set; }
+
+    public int RoundIndex { get; set; }
+
+    public long ServerSequence { get; set; }
+
+    public string EventId { get; set; } = "";
+
+    public DamageBestHitRecord Copy()
+    {
+        return (DamageBestHitRecord)MemberwiseClone();
+    }
+}
+
+[Serializable]
 public sealed class CombatantDamageStat
 {
     public string InstanceId { get; set; } = "";
@@ -210,6 +253,8 @@ public sealed class DamageMeterSnapshot
     public int CompletedRoundCount { get; set; }
 
     public long ServerSequence { get; set; }
+
+    public DamageBestHitRecord? BestHit { get; set; }
 
     public List<CombatantDamageStat> Combatants { get; set; } = new();
 

@@ -7,11 +7,14 @@ using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using AuraToolsExp.Dll.Features.DamageMeter.Network;
 using AuraToolsExp.Dll.Features.DamageMeter.Resolution;
+using AuraToolsExp.Dll.Features.DamageMeter.SettlementCg;
 using AuraToolsExp.Dll.Infrastructure;
+using Data.Save;
 using UnityEngine;
 using Witch;
 using Witch.Core;
 using Witch.Mod;
+using Witch.UI.Window;
 
 namespace AuraToolsExp.Dll.Features.DamageMeter;
 
@@ -24,6 +27,8 @@ public static class AuraToolsDamageMeterRuntime
     private static readonly BuffDamageAttributionTracker BuffAttribution = new();
     private static bool initialized;
     private static bool endingSent;
+    private static bool adventureSettlementRecorded;
+    private static bool outOfRunHistoryLoaded;
     private static float nextRefreshAt;
     private static float uiRetryBlockedUntil;
     private static float nextUiFailureLogAt;
@@ -44,6 +49,8 @@ public static class AuraToolsDamageMeterRuntime
     internal static DamageLedger Ledger => DamageMeterNetworkRuntime.Ledger;
 
     internal static DamageHistoryStore History => DamageMeterNetworkRuntime.History;
+
+    internal static OutOfRunDamageHistoryStore OutOfRunHistory => DamageMeterNetworkRuntime.OutOfRunHistory;
 
     internal static string NetworkStatus
     {
@@ -80,7 +87,12 @@ public static class AuraToolsDamageMeterRuntime
         RegisterAfter(modConfig, "GameEntryUI.ShowDetail", ShowForPreparationUi);
         RegisterAfter(modConfig, "GameEntryUI.ChangeRole", ShowForPreparationUi);
         RegisterBefore(modConfig, "GameEntryUI.StartGame", ShowForStartGame);
+        RegisterBefore(modConfig, "GameApp.GameOver", OnAdventureSettlement);
+        RegisterBefore(modConfig, "PlayerManager.GameOver", OnAdventureSettlement);
+        RegisterAfter(modConfig, "GameExitUI.Start", OnAdventureSettlement);
         RegisterAfter(modConfig, "NormalMapManager.InitRoleTable", ShowForAdventureUi);
+        RegisterAfter(modConfig, "SublimationManager.InitRoleTable", ShowForAdventureUi);
+        RegisterAfter(modConfig, "SlotMachineManager.InitRoleTable", ShowForAdventureUi);
         RegisterAfter(modConfig, "TopBarUI.Awake", ShowForAdventureUi);
         RegisterAfter(modConfig, "TopBarUI.Start", ShowForAdventureUi);
         RegisterAfter(modConfig, "TopBarUI.ShowLeftUp", ShowForAdventureUi);
@@ -112,6 +124,7 @@ public static class AuraToolsDamageMeterRuntime
         RegisterAfter(modConfig, "Fight_Loss.Init", OnFightEnded);
 
         AuraToolsConfigService.Changed += OnConfigChanged;
+        EnsureOutOfRunHistoryLoaded();
         AuraToolsLog.Info("[DamageMeter] DPT hooks and network protocol v"
                           + DamageMeterProtocol.Version + " registered.");
     }
@@ -271,10 +284,11 @@ public static class AuraToolsDamageMeterRuntime
     {
         RunHook("fight init", () =>
         {
-            if (IsWorldSimulationContext(context, allowNormalMapHookFallback: true))
+            if (IsSupportedDamageMeterContext(context, allowMapManagerFallback: true))
             {
                 preparationUiActive = false;
                 SetAvailable(true, "FightInit.Init");
+                PrepareSettlementCgAssets("FightInit.Init");
             }
 
             ResetCaptureState();
@@ -291,7 +305,7 @@ public static class AuraToolsDamageMeterRuntime
         {
             if (!Ledger.InFight)
             {
-                if (IsActiveWorldSimulationContext())
+                if (IsActiveDamageMeterContext())
                 {
                     SetAvailable(true, "Fight_Start.Init");
                 }
@@ -351,16 +365,20 @@ public static class AuraToolsDamageMeterRuntime
 
     private static void HideForEntryUi(ModHookContext context)
     {
-        RunHook("entry UI hidden scope", () => SetAvailable(false, GetHookName(context)));
+        RunHook("entry UI hidden scope", () =>
+        {
+            DamageSettlementCgRuntime.BeginAdventure();
+            SetAvailable(false, GetHookName(context));
+        });
     }
 
     private static void ShowForPreparationUi(ModHookContext context)
     {
         RunHook("preparation UI scope", () =>
         {
-            if (!IsWorldSimulationLobby())
+            if (!IsSupportedDamageMeterLobby())
             {
-                SetAvailable(false, GetHookName(context) + ":not-world-simulation");
+                SetAvailable(false, GetHookName(context) + ":unsupported-mode");
                 return;
             }
 
@@ -373,9 +391,11 @@ public static class AuraToolsDamageMeterRuntime
     {
         RunHook("start game UI scope", () =>
         {
-            if (IsWorldSimulationContext(context, allowNormalMapHookFallback: false))
+            if (IsSupportedDamageMeterContext(context, allowMapManagerFallback: false))
             {
                 DamageMeterNetworkRuntime.BeginAdventure();
+                DamageSettlementCgRuntime.BeginAdventure();
+                adventureSettlementRecorded = false;
                 AuraToolsDamageMeterUi.CloseHistory();
                 preparationUiActive = true;
                 SetAvailable(true, "GameEntryUI.StartGame");
@@ -387,15 +407,446 @@ public static class AuraToolsDamageMeterRuntime
     {
         RunHook("adventure UI scope", () =>
         {
-            if (!IsWorldSimulationContext(context, allowNormalMapHookFallback: true))
+            if (!IsSupportedDamageMeterContext(context, allowMapManagerFallback: true))
             {
                 return;
             }
 
             preparationUiActive = false;
             DamageMeterNetworkRuntime.RestoreAdventureHistory();
+            EnsureOutOfRunHistoryLoaded();
             SetAvailable(true, GetHookName(context));
+            PrepareSettlementCgAssets(GetHookName(context));
         });
+    }
+
+    private static void PrepareSettlementCgAssets(string source)
+    {
+        var members = CollectTeamMembers();
+        if (members.Count == 0)
+        {
+            AuraToolsLog.Warn("[SettlementCG] preload skipped: no team members. source=" + source + ".");
+            return;
+        }
+
+        DamageSettlementCgRuntime.PrepareForTeam(members);
+    }
+
+    private static void OnAdventureSettlement(ModHookContext context)
+    {
+        RunHook("adventure settlement", () =>
+        {
+            var source = GetHookName(context);
+            EnsureOutOfRunHistoryLoaded();
+            if (adventureSettlementRecorded)
+            {
+                AuraToolsLog.Info("[DamageMeter] out-of-run history skipped: already archived. source=" + source + ".");
+                return;
+            }
+
+            if (!DamageMeterNetworkRuntime.IsHost)
+            {
+                AuraToolsLog.Info("[DamageMeter] out-of-run history skipped: not host. source=" + source + ".");
+                return;
+            }
+
+            if (!IsSupportedDamageMeterAdventureContext())
+            {
+                AuraToolsLog.Info("[DamageMeter] out-of-run history skipped: unsupported context. source=" + source + ".");
+                return;
+            }
+
+            ArchiveActiveFightForSettlement();
+            if (History.Records.Count == 0)
+            {
+                AuraToolsLog.Info("[DamageMeter] out-of-run history skipped: no fight history. source=" + source + ".");
+                return;
+            }
+
+            adventureSettlementRecorded = true;
+            var mode = ResolvePlayMode();
+            var record = OutOfRunDamageHistoryBuilder.Build(
+                History.Records,
+                new OutOfRunDamageHistoryBuildRequest
+                {
+                    AdventureId = DamageMeterNetworkRuntime.CurrentAdventureId,
+                    ModeId = mode.Id,
+                    ModeDisplayName = mode.DisplayName,
+                    Status = IsCurrentAdventureCompleted()
+                        ? OutOfRunDamageHistoryStatus.Completed
+                        : OutOfRunDamageHistoryStatus.Failed,
+                    EndedUtc = DateTime.UtcNow.ToString("O"),
+                    TeamMembers = CollectTeamMembers()
+                },
+                countShield: true);
+            DamageSettlementCgRuntime.TryPlay(record);
+
+            if (OutOfRunHistory.Add(record))
+            {
+                OutOfRunDamageHistoryPersistence.Save(OutOfRunHistory);
+                uiDirty = true;
+                AuraToolsLog.Info("[DamageMeter] out-of-run history archived. mode="
+                                  + mode.Id + ", status=" + record.Status + ", source=" + source + ".");
+            }
+            else
+            {
+                AuraToolsLog.Info("[DamageMeter] out-of-run history skipped: duplicate adventure id. source=" + source + ".");
+            }
+        });
+    }
+
+    public static int OutOfRunHistoryCount
+    {
+        get
+        {
+            EnsureOutOfRunHistoryLoaded();
+            return OutOfRunHistory.Records.Count;
+        }
+    }
+
+    public static void OpenOutOfRunHistory()
+    {
+        EnsureOutOfRunHistoryLoaded();
+        AuraToolsDamageMeterUi.ShowOutOfRunHistory(OutOfRunHistory);
+    }
+
+    public static void ClearOutOfRunHistory()
+    {
+        EnsureOutOfRunHistoryLoaded();
+        OutOfRunDamageHistoryPersistence.Clear(OutOfRunHistory);
+        uiDirty = true;
+    }
+
+    private static void EnsureOutOfRunHistoryLoaded()
+    {
+        if (outOfRunHistoryLoaded)
+        {
+            return;
+        }
+
+        outOfRunHistoryLoaded = true;
+        OutOfRunDamageHistoryPersistence.LoadInto(OutOfRunHistory);
+    }
+
+    private static void ArchiveActiveFightForSettlement()
+    {
+        if (!Ledger.InFight)
+        {
+            return;
+        }
+
+        endingSent = true;
+        DamageMeterNetworkRuntime.EndFight(IsGameExitLoss() ? "Loss" : "Win");
+    }
+
+    private static PlayModeInfo ResolvePlayMode()
+    {
+        if (IsSolarMemoryMode())
+        {
+            return new PlayModeInfo("SunExp.SolarMemory", "日耀回忆");
+        }
+
+        var modeType = ReadLobbyModeType();
+        if (string.IsNullOrWhiteSpace(modeType))
+        {
+            modeType = MapManager.Instance?.ModeMapManager?.GetType().Name ?? "";
+        }
+
+        if (string.Equals(modeType, "Normal", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(modeType, "NormalMapManager", StringComparison.OrdinalIgnoreCase))
+        {
+            return new PlayModeInfo("Normal", "世界推演");
+        }
+
+        if (string.Equals(modeType, "Sublimation", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(modeType, "SublimationManager", StringComparison.OrdinalIgnoreCase))
+        {
+            return new PlayModeInfo("Sublimation", "弑神模拟");
+        }
+
+        if (string.Equals(modeType, "Slot", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(modeType, "SlotMachineManager", StringComparison.OrdinalIgnoreCase))
+        {
+            return new PlayModeInfo("Slot", "老虎机模式");
+        }
+
+        return new PlayModeInfo(string.IsNullOrWhiteSpace(modeType) ? "Unknown" : modeType, "未知模式");
+    }
+
+    private static bool IsCurrentAdventureCompleted()
+    {
+        if (IsGameExitLoss())
+        {
+            return false;
+        }
+
+        try
+        {
+            return MapManager.Instance != null && MapManager.Instance.WinTheGame();
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool IsGameExitLoss()
+    {
+        try
+        {
+            return GameExitUI.loss;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool IsSolarMemoryMode()
+    {
+        try
+        {
+            return GameSaveManager.GetValue<string>("SunExp_SolarMemoryMode") == "1";
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static IReadOnlyList<OutOfRunTeamMemberSnapshot> CollectTeamMembers()
+    {
+        var result = new List<OutOfRunTeamMemberSnapshot>();
+        try
+        {
+            var roleTables = GameServer.Instance?.RoleTables;
+            if (roleTables != null && roleTables.Count > 0)
+            {
+                foreach (var role in roleTables.Values)
+                {
+                    AddTeamMember(result, role);
+                    if (result.Count >= DamageMeterProtocol.MaxTeamMembers)
+                    {
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                AddTeamMember(result, RoleTable.Instance);
+            }
+        }
+        catch (Exception ex)
+        {
+            AuraToolsLog.Warn("[DamageMeter] team snapshot failed: " + ex.Message);
+        }
+
+        return result;
+    }
+
+    private static void AddTeamMember(List<OutOfRunTeamMemberSnapshot> result, RoleTable? role)
+    {
+        if (role == null || result.Count >= DamageMeterProtocol.MaxTeamMembers)
+        {
+            return;
+        }
+
+        var career = role.Career;
+        var playerId = role.Id ?? "";
+        var roleId = SafeDataField(career, "Id");
+        var roleDisplayName = SafeLocalizedField(career, "Name");
+        if (string.IsNullOrWhiteSpace(roleDisplayName))
+        {
+            roleDisplayName = string.IsNullOrWhiteSpace(roleId) ? playerId : roleId;
+        }
+
+        var playerDisplayName = ResolvePlayerDisplayName(playerId);
+        if (string.IsNullOrWhiteSpace(playerDisplayName))
+        {
+            playerDisplayName = string.IsNullOrWhiteSpace(playerId) ? roleDisplayName : playerId;
+        }
+
+        var avatarPath = SafeDataField(career, "Avatar");
+        if (string.IsNullOrWhiteSpace(avatarPath))
+        {
+            avatarPath = SafeDataField(career, "DollIcon");
+        }
+
+        var avatarBytes = TryEncodeSprite(avatarPath, playerId, roleId);
+        result.Add(new OutOfRunTeamMemberSnapshot
+        {
+            InstanceId = playerId,
+            PlayerId = playerId,
+            PlayerDisplayName = playerDisplayName,
+            RoleId = roleId,
+            RoleDisplayName = roleDisplayName,
+            DisplayName = playerDisplayName,
+            AvatarPngBase64 = avatarBytes.Length == 0 ? "" : Convert.ToBase64String(avatarBytes),
+            AvatarSha256 = avatarBytes.Length == 0 ? "" : AuraSharedSecureEnvelope.Sha256Hex(avatarBytes)
+        });
+    }
+
+    private static string SafeDataField(IDataConfig? dataConfig, string key)
+    {
+        try
+        {
+            if (dataConfig?.data != null && dataConfig.data.TryGetValue(key, out var value))
+            {
+                return value ?? "";
+            }
+        }
+        catch
+        {
+        }
+
+        return "";
+    }
+
+    private static string ResolvePlayerDisplayName(string playerId)
+    {
+        try
+        {
+            var players = GameServer.Instance?.LobbyInfo?.AddedPlayers;
+            var lobbyName = players?
+                .FirstOrDefault(player => player != null
+                                          && string.Equals(player.Id, playerId, StringComparison.OrdinalIgnoreCase))
+                ?.Name;
+            if (!string.IsNullOrWhiteSpace(lobbyName))
+            {
+                return (lobbyName ?? "").Trim();
+            }
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            var playerManager = PlayerManager.Instance;
+            var managerName = playerManager?.playerInfo?.Name;
+            if (playerManager != null
+                && string.Equals(playerManager.PlayerId, playerId, StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(managerName))
+            {
+                return (managerName ?? "").Trim();
+            }
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            var config = Singleton<GameConfigManager>.Instance;
+            if (config != null
+                && string.Equals(config.PlayerId, playerId, StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(config.PlayerName))
+            {
+                return config.PlayerName.Trim();
+            }
+        }
+        catch
+        {
+        }
+
+        return "";
+    }
+
+    private static string SafeLocalizedField(IDataConfig? dataConfig, string key)
+    {
+        try
+        {
+            var localized = dataConfig?.data?.Localize(key) ?? "";
+            return string.Equals(localized, key, StringComparison.OrdinalIgnoreCase) ? "" : localized;
+        }
+        catch
+        {
+            return SafeDataField(dataConfig, key);
+        }
+    }
+
+    private static byte[] TryEncodeSprite(string resourcePath, string playerId, string roleId)
+    {
+        if (string.IsNullOrWhiteSpace(resourcePath))
+        {
+            return Array.Empty<byte>();
+        }
+
+        try
+        {
+            var sprite = ResourceLoader.Load<Sprite>(resourcePath, true);
+            if (sprite == null || sprite.texture == null)
+            {
+                AuraToolsLog.Warn("[DamageMeter] team avatar skipped: resource not found. player="
+                                  + playerId + ", role=" + roleId + ", path=" + resourcePath + ".");
+                return Array.Empty<byte>();
+            }
+
+            var texture = CopySpriteTexture(sprite);
+            var bytes = texture.EncodeToPNG();
+            UnityEngine.Object.Destroy(texture);
+            return bytes ?? Array.Empty<byte>();
+        }
+        catch (Exception ex)
+        {
+            AuraToolsLog.Warn("[DamageMeter] team avatar encode failed: player="
+                              + playerId + ", role=" + roleId + ", path=" + resourcePath
+                              + ", error=" + ex.Message);
+            return Array.Empty<byte>();
+        }
+    }
+
+    private static Texture2D CopySpriteTexture(Sprite sprite)
+    {
+        var rect = sprite.textureRect;
+        var x = Mathf.Max(0, (int)rect.x);
+        var y = Mathf.Max(0, (int)rect.y);
+        var width = Mathf.Max(1, (int)rect.width);
+        var height = Mathf.Max(1, (int)rect.height);
+        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+        try
+        {
+            var pixels = sprite.texture.GetPixels(x, y, width, height);
+            texture.SetPixels(pixels);
+            texture.Apply();
+            return texture;
+        }
+        catch
+        {
+            var previous = RenderTexture.active;
+            var temporary = RenderTexture.GetTemporary(
+                sprite.texture.width,
+                sprite.texture.height,
+                0,
+                RenderTextureFormat.ARGB32,
+                RenderTextureReadWrite.Default);
+            try
+            {
+                Graphics.Blit(sprite.texture, temporary);
+                RenderTexture.active = temporary;
+                texture.ReadPixels(new Rect(x, y, width, height), 0, 0);
+                texture.Apply();
+                return texture;
+            }
+            finally
+            {
+                RenderTexture.active = previous;
+                RenderTexture.ReleaseTemporary(temporary);
+            }
+        }
+    }
+
+    private sealed class PlayModeInfo
+    {
+        public PlayModeInfo(string id, string displayName)
+        {
+            Id = id ?? "";
+            DisplayName = displayName ?? "";
+        }
+
+        public string Id { get; }
+
+        public string DisplayName { get; }
     }
 
     private static string FightResult(ModHookContext context)
@@ -423,7 +874,7 @@ public static class AuraToolsDamageMeterRuntime
     {
         try
         {
-            if (Available && !IsActiveWorldSimulationContext())
+            if (Available && !IsActiveDamageMeterContext())
             {
                 SetAvailable(false, "context-lost");
             }
@@ -434,43 +885,43 @@ public static class AuraToolsDamageMeterRuntime
         }
     }
 
-    private static bool IsActiveWorldSimulationContext()
+    private static bool IsActiveDamageMeterContext()
     {
-        return preparationUiActive && IsWorldSimulationLobby()
-               || IsWorldSimulationAdventureContext();
+        return preparationUiActive && IsSupportedDamageMeterLobby()
+               || IsSupportedDamageMeterAdventureContext();
     }
 
-    private static bool IsWorldSimulationContext(ModHookContext context, bool allowNormalMapHookFallback)
+    private static bool IsSupportedDamageMeterContext(ModHookContext context, bool allowMapManagerFallback)
     {
         var modeType = ReadLobbyModeType();
         if (!string.IsNullOrWhiteSpace(modeType))
         {
-            return string.Equals(modeType, "Normal", StringComparison.OrdinalIgnoreCase);
+            return IsSupportedModeType(modeType);
         }
 
-        if (IsNormalMapManager(context.Target))
+        if (IsSupportedModeManager(context.Target))
         {
             return true;
         }
 
-        if (IsWorldSimulationAdventureContext())
+        if (IsSupportedDamageMeterAdventureContext())
         {
             return true;
         }
 
-        return allowNormalMapHookFallback && IsNormalMapManager(MapManager.Instance?.ModeMapManager);
+        return allowMapManagerFallback && IsSupportedModeManager(MapManager.Instance?.ModeMapManager);
     }
 
-    private static bool IsWorldSimulationLobby()
+    private static bool IsSupportedDamageMeterLobby()
     {
-        return string.Equals(ReadLobbyModeType(), "Normal", StringComparison.OrdinalIgnoreCase);
+        return IsSupportedModeType(ReadLobbyModeType());
     }
 
-    private static bool IsWorldSimulationAdventureContext()
+    private static bool IsSupportedDamageMeterAdventureContext()
     {
         try
         {
-            return IsNormalMapManager(MapManager.Instance?.ModeMapManager);
+            return IsSupportedModeManager(MapManager.Instance?.ModeMapManager);
         }
         catch
         {
@@ -478,9 +929,24 @@ public static class AuraToolsDamageMeterRuntime
         }
     }
 
-    private static bool IsNormalMapManager(object? value)
+    private static bool IsSupportedModeType(string value)
     {
-        return string.Equals(value?.GetType().Name, "NormalMapManager", StringComparison.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        return string.Equals(value, "Normal", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(value, "Sublimation", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(value, "Slot", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSupportedModeManager(object? value)
+    {
+        var name = value?.GetType().Name ?? "";
+        return string.Equals(name, "NormalMapManager", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(name, "SublimationManager", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(name, "SlotMachineManager", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string ReadLobbyModeType()

@@ -8,6 +8,7 @@ public sealed class DamageLedger
 {
     private readonly Dictionary<string, CombatantDamageStat> combatants =
         new(StringComparer.OrdinalIgnoreCase);
+    private DamageBestHitRecord? bestHit;
 
     public string SessionId { get; private set; } = "";
 
@@ -34,6 +35,7 @@ public sealed class DamageLedger
         CurrentRoundIndex = 0;
         CompletedRoundCount = 0;
         ServerSequence = 0;
+        bestHit = null;
         combatants.Clear();
     }
 
@@ -116,6 +118,7 @@ public sealed class DamageLedger
         stat.CurrentRoundHpDamage += hp;
         stat.CurrentRoundShieldDamage += shield;
         AddDetail(stat, damage, hp, shield);
+        TrackBestHit(damage, hp + shield);
         return true;
     }
 
@@ -134,6 +137,7 @@ public sealed class DamageLedger
             CurrentRoundIndex = CurrentRoundIndex,
             CompletedRoundCount = CompletedRoundCount,
             ServerSequence = ServerSequence,
+            BestHit = bestHit?.Copy(),
             Combatants = combatants.Values
                 .OrderBy(stat => stat.InstanceId, StringComparer.OrdinalIgnoreCase)
                 .Select(CloneStat)
@@ -161,6 +165,7 @@ public sealed class DamageLedger
         CurrentRoundIndex = Math.Max(0, snapshot.CurrentRoundIndex);
         CompletedRoundCount = Math.Max(0, snapshot.CompletedRoundCount);
         ServerSequence = Math.Max(0, snapshot.ServerSequence);
+        bestHit = CloneBestHit(snapshot.BestHit);
         combatants.Clear();
 
         foreach (var stat in snapshot.Combatants ?? new List<CombatantDamageStat>())
@@ -214,6 +219,11 @@ public sealed class DamageLedger
                            || includeUnknown && stat.Team == DamageTeam.Unknown)
             .Where(stat => includeUnknown || stat.Team != DamageTeam.Unknown)
             .Sum(stat => stat.DisplayTotal(countShield));
+    }
+
+    public DamageBestHitRecord? BestHit()
+    {
+        return bestHit?.Copy();
     }
 
     private void CloseCurrentRound()
@@ -270,6 +280,37 @@ public sealed class DamageLedger
         }
     }
 
+    private void TrackBestHit(DamageEvent damage, long amount)
+    {
+        if (amount <= 0)
+        {
+            return;
+        }
+
+        if (bestHit != null
+            && (bestHit.Damage > amount
+                || bestHit.Damage == amount && bestHit.ServerSequence <= damage.ServerSequence))
+        {
+            return;
+        }
+
+        bestHit = new DamageBestHitRecord
+        {
+            SessionId = damage.SessionId ?? "",
+            SourceInstanceId = damage.SourceInstanceId ?? "",
+            SourceDisplayName = NormalizeDisplayName(damage.SourceDisplayName, damage.SourceInstanceId ?? ""),
+            SourceTeam = damage.SourceTeam,
+            TargetInstanceId = damage.TargetInstanceId ?? "",
+            SourceDataId = damage.SourceDataId ?? "",
+            DetailLabel = damage.DetailLabel ?? "",
+            DamageType = damage.DamageType ?? "",
+            Damage = amount,
+            RoundIndex = damage.RoundIndex,
+            ServerSequence = damage.ServerSequence,
+            EventId = damage.EventId
+        };
+    }
+
     private static CombatantDamageStat CloneStat(CombatantDamageStat source)
     {
         return new CombatantDamageStat
@@ -302,6 +343,33 @@ public sealed class DamageLedger
                         Confidence = pair.Value.Confidence
                     },
                     StringComparer.OrdinalIgnoreCase)
+        };
+    }
+
+    private static DamageBestHitRecord? CloneBestHit(DamageBestHitRecord? source)
+    {
+        if (source == null || source.Damage <= 0)
+        {
+            return null;
+        }
+
+        return new DamageBestHitRecord
+        {
+            RecordName = string.IsNullOrWhiteSpace(source.RecordName)
+                ? DamageMeterRecordNames.BestHit
+                : source.RecordName.Trim(),
+            SessionId = source.SessionId ?? "",
+            SourceInstanceId = source.SourceInstanceId ?? "",
+            SourceDisplayName = source.SourceDisplayName ?? "",
+            SourceTeam = source.SourceTeam,
+            TargetInstanceId = source.TargetInstanceId ?? "",
+            SourceDataId = source.SourceDataId ?? "",
+            DetailLabel = source.DetailLabel ?? "",
+            DamageType = source.DamageType ?? "",
+            Damage = source.Damage,
+            RoundIndex = Math.Max(0, source.RoundIndex),
+            ServerSequence = Math.Max(0, source.ServerSequence),
+            EventId = source.EventId ?? ""
         };
     }
 
