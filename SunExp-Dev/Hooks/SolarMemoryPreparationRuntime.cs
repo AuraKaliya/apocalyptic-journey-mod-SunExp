@@ -106,7 +106,8 @@ public static class SolarMemoryPreparationRuntime
 
     public static bool IsComplete()
     {
-        return ReadOrInferStep() == SolarMemoryPrepStep.Complete;
+        return SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemorySetupFinishedKey)
+            && ReadOrInferStep() == SolarMemoryPrepStep.Complete;
     }
 
     private static void EnterStep(SolarMemoryPrepStep step)
@@ -141,7 +142,15 @@ public static class SolarMemoryPreparationRuntime
         SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryBlessConfiguredKey, true);
         SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemorySetupFinishedKey, true);
         WriteStep(SolarMemoryPrepStep.Complete);
-        SolarMemoryRoleCommitApi.CommitFinal(RoleTable.Instance, "SunExp.SolarMemory.SetupFinished");
+        if (!SolarMemoryRoleCommitApi.CommitFinal(RoleTable.Instance, "SunExp.SolarMemory.SetupFinished"))
+        {
+            SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemorySetupFinishedKey, false);
+            SolarMemoryPlayerSetupState.SetValue(SunExpIds.SolarMemorySetupCommitTokenKey, "");
+            SunExpLog.Warn("[SolarMemoryPrep] final role commit failed; setup completion is pending retry. snapshot=" + StateSnapshot());
+            UIManager.Instance?.ShowTip("日耀回忆整备提交失败，请重试", null);
+            return;
+        }
+
         SolarMemorySetupFlowRuntime.ClosePreparationWindows();
         UIManager.Instance?.ShowTip("日耀回忆整备完成", null);
         SunExpLog.Info("[SolarMemoryPrep] Complete; setupFinished=1; snapshot=" + StateSnapshot());
@@ -172,8 +181,7 @@ public static class SolarMemoryPreparationRuntime
     {
         return step switch
         {
-            SolarMemoryPrepStep.Complete => SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemorySetupFinishedKey)
-                || SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryBlessConfiguredKey),
+            SolarMemoryPrepStep.Complete => SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemorySetupFinishedKey),
             SolarMemoryPrepStep.BlessingSelection => SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryOriginConfiguredKey)
                 && !SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryBlessConfiguredKey),
             SolarMemoryPrepStep.OriginAllocation => IsDeckConfigured()

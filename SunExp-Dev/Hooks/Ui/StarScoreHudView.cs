@@ -67,6 +67,15 @@ public sealed class StarScoreHudView : MonoBehaviour
         Render(snapshot);
     }
 
+    public void Close(string source)
+    {
+        pendingSnapshot = null;
+        holdUntil = 0f;
+        pointerInside = false;
+        CloseTooltip(source + ":tooltip");
+        SunExpUiSafety.CloseTransient(gameObject, source, "[StarScoreHud]");
+    }
+
     private void Update()
     {
         if (pendingSnapshot != null && Time.unscaledTime >= holdUntil)
@@ -251,11 +260,7 @@ public sealed class StarScoreHudView : MonoBehaviour
 
     private void OnDestroy()
     {
-        if (tooltip != null)
-        {
-            Destroy(tooltip.gameObject);
-            tooltip = null;
-        }
+        CloseTooltip("StarScoreHudView.OnDestroy");
     }
 
     private void OnDisable()
@@ -270,5 +275,17 @@ public sealed class StarScoreHudView : MonoBehaviour
         {
             image.gameObject.SetActive(false);
         }
+    }
+
+    private void CloseTooltip(string source)
+    {
+        if (tooltip == null)
+        {
+            return;
+        }
+
+        var root = tooltip.gameObject;
+        tooltip = null;
+        SunExpUiSafety.CloseTransient(root, source, "[StarScoreHud]");
     }
 }

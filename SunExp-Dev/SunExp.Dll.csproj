@@ -44,6 +44,10 @@
       <HintPath>$(DllPath)\UnityEngine.AudioModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="UnityEngine.AssetBundleModule">
+      <HintPath>$(DllPath)\UnityEngine.AssetBundleModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="UnityEngine.UIModule">
       <HintPath>$(DllPath)\UnityEngine.UIModule.dll</HintPath>
       <Private>false</Private>

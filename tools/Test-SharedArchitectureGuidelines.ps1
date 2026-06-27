@@ -76,6 +76,8 @@ Require-Text $audioRuntime "OwnerModId to disambiguate" "AudioArbiterRuntime mus
 
 $architectureGuidelines = Read-RepoText "docs\shared-component-architecture-guidelines.md"
 Require-Text $architectureGuidelines "provider identity[\s\S]*BuildId" "Shared architecture guidelines must require BuildId bumps for provider identity semantic changes."
+Require-Text $architectureGuidelines "Tool-owned runtime caches[\s\S]*AuraSharedStorageCoordinator\.ExecuteWrite" "Shared architecture guidelines must document coordinated shared-cache writes."
+Require-Text $architectureGuidelines "WriteTextAtomic[\s\S]*cache metadata" "Shared architecture guidelines must require atomic metadata writes for shared caches."
 
 $auraCgRuntime = Read-RepoText "AuraCgShared\AuraCgRuntime.cs"
 Require-Text $auraCgRuntime "RenderMode\.ScreenSpaceOverlay" "AuraCgShared overlay must render on an independent screen-space canvas."

@@ -1,0 +1,189 @@
+{
+  "schemaVersion": 1,
+  "ownerModId": "SunExp",
+  "textures": [
+    {
+      "id": "solar_memory.event_map_card",
+      "path": "Mods/SunExp/ModResource/Images/MapNode/日耀回忆-事件.png",
+      "enabled": true
+    }
+  ],
+  "modeEntries": [
+    {
+      "id": "solar_memory",
+      "normalTitleSprite": "Mods/SunExp/ModResource/Images/UI/solar_memory_title_c.png",
+      "highlightedTitleSprite": "Mods/SunExp/ModResource/Images/UI/solar_memory_title_c_h.png",
+      "titleArtHeightRatio": 0.735,
+      "enabled": true
+    }
+  ],
+  "frameAnimations": [
+    {
+      "id": "dusk.afterheat.icon",
+      "targetKind": "blessing-icon",
+      "frameSeconds": 0.2,
+      "matchSpriteNames": [ "huanghun_1" ],
+      "framePaths": [
+        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_1",
+        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_2",
+        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_3",
+        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_4",
+        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_3",
+        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_2"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "star_clay_doll.icon",
+      "targetKind": "blessing-icon",
+      "frameSeconds": 0.2,
+      "matchSpriteNames": [ "renkui_1" ],
+      "framePaths": [
+        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_1",
+        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_2",
+        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_3",
+        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_4",
+        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_3",
+        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_2"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "dusk.afterheat.buff",
+      "targetKind": "buff-icon",
+      "frameSeconds": 0.2,
+      "matchIds": [ "SunExp_sunexp_dusk_afterheat_recovery_trait" ],
+      "framePaths": [
+        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_1",
+        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_2",
+        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_3",
+        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_4",
+        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_3",
+        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_2"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "star_clay_doll.buff",
+      "targetKind": "buff-icon",
+      "frameSeconds": 0.2,
+      "matchIds": [
+        "SunExp_sunexp_star_clay_body",
+        "SunExp_sunexp_star_clay_doll_trait"
+      ],
+      "framePaths": [
+        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_1",
+        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_2",
+        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_3",
+        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_4",
+        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_3",
+        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_2"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "enemy.saint_wuna.dictionary",
+      "targetKind": "enemy-dictionary-icon",
+      "frameSeconds": 0.2,
+      "matchIds": [ "SunExp_sunexp_boss_saint_wuna" ],
+      "framePaths": [
+        "Mods/SunExp/ModResource/AnimationLib/WuNa_e/Dict/Dict_00",
+        "Mods/SunExp/ModResource/AnimationLib/WuNa_e/Dict/Dict_01",
+        "Mods/SunExp/ModResource/AnimationLib/WuNa_e/Dict/Dict_02",
+        "Mods/SunExp/ModResource/AnimationLib/WuNa_e/Dict/Dict_03",
+        "Mods/SunExp/ModResource/AnimationLib/WuNa_e/Dict/Dict_04",
+        "Mods/SunExp/ModResource/AnimationLib/WuNa_e/Dict/Dict_05",
+        "Mods/SunExp/ModResource/AnimationLib/WuNa_e/Dict/Dict_06",
+        "Mods/SunExp/ModResource/AnimationLib/WuNa_e/Dict/Dict_07"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "enemy.second_sun.dictionary",
+      "targetKind": "enemy-dictionary-icon",
+      "frameSeconds": 0.2,
+      "matchIds": [ "SunExp_sunexp_boss_second_sun_last_day" ],
+      "framePaths": [
+        "Mods/SunExp/ModResource/AnimationLib/SecondSunWeel_e/Dict/Dict_00",
+        "Mods/SunExp/ModResource/AnimationLib/SecondSunWeel_e/Dict/Dict_01",
+        "Mods/SunExp/ModResource/AnimationLib/SecondSunWeel_e/Dict/Dict_02",
+        "Mods/SunExp/ModResource/AnimationLib/SecondSunWeel_e/Dict/Dict_03",
+        "Mods/SunExp/ModResource/AnimationLib/SecondSunWeel_e/Dict/Dict_04",
+        "Mods/SunExp/ModResource/AnimationLib/SecondSunWeel_e/Dict/Dict_05",
+        "Mods/SunExp/ModResource/AnimationLib/SecondSunWeel_e/Dict/Dict_06",
+        "Mods/SunExp/ModResource/AnimationLib/SecondSunWeel_e/Dict/Dict_07"
+      ],
+      "enabled": true
+    }
+  ],
+  "mapNodeArt": [
+    {
+      "id": "solar_memory.second_sun.map_card",
+      "texturePath": "Mods/SunExp/ModResource/AnimationLib/SecondSunWeel_e/Map/Map_00.png",
+      "fitMode": "ContainTrimmed",
+      "mapIds": [
+        "SunExp_sunexp_solar_memory_boss_second_sun_last_day",
+        "solar_memory_boss_second_sun_last_day"
+      ],
+      "levelIds": [
+        "SunExp_sunexp_level_second_sun_last_day",
+        "level_second_sun_last_day"
+      ],
+      "enemyIds": [
+        "SunExp_sunexp_boss_second_sun_last_day",
+        "boss_second_sun_last_day"
+      ],
+      "priority": 100,
+      "enabled": true
+    },
+    {
+      "id": "solar_memory.saint_wuna.map_card",
+      "texturePath": "Mods/SunExp/ModResource/AnimationLib/WuNa_e/Map/Map_00.png",
+      "fitMode": "ContainTrimmed",
+      "mapIds": [
+        "SunExp_sunexp_solar_memory_boss_saint_wuna",
+        "solar_memory_boss_saint_wuna"
+      ],
+      "levelIds": [
+        "SunExp_sunexp_level_saint_wuna",
+        "level_saint_wuna"
+      ],
+      "enemyIds": [
+        "SunExp_sunexp_boss_saint_wuna",
+        "boss_saint_wuna"
+      ],
+      "priority": 100,
+      "enabled": true
+    }
+  ],
+  "shaders": [
+    {
+      "id": "sunexp.star_score_hud",
+      "shaderName": "SunExp/StarScoreHud",
+      "shaderPath": "SunExp/StarScoreHud",
+      "bundlePath": "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
+      "materialPath": "SunExp/Materials/StarScoreHudLit",
+      "enabled": true
+    }
+  ],
+  "effects": [
+    {
+      "id": "sunexp.star_score_hud.lit_slot",
+      "kind": "ui-material",
+      "shaderId": "sunexp.star_score_hud",
+      "bundlePath": "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
+      "materialPath": "SunExp/Materials/StarScoreHudLit",
+      "textures": {},
+      "floats": {
+        "_SunExpFlowSpeed": 0.55,
+        "_SunExpFlowScale": 1.2,
+        "_SunExpEdgeGlow": 0.35
+      },
+      "colors": {
+        "_SunExpGlowColor": "#FFE08AFF",
+        "_SunExpFlowColor": "#9DDCFFFF"
+      },
+      "enabled": true
+    }
+  ]
+}

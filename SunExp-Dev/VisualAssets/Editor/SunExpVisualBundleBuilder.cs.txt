@@ -1,0 +1,79 @@
+// Copy this file into a Unity Editor project as Assets/Editor/SunExpVisualBundleBuilder.cs.
+// Keep the asset paths aligned with SunExp-Dev/VisualAssets/sunexp_visuals.pipeline.json
+// and SunExp/visual.registry.json.
+
+using System.IO;
+using UnityEditor;
+using UnityEngine;
+
+public static class SunExpVisualBundleBuilder
+{
+    private const string BundleName = "sunexp_visuals";
+    private const string ShaderAssetPath = "Assets/SunExp/Visuals/Shaders/StarScoreHud.shader";
+    private const string MaterialAssetPath = "Assets/SunExp/Visuals/Materials/StarScoreHudLit.mat";
+    private const string BuildOutputDirectory = "Build/SunExpVisualBundles";
+    private const string ModOutputPath = "../SunExp/ModResource/VisualBundles/sunexp_visuals";
+
+    [MenuItem("SunExp/Visuals/Build Visual Bundle")]
+    public static void BuildVisualBundle()
+    {
+        EnsureStarScoreMaterial();
+
+        var material = AssetImporter.GetAtPath(MaterialAssetPath);
+        if (material == null)
+        {
+            throw new FileNotFoundException("SunExp material asset is missing.", MaterialAssetPath);
+        }
+
+        material.assetBundleName = BundleName;
+
+        Directory.CreateDirectory(BuildOutputDirectory);
+        BuildPipeline.BuildAssetBundles(
+            BuildOutputDirectory,
+            BuildAssetBundleOptions.ChunkBasedCompression,
+            EditorUserBuildSettings.activeBuildTarget);
+
+        var builtBundle = Path.Combine(BuildOutputDirectory, BundleName);
+        if (!File.Exists(builtBundle))
+        {
+            throw new FileNotFoundException("SunExp visual bundle was not produced.", builtBundle);
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(ModOutputPath));
+        File.Copy(builtBundle, ModOutputPath, true);
+        AssetDatabase.Refresh();
+        Debug.Log("Built SunExp visual bundle: " + ModOutputPath);
+    }
+
+    private static void EnsureStarScoreMaterial()
+    {
+        var shader = AssetDatabase.LoadAssetAtPath<Shader>(ShaderAssetPath);
+        if (shader == null)
+        {
+            throw new FileNotFoundException("SunExp shader asset is missing.", ShaderAssetPath);
+        }
+
+        var material = AssetDatabase.LoadAssetAtPath<Material>(MaterialAssetPath);
+        if (material == null)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(MaterialAssetPath));
+            material = new Material(shader)
+            {
+                name = "StarScoreHudLit"
+            };
+            AssetDatabase.CreateAsset(material, MaterialAssetPath);
+        }
+        else
+        {
+            material.shader = shader;
+        }
+
+        material.SetFloat("_SunExpFlowSpeed", 0.55f);
+        material.SetFloat("_SunExpFlowScale", 1.2f);
+        material.SetFloat("_SunExpEdgeGlow", 0.35f);
+        material.SetColor("_SunExpGlowColor", new Color(1f, 0.878f, 0.541f, 1f));
+        material.SetColor("_SunExpFlowColor", new Color(0.616f, 0.863f, 1f, 1f));
+        EditorUtility.SetDirty(material);
+        AssetDatabase.SaveAssets();
+    }
+}

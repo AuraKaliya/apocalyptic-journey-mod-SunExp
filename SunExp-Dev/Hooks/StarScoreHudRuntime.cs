@@ -7,7 +7,6 @@ using UnityEngine;
 using Witch.Core;
 using Witch.Mod;
 using Witch.UI;
-using Object = UnityEngine.Object;
 
 namespace SunExp.Dll.Hooks;
 
@@ -104,7 +103,7 @@ public static class StarScoreHudRuntime
             return;
         }
 
-        Object.Destroy(activeView.gameObject);
+        activeView.Close("StarScoreHudRuntime.Close");
         activeView = null;
     }
 }

@@ -10,6 +10,7 @@ using SunExp.Dll.Features.SkillCg;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks;
 using SunExp.Dll.Infrastructure;
+using SunExp.Dll.Mechanics;
 using SunExp.Dll.Network;
 using UiTransitionGuardShared;
 
@@ -25,6 +26,7 @@ public static class Entry
         RunStep("rpc authority", () => SunExpRpcAuthorityRuntime.Initialize(modConfig));
         RunStep("shared resource package", () => RegisterSharedResourcePackage(modConfig));
         RunStep("shared registry", () => AuraSharedRegistry.RegisterManifest(modConfig, "SunExp"));
+        RunStep("visual registry", () => VisualRegistry.Load(modConfig));
         RunStep("CG registry", () => AuraCgRegistryRuntime.RegisterManifest(modConfig, "SunExp"));
         RunStep("skill CG runtime", () => SunExpSkillCgRuntime.Initialize(modConfig));
         RunStep("starter deck profiles", () => StarterDeckArbiterRuntime.RegisterProfileManifest(modConfig, "SunExp"));

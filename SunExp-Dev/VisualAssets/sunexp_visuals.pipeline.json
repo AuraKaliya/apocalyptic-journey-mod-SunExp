@@ -1,0 +1,20 @@
+{
+  "bundleName": "sunexp_visuals",
+  "outputPath": "SunExp/ModResource/VisualBundles/sunexp_visuals",
+  "unityAssets": {
+    "shader": "Assets/SunExp/Visuals/Shaders/StarScoreHud.shader",
+    "material": "Assets/SunExp/Visuals/Materials/StarScoreHudLit.mat"
+  },
+  "runtimeAssets": {
+    "shaderName": "SunExp/StarScoreHud",
+    "shaderPath": "SunExp/StarScoreHud",
+    "materialPath": "SunExp/Materials/StarScoreHudLit"
+  },
+  "defaults": {
+    "_SunExpFlowSpeed": 0.55,
+    "_SunExpFlowScale": 1.2,
+    "_SunExpEdgeGlow": 0.35,
+    "_SunExpGlowColor": "#FFE08AFF",
+    "_SunExpFlowColor": "#9DDCFFFF"
+  }
+}

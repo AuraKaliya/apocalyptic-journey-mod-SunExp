@@ -112,6 +112,11 @@ public static class CardScripts
         return StarScoreService.IsStellarOvertureCard(id) || StarScoreService.IsWitchStarScoreCard(id);
     }
 
+    private static void RestorePrimaryTargetForAnimation(ScriptExecutor self, IStatusManager? target)
+    {
+        ExecutorApi.SetStatusForTarget(self, target, "Target");
+    }
+
     private static void InitSpark(ScriptExecutor self)
     {
         ExecutorApi.SetBaseScript(self, "AttackCardItem", canSelf: false);
@@ -191,6 +196,7 @@ public static class CardScripts
         ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, 1, "Target");
         self.SetStatus("Self");
         self.AddBuff(SunExpIds.SolarRadiance, "1");
+        RestorePrimaryTargetForAnimation(self, target);
     }
 
     private static void UseScorchingCanopyCard(ScriptExecutor self)
@@ -229,6 +235,7 @@ public static class CardScripts
             self.SetStatus("Self");
             self.AddBuff(SunExpIds.GatheredFlame, gain.ToString());
         }
+        RestorePrimaryTargetForAnimation(self, target);
     }
 
     private static void UseSolarPrayer(ScriptExecutor self)
@@ -255,6 +262,7 @@ public static class CardScripts
                 self.RemoveBuff(SunExpIds.GatheredFlame);
             }
         }
+        RestorePrimaryTargetForAnimation(self, target);
     }
 
     private static void UseCrownRadiance(ScriptExecutor self)
@@ -328,6 +336,7 @@ public static class CardScripts
         self.SetStatus("Self");
         self.RemoveBuff(SunExpIds.GatheredFlame);
         ExecutorApi.ApplySelfBurn(self, consumedFlame / 2, includePending: false);
+        self.SetStatus("AllTarget");
     }
 
     private static void UseRadiantOath(ScriptExecutor self)
@@ -368,6 +377,7 @@ public static class CardScripts
             self.SetStatus("Self");
             self.AddBuff(SunExpIds.GatheredFlame, gain.ToString());
         }
+        RestorePrimaryTargetForAnimation(self, target);
     }
 
     private static void UseImpurityPurge(ScriptExecutor self)
@@ -463,6 +473,7 @@ public static class CardScripts
         {
             ExecutorApi.TriggerBurn(self, target, "Target");
         }
+        RestorePrimaryTargetForAnimation(self, target);
     }
 
     private static void UseBurningCrownOath(ScriptExecutor self)

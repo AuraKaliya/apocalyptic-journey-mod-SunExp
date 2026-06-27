@@ -64,4 +64,13 @@ if ($violations.Count -gt 0) {
     throw "Shared write entrypoint scan failed: $($violations.Count) violation(s)."
 }
 
+$settlementCgCache = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\DamageMeter\SettlementCg\DamageSettlementCgAssetCache.cs")
+if ($settlementCgCache -notmatch "AuraSharedStorageCoordinator") {
+    throw "Settlement CG idle cache writes must use AuraSharedStorageCoordinator."
+}
+
+if ($settlementCgCache -notmatch "WriteTextAtomic") {
+    throw "Settlement CG idle cache metadata writes must use atomic shared-storage writes."
+}
+
 Write-Host "Shared write entrypoint scan passed."

@@ -327,32 +327,37 @@ internal static class DamageSettlementCgAssetCache
             "Idle",
             AuraSharedPaths.SafeSegment(roleId, "unknown-role"),
             hash);
-        Directory.CreateDirectory(cacheDirectory);
-
-        var copiedFiles = new List<string>();
-        foreach (var file in orderedFiles)
+        using var storage = new AuraSharedStorageCoordinator(AuraSharedPaths.RootDirectory);
+        return storage.ExecuteWrite("Cache/" + CacheSystem + "/Idle/" + roleId + "/" + hash, () =>
         {
-            var destination = Path.Combine(cacheDirectory, Path.GetFileName(file));
-            File.Copy(file, destination, true);
-            copiedFiles.Add(destination);
-        }
+            Directory.CreateDirectory(cacheDirectory);
 
-        File.WriteAllText(Path.Combine(cacheDirectory, "config.json"), configJson);
-        WriteManifest(cacheDirectory, roleId, source, hash, copiedFiles, spec);
+            var copiedFiles = new List<string>();
+            foreach (var file in orderedFiles)
+            {
+                var destination = Path.Combine(cacheDirectory, Path.GetFileName(file));
+                File.Copy(file, destination, true);
+                copiedFiles.Add(destination);
+            }
 
-        return new DamageSettlementCgPreparedClip
-        {
-            Key = RoleKey(roleId) + ":" + hash,
-            RoleId = roleId,
-            Source = source.ResourcePath,
-            CacheDirectory = cacheDirectory,
-            FrameSeconds = spec.FrameSeconds,
-            Loop = spec.Loop,
-            FrameFiles = copiedFiles
-        };
+            storage.WriteTextAtomic(Path.Combine(cacheDirectory, "config.json"), configJson, createBackup: false);
+            WriteManifest(storage, cacheDirectory, roleId, source, hash, copiedFiles, spec);
+
+            return new DamageSettlementCgPreparedClip
+            {
+                Key = RoleKey(roleId) + ":" + hash,
+                RoleId = roleId,
+                Source = source.ResourcePath,
+                CacheDirectory = cacheDirectory,
+                FrameSeconds = spec.FrameSeconds,
+                Loop = spec.Loop,
+                FrameFiles = copiedFiles
+            };
+        });
     }
 
     private static void WriteManifest(
+        AuraSharedStorageCoordinator storage,
         string cacheDirectory,
         string roleId,
         IdleFileSource source,
@@ -374,7 +379,7 @@ internal static class DamageSettlementCgAssetCache
             ["direction"] = spec.Direction,
             ["frames"] = new JArray(copiedFiles.Select(Path.GetFileName))
         };
-        File.WriteAllText(Path.Combine(cacheDirectory, "manifest.json"), manifest.ToString());
+        storage.WriteTextAtomic(Path.Combine(cacheDirectory, "manifest.json"), manifest.ToString(), createBackup: false);
     }
 
     private static string HashSource(string configJson, IEnumerable<string> orderedFiles)

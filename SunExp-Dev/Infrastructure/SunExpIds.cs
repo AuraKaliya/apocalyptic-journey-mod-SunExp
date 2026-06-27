@@ -6,6 +6,21 @@ public static class SunExpIds
 
     public const string ModLogTag = "SunExp.DLL";
 
+    public const string SunCardVisualSkinId = "sunexp.card_visual.sun";
+    public const string SunCardFramePath = "Mods/SunExp/ModResource/Images/UI/\u65e5\u8000-\u5361\u68461.png";
+    public const string SunCardBackgroundPath = "Mods/SunExp/ModResource/Images/UI/\u5361\u9762\u80cc\u666f.png";
+    public const string SunCardIconPathPrefix = "Mods/SunExp/ModResource/Images/Card/SunExp/";
+    public const string RadiantSparkCardPackId = "SunExp_sunexp_cardpack_radiant_spark";
+    public const string EmberCrownCardPackId = "SunExp_sunexp_cardpack_ember_crown";
+    public const string SolarCanopyCardPackId = "SunExp_sunexp_cardpack_solar_canopy";
+
+    public static readonly string[] SunThemeCardPackIds =
+    {
+        RadiantSparkCardPackId,
+        EmberCrownCardPackId,
+        SolarCanopyCardPackId
+    };
+
     public const string WhiteRadianceTag = "白曜";
     public const string MorningStarSealTag = "启明星";
 

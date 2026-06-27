@@ -36,6 +36,12 @@ Shared writes should go through `AuraSharedConfigStore`,
 Core storage/package internals or in explicitly append-only utility sinks such
 as logs.
 
+Tool-owned runtime caches under the shared `Cache` directory should still use
+`AuraSharedStorageCoordinator.ExecuteWrite` for materialization and
+`WriteTextAtomic` for cache metadata. Copying derived frame or media files is
+allowed only while holding that shared write lock, so concurrent Mods cannot
+observe half-written cache manifests.
+
 ## Domain Component Rules
 
 A domain shared component should own the following surface:

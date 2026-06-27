@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using AuraShared.Core;
 using Data.Save;
 using SunExp.Dll.GameApi;
@@ -9,7 +8,6 @@ using SunExp.Dll.Hooks.Ui;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
 using UnityEngine;
-using UnityEngine.Events;
 using UnityEngine.UI;
 using Witch;
 using Witch.Core;
@@ -21,32 +19,15 @@ namespace SunExp.Dll.Hooks;
 
 public static class SolarMemoryModeRuntime
 {
-    private const string EntryObjectName = "SunExp_SolarMemoryMode";
-    private const string PackWindowName = "SunExp_SolarMemoryPackWindow";
-    private const string EntryTitleSpritePath = "Mods/SunExp/ModResource/Images/UI/solar_memory_title_c.png";
-    private const string EntryHighlightedTitleSpritePath = "Mods/SunExp/ModResource/Images/UI/solar_memory_title_c_h.png";
-    private const string SolarMemoryEventMapCardTexturePath = "Mods/SunExp/ModResource/Images/MapNode/日耀回忆-事件.png";
-    private const float EntryTitleArtHeightRatio = 0.735f;
     private const int LegacySolarFinaleMapLevel = 30;
     private const int SolarMemoryOpeningSlotIndex = 0;
     private const int SolarMemoryMidLayerSlotIndex = 3;
-    private static readonly Color PanelColor = new(0.11f, 0.09f, 0.08f, 0.96f);
-    private static readonly Color AccentColor = new(0.84f, 0.55f, 0.2f, 1f);
-    private static readonly Color RowNormalColor = new(0.18f, 0.16f, 0.14f, 0.92f);
-    private static readonly Color RowSelectedColor = new(0.38f, 0.24f, 0.11f, 0.96f);
-    private static readonly Color ButtonColor = new(0.29f, 0.21f, 0.16f, 0.96f);
-    private static Font? cachedFont;
-    private static Sprite? entryTitleSprite;
-    private static Sprite? entryHighlightedTitleSprite;
-    private static bool entryTitleSpriteLoadAttempted;
-    private static bool entryHighlightedTitleSpriteLoadAttempted;
     private static bool handlingSolarMemoryFightAbort;
 
     public static void Initialize(ModConfig modConfig)
     {
-        RegisterModeChoiceEntry();
-        ModeChoiceLayoutRuntime.Initialize(modConfig);
-        RegisterAfter(modConfig, "MapSelectUI.DataUpdate", ApplySolarMemoryLayerTitle);
+        SolarMemoryModeEntryRuntime.Initialize(modConfig);
+        SolarMemoryMapVisualRuntime.Initialize(modConfig);
         RegisterBefore(modConfig, "GameConfigManager.CardPackCheck", FilterSolarMemoryCardPackCheck);
         RegisterBefore(modConfig, "NormalMapManager.RandomGenerate", CaptureSolarMemoryGenerationState);
         RegisterAfter(modConfig, "NormalMapManager.GeneratrMap", RewriteSolarMemoryMap);
@@ -60,24 +41,11 @@ public static class SolarMemoryModeRuntime
         RegisterBefore(modConfig, "MapManager.RpcNextMap", EnsureSolarMemoryCurrentNodeBeforeNextMap);
         RegisterAfter(modConfig, "MapManager.RpcNextMap", SyncSolarMemoryClientLastNodeAfterNextMap);
         RegisterBefore(modConfig, "NormalMapManager.MapItemInit", SettleLegacyTerminalLevelBeforeMapItems);
-        RegisterAfter(modConfig, "NormalMapManager.MapItemInit", ApplySolarMemoryFixedSlotsAfterMapItems);
-        RegisterAfter(modConfig, "MapSelectUI.ShowMap", ReapplySolarMemoryFixedSlotLocks);
         RegisterAfter(modConfig, "Fight_Win.ResetStates", SettleSolarMemoryBossAfterWin);
         RegisterBefore(modConfig, "Fight_Escape.ResetStates", PrepareSolarMemoryFightAbort);
         RegisterAfter(modConfig, "Fight_Escape.ResetStates", SettleSolarMemoryFightAbort);
         RegisterAfter(modConfig, "Fight_Loss.Init", SettleSolarMemoryFightLoss);
         RegisterBefore(modConfig, "NormalMapManager.ReadyToChangeMap", FinishSolarMemoryAfterFinalLayer);
-    }
-
-    private static void RegisterModeChoiceEntry()
-    {
-        ModeChoiceEntryRegistry.Register(new ModeChoiceEntryDefinition(
-            EntryObjectName,
-            "SublimationMode",
-            100,
-            ConfigureRegisteredEntry,
-            modeChoice => SolarMemoryRunLauncher.Start(modeChoice, InitialPackSelection().ToList()),
-            SunExpIds.SolarMemoryTitle));
     }
 
     public static void OpenOriginWindow()
@@ -141,516 +109,6 @@ public static class SolarMemoryModeRuntime
         AuraSharedHooks.RegisterBefore(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Solar memory " + message));
     }
 
-    private static void ConfigureRegisteredEntry(GameObject entry, ModeChoiceUI modeChoice)
-    {
-        try
-        {
-            ConfigureEntryUnlocked(entry.transform);
-            ConfigureEntryHoverState(entry);
-            ConfigureEntryTexts(entry.transform);
-            ResetEntryVisualState(entry);
-            ConfigureEntryClick(entry, modeChoice);
-            entry.SetActive(true);
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Error("Solar memory entry injection failed", ex);
-        }
-    }
-
-    private static void ConfigureEntryUnlocked(Transform entry)
-    {
-        foreach (var child in entry.GetComponentsInChildren<Transform>(true))
-        {
-            if (string.Equals(child.name, "Lock", StringComparison.OrdinalIgnoreCase))
-            {
-                child.gameObject.SetActive(false);
-            }
-        }
-
-        var switchButton = entry.GetComponent<SwitchButton>();
-        if (switchButton != null)
-        {
-            switchButton.interactable = true;
-        }
-
-        foreach (var selectable in entry.GetComponentsInChildren<Selectable>(true))
-        {
-            selectable.interactable = true;
-        }
-    }
-
-    private static void ConfigureEntryTexts(Transform entry)
-    {
-        SetTmpText(entry.Find("Text/Text"), SunExpIds.SolarMemoryDescription + "\n" + SunExpIds.SolarMemorySubtitle);
-        var hasTitleSprites = ConfigureEntryTitleSprites(entry);
-
-        var title = entry.Find("SunExpTitle");
-        if (hasTitleSprites)
-        {
-            if (title != null)
-            {
-                title.gameObject.SetActive(false);
-            }
-
-            return;
-        }
-
-        if (title == null)
-        {
-            var go = new GameObject("SunExpTitle", typeof(RectTransform));
-            title = go.transform;
-            title.SetParent(entry, false);
-            var rect = go.GetComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0.08f, 0.58f);
-            rect.anchorMax = new Vector2(0.92f, 0.88f);
-            rect.offsetMin = Vector2.zero;
-            rect.offsetMax = Vector2.zero;
-            var text = go.AddComponent<Text>();
-            ConfigureText(text, SunExpIds.SolarMemoryTitle, 30, FontStyle.Bold, TextAnchor.MiddleCenter, Color.white);
-        }
-        else
-        {
-            var text = title.GetComponent<Text>();
-            if (text != null)
-            {
-                text.text = SunExpIds.SolarMemoryTitle;
-            }
-
-            title.gameObject.SetActive(true);
-        }
-    }
-
-    private static bool ConfigureEntryTitleSprites(Transform entry)
-    {
-        var normalSprite = GetEntryTitleSprite();
-        var highlightedSprite = GetEntryHighlightedTitleSprite();
-        if (normalSprite == null || highlightedSprite == null)
-        {
-            return false;
-        }
-
-        var normalTitle = entry.Find("Normal/Title");
-        var highlightedTitle = entry.Find("HighLighted/Title");
-        var pressedTitle = entry.Find("Pressed/Title");
-        ClearEntryStateImages(entry.Find("Normal"), normalTitle);
-        ClearEntryStateImages(entry.Find("HighLighted"), highlightedTitle);
-        ClearEntryStateImages(entry.Find("Pressed"), pressedTitle);
-        SetImageSprite(normalTitle, normalSprite);
-        SetImageSprite(highlightedTitle, highlightedSprite);
-        SetImageSprite(pressedTitle, highlightedSprite);
-        return true;
-    }
-
-    private static Sprite? GetEntryTitleSprite()
-    {
-        if (entryTitleSprite != null)
-        {
-            return entryTitleSprite;
-        }
-
-        if (entryTitleSpriteLoadAttempted)
-        {
-            return null;
-        }
-
-        entryTitleSpriteLoadAttempted = true;
-        entryTitleSprite = LoadEntrySprite(EntryTitleSpritePath);
-        return entryTitleSprite;
-    }
-
-    private static Sprite? GetEntryHighlightedTitleSprite()
-    {
-        if (entryHighlightedTitleSprite != null)
-        {
-            return entryHighlightedTitleSprite;
-        }
-
-        if (entryHighlightedTitleSpriteLoadAttempted)
-        {
-            return null;
-        }
-
-        entryHighlightedTitleSpriteLoadAttempted = true;
-        entryHighlightedTitleSprite = LoadEntrySprite(EntryHighlightedTitleSpritePath);
-        return entryHighlightedTitleSprite;
-    }
-
-    private static Sprite? LoadEntrySprite(string path)
-    {
-        try
-        {
-            var sprite = ResourceLoader.Load<Sprite>(path, true);
-            if (sprite == null)
-            {
-                SunExpLog.Warn("[SolarMemoryMode] entry sprite missing: " + path);
-                return null;
-            }
-
-            var trimmed = TrimTransparentPadding(sprite) ?? sprite;
-            return CropEntryTitleArt(trimmed) ?? trimmed;
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Warn("[SolarMemoryMode] failed to load entry sprite " + path + ": " + ex.Message);
-            return null;
-        }
-    }
-
-    private static Sprite? TrimTransparentPadding(Sprite sprite)
-    {
-        try
-        {
-            var texture = sprite.texture;
-            var rect = sprite.rect;
-            var minX = (int)rect.xMax;
-            var minY = (int)rect.yMax;
-            var maxX = (int)rect.xMin - 1;
-            var maxY = (int)rect.yMin - 1;
-            var startX = Mathf.Max(0, Mathf.FloorToInt(rect.xMin));
-            var startY = Mathf.Max(0, Mathf.FloorToInt(rect.yMin));
-            var endX = Mathf.Min(texture.width, Mathf.CeilToInt(rect.xMax));
-            var endY = Mathf.Min(texture.height, Mathf.CeilToInt(rect.yMax));
-
-            for (var y = startY; y < endY; y++)
-            {
-                for (var x = startX; x < endX; x++)
-                {
-                    if (texture.GetPixel(x, y).a <= 0.01f)
-                    {
-                        continue;
-                    }
-
-                    minX = Math.Min(minX, x);
-                    minY = Math.Min(minY, y);
-                    maxX = Math.Max(maxX, x);
-                    maxY = Math.Max(maxY, y);
-                }
-            }
-
-            if (maxX < minX || maxY < minY)
-            {
-                return sprite;
-            }
-
-            var trimmed = new Rect(minX, minY, maxX - minX + 1, maxY - minY + 1);
-            if (Mathf.Approximately(trimmed.width, rect.width) && Mathf.Approximately(trimmed.height, rect.height))
-            {
-                return sprite;
-            }
-
-            return Sprite.Create(texture, trimmed, new Vector2(0.5f, 0.5f), sprite.pixelsPerUnit);
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Warn("[SolarMemoryMode] failed to trim entry sprite: " + ex.Message);
-            return sprite;
-        }
-    }
-
-    private static Sprite? CropEntryTitleArt(Sprite sprite)
-    {
-        try
-        {
-            var rect = sprite.rect;
-            var height = Mathf.Max(1f, rect.height * EntryTitleArtHeightRatio);
-            var cropped = new Rect(rect.x, rect.y + rect.height - height, rect.width, height);
-            return Sprite.Create(sprite.texture, cropped, new Vector2(0.5f, 0.5f), sprite.pixelsPerUnit);
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Warn("[SolarMemoryMode] failed to crop entry title sprite: " + ex.Message);
-            return sprite;
-        }
-    }
-
-    private static void SetImageSprite(Transform? target, Sprite sprite)
-    {
-        var image = target?.GetComponent<Image>();
-        if (image == null)
-        {
-            return;
-        }
-
-        image.sprite = sprite;
-        image.preserveAspect = true;
-        image.enabled = true;
-    }
-
-    private static void ClearEntryStateImages(Transform? stateRoot, Transform? keep)
-    {
-        if (stateRoot == null)
-        {
-            return;
-        }
-
-        foreach (var image in stateRoot.GetComponentsInChildren<Image>(true))
-        {
-            if (keep != null && image.transform == keep)
-            {
-                continue;
-            }
-
-            image.sprite = null;
-            image.enabled = false;
-        }
-
-        foreach (var rawImage in stateRoot.GetComponentsInChildren<RawImage>(true))
-        {
-            if (keep != null && rawImage.transform == keep)
-            {
-                continue;
-            }
-
-            rawImage.texture = null;
-            rawImage.enabled = false;
-        }
-    }
-
-    private static void ConfigureEntryHoverState(GameObject entry)
-    {
-        var switchButton = entry.GetComponent<SwitchButton>();
-        if (switchButton != null)
-        {
-            switchButton.Normal = FindStateCanvasGroup(entry.transform, "Normal");
-            switchButton.Highlighted = FindStateCanvasGroup(entry.transform, "HighLighted", "Highlighted");
-            switchButton.Pressed = FindStateCanvasGroup(entry.transform, "Pressed");
-            switchButton.isAnimated = false;
-            switchButton.animationType = SwitchButton.AnimationType.None;
-            switchButton.transitionTime = 0f;
-        }
-
-        foreach (var component in entry.GetComponentsInChildren<MonoBehaviour>(true))
-        {
-            if (component == null || component.GetType().Name != "ButtonManager")
-            {
-                continue;
-            }
-
-            component.StopAllCoroutines();
-            SetCanvasGroupField(component, "normalCG", 1f);
-            SetCanvasGroupField(component, "highlightCG", 0f);
-            SetCanvasGroupField(component, "disabledCG", 0f);
-            component.enabled = false;
-        }
-    }
-
-    private static CanvasGroup? FindStateCanvasGroup(Transform entry, params string[] names)
-    {
-        foreach (var name in names)
-        {
-            var state = entry.Find(name);
-            if (state == null)
-            {
-                continue;
-            }
-
-            return state.GetComponent<CanvasGroup>() ?? state.gameObject.AddComponent<CanvasGroup>();
-        }
-
-        return null;
-    }
-
-    private static void SetCanvasGroupField(MonoBehaviour component, string fieldName, float alpha)
-    {
-        var field = component.GetType().GetField(
-            fieldName,
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        if (field?.GetValue(component) is not CanvasGroup canvasGroup)
-        {
-            return;
-        }
-
-        canvasGroup.alpha = alpha;
-        canvasGroup.blocksRaycasts = alpha > 0.99f;
-        canvasGroup.interactable = alpha > 0.99f;
-    }
-
-    private static void ResetEntryVisualState(GameObject entry)
-    {
-        var switchButton = entry.GetComponent<SwitchButton>();
-        if (switchButton != null)
-        {
-            switchButton.SetOffImmediate();
-            return;
-        }
-
-        SetCanvasGroupState(FindStateCanvasGroup(entry.transform, "Normal"), true);
-        SetCanvasGroupState(FindStateCanvasGroup(entry.transform, "HighLighted", "Highlighted"), false);
-        SetCanvasGroupState(FindStateCanvasGroup(entry.transform, "Pressed"), false);
-    }
-
-    private static void SetCanvasGroupState(CanvasGroup? canvasGroup, bool active)
-    {
-        if (canvasGroup == null)
-        {
-            return;
-        }
-
-        canvasGroup.alpha = active ? 1f : 0f;
-        canvasGroup.blocksRaycasts = active;
-        canvasGroup.interactable = active;
-    }
-
-    private static void ConfigureEntryClick(GameObject entry, ModeChoiceUI modeChoice)
-    {
-        var switchButton = entry.GetComponent<SwitchButton>();
-        if (switchButton != null)
-        {
-            switchButton.interactable = true;
-            switchButton.onClick.RemoveAllListeners();
-            switchButton.onClick.AddListener(new UnityAction(() => SolarMemoryRunLauncher.Start(modeChoice, InitialPackSelection().ToList())));
-        }
-
-        foreach (var component in entry.GetComponentsInChildren<MonoBehaviour>(true))
-        {
-            if (component != null && component.GetType().Name == "ButtonManager")
-            {
-                component.enabled = false;
-            }
-        }
-
-        foreach (var button in entry.GetComponentsInChildren<Button>(true))
-        {
-            button.onClick.RemoveAllListeners();
-            button.onClick.AddListener(new UnityAction(() => SolarMemoryRunLauncher.Start(modeChoice, InitialPackSelection().ToList())));
-        }
-    }
-
-    private static void OpenPackWindow(ModeChoiceUI modeChoice)
-    {
-        try
-        {
-            CloseExistingPackWindow();
-
-            var parent = UIManager.Instance?.upperCanvasTf ?? UIManager.Instance?.canvasTf ?? modeChoice.transform;
-            var root = CreateRect(PackWindowName, parent);
-            Stretch(root);
-            root.gameObject.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.7f);
-
-            var panel = CreateRect("Panel", root);
-            panel.sizeDelta = new Vector2(920f, 650f);
-            panel.anchorMin = panel.anchorMax = new Vector2(0.5f, 0.5f);
-            panel.anchoredPosition = Vector2.zero;
-            panel.gameObject.AddComponent<Image>().color = PanelColor;
-
-            AddText(panel, "Title", SunExpIds.SolarMemoryTitle, 34, FontStyle.Bold, TextAnchor.MiddleLeft, Color.white,
-                new Vector2(40f, -54f), new Vector2(520f, 56f));
-            AddText(panel, "Subtitle", SunExpIds.SolarMemoryDescription + " / " + SunExpIds.SolarMemorySubtitle, 19, FontStyle.Normal,
-                TextAnchor.MiddleRight, new Color(1f, 0.86f, 0.64f, 1f), new Vector2(400f, -58f), new Vector2(470f, 42f));
-
-            var selected = InitialPackSelection();
-            var rows = new Dictionary<string, Image>(StringComparer.OrdinalIgnoreCase);
-            var summary = AddText(panel, "Summary", "", 18, FontStyle.Normal, TextAnchor.MiddleLeft, new Color(0.94f, 0.9f, 0.82f, 1f),
-                new Vector2(40f, -105f), new Vector2(840f, 34f));
-
-            var scroll = CreatePackScroll(panel);
-            var content = scroll.content;
-            foreach (var pack in VisibleCardPacks())
-            {
-                var row = CreatePackRow(content, pack, selected, rows, summary);
-                row.SetParent(content, false);
-            }
-
-            RefreshPackRows(rows, selected, summary);
-            AddButton(panel, "SelectAll", "全选", new Vector2(40f, 38f), new Vector2(120f, 44f), () =>
-            {
-                selected.Clear();
-                foreach (var pack in VisibleCardPacks())
-                {
-                    selected.Add(pack["Id"]);
-                }
-                RefreshPackRows(rows, selected, summary);
-            });
-            AddButton(panel, "UseCurrent", "恢复当前", new Vector2(180f, 38f), new Vector2(150f, 44f), () =>
-            {
-                selected.Clear();
-                selected.UnionWith(InitialPackSelection());
-                RefreshPackRows(rows, selected, summary);
-            });
-            AddButton(panel, "Cancel", "取消", new Vector2(610f, 38f), new Vector2(120f, 44f), CloseExistingPackWindow);
-            AddButton(panel, "Start", "进入日耀回忆", new Vector2(750f, 38f), new Vector2(130f, 44f), () =>
-            {
-                if (selected.Count == 0)
-                {
-                    UIManager.Instance?.ShowTip("至少选择一个卡包", null);
-                    return;
-                }
-
-                CloseExistingPackWindow();
-                SolarMemoryRunLauncher.Start(modeChoice, selected.ToList());
-            });
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Error("Solar memory pack window failed", ex);
-        }
-    }
-
-    private static ScrollRect CreatePackScroll(RectTransform panel)
-    {
-        var viewport = CreateRect("Viewport", panel);
-        viewport.anchorMin = new Vector2(0f, 0f);
-        viewport.anchorMax = new Vector2(1f, 1f);
-        viewport.offsetMin = new Vector2(40f, 100f);
-        viewport.offsetMax = new Vector2(-40f, -140f);
-        viewport.gameObject.AddComponent<Image>().color = new Color(0.05f, 0.04f, 0.035f, 0.58f);
-        viewport.gameObject.AddComponent<Mask>().showMaskGraphic = true;
-
-        var content = CreateRect("Content", viewport);
-        content.anchorMin = new Vector2(0f, 1f);
-        content.anchorMax = new Vector2(1f, 1f);
-        content.pivot = new Vector2(0.5f, 1f);
-        content.anchoredPosition = Vector2.zero;
-        content.sizeDelta = new Vector2(0f, 0f);
-        var layout = content.gameObject.AddComponent<VerticalLayoutGroup>();
-        layout.spacing = 8f;
-        layout.padding = new RectOffset(10, 10, 10, 10);
-        layout.childControlHeight = false;
-        layout.childControlWidth = true;
-        var fitter = content.gameObject.AddComponent<ContentSizeFitter>();
-        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-        var scrollRect = viewport.gameObject.AddComponent<ScrollRect>();
-        scrollRect.content = content;
-        scrollRect.viewport = viewport;
-        scrollRect.horizontal = false;
-        scrollRect.vertical = true;
-        scrollRect.scrollSensitivity = 24f;
-        return scrollRect;
-    }
-
-    private static RectTransform CreatePackRow(RectTransform content, Dictionary<string, string> pack, HashSet<string> selected,
-        Dictionary<string, Image> rows, Text summary)
-    {
-        var id = pack["Id"];
-        var row = CreateRect("Pack_" + id, content);
-        row.sizeDelta = new Vector2(0f, 58f);
-        var layout = row.gameObject.AddComponent<LayoutElement>();
-        layout.minHeight = 58f;
-        layout.preferredHeight = 58f;
-        var image = row.gameObject.AddComponent<Image>();
-        rows[id] = image;
-        var button = row.gameObject.AddComponent<Button>();
-        button.onClick.AddListener(new UnityAction(() =>
-        {
-            if (!selected.Add(id))
-            {
-                selected.Remove(id);
-            }
-
-            RefreshPackRows(rows, selected, summary);
-        }));
-
-        var counts = PackCounts(id);
-        var type = pack.TryGetValue("Type", out var typeValue) ? typeValue : "";
-        var name = PackName(pack);
-        AddText(row, "Name", name, 20, FontStyle.Bold, TextAnchor.MiddleLeft, Color.white, new Vector2(18f, 0f), new Vector2(420f, 58f));
-        AddText(row, "Meta", type + "  " + counts, 17, FontStyle.Normal, TextAnchor.MiddleRight, new Color(0.93f, 0.84f, 0.7f, 1f),
-            new Vector2(450f, 0f), new Vector2(360f, 58f));
-        return row;
-    }
-
     private static void CaptureSolarMemoryGenerationState(ModHookContext context)
     {
         try
@@ -708,7 +166,7 @@ public static class SolarMemoryModeRuntime
         }
     }
 
-    private static void ApplySolarMemoryLayerTitle(ModHookContext context)
+    internal static void ApplySolarMemoryLayerTitle(ModHookContext context)
     {
         try
         {
@@ -738,7 +196,7 @@ public static class SolarMemoryModeRuntime
         return SolarMemoryMapNodePoolApplier.ApplyToCurrentLayer(manager, source, trimEventRecord);
     }
 
-    private static void ApplySolarMemoryFixedSlotsAfterMapItems(ModHookContext context)
+    internal static void ApplySolarMemoryFixedSlotsAfterMapItems(ModHookContext context)
     {
         try
         {
@@ -759,7 +217,7 @@ public static class SolarMemoryModeRuntime
         }
     }
 
-    private static void ReapplySolarMemoryFixedSlotLocks(ModHookContext context)
+    internal static void ReapplySolarMemoryFixedSlotLocks(ModHookContext context)
     {
         try
         {
@@ -1018,7 +476,13 @@ public static class SolarMemoryModeRuntime
         var type = Field(data, "Type");
         if (type == "Event")
         {
-            var customTexture = LoadMapCardTexture(SolarMemoryEventMapCardTexturePath);
+            var texturePath = VisualRegistry.TexturePath("solar_memory.event_map_card") ?? "";
+            Texture? customTexture = null;
+            if (!string.IsNullOrWhiteSpace(texturePath))
+            {
+                customTexture = LoadMapCardTexture(texturePath);
+            }
+
             if (customTexture != null)
             {
                 var icon = item.Find("Front/icon");
@@ -1580,7 +1044,7 @@ public static class SolarMemoryModeRuntime
         {
             SolarMemorySetupFlowRuntime.ClosePreparationWindows();
             SolarMemoryBlessingPickerRuntime.Close();
-            CloseExistingPackWindow();
+            SunExpUiSafety.DisableRaycastsAndDestroyByName("SunExp_SolarMemoryPackWindow", source, "[SolarMemoryFightAbort]");
             SunExpUiSafety.DisableRaycastsAndDestroyByName("SunExpSolarMemoryStarterDeck", source, "[SolarMemoryFightAbort]");
             SunExpUiSafety.DisableRaycastsAndDestroyByName("SunExp_SolarMemoryOriginSetup", source, "[SolarMemoryFightAbort]");
             SunExpUiSafety.DisableRaycastsAndDestroyByName("SunExp_SolarMemoryBlessingSetup", source, "[SolarMemoryFightAbort]");
@@ -1685,16 +1149,7 @@ public static class SolarMemoryModeRuntime
 
     public static void ShowSolarMemorySettlement()
     {
-        try
-        {
-            UIManager.Instance?.CloseUI("MapSelectUI");
-            UIManager.Instance?.CloseUI("EventUI");
-            UIManager.Instance?.ShowUI<GameExitUI>("GameExitUI", true);
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Error("Solar memory settlement UI failed", ex);
-        }
+        SolarMemorySettlementPresenter.Show();
     }
 
     private static void SettleSolarMemoryBossAfterWin(ModHookContext context)
@@ -1813,7 +1268,7 @@ public static class SolarMemoryModeRuntime
             .ToList();
     }
 
-    private static HashSet<string> InitialPackSelection()
+    internal static HashSet<string> InitialPackSelection()
     {
         var visible = VisibleCardPacks().Select(pack => pack["Id"]).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var selected = Singleton<GameRuntimeData>.Instance.UseCardPack
@@ -2085,103 +1540,6 @@ public static class SolarMemoryModeRuntime
         UIManager.Instance?.ShowTip("\u65e5\u8000\u56de\u5fc6\u5907\u9009\u724c\u5df2\u6e05\u7a7a", null);
     }
 
-    private static string PackName(Dictionary<string, string> pack)
-    {
-        if (pack.TryGetValue("Name", out var name) && !string.IsNullOrWhiteSpace(name))
-        {
-            return name;
-        }
-
-        return pack["Id"];
-    }
-
-    private static string PackCounts(string id)
-    {
-        var card = GameCompatibilityApi.GetItemsByPack(DataType.Card, id).Count;
-        var relic = GameCompatibilityApi.GetItemsByPack(DataType.Relic, id).Count;
-        var bless = GameCompatibilityApi.GetItemsByPack(DataType.Bless, id).Count;
-
-        return "卡 " + card + " / 遗物 " + relic + " / 祝福 " + bless;
-    }
-
-    private static void RefreshPackRows(Dictionary<string, Image> rows, HashSet<string> selected, Text summary)
-    {
-        foreach (var pair in rows)
-        {
-            pair.Value.color = selected.Contains(pair.Key) ? RowSelectedColor : RowNormalColor;
-        }
-
-        summary.text = "已选择卡包：" + selected.Count + "。确认后将以普通冒险底层进入，并启用日耀回忆 Boss 连战地图。";
-    }
-
-    private static RectTransform CreatePanel(RectTransform parent, Vector2 size)
-    {
-        var panel = CreateRect("Panel", parent);
-        panel.sizeDelta = size;
-        panel.anchorMin = panel.anchorMax = new Vector2(0.5f, 0.5f);
-        panel.anchoredPosition = Vector2.zero;
-        panel.gameObject.AddComponent<Image>().color = PanelColor;
-        return panel;
-    }
-
-    private static RectTransform AddButton(RectTransform parent, string name, string label, Vector2 anchoredPosition, Vector2 size, Action action)
-    {
-        var rect = CreateRect(name, parent);
-        rect.anchorMin = rect.anchorMax = new Vector2(0f, 0f);
-        rect.pivot = new Vector2(0f, 0f);
-        rect.anchoredPosition = anchoredPosition;
-        rect.sizeDelta = size;
-        rect.gameObject.AddComponent<Image>().color = ButtonColor;
-        var button = rect.gameObject.AddComponent<Button>();
-        button.onClick.AddListener(new UnityAction(action));
-        AddText(rect, "Text", label, 18, FontStyle.Bold, TextAnchor.MiddleCenter, Color.white, Vector2.zero, size);
-        return rect;
-    }
-
-    private static Text AddText(RectTransform parent, string name, string value, int fontSize, FontStyle style, TextAnchor alignment, Color color,
-        Vector2 anchoredPosition, Vector2 size)
-    {
-        var rect = CreateRect(name, parent);
-        rect.anchorMin = rect.anchorMax = new Vector2(0f, 1f);
-        rect.pivot = new Vector2(0f, 1f);
-        rect.anchoredPosition = anchoredPosition;
-        rect.sizeDelta = size;
-        var text = rect.gameObject.AddComponent<Text>();
-        ConfigureText(text, value, fontSize, style, alignment, color);
-        return text;
-    }
-
-    private static void ConfigureText(Text text, string value, int fontSize, FontStyle style, TextAnchor alignment, Color color)
-    {
-        text.text = value;
-        text.font = cachedFont ??= Resources.GetBuiltinResource<Font>("Arial.ttf");
-        text.fontSize = fontSize;
-        text.fontStyle = style;
-        text.alignment = alignment;
-        text.color = color;
-        text.horizontalOverflow = HorizontalWrapMode.Wrap;
-        text.verticalOverflow = VerticalWrapMode.Truncate;
-        text.resizeTextForBestFit = true;
-        text.resizeTextMinSize = Math.Max(10, fontSize - 8);
-        text.resizeTextMaxSize = fontSize;
-    }
-
-    private static RectTransform CreateRect(string name, Transform parent)
-    {
-        var go = new GameObject(name, typeof(RectTransform));
-        var rect = go.GetComponent<RectTransform>();
-        rect.SetParent(parent, false);
-        return rect;
-    }
-
-    private static void Stretch(RectTransform rect)
-    {
-        rect.anchorMin = Vector2.zero;
-        rect.anchorMax = Vector2.one;
-        rect.offsetMin = Vector2.zero;
-        rect.offsetMax = Vector2.zero;
-    }
-
     private static void SetTmpText(Transform? target, string value)
     {
         if (target == null)
@@ -2197,25 +1555,6 @@ public static class SolarMemoryModeRuntime
 
         var property = component.GetType().GetProperty("text");
         property?.SetValue(component, value);
-    }
-
-    private static void BindUnityEvent(object target, string fieldName, Action action)
-    {
-        try
-        {
-            var unityEvent = target.GetType().GetField(fieldName)?.GetValue(target) as UnityEvent;
-            if (unityEvent == null)
-            {
-                return;
-            }
-
-            unityEvent.RemoveAllListeners();
-            unityEvent.AddListener(new UnityAction(action));
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Warn("Solar memory button bind failed: " + ex.Message);
-        }
     }
 
     private sealed class SolarMemoryFixedNodeSpec
@@ -2260,13 +1599,4 @@ public static class SolarMemoryModeRuntime
         }
     }
 
-    private static void CloseExistingPackWindow()
-    {
-        CloseWindow(PackWindowName);
-    }
-
-    private static void CloseWindow(string name)
-    {
-        SunExpUiSafety.DisableRaycastsAndDestroyByName(name, "CloseWindow", "[SolarMemory]");
-    }
 }

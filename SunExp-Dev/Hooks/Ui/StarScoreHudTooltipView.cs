@@ -176,9 +176,6 @@ public sealed class StarScoreHudTooltipView : MonoBehaviour
 
     private static void ClearChildren(Transform parent)
     {
-        foreach (Transform child in parent)
-        {
-            Destroy(child.gameObject);
-        }
+        SunExpUiSafety.DestroyChildren(parent, "StarScoreHudTooltip.ClearChildren", "[StarScoreHudTooltip]");
     }
 }
