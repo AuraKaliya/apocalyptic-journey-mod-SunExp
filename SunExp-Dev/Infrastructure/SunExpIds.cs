@@ -7,8 +7,10 @@ public static class SunExpIds
     public const string ModLogTag = "SunExp.DLL";
 
     public const string SunCardVisualSkinId = "sunexp.card_visual.sun";
+    public const string MorningStarCardVisualSkinId = "sunexp.card_visual.morning_star";
     public const string SunCardFramePath = "Mods/SunExp/ModResource/Images/UI/\u65e5\u8000-\u5361\u68461.png";
     public const string SunCardBackgroundPath = "Mods/SunExp/ModResource/Images/UI/\u5361\u9762\u80cc\u666f.png";
+    public const string MorningStarCardFramePath = "Mods/SunExp/ModResource/Images/UI/\u6668\u661f-\u5361\u68461.png";
     public const string SunCardIconPathPrefix = "Mods/SunExp/ModResource/Images/Card/SunExp/";
     public const string RadiantSparkCardPackId = "SunExp_sunexp_cardpack_radiant_spark";
     public const string EmberCrownCardPackId = "SunExp_sunexp_cardpack_ember_crown";
@@ -69,6 +71,15 @@ public static class SunExpIds
     public const string StellarOvertureTurnCardId = "SunExp_sunexp_stellar_overture_turn";
     public const string StellarOvertureCloseCardId = "SunExp_sunexp_stellar_overture_close";
     public const string WitchStarScoreCardId = "SunExp_sunexp_witch_star_score";
+
+    public static readonly string[] StellarOvertureCardIds =
+    {
+        StellarOvertureStartCardId,
+        StellarOvertureSustainCardId,
+        StellarOvertureTurnCardId,
+        StellarOvertureCloseCardId
+    };
+
     public const string StarClayDollPartnerId = "SunExp_sunexp_star_clay_doll";
     public const string StarClayDollBlessingId = "SunExp_sunexp_star_clay_doll_placeholder";
     public const string RuntimeMarkersKey = "SunExpRuntimeMarkers";
