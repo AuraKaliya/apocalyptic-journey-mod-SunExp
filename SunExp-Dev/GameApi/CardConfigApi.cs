@@ -80,7 +80,8 @@ public static class CardConfigApi
 
     public static bool HasNativeWhiteRadiance(IDataConfig? config)
     {
-        return DictionaryUtil.ContainsToken(DictionaryUtil.Get(config?.data, "Tag"), SunExpIds.WhiteRadianceTag);
+        return DictionaryUtil.ContainsToken(DictionaryUtil.Get(config?.Vars, "Tag"), SunExpIds.WhiteRadianceTag)
+            || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config?.data, "Tag"), SunExpIds.WhiteRadianceTag);
     }
 
     public static bool HasTemporaryWhiteRadiance(IDataConfig? config)
@@ -90,12 +91,15 @@ public static class CardConfigApi
             return false;
         }
 
-        if (DictionaryUtil.Get(config.Vars, SunExpIds.TempWhiteRadiance, "0") != "1")
+        var hasMarker = DictionaryUtil.Get(config.Vars, SunExpIds.TempWhiteRadiance, "0") == "1"
+            || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey), SunExpIds.TempWhiteRadiance);
+        if (!hasMarker)
         {
             return false;
         }
 
-        return DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, "SpecialTag"), SunExpIds.WhiteRadianceTag);
+        return DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, "SpecialTag"), SunExpIds.WhiteRadianceTag)
+            || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey), SunExpIds.TempWhiteRadiance);
     }
 
     public static bool HasSpecialWhiteRadiance(IDataConfig? config)

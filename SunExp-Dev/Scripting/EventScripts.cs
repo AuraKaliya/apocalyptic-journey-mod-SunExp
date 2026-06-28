@@ -44,6 +44,42 @@ public static class EventScripts
         }
     }
 
+    public static void CompleteSolarMemorySecondSunEndingDialogue()
+    {
+        try
+        {
+            SolarMemoryFlowApi.CompleteSecondSunEndingDialogue();
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar memory second-sun ending dialogue completion failed", ex);
+        }
+    }
+
+    public static void CompleteSolarMemorySaintWunaPreludeDialogue()
+    {
+        try
+        {
+            SolarMemoryFlowApi.CompleteSaintWunaPreludeDialogue();
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar memory saint-wuna prelude dialogue completion failed", ex);
+        }
+    }
+
+    public static void CompleteSolarMemorySaintWunaEndingDialogue()
+    {
+        try
+        {
+            SolarMemoryFlowApi.CompleteSaintWunaEndingDialogue();
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Solar memory saint-wuna ending dialogue completion failed", ex);
+        }
+    }
+
     public static void OpenSolarMemoryOrigin()
     {
         try

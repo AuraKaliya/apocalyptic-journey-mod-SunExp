@@ -16,6 +16,10 @@ public static class DialogueFlowRegistry
 
         ByFlowId[definition.FlowId] = definition;
         FlowIdByDialogueId[definition.DialogueId] = definition.FlowId;
+        if (!string.IsNullOrWhiteSpace(definition.CompleteDialogueId))
+        {
+            FlowIdByDialogueId[definition.CompleteDialogueId] = definition.FlowId;
+        }
     }
 
     public static bool TryGetByFlowId(string flowId, out DialogueFlowDefinition definition)

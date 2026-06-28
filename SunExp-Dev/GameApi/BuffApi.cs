@@ -118,6 +118,47 @@ public static class BuffApi
         return removed;
     }
 
+    public static bool RemoveRandomPositiveBuff(ScriptExecutor executor, IStatusManager? status)
+    {
+        var buffIds = PositiveBuffs(status)
+            .Select(buff => buff.buffConfig?.BuffId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        if (buffIds.Count <= 0)
+        {
+            return false;
+        }
+
+        var id = buffIds[UnityEngine.Random.Range(0, buffIds.Count)];
+        ExecutorApi.SetStatusForTarget(executor, status, "Target");
+        executor.RemoveBuff(id);
+        return true;
+    }
+
+    public static int RemoveBuffsExceptAndCount(ScriptExecutor executor, IStatusManager? status, params string[] excludeIds)
+    {
+        if (status == null)
+        {
+            return 0;
+        }
+
+        var excluded = new HashSet<string>(excludeIds ?? Array.Empty<string>(), StringComparer.Ordinal);
+        var buffIds = (status.GetBuffs() ?? Array.Empty<IBuffItem>())
+            .Where(buff => buff?.buffConfig != null && buff.buffConfig.Level > 0)
+            .Select(buff => buff.buffConfig.BuffId)
+            .Where(id => !string.IsNullOrWhiteSpace(id) && !excluded.Contains(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        foreach (var id in buffIds)
+        {
+            ExecutorApi.SetStatusForTarget(executor, status, "Target");
+            executor.RemoveBuff(id);
+        }
+
+        return buffIds.Count;
+    }
+
     public static int PositiveKindCount(IStatusManager? status)
     {
         return PositiveBuffs(status).Count();

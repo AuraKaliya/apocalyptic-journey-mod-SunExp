@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
 using AuraLog.Shared;
@@ -53,6 +54,7 @@ public static class AuraToolsFileLogRuntime
             {
                 writer = new AuraLogFileWriter(BuildLogFilePath());
                 writer.Enqueue(new AuraLogRecord(DateTime.Now, "AuraTools", "Info", null, "File logging initialized. File: " + writer.FilePath, null));
+                PruneOldLogFiles(writer.FilePath);
                 if (!unityLogHooked)
                 {
                     Application.logMessageReceivedThreaded += OnUnityLog;
@@ -134,6 +136,38 @@ public static class AuraToolsFileLogRuntime
             .Replace("{date}", date)
             .Replace("{mod}", "AuraTools");
         return AuraLogRuntime.OwnerLogPath("AuraToolsExp", fileName);
+    }
+
+    private static void PruneOldLogFiles(string currentFilePath)
+    {
+        try
+        {
+            var maximum = Math.Max(1, AuraToolsConfigService.Logging.MaxRetainedLogFiles);
+            var current = Path.GetFullPath(currentFilePath);
+            var files = AuraLogRuntime.Enumerate("AuraToolsExp", "*.log")
+                .Select(path => new FileInfo(path))
+                .Where(file => file.Exists)
+                .OrderByDescending(file => string.Equals(file.FullName, current, StringComparison.OrdinalIgnoreCase))
+                .ThenByDescending(file => file.LastWriteTimeUtc)
+                .ThenByDescending(file => file.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            foreach (var file in files.Skip(maximum))
+            {
+                try
+                {
+                    file.Delete();
+                }
+                catch
+                {
+                    // Log cleanup must never break runtime logging.
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            AuraToolsLog.Warn("[Logging] old log cleanup failed: " + ex.Message);
+        }
     }
 
     private static string Normalize(string? text)

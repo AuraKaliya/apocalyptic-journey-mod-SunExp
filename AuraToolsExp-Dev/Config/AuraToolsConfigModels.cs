@@ -225,7 +225,7 @@ public sealed class AudioRoleSettings
 public sealed class AuraToolsMatchExperienceSettings
 {
     [JsonProperty("schemaVersion")]
-    public int SchemaVersion { get; set; } = 3;
+    public int SchemaVersion { get; set; } = 4;
 
     [JsonProperty("starterDeck")]
     public StarterDeckSettings StarterDeck { get; set; } = new();
@@ -233,14 +233,18 @@ public sealed class AuraToolsMatchExperienceSettings
     [JsonProperty("safeBox")]
     public SafeBoxSettings SafeBox { get; set; } = new();
 
+    [JsonProperty("modSync")]
+    public ModSyncSettings ModSync { get; set; } = new();
+
     [JsonProperty("damageMeter")]
     public DamageMeterSettings DamageMeter { get; set; } = new();
 
     public void Normalize()
     {
-        SchemaVersion = Math.Max(3, SchemaVersion);
+        SchemaVersion = Math.Max(4, SchemaVersion);
         StarterDeck ??= new StarterDeckSettings();
         SafeBox ??= new SafeBoxSettings();
+        ModSync ??= new ModSyncSettings();
         DamageMeter ??= new DamageMeterSettings();
         StarterDeck.Normalize();
         DamageMeter.Normalize();
@@ -388,6 +392,12 @@ public sealed class StarterDeckLocalProfileSettings
 }
 
 public sealed class SafeBoxSettings
+{
+    [JsonProperty("enabled")]
+    public bool Enabled { get; set; }
+}
+
+public sealed class ModSyncSettings
 {
     [JsonProperty("enabled")]
     public bool Enabled { get; set; }
@@ -869,10 +879,14 @@ public sealed class AuraToolsLoggingSettings
     [JsonProperty("mirrorCommandsLog")]
     public bool MirrorCommandsLog { get; set; } = true;
 
+    [JsonProperty("maxRetainedLogFiles")]
+    public int MaxRetainedLogFiles { get; set; } = 10;
+
     public void Normalize()
     {
         SchemaVersion = Math.Max(1, SchemaVersion);
         FileNamePattern = string.IsNullOrWhiteSpace(FileNamePattern) ? "AuraTools-{date}.log" : FileNamePattern.Trim();
         MinimumLevel = string.IsNullOrWhiteSpace(MinimumLevel) ? "Info" : MinimumLevel.Trim();
+        MaxRetainedLogFiles = Math.Max(1, Math.Min(50, MaxRetainedLogFiles));
     }
 }

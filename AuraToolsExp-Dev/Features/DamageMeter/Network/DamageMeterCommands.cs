@@ -83,14 +83,17 @@ public sealed class DamageMeterControlCommand : RpcCommandBase, IAuraToolsServer
             RejectionReason = rejection;
             Snapshot = null;
             AuraToolsLog.Warn("[DamageMeter] control rejected: " + rejection);
+            return;
         }
+
+        DamageMeterNetworkRuntime.EnsureControlResponseFits(this);
     }
 
     public override void RpcExecute()
     {
         if (Snapshot != null)
         {
-            DamageMeterNetworkRuntime.ApplySnapshot(Snapshot);
+            DamageMeterNetworkRuntime.ApplyControlSnapshot(this);
         }
     }
 }
@@ -126,6 +129,7 @@ public sealed class DamageMeterSnapshotCommand : RpcCommandBase, IAuraToolsServe
             }
 
             Snapshot = snapshot;
+            DamageMeterNetworkRuntime.EnsureSnapshotResponseFits(this);
         }
     }
 

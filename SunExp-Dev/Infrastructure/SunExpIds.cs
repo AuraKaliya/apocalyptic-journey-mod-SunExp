@@ -12,6 +12,7 @@ public static class SunExpIds
     public const string SunCardBackgroundPath = "Mods/SunExp/ModResource/Images/UI/\u5361\u9762\u80cc\u666f.png";
     public const string MorningStarCardFramePath = "Mods/SunExp/ModResource/Images/UI/\u6668\u661f-\u5361\u68461.png";
     public const string SunCardIconPathPrefix = "Mods/SunExp/ModResource/Images/Card/SunExp/";
+    public const string StellarOvertureCardIconPathPrefix = "Mods/SunExp/ModResource/Images/Card/Loneer/stellar_overture_";
     public const string RadiantSparkCardPackId = "SunExp_sunexp_cardpack_radiant_spark";
     public const string EmberCrownCardPackId = "SunExp_sunexp_cardpack_ember_crown";
     public const string SolarCanopyCardPackId = "SunExp_sunexp_cardpack_solar_canopy";
@@ -63,6 +64,8 @@ public static class SunExpIds
 
     public const string WunaActive = "SunExpWunaActive";
     public const string WunaPersistentEmber = "SunExpWunaPersistentEmber";
+    public const string WunaWhiteSunPrayerCardId = "SunExp_wuna_wuna_white_sun_prayer";
+    public const string WunaCoronationTokenCardId = "SunExp_wuna_wuna_coronation_token";
     public const string LoneerCareerId = "loneer";
     public const string LoneerActive = "SunExpLoneerActive";
     public const string LoneerMorningPrayerSkillCardId = "SunExp_loneer_loneer_morning_star_prayer";
@@ -78,6 +81,19 @@ public static class SunExpIds
         StellarOvertureSustainCardId,
         StellarOvertureTurnCardId,
         StellarOvertureCloseCardId
+    };
+
+    public static readonly string[] SunThemeExplicitCardIds =
+    {
+        WunaCoronationTokenCardId,
+        "SunExp_wuna_card_*wuna_coronation_token",
+        "*wuna_coronation_token",
+        "wuna_coronation_token"
+    };
+
+    public static readonly string[] SunThemeCardIconPathPrefixes =
+    {
+        SunCardIconPathPrefix
     };
 
     public const string StarClayDollPartnerId = "SunExp_sunexp_star_clay_doll";
@@ -111,9 +127,20 @@ public static class SunExpIds
     public const string SolarMemoryPreparedKey = "SunExp_SolarMemoryPrepared";
     public const string SolarMemoryPostPreparationDialogueSeenKey = "SunExp_SolarMemoryPostPreparationDialogueSeen";
     public const string SolarMemoryPostPreparationDialoguePendingKey = "SunExp_SolarMemoryPostPreparationDialoguePending";
+    public const string SolarMemorySaintWunaBossPendingKey = "SunExp_SolarMemorySaintWunaBossPending";
     public const string HardSunsetFightCountKey = "SunExp_Hard_SunsetFightCount";
     public const string SolarMemoryPostPreparationDialogueFlowId = "SunExp.SolarMemory.PostPreparationDialogue";
-    public const string SolarMemoryPostPreparationDialogueId = "SunExp_sunexp_solar_memory_post_prep_test_1";
+    public const string SolarMemorySecondSunEndingDialogueFlowId = "SunExp.SolarMemory.SecondSunEndingDialogue";
+    public const string SolarMemorySaintWunaPreludeDialogueFlowId = "SunExp.SolarMemory.SaintWunaPreludeDialogue";
+    public const string SolarMemorySaintWunaEndingDialogueFlowId = "SunExp.SolarMemory.SaintWunaEndingDialogue";
+    public const string SolarMemoryPostPreparationDialogueId = "SunExp_sunexp_solar_memory_opening_1";
+    public const string SolarMemoryPostPreparationCompleteDialogueId = "SunExp_sunexp_solar_memory_opening_4";
+    public const string SolarMemorySecondSunEndingDialogueId = "SunExp_sunexp_solar_memory_second_sun_end_1";
+    public const string SolarMemorySecondSunEndingCompleteDialogueId = "SunExp_sunexp_solar_memory_second_sun_end_2";
+    public const string SolarMemorySaintWunaPreludeDialogueId = "SunExp_sunexp_solar_memory_saint_wuna_prelude_1";
+    public const string SolarMemorySaintWunaPreludeCompleteDialogueId = "SunExp_sunexp_solar_memory_saint_wuna_prelude_6";
+    public const string SolarMemorySaintWunaEndingDialogueId = "SunExp_sunexp_solar_memory_saint_wuna_end_1";
+    public const string SolarMemorySaintWunaEndingCompleteDialogueId = "SunExp_sunexp_solar_memory_saint_wuna_end_3";
     public const string SolarMemoryEventId = "Sub_solar_memory_black_sun_after";
     public const string SolarMemoryFullEventId = "SunExp_sunexp_Sub_solar_memory_black_sun_after";
     public const string SolarMemoryMapId = "SunExp_sunexp_solar_memory_black_sun_after";

@@ -25,6 +25,7 @@ TestDamageSettlementCgSettingsAndLayout();
 TestDamageSettlementCgPayloadOrdering();
 TestDamageSettlementCgAnimationSpec();
 TestSkillCgPresentationNormalization();
+TestRpcPayloadBudgetUsesUtf8Bytes();
 TestDamageMeterAuthorityPolicy();
 
 Console.WriteLine($"AuraToolsExp damage meter tests passed: {assertions} assertions.");
@@ -327,6 +328,33 @@ void TestSkillCgPresentationNormalization()
            && Math.Abs(rules[1].EffectivePresentation.FocusY - 0.6f) < 0.001f
            && Math.Abs(rules[1].EffectivePresentation.SafeScale - 1f) < 0.001f,
         "skill CG rule presentation overrides selected fields");
+}
+
+void TestRpcPayloadBudgetUsesUtf8Bytes()
+{
+    var small = new { Kind = "small", Payload = "ok" };
+    Assert(AuraToolsRpcPayloadGuard.FitsSoftLimit(
+            small,
+            AuraToolsRpcPayloadGuard.DefaultSoftLimitBytes,
+            out var smallBytes,
+            out var smallError)
+           && smallBytes > 0
+           && smallError == "",
+        "small RPC payload fits the soft budget");
+
+    var oversized = new { Kind = "oversized", Payload = new string('界', 23000) };
+    Assert(AuraToolsRpcPayloadGuard.TryMeasureUtf8Json(oversized, out var oversizedBytes, out var oversizedError)
+           && oversizedError == ""
+           && oversizedBytes > AuraToolsRpcPayloadGuard.MirrorStringLimitBytes,
+        "oversized RPC payload is measured by UTF-8 bytes past Mirror's string limit");
+    Assert(!AuraToolsRpcPayloadGuard.FitsSoftLimit(
+            oversized,
+            AuraToolsRpcPayloadGuard.DefaultSoftLimitBytes,
+            out _,
+            out _),
+        "oversized RPC payload is rejected before Mirror serialization");
+    Assert(AuraToolsRpcPayloadGuard.DefaultSoftLimitBytes < AuraToolsRpcPayloadGuard.MirrorStringLimitBytes,
+        "soft RPC budget keeps headroom below Mirror's hard string limit");
 }
 
 void TestDamageMeterAuthorityPolicy()

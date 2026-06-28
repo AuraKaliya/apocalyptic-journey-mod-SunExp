@@ -14,6 +14,11 @@ public static class CardMutationService
         return new CardGrantMutation("special-tags", config => AddSpecialTags(config, tags));
     }
 
+    public static CardGrantMutation AddNativeTagsMutation(params string[] tags)
+    {
+        return new CardGrantMutation("native-tags", config => AddNativeTags(config, tags));
+    }
+
     public static CardGrantMutation SetRuntimeMarkersMutation(params string[] markers)
     {
         return new CardGrantMutation("runtime-markers", config => SetRuntimeMarkers(config, markers));
@@ -92,6 +97,70 @@ public static class CardMutationService
         }
 
         DictionaryUtil.Set(card.Vars, "SpecialTag", existing);
+        RefreshCardItem(card);
+        return true;
+    }
+
+    public static bool AddNativeTags(IDataConfig? config, params string[] tags)
+    {
+        if (config == null)
+        {
+            return false;
+        }
+
+        var changed = false;
+        var existing = CurrentNativeTagText(config);
+        foreach (var tag in NormalizeTags(tags))
+        {
+            if (DictionaryUtil.ContainsToken(existing, tag))
+            {
+                continue;
+            }
+
+            existing = string.IsNullOrWhiteSpace(existing) ? tag : existing + "," + tag;
+            changed = true;
+        }
+
+        if (!changed)
+        {
+            return false;
+        }
+
+        DictionaryUtil.Set(config.Vars, "Tag", existing);
+        RefreshDataConfigTags(config);
+        return true;
+    }
+
+    public static bool AddNativeTags(CardItem? card, params string[] tags)
+    {
+        if (card == null)
+        {
+            return false;
+        }
+
+        var changed = AddNativeTags(card.dataConfig, tags);
+        var existing = CurrentNativeTagText(card.dataConfig);
+        foreach (var tag in NormalizeTags(tags))
+        {
+            if (!DictionaryUtil.ContainsToken(existing, tag))
+            {
+                existing = string.IsNullOrWhiteSpace(existing) ? tag : existing + "," + tag;
+                changed = true;
+            }
+
+            if (card.Tags != null && !card.Tags.Contains(tag))
+            {
+                card.Tags.Add(tag);
+                changed = true;
+            }
+        }
+
+        if (!changed)
+        {
+            return false;
+        }
+
+        DictionaryUtil.Set(card.Vars, "Tag", existing);
         RefreshCardItem(card);
         return true;
     }
@@ -180,10 +249,12 @@ public static class CardMutationService
 
     public static void MarkTemporaryWhiteRadiance(IDataConfig config)
     {
-        AddSpecialTags(config, SunExpIds.WhiteRadianceTag);
-        DictionaryUtil.Set(config.Vars, SunExpIds.TempWhiteRadiance, "1");
-        DictionaryUtil.Set(config.Vars, SunExpIds.TempWhiteRadianceLockId, ExecutorApi.CombatIntAdd("SunExpTempWhiteRadianceLockSeq", 1).ToString());
-        DictionaryUtil.Set(config.Vars, SunExpIds.TempWhiteRadianceResolved, "0");
+        RuntimeCardAttachmentService.AttachToConfig(
+            config,
+            new RuntimeCardAttachment(
+                specialTags: new[] { SunExpIds.WhiteRadianceTag },
+                markers: new[] { SunExpIds.TempWhiteRadiance },
+                temporaryWhiteRadiance: true));
     }
 
     private static IEnumerable<string> NormalizeTags(IEnumerable<string> tags)
@@ -192,6 +263,14 @@ public static class CardMutationService
             .Where(tag => !string.IsNullOrWhiteSpace(tag))
             .Select(tag => tag.Trim())
             .Distinct(StringComparer.Ordinal);
+    }
+
+    private static string CurrentNativeTagText(IDataConfig? config)
+    {
+        var existing = DictionaryUtil.Get(config?.Vars, "Tag");
+        return string.IsNullOrWhiteSpace(existing)
+            ? DictionaryUtil.Get(config?.data, "Tag")
+            : existing;
     }
 
     private static void RefreshDataConfigTags(IDataConfig config)

@@ -119,6 +119,15 @@ public static class SunExpCardTagService
         return changed;
     }
 
+    public static int ApplyBurnoutAndWhiteRadianceToFriendlyHands(ScriptExecutor? executor = null)
+    {
+        var result = RuntimeCardAttachmentService.AttachToCurrentHand(
+            executor,
+            RuntimeCardAttachmentService.WunaWhiteSunPrayerHandAttachment());
+        SunExpLog.Info("Wuna hand temporary attachment pass: " + result.ToLogString());
+        return result.Changed;
+    }
+
     public static bool EnsureCardItemTag(CardItem? card, string tag)
     {
         return CardMutationService.AddSpecialTags(card, tag);
@@ -128,4 +137,5 @@ public static class SunExpCardTagService
     {
         return CardMutationService.AddSpecialTags(config, tag);
     }
+
 }

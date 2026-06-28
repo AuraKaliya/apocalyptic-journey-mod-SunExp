@@ -688,6 +688,15 @@ public static class AuraToolsSettingsRuntime
             AuraToolsUi.AddText(content, "开启后在冒险 TopBar 增加随身保险箱入口；功能只提供总开关。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
         });
 
+        CreateSubmodule(parent, "联机MOD配置同步", AuraToolsConfigService.MatchExperience.ModSync.Enabled, value =>
+        {
+            AuraToolsConfigService.MatchExperience.ModSync.Enabled = value;
+            AuraToolsConfigService.SaveMatchExperience();
+        }, content =>
+        {
+            AuraToolsUi.AddText(content, "开启后在联机大厅开始按钮下方显示 MOD 配置入口；非主机玩家可一键同步房主启用状态。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
+        }, AuraToolsConfigService.MatchExperience.ModSync.Enabled ? AuraToolsUi.SuccessText : AuraToolsUi.MutedText);
+
         var damageMeter = AuraToolsConfigService.MatchExperience.DamageMeter;
         CreateSubmodule(parent, "DPS统计模块", damageMeter.Enabled, value =>
         {

@@ -3,18 +3,33 @@
   "outputPath": "SunExp/ModResource/VisualBundles/sunexp_visuals",
   "unityAssets": {
     "shader": "Assets/SunExp/Visuals/Shaders/StarScoreHud.shader",
-    "material": "Assets/SunExp/Visuals/Materials/StarScoreHudLit.mat"
+    "material": "Assets/SunExp/Visuals/Materials/StarScoreHudLit.mat",
+    "wunaOrbitFireShader": "Assets/SunExp/Visuals/Shaders/WunaOrbitFire.shader",
+    "wunaOrbitFireBackMaterial": "Assets/SunExp/Visuals/Materials/WunaOrbitFireBack.mat",
+    "wunaOrbitFireFrontMaterial": "Assets/SunExp/Visuals/Materials/WunaOrbitFireFront.mat",
+    "wunaOrbitFireTrailMask": "SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
+    "wunaOrbitFireTrailNoise": "SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
   },
   "runtimeAssets": {
     "shaderName": "SunExp/StarScoreHud",
     "shaderPath": "SunExp/StarScoreHud",
-    "materialPath": "SunExp/Materials/StarScoreHudLit"
+    "materialPath": "SunExp/Materials/StarScoreHudLit",
+    "wunaOrbitFireShaderName": "SunExp/WunaOrbitFire",
+    "wunaOrbitFireShaderPath": "SunExp/WunaOrbitFire",
+    "wunaOrbitFireBackMaterialPath": "SunExp/Materials/WunaOrbitFireBack",
+    "wunaOrbitFireFrontMaterialPath": "SunExp/Materials/WunaOrbitFireFront",
+    "wunaOrbitFireTrailMaskPath": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
+    "wunaOrbitFireTrailNoisePath": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
   },
   "defaults": {
     "_SunExpFlowSpeed": 0.55,
     "_SunExpFlowScale": 1.2,
     "_SunExpEdgeGlow": 0.35,
     "_SunExpGlowColor": "#FFE08AFF",
-    "_SunExpFlowColor": "#9DDCFFFF"
+    "_SunExpFlowColor": "#9DDCFFFF",
+    "_SunExpWunaBackCoreColor": "#FFE184D9",
+    "_SunExpWunaBackEdgeColor": "#D94B18B8",
+    "_SunExpWunaFrontCoreColor": "#FFF1A8F2",
+    "_SunExpWunaFrontEdgeColor": "#FF6A1FDD"
   }
 }

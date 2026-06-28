@@ -8,16 +8,14 @@ namespace SunExp.Dll.Scripting;
 
 public static class WunaScripts
 {
-    private const string WhiteSunPrayerCardId = "SunExp_wuna_wuna_white_sun_prayer";
     private const string GraveSongCardId = "SunExp_wuna_wuna_grave_song";
-    private const string CoronationTokenCardId = "SunExp_wuna_wuna_coronation_token";
 
     public static void InitCareer(ScriptExecutor self)
     {
         try
         {
             PlayerApi.SetGameVar(SunExpIds.WunaActive, "1");
-            PlayerApi.SetSkillTime(WhiteSunPrayerCardId, 0);
+            PlayerApi.SetSkillTime(SunExpIds.WunaWhiteSunPrayerCardId, 0);
             PlayerApi.SetSkillTime(GraveSongCardId, 0);
             ExecutorApi.SetVar(self, "SunExpWunaRadianceDone", "0");
             ExecutorApi.SetVar(self, "SunExpWunaPrevEnemyBurn", "0");
@@ -124,7 +122,7 @@ public static class WunaScripts
 
     private static void UseWhiteSunPrayer(ScriptExecutor self)
     {
-        var cooldown = PlayerApi.GetSkillTime(WhiteSunPrayerCardId);
+        var cooldown = PlayerApi.GetSkillTime(SunExpIds.WunaWhiteSunPrayerCardId);
         if (cooldown > 0)
         {
             PlayerApi.ShowCaption("白曜圣祷尚未冷却。");
@@ -133,13 +131,25 @@ public static class WunaScripts
 
         self.SetStatus("Self");
         AudioApi.PlayWhiteSunPrayer();
-        var grant = WunaCardGrantService.GrantCoronationTokenToHand(self, CoronationTokenCardId);
+        var grant = WunaCardGrantService.GrantCoronationTokenToHand(self, SunExpIds.WunaCoronationTokenCardId);
         if (!grant.Success)
         {
             SunExpLog.Warn("Wuna coronation token grant failed: step=" + grant.FailureStep + ", error=" + grant.FailureReason);
         }
 
-        PlayerApi.SetSkillTime(WhiteSunPrayerCardId, 5);
+        TagWhiteSunPrayerHands(self, "immediate");
+        var retryRegistered = ExecutorApi.TryAddTempEvent(self, "ActionAfter", new Action(() =>
+        {
+            TagWhiteSunPrayerHands(self, "action-after");
+        }), "wuna_white_sun_prayer_hand_tags");
+        SunExpLog.Info("Wuna white sun prayer hand tag retry registered=" + retryRegistered);
+        PlayerApi.SetSkillTime(SunExpIds.WunaWhiteSunPrayerCardId, 5);
+    }
+
+    private static void TagWhiteSunPrayerHands(ScriptExecutor self, string stage)
+    {
+        var changed = SunExpCardTagService.ApplyBurnoutAndWhiteRadianceToFriendlyHands(self);
+        SunExpLog.Info("Wuna white sun prayer tagged friendly hand cards (" + stage + "): changed=" + changed);
     }
 
     private static void UseGraveSong(ScriptExecutor self)
@@ -203,7 +213,7 @@ public static class WunaScripts
 
     private static void TickSkillTimes()
     {
-        TickSkillTime(WhiteSunPrayerCardId);
+        TickSkillTime(SunExpIds.WunaWhiteSunPrayerCardId);
         TickSkillTime(GraveSongCardId);
     }
 

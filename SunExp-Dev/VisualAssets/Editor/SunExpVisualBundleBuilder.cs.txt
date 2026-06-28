@@ -9,8 +9,12 @@ using UnityEngine;
 public static class SunExpVisualBundleBuilder
 {
     private const string BundleName = "sunexp_visuals";
-    private const string ShaderAssetPath = "Assets/SunExp/Visuals/Shaders/StarScoreHud.shader";
+    private const string StarScoreShaderAssetPath = "Assets/SunExp/Visuals/Shaders/StarScoreHud.shader";
     private const string MaterialAssetPath = "Assets/SunExp/Visuals/Materials/StarScoreHudLit.mat";
+    private const string StarScoreMaterialAssetPath = MaterialAssetPath;
+    private const string WunaOrbitFireShaderAssetPath = "Assets/SunExp/Visuals/Shaders/WunaOrbitFire.shader";
+    private const string WunaOrbitFireBackMaterialAssetPath = "Assets/SunExp/Visuals/Materials/WunaOrbitFireBack.mat";
+    private const string WunaOrbitFireFrontMaterialAssetPath = "Assets/SunExp/Visuals/Materials/WunaOrbitFireFront.mat";
     private const string BuildOutputDirectory = "Build/SunExpVisualBundles";
     private const string ModOutputPath = "../SunExp/ModResource/VisualBundles/sunexp_visuals";
 
@@ -18,14 +22,19 @@ public static class SunExpVisualBundleBuilder
     public static void BuildVisualBundle()
     {
         EnsureStarScoreMaterial();
+        EnsureWunaOrbitFireMaterials();
 
-        var material = AssetImporter.GetAtPath(MaterialAssetPath);
-        if (material == null)
+        var starScoreMaterial = AssetImporter.GetAtPath(StarScoreMaterialAssetPath);
+        var wunaBackMaterial = AssetImporter.GetAtPath(WunaOrbitFireBackMaterialAssetPath);
+        var wunaFrontMaterial = AssetImporter.GetAtPath(WunaOrbitFireFrontMaterialAssetPath);
+        if (starScoreMaterial == null || wunaBackMaterial == null || wunaFrontMaterial == null)
         {
-            throw new FileNotFoundException("SunExp material asset is missing.", MaterialAssetPath);
+            throw new FileNotFoundException("One or more SunExp material assets are missing.");
         }
 
-        material.assetBundleName = BundleName;
+        starScoreMaterial.assetBundleName = BundleName;
+        wunaBackMaterial.assetBundleName = BundleName;
+        wunaFrontMaterial.assetBundleName = BundleName;
 
         Directory.CreateDirectory(BuildOutputDirectory);
         BuildPipeline.BuildAssetBundles(
@@ -47,21 +56,21 @@ public static class SunExpVisualBundleBuilder
 
     private static void EnsureStarScoreMaterial()
     {
-        var shader = AssetDatabase.LoadAssetAtPath<Shader>(ShaderAssetPath);
+        var shader = AssetDatabase.LoadAssetAtPath<Shader>(StarScoreShaderAssetPath);
         if (shader == null)
         {
-            throw new FileNotFoundException("SunExp shader asset is missing.", ShaderAssetPath);
+            throw new FileNotFoundException("SunExp shader asset is missing.", StarScoreShaderAssetPath);
         }
 
-        var material = AssetDatabase.LoadAssetAtPath<Material>(MaterialAssetPath);
+        var material = AssetDatabase.LoadAssetAtPath<Material>(StarScoreMaterialAssetPath);
         if (material == null)
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(MaterialAssetPath));
+            Directory.CreateDirectory(Path.GetDirectoryName(StarScoreMaterialAssetPath));
             material = new Material(shader)
             {
                 name = "StarScoreHudLit"
             };
-            AssetDatabase.CreateAsset(material, MaterialAssetPath);
+            AssetDatabase.CreateAsset(material, StarScoreMaterialAssetPath);
         }
         else
         {
@@ -75,5 +84,60 @@ public static class SunExpVisualBundleBuilder
         material.SetColor("_SunExpFlowColor", new Color(0.616f, 0.863f, 1f, 1f));
         EditorUtility.SetDirty(material);
         AssetDatabase.SaveAssets();
+    }
+
+    private static void EnsureWunaOrbitFireMaterials()
+    {
+        var shader = AssetDatabase.LoadAssetAtPath<Shader>(WunaOrbitFireShaderAssetPath);
+        if (shader == null)
+        {
+            throw new FileNotFoundException("SunExp WuNa orbit fire shader asset is missing.", WunaOrbitFireShaderAssetPath);
+        }
+
+        var back = EnsureMaterial(WunaOrbitFireBackMaterialAssetPath, shader, "WunaOrbitFireBack");
+        back.SetFloat("_SunExpLayer", -1f);
+        back.SetFloat("_SunExpNoiseScale", 2.45f);
+        back.SetFloat("_SunExpDistortion", 0.18f);
+        back.SetFloat("_SunExpAlphaCutoff", 0.03f);
+        back.SetFloat("_SunExpAlphaSoftness", 0.08f);
+        back.SetFloat("_SunExpFlowSpeed", 0.48f);
+        back.SetColor("_SunExpCoreColor", new Color(1f, 0.914f, 0.627f, 0.753f));
+        back.SetColor("_SunExpEdgeColor", new Color(0.91f, 0.353f, 0.102f, 0.58f));
+        back.SetColor("_SunExpSmokeColor", new Color(0.22f, 0.078f, 0.047f, 0.188f));
+
+        var front = EnsureMaterial(WunaOrbitFireFrontMaterialAssetPath, shader, "WunaOrbitFireFront");
+        front.SetFloat("_SunExpLayer", 1f);
+        front.SetFloat("_SunExpNoiseScale", 3.1f);
+        front.SetFloat("_SunExpDistortion", 0.24f);
+        front.SetFloat("_SunExpAlphaCutoff", 0.035f);
+        front.SetFloat("_SunExpAlphaSoftness", 0.07f);
+        front.SetFloat("_SunExpFlowSpeed", 0.68f);
+        front.SetColor("_SunExpCoreColor", new Color(1f, 0.973f, 0.722f, 0.91f));
+        front.SetColor("_SunExpEdgeColor", new Color(1f, 0.424f, 0.125f, 0.784f));
+        front.SetColor("_SunExpSmokeColor", new Color(0.271f, 0.078f, 0.047f, 0.204f));
+
+        EditorUtility.SetDirty(back);
+        EditorUtility.SetDirty(front);
+        AssetDatabase.SaveAssets();
+    }
+
+    private static Material EnsureMaterial(string path, Shader shader, string materialName)
+    {
+        var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (material == null)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path));
+            material = new Material(shader)
+            {
+                name = materialName
+            };
+            AssetDatabase.CreateAsset(material, path);
+        }
+        else
+        {
+            material.shader = shader;
+        }
+
+        return material;
     }
 }

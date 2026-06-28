@@ -5,25 +5,31 @@ namespace SunExp.Dll.Mechanics;
 
 public static class SolarMemoryStoryGateService
 {
-    public static bool TryStartPostPreparationDialogue(bool isSolarMemoryRun, bool alreadySeen, Action complete)
+    public static bool TryStartPostPreparationDialogue(bool isSolarMemoryRun, bool alreadySeen, Action<int> complete)
     {
         if (!ShouldShowPostPreparationDialogue(isSolarMemoryRun, alreadySeen))
         {
             return false;
         }
 
-        var definition = new DialogueFlowDefinition(
+        return TryStartDialogue(
             SunExpIds.SolarMemoryPostPreparationDialogueFlowId,
             SunExpIds.SolarMemoryPostPreparationDialogueId,
-            _ => complete());
+            SunExpIds.SolarMemoryPostPreparationCompleteDialogueId,
+            "post-preparation",
+            complete);
+    }
 
+    public static bool TryStartDialogue(string flowId, string dialogueId, string completeDialogueId, string label, Action<int> complete)
+    {
+        var definition = new DialogueFlowDefinition(flowId, dialogueId, completeDialogueId, complete);
         if (!DialogueFlowService.Start(definition))
         {
-            SunExpLog.Warn("[SolarMemoryStory] post-preparation dialogue could not be shown; continuing memory flow.");
+            SunExpLog.Warn("[SolarMemoryStory] " + label + " dialogue could not be shown; continuing memory flow.");
             return false;
         }
 
-        SunExpLog.Info("[SolarMemoryStory] opened post-preparation dialogue.");
+        SunExpLog.Info("[SolarMemoryStory] opened " + label + " dialogue.");
         return true;
     }
 

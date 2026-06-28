@@ -26,6 +26,18 @@ public static class AuraChatModSyncSnapshot
             .Where(player => !string.IsNullOrWhiteSpace(player.PlayerName) || !string.IsNullOrWhiteSpace(player.PlayerId))
             .ToList();
 
+        return BuildStateFromSnapshots(snapshots, currentModId, localPlayerId);
+    }
+
+    public static AuraChatModSyncState BuildStateFromSnapshots(IEnumerable<AuraChatModPlayerSnapshot?> players, string currentModId, string localPlayerId)
+    {
+        currentModId ??= "";
+        var snapshots = players
+            .Where(player => player != null)
+            .Select(player => player!)
+            .Where(player => !string.IsNullOrWhiteSpace(player.PlayerName) || !string.IsNullOrWhiteSpace(player.PlayerId))
+            .ToList();
+
         var state = new AuraChatModSyncState
         {
             CurrentModId = currentModId ?? "",

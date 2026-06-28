@@ -164,6 +164,14 @@
       "bundlePath": "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
       "materialPath": "SunExp/Materials/StarScoreHudLit",
       "enabled": true
+    },
+    {
+      "id": "sunexp.wuna_orbit_fire",
+      "shaderName": "SunExp/WunaOrbitFire",
+      "shaderPath": "SunExp/WunaOrbitFire",
+      "bundlePath": "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
+      "materialPath": "SunExp/Materials/WunaOrbitFireFront",
+      "enabled": true
     }
   ],
   "effects": [
@@ -182,6 +190,102 @@
       "colors": {
         "_SunExpGlowColor": "#FFE08AFF",
         "_SunExpFlowColor": "#9DDCFFFF"
+      },
+      "enabled": true
+    },
+    {
+      "id": "sunexp.wuna.orbit_fire.core.back",
+      "kind": "character-orbit-core-material",
+      "shaderId": "sunexp.wuna_orbit_fire",
+      "bundlePath": "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
+      "materialPath": "SunExp/Materials/WunaOrbitFireBack",
+      "textures": {
+        "_MainTex": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
+        "_NoiseTex": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
+      },
+      "floats": {
+        "_SunExpNoiseScale": 2.0,
+        "_SunExpDistortion": 0.08,
+        "_SunExpAlphaCutoff": 0.01,
+        "_SunExpAlphaSoftness": 0.12,
+        "_SunExpFlowSpeed": 0.34
+      },
+      "colors": {
+        "_SunExpCoreColor": "#FFF5B8D8",
+        "_SunExpEdgeColor": "#FF7A26A8",
+        "_SunExpSmokeColor": "#35100822"
+      },
+      "enabled": true
+    },
+    {
+      "id": "sunexp.wuna.orbit_fire.core.front",
+      "kind": "character-orbit-core-material",
+      "shaderId": "sunexp.wuna_orbit_fire",
+      "bundlePath": "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
+      "materialPath": "SunExp/Materials/WunaOrbitFireFront",
+      "textures": {
+        "_MainTex": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
+        "_NoiseTex": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
+      },
+      "floats": {
+        "_SunExpNoiseScale": 2.35,
+        "_SunExpDistortion": 0.11,
+        "_SunExpAlphaCutoff": 0.01,
+        "_SunExpAlphaSoftness": 0.1,
+        "_SunExpFlowSpeed": 0.48
+      },
+      "colors": {
+        "_SunExpCoreColor": "#FFFFC8F0",
+        "_SunExpEdgeColor": "#FF9C36D8",
+        "_SunExpSmokeColor": "#42100828"
+      },
+      "enabled": true
+    },
+    {
+      "id": "sunexp.wuna.orbit_fire.back",
+      "kind": "character-orbit-material",
+      "shaderId": "sunexp.wuna_orbit_fire",
+      "bundlePath": "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
+      "materialPath": "SunExp/Materials/WunaOrbitFireBack",
+      "textures": {
+        "_MainTex": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
+        "_NoiseTex": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
+      },
+      "floats": {
+        "_SunExpNoiseScale": 2.45,
+        "_SunExpDistortion": 0.18,
+        "_SunExpAlphaCutoff": 0.03,
+        "_SunExpAlphaSoftness": 0.08,
+        "_SunExpFlowSpeed": 0.48
+      },
+      "colors": {
+        "_SunExpCoreColor": "#FFE9A0C0",
+        "_SunExpEdgeColor": "#E85A1A94",
+        "_SunExpSmokeColor": "#38140C30"
+      },
+      "enabled": true
+    },
+    {
+      "id": "sunexp.wuna.orbit_fire.front",
+      "kind": "character-orbit-material",
+      "shaderId": "sunexp.wuna_orbit_fire",
+      "bundlePath": "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
+      "materialPath": "SunExp/Materials/WunaOrbitFireFront",
+      "textures": {
+        "_MainTex": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
+        "_NoiseTex": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
+      },
+      "floats": {
+        "_SunExpNoiseScale": 3.1,
+        "_SunExpDistortion": 0.24,
+        "_SunExpAlphaCutoff": 0.035,
+        "_SunExpAlphaSoftness": 0.07,
+        "_SunExpFlowSpeed": 0.68
+      },
+      "colors": {
+        "_SunExpCoreColor": "#FFF8B8E8",
+        "_SunExpEdgeColor": "#FF6C20C8",
+        "_SunExpSmokeColor": "#45140C34"
       },
       "enabled": true
     }

@@ -128,6 +128,71 @@ public sealed class CardGrantResult
 
 public static class CardApi
 {
+    public static int HandCardCount(ScriptExecutor? self)
+    {
+        return self?.HandCard?.Count(card => card?.dataConfig != null) ?? 0;
+    }
+
+    public static int ThrowAllHandCards(ScriptExecutor? self)
+    {
+        var count = HandCardCount(self);
+        if (self == null || count <= 0)
+        {
+            return 0;
+        }
+
+        try
+        {
+            var method = self.GetType().GetMethod("ThrowCard", new[] { typeof(string), typeof(string) });
+            if (method == null)
+            {
+                SunExpLog.Warn("ThrowAllHandCards failed: ScriptExecutor.ThrowCard unavailable");
+                return 0;
+            }
+
+            method.Invoke(self, new object[] { count.ToString(), "Hand" });
+            return count;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("ThrowAllHandCards failed: " + ex.Message);
+            return 0;
+        }
+    }
+
+    public static int BurnAllHandCards(ScriptExecutor? self)
+    {
+        if (self == null)
+        {
+            return 0;
+        }
+
+        var cards = (self.HandCard ?? Enumerable.Empty<CardItem>())
+            .Select(card => card?.dataConfig)
+            .Where(card => card != null)
+            .ToList();
+        foreach (var card in cards)
+        {
+            try
+            {
+                var method = self.GetType().GetMethod("BurnCardByData", new[] { typeof(IDataConfig) });
+                if (method == null)
+                {
+                    SunExpLog.Warn("BurnAllHandCards failed: ScriptExecutor.BurnCardByData unavailable");
+                    return 0;
+                }
+
+                method.Invoke(self, new object[] { card! });
+            }
+            catch (Exception ex)
+            {
+                SunExpLog.Warn("BurnAllHandCards item failed: " + ex.Message);
+            }
+        }
+
+        return cards.Count;
+    }
+
     public static bool AddCardToHand(ScriptExecutor self, string cardId, string runtimeTag = "")
     {
         var request = CardGrantRequest.ToHand(cardId);

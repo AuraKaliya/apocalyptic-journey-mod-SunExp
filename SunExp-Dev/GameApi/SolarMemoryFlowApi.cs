@@ -24,7 +24,7 @@ public static class SolarMemoryFlowApi
         if (SolarMemoryStoryGateService.TryStartPostPreparationDialogue(
             SolarMemoryModeRuntime.IsSolarMemoryRun(),
             SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryPostPreparationDialogueSeenKey),
-            CompletePostPreparationDialogue))
+            _ => CompletePostPreparationDialogue()))
         {
             SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryPostPreparationDialoguePendingKey, true);
             return;
@@ -38,6 +38,51 @@ public static class SolarMemoryFlowApi
         SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryPostPreparationDialoguePendingKey, false);
         SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryPostPreparationDialogueSeenKey, true);
         CompletePreparedEvent();
+    }
+
+    public static bool StartSecondSunEndingDialogue()
+    {
+        return SolarMemoryStoryGateService.TryStartDialogue(
+            SunExpIds.SolarMemorySecondSunEndingDialogueFlowId,
+            SunExpIds.SolarMemorySecondSunEndingDialogueId,
+            SunExpIds.SolarMemorySecondSunEndingCompleteDialogueId,
+            "second-sun ending",
+            _ => CompleteSecondSunEndingDialogue());
+    }
+
+    public static bool StartSaintWunaPreludeDialogue()
+    {
+        return SolarMemoryStoryGateService.TryStartDialogue(
+            SunExpIds.SolarMemorySaintWunaPreludeDialogueFlowId,
+            SunExpIds.SolarMemorySaintWunaPreludeDialogueId,
+            SunExpIds.SolarMemorySaintWunaPreludeCompleteDialogueId,
+            "saint-wuna prelude",
+            _ => CompleteSaintWunaPreludeDialogue());
+    }
+
+    public static bool StartSaintWunaEndingDialogue()
+    {
+        return SolarMemoryStoryGateService.TryStartDialogue(
+            SunExpIds.SolarMemorySaintWunaEndingDialogueFlowId,
+            SunExpIds.SolarMemorySaintWunaEndingDialogueId,
+            SunExpIds.SolarMemorySaintWunaEndingCompleteDialogueId,
+            "saint-wuna ending",
+            _ => CompleteSaintWunaEndingDialogue());
+    }
+
+    public static void CompleteSecondSunEndingDialogue()
+    {
+        SolarMemoryModeRuntime.CompleteSolarMemoryRunForSettlementFromDialogue("SolarMemoryDialogue:second_sun_without_key_card");
+    }
+
+    public static void CompleteSaintWunaPreludeDialogue()
+    {
+        SolarMemoryModeRuntime.ContinueSaintWunaBossFromPreludeDialogue("SolarMemoryDialogue:saint_wuna_prelude");
+    }
+
+    public static void CompleteSaintWunaEndingDialogue()
+    {
+        SolarMemoryModeRuntime.CompleteSolarMemoryRunForSettlementFromDialogue("SolarMemoryDialogue:saint_wuna");
     }
 
     public static bool IsPreparationComplete()

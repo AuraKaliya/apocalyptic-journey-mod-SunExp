@@ -154,7 +154,8 @@ public static class AuraToolsSkinRuntime
 
         try
         {
-            manager.SendRpcCommandExcludeOwner(new AuraSkinSelectionCommand(snapshot));
+            var command = new AuraSkinSelectionCommand(snapshot);
+            AuraToolsRpcTransport.Send(manager, command, "Skin.Selection", excludeOwner: true);
         }
         catch (Exception ex)
         {

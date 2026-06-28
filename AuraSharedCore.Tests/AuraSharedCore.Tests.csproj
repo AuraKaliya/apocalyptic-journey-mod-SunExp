@@ -25,7 +25,7 @@
     <Compile Include="..\AuraJourneyShared\AuraJourneyMapNodeDataBuilder.cs" Link="Journey\AuraJourneyMapNodeDataBuilder.cs" />
     <Compile Include="..\AuraJourneyShared\AuraJourneySyncProjection.cs" Link="Journey\AuraJourneySyncProjection.cs" />
     <Compile Include="..\AuraJourneyShared\AuraJourneyStateReducer.cs" Link="Journey\AuraJourneyStateReducer.cs" />
-    <Compile Include="..\AuraOnlineShared\*.cs" Link="Online\%(Filename)%(Extension)" />
+    <Compile Include="..\AuraOnlineShared\*.cs" Exclude="..\AuraOnlineShared\AuraOnlineHostModSyncSession.cs;..\AuraOnlineShared\AuraOnlineLocalModManifestBuilder.cs" Link="Online\%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

@@ -55,11 +55,19 @@ public static class EffectMaterialFactory
 
         foreach (var pair in effect.Floats)
         {
-            material.SetFloat(pair.Key, pair.Value);
+            if (material.HasProperty(pair.Key))
+            {
+                material.SetFloat(pair.Key, pair.Value);
+            }
         }
 
         foreach (var pair in effect.Colors)
         {
+            if (!material.HasProperty(pair.Key))
+            {
+                continue;
+            }
+
             if (TryParseColor(pair.Value, out var color))
             {
                 material.SetColor(pair.Key, color);
@@ -72,6 +80,11 @@ public static class EffectMaterialFactory
 
         foreach (var pair in effect.Textures)
         {
+            if (!material.HasProperty(pair.Key))
+            {
+                continue;
+            }
+
             var texture = EffectTextureCache.Load(pair.Value, logPrefix);
             if (texture != null)
             {

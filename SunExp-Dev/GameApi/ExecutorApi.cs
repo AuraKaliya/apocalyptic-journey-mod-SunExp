@@ -483,6 +483,16 @@ public static class ExecutorApi
         return executor != null && BuffApi.RemovePositiveBuffs(executor, status);
     }
 
+    public static bool RemoveRandomPositiveBuff(ScriptExecutor? executor, IStatusManager? status)
+    {
+        return executor != null && BuffApi.RemoveRandomPositiveBuff(executor, status);
+    }
+
+    public static int RemoveBuffsExceptAndCount(ScriptExecutor? executor, IStatusManager? status, params string[] excludeIds)
+    {
+        return executor == null ? 0 : BuffApi.RemoveBuffsExceptAndCount(executor, status, excludeIds);
+    }
+
     public static bool AddEnemyAction(ScriptExecutor? executor, string enemyCardId)
     {
         if (executor == null || string.IsNullOrWhiteSpace(enemyCardId))

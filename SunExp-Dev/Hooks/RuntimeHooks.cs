@@ -33,6 +33,7 @@ public static class RuntimeHooks
         RunHookStep("map node card art", () => MapNodeCardArtRuntime.Initialize(modConfig));
         RunHookStep("card visual skin", () => CardVisualSkinRuntime.Initialize(modConfig));
         RunHookStep("wuna action animation", () => WunaActionAnimationRuntime.Initialize(modConfig));
+        RunHookStep("wuna orbit fire", () => WunaOrbitFireRuntime.Initialize(modConfig));
         RunHookStep("star score runtime", () => StarScoreRuntime.Initialize(modConfig));
         RunHookStep("star score HUD", () => StarScoreHudRuntime.Initialize(modConfig));
         RunHookStep("loneer runtime", () => LoneerRuntime.Initialize(modConfig));

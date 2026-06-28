@@ -431,6 +431,14 @@ internal static class VisualRegistryDefaults
                     BundlePath = "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
                     MaterialPath = "SunExp/Materials/StarScoreHudLit",
                     ShaderPath = "SunExp/StarScoreHud"
+                },
+                new()
+                {
+                    Id = "sunexp.wuna_orbit_fire",
+                    ShaderName = "SunExp/WunaOrbitFire",
+                    BundlePath = "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
+                    MaterialPath = "SunExp/Materials/WunaOrbitFireFront",
+                    ShaderPath = "SunExp/WunaOrbitFire"
                 }
             },
             Effects = new List<VisualEffectVisualSpec>
@@ -452,6 +460,114 @@ internal static class VisualRegistryDefaults
                     {
                         ["_SunExpGlowColor"] = "#FFE08AFF",
                         ["_SunExpFlowColor"] = "#9DDCFFFF"
+                    }
+                },
+                new()
+                {
+                    Id = "sunexp.wuna.orbit_fire.core.back",
+                    Kind = "character-orbit-core-material",
+                    ShaderId = "sunexp.wuna_orbit_fire",
+                    BundlePath = "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
+                    MaterialPath = "SunExp/Materials/WunaOrbitFireBack",
+                    Textures = new Dictionary<string, string>
+                    {
+                        ["_MainTex"] = "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
+                        ["_NoiseTex"] = "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
+                    },
+                    Floats = new Dictionary<string, float>
+                    {
+                        ["_SunExpNoiseScale"] = 2.0f,
+                        ["_SunExpDistortion"] = 0.08f,
+                        ["_SunExpAlphaCutoff"] = 0.01f,
+                        ["_SunExpAlphaSoftness"] = 0.12f,
+                        ["_SunExpFlowSpeed"] = 0.34f
+                    },
+                    Colors = new Dictionary<string, string>
+                    {
+                        ["_SunExpCoreColor"] = "#FFF5B8D8",
+                        ["_SunExpEdgeColor"] = "#FF7A26A8",
+                        ["_SunExpSmokeColor"] = "#35100822"
+                    }
+                },
+                new()
+                {
+                    Id = "sunexp.wuna.orbit_fire.core.front",
+                    Kind = "character-orbit-core-material",
+                    ShaderId = "sunexp.wuna_orbit_fire",
+                    BundlePath = "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
+                    MaterialPath = "SunExp/Materials/WunaOrbitFireFront",
+                    Textures = new Dictionary<string, string>
+                    {
+                        ["_MainTex"] = "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
+                        ["_NoiseTex"] = "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
+                    },
+                    Floats = new Dictionary<string, float>
+                    {
+                        ["_SunExpNoiseScale"] = 2.35f,
+                        ["_SunExpDistortion"] = 0.11f,
+                        ["_SunExpAlphaCutoff"] = 0.01f,
+                        ["_SunExpAlphaSoftness"] = 0.1f,
+                        ["_SunExpFlowSpeed"] = 0.48f
+                    },
+                    Colors = new Dictionary<string, string>
+                    {
+                        ["_SunExpCoreColor"] = "#FFFFC8F0",
+                        ["_SunExpEdgeColor"] = "#FF9C36D8",
+                        ["_SunExpSmokeColor"] = "#42100828"
+                    }
+                },
+                new()
+                {
+                    Id = "sunexp.wuna.orbit_fire.back",
+                    Kind = "character-orbit-material",
+                    ShaderId = "sunexp.wuna_orbit_fire",
+                    BundlePath = "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
+                    MaterialPath = "SunExp/Materials/WunaOrbitFireBack",
+                    Textures = new Dictionary<string, string>
+                    {
+                        ["_MainTex"] = "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
+                        ["_NoiseTex"] = "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
+                    },
+                    Floats = new Dictionary<string, float>
+                    {
+                        ["_SunExpNoiseScale"] = 2.45f,
+                        ["_SunExpDistortion"] = 0.18f,
+                        ["_SunExpAlphaCutoff"] = 0.03f,
+                        ["_SunExpAlphaSoftness"] = 0.08f,
+                        ["_SunExpFlowSpeed"] = 0.48f
+                    },
+                    Colors = new Dictionary<string, string>
+                    {
+                        ["_SunExpCoreColor"] = "#FFE9A0C0",
+                        ["_SunExpEdgeColor"] = "#E85A1A94",
+                        ["_SunExpSmokeColor"] = "#38140C30"
+                    }
+                },
+                new()
+                {
+                    Id = "sunexp.wuna.orbit_fire.front",
+                    Kind = "character-orbit-material",
+                    ShaderId = "sunexp.wuna_orbit_fire",
+                    BundlePath = "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
+                    MaterialPath = "SunExp/Materials/WunaOrbitFireFront",
+                    Textures = new Dictionary<string, string>
+                    {
+                        ["_MainTex"] = "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
+                        ["_NoiseTex"] = "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
+                    },
+                    Floats = new Dictionary<string, float>
+                    {
+                        ["_SunExpNoiseScale"] = 3.1f,
+                        ["_SunExpDistortion"] = 0.24f,
+                        ["_SunExpAlphaCutoff"] = 0.035f,
+                        ["_SunExpAlphaSoftness"] = 0.07f,
+                        ["_SunExpFlowSpeed"] = 0.68f
+                    },
+                    Colors = new Dictionary<string, string>
+                    {
+                        ["_SunExpCoreColor"] = "#FFF8B8E8",
+                        ["_SunExpEdgeColor"] = "#FF6C20C8",
+                        ["_SunExpSmokeColor"] = "#45140C34"
                     }
                 }
             }

@@ -18,6 +18,12 @@ public static class CardVisualSkinRuntime
         RegisterAfter(modConfig, "CardItem.Init", context => ApplyFromItemRoot(context, "CardItem.Init"));
         RegisterAfter(modConfig, "AttackCardItem.Init", context => ApplyFromItemRoot(context, "AttackCardItem.Init"));
         RegisterAfter(modConfig, "CardItem.DataUpdate", context => ApplyFromItemRoot(context, "CardItem.DataUpdate"));
+        RegisterAfter(modConfig, "CardItem.DrawEffect", context => ApplyFromItemRoot(context, "CardItem.DrawEffect"));
+        RegisterAfter(modConfig, "CommonCardItem.DrawEffect", context => ApplyFromItemRoot(context, "CommonCardItem.DrawEffect"));
+        RegisterAfter(modConfig, "AttackCardItem.DrawEffect", context => ApplyFromItemRoot(context, "AttackCardItem.DrawEffect"));
+        RegisterAfter(modConfig, "FightUI.CreateCardItem", context => ReapplyActiveCombatCards("FightUI.CreateCardItem"));
+        RegisterAfter(modConfig, "FightUI.CreateCardItemInternal", ApplyFromFightUiCreateCardItemInternal);
+        RegisterAfter(modConfig, "ScriptExecutor.GetCardFromDeck", context => ReapplyActiveCombatCards("ScriptExecutor.GetCardFromDeck"));
 
         RegisterAfter(modConfig, "DictItem.Init", context => ApplyFromArgumentRoot(context, 0, null, "DictItem.Init"));
         RegisterAfter(modConfig, "DictionaryShowItem.Init", context => ApplyFromArgumentRoot(context, 0, null, "DictionaryShowItem.Init"));
@@ -136,6 +142,24 @@ public static class CardVisualSkinRuntime
         }
     }
 
+    private static void ApplyFromFightUiCreateCardItemInternal(ModHookContext context)
+    {
+        try
+        {
+            var config = ConfigFromArgument(context.Arguments, 0);
+            if (config != null)
+            {
+                ApplySafely(FindCombatCardRoot(config), config, "FightUI.CreateCardItemInternal");
+            }
+
+            ReapplyActiveCombatCards("FightUI.CreateCardItemInternal");
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Card visual skin FightUI.CreateCardItemInternal hook failed", ex);
+        }
+    }
+
     private static IDataConfig? ConfigFromArgument(object[]? args, int index)
     {
         if (args == null || index < 0 || args.Length <= index)
@@ -156,6 +180,68 @@ public static class CardVisualSkinRuntime
         return string.IsNullOrWhiteSpace(childPath)
             ? component.transform
             : component.transform.Find(childPath);
+    }
+
+    private static Transform? FindCombatCardRoot(IDataConfig config)
+    {
+        try
+        {
+            var items = FightUI.cardItemList;
+            if (items == null)
+            {
+                return null;
+            }
+
+            for (var i = items.Count - 1; i >= 0; i--)
+            {
+                var item = items[i];
+                if (item != null && ReferenceEquals(item.dataConfig, config))
+                {
+                    return item.transform;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Debug("Card visual skin combat-card lookup failed: " + ex.Message);
+        }
+
+        return null;
+    }
+
+    private static void ReapplyActiveCombatCards(string source)
+    {
+        try
+        {
+            var items = FightUI.cardItemList;
+            if (items == null || items.Count == 0)
+            {
+                return;
+            }
+
+            var applied = 0;
+            foreach (var item in items)
+            {
+                if (item?.dataConfig == null)
+                {
+                    continue;
+                }
+
+                if (CardVisualSkinApplier.Apply(item.transform, item.dataConfig))
+                {
+                    applied++;
+                }
+            }
+
+            if (applied > 0)
+            {
+                SunExpLog.Debug("Card visual skin reapplied from " + source + ": " + applied);
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Card visual skin active-combat reapply failed from " + source, ex);
+        }
     }
 
     private static void ApplySafely(Transform? root, IDataConfig? config, string source)

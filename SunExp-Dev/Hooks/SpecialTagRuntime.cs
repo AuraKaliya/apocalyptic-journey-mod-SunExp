@@ -22,6 +22,15 @@ public static class SpecialTagRuntime
     [HookAfter(typeof(Fight_Start), nameof(Fight_Start.Init))]
     public static void OnFightStart(Fight_Start __instance)
     {
+        try
+        {
+            RuntimeCardAttachmentService.ClearTemporaryAttachments("Fight_Start.Init");
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Failed to clear runtime card attachments from Fight_Start.Init", ex);
+        }
+
         Pending.Clear();
         registeredStatusId = null;
         TryRegisterForPlayer("Fight_Start.Init");

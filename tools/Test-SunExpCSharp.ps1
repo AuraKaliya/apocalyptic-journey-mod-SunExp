@@ -34,6 +34,7 @@ function New-ProjectXml {
     $cardApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardApi.cs"
     $cardConfigApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardConfigApi.cs"
     $cardMutationService = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardMutationService.cs"
+    $runtimeCardAttachmentService = Join-Path $RepoRoot "SunExp-Dev\Mechanics\RuntimeCardAttachmentService.cs"
     $starBlessingCostOverrideStore = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarBlessingCostOverrideStore.cs"
     $loneerCombatState = Join-Path $RepoRoot "SunExp-Dev\Mechanics\LoneerCombatState.cs"
     $starScoreNote = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreNote.cs"
@@ -64,6 +65,7 @@ function New-ProjectXml {
     <Compile Include="$cardApi" />
     <Compile Include="$cardConfigApi" />
     <Compile Include="$cardMutationService" />
+    <Compile Include="$runtimeCardAttachmentService" />
     <Compile Include="$starBlessingCostOverrideStore" />
     <Compile Include="$loneerCombatState" />
     <Compile Include="$starScoreNote" />
@@ -135,6 +137,10 @@ public sealed class ScriptExecutor
     public IStatusManager? Self { get; set; } = FightPlayer.Instance.Status;
 
     public bool ThrowOnDelivery { get; set; }
+
+    public List<CardItem> HandCard { get; } = new();
+
+    public List<CardItem> WaitCard { get; } = new();
 
     public void SetStatus(string status)
     {
@@ -288,6 +294,8 @@ namespace Witch.UI.Window
     public static class FightUI
     {
         public static List<CardItem> cardItemList { get; } = new();
+
+        public static List<CardItem> WaitCard { get; } = new();
     }
 }
 '@
@@ -314,6 +322,7 @@ internal static class Program
         TestStarBlessingCostOverrideStore();
         TestCardGrantRequest();
         TestCardMutationService();
+        TestRuntimeCardAttachmentService();
         TestSolarTriggerCostOverride();
         TestWhiteRadianceTags();
         TestTemporaryWhiteRadianceClaim();
@@ -526,11 +535,137 @@ internal static class Program
         True(CardMutationService.AddSpecialTags(config, "Guidance", "Guidance", "Derived"), "Special tags are added once");
         Equal("Guidance,Derived", config.Vars["SpecialTag"], "Special tags are deduplicated");
         False(CardMutationService.AddSpecialTags(config, "Guidance"), "Existing SpecialTags are not rewritten");
+        True(CardMutationService.AddNativeTags(config, "Burnout", "Burnout"), "Native tags are added once");
+        Equal("Native,Burnout", config.Vars["Tag"], "Native tags are deduplicated in Vars.Tag");
+        Equal("Native", config.data["Tag"], "Native tag mutations do not write base data.Tag");
+        False(CardMutationService.AddNativeTags(config, "Burnout"), "Existing native tags are not rewritten");
 
         CardMutationService.MarkTemporaryWhiteRadiance(config);
         Equal("1", config.Vars[SunExpIds.TempWhiteRadiance], "Temporary white radiance marker is set");
         Equal("0", config.Vars[SunExpIds.TempWhiteRadianceResolved], "Temporary white radiance starts unresolved");
         True(CardMutationService.HasSpecialTag(config, SunExpIds.WhiteRadianceTag), "Temporary white radiance adds the white-radiance SpecialTag");
+    }
+
+    private static void TestRuntimeCardAttachmentService()
+    {
+        ExecutorApi.ResetCombatVars();
+        FightCardManager.Instance.cardList.Clear();
+        Witch.UI.Window.FightUI.cardItemList.Clear();
+        Witch.UI.Window.FightUI.WaitCard.Clear();
+
+        var config = new DataConfig(
+            new Dictionary<string, string>
+            {
+                ["Id"] = "temporary_hand_card",
+                ["Tag"] = ""
+            },
+            new Dictionary<string, string>());
+        var card = new CardItem
+        {
+            dataConfig = config,
+            Vars = config.Vars,
+            data = new Dictionary<string, string>
+            {
+                ["Id"] = "temporary_hand_card",
+                ["Tag"] = ""
+            }
+        };
+        var executor = new ScriptExecutor();
+        executor.HandCard.Add(card);
+        Witch.UI.Window.FightUI.cardItemList.Add(card);
+
+        var result = RuntimeCardAttachmentService.AttachToCurrentHand(
+            executor,
+            RuntimeCardAttachmentService.WunaWhiteSunPrayerHandAttachment());
+
+        Equal(1, result.TouchedCardItems, "Runtime attachment touches the current hand card once");
+        Equal(1, result.TouchedConfigs, "Runtime attachment touches the hand card config once");
+        True(result.Changed > 0, "Runtime attachment records marker/tag changes");
+        True(DictionaryUtil.ContainsToken(DictionaryUtil.Get(card.Vars, "Tag"), "Burnout"), "Runtime attachment writes native tags to card item Vars.Tag");
+        True(DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, "Tag"), "Burnout"), "Runtime attachment writes native tags to config Vars.Tag");
+        False(DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.data, "Tag"), "Burnout"), "Runtime attachment does not write base config data.Tag");
+        True(DictionaryUtil.ContainsToken(DictionaryUtil.Get(card.Vars, "SpecialTag"), WhiteRadiance), "Runtime attachment writes SpecialTag to card item Vars");
+        True(DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, "SpecialTag"), WhiteRadiance), "Runtime attachment writes SpecialTag to config Vars");
+        Equal("1", config.Vars[SunExpIds.TempWhiteRadiance], "Runtime attachment marks temporary white radiance on config");
+        Equal(card.Vars[SunExpIds.TempWhiteRadianceLockId], config.Vars[SunExpIds.TempWhiteRadianceLockId], "Card item and config share the temporary white radiance lock");
+        True(CardConfigApi.HasTemporaryWhiteRadiance(config), "Runtime attachment is visible to the white-radiance trigger runtime");
+        False(CardConfigApi.HasNativeWhiteRadiance(config), "Runtime hand attachment does not turn white radiance into a native run tag");
+
+        var cleared = RuntimeCardAttachmentService.ClearTemporaryAttachments("test");
+        True(cleared > 0, "Runtime attachment cleanup removes temporary card vars at the next fight boundary");
+        False(DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, "Tag"), "Burnout"), "Runtime attachment cleanup removes temporary Burnout from config Vars.Tag");
+        False(DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, "SpecialTag"), WhiteRadiance), "Runtime attachment cleanup removes temporary white radiance from config Vars.SpecialTag");
+        False(DictionaryUtil.ContainsToken(DictionaryUtil.Get(card.Vars, SunExpIds.RuntimeMarkersKey), SunExpIds.TempWhiteRadiance), "Runtime attachment cleanup removes the temporary marker from card Vars");
+        False(config.Vars.ContainsKey(SunExpIds.TempWhiteRadiance), "Runtime attachment cleanup removes temporary white radiance state");
+        False(config.Vars.ContainsKey(SunExpIds.TempWhiteRadianceLockId), "Runtime attachment cleanup removes the temporary white radiance lock");
+        False(card.Tags.Contains("Burnout"), "Runtime attachment cleanup removes temporary Burnout from visible card tags");
+        False(card.Tags.Contains(WhiteRadiance), "Runtime attachment cleanup removes temporary white radiance from visible card tags");
+
+        FightCardManager.Instance.cardList.Clear();
+        Witch.UI.Window.FightUI.cardItemList.Clear();
+        Witch.UI.Window.FightUI.WaitCard.Clear();
+        ExecutorApi.ResetCombatVars();
+
+        var waitConfig = new DataConfig(
+            new Dictionary<string, string>
+            {
+                ["Id"] = "temporary_wait_card",
+                ["Tag"] = ""
+            },
+            new Dictionary<string, string>());
+        var waitCard = new CardItem
+        {
+            dataConfig = waitConfig,
+            Vars = waitConfig.Vars,
+            data = new Dictionary<string, string>
+            {
+                ["Id"] = "temporary_wait_card",
+                ["Tag"] = ""
+            }
+        };
+        var waitExecutor = new ScriptExecutor();
+        waitExecutor.WaitCard.Add(waitCard);
+        Witch.UI.Window.FightUI.WaitCard.Add(waitCard);
+
+        var waitResult = RuntimeCardAttachmentService.AttachToCurrentHand(
+            waitExecutor,
+            RuntimeCardAttachmentService.WunaWhiteSunPrayerHandAttachment());
+
+        Equal(1, waitResult.TouchedCardItems, "Runtime attachment touches wait-list hand cards");
+        Equal(1, waitResult.TouchedConfigs, "Runtime attachment touches wait-list configs once");
+        True(waitResult.ExecutorWaitCards > 0, "Runtime attachment scans executor WaitCard");
+        True(waitResult.UiWaitCards > 0, "Runtime attachment scans FightUI WaitCard");
+        True(DictionaryUtil.ContainsToken(DictionaryUtil.Get(waitCard.Vars, "Tag"), "Burnout"), "Runtime attachment writes native tags to wait-list card item Vars.Tag");
+        True(DictionaryUtil.ContainsToken(DictionaryUtil.Get(waitConfig.Vars, "SpecialTag"), WhiteRadiance), "Runtime attachment writes SpecialTag to wait-list config Vars");
+
+        RuntimeCardAttachmentService.ClearTemporaryAttachments("test.wait");
+        False(DictionaryUtil.ContainsToken(DictionaryUtil.Get(waitConfig.Vars, "Tag"), "Burnout"), "Runtime attachment cleanup removes temporary Burnout from wait-list config Vars.Tag");
+        False(DictionaryUtil.ContainsToken(DictionaryUtil.Get(waitConfig.Vars, "SpecialTag"), WhiteRadiance), "Runtime attachment cleanup removes temporary white radiance from wait-list config Vars.SpecialTag");
+
+        FightCardManager.Instance.cardList.Clear();
+        Witch.UI.Window.FightUI.cardItemList.Clear();
+        Witch.UI.Window.FightUI.WaitCard.Clear();
+
+        var nativeBurnoutConfig = new DataConfig(
+            new Dictionary<string, string>
+            {
+                ["Id"] = "native_burnout_card",
+                ["Tag"] = "Burnout"
+            },
+            new Dictionary<string, string>
+            {
+                ["Tag"] = "Burnout",
+                ["SpecialTag"] = WhiteRadiance,
+                [SunExpIds.RuntimeMarkersKey] = SunExpIds.TempWhiteRadiance,
+                [SunExpIds.TempWhiteRadiance] = "1"
+            });
+        FightCardManager.Instance.cardList.Add(nativeBurnoutConfig);
+
+        RuntimeCardAttachmentService.ClearTemporaryAttachments("test.legacy");
+        True(DictionaryUtil.ContainsToken(DictionaryUtil.Get(nativeBurnoutConfig.Vars, "Tag"), "Burnout"), "Runtime attachment cleanup preserves native Burnout when base data owns it");
+        False(DictionaryUtil.ContainsToken(DictionaryUtil.Get(nativeBurnoutConfig.Vars, "SpecialTag"), WhiteRadiance), "Runtime attachment cleanup removes legacy temporary white radiance without a snapshot");
+        False(DictionaryUtil.ContainsToken(DictionaryUtil.Get(nativeBurnoutConfig.Vars, SunExpIds.RuntimeMarkersKey), SunExpIds.TempWhiteRadiance), "Runtime attachment cleanup removes legacy temporary markers without a snapshot");
+        False(nativeBurnoutConfig.Vars.ContainsKey(SunExpIds.TempWhiteRadiance), "Runtime attachment cleanup removes legacy temporary state without a snapshot");
     }
 
     private static void TestSolarTriggerCostOverride()
@@ -550,7 +685,7 @@ internal static class Program
         var native = NewConfig(
             new Dictionary<string, string> { ["Tag"] = "Burnout," + WhiteRadiance },
             new Dictionary<string, string>());
-        True(CardConfigApi.HasNativeWhiteRadiance(native), "Native white radiance is read from data.Tag");
+        True(CardConfigApi.HasNativeWhiteRadiance(native), "Native white radiance is read from Vars.Tag");
 
         var temporary = NewConfig(
             new Dictionary<string, string> { ["Tag"] = "" },
@@ -739,6 +874,7 @@ function Invoke-SourceAssertions {
     $playerApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\PlayerApi.cs"))
     $cardApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\CardApi.cs"))
     $cardMutationService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardMutationService.cs"))
+    $runtimeCardAttachmentService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\RuntimeCardAttachmentService.cs"))
     $starBlessingCostOverrideStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarBlessingCostOverrideStore.cs"))
     $cardGrantRecipes = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardGrantRecipes.cs"))
     $specialTagRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SpecialTagRuntime.cs"))
@@ -832,6 +968,7 @@ function Invoke-SourceAssertions {
     $eventData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\EventList\sunexp.csv"))
     $eventText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\EventList\sunexp.csv"))
     $dialogueData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Dialogue\sunexp.csv"))
+    $solarMemoryRoleData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\RoleData\solar_memory.csv"))
     $blessingData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Blessing\sunexp.csv"))
     $partnerData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Partner\sunexp.csv"))
     $cardDataPath = Join-Path $RepoRoot "SunExp\Data\Card\sunexp.csv"
@@ -877,6 +1014,15 @@ function Invoke-SourceAssertions {
     Assert-True $executorApi.Contains("public static IStatusManager? PrimaryTargetIncludingSelf") "ExecutorApi.PrimaryTargetIncludingSelf is missing."
     Assert-True $playerApi.Contains("public static string ScopedGameVarKey") "PlayerApi.ScopedGameVarKey is missing."
     Assert-True $wunaScripts.Contains("PlayerApi.GetScopedGameVar(SunExpIds.WunaPersistentEmber") "Wuna persistent ember must read from a player-scoped GameVar."
+    Assert-True $wunaScripts.Contains("SunExpCardTagService.ApplyBurnoutAndWhiteRadianceToFriendlyHands(self)") "White Sun Prayer must tag friendly hand cards with Burnout and White Radiance."
+    Assert-True $runtimeCardAttachmentService.Contains("WunaWhiteSunPrayerHandAttachment") "Runtime card attachment service must expose Wuna hand attachment recipe."
+    Assert-True $runtimeCardAttachmentService.Contains("WunaCoronationTokenAttachment") "Runtime card attachment service must expose Wuna coronation token attachment recipe."
+    Assert-True $runtimeCardAttachmentService.Contains("MarkTemporaryWhiteRadiance") "Runtime card attachment service must mark temporary white radiance with a combat lock."
+    Assert-True $runtimeCardAttachmentService.Contains("ClearTemporaryAttachments") "Runtime card attachment service must expose fight-boundary cleanup for temporary attachments."
+    Assert-True $runtimeCardAttachmentService.Contains("CaptureOriginalVars") "Runtime card attachment cleanup must snapshot original Vars before adding temporary tags."
+    Assert-True $specialTagRuntime.Contains('RuntimeCardAttachmentService.ClearTemporaryAttachments("Fight_Start.Init")') "Fight start must clear temporary runtime card attachments before the next battle can reuse cards."
+    Assert-True $cardGrantRecipes.Contains("RuntimeCardAttachmentService.WunaCoronationTokenAttachment()") "Wuna coronation token grants must use the reusable temporary attachment service."
+    Assert-True $cardGrantRecipes.Contains('.WithRuntimeTags("Burnout", "Froze")') "Wuna coronation token grants must carry Burnout and Froze runtime tags."
     Assert-True $wunaScripts.Contains("PlayerApi.SetScopedGameVar(SunExpIds.WunaPersistentEmber") "Wuna persistent ember must write to a player-scoped GameVar."
     Assert-True $buffApi.Contains("PlayerApi.SetScopedGameVar(SunExpIds.WunaPersistentEmber, status") "BuffApi.SavePersistentEmber must write to a player-scoped GameVar."
     Assert-True $buffApi.Contains("return string.IsNullOrWhiteSpace(careerId)") "Wuna active fallback must not override an explicit non-Wuna career."
@@ -885,7 +1031,7 @@ function Invoke-SourceAssertions {
     Assert-True ([regex]::IsMatch($cardScripts, 'private\s+static\s+void\s+InitDrawFlame[\s\S]*?ExecutorApi\.SetBaseScript\(self,\s+"AttackCardItem"\);')) "draw_flame must allow self-targeting during initialization."
     Assert-True $cardScripts.Contains("var target = ExecutorApi.PrimaryTargetIncludingSelf(self);") "draw_flame must resolve targets without excluding self."
     Assert-True $cardScripts.Contains("ExecutorApi.TriggerBurnAllEnemies(self, times * 2);") "flamewheel_recurrence must trigger enemy burn 2*N times while keeping N as the cost."
-    Assert-True $cardScripts.Contains("ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, level, ""Target"");") "eclipse_hex must add current Burn stacks instead of directly setting a capped level."
+    Assert-True $cardScripts.Contains("ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, Math.Max(8, level), ""Target"");") "eclipse_hex must add current Burn stacks with an 8-stack minimum."
     Assert-True $buffScripts.Contains("return StatusApi.MaxHp(target) / 100 + 1;") "body_burn must deal 1% max HP + 1 true damage per stack."
     Assert-True (-not $specialTagRuntime.Contains("CardConfigApi.BaseCost")) "White radiance should use current actual play cost, not BaseCost."
     Assert-True $cardConfigApi.Contains("ReadPlayerCardCostMultiplier") "CardConfigApi must read the player CardCost multiplier."
@@ -1330,11 +1476,32 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemoryFlowApi.Contains("StartOrResumePreparation();") "SolarMemoryFlowApi must start preparation when continuation is requested early."
     Assert-True $solarMemoryFlowApi.Contains("SolarMemoryPostPreparationDialoguePendingKey") "SolarMemoryFlowApi must distinguish dialogue confirmation from first-time dialogue opening."
     Assert-True $solarMemoryFlowApi.Contains("SolarMemoryStoryGateService.TryStartPostPreparationDialogue") "SolarMemoryFlowApi must route completed preparation through the managed story dialogue flow."
+    Assert-True $sunExpIds.Contains("SolarMemorySaintWunaBossPendingKey") "Solar memory must persist a pending hidden-saint boss transition across UI timing gaps."
+    Assert-True $solarMemoryFlowApi.Contains('SolarMemoryModeRuntime.ContinueSaintWunaBossFromPreludeDialogue("SolarMemoryDialogue:saint_wuna_prelude")') "Saint Wuna prelude completion must bridge back into the runtime boss transition."
+    Assert-True $solarMemoryModeRuntime.Contains("public static void ContinueSaintWunaBossFromPreludeDialogue") "Solar memory runtime must expose a managed continuation for the Saint Wuna prelude."
+    Assert-True $solarMemoryModeRuntime.Contains("SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemorySaintWunaBossPendingKey, true)") "Saint Wuna continuation must mark a retryable pending transition before advancing."
+    Assert-True $solarMemoryModeRuntime.Contains("TryContinuePendingSaintWunaBoss(""MapSelectUI.ReadyToSelect"")") "Saint Wuna pending transition must retry when map selection is rebuilt."
+    Assert-True $solarMemoryModeRuntime.Contains("SolarMemoryMapNodePoolFactory.CreateFixedBossNode(tree, SunExpIds.SolarBossSaintWunaMapId)") "Saint Wuna continuation must create the fixed boss node through the Solar Memory node factory."
+    Assert-True $solarMemoryModeRuntime.Contains("node.SetChild(0, CreateSolarMemoryTerminalNode") "Saint Wuna boss node must include a deterministic child for native RpcNextMap."
+    Assert-True $solarMemoryModeRuntime.Contains("GameSaveManager.UpdateNode(bossNode)") "Saint Wuna continuation must persist the restored current node before native map transition."
+    Assert-True $solarMemoryModeRuntime.Contains("UIManager.Instance?.CloseUI(""BattleRewardsUI"")") "Saint Wuna continuation must clear stale reward UI before starting the hidden boss."
+    Assert-True $solarMemoryModeRuntime.Contains("mapManager.CmdNextMap()") "Saint Wuna continuation must request the native next-map command instead of ending at a log line."
     Assert-True $solarMemoryStoryGateService.Contains("DialogueFlowService.Start") "Solar Memory story gates must start reusable managed dialogue flows."
     Assert-True $dialogueFlowRuntime.Contains("DialogueUI.ChooseOption") "DialogueFlowRuntime must hook native dialogue choice completion."
     Assert-True $dialogueFlowService.Contains("DialogueApi.EndDialogue") "DialogueFlowService must close native dialogue UI from C# after managed choice handling."
-    Assert-True (-not $dialogueData.Contains("CS.SunExp.Dll.Scripting.EventScripts.ContinueSolarMemory();")) "Solar Memory Dialogue rows must not call C# through ChoiceScript columns."
-    Assert-True $dialogueData.Contains("solar_memory_post_prep_test_1,,,wuna,,1,,") "Solar Memory post-preparation dialogue must keep content choices but leave script columns empty."
+    Assert-True (-not $dialogueData.Contains("CS.SunExp.Dll.Scripting")) "Solar Memory Dialogue rows must not call C# from native Dialogue script columns."
+    Assert-True $dialogueData.Contains("RoleImage1") "Solar Memory Dialogue rows must expose RoleImage1 overrides for dialogue art."
+    Assert-True $dialogueData.Contains("solar_memory_opening_4,,,SunExp_solar_memory_solar_memory_wuna_dialogue,,1,,,Mods/SunExp/ModResource/Images/Dialogue/WuNa") "Solar Memory opening dialogue must complete through a managed final choice with a positioned dialogue role id."
+    Assert-True $dialogueData.Contains("solar_memory_second_sun_end_2,,,SunExp_solar_memory_solar_memory_wuna_dialogue,,1,,,Mods/SunExp/ModResource/Images/Dialogue/WuNa") "Solar Memory second-sun ending dialogue must settle only after a managed final choice with a positioned dialogue role id."
+    Assert-True $dialogueData.Contains("solar_memory_saint_wuna_prelude_6,,,SunExp_solar_memory_solar_memory_saint_wuna,,1,,,Mods/SunExp/ModResource/Images/Dialogue/WuNa") "Solar Memory saint-wuna prelude dialogue must resume map flow only after a managed final choice with a resolvable role id."
+    Assert-True $dialogueData.Contains("solar_memory_saint_wuna_end_3,,,SunExp_loneer_loneer,,1,,,Mods/SunExp/ModResource/Images/Dialogue/Loneer") "Solar Memory saint-wuna ending dialogue must settle only after a managed final choice with a resolvable role id."
+    Assert-True (-not $dialogueData.Contains(",,,wuna,,")) "Solar Memory Dialogue rows must use full runtime RoleData ids, not short role ids."
+    Assert-True (-not $dialogueData.Contains(",,,loneer,,")) "Solar Memory Dialogue rows must use full runtime RoleData ids, not short role ids."
+    Assert-True (-not $dialogueData.Contains(",,,solar_memory_saint_wuna,,")) "Solar Memory Dialogue rows must use full runtime RoleData ids, not short role ids."
+    Assert-True $solarMemoryRoleData.Contains("DefaultY,DefaultScale") "Solar Memory dialogue roles must expose native dialogue positioning fields."
+    Assert-True $solarMemoryRoleData.Contains("solar_memory_wuna_dialogue,Mods/SunExp/ModResource/Images/Avatar/WuNa,Mods/SunExp/ModResource/Images/Dialogue/WuNa,Mods/SunExp/ModResource/Images/Icon/WuNa3,300,1") "Solar Memory Wuna dialogue role must lift the dialogue image above the text box."
+    Assert-True $solarMemoryRoleData.Contains("solar_memory_saint_wuna,Mods/SunExp/ModResource/Images/Avatar/WuNa,Mods/SunExp/ModResource/Images/Dialogue/WuNa_e,Mods/SunExp/ModResource/Images/Icon/WuNa3,300,1") "Solar Memory saint Wuna dialogue role must lift the dialogue image above the text box."
+    Assert-True $solarMemoryStoryGateService.Contains("CompleteDialogueId") "Solar Memory managed dialogue gates must register the final dialogue id for native option completion."
     Assert-True $solarMemoryFlowApi.Contains("SolarMemoryPreparationRuntime.IsComplete()") "SolarMemoryFlowApi must bridge preparation completion to the Hook runtime."
     Assert-True $solarMemoryFlowApi.Contains("SolarMemoryModeRuntime.OpenOriginWindow()") "SolarMemoryFlowApi must bridge origin setup UI to the Hook runtime."
     Assert-True (-not $eventScripts.Contains('PlayerApi.SetGameVar(SunExpIds.SolarMemoryOriginPointsKey, "50")')) "Solar memory event initialization must not reset origin points to the old value."

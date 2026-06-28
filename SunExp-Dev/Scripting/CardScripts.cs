@@ -18,8 +18,9 @@ public static class CardScripts
         ["morning_light_bulwark"] = InitMorningLightBulwark,
         ["gathered_flame_shield"] = InitGatheredFlameShield,
         ["smoke_erosion"] = InitSmokeErosion,
-        ["solar_scorching_light"] = InitSolarScorchingLight,
+        ["solar_scorching_light"] = InitCommonCard,
         ["draw_flame"] = InitDrawFlame,
+        ["afterglow_omen_card"] = InitTargetedAttackCard,
         ["scorching_flow_reclaim"] = InitTargetedAttackCard,
         ["eclipse_hex"] = InitTargetedAttackCard,
         ["burning_calamity"] = InitTargetedAttackCard,
@@ -172,6 +173,11 @@ public static class CardScripts
         ExecutorApi.AddDamageDescription(self, "1", CalcFlamePierceDamage(self));
     }
 
+    private static void InitCommonCard(ScriptExecutor self)
+    {
+        ExecutorApi.SetBaseScript(self, "CommonCardItem");
+    }
+
     private static void InitDrawFlame(ScriptExecutor self)
     {
         ExecutorApi.SetBaseScript(self, "AttackCardItem");
@@ -193,7 +199,7 @@ public static class CardScripts
         var target = ExecutorApi.PrimaryTarget(self);
         ExecutorApi.SetStatusForTarget(self, target, "Target");
         ExecutorApi.DealDamage(self, 5);
-        ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, 1, "Target");
+        ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, 2, "Target");
         self.SetStatus("Self");
         self.AddBuff(SunExpIds.SolarRadiance, "1");
         RestorePrimaryTargetForAnimation(self, target);
@@ -216,8 +222,6 @@ public static class CardScripts
     {
         var shield = (ExecutorApi.SelfBuffLevel(self, SunExpIds.Burn) + ExecutorApi.SelfBuffLevel(self, SunExpIds.BodyBurn)) / 2;
         self.SetStatus("Self");
-        self.RemoveBuff(SunExpIds.Burn);
-        self.RemoveBuff(SunExpIds.BodyBurn);
         if (shield > 0)
         {
             self.ChangeDefence(shield.ToString());
@@ -294,23 +298,13 @@ public static class CardScripts
 
     private static void UseSolarPhaseTuning(ScriptExecutor self)
     {
+        var discarded = CardApi.ThrowAllHandCards(self);
         self.SetStatus("Self");
-        self.AddBuff(SunExpIds.SolarRadiance, "3");
-        var burn = self.Self?.GetBuff(SunExpIds.Burn);
-        var gain = Math.Min(6, burn?.buffConfig?.Level ?? 0);
-        if (burn?.buffConfig != null && gain > 0)
+        if (discarded > 0)
         {
-            burn.buffConfig.Level -= gain;
-            if (burn.buffConfig.Level <= 0)
-            {
-                self.RemoveBuff(SunExpIds.Burn);
-            }
-            self.AddBuff(SunExpIds.GatheredFlame, gain.ToString());
+            self.AddBuff(SunExpIds.SolarRadiance, discarded.ToString());
         }
-        if (gain >= 6)
-        {
-            self.DrawCount((1 + ExecutorApi.SelfBuffLevel(self, SunExpIds.SolarRadiance) / 3).ToString());
-        }
+        self.DrawCount("3");
     }
 
     private static void UseSolarCoronation(ScriptExecutor self)
@@ -395,20 +389,19 @@ public static class CardScripts
     {
         var target = ExecutorApi.PrimaryTarget(self);
         var level = ExecutorApi.StatusBuffLevel(target, SunExpIds.Burn);
-        if (level <= 0)
-        {
-            ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, 6, "Target");
-        }
-        else
-        {
-            ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, level, "Target");
-        }
+        ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, Math.Max(8, level), "Target");
         ExecutorApi.TriggerBurn(self, target);
     }
 
     private static void UseSolarScorchingLight(ScriptExecutor self)
     {
-        ExecutorApi.DealDamage(self, CalcFlamePierceDamage(self));
+        var burn = ExecutorApi.SelfBuffLevel(self, SunExpIds.Burn);
+        ExecutorApi.TriggerBurn(self, self.Self, "Self");
+        if (burn > 0)
+        {
+            self.SetStatus("AllTarget");
+            self.AddBuff(SunExpIds.Burn, (burn * 2).ToString());
+        }
     }
 
     private static void UseMorningLightBulwark(ScriptExecutor self)
@@ -425,8 +418,11 @@ public static class CardScripts
 
     private static void UseSolarOriginCore(ScriptExecutor self)
     {
-        self.SetStatus("Self");
-        self.AddBuff(SunExpIds.OriginCoreRadiance, "1");
+        var burned = CardApi.BurnAllHandCards(self);
+        if (burned > 0)
+        {
+            self.ChangePower(burned.ToString());
+        }
     }
 
     private static void UseGatheredFlameCycle(ScriptExecutor self)
@@ -437,8 +433,13 @@ public static class CardScripts
 
     private static void UseAfterglowOmenCard(ScriptExecutor self)
     {
-        self.SetStatus("Self");
-        self.AddBuff(SunExpIds.AfterglowOmen, "1");
+        var target = ExecutorApi.PrimaryTarget(self);
+        var removed = ExecutorApi.RemoveBuffsExceptAndCount(self, target, SunExpIds.Burn, SunExpIds.BodyBurn);
+        if (removed > 0)
+        {
+            ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, removed, "Target");
+        }
+        RestorePrimaryTargetForAnimation(self, target);
     }
 
     private static string NormalizeId(string id)
@@ -525,12 +526,14 @@ public static class CardScripts
     {
         var hasField = ExecutorApi.IsActiveField(self, "scorching_canopy");
         self.SetStatus("AllTarget");
-        self.AddBuff(SunExpIds.Burn, "2");
-        self.AddBuff("buff_weak", "1");
+        self.AddBuff(SunExpIds.Burn, "3");
         if (hasField)
         {
-            self.AddBuff("buff_weak", "1");
             self.AddBuff("buff_rotten", "1");
+            foreach (var target in ExecutorApi.EnemyTargets(self))
+            {
+                ExecutorApi.RemoveRandomPositiveBuff(self, target);
+            }
         }
     }
 

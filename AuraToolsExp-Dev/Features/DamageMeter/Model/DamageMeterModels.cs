@@ -11,7 +11,7 @@ public static class DamageMeterProtocol
     public const int MaxStringLength = 160;
     public const int MaxDetailsPerCombatant = 64;
     public const int MaxRoundsKept = 100;
-    public const int MaxFightHistory = 30;
+    public const int MaxFightHistory = 40;
     public const int MaxOutOfRunHistory = 100;
     public const int MaxTeamMembers = 4;
     public const int MaxHistoryNameLength = 12;

@@ -10,6 +10,11 @@ namespace AuraToolsExp.Dll.Features.DamageMeter.Network;
 
 internal static class DamageMeterNetworkRuntime
 {
+    private const int NetworkSnapshotSoftLimitBytes = AuraToolsRpcPayloadGuard.DefaultSoftLimitBytes;
+    private const int NetworkDetailsSoftLimit = 24;
+    private const int NetworkRoundsSoftLimit = 32;
+    private const int NetworkCombatantsSoftLimit = 16;
+    private const int NetworkMinimalCombatantsLimit = 8;
     private static readonly DamageLedger LedgerInstance = new();
     private static readonly DamageHistoryStore HistoryInstance = new();
     private static readonly OutOfRunDamageHistoryStore OutOfRunHistoryInstance = new();
@@ -135,7 +140,7 @@ internal static class DamageMeterNetworkRuntime
         if (!IsMultiplayer)
         {
             LedgerInstance.EndFight();
-            ArchiveFight(result);
+            ArchiveSnapshot(LedgerInstance.CreateSnapshot(), result);
             NotifyChanged();
             return;
         }
@@ -295,23 +300,46 @@ internal static class DamageMeterNetworkRuntime
                 }
 
                 LedgerInstance.EndFight();
-                ArchiveFight(command.Result);
+                ArchiveSnapshot(LedgerInstance.CreateSnapshot(), command.Result);
                 break;
             default:
                 rejection = "unsupported control";
                 return false;
         }
 
-        command.Snapshot = CreateServerSnapshot();
+        command.Snapshot = CreateNetworkSnapshot("control:" + command.Kind);
         NotifyChanged();
         return true;
+    }
+
+    public static void ApplyControlSnapshot(DamageMeterControlCommand command)
+    {
+        if (command?.Snapshot == null)
+        {
+            return;
+        }
+
+        ApplySnapshot(command.Snapshot);
+        if (string.Equals(command.Kind, DamageMeterControlKind.EndFight, StringComparison.Ordinal)
+            && !command.Snapshot.InFight
+            && ArchiveSnapshot(command.Snapshot, command.Result))
+        {
+            NotifyChanged();
+        }
     }
 
     public static void ApplySnapshot(DamageMeterSnapshot snapshot)
     {
         snapshotRequestPending = false;
+        if (snapshot == null)
+        {
+            return;
+        }
+
         var ledgerChanged = LedgerInstance.ApplySnapshot(snapshot);
-        if (snapshot != null && snapshot.ProtocolVersion == DamageMeterProtocol.Version)
+        if (snapshot.ProtocolVersion == DamageMeterProtocol.Version
+            && snapshot.History != null
+            && snapshot.History.Count > 0)
         {
             HistoryInstance.ApplySnapshot(snapshot.History);
         }
@@ -327,6 +355,130 @@ internal static class DamageMeterNetworkRuntime
         var snapshot = LedgerInstance.CreateSnapshot();
         snapshot.History = HistoryInstance.CreateSnapshot();
         return snapshot;
+    }
+
+    private static DamageMeterSnapshot CreateNetworkSnapshot(string source)
+    {
+        var snapshot = LedgerInstance.CreateSnapshot();
+        snapshot.History = new List<DamageFightRecord>();
+        CompactNetworkSnapshot(snapshot, source);
+        return snapshot;
+    }
+
+    private static void CompactNetworkSnapshot(DamageMeterSnapshot snapshot, string source)
+    {
+        if (snapshot == null || SnapshotFits(snapshot))
+        {
+            return;
+        }
+
+        var beforeBytes = EstimateSnapshotBytes(snapshot);
+        TrimDetailsAndRounds(snapshot, NetworkDetailsSoftLimit, NetworkRoundsSoftLimit);
+        if (SnapshotFits(snapshot))
+        {
+            LogSnapshotCompacted(source, beforeBytes, EstimateSnapshotBytes(snapshot));
+            return;
+        }
+
+        TrimCombatants(snapshot, NetworkCombatantsSoftLimit);
+        if (SnapshotFits(snapshot))
+        {
+            LogSnapshotCompacted(source, beforeBytes, EstimateSnapshotBytes(snapshot));
+            return;
+        }
+
+        TrimDetailsAndRounds(snapshot, maxDetails: 8, maxRounds: 12);
+        if (SnapshotFits(snapshot))
+        {
+            LogSnapshotCompacted(source, beforeBytes, EstimateSnapshotBytes(snapshot));
+            return;
+        }
+
+        MinimizeNetworkSnapshot(snapshot);
+        LogSnapshotCompacted(source, beforeBytes, EstimateSnapshotBytes(snapshot));
+    }
+
+    private static void MinimizeNetworkSnapshot(DamageMeterSnapshot snapshot)
+    {
+        snapshot.History = new List<DamageFightRecord>();
+        TrimCombatants(snapshot, NetworkMinimalCombatantsLimit);
+        TrimDetailsAndRounds(snapshot, maxDetails: 0, maxRounds: 0);
+    }
+
+    private static DamageMeterSnapshot CreateStatusOnlySnapshot(DamageMeterSnapshot? source)
+    {
+        return new DamageMeterSnapshot
+        {
+            ProtocolVersion = DamageMeterProtocol.Version,
+            SessionId = source?.SessionId ?? LedgerInstance.SessionId,
+            InFight = source?.InFight ?? LedgerInstance.InFight,
+            SharedEnabled = source?.SharedEnabled ?? LedgerInstance.SharedEnabled,
+            CurrentRoundIndex = source?.CurrentRoundIndex ?? LedgerInstance.CurrentRoundIndex,
+            CompletedRoundCount = source?.CompletedRoundCount ?? LedgerInstance.CompletedRoundCount,
+            ServerSequence = source?.ServerSequence ?? LedgerInstance.ServerSequence,
+            Combatants = new List<CombatantDamageStat>(),
+            History = new List<DamageFightRecord>()
+        };
+    }
+
+    private static bool SnapshotFits(DamageMeterSnapshot snapshot)
+    {
+        return !AuraToolsRpcPayloadGuard.TryMeasureUtf8Json(snapshot, out var bytes, out _)
+               || bytes <= NetworkSnapshotSoftLimitBytes;
+    }
+
+    private static int EstimateSnapshotBytes(DamageMeterSnapshot snapshot)
+    {
+        return AuraToolsRpcPayloadGuard.TryMeasureUtf8Json(snapshot, out var bytes, out _)
+            ? bytes
+            : 0;
+    }
+
+    private static void TrimCombatants(DamageMeterSnapshot snapshot, int maximum)
+    {
+        snapshot.Combatants = (snapshot.Combatants ?? new List<CombatantDamageStat>())
+            .Where(stat => stat != null)
+            .OrderByDescending(stat => stat.DisplayTotal(true))
+            .ThenBy(stat => stat.InstanceId, StringComparer.OrdinalIgnoreCase)
+            .Take(Math.Max(0, maximum))
+            .ToList();
+    }
+
+    private static void TrimDetailsAndRounds(DamageMeterSnapshot snapshot, int maxDetails, int maxRounds)
+    {
+        foreach (var stat in snapshot.Combatants ?? new List<CombatantDamageStat>())
+        {
+            if (stat == null)
+            {
+                continue;
+            }
+
+            stat.Rounds = maxRounds <= 0
+                ? new List<DamageRoundStat>()
+                : (stat.Rounds ?? new List<DamageRoundStat>())
+                    .Skip(Math.Max(0, (stat.Rounds?.Count ?? 0) - maxRounds))
+                    .ToList();
+
+            stat.Details = maxDetails <= 0
+                ? new Dictionary<string, DamageDetailStat>(StringComparer.OrdinalIgnoreCase)
+                : (stat.Details ?? new Dictionary<string, DamageDetailStat>(StringComparer.OrdinalIgnoreCase))
+                    .OrderByDescending(pair => (pair.Value?.HpDamage ?? 0) + (pair.Value?.ShieldDamage ?? 0))
+                    .ThenBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+                    .Take(maxDetails)
+                    .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    private static void LogSnapshotCompacted(string source, int beforeBytes, int afterBytes)
+    {
+        AuraToolsLog.Warn("[DamageMeter] compacted network snapshot. source="
+                          + source
+                          + ", bytes="
+                          + beforeBytes
+                          + "->"
+                          + afterBytes
+                          + ", softLimit="
+                          + NetworkSnapshotSoftLimitBytes);
     }
 
     public static bool TryCreateServerSnapshot(
@@ -347,8 +499,86 @@ internal static class DamageMeterNetworkRuntime
             return false;
         }
 
-        snapshot = CreateServerSnapshot();
+        snapshot = CreateNetworkSnapshot("snapshot-request");
         return true;
+    }
+
+    public static void EnsureControlResponseFits(DamageMeterControlCommand command)
+    {
+        EnsureResponseFits(
+            command,
+            () =>
+            {
+                if (command.Snapshot != null)
+                {
+                    MinimizeNetworkSnapshot(command.Snapshot);
+                }
+            },
+            () =>
+            {
+                command.Snapshot = CreateStatusOnlySnapshot(command.Snapshot);
+                command.RejectionReason = "snapshot compacted: payload too large";
+            },
+            "control:" + command.Kind);
+    }
+
+    public static void EnsureSnapshotResponseFits(DamageMeterSnapshotCommand command)
+    {
+        EnsureResponseFits(
+            command,
+            () =>
+            {
+                if (command.Snapshot != null)
+                {
+                    MinimizeNetworkSnapshot(command.Snapshot);
+                }
+            },
+            () =>
+            {
+                command.Snapshot = null;
+                command.RejectionReason = "snapshot omitted: payload too large";
+            },
+            "snapshot-response");
+    }
+
+    private static void EnsureResponseFits(
+        RpcCommandBase command,
+        Action compactSnapshot,
+        Action omitSnapshot,
+        string source)
+    {
+        if (AuraToolsRpcPayloadGuard.FitsSoftLimit(
+                command,
+                AuraToolsRpcPayloadGuard.DefaultSoftLimitBytes,
+                out var bytes,
+                out _))
+        {
+            return;
+        }
+
+        AuraToolsLog.Warn("[DamageMeter] compacting oversized RPC response. source="
+                          + source
+                          + ", bytes="
+                          + bytes
+                          + ", softLimit="
+                          + AuraToolsRpcPayloadGuard.DefaultSoftLimitBytes);
+        compactSnapshot();
+        if (AuraToolsRpcPayloadGuard.FitsSoftLimit(
+                command,
+                AuraToolsRpcPayloadGuard.DefaultSoftLimitBytes,
+                out bytes,
+                out _))
+        {
+            return;
+        }
+
+        omitSnapshot();
+        AuraToolsLog.Warn("[DamageMeter] reduced oversized RPC snapshot. source="
+                          + source
+                          + ", bytes="
+                          + bytes
+                          + ", softLimit="
+                          + AuraToolsRpcPayloadGuard.DefaultSoftLimitBytes);
     }
 
     public static void RequestSnapshot()
@@ -464,20 +694,22 @@ internal static class DamageMeterNetworkRuntime
         return currentAdventureId;
     }
 
-    private static void ArchiveFight(string result)
+    private static bool ArchiveSnapshot(DamageMeterSnapshot snapshot, string result)
     {
         if (!HistoryInstance.Archive(
-                LedgerInstance.CreateSnapshot(),
+                snapshot,
                 result,
                 DateTime.UtcNow.ToString("O")))
         {
-            return;
+            return false;
         }
 
         if (IsHost)
         {
             DamageMeterPersistence.Save(HistoryInstance);
         }
+
+        return true;
     }
 
     private static bool ValidDamage(int value)
@@ -492,14 +724,12 @@ internal static class DamageMeterNetworkRuntime
 
     private static void Send(RpcCommandBase command)
     {
-        try
-        {
-            PlayerManager.Instance?.SendRpcCommand(command);
-        }
-        catch (Exception ex)
+        if (!AuraToolsRpcTransport.Send(
+                PlayerManager.Instance,
+                command,
+                "DamageMeter." + command.GetType().Name))
         {
             snapshotRequestPending = false;
-            AuraToolsLog.Warn("[DamageMeter] network send failed: " + ex.Message);
         }
     }
 

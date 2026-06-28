@@ -11,11 +11,18 @@ public static class CardVisualSkinApplier
 {
     private const string LogPrefix = "[CardVisualSkin]";
     private static readonly HashSet<string> LoggedSkins = new();
+    private static readonly HashSet<string> LoggedUnresolvedCards = new();
 
     public static bool Apply(Transform? cardRoot, IDataConfig? config)
     {
         var skin = CardVisualThemeCatalog.Resolve(config);
-        if (cardRoot == null || skin == null)
+        if (skin == null)
+        {
+            LogUnresolvedSunExpCard(config);
+            return false;
+        }
+
+        if (cardRoot == null)
         {
             return false;
         }
@@ -28,6 +35,27 @@ public static class CardVisualSkinApplier
         }
 
         return appliedFrame || appliedBackground;
+    }
+
+    private static void LogUnresolvedSunExpCard(IDataConfig? config)
+    {
+        if (!CardVisualThemeCatalog.IsSunExpCard(config) || LoggedUnresolvedCards.Count >= 24)
+        {
+            return;
+        }
+
+        var id = DictionaryUtil.Get(config?.data, "Id", "unknown");
+        var icon = DictionaryUtil.Get(config?.data, "Icon");
+        var key = id + "|" + icon;
+        if (LoggedUnresolvedCards.Add(key))
+        {
+            SunExpLog.Debug(LogPrefix + " no themed skin resolved for SunExp card: id="
+                + id
+                + ", pack="
+                + DictionaryUtil.Get(config?.data, "PackBelong")
+                + ", icon="
+                + icon);
+        }
     }
 
     private static bool ApplySprite(Transform? node, string path, string skinId, string layerName, bool required)

@@ -12,6 +12,10 @@
              Link="Infrastructure\AuraToolsIds.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Infrastructure\AuraToolsRpcSender.cs"
              Link="Infrastructure\AuraToolsRpcSender.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Infrastructure\AuraToolsRpcPayloadGuard.cs"
+             Link="Infrastructure\AuraToolsRpcPayloadGuard.cs" />
+    <Compile Include="..\AuraSharedCore\AuraSharedJson.cs"
+             Link="Shared\AuraSharedJson.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Config\AuraToolsConfigModels.cs"
              Link="Config\AuraToolsConfigModels.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Model\DamageMeterModels.cs"

@@ -47,8 +47,9 @@ public static class WunaCardGrantService
     {
         var request = CardGrantRequest.ToHand(cardId)
             .WithSource("wuna-coronation-token")
-            .WithRuntimeTags("Burnout")
-            .Configure(CardMutationService.MarkTemporaryWhiteRadianceMutation());
+            .WithRuntimeTags("Burnout", "Froze")
+            .Configure(RuntimeCardAttachmentService.AttachMutation(
+                RuntimeCardAttachmentService.WunaCoronationTokenAttachment()));
 
         return CardApi.GrantCardToHand(self, request);
     }

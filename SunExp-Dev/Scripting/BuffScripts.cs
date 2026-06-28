@@ -333,6 +333,7 @@ public static class BuffScripts
     {
         self.SetStatus("Self");
         self.RemoveBuff(SunExpIds.Burn);
+        self.RemoveBuff(SunExpIds.BodyBurn);
         ExecutorApi.SetVar(self, "SunExpBurnWardPending", "1");
 
         var token = ExecutorApi.RegisterHook(self, "SunExpBurnWardHook", "SunExpBurnWardToken");
@@ -352,6 +353,7 @@ public static class BuffScripts
 
             self.SetStatus("Self");
             self.RemoveBuff(SunExpIds.Burn);
+            self.RemoveBuff(SunExpIds.BodyBurn);
             self.RemoveBuff(SunExpIds.EmberCloak);
             ExecutorApi.SetVar(self, "SunExpBurnWardPending", "1");
             ExecutorApi.TryAddTempEvent(self, "EndRound", new Action(() => ExecutorApi.SetVar(self, "SunExpBurnWardPending", "0")), "ember_cloak");

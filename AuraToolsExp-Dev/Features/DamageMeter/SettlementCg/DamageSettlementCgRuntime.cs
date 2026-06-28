@@ -499,7 +499,8 @@ public static class DamageSettlementCgRuntime
 
         try
         {
-            manager.SendRpcCommandExcludeOwner(new DamageSettlementCgCommand(payload));
+            var command = new DamageSettlementCgCommand(payload);
+            AuraToolsRpcTransport.Send(manager, command, "SettlementCG.Payload", excludeOwner: true);
         }
         catch (Exception ex)
         {

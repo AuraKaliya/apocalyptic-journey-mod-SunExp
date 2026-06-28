@@ -117,7 +117,8 @@ $rawWriteAllowed = @(
     "AuraSharedCore\AuraSharedPackageCoordinator.cs",
     "AuraSharedCore\AuraSharedOperationLog.cs",
     "AuraSharedCore\AuraSharedLogStore.cs",
-    "AuraLogShared\AuraLogRuntime.cs"
+    "AuraLogShared\AuraLogRuntime.cs",
+    "AuraOnlineShared\AuraOnlineHostModSyncSession.cs"
 )
 
 $rawWritePatterns = @(

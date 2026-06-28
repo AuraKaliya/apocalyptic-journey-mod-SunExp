@@ -254,6 +254,9 @@ Assert-Contains $sunExpIds "SunCardVisualSkinId" "SunExpIds must centralize the 
 Assert-Contains $sunExpIds "MorningStarCardVisualSkinId" "SunExpIds must centralize the Morning Star card visual skin id."
 Assert-Contains $sunExpIds "SunThemeCardPackIds" "SunExpIds must centralize Sun theme card-pack ids."
 Assert-Contains $sunExpIds "StellarOvertureCardIds" "SunExpIds must centralize Stellar Overture card ids."
+Assert-Contains $sunExpIds "SunThemeExplicitCardIds" "SunExpIds must centralize explicit Sun theme card ids."
+Assert-Contains $sunExpIds "StellarOvertureCardIconPathPrefix" "SunExpIds must centralize Stellar Overture icon-path fallback rules."
+Assert-Contains $sunExpIds "WunaCoronationTokenCardId" "SunExpIds must centralize Wuna's generated Coronation token id."
 Assert-Contains $sunExpIds "SunCardFramePath" "SunExpIds must centralize the Sun card frame resource path."
 Assert-Contains $sunExpIds "SunCardBackgroundPath" "SunExpIds must centralize the optional Sun card background resource path."
 Assert-Contains $sunExpIds "MorningStarCardFramePath" "SunExpIds must centralize the Morning Star card frame resource path."
@@ -263,6 +266,9 @@ Assert-Contains $cardVisualThemeCatalog "SunExpIds.SunThemeCardPackIds" "Card vi
 Assert-Contains $cardVisualThemeCatalog "SunExpIds.SunCardFramePath" "Card visual themes must attach the Sun frame path through the theme spec."
 Assert-Contains $cardVisualThemeCatalog "SunExpIds.SunCardBackgroundPath" "Card visual themes must attach the optional Sun background path through the theme spec."
 Assert-Contains $cardVisualThemeCatalog "SunExpIds.StellarOvertureCardIds" "Card visual themes must resolve Stellar Overture cards from centralized ids."
+Assert-Contains $cardVisualThemeCatalog "StarScoreService.IsStellarOvertureCard" "Card visual themes must reuse the Star Score card-id classifier."
+Assert-Contains $cardVisualThemeCatalog "SunExpIds.StellarOvertureCardIconPathPrefix" "Card visual themes must fall back to Stellar Overture icon paths."
+Assert-Contains $cardVisualThemeCatalog "SunExpIds.SunThemeExplicitCardIds" "Card visual themes must support explicit generated Sun-theme cards."
 Assert-Contains $cardVisualThemeCatalog "SunExpIds.MorningStarCardFramePath" "Card visual themes must attach the Morning Star frame path through the theme spec."
 Assert-Contains $cardVisualThemeCatalog "IsStellarOvertureCard" "Card visual themes must expose a Stellar Overture theme predicate."
 Assert-Contains $sunCardThemeCatalog "CardVisualThemeCatalog.Resolve" "Legacy Sun card theme checks must delegate to the generic card visual theme catalog."
@@ -270,6 +276,9 @@ Assert-Contains $cardVisualSkinRuntime '"ICard.SetCardStyle"' "Card visual skin 
 Assert-Contains $cardVisualSkinRuntime '"CardItem.Init"' "Card visual skin runtime must hook concrete base card initialization."
 Assert-Contains $cardVisualSkinRuntime '"AttackCardItem.Init"' "Card visual skin runtime must hook concrete attack-card initialization."
 Assert-Contains $cardVisualSkinRuntime '"CardItem.DataUpdate"' "Card visual skin runtime must keep a battle-card repaint fallback."
+Assert-Contains $cardVisualSkinRuntime '"FightUI.CreateCardItemInternal"' "Card visual skin runtime must reapply generated hand cards after native UI creation."
+Assert-Contains $cardVisualSkinRuntime '"ScriptExecutor.GetCardFromDeck"' "Card visual skin runtime must cover dynamic script-delivered cards."
+Assert-Contains $cardVisualSkinRuntime "ReapplyActiveCombatCards" "Card visual skin runtime must centralize active combat-card reapplication."
 Assert-Contains $cardVisualSkinRuntime '"DictItem.Init"' "Card visual skin runtime must cover dictionary item cards."
 Assert-Contains $cardVisualSkinRuntime '"DictionaryShowItem.Init"' "Card visual skin runtime must cover dictionary detail cards."
 Assert-Contains $cardVisualSkinRuntime '"DisplayCard.Init"' "Card visual skin runtime must cover display cards."
@@ -483,6 +492,6 @@ foreach ($file in $dataFiles) {
 }
 
 $dialogueData = Read-RepoText "SunExp\Data\Dialogue\sunexp.csv"
-Assert-NotContains $dialogueData "CS.SunExp.Dll.Scripting.EventScripts.ContinueSolarMemory();" "Managed dialogue choices must not call C# through Dialogue ChoiceScript columns."
+Assert-NotContains $dialogueData "CS.SunExp.Dll.Scripting" "Managed dialogue rows must not call C# through native Dialogue script columns."
 
 Write-Host "SunExp architecture assertions passed."
