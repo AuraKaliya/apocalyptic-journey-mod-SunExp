@@ -969,6 +969,7 @@ function Invoke-SourceAssertions {
     $eventText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\EventList\sunexp.csv"))
     $dialogueData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Dialogue\sunexp.csv"))
     $solarMemoryRoleData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\RoleData\solar_memory.csv"))
+    $loneerRoleData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\RoleData\loneer.csv"))
     $blessingData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Blessing\sunexp.csv"))
     $partnerData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Partner\sunexp.csv"))
     $cardDataPath = Join-Path $RepoRoot "SunExp\Data\Card\sunexp.csv"
@@ -1493,7 +1494,7 @@ function Invoke-SourceAssertions {
     Assert-True $dialogueData.Contains("RoleImage1") "Solar Memory Dialogue rows must expose RoleImage1 overrides for dialogue art."
     Assert-True $dialogueData.Contains("solar_memory_opening_4,,,SunExp_solar_memory_solar_memory_wuna_dialogue,,1,,,Mods/SunExp/ModResource/Images/Dialogue/WuNa") "Solar Memory opening dialogue must complete through a managed final choice with a positioned dialogue role id."
     Assert-True $dialogueData.Contains("solar_memory_second_sun_end_2,,,SunExp_solar_memory_solar_memory_wuna_dialogue,,1,,,Mods/SunExp/ModResource/Images/Dialogue/WuNa") "Solar Memory second-sun ending dialogue must settle only after a managed final choice with a positioned dialogue role id."
-    Assert-True $dialogueData.Contains("solar_memory_saint_wuna_prelude_6,,,SunExp_solar_memory_solar_memory_saint_wuna,,1,,,Mods/SunExp/ModResource/Images/Dialogue/WuNa") "Solar Memory saint-wuna prelude dialogue must resume map flow only after a managed final choice with a resolvable role id."
+    Assert-True $dialogueData.Contains("solar_memory_saint_wuna_prelude_6,,,SunExp_solar_memory_solar_memory_saint_wuna,,1,,,Mods/SunExp/ModResource/Images/Dialogue/WuNa_e") "Solar Memory saint-wuna prelude dialogue must resume map flow only after a managed final choice with a resolvable role id."
     Assert-True $dialogueData.Contains("solar_memory_saint_wuna_end_3,,,SunExp_loneer_loneer,,1,,,Mods/SunExp/ModResource/Images/Dialogue/Loneer") "Solar Memory saint-wuna ending dialogue must settle only after a managed final choice with a resolvable role id."
     Assert-True (-not $dialogueData.Contains(",,,wuna,,")) "Solar Memory Dialogue rows must use full runtime RoleData ids, not short role ids."
     Assert-True (-not $dialogueData.Contains(",,,loneer,,")) "Solar Memory Dialogue rows must use full runtime RoleData ids, not short role ids."
@@ -1501,6 +1502,8 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemoryRoleData.Contains("DefaultY,DefaultScale") "Solar Memory dialogue roles must expose native dialogue positioning fields."
     Assert-True $solarMemoryRoleData.Contains("solar_memory_wuna_dialogue,Mods/SunExp/ModResource/Images/Avatar/WuNa,Mods/SunExp/ModResource/Images/Dialogue/WuNa,Mods/SunExp/ModResource/Images/Icon/WuNa3,300,1") "Solar Memory Wuna dialogue role must lift the dialogue image above the text box."
     Assert-True $solarMemoryRoleData.Contains("solar_memory_saint_wuna,Mods/SunExp/ModResource/Images/Avatar/WuNa,Mods/SunExp/ModResource/Images/Dialogue/WuNa_e,Mods/SunExp/ModResource/Images/Icon/WuNa3,300,1") "Solar Memory saint Wuna dialogue role must lift the dialogue image above the text box."
+    Assert-True $loneerRoleData.Contains("DefaultY,DefaultScale") "Loneer dialogue role must expose native dialogue positioning fields."
+    Assert-True $loneerRoleData.Contains("loneer,Mods/SunExp/ModResource/Images/Icon/Loneer2,Mods/SunExp/ModResource/Images/Character/Loneer,Mods/SunExp/ModResource/Images/Dialogue/Loneer,300,1") "Loneer dialogue role must lift the dialogue image above the text box."
     Assert-True $solarMemoryStoryGateService.Contains("CompleteDialogueId") "Solar Memory managed dialogue gates must register the final dialogue id for native option completion."
     Assert-True $solarMemoryFlowApi.Contains("SolarMemoryPreparationRuntime.IsComplete()") "SolarMemoryFlowApi must bridge preparation completion to the Hook runtime."
     Assert-True $solarMemoryFlowApi.Contains("SolarMemoryModeRuntime.OpenOriginWindow()") "SolarMemoryFlowApi must bridge origin setup UI to the Hook runtime."
