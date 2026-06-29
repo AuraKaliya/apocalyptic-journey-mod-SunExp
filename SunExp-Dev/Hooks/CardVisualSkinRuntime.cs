@@ -11,9 +11,6 @@ namespace SunExp.Dll.Hooks;
 
 public static class CardVisualSkinRuntime
 {
-    private static int lastFullReapplyFrame = -1;
-    private static int lastFullReapplyCount = -1;
-
     public static void Initialize(ModConfig modConfig)
     {
         RegisterAfter(modConfig, "ICard.SetCardStyle", ApplyFromSetCardStyle);
@@ -212,6 +209,7 @@ public static class CardVisualSkinRuntime
 
     private static void ReapplyActiveCombatCards(string source)
     {
+        var start = SunExpPerformanceCounters.Timestamp();
         try
         {
             var items = FightUI.cardItemList;
@@ -243,21 +241,17 @@ public static class CardVisualSkinRuntime
         {
             SunExpLog.Error("Card visual skin active-combat reapply failed from " + source, ex);
         }
+        finally
+        {
+            SunExpPerformanceCounters.RecordDuration("CardVisualSkin.ReapplyActiveCombatCards", start);
+        }
     }
 
     private static void ReapplyActiveCombatCardsDebounced(string source)
     {
-        var items = FightUI.cardItemList;
-        var count = items?.Count ?? 0;
-        var frame = Time.frameCount;
-        if (frame == lastFullReapplyFrame && count == lastFullReapplyCount)
-        {
-            return;
-        }
-
-        lastFullReapplyFrame = frame;
-        lastFullReapplyCount = count;
-        ReapplyActiveCombatCards(source);
+        SunExpFrameScheduler.RunOnceNextFrame(
+            "CardVisualSkinRuntime.ReapplyActiveCombatCards",
+            () => ReapplyActiveCombatCards(source));
     }
 
     private static void ApplySafely(Transform? root, IDataConfig? config, string source)
@@ -270,6 +264,7 @@ public static class CardVisualSkinRuntime
         var applied = CardVisualSkinApplier.Apply(root, config);
         if (applied)
         {
+            SunExpPerformanceCounters.Record("CardVisualSkin.Apply");
             SunExpLog.Debug("Card visual skin applied from " + source + ": " + DictionaryUtil.Get(config.data, "Id", "unknown"));
         }
     }

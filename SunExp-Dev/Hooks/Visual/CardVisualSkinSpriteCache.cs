@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
+using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using UnityEngine;
-using Witch.Core;
 
 namespace SunExp.Dll.Hooks.Visual;
 
@@ -25,7 +25,7 @@ public static class CardVisualSkinSpriteCache
         Sprite? sprite = null;
         try
         {
-            sprite = ResourceLoader.Load<Sprite>(path, true);
+            sprite = SunExpResourceCache.Load<Sprite>(path, true);
             if (sprite == null)
             {
                 SunExpLog.Warn(logPrefix + " sprite missing: " + path);

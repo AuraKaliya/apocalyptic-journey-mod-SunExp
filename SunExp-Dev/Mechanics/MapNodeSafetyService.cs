@@ -272,9 +272,7 @@ public static class MapNodeSafetyService
             return null;
         }
 
-        return Singleton<GameConfigManager>.Instance.GetOne(DataType.Map, id)
-            ?? Singleton<GameConfigManager>.Instance.GetTable(DataType.Map).Getlines()
-                .FirstOrDefault(row => string.Equals(DictionaryUtil.Get(row, "Id"), id, StringComparison.Ordinal));
+        return SunExpConfigIndex.Row(DataType.Map, id);
     }
 
     private static bool IsClientOnlyPlayer()

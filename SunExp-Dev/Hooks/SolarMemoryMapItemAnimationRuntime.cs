@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using AuraShared.Core;
+using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
+using SunExp.Dll.Mechanics;
 using UnityEngine;
 using Witch.Core;
 using Witch.Mod;
@@ -174,13 +176,13 @@ public static class SolarMemoryMapItemAnimationRuntime
         var result = false;
         try
         {
-            if ((ResourceLoader.LoadAll<Texture2D>(animationPath + "/Map")?.Length ?? 0) > 0)
+            if ((SunExpResourceCache.LoadAll<Texture2D>(animationPath + "/Map")?.Length ?? 0) > 0)
             {
                 result = true;
             }
             else
             {
-                result = (ResourceLoader.LoadAll<Texture2D>(animationPath + "/Idle")?.Length ?? 0) > 0;
+                result = (SunExpResourceCache.LoadAll<Texture2D>(animationPath + "/Idle")?.Length ?? 0) > 0;
             }
         }
         catch (Exception ex)
@@ -224,19 +226,7 @@ public static class SolarMemoryMapItemAnimationRuntime
             return null;
         }
 
-        var row = Singleton<GameConfigManager>.Instance.GetOne(type, id);
-        if (row != null)
-        {
-            return row;
-        }
-
-        const string prefix = "SunExp_sunexp_";
-        if (id.StartsWith(prefix, StringComparison.Ordinal))
-        {
-            return Singleton<GameConfigManager>.Instance.GetOne(type, id.Substring(prefix.Length));
-        }
-
-        return Singleton<GameConfigManager>.Instance.GetOne(type, prefix + id);
+        return SunExpConfigIndex.Row(type, id);
     }
 
     private readonly struct AnimationRestore

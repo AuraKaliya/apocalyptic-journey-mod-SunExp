@@ -1124,7 +1124,7 @@ function Invoke-SourceAssertions {
     Assert-True (-not $solarMemoryMapItemAnimationRuntime.Contains("ApplyFixedBossMapTexture")) "Solar memory animation fallback must not own map-node texture replacement."
     Assert-True $mapNodeCardArtRuntime.Contains('RegisterBefore(modConfig, "MapItem.Init", CaptureMapItemBaseline);') "Map-node art runtime must capture icon baseline before native MapItem.Init mutates transform."
     Assert-True $mapNodeCardArtRuntime.Contains('RegisterAfter(modConfig, "MapItem.Init", ApplyMapNodeCardArt);') "Map-node art runtime must apply configured art after native MapItem.Init."
-    Assert-True $mapNodeCardArtRuntime.Contains("ResourceLoader.Load<Texture>(spec.TexturePath, true)") "Map-node art runtime must load textures through the mod-aware ResourceLoader path."
+    Assert-True $mapNodeCardArtRuntime.Contains("SunExpResourceCache.Load<Texture>(spec.TexturePath, true)") "Map-node art runtime must load textures through the shared mod-aware resource cache."
     Assert-True $mapNodeCardArtRegistry.Contains("VisualRegistry.MapNodeArtSpecs()") "Map-node art registry must be driven by the visual registry."
     Assert-True ($visualRegistry.Contains("SunExpIds.SolarBossSecondSunMapTexturePath") -and $visualRegistryJson.Contains("solar_memory.second_sun.map_card")) "Visual registry must cover the second-sun boss map texture."
     Assert-True ($visualRegistry.Contains("SunExpIds.SolarBossSaintWunaMapTexturePath") -and $visualRegistryJson.Contains("solar_memory.saint_wuna.map_card")) "Visual registry must cover the saint Wuna boss map texture."

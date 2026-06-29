@@ -35,6 +35,7 @@ public static class Entry
         RunStep("journey runtime", () => SolarMemoryJourneyApi.Initialize(modConfig));
         RunStep("audio runtime", () => AudioApi.Initialize(modConfig));
         RunStep("ui transition guard", () => UiTransitionGuardRuntime.Initialize(modConfig, "SunExp"));
+        RunStep("performance runtime", () => SunExpFrameScheduler.Initialize(modConfig));
         SunExpLog.Info("SunExp C# entry loaded");
         RunStep("gameplay hooks", () => RuntimeHooks.Initialize(modConfig));
         RunStep("special tags", SpecialTagRuntime.Initialize);

@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Reflection;
+using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
 using UnityEngine;
@@ -193,7 +194,7 @@ public static class SolarMemoryModeEntryRuntime
     {
         try
         {
-            var sprite = ResourceLoader.Load<Sprite>(path, true);
+            var sprite = SunExpResourceCache.Load<Sprite>(path, true);
             if (sprite == null)
             {
                 SunExpLog.Warn("[SolarMemoryMode] entry sprite missing: " + path);

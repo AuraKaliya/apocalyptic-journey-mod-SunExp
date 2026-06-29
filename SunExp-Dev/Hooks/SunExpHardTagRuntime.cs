@@ -293,6 +293,7 @@ public static class SunExpHardTagRuntime
 
     private static void ApplyWhiteRadianceCourtCards(ScriptExecutor? executor = null, bool force = false, bool includeRunDeck = true)
     {
+        var start = SunExpPerformanceCounters.Timestamp();
         if (!SunExpHardTagState.Active(SunExpHardTagIds.WhiteRadianceCourt))
         {
             return;
@@ -312,6 +313,7 @@ public static class SunExpHardTagRuntime
 
         SunExpCardTagService.ApplyWhiteRadianceToFightZones(executor);
         whiteRadianceLastFightZoneSignature = signature;
+        SunExpPerformanceCounters.RecordDuration("WhiteRadiance.ScanFightZones", start);
     }
 
     private static void ResetWhiteRadianceScanState()

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using Data.Save;
 using SunExp.Dll.Infrastructure;
@@ -19,8 +18,6 @@ public static class SolarMemoryMapNodePoolFactory
         "WithCursor",
         BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
     private const string BossMapNote = "首领";
-    private static List<Dictionary<string, string>>? expandedBossCandidates;
-    private static int expandedBossCandidateSourceCount = -1;
 
     public static SolarMemoryMapNodePool GenerateLayer(NormalMapManager manager, MapTree tree)
     {
@@ -130,8 +127,8 @@ public static class SolarMemoryMapNodePoolFactory
         var mapId = SunExpIds.SolarMemoryMapIds[eventIndex];
         var shortMapId = SunExpIds.SolarMemoryShortMapIds[eventIndex];
         var eventId = SunExpIds.SolarMemoryFullEventIds[eventIndex];
-        var data = Singleton<GameConfigManager>.Instance.GetOne(DataType.Map, mapId)
-            ?? Singleton<GameConfigManager>.Instance.GetOne(DataType.Map, shortMapId);
+        var data = SunExpConfigIndex.Row(DataType.Map, mapId)
+            ?? SunExpConfigIndex.Row(DataType.Map, shortMapId);
         var node = new MapTree.Node("普通事件");
         node.type = "普通事件";
         node.data = data == null ? new Dictionary<string, string>() : new Dictionary<string, string>(data);
@@ -261,23 +258,17 @@ public static class SolarMemoryMapNodePoolFactory
 
     private static List<Dictionary<string, string>> ExpandedBossCandidates()
     {
-        var rows = Singleton<GameConfigManager>.Instance.GetTable(DataType.Map).Getlines();
-        if (expandedBossCandidates != null && expandedBossCandidateSourceCount == rows.Count)
-        {
-            return expandedBossCandidates;
-        }
-
-        expandedBossCandidates = rows.Where(IsExpandedBossCandidate).ToList();
-        expandedBossCandidateSourceCount = rows.Count;
-        SunExpLog.Debug("[SolarMemoryMapNodePool] cached expanded boss candidates: " + expandedBossCandidates.Count);
-        return expandedBossCandidates;
+        return SunExpConfigIndex.FilteredRows(
+            DataType.Map,
+            "SolarMemory.ExpandedBossCandidates",
+            IsExpandedBossCandidate);
     }
 
     private static bool IsBossLevel(string nodeId)
     {
         try
         {
-            var level = Singleton<GameConfigManager>.Instance.GetOne(DataType.Level, nodeId);
+            var level = SunExpConfigIndex.Row(DataType.Level, nodeId);
             if (level == null)
             {
                 return true;
@@ -294,10 +285,7 @@ public static class SolarMemoryMapNodePoolFactory
 
     private static Dictionary<string, string>? MapRow(string mapId)
     {
-        return Singleton<GameConfigManager>.Instance.GetOne(DataType.Map, mapId)
-            ?? Singleton<GameConfigManager>.Instance.GetTable(DataType.Map).Getlines()
-                .FirstOrDefault(row => string.Equals(DictionaryUtil.Get(row, "Id"), mapId, StringComparison.Ordinal)
-                    || string.Equals("SunExp_sunexp_" + DictionaryUtil.Get(row, "Id"), mapId, StringComparison.Ordinal));
+        return SunExpConfigIndex.Row(DataType.Map, mapId);
     }
 
     private static MapTree.Node CreateBossNodeFromMapRow(MapTree tree, Dictionary<string, string> row)

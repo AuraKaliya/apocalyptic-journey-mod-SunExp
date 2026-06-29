@@ -4,6 +4,7 @@ using System.Linq;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks.Ui;
 using SunExp.Dll.Infrastructure;
+using SunExp.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.UI;
 using Witch;
@@ -208,7 +209,7 @@ public static class SolarMemoryBlessingPickerRuntime
 
         try
         {
-            var rows = Singleton<GameConfigManager>.Instance.GetTable(DataType.Bless).Getlines();
+            var rows = SunExpConfigIndex.Rows(DataType.Bless);
             var checkedRows = Singleton<GameConfigManager>.Instance.CardPackCheck(rows);
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var row in checkedRows)
@@ -878,7 +879,7 @@ public static class SolarMemoryBlessingPickerRuntime
         {
             if (!string.IsNullOrWhiteSpace(entry.IconPath))
             {
-                sprite = ResourceLoader.Load<Sprite>(entry.IconPath, true);
+                sprite = SunExpResourceCache.Load<Sprite>(entry.IconPath, true);
             }
         }
         catch (Exception ex)

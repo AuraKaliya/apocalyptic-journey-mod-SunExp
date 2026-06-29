@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using UnityEngine;
-using Witch.Core;
 
 namespace SunExp.Dll.Hooks.Ui;
 
@@ -43,7 +43,7 @@ public static class SunExpUiSprites
         Sprite? sprite = null;
         try
         {
-            var source = ResourceLoader.Load<Sprite>(path, true);
+            var source = SunExpResourceCache.Load<Sprite>(path, true);
             if (source == null || source.texture == null)
             {
                 SunExpLog.Warn(logPrefix + " UI sprite missing: " + path);

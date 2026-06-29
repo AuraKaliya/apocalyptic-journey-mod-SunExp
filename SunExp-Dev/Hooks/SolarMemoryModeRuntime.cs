@@ -19,7 +19,6 @@ namespace SunExp.Dll.Hooks;
 
 public static class SolarMemoryModeRuntime
 {
-    private static readonly Dictionary<string, Texture?> MapCardTextureCache = new(StringComparer.Ordinal);
     private static readonly MaterialPropertyBlock MapCardPropertyBlock = new();
     private static readonly int MainTexId = Shader.PropertyToID("_MainTex");
     private const int LegacySolarFinaleMapLevel = 30;
@@ -379,10 +378,7 @@ public static class SolarMemoryModeRuntime
 
     private static Dictionary<string, string>? MapRow(string mapId)
     {
-        return Singleton<GameConfigManager>.Instance.GetOne(DataType.Map, mapId)
-            ?? Singleton<GameConfigManager>.Instance.GetTable(DataType.Map).Getlines()
-                .FirstOrDefault(row => string.Equals(Field(row, "Id"), mapId, StringComparison.Ordinal)
-                    || string.Equals("SunExp_sunexp_" + Field(row, "Id"), mapId, StringComparison.Ordinal));
+        return SunExpConfigIndex.Row(DataType.Map, mapId);
     }
 
     private static void EnsureFixedSlotVisual(MapSelectUI mapSelect, int slotIndex, MapTree.Node node, IDictionary<string, string> data)
@@ -542,33 +538,25 @@ public static class SolarMemoryModeRuntime
                 return;
             }
 
-            SetBackgroundTexture(background, ResourceLoader.Load<Texture>("Icon/CardTemplate/故事牌", true));
+            SetBackgroundTexture(background, SunExpResourceCache.Load<Texture>("Icon/CardTemplate/故事牌", true));
         }
         else if (type == "Build")
         {
-            SetBackgroundTexture(background, ResourceLoader.Load<Texture>("Icon/CardTemplate/建筑牌", true));
+            SetBackgroundTexture(background, SunExpResourceCache.Load<Texture>("Icon/CardTemplate/建筑牌", true));
         }
     }
 
     private static Texture? LoadMapCardTexture(string path)
     {
-        if (MapCardTextureCache.TryGetValue(path, out var cached))
-        {
-            return cached;
-        }
-
-        Texture? texture = null;
         try
         {
-            texture = ResourceLoader.Load<Texture>(path, true);
+            return SunExpResourceCache.Load<Texture>(path, true);
         }
         catch (Exception ex)
         {
             SunExpLog.Warn("[SolarMemoryMapLock] failed to load map card texture " + path + ": " + ex.Message);
+            return null;
         }
-
-        MapCardTextureCache[path] = texture;
-        return texture;
     }
 
     private static void SetBackgroundTexture(MeshRenderer renderer, Texture? texture)
@@ -1526,8 +1514,8 @@ public static class SolarMemoryModeRuntime
         var mapId = SunExpIds.SolarMemoryMapIds[eventIndex];
         var shortMapId = SunExpIds.SolarMemoryShortMapIds[eventIndex];
         var eventId = SunExpIds.SolarMemoryFullEventIds[eventIndex];
-        var data = Singleton<GameConfigManager>.Instance.GetOne(DataType.Map, mapId)
-            ?? Singleton<GameConfigManager>.Instance.GetOne(DataType.Map, shortMapId);
+        var data = SunExpConfigIndex.Row(DataType.Map, mapId)
+            ?? SunExpConfigIndex.Row(DataType.Map, shortMapId);
         var node = new MapTree.Node("普通事件");
         node.type = "普通事件";
         node.data = data == null ? new Dictionary<string, string>() : new Dictionary<string, string>(data);
@@ -1563,7 +1551,7 @@ public static class SolarMemoryModeRuntime
 
     private static List<Dictionary<string, string>> VisibleCardPacks()
     {
-        return Singleton<GameConfigManager>.Instance.GetTable(DataType.CardPack).Getlines()
+        return SunExpConfigIndex.Rows(DataType.CardPack)
             .Where(pack => !Singleton<GameRuntimeData>.Instance.IsLocked(pack["Id"]) && pack["Id"] != "cardpack_13")
             .ToList();
     }

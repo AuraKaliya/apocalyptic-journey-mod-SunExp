@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
+using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
 using UnityEngine;
-using Witch.Core;
 
 namespace SunExp.Dll.Hooks.Ui;
 
@@ -35,7 +35,7 @@ public static class StarScoreHudAssets
         Sprite? sprite = null;
         try
         {
-            sprite = ResourceLoader.Load<Sprite>(path, true);
+            sprite = SunExpResourceCache.Load<Sprite>(path, true);
             if (sprite?.texture != null)
             {
                 sprite.texture.filterMode = FilterMode.Point;

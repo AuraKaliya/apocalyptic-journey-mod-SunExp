@@ -1,23 +1,18 @@
 using System;
 using System.Collections.Generic;
+using SunExp.Dll.Infrastructure;
 using UnityEngine;
 
 namespace SunExp.Dll.Hooks.Visual;
 
 public sealed class WunaOrbitFireController : MonoBehaviour
 {
-    private const int CoreSections = 96;
-    private const int DetailTongues = 3;
-    private const int DetailSparks = 3;
-    private const int OrbitFlamesPerRail = 3;
     private const int FlameAtlasColumns = 16;
     private const int FlameAtlasRows = 4;
     private const int FlameAtlasFrames = FlameAtlasColumns * FlameAtlasRows;
     private const int MaxVertices = 1600;
     private const float Tau = Mathf.PI * 2f;
     private const float DefaultBoostSeconds = 0.95f;
-    private const float ActiveGeometryInterval = 1f / 30f;
-    private const float IdleGeometryInterval = 1f / 18f;
     private const float MinBoundsSize = 0.01f;
     private const float AlphaBoundsThreshold = 0.08f;
 
@@ -57,6 +52,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
     private Bounds lastGeometryBounds;
     private float nextGeometryUpdate;
     private int unreadableTextureId;
+    private bool meshesClearedForPerformance;
 
     public void Configure(SpriteRenderer renderer)
     {
@@ -92,6 +88,18 @@ public sealed class WunaOrbitFireController : MonoBehaviour
             return;
         }
 
+        if (!SunExpPerformanceSettings.WunaOrbitFireEnabled)
+        {
+            if (!meshesClearedForPerformance)
+            {
+                ClearAllMeshes();
+                meshesClearedForPerformance = true;
+            }
+
+            return;
+        }
+
+        meshesClearedForPerformance = false;
         var now = Time.unscaledTime;
         var sprite = targetRenderer.sprite;
         SyncSorting();
@@ -119,8 +127,10 @@ public sealed class WunaOrbitFireController : MonoBehaviour
 
         lastGeometrySprite = sprite;
         lastGeometryBounds = bounds;
-        nextGeometryUpdate = now + (actionPulse > 0.03f ? ActiveGeometryInterval : IdleGeometryInterval);
+        nextGeometryUpdate = now + SunExpPerformanceSettings.WunaGeometryInterval(actionPulse > 0.03f);
+        var start = SunExpPerformanceCounters.Timestamp();
         BuildGeometry(bounds, intensity);
+        SunExpPerformanceCounters.RecordDuration("WunaOrbitFire.BuildGeometry", start);
     }
 
     private void BuildGeometry(Bounds bounds, float intensity)
@@ -131,6 +141,17 @@ public sealed class WunaOrbitFireController : MonoBehaviour
         BuildStreamLayer(frontCoreMesh, bounds, true, intensity * 0.58f, false);
         BuildDetailLayer(frontDetailMesh, bounds, true, intensity * 0.62f);
         BuildParticleLayer(frontFlameMesh, bounds, true, intensity * 0.8f);
+    }
+
+    private void ClearAllMeshes()
+    {
+        ClearMesh(backCoreMesh);
+        ClearMesh(backDetailMesh);
+        ClearMesh(backFlameMesh);
+        ClearMesh(frontCoreMesh);
+        ClearMesh(frontDetailMesh);
+        ClearMesh(frontFlameMesh);
+        lastGeometrySprite = null;
     }
 
     private static bool BoundsChanged(Bounds current, Bounds previous)
@@ -348,8 +369,9 @@ public sealed class WunaOrbitFireController : MonoBehaviour
             var maxX = 0f;
             var maxY = 0f;
             var found = false;
-            var stepX = Mathf.Max(1, Mathf.RoundToInt(rect.width / 96f));
-            var stepY = Mathf.Max(1, Mathf.RoundToInt(rect.height / 96f));
+            var sampleGrid = Mathf.Max(16, SunExpPerformanceSettings.WunaAlphaSampleGrid);
+            var stepX = Mathf.Max(1, Mathf.RoundToInt(rect.width / sampleGrid));
+            var stepY = Mathf.Max(1, Mathf.RoundToInt(rect.height / sampleGrid));
 
             for (var y = 0; y < rect.height; y += stepY)
             {
@@ -408,13 +430,20 @@ public sealed class WunaOrbitFireController : MonoBehaviour
     {
         BeginMesh();
         var time = Time.unscaledTime;
+        var flamesPerRail = SunExpPerformanceSettings.WunaOrbitFlamesPerRail;
+        if (flamesPerRail <= 0)
+        {
+            EndMesh(mesh);
+            return;
+        }
+
         for (var railIndex = 0; railIndex < Rails.Length; railIndex++)
         {
             var rail = Rails[railIndex];
-            for (var i = 0; i < OrbitFlamesPerRail; i++)
+            for (var i = 0; i < flamesPerRail; i++)
             {
                 var orbitPhase = Mathf.Repeat(
-                    (i + railIndex * 0.43f) / OrbitFlamesPerRail
+                    (i + railIndex * 0.43f) / flamesPerRail
                     + time * (0.07f + railIndex * 0.012f) * rail.Direction
                     + Mathf.Sin(time * 0.37f + i * 1.7f + rail.Phase) * 0.018f,
                     1f);
@@ -472,10 +501,16 @@ public sealed class WunaOrbitFireController : MonoBehaviour
 
     private void AddCoreRibbon(WunaOrbitFireOrbitModel.OrbitRail rail, Bounds bounds, float time, bool frontLayer, float intensity)
     {
-        var firstVertex = vertices.Count;
-        for (var section = 0; section < CoreSections; section++)
+        var coreSections = SunExpPerformanceSettings.WunaCoreSections;
+        if (coreSections < 2)
         {
-            var t = section / (float)(CoreSections - 1);
+            return;
+        }
+
+        var firstVertex = vertices.Count;
+        for (var section = 0; section < coreSections; section++)
+        {
+            var t = section / (float)(coreSections - 1);
             var sample = WunaOrbitFireOrbitModel.Sample(bounds, rail, time, actionPulse, t);
             var tangent = WunaOrbitFireOrbitModel.Tangent(bounds, rail, time, actionPulse, t);
             var normal = new Vector2(-tangent.y, tangent.x);
@@ -494,15 +529,21 @@ public sealed class WunaOrbitFireController : MonoBehaviour
             AddRibbonSection(sample.Position + drift, normal, width, alpha, 1f - t);
         }
 
-        AddStripTriangles(firstVertex, CoreSections);
+        AddStripTriangles(firstVertex, coreSections);
     }
 
     private void AddStreamRibbon(WunaOrbitFireOrbitModel.OrbitRail rail, Bounds bounds, float time, bool frontLayer, float intensity, bool outerVeil)
     {
-        var firstVertex = vertices.Count;
-        for (var section = 0; section <= CoreSections; section++)
+        var coreSections = SunExpPerformanceSettings.WunaCoreSections;
+        if (coreSections < 2)
         {
-            var t = section / (float)CoreSections;
+            return;
+        }
+
+        var firstVertex = vertices.Count;
+        for (var section = 0; section <= coreSections; section++)
+        {
+            var t = section / (float)coreSections;
             var sample = SmoothSample(bounds, rail, time, t);
             var tangent = SmoothTangent(bounds, rail, time, t);
             var normal = new Vector2(-tangent.y, tangent.x);
@@ -534,7 +575,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
             AddRibbonSection(sample.Position + normal * floatOffset, normal, width, alpha, trailU, 0.5f);
         }
 
-        AddStripTriangles(firstVertex, CoreSections + 1);
+        AddStripTriangles(firstVertex, coreSections + 1);
     }
 
     private WunaOrbitFireOrbitModel.OrbitSample SmoothSample(Bounds bounds, WunaOrbitFireOrbitModel.OrbitRail rail, float time, float t)
@@ -558,9 +599,10 @@ public sealed class WunaOrbitFireController : MonoBehaviour
 
     private void AddFlameTongues(WunaOrbitFireOrbitModel.OrbitRail rail, int railIndex, Bounds bounds, float time, bool frontLayer, float intensity)
     {
-        for (var i = 0; i < DetailTongues; i++)
+        var detailTongues = SunExpPerformanceSettings.WunaDetailTongues;
+        for (var i = 0; i < detailTongues; i++)
         {
-            var raw = (i + 0.35f) / (DetailTongues + 0.85f);
+            var raw = (i + 0.35f) / (detailTongues + 0.85f);
             var t = Mathf.Pow(raw, 1.18f);
             t = Mathf.Clamp01(t + Mathf.Sin(time * 1.7f + i * 1.31f + rail.Phase) * 0.026f);
             var sample = WunaOrbitFireOrbitModel.Sample(bounds, rail, time, actionPulse, t);
@@ -598,9 +640,10 @@ public sealed class WunaOrbitFireController : MonoBehaviour
 
     private void AddSparks(WunaOrbitFireOrbitModel.OrbitRail rail, int railIndex, Bounds bounds, float time, bool frontLayer, float intensity)
     {
-        for (var i = 0; i < DetailSparks; i++)
+        var detailSparks = SunExpPerformanceSettings.WunaDetailSparks;
+        for (var i = 0; i < detailSparks; i++)
         {
-            var t = Mathf.Pow((i + 0.7f) / (DetailSparks + 1.15f), 1.12f);
+            var t = Mathf.Pow((i + 0.7f) / (detailSparks + 1.15f), 1.12f);
             var sample = WunaOrbitFireOrbitModel.Sample(bounds, rail, time, actionPulse, t);
             var layerFade = LayerFade(sample.Depth, frontLayer);
             if (!frontLayer)

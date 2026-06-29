@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
+using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using UnityEngine;
-using Witch.Core;
 
 namespace SunExp.Dll.Hooks.Visual;
 
@@ -25,7 +25,7 @@ public static class EffectTextureCache
 
         try
         {
-            var texture = ResourceLoader.Load<Texture>(key, true);
+            var texture = SunExpResourceCache.Load<Texture>(key, true);
             if (texture == null)
             {
                 SunExpLog.Warn(logPrefix + " effect texture missing: " + key);

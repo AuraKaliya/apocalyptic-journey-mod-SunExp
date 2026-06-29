@@ -260,7 +260,7 @@ public static class SolarMemoryContentIsolationRuntime
         }
 
         var layer = Math.Max(0, level / 12);
-        return Singleton<GameConfigManager>.Instance.GetTable(DataType.Map).Getlines()
+        return SunExpConfigIndex.Rows(DataType.Map)
             .Where(row => !SunExpIds.IsSolarMemoryExclusiveMapId(DictionaryUtil.Get(row, "Id")))
             .Where(row => !string.Equals(DictionaryUtil.Get(row, "Rarity", "0"), "7", StringComparison.Ordinal))
             .Where(row => string.Equals(DictionaryUtil.Get(row, "Type"), type, StringComparison.Ordinal))
@@ -282,9 +282,7 @@ public static class SolarMemoryContentIsolationRuntime
             return null;
         }
 
-        return Singleton<GameConfigManager>.Instance.GetOne(DataType.Map, id)
-            ?? Singleton<GameConfigManager>.Instance.GetTable(DataType.Map).Getlines()
-                .FirstOrDefault(row => string.Equals(DictionaryUtil.Get(row, "Id"), id, StringComparison.Ordinal));
+        return SunExpConfigIndex.Row(DataType.Map, id);
     }
 
     private static string ResolveEventId(string oldNodeId, IDictionary<string, string> fallback)
@@ -302,7 +300,7 @@ public static class SolarMemoryContentIsolationRuntime
             return fallbackNodeId;
         }
 
-        return Singleton<GameConfigManager>.Instance.GetTable(DataType.Event).Getlines()
+        return SunExpConfigIndex.Rows(DataType.Event)
             .Where(row => !DictionaryUtil.Get(row, "Id").Contains("Sub"))
             .Where(row => !Singleton<GameRuntimeData>.Instance.IsLocked(DictionaryUtil.Get(row, "Id")))
             .OrderBy(row => DictionaryUtil.Get(row, "Id"), StringComparer.Ordinal)

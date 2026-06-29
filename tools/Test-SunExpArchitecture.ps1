@@ -78,12 +78,19 @@ $requiredFiles = @(
     "SunExp-Dev\GameApi\DialogueUiApi.cs",
     "SunExp-Dev\GameApi\MapItemApi.cs",
     "SunExp-Dev\GameApi\BattleRewardApi.cs",
+    "SunExp-Dev\GameApi\SunExpResourceCache.cs",
+    "SunExp-Dev\Infrastructure\SunExpPerformanceQuality.cs",
+    "SunExp-Dev\Infrastructure\SunExpPerformanceSettings.cs",
+    "SunExp-Dev\Infrastructure\SunExpPerformanceCounters.cs",
     "SunExp-Dev\Mechanics\BattleRewardAdjustmentService.cs",
     "SunExp-Dev\Mechanics\DialogueFlowDefinition.cs",
     "SunExp-Dev\Mechanics\DialogueFlowRegistry.cs",
     "SunExp-Dev\Mechanics\DialogueFlowService.cs",
+    "SunExp-Dev\Mechanics\SunExpConfigIndex.cs",
     "SunExp-Dev\Mechanics\MapNodeCardArtRegistry.cs",
     "SunExp-Dev\Mechanics\MapNodeTextureFitService.cs",
+    "SunExp-Dev\Mechanics\MapNodeSafetyService.cs",
+    "SunExp-Dev\Mechanics\SolarMemoryMapNodePoolFactory.cs",
     "SunExp-Dev\Mechanics\ModeChoiceDragRange.cs",
     "SunExp-Dev\Mechanics\SolarFinaleStateService.cs",
     "SunExp-Dev\Mechanics\SolarMemoryStoryGateService.cs",
@@ -93,13 +100,16 @@ $requiredFiles = @(
     "SunExp-Dev\Mechanics\CardVisualThemeCatalog.cs",
     "SunExp-Dev\Mechanics\SunCardThemeCatalog.cs",
     "SunExp-Dev\Hooks\DialogueFlowRuntime.cs",
+    "SunExp-Dev\Hooks\SunExpFrameScheduler.cs",
     "SunExp-Dev\Hooks\BattleRewardAdjustmentRuntime.cs",
     "SunExp-Dev\Hooks\SolarMemoryRewardRuntime.cs",
     "SunExp-Dev\Hooks\MapNodeCardArtRuntime.cs",
     "SunExp-Dev\Hooks\CardVisualSkinRuntime.cs",
     "SunExp-Dev\Hooks\SunCardFrameRuntime.cs",
     "SunExp-Dev\Hooks\SolarMemoryMapVisualRuntime.cs",
+    "SunExp-Dev\Hooks\SolarMemoryMapItemAnimationRuntime.cs",
     "SunExp-Dev\Hooks\SolarMemoryModeEntryRuntime.cs",
+    "SunExp-Dev\Hooks\SolarMemoryContentIsolationRuntime.cs",
     "SunExp-Dev\Hooks\SolarMemoryPreparationRuntime.cs",
     "SunExp-Dev\Hooks\SolarMemoryRunLauncher.cs",
     "SunExp-Dev\Hooks\SolarMemorySettlementPresenter.cs",
@@ -126,6 +136,7 @@ $requiredFiles = @(
     "SunExp-Dev\Hooks\Visual\FrameSpriteCache.cs",
     "SunExp-Dev\Hooks\Visual\FrameSpriteRendererAnimator.cs",
     "SunExp-Dev\Hooks\Visual\ShaderAssetLoader.cs",
+    "SunExp-Dev\Hooks\Visual\WunaOrbitFireController.cs",
     "SunExp-Dev\VisualAssets\sunexp_visuals.pipeline.json",
     "SunExp-Dev\VisualAssets\Editor\SunExpVisualBundleBuilder.cs.txt",
     "SunExp-Dev\VisualAssets\Shaders\StarScoreHud.shader",
@@ -146,7 +157,11 @@ $mapItemApi = Read-RepoText "SunExp-Dev\GameApi\MapItemApi.cs"
 $dialogueApi = Read-RepoText "SunExp-Dev\GameApi\DialogueApi.cs"
 $dialogueUiApi = Read-RepoText "SunExp-Dev\GameApi\DialogueUiApi.cs"
 $battleRewardApi = Read-RepoText "SunExp-Dev\GameApi\BattleRewardApi.cs"
+$sunExpResourceCache = Read-RepoText "SunExp-Dev\GameApi\SunExpResourceCache.cs"
 $statusApi = Read-RepoText "SunExp-Dev\GameApi\StatusApi.cs"
+$performanceQuality = Read-RepoText "SunExp-Dev\Infrastructure\SunExpPerformanceQuality.cs"
+$performanceSettings = Read-RepoText "SunExp-Dev\Infrastructure\SunExpPerformanceSettings.cs"
+$performanceCounters = Read-RepoText "SunExp-Dev\Infrastructure\SunExpPerformanceCounters.cs"
 $cardScripts = Read-RepoText "SunExp-Dev\Scripting\CardScripts.cs"
 $buffScripts = Read-RepoText "SunExp-Dev\Scripting\BuffScripts.cs"
 $relicScripts = Read-RepoText "SunExp-Dev\Scripting\RelicScripts.cs"
@@ -154,6 +169,9 @@ $eventScripts = Read-RepoText "SunExp-Dev\Scripting\EventScripts.cs"
 $bossScripts = Read-RepoText "SunExp-Dev\Scripting\BossScripts.cs"
 $mapNodeCardArtRegistry = Read-RepoText "SunExp-Dev\Mechanics\MapNodeCardArtRegistry.cs"
 $mapNodeTextureFitService = Read-RepoText "SunExp-Dev\Mechanics\MapNodeTextureFitService.cs"
+$mapNodeSafetyService = Read-RepoText "SunExp-Dev\Mechanics\MapNodeSafetyService.cs"
+$solarMemoryMapNodePoolFactory = Read-RepoText "SunExp-Dev\Mechanics\SolarMemoryMapNodePoolFactory.cs"
+$sunExpConfigIndex = Read-RepoText "SunExp-Dev\Mechanics\SunExpConfigIndex.cs"
 $modeChoiceDragRange = Read-RepoText "SunExp-Dev\Mechanics\ModeChoiceDragRange.cs"
 $solarFinaleService = Read-RepoText "SunExp-Dev\Mechanics\SolarFinaleStateService.cs"
 $visualRegistry = Read-RepoText "SunExp-Dev\Mechanics\VisualRegistry.cs"
@@ -163,6 +181,7 @@ $dialogueFlowService = Read-RepoText "SunExp-Dev\Mechanics\DialogueFlowService.c
 $battleRewardAdjustmentService = Read-RepoText "SunExp-Dev\Mechanics\BattleRewardAdjustmentService.cs"
 $solarMemoryStoryGateService = Read-RepoText "SunExp-Dev\Mechanics\SolarMemoryStoryGateService.cs"
 $dialogueFlowRuntime = Read-RepoText "SunExp-Dev\Hooks\DialogueFlowRuntime.cs"
+$sunExpFrameScheduler = Read-RepoText "SunExp-Dev\Hooks\SunExpFrameScheduler.cs"
 $battleRewardAdjustmentRuntime = Read-RepoText "SunExp-Dev\Hooks\BattleRewardAdjustmentRuntime.cs"
 $solarMemoryRewardRuntime = Read-RepoText "SunExp-Dev\Hooks\SolarMemoryRewardRuntime.cs"
 $mapNodeCardArtRuntime = Read-RepoText "SunExp-Dev\Hooks\MapNodeCardArtRuntime.cs"
@@ -178,7 +197,9 @@ $sunCardFrameSpriteCache = Read-RepoText "SunExp-Dev\Hooks\Visual\SunCardFrameSp
 $sunCardThemeCatalog = Read-RepoText "SunExp-Dev\Mechanics\SunCardThemeCatalog.cs"
 $solarMemoryModeRuntime = Read-RepoText "SunExp-Dev\Hooks\SolarMemoryModeRuntime.cs"
 $solarMemoryMapVisualRuntime = Read-RepoText "SunExp-Dev\Hooks\SolarMemoryMapVisualRuntime.cs"
+$solarMemoryMapItemAnimationRuntime = Read-RepoText "SunExp-Dev\Hooks\SolarMemoryMapItemAnimationRuntime.cs"
 $solarMemoryModeEntryRuntime = Read-RepoText "SunExp-Dev\Hooks\SolarMemoryModeEntryRuntime.cs"
+$solarMemoryContentIsolationRuntime = Read-RepoText "SunExp-Dev\Hooks\SolarMemoryContentIsolationRuntime.cs"
 $solarMemorySettlementPresenter = Read-RepoText "SunExp-Dev\Hooks\SolarMemorySettlementPresenter.cs"
 $animatedBlessingIconRuntime = Read-RepoText "SunExp-Dev\Hooks\AnimatedBlessingIconRuntime.cs"
 $animatedBuffIconRuntime = Read-RepoText "SunExp-Dev\Hooks\AnimatedBuffIconRuntime.cs"
@@ -191,6 +212,7 @@ $frameSpriteCache = Read-RepoText "SunExp-Dev\Hooks\Visual\FrameSpriteCache.cs"
 $frameImageAnimator = Read-RepoText "SunExp-Dev\Hooks\Visual\FrameImageAnimator.cs"
 $frameSpriteRendererAnimator = Read-RepoText "SunExp-Dev\Hooks\Visual\FrameSpriteRendererAnimator.cs"
 $shaderAssetLoader = Read-RepoText "SunExp-Dev\Hooks\Visual\ShaderAssetLoader.cs"
+$wunaOrbitFireController = Read-RepoText "SunExp-Dev\Hooks\Visual\WunaOrbitFireController.cs"
 $visualPipeline = Read-RepoText "SunExp-Dev\VisualAssets\sunexp_visuals.pipeline.json"
 $visualBundleBuilder = Read-RepoText "SunExp-Dev\VisualAssets\Editor\SunExpVisualBundleBuilder.cs.txt"
 $starScoreHudShaderSource = Read-RepoText "SunExp-Dev\VisualAssets\Shaders\StarScoreHud.shader"
@@ -217,6 +239,8 @@ $solarMemoryBlessingPickerRuntime = Read-RepoText "SunExp-Dev\Hooks\SolarMemoryB
 $sunExpModalHost = Read-RepoText "SunExp-Dev\Hooks\Ui\SunExpModalHost.cs"
 $sunExpUiSafety = Read-RepoText "SunExp-Dev\Hooks\Ui\SunExpUiSafety.cs"
 $sunExpUiSprites = Read-RepoText "SunExp-Dev\Hooks\Ui\SunExpUiSprites.cs"
+$sunExpHardTagRuntime = Read-RepoText "SunExp-Dev\Hooks\SunExpHardTagRuntime.cs"
+$sourceFiles = Get-ChildItem -LiteralPath (Join-Path $RepoRoot "SunExp-Dev") -Recurse -File -Filter "*.cs"
 $scriptingSource = [string]::Join("`n", (Get-ChildItem -LiteralPath (Join-Path $RepoRoot "SunExp-Dev\Scripting") -File -Filter "*.cs" | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }))
 
 Assert-Contains $executorApi "return ScriptVarApi.GetVar(executor, key, fallback);" "ExecutorApi must delegate script variables to ScriptVarApi."
@@ -250,6 +274,21 @@ Assert-Contains $runtimeHooks "StarScoreHudRuntime.Initialize(modConfig)" "Runti
 Assert-Contains $runtimeHooks "CardVisualSkinRuntime.Initialize(modConfig)" "RuntimeHooks must initialize card visual skin hooks."
 Assert-Contains $runtimeHooks "RunHookStep(" "RuntimeHooks must isolate runtime initialization into logged hook steps."
 Assert-Contains $runtimeHooks "AuraSharedHooks.RunStep" "RuntimeHooks must use the shared step guard for hook initialization."
+Assert-Contains $entrySource 'RunStep("performance runtime", () => SunExpFrameScheduler.Initialize(modConfig))' "Entry must initialize the performance scheduler before gameplay hooks."
+Assert-Contains $performanceQuality "public enum SunExpPerformanceQuality" "Performance quality tiers must be centralized in Infrastructure."
+Assert-Contains $performanceSettings "SunExpPerformanceQuality.Balanced" "Performance settings must default to a balanced tier."
+Assert-Contains $performanceSettings 'typeof(ScriptExecutor).GetNestedType("PlayerInfo"' "Performance settings must read game variables without depending on GameApi."
+Assert-NotContains $performanceSettings "using UnityEngine" "Performance settings must stay out of Unity lifecycle concerns."
+Assert-Contains $performanceCounters "Stopwatch.GetTimestamp()" "Performance counters must use low-allocation timestamp accounting."
+Assert-Contains $sunExpFrameScheduler "public static bool RunOnceNextFrame" "Frame scheduler must expose a keyed next-frame merge API."
+Assert-Contains $sunExpFrameScheduler "MonoBehaviour" "Frame scheduler must keep Unity lifecycle ownership inside Hooks."
+Assert-Contains $sunExpFrameScheduler "SunExpPerformanceSettings.FrameSchedulerBudget" "Frame scheduler must respect the performance quality budget."
+Assert-Contains $sunExpResourceCache "ResourceLoader.Load<T>" "Resource cache must centralize native single-asset resource loading."
+Assert-Contains $sunExpResourceCache "ResourceLoader.LoadAll<T>" "Resource cache must centralize native multi-asset resource loading."
+Assert-Contains $sunExpConfigIndex "public static List<Dictionary<string, string>> Rows" "Config index must own cached table row access."
+Assert-Contains $sunExpConfigIndex "public static Dictionary<string, string>? Row" "Config index must own id-normalized row lookup."
+Assert-Contains $sunExpConfigIndex "public static List<Dictionary<string, string>> FilteredRows" "Config index must own reusable filtered-row caches."
+Assert-NotContains $sunExpConfigIndex "SunExp.Dll.Hooks" "Config index in Mechanics must not depend on Hook runtimes."
 Assert-Contains $sunExpIds "SunCardVisualSkinId" "SunExpIds must centralize the Sun card visual skin id."
 Assert-Contains $sunExpIds "MorningStarCardVisualSkinId" "SunExpIds must centralize the Morning Star card visual skin id."
 Assert-Contains $sunExpIds "SunThemeCardPackIds" "SunExpIds must centralize Sun theme card-pack ids."
@@ -293,7 +332,9 @@ Assert-Contains $cardVisualSkinRuntime "CardVisualSkinApplier.Apply" "Card visua
 Assert-Contains $cardVisualSkinApplier "CardVisualThemeCatalog.Resolve" "Card visual skin applier must gate visuals through the theme catalog."
 Assert-Contains $cardVisualSkinApplier 'cardRoot.Find("Front/FrontBack")' "Card visual skin applier must replace the card-frame layer."
 Assert-Contains $cardVisualSkinApplier 'cardRoot.Find("Front/background")' "Card visual skin applier must support the optional card-background layer."
-Assert-Contains $cardVisualSkinSpriteCache "ResourceLoader.Load<Sprite>" "Card visual skin sprites must load through ResourceLoader."
+Assert-Contains $cardVisualSkinRuntime "SunExpFrameScheduler.RunOnceNextFrame" "Card visual skin full reapply must be merged through the performance scheduler."
+Assert-Contains $cardVisualSkinRuntime "CardVisualSkin.ReapplyActiveCombatCards" "Card visual skin reapply must be measured by performance counters."
+Assert-Contains $cardVisualSkinSpriteCache "SunExpResourceCache.Load<Sprite>" "Card visual skin sprites must load through the shared resource cache."
 Assert-Contains $cardVisualSkinSpriteCache "private static readonly Dictionary<string, Sprite?> Cache" "Card visual skin sprites must be cached."
 Assert-Contains $sunCardFrameRuntime "CardVisualSkinRuntime.Initialize(modConfig)" "Legacy Sun card frame runtime must delegate to the generic visual skin runtime."
 Assert-Contains $sunCardFrameApplier "CardVisualSkinApplier.Apply" "Legacy Sun card frame applier must delegate to the generic visual skin applier."
@@ -326,9 +367,9 @@ Assert-Contains $assetBundleCache "VisualRegistry.ResolveContentPath" "AssetBund
 Assert-Contains $effectMaterialFactory "AssetBundleCache.LoadAsset<Material>" "EffectMaterialFactory must prefer declared material assets from private bundles."
 Assert-Contains $effectMaterialFactory "ShaderAssetLoader.ResolveShader" "EffectMaterialFactory must fall back to declared shaders when no material asset is bundled."
 Assert-Contains $effectMaterialFactory "EffectTextureCache.Load" "EffectMaterialFactory must apply declared effect textures."
-Assert-Contains $effectTextureCache "ResourceLoader.Load<Texture>" "EffectTextureCache must load declared effect textures through ResourceLoader."
+Assert-Contains $effectTextureCache "SunExpResourceCache.Load<Texture>" "EffectTextureCache must load declared effect textures through the shared resource cache."
 Assert-Contains $frameSpriteCache "private static readonly Dictionary<string, Sprite[]> Cache" "FrameSpriteCache must centralize loaded sprite-frame caching."
-Assert-Contains $frameSpriteCache "ResourceLoader.Load<Sprite>" "FrameSpriteCache must own sprite-frame resource loading."
+Assert-Contains $frameSpriteCache "SunExpResourceCache.Load<Sprite>" "FrameSpriteCache must own sprite-frame resource loading through the shared resource cache."
 Assert-Contains $frameAnimationAttacher "FrameImageAnimator" "FrameAnimationAttacher must attach UI Image animations through the shared component."
 Assert-Contains $frameAnimationAttacher "FrameSpriteRendererAnimator" "FrameAnimationAttacher must attach SpriteRenderer animations through the shared component."
 Assert-Contains $animatedBlessingIconRuntime "VisualRegistry.FrameAnimationBySpriteName" "Animated blessing icons must resolve frame specs from the visual registry."
@@ -362,8 +403,8 @@ Assert-Contains $starScoreHudShaderMaterials "EffectMaterialFactory.CreateMateri
 Assert-Contains $starScoreHudShaderMaterials "StarScoreHudShaderIds.LitSlotEffectId" "Star score HUD materials must use the declared lit-slot effect id."
 Assert-Contains $shaderAssetLoader "AssetBundleCache.LoadAsset<Material>" "ShaderAssetLoader must support material assets from private bundles."
 Assert-Contains $shaderAssetLoader "AssetBundleCache.LoadAsset<Shader>" "ShaderAssetLoader must support shader assets from private bundles."
-Assert-Contains $shaderAssetLoader "ResourceLoader.Load<Shader>" "ShaderAssetLoader must support declared shader resource paths."
-Assert-Contains $shaderAssetLoader "ResourceLoader.Load<Material>" "ShaderAssetLoader must support declared material resource paths."
+Assert-Contains $shaderAssetLoader "SunExpResourceCache.Load<Shader>" "ShaderAssetLoader must support declared shader resource paths through the shared resource cache."
+Assert-Contains $shaderAssetLoader "SunExpResourceCache.Load<Material>" "ShaderAssetLoader must support declared material resource paths through the shared resource cache."
 Assert-Contains $starScoreHudShaderSource 'Shader "SunExp/StarScoreHud"' "Star score HUD shader source must match the runtime shader id."
 Assert-Contains $starScoreHudShaderSource "_SunExpFlowStrength" "Star score HUD shader source must expose the runtime flow property."
 Assert-Contains $starScoreHudShaderSource "_SunExpPulse" "Star score HUD shader source must expose the runtime pulse property."
@@ -418,6 +459,9 @@ Assert-Contains $solarMemoryModeEntryRuntime "SolarMemoryRunLauncher.Start" "Sol
 Assert-Contains $solarMemoryModeRuntime "SolarMemoryModeEntryRuntime.Initialize(modConfig)" "SolarMemoryModeRuntime must delegate mode-choice entry visuals to SolarMemoryModeEntryRuntime."
 Assert-Contains $solarMemoryModeRuntime "SolarMemoryMapVisualRuntime.Initialize(modConfig)" "SolarMemoryModeRuntime must delegate map presentation hooks to SolarMemoryMapVisualRuntime."
 Assert-Contains $solarMemoryModeRuntime "SolarMemorySettlementPresenter.Show()" "SolarMemoryModeRuntime must delegate settlement UI presentation."
+Assert-Contains $solarMemoryModeRuntime "SunExpConfigIndex.Row(DataType.Map" "SolarMemoryModeRuntime must resolve map rows through the shared config index."
+Assert-Contains $solarMemoryModeRuntime "SunExpConfigIndex.Rows(DataType.CardPack)" "SolarMemoryModeRuntime must resolve visible card packs through the shared config index."
+Assert-Contains $solarMemoryModeRuntime "SunExpResourceCache.Load<Texture>" "SolarMemoryModeRuntime must resolve map-card textures through the shared resource cache."
 Assert-NotContains $solarMemoryModeRuntime "ModeChoiceEntryRegistry.Register" "SolarMemoryModeRuntime must not own mode-choice entry registration."
 Assert-NotContains $solarMemoryModeRuntime "ConfigureEntryTitleSprites" "SolarMemoryModeRuntime must not own mode-entry title sprite composition."
 Assert-NotContains $solarMemoryModeRuntime "private static void OpenPackWindow" "SolarMemoryModeRuntime must not retain the retired pack-selection UI."
@@ -428,6 +472,11 @@ Assert-Contains $solarMemoryModeRuntime 'VisualRegistry.TexturePath("solar_memor
 Assert-Contains $solarMemoryMapVisualRuntime '"MapSelectUI.DataUpdate"' "SolarMemoryMapVisualRuntime must own the map title hook registration."
 Assert-Contains $solarMemoryMapVisualRuntime '"NormalMapManager.MapItemInit"' "SolarMemoryMapVisualRuntime must own fixed-slot visual hook registration."
 Assert-Contains $solarMemoryMapVisualRuntime '"MapSelectUI.ShowMap"' "SolarMemoryMapVisualRuntime must own map visual reapply hook registration."
+Assert-Contains $solarMemoryMapItemAnimationRuntime "SunExpResourceCache.LoadAll<Texture2D>" "Solar memory map animation preview probes must use the shared LoadAll cache."
+Assert-Contains $solarMemoryMapItemAnimationRuntime "SunExpConfigIndex.Row(type, id)" "Solar memory map animation row lookup must use the shared config index."
+Assert-Contains $solarMemoryMapNodePoolFactory "SunExpConfigIndex.FilteredRows" "Solar memory boss candidate expansion must use a cached filtered config index."
+Assert-Contains $solarMemoryContentIsolationRuntime "SunExpConfigIndex.Rows(DataType.Map)" "Solar memory isolation replacement candidates must use cached map rows."
+Assert-Contains $mapNodeSafetyService "SunExpConfigIndex.Row(DataType.Map, id)" "Map node safety fallback map lookup must use the shared config index."
 Assert-Contains $solarMemorySettlementPresenter 'ShowUI<GameExitUI>("GameExitUI", true)' "SolarMemorySettlementPresenter must own settlement UI display."
 Assert-Contains $modeChoiceEntryRegistry "public static class ModeChoiceEntryRegistry" "Mode-choice custom entry registration must stay centralized."
 Assert-Contains $modeChoiceLayoutRuntime "public static class ModeChoiceLayoutRuntime" "Mode-choice custom entry layout must stay centralized."
@@ -478,9 +527,26 @@ Assert-Contains $solarMemoryBlessingPickerRuntime "SunExpUiSprites.Button" "Bles
 Assert-NotContains ($solarMemoryStarterDeckRuntime + $solarMemorySetupFlowRuntime + $solarMemoryBlessingPickerRuntime) "CreateNineSliceSprite" "Solar Memory setup windows must not duplicate nine-slice sprite creation."
 Assert-NotContains ($solarMemoryStarterDeckRuntime + $solarMemorySetupFlowRuntime + $solarMemoryBlessingPickerRuntime) "GetButtonSprite" "Solar Memory setup windows must not own duplicate button sprite caches."
 Assert-NotContains ($solarMemoryStarterDeckRuntime + $solarMemorySetupFlowRuntime + $solarMemoryBlessingPickerRuntime) "Object.Destroy(active" "Solar Memory setup windows must not directly destroy active modal roots."
+Assert-Contains $solarMemoryStarterDeckRuntime "SunExpResourceCache.Load<Sprite>" "Starter deck icons must use the shared resource cache."
+Assert-Contains $solarMemoryBlessingPickerRuntime "SunExpConfigIndex.Rows(DataType.Bless)" "Blessing picker pools must use cached blessing rows before native CardPackCheck."
+Assert-Contains $solarMemoryBlessingPickerRuntime "SunExpResourceCache.Load<Sprite>" "Blessing picker icons must use the shared resource cache."
+Assert-Contains $wunaOrbitFireController "SunExpPerformanceSettings.WunaOrbitFireEnabled" "Wuna orbit fire visuals must support performance-tier disabling."
+Assert-Contains $wunaOrbitFireController "SunExpPerformanceSettings.WunaGeometryInterval" "Wuna orbit fire geometry rebuilds must be throttled by performance quality."
+Assert-Contains $wunaOrbitFireController "SunExpPerformanceSettings.WunaCoreSections" "Wuna orbit fire geometry density must be quality-controlled."
+Assert-Contains $wunaOrbitFireController "WunaOrbitFire.BuildGeometry" "Wuna orbit fire geometry rebuilds must be measured by performance counters."
+Assert-Contains $sunExpHardTagRuntime "WhiteRadiance.ScanFightZones" "White radiance fight-zone scans must be measurable by performance counters."
 
 Assert-NotContains $scriptingSource "using SunExp.Dll.Hooks" "Scripting layer must not import Hooks."
+Assert-NotContains $scriptingSource "SunExpFrameScheduler" "Scripting layer must not use the hook-owned frame scheduler directly."
 Assert-NotMatches $scriptingSource "\.\s*Add(?:Temp)?Event\s*\(" "Scripting layer must register events through ScriptEventApi or ExecutorApi wrappers."
+
+$resourceLoaderBypass = @($sourceFiles | Where-Object { $_.Name -ne "SunExpResourceCache.cs" } | Select-String -Pattern "ResourceLoader\.Load(?:All)?<")
+Assert-True ($resourceLoaderBypass.Count -eq 0) "ResourceLoader.Load/LoadAll calls must be centralized in SunExpResourceCache."
+
+$configTableBypass = @($sourceFiles | Where-Object {
+        $_.Name -ne "SunExpConfigIndex.cs" -and $_.FullName -notmatch "\\GameApi\\"
+    } | Select-String -Pattern "GetTable\(")
+Assert-True ($configTableBypass.Count -eq 0) "Hook and Mechanics table scans must be centralized in SunExpConfigIndex."
 
 $dataFiles = Get-ChildItem -LiteralPath (Join-Path $RepoRoot "SunExp\Data") -Recurse -File -Filter "*.csv"
 foreach ($file in $dataFiles) {

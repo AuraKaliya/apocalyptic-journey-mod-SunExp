@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using UnityEngine;
-using Witch.Core;
 
 namespace SunExp.Dll.Hooks.Visual;
 
@@ -29,7 +29,7 @@ public static class FrameSpriteCache
         {
             try
             {
-                var sprite = ResourceLoader.Load<Sprite>(path, true);
+                var sprite = SunExpResourceCache.Load<Sprite>(path, true);
                 if (sprite == null)
                 {
                     SunExpLog.Warn(logPrefix + " animation frame missing: " + path);

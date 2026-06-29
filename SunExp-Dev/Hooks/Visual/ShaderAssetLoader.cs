@@ -1,8 +1,8 @@
 using System;
+using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
 using UnityEngine;
-using Witch.Core;
 
 namespace SunExp.Dll.Hooks.Visual;
 
@@ -67,7 +67,7 @@ public static class ShaderAssetLoader
 
     private static Shader? TryLoadShader(string? path, string logPrefix)
     {
-        var resolvedPath = path?.Trim();
+        var resolvedPath = path?.Trim() ?? "";
         if (string.IsNullOrWhiteSpace(resolvedPath))
         {
             return null;
@@ -75,7 +75,7 @@ public static class ShaderAssetLoader
 
         try
         {
-            return ResourceLoader.Load<Shader>(resolvedPath, true);
+            return SunExpResourceCache.Load<Shader>(resolvedPath, true);
         }
         catch (Exception ex)
         {
@@ -86,7 +86,7 @@ public static class ShaderAssetLoader
 
     private static Shader? TryLoadMaterialShader(string? path, string logPrefix)
     {
-        var resolvedPath = path?.Trim();
+        var resolvedPath = path?.Trim() ?? "";
         if (string.IsNullOrWhiteSpace(resolvedPath))
         {
             return null;
@@ -94,7 +94,7 @@ public static class ShaderAssetLoader
 
         try
         {
-            return ResourceLoader.Load<Material>(resolvedPath, true)?.shader;
+            return SunExpResourceCache.Load<Material>(resolvedPath, true)?.shader;
         }
         catch (Exception ex)
         {

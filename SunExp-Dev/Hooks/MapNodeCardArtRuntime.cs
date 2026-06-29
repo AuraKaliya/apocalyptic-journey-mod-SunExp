@@ -64,7 +64,7 @@ public static class MapNodeCardArtRuntime
             Baselines.TryGetValue(item, out var baseline);
             Baselines.Remove(item);
 
-            var texture = ResourceLoader.Load<Texture>(spec.TexturePath, true);
+            var texture = SunExpResourceCache.Load<Texture>(spec.TexturePath, true);
             if (texture == null)
             {
                 SunExpLog.Warn("[MapNodeCardArt] texture missing: " + spec.TexturePath);
