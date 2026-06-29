@@ -290,11 +290,6 @@ public static class CardMutationService
         try
         {
             card.RefreshTag();
-            card.DataUpdate();
-            if (card.dataConfig != null)
-            {
-                FightCardManager.Instance?.RefreshTag(card.dataConfig);
-            }
         }
         catch (Exception ex)
         {

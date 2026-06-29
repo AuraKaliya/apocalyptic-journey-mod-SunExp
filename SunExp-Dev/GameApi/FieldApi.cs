@@ -6,6 +6,8 @@ namespace SunExp.Dll.GameApi;
 
 public static class FieldApi
 {
+    private static readonly HashSet<string> SeenStatusKeys = new(StringComparer.Ordinal);
+
     public static void ApplyFieldBuff(ScriptExecutor? executor, string fieldId, int amount)
     {
         var field = ParseFieldId(fieldId);
@@ -135,20 +137,28 @@ public static class FieldApi
 
     public static int SyncFieldStacks(ScriptExecutor? executor, SunExpFieldId field)
     {
-        var buffId = FieldBuffId(field);
-        if (field == SunExpFieldId.None || string.IsNullOrWhiteSpace(buffId))
+        var start = SunExpPerformanceCounters.Timestamp();
+        try
         {
-            return 0;
-        }
+            var buffId = FieldBuffId(field);
+            if (field == SunExpFieldId.None || string.IsNullOrWhiteSpace(buffId))
+            {
+                return 0;
+            }
 
-        var total = TotalFieldBuffStacks(executor, buffId);
-        SetSharedFieldState(field, total);
-        if (executor != null && ScriptVarApi.GetVar(executor, "SunExpActiveFieldId") == FieldSlug(field))
+            var total = TotalFieldBuffStacks(executor, buffId);
+            SetSharedFieldState(field, total);
+            if (executor != null && ScriptVarApi.GetVar(executor, "SunExpActiveFieldId") == FieldSlug(field))
+            {
+                ScriptVarApi.SetVar(executor, "SunExpActiveFieldStacks", BuffApi.Level(executor.Self, buffId));
+            }
+
+            return total;
+        }
+        finally
         {
-            ScriptVarApi.SetVar(executor, "SunExpActiveFieldStacks", BuffApi.Level(executor.Self, buffId));
+            SunExpPerformanceCounters.RecordDuration("FieldApi.SyncFieldStacks", start);
         }
-
-        return total;
     }
 
     public static int SetActiveField(ScriptExecutor? executor, string fieldId)
@@ -266,23 +276,29 @@ public static class FieldApi
 
     private static int TotalFieldBuffStacks(ScriptExecutor? executor, string buffId)
     {
-        var total = 0;
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var status in AllCombatStatuses(executor))
+        var start = SunExpPerformanceCounters.Timestamp();
+        lock (SeenStatusKeys)
         {
-            if (status == null)
+            SeenStatusKeys.Clear();
+            var total = 0;
+            foreach (var status in AllCombatStatuses(executor))
             {
-                continue;
+                if (status == null)
+                {
+                    continue;
+                }
+
+                var key = status.InstanceId ?? status.GetHashCode().ToString();
+                if (SeenStatusKeys.Add(key))
+                {
+                    total += Math.Max(0, BuffApi.Level(status, buffId));
+                }
             }
 
-            var key = status.InstanceId ?? status.GetHashCode().ToString();
-            if (seen.Add(key))
-            {
-                total += Math.Max(0, BuffApi.Level(status, buffId));
-            }
+            SeenStatusKeys.Clear();
+            SunExpPerformanceCounters.RecordDuration("FieldApi.TotalFieldBuffStacks", start);
+            return total;
         }
-
-        return total;
     }
 
     private static IEnumerable<IStatusManager> AllCombatStatuses(ScriptExecutor? executor)
@@ -303,11 +319,14 @@ public static class FieldApi
             yield return executor.Self;
         }
 
-        foreach (var target in executor?.Object ?? new List<IStatusManager>())
+        if (executor?.Object != null)
         {
-            if (target != null)
+            foreach (var target in executor.Object)
             {
-                yield return target;
+                if (target != null)
+                {
+                    yield return target;
+                }
             }
         }
 

@@ -9,14 +9,14 @@ namespace SunExp.Dll.Hooks;
 
 public static class SpecialTagRuntime
 {
-    private static readonly object EventOwner = new();
     private static readonly Stack<PendingCard> Pending = new();
-    private static string? registeredStatusId;
+    private static bool handlerRegistered;
 
     public static void Initialize()
     {
+        EnsureHandlerRegistered();
         SunExpLog.Info("SpecialTag runtime initialized");
-        TryRegisterForPlayer("Initialize");
+        SunExpActionEventRouter.EnsureRegistered("SpecialTag.Initialize");
     }
 
     [HookAfter(typeof(Fight_Start), nameof(Fight_Start.Init))]
@@ -32,8 +32,8 @@ public static class SpecialTagRuntime
         }
 
         Pending.Clear();
-        registeredStatusId = null;
-        TryRegisterForPlayer("Fight_Start.Init");
+        EnsureHandlerRegistered();
+        SunExpActionEventRouter.ResetForFight("SpecialTag.Fight_Start.Init");
     }
 
     [HookBefore(typeof(CommonCardItem), nameof(CommonCardItem.TrueUse))]
@@ -50,32 +50,26 @@ public static class SpecialTagRuntime
 
     private static void TryRegisterForPlayer(string source)
     {
-        try
-        {
-            var player = FightPlayer.Instance;
-            var statusId = player?.Status?.InstanceId;
-            if (string.IsNullOrWhiteSpace(statusId) || registeredStatusId == statusId)
-            {
-                return;
-            }
-
-            EventCenter.Instance.Clear(EventOwner);
-            EventCenter.Instance.AddEventListener("Action" + statusId, new Action<object>(OnAction), EventOwner, EventDispose.OnFightEnd);
-            EventCenter.Instance.AddEventListener("ActionAfter" + statusId, new Action(OnActionAfter), EventOwner, EventDispose.OnFightEnd);
-            registeredStatusId = statusId;
-            SunExpLog.Info("Registered player Action listeners from " + source + ": statusId=" + statusId);
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Error("Failed to register player Action listeners from " + source, ex);
-        }
+        EnsureHandlerRegistered();
+        SunExpActionEventRouter.EnsureRegistered("SpecialTag." + source);
     }
 
-    private static void OnAction(object payload)
+    private static void EnsureHandlerRegistered()
+    {
+        if (handlerRegistered)
+        {
+            return;
+        }
+
+        SunExpActionEventRouter.RegisterHandler("SpecialTag.WhiteRadiance", OnAction, OnActionAfter);
+        handlerRegistered = true;
+    }
+
+    private static void OnAction(SunExpActionEventContext context)
     {
         try
         {
-            var config = CardConfigApi.FromActionPayload(payload);
+            var config = context.Config;
             if (config == null)
             {
                 SunExpLog.Debug("Action skipped: payload has no IDataConfig");

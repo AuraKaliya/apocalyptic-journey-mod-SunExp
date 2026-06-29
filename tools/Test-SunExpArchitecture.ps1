@@ -102,6 +102,9 @@ $requiredFiles = @(
     "SunExp-Dev\Mechanics\SunCardThemeCatalog.cs",
     "SunExp-Dev\Hooks\DialogueFlowRuntime.cs",
     "SunExp-Dev\Hooks\SunExpFrameScheduler.cs",
+    "SunExp-Dev\Hooks\SunExpActionEventRouter.cs",
+    "SunExp-Dev\Hooks\SunExpCardRefreshQueue.cs",
+    "SunExp-Dev\Hooks\SunExpResourcePreloader.cs",
     "SunExp-Dev\Hooks\BattleRewardAdjustmentRuntime.cs",
     "SunExp-Dev\Hooks\SolarMemoryRewardRuntime.cs",
     "SunExp-Dev\Hooks\MapNodeCardArtRuntime.cs",
@@ -186,6 +189,9 @@ $battleRewardAdjustmentService = Read-RepoText "SunExp-Dev\Mechanics\BattleRewar
 $solarMemoryStoryGateService = Read-RepoText "SunExp-Dev\Mechanics\SolarMemoryStoryGateService.cs"
 $dialogueFlowRuntime = Read-RepoText "SunExp-Dev\Hooks\DialogueFlowRuntime.cs"
 $sunExpFrameScheduler = Read-RepoText "SunExp-Dev\Hooks\SunExpFrameScheduler.cs"
+$sunExpActionEventRouter = Read-RepoText "SunExp-Dev\Hooks\SunExpActionEventRouter.cs"
+$sunExpCardRefreshQueue = Read-RepoText "SunExp-Dev\Hooks\SunExpCardRefreshQueue.cs"
+$sunExpResourcePreloader = Read-RepoText "SunExp-Dev\Hooks\SunExpResourcePreloader.cs"
 $battleRewardAdjustmentRuntime = Read-RepoText "SunExp-Dev\Hooks\BattleRewardAdjustmentRuntime.cs"
 $solarMemoryRewardRuntime = Read-RepoText "SunExp-Dev\Hooks\SolarMemoryRewardRuntime.cs"
 $mapNodeCardArtRuntime = Read-RepoText "SunExp-Dev\Hooks\MapNodeCardArtRuntime.cs"
@@ -221,6 +227,9 @@ $visualPipeline = Read-RepoText "SunExp-Dev\VisualAssets\sunexp_visuals.pipeline
 $visualBundleBuilder = Read-RepoText "SunExp-Dev\VisualAssets\Editor\SunExpVisualBundleBuilder.cs.txt"
 $starScoreHudShaderSource = Read-RepoText "SunExp-Dev\VisualAssets\Shaders\StarScoreHud.shader"
 $starScoreService = Read-RepoText "SunExp-Dev\Mechanics\StarScoreService.cs"
+$starScoreRuntime = Read-RepoText "SunExp-Dev\Hooks\StarScoreRuntime.cs"
+$specialTagRuntime = Read-RepoText "SunExp-Dev\Hooks\SpecialTagRuntime.cs"
+$loneerRuntime = Read-RepoText "SunExp-Dev\Hooks\LoneerRuntime.cs"
 $starScoreHudRuntime = Read-RepoText "SunExp-Dev\Hooks\StarScoreHudRuntime.cs"
 $starScoreHudView = Read-RepoText "SunExp-Dev\Hooks\Ui\StarScoreHudView.cs"
 $starScoreHudHoverProbe = Read-RepoText "SunExp-Dev\Hooks\Ui\StarScoreHudHoverProbe.cs"
@@ -293,6 +302,17 @@ Assert-Contains $dirtyState 'SunExpPerformanceCounters.Record("DirtyState.Skippe
 Assert-Contains $sunExpFrameScheduler "public static bool RunOnceNextFrame" "Frame scheduler must expose a keyed next-frame merge API."
 Assert-Contains $sunExpFrameScheduler "MonoBehaviour" "Frame scheduler must keep Unity lifecycle ownership inside Hooks."
 Assert-Contains $sunExpFrameScheduler "SunExpPerformanceSettings.FrameSchedulerBudget" "Frame scheduler must respect the performance quality budget."
+Assert-Contains $sunExpActionEventRouter 'AddEventListener("Action" + statusId' "SunExp Action listeners must be centralized in SunExpActionEventRouter."
+Assert-Contains $sunExpActionEventRouter 'AddEventListener("ActionAfter" + statusId' "SunExp ActionAfter listeners must be centralized in SunExpActionEventRouter."
+Assert-Contains $sunExpActionEventRouter "CardConfigApi.FromActionPayload(payload)" "The Action router must parse card payloads once before handler fanout."
+Assert-Contains $specialTagRuntime 'SunExpActionEventRouter.RegisterHandler("SpecialTag.WhiteRadiance"' "SpecialTagRuntime must register through the shared Action router."
+Assert-Contains $starScoreRuntime 'SunExpActionEventRouter.RegisterHandler("StarScore"' "StarScoreRuntime must register through the shared Action router."
+Assert-Contains $loneerRuntime 'SunExpActionEventRouter.RegisterHandler("Loneer"' "LoneerRuntime must register through the shared Action router."
+Assert-NotContains ($specialTagRuntime + "`n" + $starScoreRuntime + "`n" + $loneerRuntime) "AddEventListener(" "Card-use feature runtimes must not register duplicate direct Action listeners."
+Assert-Contains $sunExpCardRefreshQueue "RunOnceNextFrame" "Card refresh queue must debounce repeated card presentation refreshes."
+Assert-Contains $starScoreRuntime "SunExpCardRefreshQueue.RequestDataUpdate" "Star score card refreshes must be queued instead of immediate DataUpdate calls."
+Assert-Contains $sunExpResourcePreloader "SunExpResourceCache.Preload" "Resource preloader must warm core visual resources through the shared cache."
+Assert-Contains $runtimeHooks "SunExpResourcePreloader.Initialize(modConfig)" "RuntimeHooks must initialize the resource preloader as an isolated hook step."
 Assert-Contains $sunExpResourceCache "ResourceLoader.Load<T>" "Resource cache must centralize native single-asset resource loading."
 Assert-Contains $sunExpResourceCache "ResourceLoader.LoadAll<T>" "Resource cache must centralize native multi-asset resource loading."
 Assert-Contains $sunExpConfigIndex "public static List<Dictionary<string, string>> Rows" "Config index must own cached table row access."

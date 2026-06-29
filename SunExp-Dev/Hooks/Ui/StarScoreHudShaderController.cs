@@ -1,4 +1,5 @@
 using System;
+using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.UI;
@@ -44,6 +45,7 @@ public sealed class StarScoreHudShaderController : MonoBehaviour
 
     public void ApplySnapshot(StarScoreDisplaySnapshot snapshot)
     {
+        enabled = true;
         var noteCount = Math.Min(3, Math.Max(0, snapshot.Notes.Count));
         for (var i = 0; i < targetLit.Length; i++)
         {
@@ -69,13 +71,23 @@ public sealed class StarScoreHudShaderController : MonoBehaviour
             }
 
             ApplyVisuals(0f);
+            enabled = false;
         }
     }
 
     private void Update()
     {
+        if (SunExpPerformanceSettings.Quality == SunExpPerformanceQuality.UltraLow && IsStable(0f))
+        {
+            enabled = false;
+            return;
+        }
+
         var delta = Mathf.Max(Time.unscaledDeltaTime, 0f);
-        flowTime += delta;
+        if (ShouldAnimateFlow())
+        {
+            flowTime += delta;
+        }
 
         var speed = LightFadeSeconds <= 0f ? 1f : delta / LightFadeSeconds;
         for (var i = 0; i < currentLit.Length; i++)
@@ -85,6 +97,10 @@ public sealed class StarScoreHudShaderController : MonoBehaviour
 
         var pulse = PulseAmount();
         ApplyVisuals(pulse);
+        if (IsStable(pulse))
+        {
+            enabled = false;
+        }
     }
 
     private float PulseAmount()
@@ -132,6 +148,30 @@ public sealed class StarScoreHudShaderController : MonoBehaviour
         {
             dimFrame.color = Color.Lerp(DimFrameColor, new Color(0.42f, 0.41f, 0.48f, 1f), maxLit * 0.18f + pulse * 0.12f);
         }
+    }
+
+    private bool IsStable(float pulse)
+    {
+        if (pulse > 0.001f)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < currentLit.Length; i++)
+        {
+            if (Mathf.Abs(currentLit[i] - targetLit[i]) > 0.001f)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool ShouldAnimateFlow()
+    {
+        return SunExpPerformanceSettings.Quality != SunExpPerformanceQuality.Low
+            && SunExpPerformanceSettings.Quality != SunExpPerformanceQuality.UltraLow;
     }
 
     private void OnDestroy()

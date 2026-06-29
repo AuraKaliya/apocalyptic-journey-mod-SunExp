@@ -19,6 +19,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
     private static readonly WunaOrbitFireOrbitModel.OrbitRail[] Rails = WunaOrbitFireOrbitModel.Rails;
     private static readonly Vector2 OrbitBoundsFocus = new(0.5f, 0.46f);
     private static readonly Dictionary<int, Bounds?> AlphaBoundsCache = new();
+    private static readonly Dictionary<int, Dictionary<int, bool>> MaterialPropertyCache = new();
 
     private readonly List<Vector3> vertices = new(MaxVertices);
     private readonly List<Vector2> uvs = new(MaxVertices);
@@ -53,6 +54,8 @@ public sealed class WunaOrbitFireController : MonoBehaviour
     private float nextGeometryUpdate;
     private int unreadableTextureId;
     private bool meshesClearedForPerformance;
+    private int lastSortingLayerId = int.MinValue;
+    private int lastSortingOrder = int.MinValue;
 
     public void Configure(SpriteRenderer renderer)
     {
@@ -67,7 +70,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
         EnsureLayer("FrontCore", true, true, false, ref frontCoreMesh, ref frontCoreRenderer, ref frontCoreMaterial);
         EnsureLayer("FrontDetail", true, false, false, ref frontDetailMesh, ref frontDetailRenderer, ref frontDetailMaterial);
         EnsureLayer("FrontFlames", true, false, true, ref frontFlameMesh, ref frontFlameRenderer, ref frontFlameMaterial);
-        SyncSorting();
+        SyncSorting(force: true);
     }
 
     public void BoostForAction(string action)
@@ -217,12 +220,22 @@ public sealed class WunaOrbitFireController : MonoBehaviour
         meshRenderer.sharedMaterial = material;
     }
 
-    private void SyncSorting()
+    private void SyncSorting(bool force = false)
     {
         if (targetRenderer == null)
         {
             return;
         }
+
+        if (!force
+            && targetRenderer.sortingLayerID == lastSortingLayerId
+            && targetRenderer.sortingOrder == lastSortingOrder)
+        {
+            return;
+        }
+
+        lastSortingLayerId = targetRenderer.sortingLayerID;
+        lastSortingOrder = targetRenderer.sortingOrder;
 
         ApplySorting(backCoreRenderer, -3);
         ApplySorting(backDetailRenderer, -2);
@@ -257,10 +270,28 @@ public sealed class WunaOrbitFireController : MonoBehaviour
 
     private static void SetFloatIfPresent(Material material, int propertyId, float value)
     {
-        if (material.HasProperty(propertyId))
+        if (HasPropertyCached(material, propertyId))
         {
             material.SetFloat(propertyId, value);
         }
+    }
+
+    private static bool HasPropertyCached(Material material, int propertyId)
+    {
+        var materialId = material.GetInstanceID();
+        if (!MaterialPropertyCache.TryGetValue(materialId, out var properties))
+        {
+            properties = new Dictionary<int, bool>();
+            MaterialPropertyCache[materialId] = properties;
+        }
+
+        if (!properties.TryGetValue(propertyId, out var hasProperty))
+        {
+            hasProperty = material.HasProperty(propertyId);
+            properties[propertyId] = hasProperty;
+        }
+
+        return hasProperty;
     }
 
     private void BuildCoreLayer(Mesh? mesh, Bounds bounds, bool frontLayer, float intensity)

@@ -11,55 +11,48 @@ namespace SunExp.Dll.Hooks;
 
 public static class LoneerRuntime
 {
-    private static readonly object EventOwner = new();
     private static readonly Stack<PendingCard> Pending = new();
-    private static string? registeredStatusId;
+    private static bool handlerRegistered;
 
     public static void Initialize(ModConfig modConfig)
     {
+        EnsureHandlerRegistered();
         AuraSharedHooks.RegisterAfter(modConfig, "Fight_Start.Init", OnFightStart, SunExpLog.Debug, message => SunExpLog.Warn("Loneer " + message));
     }
 
     private static void OnFightStart(ModHookContext context)
     {
         Pending.Clear();
-        registeredStatusId = null;
         if (!LoneerMiracleService.IsActive())
         {
             LoneerCombatStateStore.ClearAll();
             return;
         }
 
-        TryRegisterForPlayer();
+        SunExpActionEventRouter.ResetForFight("Loneer.Fight_Start.Init");
     }
 
-    private static void TryRegisterForPlayer()
+    private static void EnsureHandlerRegistered()
+    {
+        if (handlerRegistered)
+        {
+            return;
+        }
+
+        SunExpActionEventRouter.RegisterHandler("Loneer", OnAction, OnActionAfter);
+        handlerRegistered = true;
+    }
+
+    private static void OnAction(SunExpActionEventContext context)
     {
         try
         {
-            var statusId = FightPlayer.Instance?.Status?.InstanceId;
-            if (string.IsNullOrWhiteSpace(statusId) || registeredStatusId == statusId)
+            if (!LoneerMiracleService.IsActive())
             {
                 return;
             }
 
-            EventCenter.Instance.Clear(EventOwner);
-            EventCenter.Instance.AddEventListener("Action" + statusId, new Action<object>(OnAction), EventOwner, EventDispose.OnFightEnd);
-            EventCenter.Instance.AddEventListener("ActionAfter" + statusId, new Action(OnActionAfter), EventOwner, EventDispose.OnFightEnd);
-            registeredStatusId = statusId;
-            SunExpLog.Info("Registered Loneer player Action listeners: statusId=" + statusId);
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Error("Failed to register Loneer Action listeners", ex);
-        }
-    }
-
-    private static void OnAction(object payload)
-    {
-        try
-        {
-            var config = CardConfigApi.FromActionPayload(payload);
+            var config = context.Config;
             if (config?.scriptExecutor is ScriptExecutor executor)
             {
                 Pending.Push(new PendingCard(config, executor));
@@ -75,6 +68,12 @@ public static class LoneerRuntime
     {
         try
         {
+            if (!LoneerMiracleService.IsActive())
+            {
+                Pending.Clear();
+                return;
+            }
+
             if (Pending.Count == 0)
             {
                 return;

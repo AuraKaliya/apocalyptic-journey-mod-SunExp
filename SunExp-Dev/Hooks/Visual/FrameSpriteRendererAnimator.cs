@@ -1,3 +1,4 @@
+using SunExp.Dll.Infrastructure;
 using UnityEngine;
 
 namespace SunExp.Dll.Hooks.Visual;
@@ -18,7 +19,7 @@ public sealed class FrameSpriteRendererAnimator : MonoBehaviour
         elapsed = 0f;
         index = 0;
         SetFrame(0);
-        enabled = frames.Length > 1;
+        enabled = frames.Length > 1 && SunExpPerformanceSettings.Quality != SunExpPerformanceQuality.UltraLow;
     }
 
     private void Awake()
@@ -35,6 +36,12 @@ public sealed class FrameSpriteRendererAnimator : MonoBehaviour
     {
         if (frames.Length <= 1 || spriteRenderer == null)
         {
+            return;
+        }
+
+        if (SunExpPerformanceSettings.Quality == SunExpPerformanceQuality.UltraLow)
+        {
+            enabled = false;
             return;
         }
 

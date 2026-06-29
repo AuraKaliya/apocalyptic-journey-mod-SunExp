@@ -32,6 +32,39 @@ Use `${required}:` when a variable is immediately followed by a colon in a doubl
 
 ---
 
+## [ERR-20260629-001] powershell-rg-wildcard-path
+
+**Logged**: 2026-06-29T18:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+Passing `tools\*.ps1` as an `rg` path on Windows produced an invalid path error during repository review.
+
+### Error
+```text
+rg: tools\*.ps1: 文件名、目录名或卷标语法不正确。 (os error 123)
+```
+
+### Context
+- Command attempted: `rg -n "...pattern..." SunExp-Dev\Docs SunExp-Dev\README.md SunExp\ModConfig.json SunExp\audio.registry.json tools\*.ps1`
+- Environment: PowerShell in the SunExp repository.
+- Cause: the wildcard path was passed to `rg` in a form that Windows path handling rejected.
+
+### Suggested Fix
+Use explicit directories or a two-step file list, for example `rg --files tools | rg '\.ps1$'`, then search those files separately if needed.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/*.ps1
+
+### Resolution
+- **Resolved**: 2026-06-29T18:00:00+08:00
+- **Notes**: Continued review with explicit paths and directory searches.
+
+---
+
 ## [ERR-20260624-001] aura-shared-core-test-harness
 
 **Logged**: 2026-06-24T17:45:14.7968790+08:00

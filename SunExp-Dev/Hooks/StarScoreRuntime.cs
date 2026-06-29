@@ -15,13 +15,13 @@ public static class StarScoreRuntime
     private const string PendingPreludeCostVar = "SunExpStarBlessingPreludeCost";
     private const string PendingFreeVar = "SunExpStarBlessingFreePending";
     private const string PendingSealBlessingVar = "SunExpMorningStarSealBlessingGain";
-    private static readonly object EventOwner = new();
     private static readonly Stack<PendingCard> Pending = new();
     private static readonly StarBlessingCostOverrideStore CostOverrides = new();
-    private static string? registeredStatusId;
+    private static bool handlerRegistered;
 
     public static void Initialize(ModConfig modConfig)
     {
+        EnsureHandlerRegistered();
         RegisterAfter(modConfig, "Fight_Start.Init", OnFightStart);
         RegisterAfter(modConfig, "CommonCardItem.OnBeginDrag", OnCommonCardBeginDragAfter);
         RegisterAfter(modConfig, "CommonCardItem.OnEndDrag", OnCardSelectionEndedAfter);
@@ -51,10 +51,9 @@ public static class StarScoreRuntime
     {
         CostOverrides.CancelAll();
         Pending.Clear();
-        registeredStatusId = null;
         StarScoreCombatStateStore.ClearAll();
         ExecutorApi.CombatIntSet("SunExpStarScorePlayerActionPending", 0);
-        TryRegisterForPlayer("Fight_Start.Init");
+        SunExpActionEventRouter.ResetForFight("StarScore.Fight_Start.Init");
     }
 
     private static void OnCommonCardBeginDragAfter(ModHookContext context)
@@ -188,31 +187,26 @@ public static class StarScoreRuntime
 
     private static void TryRegisterForPlayer(string source)
     {
-        try
-        {
-            var statusId = FightPlayer.Instance?.Status?.InstanceId;
-            if (string.IsNullOrWhiteSpace(statusId) || registeredStatusId == statusId)
-            {
-                return;
-            }
-
-            EventCenter.Instance.Clear(EventOwner);
-            EventCenter.Instance.AddEventListener("Action" + statusId, new Action<object>(OnAction), EventOwner, EventDispose.OnFightEnd);
-            EventCenter.Instance.AddEventListener("ActionAfter" + statusId, new Action(OnActionAfter), EventOwner, EventDispose.OnFightEnd);
-            registeredStatusId = statusId;
-            SunExpLog.Info("Registered star score player Action listeners from " + source + ": statusId=" + statusId);
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Error("Failed to register star score listeners from " + source, ex);
-        }
+        EnsureHandlerRegistered();
+        SunExpActionEventRouter.EnsureRegistered("StarScore." + source);
     }
 
-    private static void OnAction(object payload)
+    private static void EnsureHandlerRegistered()
+    {
+        if (handlerRegistered)
+        {
+            return;
+        }
+
+        SunExpActionEventRouter.RegisterHandler("StarScore", OnAction, OnActionAfter);
+        handlerRegistered = true;
+    }
+
+    private static void OnAction(SunExpActionEventContext context)
     {
         try
         {
-            var config = CardConfigApi.FromActionPayload(payload);
+            var config = context.Config;
             if (config == null)
             {
                 return;
@@ -345,14 +339,7 @@ public static class StarScoreRuntime
 
     private static void RefreshCard(CardItem? card)
     {
-        try
-        {
-            card?.DataUpdate();
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Debug("Star blessing card refresh skipped: " + ex.Message);
-        }
+        SunExpCardRefreshQueue.RequestDataUpdate(card, "StarScore");
     }
 
     private static int ConsumeResonanceAsCost(IStatusManager status, IDataConfig config, int currentCost)
