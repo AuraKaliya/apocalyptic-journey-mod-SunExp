@@ -41,8 +41,9 @@ public sealed class StarScoreHudTooltipView : MonoBehaviour
         }
 
         var contentKey = snapshot.Version + ":" + StarScoreNoteCodes.PatternFromNotes(snapshot.Notes) + ":" + snapshot.IsCadencePreview;
-        if (gameObject.activeSelf && contentKey == lastContentKey)
+        if (contentKey == lastContentKey)
         {
+            gameObject.SetActive(true);
             return;
         }
 
@@ -68,7 +69,6 @@ public sealed class StarScoreHudTooltipView : MonoBehaviour
     public void Hide()
     {
         gameObject.SetActive(false);
-        lastContentKey = "";
     }
 
     public void AlignTo(RectTransform hudRect)
@@ -127,7 +127,20 @@ public sealed class StarScoreHudTooltipView : MonoBehaviour
 
     private static void CreateRow(Transform parent, string value, Color tint, Color? textColor = null)
     {
-        CreateTextBlock(parent, "Row", value, RowHeight, 13, TextAnchor.MiddleLeft, textColor ?? TextColor, tint);
+        var row = SunExpUiPool.AcquireComponent(
+            "StarScoreHudTooltip.Row",
+            parent,
+            "Row",
+            CreateRowTemplate);
+        row.Bind(value, tint, textColor ?? TextColor);
+    }
+
+    private static TooltipRowView CreateRowTemplate(Transform parent, string name)
+    {
+        var text = CreateTextBlock(parent, name, "", RowHeight, 13, TextAnchor.MiddleLeft, TextColor, RowTint);
+        var view = text.transform.parent.gameObject.AddComponent<TooltipRowView>();
+        view.Initialize(text.transform.parent.GetComponent<Image>(), text);
+        return view;
     }
 
     private static Text CreateTextBlock(
@@ -176,6 +189,40 @@ public sealed class StarScoreHudTooltipView : MonoBehaviour
 
     private static void ClearChildren(Transform parent)
     {
-        SunExpUiSafety.DestroyChildren(parent, "StarScoreHudTooltip.ClearChildren", "[StarScoreHudTooltip]");
+        SunExpUiPool.ReleaseOrDestroyChildren(parent, "StarScoreHudTooltip.ClearChildren", "[StarScoreHudTooltip]");
+    }
+
+    private sealed class TooltipRowView : SunExpPooledUiBehaviour
+    {
+        private Image? image;
+        private Text? text;
+
+        public void Initialize(Image image, Text text)
+        {
+            this.image = image;
+            this.text = text;
+        }
+
+        public void Bind(string value, Color tint, Color textColor)
+        {
+            if (image != null)
+            {
+                image.color = tint;
+            }
+
+            if (text != null)
+            {
+                text.text = value;
+                text.color = textColor;
+            }
+        }
+
+        public override void ResetForPool()
+        {
+            if (text != null)
+            {
+                text.text = "";
+            }
+        }
     }
 }

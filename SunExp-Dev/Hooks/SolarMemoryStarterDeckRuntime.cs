@@ -37,9 +37,11 @@ public static class SolarMemoryStarterDeckRuntime
     private static readonly Dictionary<string, Sprite?> cardIconCache = new(StringComparer.OrdinalIgnoreCase);
     private static RoleTable? pendingRoleTable;
     private static GameObject? activePanel;
+    private static Transform? candidateListContent;
     private static Transform? deckListContent;
     private static Text? deckCounterText;
     private static Text? hintText;
+    private static readonly SunExpDirtyState deckListDirty = new();
     private static bool promptShown;
 
     public static void Initialize(ModConfig modConfig)
@@ -331,13 +333,14 @@ public static class SolarMemoryStarterDeckRuntime
         listLayout.childForceExpandWidth = true;
         listLayout.childForceExpandHeight = true;
 
-        var candidateContent = CreateScroll(listRow.transform, "CandidateCards");
+        candidateListContent = CreateScroll(listRow.transform, "CandidateCards");
         foreach (var cardId in candidates)
         {
-            CreateCandidateRow(candidateContent, cardId);
+            CreateCandidateRow(candidateListContent, cardId);
         }
 
         deckListContent = CreateScroll(listRow.transform, "SelectedDeck");
+        deckListDirty.Reset();
 
         var footer = CreateLayoutObject("Footer", window.transform);
         footer.AddComponent<LayoutElement>().preferredHeight = 44f;
@@ -403,12 +406,15 @@ public static class SolarMemoryStarterDeckRuntime
 
     private static void CreateCandidateRow(Transform parent, string cardId)
     {
-        var row = CreateRow(parent, "Candidate-" + cardId);
-        CreateCardIconCell(row.transform, cardId, CardCost(cardId));
-        AddTextBlock(row.transform, CardDisplayName(cardId), 15, TextAnchor.MiddleCenter, PaleGold, 36f, 1f);
-        AddTextBlock(row.transform, CardRarity(cardId), 12, TextAnchor.MiddleCenter, Gold, 36f, 0f, 58f);
-        AddTextBlock(row.transform, CardCost(cardId), 12, TextAnchor.MiddleCenter, Gold, 36f, 0f, 48f);
-        CreateInlineButton(row.transform, "\u6dfb\u52a0", () =>
+        var row = AcquireCardRow(parent, "Candidate-" + cardId);
+        row.Bind(
+            CardDisplayName(cardId),
+            CardRarity(cardId),
+            CardCost(cardId),
+            TryLoadCardIcon(cardId),
+            CardCost(cardId),
+            "\u6dfb\u52a0",
+            () =>
         {
             if (editingDeck.Count >= StarterDeckSize)
             {
@@ -428,18 +434,28 @@ public static class SolarMemoryStarterDeckRuntime
             return;
         }
 
-        SunExpUiSafety.DestroyChildren(deckListContent, "SolarMemoryStarterDeck.RefreshDeckList", "[SolarMemoryStarterDeck]");
+        var key = string.Join("|", editingDeck.Select((id, index) => index + ":" + id));
+        if (!deckListDirty.ShouldRefresh(key))
+        {
+            RefreshDeckCounterAndHint();
+            return;
+        }
+
+        SunExpUiPool.ReleaseOrDestroyChildren(deckListContent, "SolarMemoryStarterDeck.RefreshDeckList", "[SolarMemoryStarterDeck]");
 
         for (var i = 0; i < editingDeck.Count; i++)
         {
             var index = i;
             var cardId = editingDeck[i];
-            var row = CreateRow(deckListContent, "Deck-" + i);
-            CreateCardIconCell(row.transform, cardId, (i + 1).ToString());
-            AddTextBlock(row.transform, CardDisplayName(cardId), 15, TextAnchor.MiddleCenter, PaleGold, 36f, 1f);
-            AddTextBlock(row.transform, CardRarity(cardId), 12, TextAnchor.MiddleCenter, Gold, 36f, 0f, 58f);
-            AddTextBlock(row.transform, CardCost(cardId), 12, TextAnchor.MiddleCenter, Gold, 36f, 0f, 48f);
-            CreateInlineButton(row.transform, "\u79fb\u9664", () =>
+            var row = AcquireCardRow(deckListContent, "Deck-" + i);
+            row.Bind(
+                CardDisplayName(cardId),
+                CardRarity(cardId),
+                CardCost(cardId),
+                TryLoadCardIcon(cardId),
+                (i + 1).ToString(),
+                "\u79fb\u9664",
+                () =>
             {
                 if (index >= 0 && index < editingDeck.Count)
                 {
@@ -449,6 +465,11 @@ public static class SolarMemoryStarterDeckRuntime
             });
         }
 
+        RefreshDeckCounterAndHint();
+    }
+
+    private static void RefreshDeckCounterAndHint()
+    {
         if (deckCounterText != null)
         {
             deckCounterText.text = editingDeck.Count + "/" + StarterDeckSize;
@@ -957,13 +978,149 @@ public static class SolarMemoryStarterDeckRuntime
         }
     }
 
+    private static CardRowView AcquireCardRow(Transform parent, string name)
+    {
+        return SunExpUiPool.AcquireComponent(
+            "SolarMemoryStarterDeck.Row",
+            parent,
+            name,
+            CreateCardRowTemplate);
+    }
+
+    private static CardRowView CreateCardRowTemplate(Transform parent, string name)
+    {
+        var row = CreateRow(parent, name);
+        var iconCell = CreateLayoutObject("CardIcon", row.transform);
+        var iconElement = iconCell.AddComponent<LayoutElement>();
+        iconElement.minWidth = CardImageColumnWidth;
+        iconElement.preferredWidth = CardImageColumnWidth;
+        iconElement.minHeight = CardIconSize;
+        iconElement.preferredHeight = CardIconSize;
+        ApplyPanelImage(iconCell, DeepBlue);
+
+        var icon = CreateRect("Image", iconCell.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(CardIconSize, CardIconSize));
+        var iconImage = icon.AddComponent<Image>();
+        iconImage.preserveAspect = true;
+        iconImage.raycastTarget = false;
+        iconImage.color = Color.white;
+
+        var badgeText = AddTextFill(iconCell.transform, "", 18, TextAnchor.MiddleCenter, PaleGold);
+        var nameText = AddTextBlock(row.transform, "", 15, TextAnchor.MiddleCenter, PaleGold, 36f, 1f);
+        var rarityText = AddTextBlock(row.transform, "", 12, TextAnchor.MiddleCenter, Gold, 36f, 0f, 58f);
+        var costText = AddTextBlock(row.transform, "", 12, TextAnchor.MiddleCenter, Gold, 36f, 0f, 48f);
+        var button = CreateInlineButton(row.transform, "", () => { });
+        var buttonText = button.GetComponentInChildren<Text>();
+
+        var view = row.AddComponent<CardRowView>();
+        view.Initialize(iconImage, badgeText, nameText, rarityText, costText, button, buttonText);
+        return view;
+    }
+
+    private sealed class CardRowView : SunExpPooledUiBehaviour
+    {
+        private readonly SunExpUiLifetimeScope lifetime = new();
+        private Image? iconImage;
+        private Text? badgeText;
+        private Text? nameText;
+        private Text? rarityText;
+        private Text? costText;
+        private Button? button;
+        private Text? buttonText;
+
+        public void Initialize(
+            Image iconImage,
+            Text badgeText,
+            Text nameText,
+            Text rarityText,
+            Text costText,
+            Button button,
+            Text? buttonText)
+        {
+            this.iconImage = iconImage;
+            this.badgeText = badgeText;
+            this.nameText = nameText;
+            this.rarityText = rarityText;
+            this.costText = costText;
+            this.button = button;
+            this.buttonText = buttonText;
+        }
+
+        public void Bind(
+            string name,
+            string rarity,
+            string cost,
+            Sprite? icon,
+            string badge,
+            string buttonLabel,
+            Action action)
+        {
+            lifetime.Clear();
+            SetText(nameText, name);
+            SetText(rarityText, rarity);
+            SetText(costText, cost);
+            SetText(buttonText, buttonLabel);
+            SetText(badgeText, badge);
+
+            if (iconImage != null)
+            {
+                iconImage.sprite = icon;
+                iconImage.gameObject.SetActive(icon != null);
+            }
+
+            if (badgeText != null)
+            {
+                badgeText.gameObject.SetActive(icon == null);
+            }
+
+            if (button != null)
+            {
+                button.onClick.RemoveAllListeners();
+                button.interactable = true;
+                lifetime.Listen(button, () => action());
+            }
+        }
+
+        public override void ResetForPool()
+        {
+            lifetime.Clear();
+            SetText(nameText, "");
+            SetText(rarityText, "");
+            SetText(costText, "");
+            SetText(buttonText, "");
+            SetText(badgeText, "");
+            if (iconImage != null)
+            {
+                iconImage.sprite = null;
+                iconImage.gameObject.SetActive(false);
+            }
+
+            if (button != null)
+            {
+                button.onClick.RemoveAllListeners();
+                button.interactable = false;
+            }
+        }
+
+        private static void SetText(Text? text, string value)
+        {
+            if (text != null)
+            {
+                text.text = value;
+            }
+        }
+    }
+
     private static void ClosePanel()
     {
+        SunExpUiPool.ReleaseOrDestroyChildren(candidateListContent, "SolarMemoryStarterDeck.ClosePanel.Candidates", "[SolarMemoryStarterDeck]");
+        SunExpUiPool.ReleaseOrDestroyChildren(deckListContent, "SolarMemoryStarterDeck.ClosePanel.Deck", "[SolarMemoryStarterDeck]");
         SunExpModalHost.Close(ref activePanel, "SolarMemoryStarterDeck.ClosePanel", "[SolarMemoryStarterDeck]");
 
+        candidateListContent = null;
         deckListContent = null;
         deckCounterText = null;
         hintText = null;
         editingDeck.Clear();
+        deckListDirty.Reset();
     }
 }

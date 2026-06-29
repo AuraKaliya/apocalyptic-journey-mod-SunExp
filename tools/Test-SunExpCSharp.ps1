@@ -940,9 +940,12 @@ function Invoke-SourceAssertions {
     $solarMemoryFlowApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\SolarMemoryFlowApi.cs"))
     $solarMemoryRoleCommitApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\SolarMemoryRoleCommitApi.cs"))
     $solarMemoryRoleCommit = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Network\RpcSolarMemoryRoleCommit.cs"))
+    $dirtyState = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpDirtyState.cs"))
     $sunExpUiSafety = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\SunExpUiSafety.cs"))
     $sunExpUiBuilder = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\SunExpUiBuilder.cs"))
     $sunExpModalHost = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\SunExpModalHost.cs"))
+    $sunExpUiLifetimeScope = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\SunExpUiLifetimeScope.cs"))
+    $sunExpUiPool = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\SunExpUiPool.cs"))
     $sunExpUiSprites = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\SunExpUiSprites.cs"))
     $starScoreHudAssets = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\StarScoreHudAssets.cs"))
     $starScoreHudView = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\StarScoreHudView.cs"))
@@ -1109,7 +1112,8 @@ function Invoke-SourceAssertions {
     Assert-True $starScoreHudView.Contains("image.raycastTarget = false") "Star score HUD images must not intercept pointer input."
     Assert-True $starScoreHudTooltipView.Contains("group.blocksRaycasts = false") "Star score tooltip must not block native battle controls."
     Assert-True $starScoreHudTooltipView.Contains("image.raycastTarget = false") "Star score tooltip rows must not intercept pointer input."
-    Assert-True $starScoreHudTooltipView.Contains("SunExpUiSafety.DestroyChildren") "Star score tooltip row rebuilds must use shared UI safety."
+    Assert-True $starScoreHudTooltipView.Contains("SunExpUiPool.AcquireComponent") "Star score tooltip row rebuilds must reuse pooled rows."
+    Assert-True $starScoreHudTooltipView.Contains("SunExpUiPool.ReleaseOrDestroyChildren") "Star score tooltip row rebuilds must use pooled teardown."
     Assert-True (-not $starScoreHudTooltipView.Contains("Destroy(child.gameObject)")) "Star score tooltip must not directly destroy rows."
     Assert-True $starScoreHudView.Contains("LayoutScale = 0.61f") "Star score HUD must use a single root scale for fixed placement."
     Assert-True $starScoreHudAssets.Contains('OpeningIconPath = Root + "\u542f.png"') "Star score HUD assets must map the Opening icon resource."
@@ -1254,6 +1258,12 @@ function Invoke-SourceAssertions {
     Assert-True $sunExpUiSafety.Contains("ScrubGraphicRegistryForFrames") "Solar memory UI cleanup must scrub stale graphics after transient UI teardown."
     Assert-True $sunExpUiSafety.Contains("Object.Destroy(root)") "Solar memory UI cleanup must destroy only after disabling raycasts."
     Assert-True $sunExpModalHost.Contains("SunExpUiSafety.CloseTransient") "SunExp modal host must centralize transient UI teardown."
+    Assert-True $dirtyState.Contains("public sealed class SunExpDirtyState") "Repeated UI rebuild guards must use a shared dirty-state helper."
+    Assert-True $dirtyState.Contains('SunExpPerformanceCounters.Record("DirtyState.Skipped")') "Dirty-state skips must be visible to performance counters."
+    Assert-True $sunExpUiLifetimeScope.Contains("button.onClick.RemoveListener(action)") "Pooled UI button listeners must be detachable."
+    Assert-True $sunExpUiPool.Contains("public static class SunExpUiPool") "SunExp local UI pooling must be centralized."
+    Assert-True $sunExpUiPool.Contains("SunExpPerformanceSettings.UiPoolCapacityPerKey") "SunExp UI pooling must obey performance-tier capacity caps."
+    Assert-True $sunExpUiPool.Contains("button.onClick.RemoveAllListeners()") "SunExp UI pooling must scrub stale button listeners before reuse."
     Assert-True $sunExpUiSprites.Contains("private static readonly Dictionary<string, Sprite?> Cache") "SunExp UI sprites must share a cache across modal windows."
     Assert-True $sunExpUiBuilder.Contains("public static Image ApplyPanelImage") "SunExp local UI builder must expose reusable panel image creation."
     Assert-True $solarMemoryStarterDeckRuntime.Contains("SunExpUiBuilder.ApplyPanelImage") "Solar memory starter deck UI must reuse SunExpUiBuilder panel creation."
@@ -1263,6 +1273,10 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemorySetupFlowRuntime.Contains("SunExpModalHost.Close(ref activeOriginRoot") "Solar memory origin setup close must route through SunExpModalHost."
     Assert-True $solarMemorySetupFlowRuntime.Contains("SunExpModalHost.Close(ref activeBlessingChrome") "Solar memory blessing setup chrome close must route through SunExpModalHost."
     Assert-True $solarMemoryBlessingPickerRuntime.Contains("SunExpModalHost.Close(ref activePanel") "Solar memory blessing picker close must route through SunExpModalHost."
+    Assert-True $solarMemoryStarterDeckRuntime.Contains("SunExpUiPool.AcquireComponent") "Solar memory starter deck list rows must reuse pooled UI."
+    Assert-True $solarMemoryStarterDeckRuntime.Contains("deckListDirty.ShouldRefresh") "Solar memory starter deck selected list must skip unchanged rebuilds."
+    Assert-True $solarMemoryBlessingPickerRuntime.Contains("SunExpUiPool.AcquireComponent") "Solar memory blessing picker list rows must reuse pooled UI."
+    Assert-True $solarMemoryBlessingPickerRuntime.Contains("candidateListDirty.ShouldRefresh") "Solar memory blessing candidates must skip unchanged rebuilds."
     Assert-True $solarMemoryStarterDeckRuntime.Contains("SunExpUiSprites.Button") "Solar memory starter deck must use cached shared button sprites."
     Assert-True $solarMemorySetupFlowRuntime.Contains("SunExpUiSprites.Button") "Solar memory setup flow must use cached shared button sprites."
     Assert-True $solarMemoryBlessingPickerRuntime.Contains("SunExpUiSprites.Button") "Solar memory blessing picker must use cached shared button sprites."

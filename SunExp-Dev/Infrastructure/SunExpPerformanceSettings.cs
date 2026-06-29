@@ -10,6 +10,7 @@ public static class SunExpPerformanceSettings
     private const string LowSpecKey = "SunExpLowSpec";
     private const string CountersKey = "SunExpPerfCounters";
     private const string WunaOrbitFireKey = "SunExpWunaOrbitFire";
+    private const string UiPoolKey = "SunExpUiPool";
     private const int RefreshMilliseconds = 1000;
 
     private static MethodInfo? getGameVarMethod;
@@ -18,6 +19,7 @@ public static class SunExpPerformanceSettings
     private static SunExpPerformanceQuality cachedQuality = SunExpPerformanceQuality.Balanced;
     private static bool cachedCountersEnabled;
     private static bool cachedWunaOrbitFireEnabled = true;
+    private static bool cachedUiPoolEnabled = true;
 
     public static SunExpPerformanceQuality Quality
     {
@@ -45,6 +47,24 @@ public static class SunExpPerformanceSettings
             return cachedWunaOrbitFireEnabled && cachedQuality != SunExpPerformanceQuality.UltraLow;
         }
     }
+
+    public static bool UiPoolEnabled
+    {
+        get
+        {
+            RefreshIfNeeded();
+            return cachedUiPoolEnabled;
+        }
+    }
+
+    public static int UiPoolCapacityPerKey => Quality switch
+    {
+        SunExpPerformanceQuality.High => 96,
+        SunExpPerformanceQuality.Balanced => 64,
+        SunExpPerformanceQuality.Low => 32,
+        SunExpPerformanceQuality.UltraLow => 16,
+        _ => 64
+    };
 
     public static int FrameSchedulerBudget => Quality switch
     {
@@ -125,12 +145,14 @@ public static class SunExpPerformanceSettings
             cachedQuality = ResolveQuality();
             cachedCountersEnabled = ReadFlag(CountersKey, false);
             cachedWunaOrbitFireEnabled = ReadFlag(WunaOrbitFireKey, true);
+            cachedUiPoolEnabled = ReadFlag(UiPoolKey, true);
         }
         catch
         {
             cachedQuality = SunExpPerformanceQuality.Balanced;
             cachedCountersEnabled = false;
             cachedWunaOrbitFireEnabled = true;
+            cachedUiPoolEnabled = true;
         }
 
         lastRefreshTick = now;

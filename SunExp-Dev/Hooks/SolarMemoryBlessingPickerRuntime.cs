@@ -43,6 +43,8 @@ public static class SolarMemoryBlessingPickerRuntime
     private static readonly Dictionary<int, List<string>> selectedByTier = new();
     private static readonly Dictionary<string, Sprite?> blessIconCache = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<int, Text> tierCounterTexts = new();
+    private static readonly SunExpDirtyState candidateListDirty = new();
+    private static readonly SunExpDirtyState selectedListDirty = new();
     private static GameObject? activePanel;
     private static Transform? candidateListContent;
     private static Transform? selectedListContent;
@@ -84,6 +86,7 @@ public static class SolarMemoryBlessingPickerRuntime
 
     public static void Close()
     {
+        ReleaseTransientRows();
         SunExpModalHost.Close(ref activePanel, "SolarMemoryBlessingPicker.Close", "[SolarMemoryBlessingPicker]");
 
         candidateListContent = null;
@@ -91,6 +94,8 @@ public static class SolarMemoryBlessingPickerRuntime
         selectedCounterText = null;
         hintText = null;
         tierCounterTexts.Clear();
+        candidateListDirty.Reset();
+        selectedListDirty.Reset();
     }
 
     private static void ShowPanel(Action onCompleted)
@@ -166,6 +171,8 @@ public static class SolarMemoryBlessingPickerRuntime
 
         candidateListContent = CreateScroll(listRow.transform, "CandidateBlessings");
         selectedListContent = CreateScroll(listRow.transform, "SelectedBlessings");
+        candidateListDirty.Reset();
+        selectedListDirty.Reset();
 
         var footer = CreateLayoutObject("Footer", window.transform);
         footer.AddComponent<LayoutElement>().preferredHeight = 44f;
@@ -297,13 +304,25 @@ public static class SolarMemoryBlessingPickerRuntime
             return;
         }
 
-        ClearChildren(candidateListContent);
         if (!blessingPools.TryGetValue(activeTier, out var entries) || entries.Count == 0)
         {
+            if (!candidateListDirty.ShouldRefresh("empty:" + activeTier))
+            {
+                return;
+            }
+
+            ClearChildren(candidateListContent);
             AddTextBlock(candidateListContent, "\u5f53\u524d\u9636\u5c42\u6ca1\u6709\u53ef\u9009\u795d\u798f\u3002", 15, TextAnchor.MiddleCenter, Gold, 40f);
             return;
         }
 
+        var key = activeTier + ":" + string.Join("|", entries.Select(entry => entry.Id));
+        if (!candidateListDirty.ShouldRefresh(key))
+        {
+            return;
+        }
+
+        ClearChildren(candidateListContent);
         foreach (var entry in entries)
         {
             CreateCandidateRow(candidateListContent, entry);
@@ -313,6 +332,13 @@ public static class SolarMemoryBlessingPickerRuntime
     private static void RefreshSelectedList()
     {
         if (selectedListContent == null)
+        {
+            return;
+        }
+
+        var key = string.Join("|", OrderedTiers().SelectMany(tier =>
+            selectedByTier[tier].Select((id, index) => tier + ":" + index + ":" + id)));
+        if (!selectedListDirty.ShouldRefresh(key))
         {
             return;
         }
@@ -357,22 +383,28 @@ public static class SolarMemoryBlessingPickerRuntime
 
     private static void CreateCandidateRow(Transform parent, BlessingEntry entry)
     {
-        var row = CreateRow(parent, "Candidate-" + entry.Id);
-        CreateBlessIconCell(row.transform, entry);
-        AddTextBlock(row.transform, entry.Name, 15, TextAnchor.MiddleCenter, PaleGold, 42f, 0f, 124f);
-        AddTextBlock(row.transform, TierLabel(entry.Tier), 13, TextAnchor.MiddleCenter, Gold, 42f, 0f, TierColumnWidth);
-        AddTextBlock(row.transform, entry.Description, 12, TextAnchor.MiddleLeft, PaleGold, 42f, 1f);
-        CreateInlineButton(row.transform, "\u6dfb\u52a0", () => AddBlessing(entry));
+        var row = AcquireBlessingRow(parent, "Candidate-" + entry.Id);
+        row.Bind(
+            entry.Name,
+            TierLabel(entry.Tier),
+            entry.Description,
+            TryLoadBlessIcon(entry),
+            entry.Tier.ToString(),
+            "\u6dfb\u52a0",
+            () => AddBlessing(entry));
     }
 
     private static void CreateSelectedRow(Transform parent, BlessingEntry entry, int tier, int index)
     {
-        var row = CreateRow(parent, "Selected-" + entry.Id + "-" + index);
-        CreateBlessIconCell(row.transform, entry);
-        AddTextBlock(row.transform, entry.Name, 15, TextAnchor.MiddleCenter, PaleGold, 42f, 0f, 124f);
-        AddTextBlock(row.transform, TierLabel(entry.Tier), 13, TextAnchor.MiddleCenter, Gold, 42f, 0f, TierColumnWidth);
-        AddTextBlock(row.transform, entry.Description, 12, TextAnchor.MiddleLeft, PaleGold, 42f, 1f);
-        CreateInlineButton(row.transform, "\u79fb\u9664", () => RemoveBlessing(tier, index));
+        var row = AcquireBlessingRow(parent, "Selected-" + entry.Id + "-" + index);
+        row.Bind(
+            entry.Name,
+            TierLabel(entry.Tier),
+            entry.Description,
+            TryLoadBlessIcon(entry),
+            entry.Tier.ToString(),
+            "\u79fb\u9664",
+            () => RemoveBlessing(tier, index));
     }
 
     private static void AddBlessing(BlessingEntry entry)
@@ -941,9 +973,15 @@ public static class SolarMemoryBlessingPickerRuntime
         }
     }
 
-    private static void ClearChildren(Transform parent)
+    private static void ClearChildren(Transform? parent)
     {
-        SunExpUiSafety.DestroyChildren(parent, "SolarMemoryBlessingPicker.ClearChildren", "[SolarMemoryBlessingPicker]");
+        SunExpUiPool.ReleaseOrDestroyChildren(parent, "SolarMemoryBlessingPicker.ClearChildren", "[SolarMemoryBlessingPicker]");
+    }
+
+    private static void ReleaseTransientRows()
+    {
+        ClearChildren(candidateListContent);
+        ClearChildren(selectedListContent);
     }
 
     private static void UpdateHint(string message)
@@ -951,6 +989,139 @@ public static class SolarMemoryBlessingPickerRuntime
         if (hintText != null)
         {
             hintText.text = message;
+        }
+    }
+
+    private static BlessingRowView AcquireBlessingRow(Transform parent, string name)
+    {
+        return SunExpUiPool.AcquireComponent(
+            "SolarMemoryBlessingPicker.Row",
+            parent,
+            name,
+            CreateBlessingRowTemplate);
+    }
+
+    private static BlessingRowView CreateBlessingRowTemplate(Transform parent, string name)
+    {
+        var row = CreateRow(parent, name);
+        var iconCell = CreateLayoutObject("BlessIcon", row.transform);
+        var iconElement = iconCell.AddComponent<LayoutElement>();
+        iconElement.minWidth = IconColumnWidth;
+        iconElement.preferredWidth = IconColumnWidth;
+        iconElement.minHeight = BlessIconSize;
+        iconElement.preferredHeight = BlessIconSize;
+        ApplyPanelImage(iconCell, DeepBlue);
+
+        var icon = CreateRect("Image", iconCell.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+            new Vector2(0.5f, 0.5f), new Vector2(BlessIconSize, BlessIconSize));
+        var iconImage = icon.AddComponent<Image>();
+        iconImage.preserveAspect = true;
+        iconImage.raycastTarget = false;
+        iconImage.color = Color.white;
+
+        var badgeText = AddTextFill(iconCell.transform, "", 18, TextAnchor.MiddleCenter, PaleGold);
+        var nameText = AddTextBlock(row.transform, "", 15, TextAnchor.MiddleCenter, PaleGold, 42f, 0f, 124f);
+        var tierText = AddTextBlock(row.transform, "", 13, TextAnchor.MiddleCenter, Gold, 42f, 0f, TierColumnWidth);
+        var descriptionText = AddTextBlock(row.transform, "", 12, TextAnchor.MiddleLeft, PaleGold, 42f, 1f);
+        var button = CreateInlineButton(row.transform, "", () => { });
+        var buttonText = button.GetComponentInChildren<Text>();
+
+        var view = row.AddComponent<BlessingRowView>();
+        view.Initialize(iconImage, badgeText, nameText, tierText, descriptionText, button, buttonText);
+        return view;
+    }
+
+    private sealed class BlessingRowView : SunExpPooledUiBehaviour
+    {
+        private readonly SunExpUiLifetimeScope lifetime = new();
+        private Image? iconImage;
+        private Text? badgeText;
+        private Text? nameText;
+        private Text? tierText;
+        private Text? descriptionText;
+        private Button? button;
+        private Text? buttonText;
+
+        public void Initialize(
+            Image iconImage,
+            Text badgeText,
+            Text nameText,
+            Text tierText,
+            Text descriptionText,
+            Button button,
+            Text? buttonText)
+        {
+            this.iconImage = iconImage;
+            this.badgeText = badgeText;
+            this.nameText = nameText;
+            this.tierText = tierText;
+            this.descriptionText = descriptionText;
+            this.button = button;
+            this.buttonText = buttonText;
+        }
+
+        public void Bind(
+            string name,
+            string tier,
+            string description,
+            Sprite? icon,
+            string badge,
+            string buttonLabel,
+            Action action)
+        {
+            lifetime.Clear();
+            SetText(nameText, name);
+            SetText(tierText, tier);
+            SetText(descriptionText, description);
+            SetText(buttonText, buttonLabel);
+            SetText(badgeText, badge);
+
+            if (iconImage != null)
+            {
+                iconImage.sprite = icon;
+                iconImage.gameObject.SetActive(icon != null);
+            }
+
+            if (badgeText != null)
+            {
+                badgeText.gameObject.SetActive(icon == null);
+            }
+
+            if (button != null)
+            {
+                button.onClick.RemoveAllListeners();
+                button.interactable = true;
+                lifetime.Listen(button, () => action());
+            }
+        }
+
+        public override void ResetForPool()
+        {
+            lifetime.Clear();
+            SetText(nameText, "");
+            SetText(tierText, "");
+            SetText(descriptionText, "");
+            SetText(buttonText, "");
+            SetText(badgeText, "");
+            if (iconImage != null)
+            {
+                iconImage.sprite = null;
+                iconImage.gameObject.SetActive(false);
+            }
+
+            if (button != null)
+            {
+                button.onClick.RemoveAllListeners();
+                button.interactable = false;
+            }
+        }
+
+        private static void SetText(Text? text, string value)
+        {
+            if (text != null)
+            {
+                text.text = value;
+            }
         }
     }
 
