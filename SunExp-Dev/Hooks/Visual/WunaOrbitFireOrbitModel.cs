@@ -6,58 +6,62 @@ namespace SunExp.Dll.Hooks.Visual;
 internal static class WunaOrbitFireOrbitModel
 {
     private const float Tau = Mathf.PI * 2f;
+    private const float BodyDepthToWidth = 0.5f;
+    private const float DepthPerspectiveScale = 0.12f;
     private static readonly Vector2 BodyFocus = new(0.52f, 0.43f);
 
     internal static readonly OrbitRail[] Rails =
     {
         new(
             "outer-crown",
-            new Vector2(0.5f, 0.42f),
-            new Vector2(0.46f, 0.11f),
-            0.46f,
+            new Vector2(0.5f, 0.43f),
+            new Vector2(0.54f, 0.22f),
+            1.12f,
             0.2f,
-            0.36f,
-            0.16f,
-            0.023f,
-            0.072f,
-            0.76f,
+            -0.62f,
+            0.13f,
+            0.022f,
+            0.074f,
+            0.82f,
             0.98f,
-            0.06f,
-            0.045f,
-            0.008f,
-            0.018f,
-            0.95f,
-            -0.55f,
+            0.08f,
+            0.032f,
+            0.006f,
+            0.016f,
+            1.9f,
+            -0.92f,
+            0.34f,
             1.7f,
-            0.018f),
+            0.072f),
         new(
             "middle-orbit",
             new Vector2(0.52f, 0.41f),
-            new Vector2(0.37f, 0.085f),
-            0.39f,
+            new Vector2(0.43f, 0.18f),
+            0.96f,
             2.45f,
-            -0.28f,
-            0.13f,
+            0.54f,
+            0.11f,
             0.021f,
             0.064f,
             0.84f,
             0.95f,
-            0.045f,
+            0.06f,
             0.035f,
             0.007f,
             0.016f,
-            1.28f,
-            0.46f,
+            2.35f,
+            0.76f,
+            -0.28f,
             2.2f,
-            0.02f),
+            -0.052f),
         new(
             "inner-wick",
             new Vector2(0.53f, 0.43f),
-            new Vector2(0.27f, 0.065f),
-            0.31f,
+            new Vector2(0.32f, 0.13f),
+            0.82f,
             4.1f,
-            0.44f,
-            0.1f,
+            -0.82f,
+            0.08f,
             0.018f,
             0.052f,
             0.7f,
@@ -66,10 +70,11 @@ internal static class WunaOrbitFireOrbitModel
             0.025f,
             0.006f,
             0.014f,
-            1.65f,
-            -0.38f,
             2.8f,
-            0.016f)
+            -0.58f,
+            0.2f,
+            2.8f,
+            0.034f)
     };
 
     internal static OrbitSample Sample(Bounds bounds, OrbitRail rail, float time, float actionPulse, float orbit01)
@@ -80,7 +85,7 @@ internal static class WunaOrbitFireOrbitModel
         var radiusPulse = 1f + actionPulse * rail.ActionSpreadScale;
         var radiusX = bounds.size.x * rail.Radius.x * radiusPulse;
         var radiusY = bounds.size.y * rail.Radius.y * Mathf.Lerp(1f, 1.08f, actionPulse);
-        var radiusZ = bounds.size.x * rail.DepthRadiusScale * Mathf.Lerp(1f, 1.18f, actionPulse);
+        var radiusZ = bounds.size.x * BodyDepthToWidth * 0.5f * rail.DepthRadiusScale * Mathf.Lerp(1f, 1.18f, actionPulse);
         var cos = Mathf.Cos(angle);
         var sin = Mathf.Sin(angle);
 
@@ -90,11 +95,11 @@ internal static class WunaOrbitFireOrbitModel
 
         var local3 = new Vector3(
             cos * radiusX,
-            sin * radiusY + cos * radiusY * rail.PlaneTilt + bounds.size.y * verticalWave,
+            cos * radiusY * rail.PlaneTilt + sin * radiusY * rail.DepthTilt + bounds.size.y * verticalWave,
             sin * radiusZ);
 
         var depth = radiusZ <= 0.001f ? 0f : Mathf.Clamp(local3.z / radiusZ, -1f, 1f);
-        var perspective = 1f + depth * (0.055f + actionPulse * 0.035f);
+        var perspective = 1f + depth * (DepthPerspectiveScale + actionPulse * 0.045f);
         var projected = new Vector2(
             center.x + local3.x * perspective + local3.z * rail.DepthSkew,
             center.y + local3.y * perspective + depth * bounds.size.y * rail.PerspectiveLift);
@@ -102,7 +107,8 @@ internal static class WunaOrbitFireOrbitModel
         var normalAngle = angle + Mathf.PI * 0.5f;
         var heatFlutter = Mathf.Sin(time * 2.1f + angle * 4.7f + rail.Phase) * bounds.size.x * rail.FlickerAmplitude * 0.55f;
         projected += new Vector2(Mathf.Cos(normalAngle), Mathf.Sin(normalAngle) * 0.28f) * heatFlutter;
-        return new OrbitSample(projected, depth);
+        var scale = Mathf.Clamp(1f + depth * 0.16f + actionPulse * 0.045f, 0.76f, 1.24f);
+        return new OrbitSample(projected, depth, scale);
     }
 
     internal static Vector2 Tangent(Bounds bounds, OrbitRail rail, float time, float actionPulse, float orbit01)
@@ -147,6 +153,7 @@ internal static class WunaOrbitFireOrbitModel
             float flickerAmplitude,
             float bodyWaveCycles,
             float planeTilt,
+            float depthTilt,
             float waveSpeed,
             float depthSkew)
         {
@@ -168,6 +175,7 @@ internal static class WunaOrbitFireOrbitModel
             FlickerAmplitude = flickerAmplitude;
             BodyWaveCycles = bodyWaveCycles;
             PlaneTilt = planeTilt;
+            DepthTilt = depthTilt;
             WaveSpeed = waveSpeed;
             DepthSkew = depthSkew;
             Direction = Math.Sign(speed == 0f ? 1f : speed);
@@ -210,6 +218,8 @@ internal static class WunaOrbitFireOrbitModel
 
         public float PlaneTilt { get; }
 
+        public float DepthTilt { get; }
+
         public float WaveSpeed { get; }
 
         public float DepthSkew { get; }
@@ -221,14 +231,17 @@ internal static class WunaOrbitFireOrbitModel
 
     internal readonly struct OrbitSample
     {
-        public OrbitSample(Vector2 position, float depth)
+        public OrbitSample(Vector2 position, float depth, float scale)
         {
             Position = position;
             Depth = depth;
+            Scale = scale;
         }
 
         public Vector2 Position { get; }
 
         public float Depth { get; }
+
+        public float Scale { get; }
     }
 }

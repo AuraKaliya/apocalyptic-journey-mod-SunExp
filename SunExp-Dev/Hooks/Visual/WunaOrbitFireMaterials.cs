@@ -35,7 +35,7 @@ public static class WunaOrbitFireMaterials
 {
     private const string LogPrefix = "[WunaOrbitFire]";
 
-    public static Material CreateLayerMaterial(bool frontLayer, bool coreLayer)
+    public static Material CreateLayerMaterial(bool frontLayer, bool coreLayer, bool flameAtlasLayer = false)
     {
         var effectId = coreLayer
             ? frontLayer ? WunaOrbitFireShaderIds.FrontCoreEffectId : WunaOrbitFireShaderIds.BackCoreEffectId
@@ -48,13 +48,15 @@ public static class WunaOrbitFireMaterials
 
         if (material == null)
         {
-            material = CreateFallbackMaterial(frontLayer, coreLayer);
+            material = CreateFallbackMaterial(frontLayer, coreLayer, flameAtlasLayer);
         }
 
-        material.name = "SunExp_WunaOrbitFire_" + (frontLayer ? "Front" : "Back") + (coreLayer ? "_Core" : "_Detail");
+        material.name = "SunExp_WunaOrbitFire_"
+                        + (frontLayer ? "Front" : "Back")
+                        + (coreLayer ? "_Core" : flameAtlasLayer ? "_Flames" : "_Detail");
         SetFloatIfPresent(material, WunaOrbitFireShaderIds.Layer, frontLayer ? 1f : -1f);
         SetFloatIfPresent(material, WunaOrbitFireShaderIds.CoreMode, coreLayer ? 1f : 0f);
-        EnsureTrailTextures(material, coreLayer);
+        EnsureLayerTextures(material, flameAtlasLayer);
         return material;
     }
 
@@ -69,7 +71,7 @@ public static class WunaOrbitFireMaterials
         }
     }
 
-    private static Material CreateFallbackMaterial(bool frontLayer, bool coreLayer)
+    private static Material CreateFallbackMaterial(bool frontLayer, bool coreLayer, bool flameAtlasLayer)
     {
         var shader = Shader.Find("Particles/Additive")
                      ?? Shader.Find("Legacy Shaders/Particles/Additive")
@@ -88,13 +90,15 @@ public static class WunaOrbitFireMaterials
                 : new Color(1f, 0.46f, 0.12f, 0.38f)
             : coreLayer
                 ? new Color(1f, 0.62f, 0.22f, 0.32f)
-                : new Color(0.95f, 0.24f, 0.08f, 0.2f);
-        EnsureTrailTextures(material, coreLayer);
+                : flameAtlasLayer
+                    ? new Color(1f, 0.5f, 0.16f, frontLayer ? 0.34f : 0.18f)
+                    : new Color(0.95f, 0.24f, 0.08f, 0.2f);
+        EnsureLayerTextures(material, flameAtlasLayer);
         SunExpLog.Debug(LogPrefix + " shader not found; using simple sprite fallback for " + (frontLayer ? "front" : "back") + " layer.");
         return material;
     }
 
-    private static void EnsureTrailTextures(Material material, bool coreLayer)
+    private static void EnsureLayerTextures(Material material, bool flameAtlasLayer)
     {
         var hasMainTexture = material.HasProperty(WunaOrbitFireShaderIds.MainTex);
         var hasNoiseTexture = IsOrbitFireShader(material) && material.HasProperty(WunaOrbitFireShaderIds.NoiseTex);
@@ -103,29 +107,44 @@ public static class WunaOrbitFireMaterials
             return;
         }
 
-        if (hasMainTexture && TryGetTexture(material, WunaOrbitFireShaderIds.MainTex, out var mainTexture) && mainTexture != null)
+        if (!flameAtlasLayer
+            && hasMainTexture
+            && TryGetTexture(material, WunaOrbitFireShaderIds.MainTex, out var mainTexture)
+            && mainTexture != null)
         {
             var existingNoise = hasNoiseTexture && TryGetTexture(material, WunaOrbitFireShaderIds.NoiseTex, out var noiseTexture)
                 ? noiseTexture
                 : null;
             if (existingNoise != null)
             {
+                ApplyTextureDefaults(mainTexture, true);
+                ApplyTextureDefaults(existingNoise, true);
                 return;
             }
         }
 
-        var mainPath = WunaOrbitFireShaderIds.TrailMaskTexturePath;
+        var mainPath = flameAtlasLayer
+            ? WunaOrbitFireShaderIds.FlameAtlasTexturePath
+            : WunaOrbitFireShaderIds.TrailMaskTexturePath;
         var mask = EffectTextureCache.Load(mainPath, LogPrefix);
         if (mask != null && hasMainTexture)
         {
+            ApplyTextureDefaults(mask, !flameAtlasLayer);
             TrySetTexture(material, WunaOrbitFireShaderIds.MainTex, mask);
         }
 
         var noise = EffectTextureCache.Load(WunaOrbitFireShaderIds.TrailNoiseTexturePath, LogPrefix);
         if (noise != null && hasNoiseTexture)
         {
+            ApplyTextureDefaults(noise, true);
             TrySetTexture(material, WunaOrbitFireShaderIds.NoiseTex, noise);
         }
+    }
+
+    private static void ApplyTextureDefaults(Texture texture, bool repeat)
+    {
+        texture.wrapMode = repeat ? TextureWrapMode.Repeat : TextureWrapMode.Clamp;
+        texture.filterMode = FilterMode.Bilinear;
     }
 
     private static void SetFloatIfPresent(Material material, int propertyId, float value)

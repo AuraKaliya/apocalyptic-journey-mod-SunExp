@@ -13,7 +13,8 @@ public sealed class WunaOrbitFireController : MonoBehaviour
     private const int FlameAtlasColumns = 16;
     private const int FlameAtlasRows = 4;
     private const int FlameAtlasFrames = FlameAtlasColumns * FlameAtlasRows;
-    private const int MaxVertices = 900;
+    private const int MaxVertices = 1600;
+    private const float Tau = Mathf.PI * 2f;
     private const float DefaultBoostSeconds = 0.95f;
     private const float MinBoundsSize = 0.01f;
     private const float AlphaBoundsThreshold = 0.08f;
@@ -31,16 +32,22 @@ public sealed class WunaOrbitFireController : MonoBehaviour
     private SpriteRenderer? targetRenderer;
     private Mesh? backCoreMesh;
     private Mesh? backDetailMesh;
+    private Mesh? backFlameMesh;
     private Mesh? frontCoreMesh;
     private Mesh? frontDetailMesh;
+    private Mesh? frontFlameMesh;
     private MeshRenderer? backCoreRenderer;
     private MeshRenderer? backDetailRenderer;
+    private MeshRenderer? backFlameRenderer;
     private MeshRenderer? frontCoreRenderer;
     private MeshRenderer? frontDetailRenderer;
+    private MeshRenderer? frontFlameRenderer;
     private Material? backCoreMaterial;
     private Material? backDetailMaterial;
+    private Material? backFlameMaterial;
     private Material? frontCoreMaterial;
     private Material? frontDetailMaterial;
+    private Material? frontFlameMaterial;
     private float boostUntil;
     private float boostAmount;
     private float actionPulse;
@@ -53,10 +60,12 @@ public sealed class WunaOrbitFireController : MonoBehaviour
         transform.localRotation = Quaternion.identity;
         transform.localScale = Vector3.one;
 
-        EnsureLayer("BackCore", false, true, ref backCoreMesh, ref backCoreRenderer, ref backCoreMaterial);
-        EnsureLayer("BackDetail", false, false, ref backDetailMesh, ref backDetailRenderer, ref backDetailMaterial);
-        EnsureLayer("FrontCore", true, true, ref frontCoreMesh, ref frontCoreRenderer, ref frontCoreMaterial);
-        EnsureLayer("FrontDetail", true, false, ref frontDetailMesh, ref frontDetailRenderer, ref frontDetailMaterial);
+        EnsureLayer("BackCore", false, true, false, ref backCoreMesh, ref backCoreRenderer, ref backCoreMaterial);
+        EnsureLayer("BackDetail", false, false, false, ref backDetailMesh, ref backDetailRenderer, ref backDetailMaterial);
+        EnsureLayer("BackFlames", false, false, true, ref backFlameMesh, ref backFlameRenderer, ref backFlameMaterial);
+        EnsureLayer("FrontCore", true, true, false, ref frontCoreMesh, ref frontCoreRenderer, ref frontCoreMaterial);
+        EnsureLayer("FrontDetail", true, false, false, ref frontDetailMesh, ref frontDetailRenderer, ref frontDetailMaterial);
+        EnsureLayer("FrontFlames", true, false, true, ref frontFlameMesh, ref frontFlameRenderer, ref frontFlameMaterial);
         SyncSorting();
     }
 
@@ -89,21 +98,35 @@ public sealed class WunaOrbitFireController : MonoBehaviour
         var intensity = 0.55f + actionPulse * 0.42f;
         UpdateMaterial(backCoreMaterial, -1f, intensity * 0.52f);
         UpdateMaterial(backDetailMaterial, -1f, intensity * 0.58f);
+        UpdateMaterial(backFlameMaterial, -1f, intensity * 0.64f);
         UpdateMaterial(frontCoreMaterial, 1f, intensity * 0.76f);
         UpdateMaterial(frontDetailMaterial, 1f, intensity * 0.86f);
+        UpdateMaterial(frontFlameMaterial, 1f, intensity * 0.98f);
         BuildStreamLayer(backCoreMesh, bounds, false, intensity * 0.34f, false);
-        BuildDetailLayer(backDetailMesh, bounds, false, intensity * 0.46f);
+        BuildDetailLayer(backDetailMesh, bounds, false, intensity * 0.38f);
+        BuildParticleLayer(backFlameMesh, bounds, false, intensity * 0.46f);
         BuildStreamLayer(frontCoreMesh, bounds, true, intensity * 0.58f, false);
-        BuildDetailLayer(frontDetailMesh, bounds, true, intensity * 0.76f);
+        BuildDetailLayer(frontDetailMesh, bounds, true, intensity * 0.62f);
+        BuildParticleLayer(frontFlameMesh, bounds, true, intensity * 0.8f);
     }
 
     private void OnDestroy()
     {
-        WunaOrbitFireMaterials.DestroyAll(new[] { backCoreMaterial, backDetailMaterial, frontCoreMaterial, frontDetailMaterial });
+        WunaOrbitFireMaterials.DestroyAll(new[]
+        {
+            backCoreMaterial,
+            backDetailMaterial,
+            backFlameMaterial,
+            frontCoreMaterial,
+            frontDetailMaterial,
+            frontFlameMaterial
+        });
         DestroyMesh(backCoreMesh);
         DestroyMesh(backDetailMesh);
+        DestroyMesh(backFlameMesh);
         DestroyMesh(frontCoreMesh);
         DestroyMesh(frontDetailMesh);
+        DestroyMesh(frontFlameMesh);
     }
 
     private static void DestroyMesh(Mesh? mesh)
@@ -118,6 +141,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
         string name,
         bool frontLayer,
         bool coreLayer,
+        bool flameAtlasLayer,
         ref Mesh? mesh,
         ref MeshRenderer? meshRenderer,
         ref Material? material)
@@ -138,7 +162,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
         mesh.MarkDynamic();
         child.GetComponent<MeshFilter>().sharedMesh = mesh;
 
-        material = WunaOrbitFireMaterials.CreateLayerMaterial(frontLayer, coreLayer);
+        material = WunaOrbitFireMaterials.CreateLayerMaterial(frontLayer, coreLayer, flameAtlasLayer);
         meshRenderer = child.GetComponent<MeshRenderer>();
         meshRenderer.sharedMaterial = material;
     }
@@ -150,10 +174,12 @@ public sealed class WunaOrbitFireController : MonoBehaviour
             return;
         }
 
-        ApplySorting(backCoreRenderer, -2);
-        ApplySorting(backDetailRenderer, -1);
+        ApplySorting(backCoreRenderer, -3);
+        ApplySorting(backDetailRenderer, -2);
+        ApplySorting(backFlameRenderer, -1);
         ApplySorting(frontCoreRenderer, 1);
         ApplySorting(frontDetailRenderer, 2);
+        ApplySorting(frontFlameRenderer, 3);
     }
 
     private void ApplySorting(MeshRenderer? renderer, int offset)
@@ -262,8 +288,8 @@ public sealed class WunaOrbitFireController : MonoBehaviour
             full.min.x + full.size.x * OrbitBoundsFocus.x,
             full.min.y + full.size.y * OrbitBoundsFocus.y);
         var center = Vector2.Lerp(source.center, fullFocus, source.size.x > source.size.y * 1.15f ? 0.72f : 0.38f);
-        var height = Mathf.Min(source.size.y * 0.78f, full.size.y * 0.62f);
-        var width = Mathf.Min(source.size.x * 0.62f, height * 0.72f);
+        var height = Mathf.Min(source.size.y * 0.86f, full.size.y * 0.74f);
+        var width = Mathf.Min(source.size.x * 0.74f, height * 0.82f);
         height = Mathf.Max(height, width * 1.18f);
 
         return new Bounds(
@@ -358,9 +384,13 @@ public sealed class WunaOrbitFireController : MonoBehaviour
             var rail = Rails[railIndex];
             for (var i = 0; i < OrbitFlamesPerRail; i++)
             {
-                var orbitPhase = Mathf.Repeat(i / (float)OrbitFlamesPerRail + railIndex * 0.17f + time * 0.055f * rail.Direction, 1f);
-                var age = Mathf.Pow(orbitPhase, 1.08f);
-                var sample = WunaOrbitFireOrbitModel.Sample(bounds, rail, time, actionPulse, age);
+                var orbitPhase = Mathf.Repeat(
+                    (i + railIndex * 0.43f) / OrbitFlamesPerRail
+                    + time * (0.07f + railIndex * 0.012f) * rail.Direction
+                    + Mathf.Sin(time * 0.37f + i * 1.7f + rail.Phase) * 0.018f,
+                    1f);
+                var sampleT = Mathf.Repeat(orbitPhase + Mathf.Sin(time * 0.53f + i + rail.Phase) * 0.012f, 1f);
+                var sample = WunaOrbitFireOrbitModel.Sample(bounds, rail, time, actionPulse, sampleT);
                 var layerFade = LayerFade(sample.Depth, frontLayer);
                 if (!frontLayer)
                 {
@@ -372,21 +402,26 @@ public sealed class WunaOrbitFireController : MonoBehaviour
                     continue;
                 }
 
-                var tangent = WunaOrbitFireOrbitModel.Tangent(bounds, rail, time, actionPulse, age);
+                var tangent = WunaOrbitFireOrbitModel.Tangent(bounds, rail, time, actionPulse, sampleT);
                 var normal = new Vector2(-tangent.y, tangent.x);
-                var flicker = Mathf.Sin(time * 5.7f + i * 1.91f + rail.Phase) * 0.5f + 0.5f;
-                var tailFade = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(1f, 0.15f, age));
-                var alpha = Mathf.Clamp01(layerFade * intensity * rail.AlphaScale * Mathf.Lerp(0.38f, 0.74f, flicker) * tailFade);
+                var flicker = Mathf.Sin(time * 7.4f + orbitPhase * Tau * 2.2f + i * 1.91f + rail.Phase) * 0.5f + 0.5f;
+                var frontBoost = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.18f, 0.88f, sample.Depth));
+                var flameLife = Mathf.Lerp(0.42f, 1f, flicker) * (frontLayer ? Mathf.Lerp(0.68f, 1.14f, frontBoost) : Mathf.Lerp(0.84f, 0.56f, frontBoost));
+                var alpha = Mathf.Clamp01(layerFade * intensity * rail.AlphaScale * flameLife * Mathf.Lerp(0.42f, 0.86f, flicker));
                 if (alpha <= 0.03f)
                 {
                     continue;
                 }
 
-                var size = bounds.size.x * rail.TongueWidthScale * Mathf.Lerp(0.54f, 0.92f, flicker) * Mathf.Lerp(0.9f, 1.18f, actionPulse);
-                var stretch = size * Mathf.Lerp(1.18f, 1.72f, flicker);
+                var size = bounds.size.x
+                    * rail.TongueWidthScale
+                    * sample.Scale
+                    * Mathf.Lerp(0.48f, 0.96f, flicker)
+                    * Mathf.Lerp(0.9f, 1.18f, actionPulse);
+                var stretch = size * Mathf.Lerp(1.42f, 2.35f, flicker) * (frontLayer ? 1.08f : 0.86f);
                 var side = Mathf.Sin(time * 1.4f + i + rail.Phase) * size * 0.42f;
                 var center = sample.Position + normal * side;
-                var frame = (int)Mathf.Repeat(time * 18f + i * 7f + railIndex * 13f, FlameAtlasFrames);
+                var frame = (int)Mathf.Repeat(time * (20f + railIndex * 2f) + i * 11f + railIndex * 13f, FlameAtlasFrames);
                 AddFlameQuad(center, tangent, normal, size, stretch, alpha, frame);
             }
         }
@@ -456,6 +491,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
                 : Mathf.Lerp(0.26f, 0.52f, envelope) + frontGlow * 0.06f;
             var width = bounds.size.x
                 * (outerVeil ? rail.TongueWidthScale : rail.CoreWidthScale)
+                * sample.Scale
                 * widthScale
                 * Mathf.Lerp(0.84f, 1.04f, actionPulse);
             var alphaCurve = Mathf.Lerp(0.72f, 1f, orbitWave) * Mathf.Lerp(0.82f, 1.12f, frontGlow);
@@ -479,7 +515,8 @@ public sealed class WunaOrbitFireController : MonoBehaviour
         var after = WunaOrbitFireOrbitModel.Sample(bounds, rail, time, actionPulse, t + 0.012f);
         var position = (before.Position + current.Position * 2f + after.Position) * 0.25f;
         var depth = (before.Depth + current.Depth * 2f + after.Depth) * 0.25f;
-        return new WunaOrbitFireOrbitModel.OrbitSample(position, depth);
+        var scale = (before.Scale + current.Scale * 2f + after.Scale) * 0.25f;
+        return new WunaOrbitFireOrbitModel.OrbitSample(position, depth, scale);
     }
 
     private Vector2 SmoothTangent(Bounds bounds, WunaOrbitFireOrbitModel.OrbitRail rail, float time, float t)
@@ -514,8 +551,16 @@ public sealed class WunaOrbitFireController : MonoBehaviour
             var side = (i % 2 == 0 ? 1f : -1f) * rail.Direction;
             var tonguePhase = Mathf.Sin(time * (2.35f + railIndex * 0.23f) + rail.Phase + i * 1.7f) * 0.5f + 0.5f;
             var headBias = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.72f, 0.02f, t));
-            var width = bounds.size.x * rail.TongueWidthScale * Mathf.Lerp(0.46f, 1.08f, tonguePhase) * Mathf.Lerp(0.82f, 1.16f, headBias);
-            var length = bounds.size.y * rail.TongueLengthScale * Mathf.Lerp(0.62f, 1.32f, tonguePhase) * Mathf.Lerp(0.94f, 1.22f, actionPulse);
+            var width = bounds.size.x
+                * rail.TongueWidthScale
+                * sample.Scale
+                * Mathf.Lerp(0.46f, 1.08f, tonguePhase)
+                * Mathf.Lerp(0.82f, 1.16f, headBias);
+            var length = bounds.size.y
+                * rail.TongueLengthScale
+                * sample.Scale
+                * Mathf.Lerp(0.62f, 1.32f, tonguePhase)
+                * Mathf.Lerp(0.94f, 1.22f, actionPulse);
             var alpha = Mathf.Clamp01(layerFade * intensity * rail.AlphaScale * Mathf.Pow(1f - t, 1.12f) * Mathf.Lerp(0.6f, 1f, headBias));
             var center = sample.Position + normal * side * width * Mathf.Lerp(0.16f, 0.38f, tonguePhase);
             AddTongueQuad(center, tangent, normal * side, width, length, alpha);
@@ -543,7 +588,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
             var tangent = WunaOrbitFireOrbitModel.Tangent(bounds, rail, time, actionPulse, t);
             var normal = new Vector2(-tangent.y, tangent.x);
             var side = i % 2 == 0 ? 1f : -1f;
-            var size = bounds.size.x * rail.TongueWidthScale * Mathf.Lerp(0.18f, 0.32f, sparkle);
+            var size = bounds.size.x * rail.TongueWidthScale * sample.Scale * Mathf.Lerp(0.18f, 0.32f, sparkle);
             var center = sample.Position + normal * side * bounds.size.x * rail.TongueWidthScale * (0.55f + sparkle * 0.35f);
             var alpha = Mathf.Clamp01(layerFade * intensity * 0.74f * sparkle * Mathf.Pow(1f - t, 0.76f));
             AddTongueQuad(center, tangent, normal * side, size, size * 1.8f, alpha);
@@ -553,8 +598,9 @@ public sealed class WunaOrbitFireController : MonoBehaviour
     private float OccludeBackLayer(float layerFade, WunaOrbitFireOrbitModel.OrbitSample sample, Bounds bounds, WunaOrbitFireOrbitModel.OrbitRail rail)
     {
         var silhouette = BodyMaskAlpha(sample.Position, bounds);
-        var behindBody = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.08f, -0.6f, sample.Depth));
-        return layerFade * (1f - silhouette * behindBody * rail.OcclusionStrength);
+        var behindBody = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.02f, -0.78f, sample.Depth));
+        var bodyCover = Mathf.Clamp01(silhouette * behindBody * rail.OcclusionStrength * 1.08f);
+        return layerFade * (1f - bodyCover);
     }
 
     private void AddRibbonSection(Vector2 center, Vector2 normal, float width, float alpha, float u, float localU = -1f)
@@ -595,12 +641,16 @@ public sealed class WunaOrbitFireController : MonoBehaviour
     {
         var index = vertices.Count;
         var half = width * 0.5f;
-        var baseCenter = center - tangent * length * 0.34f;
-        var tipCenter = center + tangent * length * 0.66f + outward * width * 0.46f;
-        var baseLeft = baseCenter - outward * half;
-        var baseRight = baseCenter + outward * half;
-        var tipRight = tipCenter + outward * half * 0.22f;
-        var tipLeft = tipCenter - outward * half * 0.22f;
+        var lean = tangent.sqrMagnitude < 0.001f ? Vector2.right : tangent.normalized;
+        var side = outward.sqrMagnitude < 0.001f ? new Vector2(-lean.y, lean.x) : outward.normalized;
+        var up = (Vector2.up * 0.72f + lean * 0.18f + side * 0.24f).normalized;
+        var cross = new Vector2(up.y, -up.x);
+        var baseCenter = center - up * length * 0.28f;
+        var tipCenter = center + up * length * 0.72f + side * width * 0.34f;
+        var baseLeft = baseCenter - cross * half;
+        var baseRight = baseCenter + cross * half;
+        var tipRight = tipCenter + cross * half * 0.22f;
+        var tipLeft = tipCenter - cross * half * 0.22f;
 
         vertices.Add(new Vector3(baseLeft.x, baseLeft.y, 0f));
         vertices.Add(new Vector3(baseRight.x, baseRight.y, 0f));
@@ -634,8 +684,10 @@ public sealed class WunaOrbitFireController : MonoBehaviour
         var index = vertices.Count;
         var halfWidth = width * 0.5f;
         var halfHeight = height * 0.5f;
-        var up = normal.sqrMagnitude < 0.001f ? Vector2.up : normal.normalized;
-        var right = tangent.sqrMagnitude < 0.001f ? new Vector2(up.y, -up.x) : tangent.normalized;
+        var lean = tangent.sqrMagnitude < 0.001f ? Vector2.right : tangent.normalized;
+        var outward = normal.sqrMagnitude < 0.001f ? Vector2.up : normal.normalized;
+        var up = (Vector2.up * 0.78f + lean * 0.16f + outward * 0.24f).normalized;
+        var right = new Vector2(up.y, -up.x);
         var baseLift = up * halfHeight * 0.22f;
         var bottom = center - baseLift;
         var top = center + up * halfHeight;
@@ -683,8 +735,8 @@ public sealed class WunaOrbitFireController : MonoBehaviour
     private static float LayerFade(float depth, bool frontLayer)
     {
         return frontLayer
-            ? Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.02f, 0.5f, depth))
-            : 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.5f, -0.04f, depth));
+            ? Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.08f, 0.58f, depth))
+            : 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.58f, 0.1f, depth));
     }
 
     private float BodyMaskAlpha(Vector2 localPoint, Bounds bounds)

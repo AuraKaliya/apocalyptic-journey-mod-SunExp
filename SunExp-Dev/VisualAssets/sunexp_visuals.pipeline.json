@@ -8,7 +8,8 @@
     "wunaOrbitFireBackMaterial": "Assets/SunExp/Visuals/Materials/WunaOrbitFireBack.mat",
     "wunaOrbitFireFrontMaterial": "Assets/SunExp/Visuals/Materials/WunaOrbitFireFront.mat",
     "wunaOrbitFireTrailMask": "SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
-    "wunaOrbitFireTrailNoise": "SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
+    "wunaOrbitFireTrailNoise": "SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png",
+    "wunaOrbitFireFlameAtlas": "SunExp/ModResource/Images/Effects/WunaOrbitFire/Flame02_16x4.png"
   },
   "runtimeAssets": {
     "shaderName": "SunExp/StarScoreHud",
@@ -19,7 +20,8 @@
     "wunaOrbitFireBackMaterialPath": "SunExp/Materials/WunaOrbitFireBack",
     "wunaOrbitFireFrontMaterialPath": "SunExp/Materials/WunaOrbitFireFront",
     "wunaOrbitFireTrailMaskPath": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
-    "wunaOrbitFireTrailNoisePath": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
+    "wunaOrbitFireTrailNoisePath": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png",
+    "wunaOrbitFireFlameAtlasPath": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/Flame02_16x4.png"
   },
   "defaults": {
     "_SunExpFlowSpeed": 0.55,
