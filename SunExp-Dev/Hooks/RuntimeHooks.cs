@@ -1,6 +1,7 @@
 using System;
 using AuraShared.Core;
 using SunExp.Dll.GameApi;
+using SunExp.Dll.Hooks.Visual;
 using SunExp.Dll.Infrastructure;
 using Witch.Core;
 using Witch.Mod;
@@ -26,6 +27,7 @@ public static class RuntimeHooks
         RunHookStep("solar memory content isolation", () => SolarMemoryContentIsolationRuntime.Initialize(modConfig));
         RunHookStep("solar memory starter deck", () => SolarMemoryStarterDeckRuntime.Initialize(modConfig));
         RunHookStep("hard tags", () => SunExpHardTagRuntime.Initialize(modConfig));
+        RunHookStep("visual bundle validation", VisualBundleRuntimeValidator.ValidateDeclaredBundles);
         RunHookStep("resource preloader", () => SunExpResourcePreloader.Initialize(modConfig));
         RunHookStep("animated blessing icons", () => AnimatedBlessingIconRuntime.Initialize(modConfig));
         RunHookStep("animated buff icons", () => AnimatedBuffIconRuntime.Initialize(modConfig));

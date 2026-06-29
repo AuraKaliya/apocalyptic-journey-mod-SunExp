@@ -81,6 +81,80 @@
         "active-skill"
       ],
       "enabled": true
+    },
+    {
+      "cgId": "loneer.feast",
+      "displayName": "Loneer - 美餐",
+      "kind": "feast",
+      "targetRoleIds": [
+        "SunExp_loneer_loneer",
+        "loneer"
+      ],
+      "cardIds": [
+        "*"
+      ],
+      "media": {
+        "type": "image",
+        "resource": "CG/SunExp/Loneer/Loneer_美餐.png",
+        "fallbackImage": "CG/SunExp/Loneer/Loneer_美餐.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1.0
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 20,
+      "tags": [
+        "feast-cg"
+      ],
+      "enabled": true
+    },
+    {
+      "cgId": "wuna.feast",
+      "displayName": "WuNa - 美餐",
+      "kind": "feast",
+      "targetRoleIds": [
+        "SunExp_wuna_wuna",
+        "wuna"
+      ],
+      "cardIds": [
+        "*"
+      ],
+      "media": {
+        "type": "image",
+        "resource": "CG/SunExp/WuNa/WuNa_美餐.png",
+        "fallbackImage": "CG/SunExp/WuNa/WuNa_美餐.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1.0
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 20,
+      "tags": [
+        "feast-cg"
+      ],
+      "enabled": true
     }
   ]
 }

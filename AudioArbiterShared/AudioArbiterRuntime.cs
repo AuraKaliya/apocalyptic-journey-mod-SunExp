@@ -239,12 +239,14 @@ public static class AudioArbiterRuntime
 
     public sealed class AudioArbiterComponent : MonoBehaviour
     {
+        private const float LowHealthNoProviderCooldownSeconds = 0.75f;
         private readonly List<SoundProviderHandle> soundProviders = new();
         private readonly HashSet<string> receivedEventIds = new(StringComparer.Ordinal);
         private readonly HashSet<string> lowHealthAnnounced = new(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> providerMismatchWarnings = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, float> cooldownUntil = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, float> lastHpRatioByStatus = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, float> lowHealthNoProviderUntil = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<int, float> suppressNarrationUntil = new();
         private string ownerModId = "";
         private string lastAnnouncedCareerSelectionId = "";
@@ -309,6 +311,7 @@ public static class AudioArbiterRuntime
 
                 soundProviders.RemoveAll(item => string.Equals(item.QualifiedProviderId, handle.QualifiedProviderId, StringComparison.OrdinalIgnoreCase));
                 soundProviders.Add(handle);
+                lowHealthNoProviderUntil.Clear();
                 soundProviders.Sort((a, b) =>
                 {
                     var priority = b.Priority.CompareTo(a.Priority);
@@ -622,6 +625,7 @@ public static class AudioArbiterRuntime
                 var resolvedMaybe = Resolve(request);
                 if (!resolvedMaybe.HasValue)
                 {
+                    RememberLowHealthNoProvider(request);
                     TraceRequest(request, "No provider resolved");
                     return false;
                 }
@@ -1025,6 +1029,7 @@ public static class AudioArbiterRuntime
             cooldownUntil.Clear();
             lowHealthAnnounced.Clear();
             lastHpRatioByStatus.Clear();
+            lowHealthNoProviderUntil.Clear();
             suppressNarrationUntil.Clear();
             pendingReplacement = null;
         }
@@ -1352,11 +1357,66 @@ public static class AudioArbiterRuntime
                 SourceName = source,
                 IsLocalOwner = IsLocalPlayerStatus(status)
             };
+            if (IsLowHealthNoProviderSuppressed(request))
+            {
+                return;
+            }
+
             TraceRequest(request, "LowHealth event observed");
             if (RequestSoundInternal(request, syncRemote: true))
             {
                 lowHealthAnnounced.Add(statusId);
             }
+        }
+
+        private bool IsLowHealthNoProviderSuppressed(SoundPlaybackRequest request)
+        {
+            if (!IsLowHealthRequest(request))
+            {
+                return false;
+            }
+
+            var key = LowHealthNoProviderKey(request);
+            if (!lowHealthNoProviderUntil.TryGetValue(key, out var until))
+            {
+                return false;
+            }
+
+            if (Time.unscaledTime < until)
+            {
+                return true;
+            }
+
+            lowHealthNoProviderUntil.Remove(key);
+            return false;
+        }
+
+        private void RememberLowHealthNoProvider(SoundPlaybackRequest request)
+        {
+            if (!IsLowHealthRequest(request))
+            {
+                return;
+            }
+
+            lowHealthNoProviderUntil[LowHealthNoProviderKey(request)] =
+                Time.unscaledTime + LowHealthNoProviderCooldownSeconds;
+        }
+
+        private static bool IsLowHealthRequest(SoundPlaybackRequest request)
+        {
+            return string.Equals(request.Kind, SoundEventKinds.LowHealth, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string LowHealthNoProviderKey(SoundPlaybackRequest request)
+        {
+            var ratioBucket = Mathf.Clamp(Mathf.FloorToInt(request.HpRatio * 10f), 0, 10);
+            return request.StatusInstanceId
+                + "|"
+                + request.RoleId
+                + "|"
+                + request.CareerId
+                + "|"
+                + ratioBucket;
         }
 
         private void OnFightWinAfter(ModHookContext context)

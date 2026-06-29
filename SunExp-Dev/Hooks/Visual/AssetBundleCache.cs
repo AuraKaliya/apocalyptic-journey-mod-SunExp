@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
 using UnityEngine;
@@ -10,6 +11,8 @@ namespace SunExp.Dll.Hooks.Visual;
 public static class AssetBundleCache
 {
     private static readonly Dictionary<string, AssetBundle?> Cache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, string[]> AssetNames = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly HashSet<string> LoggedMissingAssets = new(StringComparer.OrdinalIgnoreCase);
 
     public static T? LoadAsset<T>(string bundlePath, string assetPath, string logPrefix)
         where T : UnityEngine.Object
@@ -25,13 +28,30 @@ public static class AssetBundleCache
             return null;
         }
 
+        var requested = assetPath.Trim();
         try
         {
-            return bundle.LoadAsset<T>(assetPath.Trim());
+            var asset = bundle.LoadAsset<T>(requested);
+            if (asset != null)
+            {
+                return asset;
+            }
+
+            foreach (var candidate in AssetNameCandidates<T>(bundle, requested))
+            {
+                asset = bundle.LoadAsset<T>(candidate);
+                if (asset != null)
+                {
+                    return asset;
+                }
+            }
+
+            LogMissingAsset(bundlePath, requested, bundle, logPrefix);
+            return null;
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn(logPrefix + " bundle asset load failed: " + assetPath + " (" + ex.Message + ")");
+            SunExpLog.Warn(logPrefix + " bundle asset load failed: " + requested + " (" + ex.Message + ")");
             return null;
         }
     }
@@ -52,7 +72,7 @@ public static class AssetBundleCache
         if (!File.Exists(resolvedPath))
         {
             Cache[resolvedPath] = null;
-            SunExpLog.Debug(logPrefix + " visual bundle missing: " + resolvedPath);
+            SunExpLog.Warn(logPrefix + " visual bundle missing: " + resolvedPath);
             return null;
         }
 
@@ -73,5 +93,103 @@ public static class AssetBundleCache
             SunExpLog.Warn(logPrefix + " visual bundle load failed: " + resolvedPath + " (" + ex.Message + ")");
             return null;
         }
+    }
+
+    private static IEnumerable<string> AssetNameCandidates<T>(AssetBundle bundle, string requested)
+        where T : UnityEngine.Object
+    {
+        var requestedName = requested.Replace('\\', '/').Trim();
+        var extension = typeof(T) == typeof(Material)
+            ? ".mat"
+            : typeof(T) == typeof(Shader)
+                ? ".shader"
+                : "";
+        var leaf = LeafName(requestedName, extension);
+        var names = GetAssetNames(bundle);
+        var candidates = new List<string>
+        {
+            requestedName
+        };
+
+        if (extension.Length > 0 && !requestedName.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
+        {
+            candidates.Add(requestedName + extension);
+        }
+
+        if (leaf.Length > 0)
+        {
+            candidates.Add(leaf);
+            if (extension.Length > 0)
+            {
+                candidates.Add(leaf + extension);
+                candidates.Add("Assets/SunExp/Visuals/Materials/" + leaf + extension);
+                candidates.Add("Assets/SunExp/Visuals/Shaders/" + leaf + extension);
+            }
+        }
+
+        foreach (var candidate in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            foreach (var name in names)
+            {
+                if (string.Equals(name, candidate, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(Path.GetFileNameWithoutExtension(name), leaf, StringComparison.OrdinalIgnoreCase)
+                    || (extension.Length > 0 && name.EndsWith("/" + leaf + extension, StringComparison.OrdinalIgnoreCase)))
+                {
+                    yield return name;
+                }
+            }
+        }
+    }
+
+    private static string[] GetAssetNames(AssetBundle bundle)
+    {
+        var key = bundle.name ?? "";
+        if (key.Length == 0)
+        {
+            key = bundle.GetInstanceID().ToString();
+        }
+
+        if (AssetNames.TryGetValue(key, out var cached))
+        {
+            return cached;
+        }
+
+        try
+        {
+            cached = bundle.GetAllAssetNames();
+        }
+        catch
+        {
+            cached = Array.Empty<string>();
+        }
+
+        AssetNames[key] = cached;
+        return cached;
+    }
+
+    private static string LeafName(string requested, string extension)
+    {
+        var leaf = Path.GetFileName(requested);
+        if (extension.Length > 0 && leaf.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
+        {
+            leaf = leaf.Substring(0, leaf.Length - extension.Length);
+        }
+
+        return leaf;
+    }
+
+    private static void LogMissingAsset(string bundlePath, string requested, AssetBundle bundle, string logPrefix)
+    {
+        var key = bundlePath + "|" + requested;
+        if (!LoggedMissingAssets.Add(key))
+        {
+            return;
+        }
+
+        var names = GetAssetNames(bundle);
+        var preview = names.Length == 0
+            ? "<empty>"
+            : string.Join("|", names.Take(8));
+        SunExpLog.Warn(logPrefix + " bundle asset missing: " + requested + "; available=" + preview);
     }
 }

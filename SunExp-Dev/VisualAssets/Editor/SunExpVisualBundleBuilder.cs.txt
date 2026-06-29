@@ -2,6 +2,7 @@
 // Keep the asset paths aligned with SunExp-Dev/VisualAssets/sunexp_visuals.pipeline.json
 // and SunExp/visual.registry.json.
 
+using System;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
@@ -48,10 +49,17 @@ public static class SunExpVisualBundleBuilder
             throw new FileNotFoundException("SunExp visual bundle was not produced.", builtBundle);
         }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(ModOutputPath));
-        File.Copy(builtBundle, ModOutputPath, true);
+        var outputPath = ResolveModOutputPath();
+        Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
+        File.Copy(builtBundle, outputPath, true);
         AssetDatabase.Refresh();
-        Debug.Log("Built SunExp visual bundle: " + ModOutputPath);
+        Debug.Log("Built SunExp visual bundle: " + outputPath);
+    }
+
+    private static string ResolveModOutputPath()
+    {
+        var explicitPath = Environment.GetEnvironmentVariable("SUNEXP_VISUAL_BUNDLE_OUTPUT");
+        return string.IsNullOrWhiteSpace(explicitPath) ? ModOutputPath : explicitPath;
     }
 
     private static void EnsureStarScoreMaterial()
@@ -96,25 +104,25 @@ public static class SunExpVisualBundleBuilder
 
         var back = EnsureMaterial(WunaOrbitFireBackMaterialAssetPath, shader, "WunaOrbitFireBack");
         back.SetFloat("_SunExpLayer", -1f);
-        back.SetFloat("_SunExpNoiseScale", 2.45f);
-        back.SetFloat("_SunExpDistortion", 0.18f);
-        back.SetFloat("_SunExpAlphaCutoff", 0.03f);
-        back.SetFloat("_SunExpAlphaSoftness", 0.08f);
-        back.SetFloat("_SunExpFlowSpeed", 0.48f);
-        back.SetColor("_SunExpCoreColor", new Color(1f, 0.914f, 0.627f, 0.753f));
-        back.SetColor("_SunExpEdgeColor", new Color(0.91f, 0.353f, 0.102f, 0.58f));
-        back.SetColor("_SunExpSmokeColor", new Color(0.22f, 0.078f, 0.047f, 0.188f));
+        back.SetFloat("_SunExpNoiseScale", 3.15f);
+        back.SetFloat("_SunExpDistortion", 0.11f);
+        back.SetFloat("_SunExpAlphaCutoff", 0.16f);
+        back.SetFloat("_SunExpAlphaSoftness", 0.11f);
+        back.SetFloat("_SunExpFlowSpeed", 0.28f);
+        back.SetColor("_SunExpCoreColor", new Color(1f, 0.82f, 0.34f, 0.72f));
+        back.SetColor("_SunExpEdgeColor", new Color(0.96f, 0.18f, 0.045f, 0.62f));
+        back.SetColor("_SunExpSmokeColor", new Color(0.2f, 0.02f, 0.012f, 0.18f));
 
         var front = EnsureMaterial(WunaOrbitFireFrontMaterialAssetPath, shader, "WunaOrbitFireFront");
         front.SetFloat("_SunExpLayer", 1f);
-        front.SetFloat("_SunExpNoiseScale", 3.1f);
-        front.SetFloat("_SunExpDistortion", 0.24f);
-        front.SetFloat("_SunExpAlphaCutoff", 0.035f);
-        front.SetFloat("_SunExpAlphaSoftness", 0.07f);
-        front.SetFloat("_SunExpFlowSpeed", 0.68f);
-        front.SetColor("_SunExpCoreColor", new Color(1f, 0.973f, 0.722f, 0.91f));
-        front.SetColor("_SunExpEdgeColor", new Color(1f, 0.424f, 0.125f, 0.784f));
-        front.SetColor("_SunExpSmokeColor", new Color(0.271f, 0.078f, 0.047f, 0.204f));
+        front.SetFloat("_SunExpNoiseScale", 3.8f);
+        front.SetFloat("_SunExpDistortion", 0.16f);
+        front.SetFloat("_SunExpAlphaCutoff", 0.15f);
+        front.SetFloat("_SunExpAlphaSoftness", 0.095f);
+        front.SetFloat("_SunExpFlowSpeed", 0.38f);
+        front.SetColor("_SunExpCoreColor", new Color(1f, 0.96f, 0.58f, 0.96f));
+        front.SetColor("_SunExpEdgeColor", new Color(1f, 0.22f, 0.035f, 0.84f));
+        front.SetColor("_SunExpSmokeColor", new Color(0.24f, 0.026f, 0.014f, 0.2f));
 
         EditorUtility.SetDirty(back);
         EditorUtility.SetDirty(front);

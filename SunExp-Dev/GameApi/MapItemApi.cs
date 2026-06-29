@@ -20,6 +20,8 @@ public readonly struct MapItemIconBaseline
 
 public static class MapItemApi
 {
+    private static readonly int MainTexId = Shader.PropertyToID("_MainTex");
+
     public static bool TryCaptureIconBaseline(MapItem item, out MapItemIconBaseline baseline)
     {
         baseline = default;
@@ -32,6 +34,47 @@ public static class MapItemApi
             icon.localScale,
             rectTransform != null ? rectTransform.anchoredPosition : Vector2.zero);
         return true;
+    }
+
+    public static bool ApplyCardBackgroundTexture(
+        MapItem item,
+        Texture texture,
+        bool hideIcon,
+        out string appliedTarget)
+    {
+        appliedTarget = "";
+        if (item == null || texture == null)
+        {
+            return false;
+        }
+
+        var background = item.transform.Find("Front/background");
+        var backgroundRenderer = background != null ? background.GetComponent<MeshRenderer>() : null;
+        if (backgroundRenderer != null)
+        {
+            ApplyRendererTexture(backgroundRenderer, texture);
+            if (hideIcon)
+            {
+                var icon = item.transform.Find("Front/icon");
+                if (icon != null)
+                {
+                    icon.gameObject.SetActive(false);
+                }
+            }
+
+            appliedTarget = "Front/background";
+            return true;
+        }
+
+        if (TryGetIconParts(item, out var iconTransform, out var iconRenderer, out _))
+        {
+            iconTransform.gameObject.SetActive(true);
+            ApplyRendererTexture(iconRenderer, texture);
+            appliedTarget = "Front/icon";
+            return true;
+        }
+
+        return false;
     }
 
     public static bool ApplyTexture(
@@ -60,7 +103,7 @@ public static class MapItemApi
             }
         }
 
-        renderer.material.mainTexture = texture;
+        ApplyRendererTexture(renderer, texture);
         var fit = MapNodeTextureFitService.Fit(
             TextureBounds(texture, spec.AlphaThreshold),
             spec.FitMode,
@@ -82,6 +125,21 @@ public static class MapItemApi
         }
 
         return true;
+    }
+
+    private static void ApplyRendererTexture(MeshRenderer renderer, Texture texture)
+    {
+        var material = renderer.material;
+        if (material != null)
+        {
+            material.mainTexture = texture;
+            return;
+        }
+
+        var block = new MaterialPropertyBlock();
+        renderer.GetPropertyBlock(block);
+        block.SetTexture(MainTexId, texture);
+        renderer.SetPropertyBlock(block);
     }
 
     private static bool TryGetIconParts(

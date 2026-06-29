@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "packageId": "SunExp.SharedResources",
-  "packageVersion": 3,
+  "packageVersion": 4,
   "ownerModId": "SunExp",
   "packageKind": "RolePack",
   "displayName": "SunExp bundled role resources",
@@ -43,6 +43,38 @@
       "tags": ["skill-cg", "active-skill"],
       "metadata": {
         "cardId": "SunExp_wuna_wuna_white_sun_prayer",
+        "presentationMode": "fullscreenFade",
+        "fit": "cover",
+        "focusX": "0.5",
+        "focusY": "0.5",
+        "safeScale": "1.0"
+      }
+    },
+    {
+      "system": "CG",
+      "resourceId": "SunExp.Loneer.FeastCg",
+      "kind": "File",
+      "source": "CG/Loneer/Loneer_美餐.png",
+      "destination": "CG/SunExp/Loneer/Loneer_美餐.png",
+      "targetRoleIds": ["SunExp_loneer_loneer", "loneer"],
+      "tags": ["feast-cg"],
+      "metadata": {
+        "presentationMode": "fullscreenFade",
+        "fit": "cover",
+        "focusX": "0.5",
+        "focusY": "0.5",
+        "safeScale": "1.0"
+      }
+    },
+    {
+      "system": "CG",
+      "resourceId": "SunExp.WuNa.FeastCg",
+      "kind": "File",
+      "source": "CG/WuNa/WuNa_美餐.png",
+      "destination": "CG/SunExp/WuNa/WuNa_美餐.png",
+      "targetRoleIds": ["SunExp_wuna_wuna", "wuna"],
+      "tags": ["feast-cg"],
+      "metadata": {
         "presentationMode": "fullscreenFade",
         "fit": "cover",
         "focusX": "0.5",

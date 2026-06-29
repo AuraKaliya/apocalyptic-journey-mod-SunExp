@@ -3,6 +3,7 @@ using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using AuraToolsExp.Dll.Features.DamageMeter.Input;
 using AuraToolsExp.Dll.Features.DamageMeter.Network;
 using AuraToolsExp.Dll.Features.DamageMeter.SettlementCg;
+using AuraToolsExp.Dll.Features.SafeBox;
 using AuraToolsExp.Dll.Infrastructure;
 
 var assertions = 0;
@@ -25,6 +26,7 @@ TestDamageSettlementCgSettingsAndLayout();
 TestDamageSettlementCgPayloadOrdering();
 TestDamageSettlementCgAnimationSpec();
 TestSkillCgPresentationNormalization();
+TestSafeBoxDataCompatibility();
 TestRpcPayloadBudgetUsesUtf8Bytes();
 TestDamageMeterAuthorityPolicy();
 
@@ -588,6 +590,54 @@ void TestInputFaultGate()
     Assert(pollCount == 1 && errorCount == 1, "faulted input cannot flood logs");
     gate.Reset();
     Assert(gate.TryPoll(() => true, _ => errorCount++), "configuration change resets input gate");
+}
+
+void TestSafeBoxDataCompatibility()
+{
+    var sparse = new Dictionary<string, string>
+    {
+        ["Name"] = "Sparse"
+    };
+    var vars = new Dictionary<string, string>
+    {
+        ["Id"] = "custom_card"
+    };
+
+    Assert(AuraToolsSafeBoxDataCompatibility.TryCreateSafeCardData(
+            sparse,
+            vars,
+            out var safeSparse,
+            out var sparseId,
+            out var sparseChanged),
+        "sparse SafeBox card data is repairable");
+    Assert(sparseChanged
+           && sparseId == "custom_card"
+           && safeSparse["Id"] == "custom_card"
+           && safeSparse["Expend"] == AuraToolsSafeBoxDataCompatibility.DefaultExpend
+           && safeSparse["Icon"] == AuraToolsSafeBoxDataCompatibility.DefaultIcon
+           && safeSparse["Description"] == "",
+        "sparse SafeBox card data receives required UI fields");
+
+    var complete = new Dictionary<string, string>
+    {
+        ["Id"] = "card",
+        ["Name"] = "Card",
+        ["Expend"] = "2",
+        ["Tag"] = "",
+        ["Icon"] = AuraToolsSafeBoxDataCompatibility.DefaultIcon,
+        ["Rarity"] = "1",
+        ["Description"] = "done"
+    };
+
+    Assert(!AuraToolsSafeBoxDataCompatibility.TryCreateSafeCardData(
+            complete,
+            null,
+            out var safeComplete,
+            out var completeId,
+            out var completeChanged),
+        "complete SafeBox card data is left unchanged");
+    Assert(!completeChanged && completeId == "card" && safeComplete["Expend"] == "2",
+        "complete SafeBox card data keeps original values");
 }
 
 DamageLedger NewLedger()

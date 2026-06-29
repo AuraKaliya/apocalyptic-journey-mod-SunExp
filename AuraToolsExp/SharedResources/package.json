@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "packageId": "AuraToolsExp.SharedResources",
-  "packageVersion": 1,
+  "packageVersion": 2,
   "ownerModId": "AuraToolsExp",
   "packageKind": "ToolingPack",
   "displayName": "AuraToolsExp bundled resources",
@@ -22,6 +22,14 @@
       "source": "CG/Roles",
       "destination": "CG/AuraToolsExp/Roles",
       "tags": ["tooling", "skill-cg"]
+    },
+    {
+      "system": "CG",
+      "resourceId": "AuraToolsExp.DefaultFeastCg",
+      "kind": "Directory",
+      "source": "CG/Feast",
+      "destination": "CG/AuraToolsExp/Feast",
+      "tags": ["tooling", "feast-cg"]
     }
   ]
 }

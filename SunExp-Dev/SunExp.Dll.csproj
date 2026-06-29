@@ -28,6 +28,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Remove="VisualAssets\UnityProject\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="netstandard">
       <HintPath>$(DllPath)\netstandard.dll</HintPath>
       <Private>false</Private>

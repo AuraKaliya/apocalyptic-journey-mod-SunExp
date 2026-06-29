@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using SunExp.Dll.Infrastructure;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Hooks;
+namespace SunExp.Dll.Mechanics;
 
 public static class SunExpCardRefreshQueue
 {
@@ -12,15 +12,20 @@ public static class SunExpCardRefreshQueue
 
     public static void RequestDataUpdate(CardItem? card, string source)
     {
-        Request(card, source, refreshTags: false);
+        Request(card, source, refreshTags: false, dataUpdate: true);
     }
 
     public static void RequestTagRefresh(CardItem? card, string source)
     {
-        Request(card, source, refreshTags: true);
+        Request(card, source, refreshTags: true, dataUpdate: false);
     }
 
-    private static void Request(CardItem? card, string source, bool refreshTags)
+    public static void RequestFullRefresh(CardItem? card, string source)
+    {
+        Request(card, source, refreshTags: true, dataUpdate: true);
+    }
+
+    private static void Request(CardItem? card, string source, bool refreshTags, bool dataUpdate)
     {
         if (card == null)
         {
@@ -30,18 +35,18 @@ public static class SunExpCardRefreshQueue
         var key = CardKey(card);
         if (key.Length == 0)
         {
-            RefreshNow(card, source, refreshTags);
+            RefreshNow(card, source, refreshTags, dataUpdate);
             return;
         }
 
         lock (SyncRoot)
         {
             Pending[key] = Pending.TryGetValue(key, out var existing)
-                ? new PendingRefresh(card, existing.RefreshTags || refreshTags, source)
-                : new PendingRefresh(card, refreshTags, source);
+                ? new PendingRefresh(card, existing.RefreshTags || refreshTags, existing.DataUpdate || dataUpdate, source)
+                : new PendingRefresh(card, refreshTags, dataUpdate, source);
         }
 
-        if (!SunExpFrameScheduler.RunOnceNextFrame("SunExpCardRefreshQueue.Flush", Flush))
+        if (!SunExpFrameDispatcher.RunOnceNextFrame("SunExpCardRefreshQueue.Flush", Flush))
         {
             SunExpPerformanceCounters.Record("CardRefreshQueue.Deduped");
         }
@@ -65,13 +70,13 @@ public static class SunExpCardRefreshQueue
         var start = SunExpPerformanceCounters.Timestamp();
         foreach (var item in items)
         {
-            RefreshNow(item.Card, item.Source, item.RefreshTags);
+            RefreshNow(item.Card, item.Source, item.RefreshTags, item.DataUpdate);
         }
 
         SunExpPerformanceCounters.RecordDuration("CardRefreshQueue.Flush", start);
     }
 
-    private static void RefreshNow(CardItem card, string source, bool refreshTags)
+    private static void RefreshNow(CardItem card, string source, bool refreshTags, bool dataUpdate)
     {
         try
         {
@@ -79,7 +84,8 @@ public static class SunExpCardRefreshQueue
             {
                 card.RefreshTag();
             }
-            else
+
+            if (dataUpdate)
             {
                 card.DataUpdate();
             }
@@ -117,16 +123,19 @@ public static class SunExpCardRefreshQueue
 
     private readonly struct PendingRefresh
     {
-        public PendingRefresh(CardItem card, bool refreshTags, string source)
+        public PendingRefresh(CardItem card, bool refreshTags, bool dataUpdate, string source)
         {
             Card = card;
             RefreshTags = refreshTags;
+            DataUpdate = dataUpdate;
             Source = source;
         }
 
         public CardItem Card { get; }
 
         public bool RefreshTags { get; }
+
+        public bool DataUpdate { get; }
 
         public string Source { get; }
     }

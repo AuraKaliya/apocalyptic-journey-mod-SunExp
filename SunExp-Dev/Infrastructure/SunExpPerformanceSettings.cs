@@ -9,7 +9,9 @@ public static class SunExpPerformanceSettings
     private const string ShortQualityKey = "SunExpPerfQuality";
     private const string LowSpecKey = "SunExpLowSpec";
     private const string CountersKey = "SunExpPerfCounters";
-    private const string WunaOrbitFireKey = "SunExpWunaOrbitFire";
+    private const string WunaOrbitFireEnabledKey = "SunExpWunaOrbitFireEnabled";
+    private const string WunaOrbitFireLowCostKey = "SunExpWunaOrbitFireLowCost";
+    private const string WunaOrbitFireDisabledKey = "SunExpWunaOrbitFireDisabled";
     private const string UiPoolKey = "SunExpUiPool";
     private const int RefreshMilliseconds = 1000;
 
@@ -18,7 +20,8 @@ public static class SunExpPerformanceSettings
     private static int lastRefreshTick = int.MinValue;
     private static SunExpPerformanceQuality cachedQuality = SunExpPerformanceQuality.Balanced;
     private static bool cachedCountersEnabled;
-    private static bool cachedWunaOrbitFireEnabled = true;
+    private static bool cachedWunaOrbitFireEnabled;
+    private static bool cachedWunaOrbitFireDynamicEnabled = true;
     private static bool cachedUiPoolEnabled = true;
 
     public static SunExpPerformanceQuality Quality
@@ -44,7 +47,16 @@ public static class SunExpPerformanceSettings
         get
         {
             RefreshIfNeeded();
-            return cachedWunaOrbitFireEnabled && cachedQuality != SunExpPerformanceQuality.UltraLow;
+            return cachedWunaOrbitFireEnabled;
+        }
+    }
+
+    public static bool WunaOrbitFireDynamicEnabled
+    {
+        get
+        {
+            RefreshIfNeeded();
+            return cachedWunaOrbitFireDynamicEnabled;
         }
     }
 
@@ -54,6 +66,16 @@ public static class SunExpPerformanceSettings
         {
             RefreshIfNeeded();
             return cachedUiPoolEnabled;
+        }
+    }
+
+    public static SunExpPerformanceQuality WunaOrbitFireQuality
+    {
+        get
+        {
+            return WunaOrbitFireDynamicEnabled
+                ? SunExpPerformanceQuality.High
+                : SunExpPerformanceQuality.UltraLow;
         }
     }
 
@@ -75,25 +97,25 @@ public static class SunExpPerformanceSettings
         _ => 32
     };
 
-    public static int WunaCoreSections => Quality switch
+    public static int WunaCoreSections => WunaOrbitFireQuality switch
     {
         SunExpPerformanceQuality.High => 96,
         SunExpPerformanceQuality.Balanced => 72,
         SunExpPerformanceQuality.Low => 48,
-        SunExpPerformanceQuality.UltraLow => 0,
+        SunExpPerformanceQuality.UltraLow => 24,
         _ => 72
     };
 
-    public static int WunaDetailTongues => Quality switch
+    public static int WunaDetailTongues => WunaOrbitFireQuality switch
     {
         SunExpPerformanceQuality.High => 3,
         SunExpPerformanceQuality.Balanced => 2,
         SunExpPerformanceQuality.Low => 1,
-        SunExpPerformanceQuality.UltraLow => 0,
+        SunExpPerformanceQuality.UltraLow => 1,
         _ => 2
     };
 
-    public static int WunaDetailSparks => Quality switch
+    public static int WunaDetailSparks => WunaOrbitFireQuality switch
     {
         SunExpPerformanceQuality.High => 3,
         SunExpPerformanceQuality.Balanced => 1,
@@ -102,7 +124,7 @@ public static class SunExpPerformanceSettings
         _ => 1
     };
 
-    public static int WunaOrbitFlamesPerRail => Quality switch
+    public static int WunaOrbitFlamesPerRail => WunaOrbitFireQuality switch
     {
         SunExpPerformanceQuality.High => 3,
         SunExpPerformanceQuality.Balanced => 2,
@@ -111,7 +133,7 @@ public static class SunExpPerformanceSettings
         _ => 2
     };
 
-    public static int WunaAlphaSampleGrid => Quality switch
+    public static int WunaAlphaSampleGrid => WunaOrbitFireQuality switch
     {
         SunExpPerformanceQuality.High => 96,
         SunExpPerformanceQuality.Balanced => 72,
@@ -122,12 +144,17 @@ public static class SunExpPerformanceSettings
 
     public static float WunaGeometryInterval(bool activePulse)
     {
-        return Quality switch
+        if (!WunaOrbitFireDynamicEnabled)
+        {
+            return activePulse ? 1f / 8f : 0.35f;
+        }
+
+        return WunaOrbitFireQuality switch
         {
             SunExpPerformanceQuality.High => activePulse ? 1f / 30f : 1f / 18f,
             SunExpPerformanceQuality.Balanced => activePulse ? 1f / 24f : 1f / 14f,
             SunExpPerformanceQuality.Low => activePulse ? 1f / 16f : 1f / 8f,
-            SunExpPerformanceQuality.UltraLow => 1f,
+            SunExpPerformanceQuality.UltraLow => activePulse ? 1f / 10f : 1f / 5f,
             _ => activePulse ? 1f / 24f : 1f / 14f
         };
     }
@@ -144,14 +171,17 @@ public static class SunExpPerformanceSettings
         {
             cachedQuality = ResolveQuality();
             cachedCountersEnabled = ReadFlag(CountersKey, false);
-            cachedWunaOrbitFireEnabled = ReadFlag(WunaOrbitFireKey, true);
+            cachedWunaOrbitFireDynamicEnabled = !ReadFlag(WunaOrbitFireLowCostKey, false);
+            cachedWunaOrbitFireEnabled = ReadFlag(WunaOrbitFireEnabledKey, false)
+                && !ReadFlag(WunaOrbitFireDisabledKey, false);
             cachedUiPoolEnabled = ReadFlag(UiPoolKey, true);
         }
         catch
         {
             cachedQuality = SunExpPerformanceQuality.Balanced;
             cachedCountersEnabled = false;
-            cachedWunaOrbitFireEnabled = true;
+            cachedWunaOrbitFireEnabled = false;
+            cachedWunaOrbitFireDynamicEnabled = true;
             cachedUiPoolEnabled = true;
         }
 

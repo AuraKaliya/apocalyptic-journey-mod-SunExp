@@ -14,6 +14,7 @@ public static class SunExpFrameScheduler
     public static void Initialize(ModConfig modConfig)
     {
         EnsureRunner();
+        SunExpFrameDispatcher.Register(RunOnceNextFrame);
         SunExpLog.Info("SunExp performance frame scheduler initialized");
     }
 

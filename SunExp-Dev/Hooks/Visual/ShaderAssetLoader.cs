@@ -20,7 +20,7 @@ public static class ShaderAssetLoader
         var bundlePath = spec?.BundlePath;
         if (shader == null && !string.IsNullOrWhiteSpace(bundlePath))
         {
-            SunExpLog.Debug(logPrefix + " shader bundle declared but no loaded shader was found: " + bundlePath);
+            SunExpLog.Warn(logPrefix + " shader bundle declared but no loaded shader was found: " + bundlePath);
         }
 
         return shader;

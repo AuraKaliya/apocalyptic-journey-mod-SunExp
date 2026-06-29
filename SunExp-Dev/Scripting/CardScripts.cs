@@ -650,7 +650,7 @@ public static class CardScripts
 
             DictionaryUtil.Set(card.Vars, "ExCost", used.ToString());
             DictionaryUtil.Set(card.dataConfig?.Vars, "ExCost", used.ToString());
-            card.DataUpdate();
+            SunExpCardRefreshQueue.RequestDataUpdate(card, "FlamewheelHand");
         }
     }
 }

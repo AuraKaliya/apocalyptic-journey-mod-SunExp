@@ -13,8 +13,6 @@ public static class CardVisualSkinApplier
     private static readonly HashSet<string> LoggedSkins = new();
     private static readonly HashSet<string> LoggedUnresolvedCards = new();
     private static readonly Dictionary<int, int> MeshTextureIds = new();
-    private static readonly MaterialPropertyBlock SharedPropertyBlock = new();
-    private static readonly int MainTexId = Shader.PropertyToID("_MainTex");
 
     public static bool Apply(Transform? cardRoot, IDataConfig? config)
     {
@@ -101,11 +99,22 @@ public static class CardVisualSkinApplier
         {
             var rendererId = mesh.GetInstanceID();
             var textureId = sprite.texture.GetInstanceID();
-            var changed = !MeshTextureIds.TryGetValue(rendererId, out var currentTextureId) || currentTextureId != textureId;
-            SharedPropertyBlock.Clear();
-            mesh.GetPropertyBlock(SharedPropertyBlock);
-            SharedPropertyBlock.SetTexture(MainTexId, sprite.texture);
-            mesh.SetPropertyBlock(SharedPropertyBlock);
+            var material = mesh.material;
+            if (material == null)
+            {
+                if (required)
+                {
+                    SunExpLog.Warn(LogPrefix + " " + skinId + " " + layerName + " material missing: " + node.name);
+                }
+
+                return false;
+            }
+
+            var currentTexture = material.mainTexture;
+            var changed = !ReferenceEquals(currentTexture, sprite.texture)
+                || !MeshTextureIds.TryGetValue(rendererId, out var currentTextureId)
+                || currentTextureId != textureId;
+            material.mainTexture = sprite.texture;
             MeshTextureIds[rendererId] = textureId;
             return changed;
         }

@@ -1,0 +1,250 @@
+{
+  "schemaVersion": 1,
+  "ownerModId": "AuraToolsExp",
+  "protocol": {
+    "minVersion": 1,
+    "preferredVersion": 1
+  },
+  "entries": [
+    {
+      "cgId": "official.career_1.feast",
+      "displayName": "官方角色 career_1 - 美餐",
+      "kind": "feast",
+      "targetRoleIds": ["career_1"],
+      "cardIds": ["*"],
+      "media": {
+        "type": "image",
+        "resource": "CG/AuraToolsExp/Feast/Roles/career_1/feast_cg.png",
+        "fallbackImage": "CG/AuraToolsExp/Feast/Roles/career_1/feast_cg.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1.0
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 10,
+      "tags": ["feast-cg", "official-role"],
+      "enabled": true
+    },
+    {
+      "cgId": "official.career_2.feast",
+      "displayName": "官方角色 career_2 - 美餐",
+      "kind": "feast",
+      "targetRoleIds": ["career_2"],
+      "cardIds": ["*"],
+      "media": {
+        "type": "image",
+        "resource": "CG/AuraToolsExp/Feast/Roles/career_2/feast_cg.png",
+        "fallbackImage": "CG/AuraToolsExp/Feast/Roles/career_2/feast_cg.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1.0
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 10,
+      "tags": ["feast-cg", "official-role"],
+      "enabled": true
+    },
+    {
+      "cgId": "official.career_3.feast",
+      "displayName": "官方角色 career_3 - 美餐",
+      "kind": "feast",
+      "targetRoleIds": ["career_3"],
+      "cardIds": ["*"],
+      "media": {
+        "type": "image",
+        "resource": "CG/AuraToolsExp/Feast/Roles/career_3/feast_cg.png",
+        "fallbackImage": "CG/AuraToolsExp/Feast/Roles/career_3/feast_cg.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1.0
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 10,
+      "tags": ["feast-cg", "official-role"],
+      "enabled": true
+    },
+    {
+      "cgId": "official.career_5.feast",
+      "displayName": "官方角色 career_5 - 美餐",
+      "kind": "feast",
+      "targetRoleIds": ["career_5"],
+      "cardIds": ["*"],
+      "media": {
+        "type": "image",
+        "resource": "CG/AuraToolsExp/Feast/Roles/career_5/feast_cg.png",
+        "fallbackImage": "CG/AuraToolsExp/Feast/Roles/career_5/feast_cg.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1.0
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 10,
+      "tags": ["feast-cg", "official-role"],
+      "enabled": true
+    },
+    {
+      "cgId": "official.career_6.feast",
+      "displayName": "官方角色 career_6 - 美餐",
+      "kind": "feast",
+      "targetRoleIds": ["career_6"],
+      "cardIds": ["*"],
+      "media": {
+        "type": "image",
+        "resource": "CG/AuraToolsExp/Feast/Roles/career_6/feast_cg.png",
+        "fallbackImage": "CG/AuraToolsExp/Feast/Roles/career_6/feast_cg.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1.0
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 10,
+      "tags": ["feast-cg", "official-role"],
+      "enabled": true
+    },
+    {
+      "cgId": "official.career_7.feast",
+      "displayName": "官方角色 career_7 - 美餐",
+      "kind": "feast",
+      "targetRoleIds": ["career_7"],
+      "cardIds": ["*"],
+      "media": {
+        "type": "image",
+        "resource": "CG/AuraToolsExp/Feast/Roles/career_7/feast_cg.png",
+        "fallbackImage": "CG/AuraToolsExp/Feast/Roles/career_7/feast_cg.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1.0
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 10,
+      "tags": ["feast-cg", "official-role"],
+      "enabled": true
+    },
+    {
+      "cgId": "official.career_8.feast",
+      "displayName": "官方角色 career_8 - 美餐",
+      "kind": "feast",
+      "targetRoleIds": ["career_8"],
+      "cardIds": ["*"],
+      "media": {
+        "type": "image",
+        "resource": "CG/AuraToolsExp/Feast/Roles/career_8/feast_cg.png",
+        "fallbackImage": "CG/AuraToolsExp/Feast/Roles/career_8/feast_cg.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1.0
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 10,
+      "tags": ["feast-cg", "official-role"],
+      "enabled": true
+    },
+    {
+      "cgId": "official.career_9.feast",
+      "displayName": "官方角色 career_9 - 美餐",
+      "kind": "feast",
+      "targetRoleIds": ["career_9"],
+      "cardIds": ["*"],
+      "media": {
+        "type": "image",
+        "resource": "CG/AuraToolsExp/Feast/Roles/career_9/feast_cg.png",
+        "fallbackImage": "CG/AuraToolsExp/Feast/Roles/career_9/feast_cg.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1.0
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 10,
+      "tags": ["feast-cg", "official-role"],
+      "enabled": true
+    }
+  ]
+}

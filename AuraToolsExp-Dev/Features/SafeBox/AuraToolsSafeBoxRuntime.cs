@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
@@ -27,6 +28,9 @@ public static class AuraToolsSafeBoxRuntime
     private const int RelaxedMaxReserveCardCount = 999999;
     private const int MinimumSafeBoxLevel = 2;
     private static LimitSnapshot? activeSnapshot;
+    private static readonly HashSet<string> LoggedMissingExpendConfigs = new(StringComparer.Ordinal);
+    private static readonly HashSet<string> LoggedRemovedNonCardConfigs = new(StringComparer.Ordinal);
+    private static readonly HashSet<string> LoggedCompatibilityFailures = new(StringComparer.Ordinal);
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -48,6 +52,10 @@ public static class AuraToolsSafeBoxRuntime
         RegisterBefore(modConfig, "SafeBoxUI.ChangeMoney", PrepareUnlimitedSafeBox);
         RegisterAfter(modConfig, "SafeBoxUI.ChangeMoney", FinishUnlimitedSafeBox);
         RegisterAfter(modConfig, "SafeBoxUI.ChangeCountShow", ReplaceCountShowWithUnlimited);
+        RegisterBefore(modConfig, "SafeBoxUI.Awake", PrepareSafeBoxDataCompatibility);
+        RegisterBefore(modConfig, "SafeBoxUI.ShowHadItems", PrepareSafeBoxDataCompatibility);
+        RegisterBefore(modConfig, "SafeBoxUI.ShowBackItem", PrepareSafeBoxDataCompatibility);
+        RegisterBefore(modConfig, "SafeBoxUI.SafeboxSave", PrepareSafeBoxDataCompatibility);
         RegisterAfter(modConfig, "SafeBoxUI.SafeboxSave", SaveRuntimeData);
 
         RegisterAfter(modConfig, "FightInit.Init", CloseSafeBoxForBlockingUi);
@@ -272,6 +280,7 @@ public static class AuraToolsSafeBoxRuntime
                 return;
             }
 
+            EnsureSafeBoxStoredItemCompatibility();
             var safeBox = GameUIManager.Instance.ShowUI<SafeBoxUI>("SafeBoxUI", true);
             safeBox.transform.SetAsLastSibling();
             safeBox.ShowBackItem();
@@ -282,6 +291,11 @@ public static class AuraToolsSafeBoxRuntime
         {
             AuraToolsLog.Error("[SafeBox] failed to open SafeBoxUI", ex);
         }
+    }
+
+    private static void PrepareSafeBoxDataCompatibility(ModHookContext context)
+    {
+        EnsureSafeBoxStoredItemCompatibility();
     }
 
     private static string GetOpenBlockReason()
@@ -447,6 +461,194 @@ public static class AuraToolsSafeBoxRuntime
         role.SafeBoxGetMoneyCount = UnlimitedMoneyActionCount;
         role.GetCardInBack = false;
         role.GetRelic = false;
+    }
+
+    private static void EnsureSafeBoxStoredItemCompatibility()
+    {
+        try
+        {
+            var runtime = Singleton<GameRuntimeData>.Instance;
+            if (runtime != null)
+            {
+                EnsureCardConfigList(runtime.CardData, "GameRuntimeData.CardData");
+            }
+
+            var role = RoleTable.Instance;
+            if (role != null)
+            {
+                EnsureCardConfigList(role.cardList, "RoleTable.cardList");
+                EnsureCardConfigList(role.UnCardList, "RoleTable.UnCardList");
+            }
+
+            EnsureCardConfigList(ReadStaticMember(typeof(SafeBoxUI), "InCardList") as IList<DataConfig>, "SafeBoxUI.InCardList");
+            EnsureCardConfigList(ReadStaticMember(typeof(SafeBoxUI), "OutCardList") as IList<DataConfig>, "SafeBoxUI.OutCardList");
+        }
+        catch (Exception ex)
+        {
+            AuraToolsLog.Warn("[SafeBox] stored item compatibility failed: " + ex.Message);
+        }
+    }
+
+    private static void EnsureCardConfigList(IList<DataConfig>? configs, string source)
+    {
+        if (configs == null)
+        {
+            return;
+        }
+
+        for (var i = configs.Count - 1; i >= 0; i--)
+        {
+            try
+            {
+                var config = configs[i];
+                if (config == null)
+                {
+                    continue;
+                }
+
+                if (ShouldRemoveFromCardList(config, out var removeReason))
+                {
+                    configs.RemoveAt(i);
+                    LogRemovedNonCardConfig(source, config, removeReason);
+                    continue;
+                }
+
+                EnsureSafeBoxCardData(config, source);
+            }
+            catch (Exception ex)
+            {
+                LogCompatibilityFailure(source, i, ex);
+            }
+        }
+    }
+
+    private static bool ShouldRemoveFromCardList(DataConfig config, out string reason)
+    {
+        reason = "";
+        if (HasRawData(config))
+        {
+            return false;
+        }
+
+        var id = ReadConfigId(config);
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return false;
+        }
+
+        var resolvedType = ResolveConfigType(id);
+        if (resolvedType == null || resolvedType == DataType.Card || resolvedType == DataType.DesList)
+        {
+            return false;
+        }
+
+        reason = "resolved type is " + resolvedType.Value;
+        return true;
+    }
+
+    private static void EnsureSafeBoxCardData(DataConfig config, string source)
+    {
+        var data = config.data;
+        if (data == null)
+        {
+            return;
+        }
+
+        var vars = config.Vars;
+        if (!AuraToolsSafeBoxDataCompatibility.TryCreateSafeCardData(data, vars, out var safeData, out var id, out var changed))
+        {
+            return;
+        }
+
+        config.data = safeData;
+        if (!string.IsNullOrWhiteSpace(id) && vars != null && !vars.ContainsKey("Id"))
+        {
+            vars["Id"] = id.Replace("*", "");
+        }
+
+        if (LoggedMissingExpendConfigs.Add(source + "|" + (string.IsNullOrWhiteSpace(id) ? "<unknown>" : id)))
+        {
+            AuraToolsLog.Warn("[SafeBox] normalized card item fields for SafeBoxUI: source="
+                              + source
+                              + ", id="
+                              + (string.IsNullOrWhiteSpace(id) ? "<unknown>" : id)
+                              + ", changed="
+                              + changed);
+        }
+    }
+
+    private static bool HasRawData(IDataConfig? config)
+    {
+        return config?.Vars != null
+               && config.Vars.TryGetValue("RawData", out var rawData)
+               && !string.IsNullOrWhiteSpace(rawData);
+    }
+
+    private static DataType? ResolveConfigType(string id)
+    {
+        try
+        {
+            if (Singleton<GameConfigManager>.Instance == null)
+            {
+                return null;
+            }
+
+            return Singleton<GameConfigManager>.Instance.GetTypeById(id);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string ReadConfigId(IDataConfig? config)
+    {
+        if (config?.data != null && config.data.TryGetValue("Id", out var id) && !string.IsNullOrWhiteSpace(id))
+        {
+            return id;
+        }
+
+        if (config?.Vars != null && config.Vars.TryGetValue("Id", out id) && !string.IsNullOrWhiteSpace(id))
+        {
+            return id;
+        }
+
+        return config?.ToString() ?? "<unknown>";
+    }
+
+    private static object? ReadStaticMember(Type type, string name)
+    {
+        const BindingFlags flags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+        return type.GetField(name, flags)?.GetValue(null)
+               ?? type.GetProperty(name, flags)?.GetValue(null);
+    }
+
+    private static void LogRemovedNonCardConfig(string source, IDataConfig config, string reason)
+    {
+        var id = ReadConfigId(config);
+        if (LoggedRemovedNonCardConfigs.Add(source + "|" + id + "|" + reason))
+        {
+            AuraToolsLog.Warn("[SafeBox] removed non-card item from card list before SafeBoxUI render: source="
+                              + source
+                              + ", id="
+                              + id
+                              + ", reason="
+                              + reason);
+        }
+    }
+
+    private static void LogCompatibilityFailure(string source, int index, Exception ex)
+    {
+        var key = source + "|" + index + "|" + ex.GetType().FullName + "|" + ex.Message;
+        if (LoggedCompatibilityFailures.Add(key))
+        {
+            AuraToolsLog.Warn("[SafeBox] skipped one stored card item during compatibility repair: source="
+                              + source
+                              + ", index="
+                              + index
+                              + ", error="
+                              + ex.Message);
+        }
     }
 
     private static void ReplaceCountShowWithUnlimited(ModHookContext context)

@@ -2,3 +2,6 @@
 开发参考资料/
 bin/
 obj/
+SunExp-Dev/VisualAssets/UnityProject/
+SunExp-Dev/VisualAssets/*.unity-build.log
+SunExp-Dev/VisualAssets/unity-*.log

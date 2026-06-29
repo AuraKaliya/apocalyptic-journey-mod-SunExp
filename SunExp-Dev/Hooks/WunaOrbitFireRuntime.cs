@@ -16,6 +16,7 @@ public static class WunaOrbitFireRuntime
 {
     private const string LogPrefix = "[WunaOrbitFire]";
     private static readonly HashSet<int> AttachedRendererIds = new();
+    private static readonly HashSet<string> LoggedSkips = new(StringComparer.Ordinal);
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -23,13 +24,40 @@ public static class WunaOrbitFireRuntime
         RegisterAfter(modConfig, "StatusManager.SetSprite", AttachFromStatusContext);
         RegisterAfter(modConfig, "FightUI.FadeIn", AttachFromFightUiContext);
         RegisterAfter(modConfig, "FightUI.CallActionAnimation", AttachFromActionContext);
+        SunExpLog.Info(LogPrefix + " runtime initialized");
+    }
+
+    public static void AttachFromExecutor(IScriptExecutor? executor, string action = "", string source = "executor")
+    {
+        try
+        {
+            var status = executor?.Self as StatusManager;
+            AttachToStatus(status, action, source);
+            if (status == null)
+            {
+                return;
+            }
+
+            SunExpFrameDispatcher.RunOnceNextFrame(LogPrefix + ".attach." + source + ".next", () =>
+            {
+                AttachToStatus(status, action, source + ":next");
+                SunExpFrameDispatcher.RunOnceNextFrame(LogPrefix + ".attach." + source + ".second", () =>
+                {
+                    AttachToStatus(status, action, source + ":second");
+                });
+            });
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn(LogPrefix + " executor attach failed from " + source + ": " + ex.Message);
+        }
     }
 
     private static void AttachFromStatusContext(ModHookContext context)
     {
         try
         {
-            AttachToStatus(context.Target as StatusManager, "");
+            AttachToStatus(context.Target as StatusManager, "", "StatusManager");
         }
         catch (Exception ex)
         {
@@ -48,7 +76,7 @@ public static class WunaOrbitFireRuntime
 
             foreach (var status in StatusesFromFightUi(context.Target))
             {
-                AttachToStatus(status, "");
+                AttachToStatus(status, "", "FightUI");
             }
         }
         catch (Exception ex)
@@ -65,7 +93,7 @@ public static class WunaOrbitFireRuntime
                 ? context.Arguments[0] as IScriptExecutor
                 : null;
             var action = ReadData(executor?.dataConfig, "Action");
-            AttachToStatus(executor?.Self as StatusManager, action);
+            AttachToStatus(executor?.Self as StatusManager, action, "Action");
         }
         catch (Exception ex)
         {
@@ -73,17 +101,30 @@ public static class WunaOrbitFireRuntime
         }
     }
 
-    private static void AttachToStatus(StatusManager? status, string action)
+    private static void AttachToStatus(StatusManager? status, string action, string source)
     {
-        if (status == null || !IsWunaStatus(status))
+        if (!SunExpPerformanceSettings.WunaOrbitFireEnabled)
         {
+            LogSkipOnce("disabled", "skipped from " + source + ": orbit fire is disabled by default.");
+            return;
+        }
+
+        if (status == null)
+        {
+            LogSkipOnce(source + ":null-status", "skipped from " + source + ": status is null.");
+            return;
+        }
+
+        if (!IsWunaStatus(status))
+        {
+            LogSkipOnce(source + ":not-wuna:" + status.InstanceId, "skipped from " + source + ": status is not recognized as Wuna; instance=" + status.InstanceId);
             return;
         }
 
         var renderer = FindBodyRenderer(status);
         if (renderer == null)
         {
-            SunExpLog.Debug(LogPrefix + " skipped: no body SpriteRenderer found for Wuna status.");
+            LogSkipOnce(source + ":no-renderer:" + status.InstanceId, "skipped from " + source + ": no body SpriteRenderer found for Wuna status; path=" + RendererPath(status.transform));
             return;
         }
 
@@ -96,12 +137,13 @@ public static class WunaOrbitFireRuntime
             controller = root.AddComponent<WunaOrbitFireController>();
             controller.Configure(renderer);
             AttachedRendererIds.Add(rendererId);
-            SunExpLog.Info(LogPrefix + " attached to renderer: " + RendererPath(renderer.transform));
+            SunExpLog.Info(LogPrefix + " attached to renderer from " + source + ": " + RendererPath(renderer.transform));
         }
         else if (!AttachedRendererIds.Contains(rendererId))
         {
             controller.Configure(renderer);
             AttachedRendererIds.Add(rendererId);
+            SunExpLog.Info(LogPrefix + " reconfigured existing controller from " + source + ": " + RendererPath(renderer.transform));
         }
 
         if (!string.IsNullOrWhiteSpace(action))
@@ -289,6 +331,14 @@ public static class WunaOrbitFireRuntime
         }
 
         return false;
+    }
+
+    private static void LogSkipOnce(string key, string message)
+    {
+        if (LoggedSkips.Add(key))
+        {
+            SunExpLog.Info(LogPrefix + " " + message);
+        }
     }
 
     private static string ReadData(IDataConfig? dataConfig, string key)

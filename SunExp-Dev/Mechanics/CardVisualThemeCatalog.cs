@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using Witch.Core;
@@ -8,30 +9,9 @@ namespace SunExp.Dll.Mechanics;
 
 public static class CardVisualThemeCatalog
 {
-    private static readonly HashSet<string> SunPackIds = new(SunExpIds.SunThemeCardPackIds, StringComparer.Ordinal);
-    private static readonly HashSet<string> StellarOvertureCardIds = new(SunExpIds.StellarOvertureCardIds, StringComparer.Ordinal);
-    private static readonly HashSet<string> SunExplicitCardIds = new(SunExpIds.SunThemeExplicitCardIds, StringComparer.Ordinal);
-
-    private static readonly CardVisualSkinSpec SunSkin = new(
-        SunExpIds.SunCardVisualSkinId,
-        SunExpIds.SunCardFramePath,
-        SunExpIds.SunCardBackgroundPath,
-        "Sun");
-
-    private static readonly CardVisualSkinSpec MorningStarSkin = new(
-        SunExpIds.MorningStarCardVisualSkinId,
-        SunExpIds.MorningStarCardFramePath,
-        "",
-        "Morning Star");
-
     public static CardVisualSkinSpec? Resolve(IDataConfig? config)
     {
-        if (IsStellarOvertureCard(config))
-        {
-            return MorningStarSkin;
-        }
-
-        return IsSunThemeCard(config) ? SunSkin : null;
+        return CardVisualSkinRegistry.Resolve(config);
     }
 
     public static bool IsStellarOvertureCard(IDataConfig? config)
@@ -42,7 +22,7 @@ public static class CardVisualThemeCatalog
         }
 
         var id = CardConfigApi.Id(config);
-        if (StellarOvertureCardIds.Contains(id) || StarScoreService.IsStellarOvertureCard(id))
+        if (SunExpIds.StellarOvertureCardIds.Contains(id) || StarScoreService.IsStellarOvertureCard(id))
         {
             return true;
         }
@@ -59,13 +39,13 @@ public static class CardVisualThemeCatalog
         }
 
         var id = CardConfigApi.Id(config);
-        if (SunExplicitCardIds.Contains(id))
+        if (SunExpIds.SunThemeExplicitCardIds.Contains(id))
         {
             return true;
         }
 
         var packBelong = DictionaryUtil.Get(config.data, "PackBelong");
-        if (!string.IsNullOrWhiteSpace(packBelong) && SunPackIds.Contains(packBelong))
+        if (!string.IsNullOrWhiteSpace(packBelong) && SunExpIds.SunThemeCardPackIds.Contains(packBelong))
         {
             return true;
         }

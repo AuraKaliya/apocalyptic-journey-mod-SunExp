@@ -19,8 +19,8 @@ namespace SunExp.Dll.Hooks;
 
 public static class SolarMemoryModeRuntime
 {
-    private static readonly MaterialPropertyBlock MapCardPropertyBlock = new();
-    private static readonly int MainTexId = Shader.PropertyToID("_MainTex");
+    private const string StoryCardTemplatePath = "Icon/CardTemplate/\u6545\u4e8b\u724c";
+    private const string BuildCardTemplatePath = "Icon/CardTemplate/\u5efa\u7b51\u724c";
     private const int LegacySolarFinaleMapLevel = 30;
     private const int SolarMemoryOpeningSlotIndex = 0;
     private const int SolarMemoryMidLayerSlotIndex = 3;
@@ -450,7 +450,7 @@ public static class SolarMemoryModeRuntime
             visualState.Set(mapId, nodeId);
         }
 
-        ApplyMapCardTexture(fixedItem.transform, data);
+        ApplyMapCardTexture(item, data);
 
         if (fixedItem.TryGetComponent<ObjectGroup>(out var objectGroup))
         {
@@ -521,10 +521,9 @@ public static class SolarMemoryModeRuntime
         return false;
     }
 
-    private static void ApplyMapCardTexture(Transform item, IDictionary<string, string> data)
+    private static void ApplyMapCardTexture(MapItem item, IDictionary<string, string> data)
     {
-        var background = item.Find("Front/background")?.GetComponent<MeshRenderer>();
-        if (background == null)
+        if (item == null)
         {
             return;
         }
@@ -541,21 +540,15 @@ public static class SolarMemoryModeRuntime
 
             if (customTexture != null)
             {
-                var icon = item.Find("Front/icon");
-                if (icon != null)
-                {
-                    icon.gameObject.SetActive(false);
-                }
-
-                SetBackgroundTexture(background, customTexture);
+                ApplyMapCardTexture(item, customTexture, hideIcon: true, "event custom");
                 return;
             }
 
-            SetBackgroundTexture(background, SunExpResourceCache.Load<Texture>("Icon/CardTemplate/故事牌", true));
+            ApplyMapCardTexture(item, SunExpResourceCache.Load<Texture>(StoryCardTemplatePath, true), hideIcon: false, "event fallback");
         }
         else if (type == "Build")
         {
-            SetBackgroundTexture(background, SunExpResourceCache.Load<Texture>("Icon/CardTemplate/建筑牌", true));
+            ApplyMapCardTexture(item, SunExpResourceCache.Load<Texture>(BuildCardTemplatePath, true), hideIcon: false, "build fallback");
         }
     }
 
@@ -572,17 +565,21 @@ public static class SolarMemoryModeRuntime
         }
     }
 
-    private static void SetBackgroundTexture(MeshRenderer renderer, Texture? texture)
+    private static void ApplyMapCardTexture(MapItem item, Texture? texture, bool hideIcon, string source)
     {
         if (texture == null)
         {
+            SunExpLog.Warn("[SolarMemoryMapLock] map card texture missing: " + source);
             return;
         }
 
-        MapCardPropertyBlock.Clear();
-        renderer.GetPropertyBlock(MapCardPropertyBlock);
-        MapCardPropertyBlock.SetTexture(MainTexId, texture);
-        renderer.SetPropertyBlock(MapCardPropertyBlock);
+        if (!MapItemApi.ApplyCardBackgroundTexture(item, texture, hideIcon, out var appliedTarget))
+        {
+            SunExpLog.Warn("[SolarMemoryMapLock] map card texture skipped, renderer missing: " + source);
+            return;
+        }
+
+        SunExpLog.Debug("[SolarMemoryMapLock] map card texture applied: " + source + " -> " + appliedTarget);
     }
 
     private sealed class FixedSlotVisualState : MonoBehaviour

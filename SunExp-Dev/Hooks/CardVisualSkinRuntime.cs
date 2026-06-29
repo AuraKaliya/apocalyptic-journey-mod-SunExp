@@ -21,9 +21,9 @@ public static class CardVisualSkinRuntime
         RegisterAfter(modConfig, "CardItem.DrawEffect", context => ApplyFromItemRoot(context, "CardItem.DrawEffect"));
         RegisterAfter(modConfig, "CommonCardItem.DrawEffect", context => ApplyFromItemRoot(context, "CommonCardItem.DrawEffect"));
         RegisterAfter(modConfig, "AttackCardItem.DrawEffect", context => ApplyFromItemRoot(context, "AttackCardItem.DrawEffect"));
-        RegisterAfter(modConfig, "FightUI.CreateCardItem", context => ReapplyActiveCombatCardsDebounced("FightUI.CreateCardItem"));
+        RegisterAfter(modConfig, "FightUI.CreateCardItem", context => ReapplyActiveCombatCardsNowAndLater("FightUI.CreateCardItem"));
         RegisterAfter(modConfig, "FightUI.CreateCardItemInternal", ApplyFromFightUiCreateCardItemInternal);
-        RegisterAfter(modConfig, "ScriptExecutor.GetCardFromDeck", context => ReapplyActiveCombatCardsDebounced("ScriptExecutor.GetCardFromDeck"));
+        RegisterAfter(modConfig, "ScriptExecutor.GetCardFromDeck", context => ReapplyActiveCombatCardsNowAndLater("ScriptExecutor.GetCardFromDeck"));
 
         RegisterAfter(modConfig, "DictItem.Init", context => ApplyFromArgumentRoot(context, 0, null, "DictItem.Init"));
         RegisterAfter(modConfig, "DictionaryShowItem.Init", context => ApplyFromArgumentRoot(context, 0, null, "DictionaryShowItem.Init"));
@@ -150,6 +150,7 @@ public static class CardVisualSkinRuntime
             if (config != null)
             {
                 ApplySafely(FindCombatCardRoot(config), config, "FightUI.CreateCardItemInternal");
+                ReapplyActiveCombatCardsNowAndLater("FightUI.CreateCardItemInternal");
             }
         }
         catch (Exception ex)
@@ -247,11 +248,24 @@ public static class CardVisualSkinRuntime
         }
     }
 
-    private static void ReapplyActiveCombatCardsDebounced(string source)
+    private static void ReapplyActiveCombatCardsNowAndLater(string source)
+    {
+        ReapplyActiveCombatCards(source);
+        ReapplyActiveCombatCardsDelayed(source, 1);
+    }
+
+    private static void ReapplyActiveCombatCardsDelayed(string source, int pass)
     {
         SunExpFrameScheduler.RunOnceNextFrame(
-            "CardVisualSkinRuntime.ReapplyActiveCombatCards",
-            () => ReapplyActiveCombatCards(source));
+            "CardVisualSkinRuntime.ReapplyActiveCombatCards.Pass" + pass,
+            () =>
+            {
+                ReapplyActiveCombatCards(source + ".delayed" + pass);
+                if (pass < 2)
+                {
+                    ReapplyActiveCombatCardsDelayed(source, pass + 1);
+                }
+            });
     }
 
     private static void ApplySafely(Transform? root, IDataConfig? config, string source)

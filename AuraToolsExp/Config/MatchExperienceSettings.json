@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 6,
   "starterDeck": {
     "enabled": false,
     "mode": "Global",
@@ -22,6 +22,22 @@
   },
   "modSync": {
     "enabled": false
+  },
+  "feast": {
+    "enabled": true,
+    "playCg": true,
+    "maxBatchCount": 64,
+    "defaultPresentation": {
+      "mode": "fullscreenFade",
+      "fit": "cover",
+      "fadeIn": 0.35,
+      "hold": 1.5,
+      "fadeOut": 0.5,
+      "focusX": 0.5,
+      "focusY": 0.5,
+      "safeScale": 1.0
+    },
+    "roles": {}
   },
   "damageMeter": {
     "enabled": false,

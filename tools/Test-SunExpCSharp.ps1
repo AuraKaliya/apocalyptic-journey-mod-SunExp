@@ -31,10 +31,16 @@ function New-ProjectXml {
     $dictionaryUtil = Join-Path $RepoRoot "SunExp-Dev\Infrastructure\DictionaryUtil.cs"
     $auraSharedDictionary = Join-Path $RepoRoot "AuraSharedCore\AuraSharedDictionary.cs"
     $sunExpIds = Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpIds.cs"
+    $sunExpFrameDispatcher = Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpFrameDispatcher.cs"
     $cardApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardApi.cs"
     $cardConfigApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardConfigApi.cs"
+    $cardVisualSkinApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardVisualSkinApi.cs"
+    $cardVisualSkinSpec = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualSkinSpec.cs"
+    $cardVisualSkinRule = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualSkinRule.cs"
+    $cardVisualSkinRegistry = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualSkinRegistry.cs"
     $cardMutationService = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardMutationService.cs"
     $runtimeCardAttachmentService = Join-Path $RepoRoot "SunExp-Dev\Mechanics\RuntimeCardAttachmentService.cs"
+    $sunExpCardRefreshQueue = Join-Path $RepoRoot "SunExp-Dev\Mechanics\SunExpCardRefreshQueue.cs"
     $starBlessingCostOverrideStore = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarBlessingCostOverrideStore.cs"
     $loneerCombatState = Join-Path $RepoRoot "SunExp-Dev\Mechanics\LoneerCombatState.cs"
     $starScoreNote = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreNote.cs"
@@ -62,8 +68,14 @@ function New-ProjectXml {
     <Compile Include="$auraSharedDictionary" />
     <Compile Include="$dictionaryUtil" />
     <Compile Include="$sunExpIds" />
+    <Compile Include="$sunExpFrameDispatcher" />
     <Compile Include="$cardApi" />
     <Compile Include="$cardConfigApi" />
+    <Compile Include="$cardVisualSkinApi" />
+    <Compile Include="$cardVisualSkinSpec" />
+    <Compile Include="$cardVisualSkinRule" />
+    <Compile Include="$cardVisualSkinRegistry" />
+    <Compile Include="$sunExpCardRefreshQueue" />
     <Compile Include="$cardMutationService" />
     <Compile Include="$runtimeCardAttachmentService" />
     <Compile Include="$starBlessingCostOverrideStore" />
@@ -87,6 +99,10 @@ function New-StubsSource {
 @'
 using System;
 using System.Collections.Generic;
+
+namespace Witch.Core
+{
+}
 
 public sealed class FightPlayer
 {
@@ -184,6 +200,8 @@ public sealed class FightCardManager
 
 public sealed class CardItem
 {
+    private readonly int instanceId = Guid.NewGuid().GetHashCode();
+
     public DataConfig? dataConfig { get; set; }
 
     public IDictionary<string, string> data { get; set; } = new Dictionary<string, string>();
@@ -198,6 +216,11 @@ public sealed class CardItem
 
     public void DataUpdate()
     {
+    }
+
+    public int GetInstanceID()
+    {
+        return instanceId;
     }
 }
 
@@ -283,7 +306,31 @@ namespace SunExp.Dll.Infrastructure
         {
         }
 
+        public static void Info(string message)
+        {
+        }
+
         public static void Debug(string message)
+        {
+        }
+
+        public static void Error(string message, Exception exception)
+        {
+        }
+    }
+
+    public static class SunExpPerformanceCounters
+    {
+        public static long Timestamp()
+        {
+            return 0L;
+        }
+
+        public static void Record(string name)
+        {
+        }
+
+        public static void RecordDuration(string name, long startTimestamp)
         {
         }
     }
@@ -327,6 +374,7 @@ internal static class Program
         TestWhiteRadianceTags();
         TestTemporaryWhiteRadianceClaim();
         TestSolarMemoryIsolationIds();
+        TestCardVisualSkinRegistry();
         TestMapNodeTextureFitService();
         TestModeChoiceDragRange();
         TestLoneerStateOwnership();
@@ -360,6 +408,50 @@ internal static class Program
         True(SunExpIds.IsSolarMemoryExclusiveEventId("SunExp_sunexp_Sub_solar_memory_second_sun"), "Full Solar Memory story event ids are exclusive");
         False(SunExpIds.IsSolarMemoryExclusiveEventId("Sub_wuna_event_1"), "Retired Wuna story event ids are no longer shipped exclusive events");
         False(SunExpIds.IsSolarMemoryExclusiveEventId("event_2001"), "Base game event ids are not Solar Memory exclusive");
+    }
+
+    private static void TestCardVisualSkinRegistry()
+    {
+        CardVisualSkinRegistry.ClearOwner("TestMod");
+        CardVisualSkinApi.RegisterTheme(
+            "TestMod",
+            "test.skin.pack",
+            "pack-frame",
+            "",
+            "Pack",
+            10,
+            null,
+            new[] { "pack_a" },
+            null);
+        CardVisualSkinApi.RegisterTheme(
+            "TestMod",
+            "test.skin.icon",
+            "icon-frame",
+            "",
+            "Icon",
+            20,
+            null,
+            null,
+            new[] { "Mods/Test/Icon/" });
+
+        var packCard = new DataConfig(new Dictionary<string, string>
+        {
+            ["Id"] = "card_pack",
+            ["PackBelong"] = "pack_a",
+            ["Icon"] = "Other/Icon"
+        });
+        Equal("test.skin.pack", CardVisualSkinRegistry.Resolve(packCard)?.Id, "Card visual skin resolves by pack id");
+
+        var iconCard = new DataConfig(new Dictionary<string, string>
+        {
+            ["Id"] = "card_icon",
+            ["PackBelong"] = "pack_a",
+            ["Icon"] = "Mods/Test/Icon/card"
+        });
+        Equal("test.skin.icon", CardVisualSkinRegistry.Resolve(iconCard)?.Id, "Higher-priority card visual skin resolves by icon prefix");
+
+        CardVisualSkinRegistry.ClearOwner("TestMod");
+        Equal(null, CardVisualSkinRegistry.Resolve(packCard)?.Id, "Clearing owner removes registered card visual skin rules");
     }
 
     private static void TestMapNodeTextureFitService()

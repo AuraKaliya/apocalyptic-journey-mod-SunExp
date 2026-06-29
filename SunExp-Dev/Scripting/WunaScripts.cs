@@ -19,6 +19,7 @@ public static class WunaScripts
             PlayerApi.SetSkillTime(GraveSongCardId, 0);
             ExecutorApi.SetVar(self, "SunExpWunaRadianceDone", "0");
             ExecutorApi.SetVar(self, "SunExpWunaPrevEnemyBurn", "0");
+            AttachOrbitFire(self, "InitCareer");
 
             var token = (DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "SunExpWunaCareerToken", "0")) + 1).ToString();
             self.SetStatus("Self");
@@ -32,6 +33,7 @@ public static class WunaScripts
                 RestorePersistentEmber(self);
                 ExecutorApi.SetVar(self, "SunExpWunaRadianceDone", "0");
                 ExecutorApi.SetVar(self, "SunExpWunaPrevEnemyBurn", EnemyBurnTotal(self));
+                AttachOrbitFire(self, "FightStart");
             }), "wuna_career");
             var startRoundRegistered = ExecutorApi.TryAddEvent(self, "StartRound", new Action(() =>
             {
@@ -130,6 +132,7 @@ public static class WunaScripts
         }
 
         self.SetStatus("Self");
+        AttachOrbitFire(self, "WhiteSunPrayer", "Skill");
         AudioApi.PlayWhiteSunPrayer();
         var grant = WunaCardGrantService.GrantCoronationTokenToHand(self, SunExpIds.WunaCoronationTokenCardId);
         if (!grant.Success)
@@ -171,6 +174,7 @@ public static class WunaScripts
         var burn = ember / 2;
         AudioApi.PlayGraveSong();
         self.SetStatus("Self");
+        AttachOrbitFire(self, "GraveSong", "Skill");
         BuffApi.ClearEmberDamageBonus(self, self.Self);
         self.RemoveBuff(SunExpIds.Ember);
         BuffApi.OnEmberConsumed(self, self.Self, ember);
@@ -188,6 +192,7 @@ public static class WunaScripts
 
     private static void StartRound(ScriptExecutor self)
     {
+        AttachOrbitFire(self, "StartRound");
         TickSkillTimes();
         ExecutorApi.SetVar(self, "SunExpWunaRadianceDone", "0");
 
@@ -345,5 +350,10 @@ public static class WunaScripts
         var level = Math.Max(0, Math.Min(99, value));
         PlayerApi.SetScopedGameVar(SunExpIds.WunaPersistentEmber, self?.Self, level.ToString());
         return level;
+    }
+
+    private static void AttachOrbitFire(ScriptExecutor self, string source, string action = "")
+    {
+        WunaVisualApi.AttachOrbitFire(self, action, "WunaScripts." + source);
     }
 }

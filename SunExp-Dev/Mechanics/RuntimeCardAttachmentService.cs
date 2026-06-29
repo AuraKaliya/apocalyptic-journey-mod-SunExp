@@ -768,8 +768,7 @@ public static class RuntimeCardAttachmentService
     {
         try
         {
-            card.RefreshTag();
-            card.DataUpdate();
+            SunExpCardRefreshQueue.RequestFullRefresh(card, "RuntimeCardAttachment");
             if (card.dataConfig != null)
             {
                 FightCardManager.Instance?.RefreshTag(card.dataConfig);

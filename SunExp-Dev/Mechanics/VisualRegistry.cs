@@ -97,6 +97,22 @@ public static class VisualRegistry
             .ToArray();
     }
 
+    public static IReadOnlyList<string> BundlePaths()
+    {
+        var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var shader in ActiveDocument().Shaders)
+        {
+            AddBundlePath(paths, shader.Enabled, shader.BundlePath);
+        }
+
+        foreach (var effect in ActiveDocument().Effects)
+        {
+            AddBundlePath(paths, effect.Enabled, effect.BundlePath);
+        }
+
+        return paths.OrderBy(path => path, StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
     public static FrameAnimationVisualSpec? FrameAnimationByMatchId(string id, string targetKind)
     {
         if (string.IsNullOrWhiteSpace(id))
@@ -140,6 +156,15 @@ public static class VisualRegistry
         return spec.Enabled
             && spec.FramePaths.Count > 0
             && string.Equals(spec.TargetKind, targetKind, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void AddBundlePath(ISet<string> paths, bool enabled, string? bundlePath)
+    {
+        var path = bundlePath?.Trim() ?? "";
+        if (enabled && path.Length > 0)
+        {
+            paths.Add(path);
+        }
     }
 
     private static MapNodeCardArtSpec ToMapNodeCardArtSpec(MapNodeArtVisualSpec spec)
@@ -335,7 +360,7 @@ internal static class VisualRegistryDefaults
                 new()
                 {
                     Id = "solar_memory.event_map_card",
-                    Path = "Mods/SunExp/ModResource/Images/MapNode/日耀回忆-事件.png"
+                    Path = "Mods/SunExp/ModResource/Images/MapNode/\u65e5\u8000\u56de\u5fc6-\u4e8b\u4ef6.png"
                 }
             },
             ModeEntries = new List<ModeEntryVisualSpec>

@@ -6,6 +6,7 @@ using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.Audio;
 using AuraToolsExp.Dll.Features.DamageMeter;
+using AuraToolsExp.Dll.Features.Feast;
 using AuraToolsExp.Dll.Features.Logging;
 using AuraToolsExp.Dll.Features.SafeBox;
 using AuraToolsExp.Dll.Features.Skin;
@@ -678,6 +679,34 @@ public static class AuraToolsSettingsRuntime
             settings.PreferRoleModProfile = true;
             AuraToolsUi.AddText(policyRow.transform, "说明：没有本地角色卡组时，会自动使用角色所属 MOD 注册的推荐开局卡组；没有推荐时再回退到全局卡组。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
         }, starterDeckEnabled ? new Color(0.58f, 0.94f, 0.62f, 1f) : AuraToolsUi.MutedText);
+
+        var feast = AuraToolsConfigService.MatchExperience.Feast;
+        CreateSubmodule(parent, "一键美餐", feast.Enabled, value =>
+        {
+            feast.Enabled = value;
+            AuraToolsConfigService.SaveMatchExperience();
+        }, content =>
+        {
+            var row = CreateInlineRow(content, "FeastConfigRow");
+            var scannedRoleCount = RoleCatalog.GetRoles().Count;
+            AuraToolsUi.AddText(
+                row.transform,
+                "角色：" + scannedRoleCount
+                + "，已配置：" + feast.Roles.Count
+                + "，注册CG：" + AuraToolsFeastRuntime.RegisteredFeastCgCount()
+                + "，CG仅本地播放",
+                AuraToolsUi.BodyFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.Text,
+                AuraToolsUi.TextMinHeight,
+                1f);
+            AuraToolsUi.AddButton(row.transform, "按角色配置", () => AuraToolsFeastRoleEditor.Show(activePanel!.transform), 112f);
+
+            var policyRow = CreateInlineRow(content, "FeastPolicyRow");
+            feast.PlayCg = true;
+            AuraToolsUi.AddText(policyRow.transform, "说明：一键吃掉所有食物，并播放当前角色的美餐CG。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
+            AuraToolsUi.AddText(content, "声明：该功能初始代码由【哈基米】提供，后续由【Aura】进行维护，若MOD角色需要增添相关CG，可通过共享层接口实现自主注册，也可联系【Aura】进行内置添加。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
+        }, feast.Enabled ? AuraToolsUi.SuccessText : AuraToolsUi.MutedText);
 
         CreateSubmodule(parent, "随身保险箱", AuraToolsConfigService.MatchExperience.SafeBox.Enabled, value =>
         {

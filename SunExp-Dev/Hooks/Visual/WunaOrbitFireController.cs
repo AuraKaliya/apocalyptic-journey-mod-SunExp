@@ -15,6 +15,10 @@ public sealed class WunaOrbitFireController : MonoBehaviour
     private const float DefaultBoostSeconds = 0.95f;
     private const float MinBoundsSize = 0.01f;
     private const float AlphaBoundsThreshold = 0.08f;
+    private const float OrbitBoxFill = 0.92f;
+    private const float CoreRibbonWidthMultiplier = 2.1f;
+    private const float FlowRibbonWidthMultiplier = 3.35f;
+    private const float VeilRibbonWidthMultiplier = 2.45f;
 
     private static readonly WunaOrbitFireOrbitModel.OrbitRail[] Rails = WunaOrbitFireOrbitModel.Rails;
     private static readonly Vector2 OrbitBoundsFocus = new(0.5f, 0.46f);
@@ -56,6 +60,10 @@ public sealed class WunaOrbitFireController : MonoBehaviour
     private bool meshesClearedForPerformance;
     private int lastSortingLayerId = int.MinValue;
     private int lastSortingOrder = int.MinValue;
+    private bool configureDiagnosticLogged;
+    private bool geometryDiagnosticLogged;
+    private bool lateUpdateDiagnosticLogged;
+    private readonly HashSet<string> runtimeDiagnostics = new(StringComparer.Ordinal);
 
     public void Configure(SpriteRenderer renderer)
     {
@@ -66,11 +74,13 @@ public sealed class WunaOrbitFireController : MonoBehaviour
 
         EnsureLayer("BackCore", false, true, false, ref backCoreMesh, ref backCoreRenderer, ref backCoreMaterial);
         EnsureLayer("BackDetail", false, false, false, ref backDetailMesh, ref backDetailRenderer, ref backDetailMaterial);
-        EnsureLayer("BackFlames", false, false, true, ref backFlameMesh, ref backFlameRenderer, ref backFlameMaterial);
+        EnsureLayer("BackFlames", false, false, false, ref backFlameMesh, ref backFlameRenderer, ref backFlameMaterial);
         EnsureLayer("FrontCore", true, true, false, ref frontCoreMesh, ref frontCoreRenderer, ref frontCoreMaterial);
         EnsureLayer("FrontDetail", true, false, false, ref frontDetailMesh, ref frontDetailRenderer, ref frontDetailMaterial);
-        EnsureLayer("FrontFlames", true, false, true, ref frontFlameMesh, ref frontFlameRenderer, ref frontFlameMaterial);
+        EnsureLayer("FrontFlames", true, false, false, ref frontFlameMesh, ref frontFlameRenderer, ref frontFlameMaterial);
         SyncSorting(force: true);
+        LogConfigureDiagnostic(renderer);
+        TryBuildGeometryFromTarget("configure", force: true);
     }
 
     public void BoostForAction(string action)
@@ -86,8 +96,20 @@ public sealed class WunaOrbitFireController : MonoBehaviour
 
     private void LateUpdate()
     {
+        if (!lateUpdateDiagnosticLogged)
+        {
+            lateUpdateDiagnosticLogged = true;
+            SunExpLog.Info("[WunaOrbitFire] LateUpdate ticked.");
+        }
+
+        TryBuildGeometryFromTarget("late-update", force: false);
+    }
+
+    private void TryBuildGeometryFromTarget(string source, bool force)
+    {
         if (targetRenderer == null || targetRenderer.sprite == null)
         {
+            LogRuntimeDiagnostic(source + ":no-target", "build skipped from " + source + ": target renderer or sprite is missing.");
             return;
         }
 
@@ -97,6 +119,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
             {
                 ClearAllMeshes();
                 meshesClearedForPerformance = true;
+                LogRuntimeDiagnostic(source + ":disabled", "build skipped from " + source + ": Wuna orbit fire is disabled by performance settings.");
             }
 
             return;
@@ -109,6 +132,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
         var bounds = GetOrbitBounds(sprite);
         if (bounds.size.x < MinBoundsSize || bounds.size.y < MinBoundsSize)
         {
+            LogRuntimeDiagnostic(source + ":small-bounds", "build skipped from " + source + ": sprite bounds are too small.");
             return;
         }
 
@@ -123,7 +147,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
 
         var spriteChanged = !ReferenceEquals(sprite, lastGeometrySprite);
         var boundsChanged = spriteChanged || BoundsChanged(bounds, lastGeometryBounds);
-        if (!spriteChanged && !boundsChanged && now < nextGeometryUpdate)
+        if (!force && !spriteChanged && !boundsChanged && now < nextGeometryUpdate)
         {
             return;
         }
@@ -133,17 +157,18 @@ public sealed class WunaOrbitFireController : MonoBehaviour
         nextGeometryUpdate = now + SunExpPerformanceSettings.WunaGeometryInterval(actionPulse > 0.03f);
         var start = SunExpPerformanceCounters.Timestamp();
         BuildGeometry(bounds, intensity);
+        LogGeometryDiagnostic(bounds, source);
         SunExpPerformanceCounters.RecordDuration("WunaOrbitFire.BuildGeometry", start);
     }
 
     private void BuildGeometry(Bounds bounds, float intensity)
     {
-        BuildStreamLayer(backCoreMesh, bounds, false, intensity * 0.34f, false);
-        BuildDetailLayer(backDetailMesh, bounds, false, intensity * 0.38f);
-        BuildParticleLayer(backFlameMesh, bounds, false, intensity * 0.46f);
-        BuildStreamLayer(frontCoreMesh, bounds, true, intensity * 0.58f, false);
-        BuildDetailLayer(frontDetailMesh, bounds, true, intensity * 0.62f);
-        BuildParticleLayer(frontFlameMesh, bounds, true, intensity * 0.8f);
+        BuildCoreLayer(backCoreMesh, bounds, false, intensity * 0.38f);
+        BuildStreamLayer(backDetailMesh, bounds, false, intensity * 0.48f, false);
+        BuildStreamLayer(backFlameMesh, bounds, false, intensity * 0.24f, true);
+        BuildCoreLayer(frontCoreMesh, bounds, true, intensity * 0.76f);
+        BuildStreamLayer(frontDetailMesh, bounds, true, intensity * 0.94f, false);
+        BuildStreamLayer(frontFlameMesh, bounds, true, intensity * 0.42f, true);
     }
 
     private void ClearAllMeshes()
@@ -256,6 +281,78 @@ public sealed class WunaOrbitFireController : MonoBehaviour
         renderer.sortingOrder = targetRenderer.sortingOrder + offset;
     }
 
+    private void LogConfigureDiagnostic(SpriteRenderer renderer)
+    {
+        if (configureDiagnosticLogged)
+        {
+            return;
+        }
+
+        configureDiagnosticLogged = true;
+        SunExpLog.Info("[WunaOrbitFire] configured: targetEnabled="
+            + renderer.enabled
+            + ", targetActive="
+            + renderer.gameObject.activeInHierarchy
+            + ", sprite="
+            + (renderer.sprite?.name ?? "<none>")
+            + ", sortingLayer="
+            + renderer.sortingLayerID
+            + ", sortingOrder="
+            + renderer.sortingOrder
+            + ", visible="
+            + SunExpPerformanceSettings.WunaOrbitFireEnabled
+            + ", dynamic="
+            + SunExpPerformanceSettings.WunaOrbitFireDynamicEnabled
+            + ", quality="
+            + SunExpPerformanceSettings.WunaOrbitFireQuality
+            + ", globalQuality="
+            + SunExpPerformanceSettings.Quality
+            + ", frontShader="
+            + (frontDetailMaterial?.shader?.name ?? "<none>")
+            + ", backShader="
+            + (backDetailMaterial?.shader?.name ?? "<none>"));
+    }
+
+    private void LogGeometryDiagnostic(Bounds bounds, string source)
+    {
+        if (geometryDiagnosticLogged)
+        {
+            return;
+        }
+
+        geometryDiagnosticLogged = true;
+        SunExpLog.Info("[WunaOrbitFire] geometry built from "
+            + source
+            + ": bounds="
+            + bounds.size.x.ToString("0.###")
+            + "x"
+            + bounds.size.y.ToString("0.###")
+            + ", backCoreVerts="
+            + (backCoreMesh?.vertexCount ?? 0)
+            + ", backDetailVerts="
+            + (backDetailMesh?.vertexCount ?? 0)
+            + ", backFlameVerts="
+            + (backFlameMesh?.vertexCount ?? 0)
+            + ", frontCoreVerts="
+            + (frontCoreMesh?.vertexCount ?? 0)
+            + ", frontDetailVerts="
+            + (frontDetailMesh?.vertexCount ?? 0)
+            + ", frontFlameVerts="
+            + (frontFlameMesh?.vertexCount ?? 0)
+            + ", frontOrder="
+            + (frontDetailRenderer?.sortingOrder ?? int.MinValue)
+            + ", backOrder="
+            + (backDetailRenderer?.sortingOrder ?? int.MinValue));
+    }
+
+    private void LogRuntimeDiagnostic(string key, string message)
+    {
+        if (runtimeDiagnostics.Add(key))
+        {
+            SunExpLog.Info("[WunaOrbitFire] " + message);
+        }
+    }
+
     private static void UpdateMaterial(Material? material, float layer, float intensity)
     {
         if (material == null)
@@ -361,17 +458,20 @@ public sealed class WunaOrbitFireController : MonoBehaviour
     {
         var full = sprite.bounds;
         var alpha = TryGetAlphaBounds(sprite, full);
-        var source = alpha.HasValue && alpha.Value.size.x > MinBoundsSize && alpha.Value.size.y > MinBoundsSize
-            ? alpha.Value
-            : full;
-
         var fullFocus = new Vector2(
             full.min.x + full.size.x * OrbitBoundsFocus.x,
             full.min.y + full.size.y * OrbitBoundsFocus.y);
-        var center = Vector2.Lerp(source.center, fullFocus, source.size.x > source.size.y * 1.15f ? 0.72f : 0.38f);
-        var height = Mathf.Min(source.size.y * 0.86f, full.size.y * 0.74f);
-        var width = Mathf.Min(source.size.x * 0.74f, height * 0.82f);
-        height = Mathf.Max(height, width * 1.18f);
+        var alphaFocus = alpha.HasValue
+            ? new Vector2(
+                alpha.Value.min.x + alpha.Value.size.x * OrbitBoundsFocus.x,
+                alpha.Value.min.y + alpha.Value.size.y * OrbitBoundsFocus.y)
+            : fullFocus;
+        var center = Vector2.Lerp(fullFocus, alphaFocus, 0.22f);
+        var fullBox = Mathf.Max(full.size.x, full.size.y);
+        var alphaBox = alpha.HasValue ? Mathf.Max(alpha.Value.size.x, alpha.Value.size.y) : fullBox;
+        var boxSize = Mathf.Max(fullBox * OrbitBoxFill, alphaBox * 1.08f);
+        var width = Mathf.Max(boxSize, MinBoundsSize);
+        var height = Mathf.Max(boxSize, MinBoundsSize);
 
         return new Bounds(
             new Vector3(center.x, center.y, full.center.z),
@@ -554,6 +654,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
             var widthCurve = 0.38f + Mathf.Sin((1f - t) * Mathf.PI) * 0.42f;
             var headGlow = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.2f, 0f, t));
             var width = bounds.size.x * rail.CoreWidthScale * (widthCurve + headGlow * 0.5f) * Mathf.Lerp(0.96f, 1.22f, actionPulse);
+            width *= CoreRibbonWidthMultiplier;
             var alphaCurve = Mathf.Pow(1f - t, 1.15f) * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(1f, 0.78f, t));
             var alpha = Mathf.Clamp01(layerFade * intensity * rail.AlphaScale * alphaCurve * 1.15f);
             var drift = normal * (Mathf.Sin(time * 1.55f + rail.Phase + section * 0.23f) * bounds.size.x * 0.005f);
@@ -584,26 +685,27 @@ public sealed class WunaOrbitFireController : MonoBehaviour
                 layerFade = OccludeBackLayer(layerFade, sample, bounds, rail);
             }
 
-            var orbitWave = Mathf.Sin(t * Mathf.PI * 6f + time * (1.1f + Mathf.Abs(rail.Speed)) + rail.Phase) * 0.5f + 0.5f;
-            var envelope = Mathf.Lerp(0.72f, 1.08f, orbitWave);
+            var orbitWave = Mathf.Sin(t * Mathf.PI * 5f + time * (1.15f + Mathf.Abs(rail.Speed) * 0.55f) + rail.Phase) * 0.5f + 0.5f;
+            var envelope = Mathf.Lerp(0.82f, 1.18f, orbitWave);
             var frontGlow = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.1f, 0.88f, sample.Depth));
             var widthScale = outerVeil
-                ? Mathf.Lerp(0.48f, 0.88f, envelope)
-                : Mathf.Lerp(0.26f, 0.52f, envelope) + frontGlow * 0.06f;
+                ? Mathf.Lerp(0.74f, 1.18f, envelope)
+                : Mathf.Lerp(0.34f, 0.64f, envelope) + frontGlow * 0.08f;
             var width = bounds.size.x
                 * (outerVeil ? rail.TongueWidthScale : rail.CoreWidthScale)
                 * sample.Scale
                 * widthScale
                 * Mathf.Lerp(0.84f, 1.04f, actionPulse);
+            width *= outerVeil ? VeilRibbonWidthMultiplier : FlowRibbonWidthMultiplier;
             var alphaCurve = Mathf.Lerp(0.72f, 1f, orbitWave) * Mathf.Lerp(0.82f, 1.12f, frontGlow);
-            var alphaScale = outerVeil ? 0.34f : 0.72f;
+            var alphaScale = outerVeil ? 0.22f : 0.86f;
             var alpha = Mathf.Clamp01(layerFade * intensity * rail.AlphaScale * alphaCurve * alphaScale);
             var floatOffset = Mathf.Sin(time * 1.35f + t * Mathf.PI * 10f + rail.Phase)
                 * bounds.size.x
                 * rail.FlickerAmplitude
-                * (outerVeil ? 0.45f : 0.22f);
-            var trailU = Mathf.Repeat(t + time * 0.06f * rail.Direction, 1f);
-            AddRibbonSection(sample.Position + normal * floatOffset, normal, width, alpha, trailU, 0.5f);
+                * (outerVeil ? 0.35f : 0.18f);
+            var trailU = Mathf.Repeat(t + rail.Phase * 0.061f, 1f);
+            AddRibbonSection(sample.Position + normal * floatOffset, normal, width, alpha, trailU, t);
         }
 
         AddStripTriangles(firstVertex, coreSections + 1);

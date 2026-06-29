@@ -194,7 +194,9 @@ if (-not (Test-Path -LiteralPath $sunAudioSource -PathType Container)) {
 }
 $requiredSunCgResources = @(
     "SunExp.Loneer.MorningStarPrayer.SkillCg",
-    "SunExp.WuNa.WhiteSunPrayer.SkillCg"
+    "SunExp.WuNa.WhiteSunPrayer.SkillCg",
+    "SunExp.Loneer.FeastCg",
+    "SunExp.WuNa.FeastCg"
 )
 foreach ($resourceId in $requiredSunCgResources) {
     $resource = $sunPackage.resources | Where-Object {
@@ -211,7 +213,7 @@ foreach ($resourceId in $requiredSunCgResources) {
 }
 $sunCgManifestPath = Join-Path $repoRoot "SunExp\SharedResources\cg.registry.json"
 $sunCgManifest = Get-Content -Raw -Encoding UTF8 -LiteralPath $sunCgManifestPath | ConvertFrom-Json
-if ($sunCgManifest.ownerModId -ne "SunExp" -or @($sunCgManifest.entries).Count -lt 2) {
+if ($sunCgManifest.ownerModId -ne "SunExp" -or @($sunCgManifest.entries).Count -lt 4) {
     throw "SunExp CG registry manifest is invalid."
 }
 foreach ($cgId in @("loneer.morning-star-prayer", "wuna.white-sun-prayer")) {
@@ -224,6 +226,16 @@ foreach ($cgId in @("loneer.morning-star-prayer", "wuna.white-sun-prayer")) {
 $wunaCgEntry = $sunCgManifest.entries | Where-Object { $_.cgId -eq "wuna.white-sun-prayer" } | Select-Object -First 1
 if ($wunaCgEntry.defaultPresentation.mode -ne "fullscreenFade" -or $wunaCgEntry.defaultPresentation.fit -ne "cover") {
     throw "WuNa skill CG must use fullscreenFade with cover fitting."
+}
+foreach ($cgId in @("loneer.feast", "wuna.feast")) {
+    $entry = $sunCgManifest.entries | Where-Object { $_.cgId -eq $cgId } | Select-Object -First 1
+    if ($null -eq $entry -or $entry.kind -ne "feast" -or $entry.media.type -ne "image" -or
+        [string]::IsNullOrWhiteSpace($entry.media.resource) -or
+        $entry.defaultPresentation.mode -ne "fullscreenFade" -or $entry.defaultPresentation.fit -ne "cover" -or
+        $entry.defaultActivation.consumerMode -ne "toolManaged" -or
+        $entry.defaultActivation.consumerModId -ne "AuraToolsExp") {
+        throw "SunExp Feast CG registry manifest is missing a valid tool-managed entry: $cgId"
+    }
 }
 $sunEntryText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Entry.cs")
 $sunProjectText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "SunExp-Dev\SunExp.Dll.csproj")
@@ -243,9 +255,9 @@ if ($audioManifestText.Contains("ModResource/audio") -or -not $audioManifestText
 $auraToolsPackagePath = Join-Path $repoRoot "AuraToolsExp\SharedResources\package.json"
 $auraToolsPackage = Get-Content -Raw -Encoding UTF8 -LiteralPath $auraToolsPackagePath | ConvertFrom-Json
 if ($auraToolsPackage.ownerModId -ne "AuraToolsExp" -or
-    @($auraToolsPackage.resources).Count -ne 2 -or
+    @($auraToolsPackage.resources).Count -ne 3 -or
     @($auraToolsPackage.resources | Where-Object { $_.system -eq "Audio" }).Count -ne 1 -or
-    @($auraToolsPackage.resources | Where-Object { $_.system -eq "CG" }).Count -ne 1) {
+    @($auraToolsPackage.resources | Where-Object { $_.system -eq "CG" }).Count -ne 2) {
     throw "AuraTools bundled Audio/CG package manifest is invalid."
 }
 $auraToolsPackageRoot = Split-Path -Parent $auraToolsPackagePath
@@ -262,8 +274,32 @@ foreach ($resource in $auraToolsPackage.resources) {
 $auraToolsEntryText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Entry.cs")
 $auraToolsBootstrapText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Infrastructure\AuraToolsResourceBootstrap.cs")
 if (-not $auraToolsEntryText.Contains("AuraToolsResourceBootstrap.Initialize") -or
-    -not $auraToolsBootstrapText.Contains("AuraSharedResourceBootstrapper.Bootstrap")) {
+    -not $auraToolsBootstrapText.Contains("AuraSharedResourceBootstrapper.Bootstrap") -or
+    -not $auraToolsEntryText.Contains("AuraCgRegistryRuntime.RegisterManifest")) {
     throw "AuraTools does not consume the shared resource bootstrap infrastructure."
+}
+$auraToolsCgManifestPath = Join-Path $repoRoot "AuraToolsExp\SharedResources\cg.registry.json"
+$auraToolsCgManifest = Get-Content -Raw -Encoding UTF8 -LiteralPath $auraToolsCgManifestPath | ConvertFrom-Json
+if ($auraToolsCgManifest.ownerModId -ne "AuraToolsExp" -or
+    @($auraToolsCgManifest.entries | Where-Object { $_.kind -eq "feast" }).Count -lt 8) {
+    throw "AuraTools Feast CG registry manifest is invalid."
+}
+foreach ($entry in @($auraToolsCgManifest.entries | Where-Object { $_.kind -eq "feast" })) {
+    if ($entry.defaultActivation.consumerMode -ne "toolManaged" -or
+        $entry.defaultActivation.consumerModId -ne "AuraToolsExp" -or
+        $entry.defaultPresentation.mode -ne "fullscreenFade" -or
+        $entry.defaultPresentation.fit -ne "cover") {
+        throw "AuraTools Feast CG entry is not tool-managed/fullscreen-cover: $($entry.cgId)"
+    }
+}
+$feastRuntimeText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\Feast\AuraToolsFeastRuntime.cs")
+if (-not $feastRuntimeText.Contains("DisableSync = true")) {
+    throw "AuraTools Feast CG must remain local-only by disabling CG sync."
+}
+foreach ($forbidden in @("skip-multiplayer", "IsMultiplayerSession")) {
+    if ($feastRuntimeText.Contains($forbidden)) {
+        throw "AuraTools Feast must not skip execution merely because a local PlayerManager/multiplayer runtime exists: $forbidden"
+    }
 }
 $skillCgEditorText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\SkillCg\AuraToolsSkillCgRuntime.cs")
 foreach ($required in @("OpenRuleImageDirectory", '"本地目录"', '"图片目录"', "BuildPresentationModeOptions", "BuildFitOptions")) {

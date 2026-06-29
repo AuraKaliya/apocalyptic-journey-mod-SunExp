@@ -289,7 +289,7 @@ public static class CardMutationService
     {
         try
         {
-            card.RefreshTag();
+            SunExpCardRefreshQueue.RequestTagRefresh(card, "CardMutation");
         }
         catch (Exception ex)
         {

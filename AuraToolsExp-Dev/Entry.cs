@@ -1,9 +1,11 @@
 using System;
+using AuraCg.Shared;
 using AuraJourney.Shared;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.Audio;
 using AuraToolsExp.Dll.Features.DamageMeter;
+using AuraToolsExp.Dll.Features.Feast;
 using AuraToolsExp.Dll.Features.Logging;
 using AuraToolsExp.Dll.Features.ModSync;
 using AuraToolsExp.Dll.Features.SafeBox;
@@ -29,10 +31,12 @@ public static class Entry
         RunStep("config", () => AuraToolsConfigService.Initialize(modConfig));
         RunStep("file logging", () => AuraToolsFileLogRuntime.Initialize(modConfig));
         RunStep("bundled resources", () => AuraToolsResourceBootstrap.Initialize(modConfig));
+        RunStep("CG registry", () => AuraCgRegistryRuntime.RegisterManifest(modConfig, AuraToolsIds.ModId));
         RunStep("ui transition guard", () => UiTransitionGuardRuntime.Initialize(modConfig, AuraToolsIds.ModId));
         RunStep("skin", () => AuraToolsSkinRuntime.Initialize(modConfig));
         RunStep("audio", () => AuraToolsAudioRuntime.Initialize(modConfig));
         RunStep("starter deck", () => AuraToolsStarterDeckRuntime.Initialize(modConfig));
+        RunStep("feast", () => AuraToolsFeastRuntime.Initialize(modConfig));
         RunStep("safe box", () => AuraToolsSafeBoxRuntime.Initialize(modConfig));
         RunStep("mod sync", () => AuraToolsModSyncRuntime.Initialize(modConfig));
         RunStep("DPS meter", () => AuraToolsDamageMeterRuntime.Initialize(modConfig));

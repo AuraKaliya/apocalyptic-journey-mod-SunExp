@@ -34,6 +34,7 @@ public static class WunaOrbitFireShaderIds
 public static class WunaOrbitFireMaterials
 {
     private const string LogPrefix = "[WunaOrbitFire]";
+    private static bool fallbackLogged;
 
     public static Material CreateLayerMaterial(bool frontLayer, bool coreLayer, bool flameAtlasLayer = false)
     {
@@ -86,16 +87,42 @@ public static class WunaOrbitFireMaterials
         var material = new Material(shader);
         material.color = frontLayer
             ? coreLayer
-                ? new Color(1f, 0.86f, 0.38f, 0.62f)
-                : new Color(1f, 0.46f, 0.12f, 0.38f)
-            : coreLayer
-                ? new Color(1f, 0.62f, 0.22f, 0.32f)
+                ? new Color(1f, 0.9f, 0.42f, 0.82f)
                 : flameAtlasLayer
-                    ? new Color(1f, 0.5f, 0.16f, frontLayer ? 0.34f : 0.18f)
-                    : new Color(0.95f, 0.24f, 0.08f, 0.2f);
+                    ? new Color(1f, 0.56f, 0.18f, 0.62f)
+                    : new Color(1f, 0.48f, 0.12f, 0.54f)
+            : coreLayer
+                ? new Color(1f, 0.66f, 0.24f, 0.48f)
+                : flameAtlasLayer
+                    ? new Color(1f, 0.5f, 0.16f, 0.34f)
+                    : new Color(0.95f, 0.24f, 0.08f, 0.32f);
+        material.renderQueue = 3000;
+        TrySetBlendMode(material);
         EnsureLayerTextures(material, flameAtlasLayer);
-        SunExpLog.Debug(LogPrefix + " shader not found; using simple sprite fallback for " + (frontLayer ? "front" : "back") + " layer.");
+        if (!fallbackLogged)
+        {
+            fallbackLogged = true;
+            SunExpLog.Warn(LogPrefix + " shader/material unavailable; using visible fallback orbit material.");
+        }
+
         return material;
+    }
+
+    private static void TrySetBlendMode(Material material)
+    {
+        SetFloatIfPresent(material, "_Mode", 2f);
+        SetFloatIfPresent(material, "_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        SetFloatIfPresent(material, "_DstBlend", (float)UnityEngine.Rendering.BlendMode.One);
+        SetFloatIfPresent(material, "_ZWrite", 0f);
+        material.EnableKeyword("_ALPHABLEND_ON");
+    }
+
+    private static void SetFloatIfPresent(Material material, string propertyName, float value)
+    {
+        if (material.HasProperty(propertyName))
+        {
+            material.SetFloat(propertyName, value);
+        }
     }
 
     private static void EnsureLayerTextures(Material material, bool flameAtlasLayer)
