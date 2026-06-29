@@ -120,7 +120,21 @@ public static class WunaOrbitFireRuntime
             }
         }
 
-        foreach (var status in UnityEngine.Object.FindObjectsByType<StatusManager>(FindObjectsSortMode.None))
+        foreach (var status in StatusesFromFightManager())
+        {
+            yield return status;
+        }
+    }
+
+    private static IEnumerable<StatusManager> StatusesFromFightManager()
+    {
+        var statuses = FightManager.Instance?.statuses;
+        if (statuses == null)
+        {
+            yield break;
+        }
+
+        foreach (var status in statuses.Values)
         {
             if (status != null)
             {

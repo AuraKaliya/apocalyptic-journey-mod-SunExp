@@ -19,6 +19,9 @@ namespace SunExp.Dll.Hooks;
 
 public static class SolarMemoryModeRuntime
 {
+    private static readonly Dictionary<string, Texture?> MapCardTextureCache = new(StringComparer.Ordinal);
+    private static readonly MaterialPropertyBlock MapCardPropertyBlock = new();
+    private static readonly int MainTexId = Shader.PropertyToID("_MainTex");
     private const int LegacySolarFinaleMapLevel = 30;
     private const int SolarMemoryOpeningSlotIndex = 0;
     private const int SolarMemoryMidLayerSlotIndex = 3;
@@ -391,11 +394,6 @@ public static class SolarMemoryModeRuntime
             return;
         }
 
-        foreach (var existing in content.GetComponentsInChildren<MapItem>(true))
-        {
-            UnityEngine.Object.Destroy(existing.gameObject);
-        }
-
         var nullSlot = content.Find("Null");
         if (nullSlot != null)
         {
@@ -403,20 +401,46 @@ public static class SolarMemoryModeRuntime
         }
 
         var prefabName = Field(data, "Type") + "Prefab";
-        var template = mapSelect.transform.Find("MapSelect/" + prefabName);
-        if (template == null)
+        var fixedItem = FindReusableFixedSlotItem(content, prefabName, nullSlot);
+        foreach (var existing in content.GetComponentsInChildren<MapItem>(true))
         {
-            SunExpLog.Warn("[SolarMemoryMapLock] missing map prefab: " + prefabName);
-            return;
+            if (existing == null
+                || existing.gameObject == fixedItem
+                || nullSlot != null && (existing.transform == nullSlot || existing.transform.IsChildOf(nullSlot)))
+            {
+                continue;
+            }
+
+            UnityEngine.Object.Destroy(existing.gameObject);
         }
 
-        var fixedItem = UnityEngine.Object.Instantiate(template.gameObject, content);
-        fixedItem.name = prefabName;
+        if (fixedItem == null)
+        {
+            var template = mapSelect.transform.Find("MapSelect/" + prefabName);
+            if (template == null)
+            {
+                SunExpLog.Warn("[SolarMemoryMapLock] missing map prefab: " + prefabName);
+                return;
+            }
+
+            fixedItem = UnityEngine.Object.Instantiate(template.gameObject, content);
+            fixedItem.name = prefabName;
+        }
+
+        fixedItem.transform.SetParent(content, false);
         fixedItem.transform.localScale = Vector3.one;
         fixedItem.SetActive(true);
 
         var item = fixedItem.GetComponent<MapItem>() ?? fixedItem.AddComponent<MapItem>();
-        item.Init(node);
+        var visualState = fixedItem.GetComponent<FixedSlotVisualState>() ?? fixedItem.AddComponent<FixedSlotVisualState>();
+        var nodeId = Field(data, "NodeId");
+        var mapId = Field(data, "Id");
+        if (!visualState.Matches(mapId, nodeId))
+        {
+            item.Init(node);
+            visualState.Set(mapId, nodeId);
+        }
+
         ApplyMapCardTexture(fixedItem.transform, data);
 
         if (fixedItem.TryGetComponent<ObjectGroup>(out var objectGroup))
@@ -433,6 +457,25 @@ public static class SolarMemoryModeRuntime
                 UnityEngine.Object.Instantiate(chain.gameObject, frame).SetActive(true);
             }
         }
+    }
+
+    private static GameObject? FindReusableFixedSlotItem(Transform content, string prefabName, Transform? nullSlot)
+    {
+        foreach (var existing in content.GetComponentsInChildren<MapItem>(true))
+        {
+            if (existing == null
+                || nullSlot != null && (existing.transform == nullSlot || existing.transform.IsChildOf(nullSlot)))
+            {
+                continue;
+            }
+
+            if (existing.gameObject.name.StartsWith(prefabName, StringComparison.Ordinal))
+            {
+                return existing.gameObject;
+            }
+        }
+
+        return null;
     }
 
     private static Transform? MapSlotTransform(MapSelectUI mapSelect, int slotIndex)
@@ -495,28 +538,67 @@ public static class SolarMemoryModeRuntime
                     icon.gameObject.SetActive(false);
                 }
 
-                background.material.mainTexture = customTexture;
+                SetBackgroundTexture(background, customTexture);
                 return;
             }
 
-            background.material.mainTexture = ResourceLoader.Load<Texture>("Icon/CardTemplate/故事牌", true);
+            SetBackgroundTexture(background, ResourceLoader.Load<Texture>("Icon/CardTemplate/故事牌", true));
         }
         else if (type == "Build")
         {
-            background.material.mainTexture = ResourceLoader.Load<Texture>("Icon/CardTemplate/建筑牌", true);
+            SetBackgroundTexture(background, ResourceLoader.Load<Texture>("Icon/CardTemplate/建筑牌", true));
         }
     }
 
     private static Texture? LoadMapCardTexture(string path)
     {
+        if (MapCardTextureCache.TryGetValue(path, out var cached))
+        {
+            return cached;
+        }
+
+        Texture? texture = null;
         try
         {
-            return ResourceLoader.Load<Texture>(path, true);
+            texture = ResourceLoader.Load<Texture>(path, true);
         }
         catch (Exception ex)
         {
             SunExpLog.Warn("[SolarMemoryMapLock] failed to load map card texture " + path + ": " + ex.Message);
-            return null;
+        }
+
+        MapCardTextureCache[path] = texture;
+        return texture;
+    }
+
+    private static void SetBackgroundTexture(MeshRenderer renderer, Texture? texture)
+    {
+        if (texture == null)
+        {
+            return;
+        }
+
+        MapCardPropertyBlock.Clear();
+        renderer.GetPropertyBlock(MapCardPropertyBlock);
+        MapCardPropertyBlock.SetTexture(MainTexId, texture);
+        renderer.SetPropertyBlock(MapCardPropertyBlock);
+    }
+
+    private sealed class FixedSlotVisualState : MonoBehaviour
+    {
+        private string mapId = "";
+        private string nodeId = "";
+
+        public bool Matches(string nextMapId, string nextNodeId)
+        {
+            return string.Equals(mapId, nextMapId, StringComparison.Ordinal)
+                && string.Equals(nodeId, nextNodeId, StringComparison.Ordinal);
+        }
+
+        public void Set(string nextMapId, string nextNodeId)
+        {
+            mapId = nextMapId;
+            nodeId = nextNodeId;
         }
     }
 

@@ -15,6 +15,7 @@ public static class SolarMemoryMapItemAnimationRuntime
     private const string GenericFightMapFallbackAnimation = "AnimationLib/\u707e\u5384\u5148\u5146";
 
     private static readonly Dictionary<MapTree.Node, AnimationRestore> PendingRestores = new();
+    private static readonly Dictionary<string, bool> MapPreviewFrameCache = new(StringComparer.Ordinal);
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -165,14 +166,22 @@ public static class SolarMemoryMapItemAnimationRuntime
             return false;
         }
 
+        if (MapPreviewFrameCache.TryGetValue(animationPath, out var cached))
+        {
+            return cached;
+        }
+
+        var result = false;
         try
         {
             if ((ResourceLoader.LoadAll<Texture2D>(animationPath + "/Map")?.Length ?? 0) > 0)
             {
-                return true;
+                result = true;
             }
-
-            return (ResourceLoader.LoadAll<Texture2D>(animationPath + "/Idle")?.Length ?? 0) > 0;
+            else
+            {
+                result = (ResourceLoader.LoadAll<Texture2D>(animationPath + "/Idle")?.Length ?? 0) > 0;
+            }
         }
         catch (Exception ex)
         {
@@ -180,8 +189,11 @@ public static class SolarMemoryMapItemAnimationRuntime
                 + animationPath
                 + " -> "
                 + ex.Message);
-            return false;
+            result = false;
         }
+
+        MapPreviewFrameCache[animationPath] = result;
+        return result;
     }
 
     private static bool IsLevel(string actual, string fullId, string shortId)

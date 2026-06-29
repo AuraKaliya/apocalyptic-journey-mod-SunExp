@@ -7,6 +7,7 @@ using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
 using Witch.Core;
 using Witch.Mod;
+using Witch.UI.Window;
 
 namespace SunExp.Dll.Hooks;
 
@@ -14,6 +15,8 @@ public static class SunExpHardTagRuntime
 {
     private static readonly object EventOwner = new();
     private static string? registeredPlayerStatusId;
+    private static bool whiteRadianceRunDeckApplied;
+    private static int whiteRadianceLastFightZoneSignature = -1;
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -79,6 +82,7 @@ public static class SunExpHardTagRuntime
         try
         {
             registeredPlayerStatusId = null;
+            ResetWhiteRadianceScanState();
             EventCenter.Instance.Clear(EventOwner);
 
             if (!HasAnySunExpHardTag())
@@ -86,7 +90,7 @@ public static class SunExpHardTagRuntime
                 return;
             }
 
-            RunFightStartStep("WhiteRadianceCourt", () => ApplyWhiteRadianceCourtCards());
+            RunFightStartStep("WhiteRadianceCourt", () => ApplyWhiteRadianceCourtCards(force: true));
             RunFightStartStep("ScorchedWorld", ApplyScorchedWorld);
             RunFightStartStep("SunsetExpedition", ApplySunsetExpedition);
             RunFightStartStep("BlackSunListener", () => RegisterPlayerRoundListener("Fight_Start.Init"));
@@ -182,7 +186,7 @@ public static class SunExpHardTagRuntime
         {
             if (SunExpHardTagState.Active(SunExpHardTagIds.WhiteRadianceCourt))
             {
-                ApplyWhiteRadianceCourtCards();
+                ApplyWhiteRadianceCourtCards(includeRunDeck: false);
             }
         }
         catch (Exception ex)
@@ -287,15 +291,48 @@ public static class SunExpHardTagRuntime
         }
     }
 
-    private static void ApplyWhiteRadianceCourtCards(ScriptExecutor? executor = null)
+    private static void ApplyWhiteRadianceCourtCards(ScriptExecutor? executor = null, bool force = false, bool includeRunDeck = true)
     {
         if (!SunExpHardTagState.Active(SunExpHardTagIds.WhiteRadianceCourt))
         {
             return;
         }
 
-        SunExpCardTagService.ApplyWhiteRadianceToRunDeck();
+        if (includeRunDeck && (force || !whiteRadianceRunDeckApplied))
+        {
+            SunExpCardTagService.ApplyWhiteRadianceToRunDeck();
+            whiteRadianceRunDeckApplied = true;
+        }
+
+        var signature = WhiteRadianceFightZoneSignature(executor);
+        if (!force && signature == whiteRadianceLastFightZoneSignature)
+        {
+            return;
+        }
+
         SunExpCardTagService.ApplyWhiteRadianceToFightZones(executor);
+        whiteRadianceLastFightZoneSignature = signature;
+    }
+
+    private static void ResetWhiteRadianceScanState()
+    {
+        whiteRadianceRunDeckApplied = false;
+        whiteRadianceLastFightZoneSignature = -1;
+    }
+
+    private static int WhiteRadianceFightZoneSignature(ScriptExecutor? executor)
+    {
+        unchecked
+        {
+            var hash = 17;
+            hash = hash * 31 + (FightUI.cardItemList?.Count ?? 0);
+            hash = hash * 31 + (FightCardManager.Instance?.cardList?.Count ?? 0);
+            hash = hash * 31 + (FightCardManager.Instance?.usedCardList?.Count ?? 0);
+            hash = hash * 31 + (executor?.HandCard?.Count ?? 0);
+            hash = hash * 31 + (executor?.DeckCard?.Count ?? 0);
+            hash = hash * 31 + (executor?.UsedCard?.Count ?? 0);
+            return hash;
+        }
     }
 
     private static void AnnihilateRandomLocalCard(ScriptExecutor executor)

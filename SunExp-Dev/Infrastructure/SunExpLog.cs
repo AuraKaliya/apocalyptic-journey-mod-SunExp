@@ -7,6 +7,11 @@ namespace SunExp.Dll.Infrastructure;
 public static class SunExpLog
 {
     private const string DebugVarKey = "SunExpDebug";
+    private const int DebugFlagRefreshMilliseconds = 1000;
+    private static MethodInfo? getDebugVarMethod;
+    private static bool debugVarMethodResolved;
+    private static bool cachedDebugEnabled;
+    private static int lastDebugFlagRefreshTick = int.MinValue;
 
     public static void Info(string message)
     {
@@ -30,19 +35,33 @@ public static class SunExpLog
 
     private static bool IsDebugEnabled()
     {
+        var now = Environment.TickCount;
+        if ((uint)(now - lastDebugFlagRefreshTick) < DebugFlagRefreshMilliseconds)
+        {
+            return cachedDebugEnabled;
+        }
+
         try
         {
-            var playerInfo = typeof(ScriptExecutor).GetNestedType("PlayerInfo", BindingFlags.Public | BindingFlags.NonPublic);
-            var value = playerInfo?.GetMethod("GetGameVar", BindingFlags.Public | BindingFlags.Static)
-                ?.Invoke(null, new object[] { DebugVarKey });
+            if (!debugVarMethodResolved)
+            {
+                var playerInfo = typeof(ScriptExecutor).GetNestedType("PlayerInfo", BindingFlags.Public | BindingFlags.NonPublic);
+                getDebugVarMethod = playerInfo?.GetMethod("GetGameVar", BindingFlags.Public | BindingFlags.Static);
+                debugVarMethodResolved = true;
+            }
+
+            var value = getDebugVarMethod?.Invoke(null, new object[] { DebugVarKey });
             var text = Convert.ToString(value);
-            return text == "1"
+            cachedDebugEnabled = text == "1"
                 || string.Equals(text, "true", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(text, "yes", StringComparison.OrdinalIgnoreCase);
         }
         catch
         {
-            return false;
+            cachedDebugEnabled = false;
         }
+
+        lastDebugFlagRefreshTick = now;
+        return cachedDebugEnabled;
     }
 }

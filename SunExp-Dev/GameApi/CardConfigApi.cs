@@ -196,9 +196,7 @@ public static class CardConfigApi
     {
         try
         {
-            var fightPlayer = FindType("FightPlayer")?.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
-            var status = fightPlayer == null ? null : ReadMember(fightPlayer, "Status");
-            var dynamicVariables = status == null ? null : ReadMember(status, "dynamicVariables") as IDictionary<string, float>;
+            var dynamicVariables = FightPlayer.Instance?.Status?.dynamicVariables;
             return dynamicVariables != null && dynamicVariables.TryGetValue("CardCost", out var multiplier)
                 ? multiplier
                 : 1f;
@@ -207,11 +205,5 @@ public static class CardConfigApi
         {
             return 1f;
         }
-    }
-
-    private static Type? FindType(string name)
-    {
-        return Type.GetType(name)
-            ?? Array.Find(AppDomain.CurrentDomain.GetAssemblies(), asm => asm.GetType(name) != null)?.GetType(name);
     }
 }

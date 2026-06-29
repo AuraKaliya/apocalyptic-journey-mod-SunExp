@@ -12,6 +12,9 @@ public static class CardVisualSkinApplier
     private const string LogPrefix = "[CardVisualSkin]";
     private static readonly HashSet<string> LoggedSkins = new();
     private static readonly HashSet<string> LoggedUnresolvedCards = new();
+    private static readonly Dictionary<int, int> MeshTextureIds = new();
+    private static readonly MaterialPropertyBlock SharedPropertyBlock = new();
+    private static readonly int MainTexId = Shader.PropertyToID("_MainTex");
 
     public static bool Apply(Transform? cardRoot, IDataConfig? config)
     {
@@ -84,6 +87,11 @@ public static class CardVisualSkinApplier
         var image = node.GetComponent<Image>();
         if (image != null)
         {
+            if (image.sprite == sprite)
+            {
+                return false;
+            }
+
             image.sprite = sprite;
             return true;
         }
@@ -91,8 +99,15 @@ public static class CardVisualSkinApplier
         var mesh = node.GetComponent<MeshRenderer>();
         if (mesh != null)
         {
-            mesh.material.mainTexture = sprite.texture;
-            return true;
+            var rendererId = mesh.GetInstanceID();
+            var textureId = sprite.texture.GetInstanceID();
+            var changed = !MeshTextureIds.TryGetValue(rendererId, out var currentTextureId) || currentTextureId != textureId;
+            SharedPropertyBlock.Clear();
+            mesh.GetPropertyBlock(SharedPropertyBlock);
+            SharedPropertyBlock.SetTexture(MainTexId, sprite.texture);
+            mesh.SetPropertyBlock(SharedPropertyBlock);
+            MeshTextureIds[rendererId] = textureId;
+            return changed;
         }
 
         if (required)

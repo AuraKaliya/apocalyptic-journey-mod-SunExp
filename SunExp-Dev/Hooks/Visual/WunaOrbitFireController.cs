@@ -6,16 +6,18 @@ namespace SunExp.Dll.Hooks.Visual;
 
 public sealed class WunaOrbitFireController : MonoBehaviour
 {
-    private const int CoreSections = 144;
-    private const int DetailTongues = 4;
-    private const int DetailSparks = 5;
-    private const int OrbitFlamesPerRail = 4;
+    private const int CoreSections = 96;
+    private const int DetailTongues = 3;
+    private const int DetailSparks = 3;
+    private const int OrbitFlamesPerRail = 3;
     private const int FlameAtlasColumns = 16;
     private const int FlameAtlasRows = 4;
     private const int FlameAtlasFrames = FlameAtlasColumns * FlameAtlasRows;
     private const int MaxVertices = 1600;
     private const float Tau = Mathf.PI * 2f;
     private const float DefaultBoostSeconds = 0.95f;
+    private const float ActiveGeometryInterval = 1f / 30f;
+    private const float IdleGeometryInterval = 1f / 18f;
     private const float MinBoundsSize = 0.01f;
     private const float AlphaBoundsThreshold = 0.08f;
 
@@ -51,6 +53,9 @@ public sealed class WunaOrbitFireController : MonoBehaviour
     private float boostUntil;
     private float boostAmount;
     private float actionPulse;
+    private Sprite? lastGeometrySprite;
+    private Bounds lastGeometryBounds;
+    private float nextGeometryUpdate;
     private int unreadableTextureId;
 
     public void Configure(SpriteRenderer renderer)
@@ -87,14 +92,16 @@ public sealed class WunaOrbitFireController : MonoBehaviour
             return;
         }
 
+        var now = Time.unscaledTime;
+        var sprite = targetRenderer.sprite;
         SyncSorting();
-        var bounds = GetOrbitBounds(targetRenderer.sprite);
+        var bounds = GetOrbitBounds(sprite);
         if (bounds.size.x < MinBoundsSize || bounds.size.y < MinBoundsSize)
         {
             return;
         }
 
-        actionPulse = Mathf.MoveTowards(actionPulse, Time.unscaledTime < boostUntil ? boostAmount : 0f, Time.unscaledDeltaTime * 2.8f);
+        actionPulse = Mathf.MoveTowards(actionPulse, now < boostUntil ? boostAmount : 0f, Time.unscaledDeltaTime * 2.8f);
         var intensity = 0.55f + actionPulse * 0.42f;
         UpdateMaterial(backCoreMaterial, -1f, intensity * 0.52f);
         UpdateMaterial(backDetailMaterial, -1f, intensity * 0.58f);
@@ -102,12 +109,34 @@ public sealed class WunaOrbitFireController : MonoBehaviour
         UpdateMaterial(frontCoreMaterial, 1f, intensity * 0.76f);
         UpdateMaterial(frontDetailMaterial, 1f, intensity * 0.86f);
         UpdateMaterial(frontFlameMaterial, 1f, intensity * 0.98f);
+
+        var spriteChanged = !ReferenceEquals(sprite, lastGeometrySprite);
+        var boundsChanged = spriteChanged || BoundsChanged(bounds, lastGeometryBounds);
+        if (!spriteChanged && !boundsChanged && now < nextGeometryUpdate)
+        {
+            return;
+        }
+
+        lastGeometrySprite = sprite;
+        lastGeometryBounds = bounds;
+        nextGeometryUpdate = now + (actionPulse > 0.03f ? ActiveGeometryInterval : IdleGeometryInterval);
+        BuildGeometry(bounds, intensity);
+    }
+
+    private void BuildGeometry(Bounds bounds, float intensity)
+    {
         BuildStreamLayer(backCoreMesh, bounds, false, intensity * 0.34f, false);
         BuildDetailLayer(backDetailMesh, bounds, false, intensity * 0.38f);
         BuildParticleLayer(backFlameMesh, bounds, false, intensity * 0.46f);
         BuildStreamLayer(frontCoreMesh, bounds, true, intensity * 0.58f, false);
         BuildDetailLayer(frontDetailMesh, bounds, true, intensity * 0.62f);
         BuildParticleLayer(frontFlameMesh, bounds, true, intensity * 0.8f);
+    }
+
+    private static bool BoundsChanged(Bounds current, Bounds previous)
+    {
+        return (current.center - previous.center).sqrMagnitude > 0.000001f
+            || (current.size - previous.size).sqrMagnitude > 0.000001f;
     }
 
     private void OnDestroy()

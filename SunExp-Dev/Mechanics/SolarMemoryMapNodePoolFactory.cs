@@ -19,6 +19,8 @@ public static class SolarMemoryMapNodePoolFactory
         "WithCursor",
         BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
     private const string BossMapNote = "首领";
+    private static List<Dictionary<string, string>>? expandedBossCandidates;
+    private static int expandedBossCandidateSourceCount = -1;
 
     public static SolarMemoryMapNodePool GenerateLayer(NormalMapManager manager, MapTree tree)
     {
@@ -187,9 +189,7 @@ public static class SolarMemoryMapNodePoolFactory
     {
         try
         {
-            var candidates = Singleton<GameConfigManager>.Instance.GetTable(DataType.Map).Getlines()
-                .Where(IsExpandedBossCandidate)
-                .ToList();
+            var candidates = ExpandedBossCandidates();
 
             if (candidates.Count == 0)
             {
@@ -257,6 +257,20 @@ public static class SolarMemoryMapNodePoolFactory
         }
 
         return IsBossLevel(nodeId);
+    }
+
+    private static List<Dictionary<string, string>> ExpandedBossCandidates()
+    {
+        var rows = Singleton<GameConfigManager>.Instance.GetTable(DataType.Map).Getlines();
+        if (expandedBossCandidates != null && expandedBossCandidateSourceCount == rows.Count)
+        {
+            return expandedBossCandidates;
+        }
+
+        expandedBossCandidates = rows.Where(IsExpandedBossCandidate).ToList();
+        expandedBossCandidateSourceCount = rows.Count;
+        SunExpLog.Debug("[SolarMemoryMapNodePool] cached expanded boss candidates: " + expandedBossCandidates.Count);
+        return expandedBossCandidates;
     }
 
     private static bool IsBossLevel(string nodeId)

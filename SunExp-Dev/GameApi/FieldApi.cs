@@ -225,7 +225,6 @@ public static class FieldApi
             return false;
         }
 
-        SyncFieldStacks(executor, field);
         var fieldId = FieldSlug(field);
         var localActive = ScriptVarApi.GetVar(executor, "SunExpActiveFieldId") == fieldId;
         var sharedActive = IsSharedFieldActive(field);
@@ -236,7 +235,7 @@ public static class FieldApi
 
         if (epoch == null && token == null && localActive)
         {
-            return SyncFieldStacks(executor, fieldId) > 0;
+            return LocalFieldStacks(executor, field) > 0;
         }
 
         if (!localActive)
@@ -255,6 +254,14 @@ public static class FieldApi
         }
 
         return epoch != null || token != null ? sharedActive : true;
+    }
+
+    private static int LocalFieldStacks(ScriptExecutor? executor, SunExpFieldId field)
+    {
+        var buffId = FieldBuffId(field);
+        return executor?.Self == null || string.IsNullOrWhiteSpace(buffId)
+            ? 0
+            : Math.Max(0, BuffApi.Level(executor.Self, buffId));
     }
 
     private static int TotalFieldBuffStacks(ScriptExecutor? executor, string buffId)

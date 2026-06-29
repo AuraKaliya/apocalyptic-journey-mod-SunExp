@@ -11,6 +11,9 @@ namespace SunExp.Dll.Hooks;
 
 public static class CardVisualSkinRuntime
 {
+    private static int lastFullReapplyFrame = -1;
+    private static int lastFullReapplyCount = -1;
+
     public static void Initialize(ModConfig modConfig)
     {
         RegisterAfter(modConfig, "ICard.SetCardStyle", ApplyFromSetCardStyle);
@@ -21,9 +24,9 @@ public static class CardVisualSkinRuntime
         RegisterAfter(modConfig, "CardItem.DrawEffect", context => ApplyFromItemRoot(context, "CardItem.DrawEffect"));
         RegisterAfter(modConfig, "CommonCardItem.DrawEffect", context => ApplyFromItemRoot(context, "CommonCardItem.DrawEffect"));
         RegisterAfter(modConfig, "AttackCardItem.DrawEffect", context => ApplyFromItemRoot(context, "AttackCardItem.DrawEffect"));
-        RegisterAfter(modConfig, "FightUI.CreateCardItem", context => ReapplyActiveCombatCards("FightUI.CreateCardItem"));
+        RegisterAfter(modConfig, "FightUI.CreateCardItem", context => ReapplyActiveCombatCardsDebounced("FightUI.CreateCardItem"));
         RegisterAfter(modConfig, "FightUI.CreateCardItemInternal", ApplyFromFightUiCreateCardItemInternal);
-        RegisterAfter(modConfig, "ScriptExecutor.GetCardFromDeck", context => ReapplyActiveCombatCards("ScriptExecutor.GetCardFromDeck"));
+        RegisterAfter(modConfig, "ScriptExecutor.GetCardFromDeck", context => ReapplyActiveCombatCardsDebounced("ScriptExecutor.GetCardFromDeck"));
 
         RegisterAfter(modConfig, "DictItem.Init", context => ApplyFromArgumentRoot(context, 0, null, "DictItem.Init"));
         RegisterAfter(modConfig, "DictionaryShowItem.Init", context => ApplyFromArgumentRoot(context, 0, null, "DictionaryShowItem.Init"));
@@ -151,8 +154,6 @@ public static class CardVisualSkinRuntime
             {
                 ApplySafely(FindCombatCardRoot(config), config, "FightUI.CreateCardItemInternal");
             }
-
-            ReapplyActiveCombatCards("FightUI.CreateCardItemInternal");
         }
         catch (Exception ex)
         {
@@ -242,6 +243,21 @@ public static class CardVisualSkinRuntime
         {
             SunExpLog.Error("Card visual skin active-combat reapply failed from " + source, ex);
         }
+    }
+
+    private static void ReapplyActiveCombatCardsDebounced(string source)
+    {
+        var items = FightUI.cardItemList;
+        var count = items?.Count ?? 0;
+        var frame = Time.frameCount;
+        if (frame == lastFullReapplyFrame && count == lastFullReapplyCount)
+        {
+            return;
+        }
+
+        lastFullReapplyFrame = frame;
+        lastFullReapplyCount = count;
+        ReapplyActiveCombatCards(source);
     }
 
     private static void ApplySafely(Transform? root, IDataConfig? config, string source)
