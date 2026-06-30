@@ -161,15 +161,20 @@ public static class SunExpVisualBundleBuilder
         }
 
         var material = EnsureMaterial(CardFrameHoloMaterialAssetPath, shader, "CardFrameHoloFlow");
-        material.SetFloat("_SunExpFlowSpeed", 0.42f);
-        material.SetFloat("_SunExpFlowScale", 2.2f);
-        material.SetFloat("_SunExpNoiseScale", 3.4f);
-        material.SetFloat("_SunExpDistortion", 0.035f);
-        material.SetFloat("_SunExpEffectIntensity", 0.78f);
+        material.SetFloat("_SunExpFlowSpeed", 0.36f);
+        material.SetFloat("_SunExpFlowScale", 1.65f);
+        material.SetFloat("_SunExpNoiseScale", 4.8f);
+        material.SetFloat("_SunExpDistortion", 0.018f);
+        material.SetFloat("_SunExpEffectIntensity", 0.72f);
         material.SetFloat("_SunExpQualityScale", 1f);
-        material.SetFloat("_SunExpEdgeGlow", 0.28f);
-        material.SetFloat("_SunExpSweepFrequency", 7.5f);
-        material.SetFloat("_SunExpSweepWidth", 0.22f);
+        material.SetFloat("_SunExpEdgeGlow", 0.22f);
+        material.SetFloat("_SunExpSweepFrequency", 5.6f);
+        material.SetFloat("_SunExpSweepWidth", 0.16f);
+        material.SetFloat("_SunExpSweepIntensity", 0.9f);
+        material.SetFloat("_SunExpPrismScale", 14f);
+        material.SetFloat("_SunExpPrismStrength", 0.68f);
+        material.SetFloat("_SunExpFoilGrain", 0.26f);
+        material.SetFloat("_SunExpEdgeSample", 2f);
         material.SetColor("_SunExpHoloColorA", new Color(1f, 0.79f, 0.33f, 1f));
         material.SetColor("_SunExpHoloColorB", new Color(0.44f, 0.9f, 1f, 1f));
         material.SetColor("_SunExpHoloColorC", new Color(1f, 0.48f, 0.84f, 1f));

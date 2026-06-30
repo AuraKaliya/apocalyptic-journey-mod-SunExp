@@ -10,10 +10,9 @@ internal static class CardFrameEffectApplier
     private const string LogPrefix = "[CardFrameEffect]";
     private static readonly HashSet<string> LoggedEffects = new();
 
-    public static bool Apply(CardVisualSkinMarker marker, CardVisualSkinSpec skin)
+    public static bool Apply(CardVisualSkinMarker marker, CardVisualEffectSpec effect)
     {
-        var effect = CardFrameEffectRegistry.Resolve(skin);
-        if (effect == null || !SunExpPerformanceSettings.CardFrameEffectsEnabled)
+        if (!SunExpPerformanceSettings.CardFrameEffectsEnabled)
         {
             return Clear(marker);
         }
@@ -36,7 +35,7 @@ internal static class CardFrameEffectApplier
         return marker.ClearFrameEffectMaterial();
     }
 
-    private static bool ApplyImageMaterial(CardVisualSkinMarker marker, CardFrameEffectSpec effect)
+    private static bool ApplyImageMaterial(CardVisualSkinMarker marker, CardVisualEffectSpec effect)
     {
         var material = CardFrameEffectMaterials.SharedUiMaterial(effect);
         if (material == null)
@@ -52,7 +51,7 @@ internal static class CardFrameEffectApplier
         return changed;
     }
 
-    private static bool ApplyMeshMaterial(CardVisualSkinMarker marker, CardFrameEffectSpec effect)
+    private static bool ApplyMeshMaterial(CardVisualSkinMarker marker, CardVisualEffectSpec effect)
     {
         var material = marker.FrameEffectOwnedMaterial;
         if (material == null || marker.LastFrameEffectId != effect.Id)
@@ -74,7 +73,7 @@ internal static class CardFrameEffectApplier
         return changed;
     }
 
-    private static void LogApplied(CardFrameEffectSpec effect)
+    private static void LogApplied(CardVisualEffectSpec effect)
     {
         if (LoggedEffects.Add(effect.Id))
         {

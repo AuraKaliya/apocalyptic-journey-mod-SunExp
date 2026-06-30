@@ -21,7 +21,7 @@ internal static class CardFrameEffectMaterials
     private static readonly Dictionary<string, Material?> UiMaterialCache = new(StringComparer.Ordinal);
     private static readonly HashSet<string> LoggedMissingMaterials = new(StringComparer.Ordinal);
 
-    public static Material? SharedUiMaterial(CardFrameEffectSpec spec)
+    public static Material? SharedUiMaterial(CardVisualEffectSpec spec)
     {
         if (UiMaterialCache.TryGetValue(spec.Id, out var cached))
         {
@@ -31,7 +31,7 @@ internal static class CardFrameEffectMaterials
 
         var material = EffectMaterialFactory.CreateMaterial(
             spec.VisualEffectId,
-            SunExpIds.SunCardFrameHoloShaderId,
+            SunExpIds.CardFrameHoloFlowShaderId,
             CardFrameEffectShaderIds.ShaderName,
             LogPrefix);
         if (material != null)
@@ -48,7 +48,7 @@ internal static class CardFrameEffectMaterials
         return material;
     }
 
-    public static Material? CreateOwnedMaterial(CardFrameEffectSpec spec)
+    public static Material? CreateOwnedMaterial(CardVisualEffectSpec spec)
     {
         var shared = SharedUiMaterial(spec);
         if (shared == null)

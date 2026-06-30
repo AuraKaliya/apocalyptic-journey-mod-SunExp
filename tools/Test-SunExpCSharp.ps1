@@ -35,11 +35,12 @@ function New-ProjectXml {
     $cardApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardApi.cs"
     $cardConfigApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardConfigApi.cs"
     $cardVisualSkinApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardVisualSkinApi.cs"
+    $cardVisualEffectTarget = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualEffectTarget.cs"
+    $cardVisualEffectSpec = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualEffectSpec.cs"
+    $cardVisualEffectRegistry = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualEffectRegistry.cs"
     $cardVisualSkinSpec = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualSkinSpec.cs"
     $cardVisualSkinRule = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualSkinRule.cs"
     $cardVisualSkinRegistry = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualSkinRegistry.cs"
-    $cardFrameEffectSpec = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardFrameEffectSpec.cs"
-    $cardFrameEffectRegistry = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardFrameEffectRegistry.cs"
     $cardMutationService = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardMutationService.cs"
     $runtimeCardAttachmentService = Join-Path $RepoRoot "SunExp-Dev\Mechanics\RuntimeCardAttachmentService.cs"
     $sunExpCardRefreshQueue = Join-Path $RepoRoot "SunExp-Dev\Mechanics\SunExpCardRefreshQueue.cs"
@@ -74,11 +75,12 @@ function New-ProjectXml {
     <Compile Include="$cardApi" />
     <Compile Include="$cardConfigApi" />
     <Compile Include="$cardVisualSkinApi" />
+    <Compile Include="$cardVisualEffectTarget" />
+    <Compile Include="$cardVisualEffectSpec" />
+    <Compile Include="$cardVisualEffectRegistry" />
     <Compile Include="$cardVisualSkinSpec" />
     <Compile Include="$cardVisualSkinRule" />
     <Compile Include="$cardVisualSkinRegistry" />
-    <Compile Include="$cardFrameEffectSpec" />
-    <Compile Include="$cardFrameEffectRegistry" />
     <Compile Include="$sunExpCardRefreshQueue" />
     <Compile Include="$cardMutationService" />
     <Compile Include="$runtimeCardAttachmentService" />
@@ -379,7 +381,7 @@ internal static class Program
         TestTemporaryWhiteRadianceClaim();
         TestSolarMemoryIsolationIds();
         TestCardVisualSkinRegistry();
-        TestCardFrameEffectRegistry();
+        TestCardVisualEffectRegistry();
         TestMapNodeTextureFitService();
         TestModeChoiceDragRange();
         TestLoneerStateOwnership();
@@ -459,29 +461,53 @@ internal static class Program
         Equal(null, CardVisualSkinRegistry.Resolve(packCard)?.Id, "Clearing owner removes registered card visual skin rules");
     }
 
-    private static void TestCardFrameEffectRegistry()
+    private static void TestCardVisualEffectRegistry()
     {
-        CardFrameEffectRegistry.ClearOwner("TestMod");
-        var skin = new CardVisualSkinSpec("TestMod", "test.skin.frame", "frame", "", "Frame", 10);
-        CardFrameEffectRegistry.Register(new CardFrameEffectSpec(
+        CardVisualEffectRegistry.ClearOwner("TestMod");
+        CardVisualEffectRegistry.Register(new CardVisualEffectSpec(
             "TestMod",
             "test.effect.low",
-            skin.Id,
+            CardVisualEffectTarget.Frame,
             "test.visual.low",
             "Low",
-            1));
-        CardFrameEffectRegistry.Register(new CardFrameEffectSpec(
+            1,
+            new[] { "target_card" }));
+        CardVisualEffectRegistry.Register(new CardVisualEffectSpec(
             "TestMod",
             "test.effect.high",
-            skin.Id,
-            SunExpIds.SunCardFrameHoloVisualEffectId,
+            CardVisualEffectTarget.Frame,
+            SunExpIds.CardFrameHoloFlowVisualEffectId,
             "High",
-            20));
+            20,
+            new[] { "target_card" }));
 
-        Equal("test.effect.high", CardFrameEffectRegistry.Resolve(skin)?.Id, "Card frame effect resolves the highest-priority effect by visual skin id");
+        var target = new DataConfig(new Dictionary<string, string>
+        {
+            ["Id"] = "target_card"
+        });
+        var other = new DataConfig(new Dictionary<string, string>
+        {
+            ["Id"] = "other_sun_card"
+        });
+        Equal("test.effect.high", CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, target)?.Id, "Card visual effect resolves the highest-priority frame effect by explicit card id");
+        Equal(null, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, other)?.Id, "Card visual effect does not apply to other cards just because they share a skin");
 
-        CardFrameEffectRegistry.ClearOwner("TestMod");
-        Equal(null, CardFrameEffectRegistry.Resolve(skin)?.Id, "Clearing owner removes registered card frame effects");
+        CardVisualEffectRegistry.Register(new CardVisualEffectSpec(
+            "TestMod",
+            "test.effect.full",
+            CardVisualEffectTarget.Frame,
+            SunExpIds.CardFrameHoloFlowVisualEffectId,
+            "Full",
+            30,
+            new[] { SunExpIds.BlazingCrownCollapseCardId }));
+        var blazingCrownCollapse = new DataConfig(new Dictionary<string, string>
+        {
+            ["Id"] = SunExpIds.BlazingCrownCollapseCardId
+        });
+        Equal("test.effect.full", CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, blazingCrownCollapse)?.Id, "Card visual effect supports full mod-qualified card ids");
+
+        CardVisualEffectRegistry.ClearOwner("TestMod");
+        Equal(null, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, target)?.Id, "Clearing owner removes registered card visual effects");
     }
 
     private static void TestMapNodeTextureFitService()

@@ -467,7 +467,7 @@ internal static class VisualRegistryDefaults
                 },
                 new()
                 {
-                    Id = SunExpIds.SunCardFrameHoloShaderId,
+                    Id = SunExpIds.CardFrameHoloFlowShaderId,
                     ShaderName = "SunExp/CardFrameHoloFlow",
                     BundlePath = "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
                     MaterialPath = "SunExp/Materials/CardFrameHoloFlow",
@@ -497,9 +497,9 @@ internal static class VisualRegistryDefaults
                 },
                 new()
                 {
-                    Id = SunExpIds.SunCardFrameHoloVisualEffectId,
-                    Kind = "card-frame-material",
-                    ShaderId = SunExpIds.SunCardFrameHoloShaderId,
+                    Id = SunExpIds.CardFrameHoloFlowVisualEffectId,
+                    Kind = "card-visual-frame-material",
+                    ShaderId = SunExpIds.CardFrameHoloFlowShaderId,
                     BundlePath = "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
                     MaterialPath = "SunExp/Materials/CardFrameHoloFlow",
                     Textures = new Dictionary<string, string>
@@ -508,14 +508,19 @@ internal static class VisualRegistryDefaults
                     },
                     Floats = new Dictionary<string, float>
                     {
-                        ["_SunExpFlowSpeed"] = 0.42f,
-                        ["_SunExpFlowScale"] = 2.2f,
-                        ["_SunExpNoiseScale"] = 3.4f,
-                        ["_SunExpDistortion"] = 0.035f,
-                        ["_SunExpEffectIntensity"] = 0.78f,
-                        ["_SunExpEdgeGlow"] = 0.28f,
-                        ["_SunExpSweepFrequency"] = 7.5f,
-                        ["_SunExpSweepWidth"] = 0.22f
+                        ["_SunExpFlowSpeed"] = 0.36f,
+                        ["_SunExpFlowScale"] = 1.65f,
+                        ["_SunExpNoiseScale"] = 4.8f,
+                        ["_SunExpDistortion"] = 0.018f,
+                        ["_SunExpEffectIntensity"] = 0.72f,
+                        ["_SunExpEdgeGlow"] = 0.22f,
+                        ["_SunExpSweepFrequency"] = 5.6f,
+                        ["_SunExpSweepWidth"] = 0.16f,
+                        ["_SunExpSweepIntensity"] = 0.9f,
+                        ["_SunExpPrismScale"] = 14f,
+                        ["_SunExpPrismStrength"] = 0.68f,
+                        ["_SunExpFoilGrain"] = 0.26f,
+                        ["_SunExpEdgeSample"] = 2f
                     },
                     Colors = new Dictionary<string, string>
                     {

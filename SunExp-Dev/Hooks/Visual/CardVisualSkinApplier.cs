@@ -22,26 +22,28 @@ public static class CardVisualSkinApplier
 
         var marker = cardRoot.GetComponent<CardVisualSkinMarker>() ?? cardRoot.gameObject.AddComponent<CardVisualSkinMarker>();
         var skin = CardVisualThemeCatalog.Resolve(config);
+        var appliedFrame = false;
+        var appliedBackground = false;
         if (skin == null)
         {
-            var clearedEffect = CardFrameEffectApplier.Clear(marker);
             LogUnresolvedSunExpCard(config);
-            return clearedEffect;
         }
-
-        var appliedFrame = ApplySprite(marker, background: false, skin.FramePath, skin.Id, "frame", required: true);
-        var appliedBackground = ApplySprite(marker, background: true, skin.BackgroundPath, skin.Id, "background", required: false);
-        var appliedEffect = CardFrameEffectApplier.Apply(marker, skin);
-        if (appliedFrame || appliedBackground)
+        else
         {
-            marker.LastSkinId = skin.Id;
+            appliedFrame = ApplySprite(marker, background: false, skin.FramePath, skin.Id, "frame", required: true);
+            appliedBackground = ApplySprite(marker, background: true, skin.BackgroundPath, skin.Id, "background", required: false);
+            if (appliedFrame || appliedBackground)
+            {
+                marker.LastSkinId = skin.Id;
+            }
+
+            if ((appliedFrame || appliedBackground) && LoggedSkins.Add(skin.Id))
+            {
+                SunExpLog.Info(LogPrefix + " applied " + skin.DisplayName + " skin to card: " + DictionaryUtil.Get(config?.data, "Id", "unknown"));
+            }
         }
 
-        if ((appliedFrame || appliedBackground) && LoggedSkins.Add(skin.Id))
-        {
-            SunExpLog.Info(LogPrefix + " applied " + skin.DisplayName + " skin to card: " + DictionaryUtil.Get(config?.data, "Id", "unknown"));
-        }
-
+        var appliedEffect = CardVisualEffectApplier.Apply(marker, config);
         return appliedFrame || appliedBackground || appliedEffect;
     }
 

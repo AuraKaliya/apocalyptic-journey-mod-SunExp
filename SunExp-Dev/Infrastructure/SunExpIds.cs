@@ -8,9 +8,9 @@ public static class SunExpIds
 
     public const string SunCardVisualSkinId = "sunexp.card_visual.sun";
     public const string MorningStarCardVisualSkinId = "sunexp.card_visual.morning_star";
-    public const string SunCardFrameHoloShaderId = "sunexp.card_frame_holo_flow";
-    public const string SunCardFrameHoloEffectBindingId = "sunexp.card_frame_effect.sun.holo_flow";
-    public const string SunCardFrameHoloVisualEffectId = "sunexp.card_frame.sun.holo_flow";
+    public const string CardFrameHoloFlowShaderId = "sunexp.card_visual_effect.frame_holo_flow.shader";
+    public const string CardFrameHoloFlowVisualEffectId = "sunexp.card_visual_effect.frame_holo_flow";
+    public const string BlazingCrownCollapseHoloEffectBindingId = "sunexp.card_visual_effect.blazing_crown_collapse.holo_flow";
     public const string SunCardFramePath = "Mods/SunExp/ModResource/Images/UI/\u65e5\u8000-\u5361\u68461.png";
     public const string SunCardBackgroundPath = "Mods/SunExp/ModResource/Images/UI/\u5361\u9762\u80cc\u666f.png";
     public const string MorningStarCardFramePath = "Mods/SunExp/ModResource/Images/UI/\u6668\u661f-\u5361\u68461.png";
@@ -216,7 +216,13 @@ public static class SunExpIds
     public const string SolarBossSaintWunaEnemyId = "SunExp_sunexp_boss_saint_wuna";
     public const string SolarBossSecondSunMapTexturePath = "Mods/SunExp/ModResource/AnimationLib/SecondSunWeel_e/Map/Map_00.png";
     public const string SolarBossSaintWunaMapTexturePath = "Mods/SunExp/ModResource/AnimationLib/WuNa_e/Map/Map_00.png";
+    public const string BlazingCrownCollapseShortCardId = "blazing_crown_collapse";
     public const string BlazingCrownCollapseCardId = "SunExp_sunexp_blazing_crown_collapse";
+    public static readonly string[] BlazingCrownCollapseCardEffectIds =
+    {
+        BlazingCrownCollapseCardId,
+        BlazingCrownCollapseShortCardId
+    };
     public const int SolarFinaleNameCount = 8;
 
     public static bool IsSolarMemoryExclusiveMapId(string? id)

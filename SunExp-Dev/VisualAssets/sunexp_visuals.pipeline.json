@@ -40,6 +40,10 @@
     "_SunExpWunaFrontEdgeColor": "#FF6A1FDD",
     "_SunExpCardFrameHoloColorA": "#FFD65AFF",
     "_SunExpCardFrameHoloColorB": "#70E6FFFF",
-    "_SunExpCardFrameHoloColorC": "#FF7AD6FF"
+    "_SunExpCardFrameHoloColorC": "#FF7AD6FF",
+    "_SunExpCardFrameHoloPrismScale": 14.0,
+    "_SunExpCardFrameHoloPrismStrength": 0.68,
+    "_SunExpCardFrameHoloFoilGrain": 0.26,
+    "_SunExpCardFrameHoloDistortion": 0.018
   }
 }

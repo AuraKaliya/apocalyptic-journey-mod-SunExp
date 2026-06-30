@@ -174,7 +174,7 @@
       "enabled": true
     },
     {
-      "id": "sunexp.card_frame_holo_flow",
+      "id": "sunexp.card_visual_effect.frame_holo_flow.shader",
       "shaderName": "SunExp/CardFrameHoloFlow",
       "shaderPath": "SunExp/CardFrameHoloFlow",
       "bundlePath": "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
@@ -202,23 +202,28 @@
       "enabled": true
     },
     {
-      "id": "sunexp.card_frame.sun.holo_flow",
-      "kind": "card-frame-material",
-      "shaderId": "sunexp.card_frame_holo_flow",
+      "id": "sunexp.card_visual_effect.frame_holo_flow",
+      "kind": "card-visual-frame-material",
+      "shaderId": "sunexp.card_visual_effect.frame_holo_flow.shader",
       "bundlePath": "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
       "materialPath": "SunExp/Materials/CardFrameHoloFlow",
       "textures": {
         "_NoiseTex": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
       },
       "floats": {
-        "_SunExpFlowSpeed": 0.42,
-        "_SunExpFlowScale": 2.2,
-        "_SunExpNoiseScale": 3.4,
-        "_SunExpDistortion": 0.035,
-        "_SunExpEffectIntensity": 0.78,
-        "_SunExpEdgeGlow": 0.28,
-        "_SunExpSweepFrequency": 7.5,
-        "_SunExpSweepWidth": 0.22
+        "_SunExpFlowSpeed": 0.36,
+        "_SunExpFlowScale": 1.65,
+        "_SunExpNoiseScale": 4.8,
+        "_SunExpDistortion": 0.018,
+        "_SunExpEffectIntensity": 0.72,
+        "_SunExpEdgeGlow": 0.22,
+        "_SunExpSweepFrequency": 5.6,
+        "_SunExpSweepWidth": 0.16,
+        "_SunExpSweepIntensity": 0.9,
+        "_SunExpPrismScale": 14.0,
+        "_SunExpPrismStrength": 0.68,
+        "_SunExpFoilGrain": 0.26,
+        "_SunExpEdgeSample": 2.0
       },
       "colors": {
         "_SunExpHoloColorA": "#FFD65AFF",
