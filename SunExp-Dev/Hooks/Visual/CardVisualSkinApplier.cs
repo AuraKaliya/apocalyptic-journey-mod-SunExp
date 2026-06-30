@@ -12,30 +12,37 @@ public static class CardVisualSkinApplier
     private const string LogPrefix = "[CardVisualSkin]";
     private static readonly HashSet<string> LoggedSkins = new();
     private static readonly HashSet<string> LoggedUnresolvedCards = new();
-    private static readonly Dictionary<int, int> MeshTextureIds = new();
 
     public static bool Apply(Transform? cardRoot, IDataConfig? config)
     {
-        var skin = CardVisualThemeCatalog.Resolve(config);
-        if (skin == null)
-        {
-            LogUnresolvedSunExpCard(config);
-            return false;
-        }
-
         if (cardRoot == null)
         {
             return false;
         }
 
-        var appliedFrame = ApplySprite(cardRoot.Find("Front/FrontBack"), skin.FramePath, skin.Id, "frame", required: true);
-        var appliedBackground = ApplySprite(cardRoot.Find("Front/background"), skin.BackgroundPath, skin.Id, "background", required: false);
+        var marker = cardRoot.GetComponent<CardVisualSkinMarker>() ?? cardRoot.gameObject.AddComponent<CardVisualSkinMarker>();
+        var skin = CardVisualThemeCatalog.Resolve(config);
+        if (skin == null)
+        {
+            var clearedEffect = CardFrameEffectApplier.Clear(marker);
+            LogUnresolvedSunExpCard(config);
+            return clearedEffect;
+        }
+
+        var appliedFrame = ApplySprite(marker, background: false, skin.FramePath, skin.Id, "frame", required: true);
+        var appliedBackground = ApplySprite(marker, background: true, skin.BackgroundPath, skin.Id, "background", required: false);
+        var appliedEffect = CardFrameEffectApplier.Apply(marker, skin);
+        if (appliedFrame || appliedBackground)
+        {
+            marker.LastSkinId = skin.Id;
+        }
+
         if ((appliedFrame || appliedBackground) && LoggedSkins.Add(skin.Id))
         {
             SunExpLog.Info(LogPrefix + " applied " + skin.DisplayName + " skin to card: " + DictionaryUtil.Get(config?.data, "Id", "unknown"));
         }
 
-        return appliedFrame || appliedBackground;
+        return appliedFrame || appliedBackground || appliedEffect;
     }
 
     private static void LogUnresolvedSunExpCard(IDataConfig? config)
@@ -59,13 +66,14 @@ public static class CardVisualSkinApplier
         }
     }
 
-    private static bool ApplySprite(Transform? node, string path, string skinId, string layerName, bool required)
+    private static bool ApplySprite(CardVisualSkinMarker marker, bool background, string path, string skinId, string layerName, bool required)
     {
         if (string.IsNullOrWhiteSpace(path))
         {
             return false;
         }
 
+        var node = background ? marker.BackgroundNode : marker.FrameNode;
         if (node == null)
         {
             if (required)
@@ -82,7 +90,7 @@ public static class CardVisualSkinApplier
             return false;
         }
 
-        var image = node.GetComponent<Image>();
+        var image = background ? marker.BackgroundImage : marker.FrameImage;
         if (image != null)
         {
             if (image.sprite == sprite)
@@ -94,12 +102,16 @@ public static class CardVisualSkinApplier
             return true;
         }
 
-        var mesh = node.GetComponent<MeshRenderer>();
+        var mesh = background ? marker.BackgroundMesh : marker.FrameMesh;
         if (mesh != null)
         {
-            var rendererId = mesh.GetInstanceID();
             var textureId = sprite.texture.GetInstanceID();
-            var material = mesh.material;
+            if (!background)
+            {
+                marker.LastFrameTexture = sprite.texture;
+            }
+
+            var material = background ? marker.BackgroundMaterial : marker.FrameMaterial;
             if (material == null)
             {
                 if (required)
@@ -111,11 +123,18 @@ public static class CardVisualSkinApplier
             }
 
             var currentTexture = material.mainTexture;
-            var changed = !ReferenceEquals(currentTexture, sprite.texture)
-                || !MeshTextureIds.TryGetValue(rendererId, out var currentTextureId)
-                || currentTextureId != textureId;
+            var cachedTextureId = background ? marker.LastBackgroundTextureId : marker.LastFrameTextureId;
+            var changed = !ReferenceEquals(currentTexture, sprite.texture) || cachedTextureId != textureId;
             material.mainTexture = sprite.texture;
-            MeshTextureIds[rendererId] = textureId;
+            if (background)
+            {
+                marker.LastBackgroundTextureId = textureId;
+            }
+            else
+            {
+                marker.LastFrameTextureId = textureId;
+            }
+
             return changed;
         }
 

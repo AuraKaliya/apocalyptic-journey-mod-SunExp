@@ -56,7 +56,7 @@ public static class AssetBundleCache
         }
     }
 
-    private static AssetBundle? LoadBundle(string bundlePath, string logPrefix)
+    public static AssetBundle? LoadBundle(string bundlePath, string logPrefix)
     {
         var resolvedPath = VisualRegistry.ResolveContentPath(bundlePath);
         if (string.IsNullOrWhiteSpace(resolvedPath))

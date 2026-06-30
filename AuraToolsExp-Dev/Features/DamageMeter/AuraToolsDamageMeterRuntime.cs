@@ -20,12 +20,15 @@ namespace AuraToolsExp.Dll.Features.DamageMeter;
 
 public static class AuraToolsDamageMeterRuntime
 {
+    private static readonly List<IDisposable> HookRegistrations = new();
     private static readonly List<HitFrame> HitFrames = new();
     private static readonly List<PureHpFrame> PureHpFrames = new();
     private static readonly List<HpSetterFrame> HpSetterFrames = new();
     private static readonly List<BuffApplicationFrame> BuffFrames = new();
     private static readonly BuffDamageAttributionTracker BuffAttribution = new();
+    private static ModConfig? modConfig;
     private static bool initialized;
+    private static bool hooksRegistered;
     private static bool endingSent;
     private static bool adventureSettlementRecorded;
     private static bool outOfRunHistoryLoaded;
@@ -78,55 +81,104 @@ public static class AuraToolsDamageMeterRuntime
         }
 
         initialized = true;
-        AuraToolsDamageMeterUi.EnsureDriver();
-
-        RegisterAfter(modConfig, "GameEntryUI.Init", HideForEntryUi);
-        RegisterAfter(modConfig, "GameEntryUI.Outlobby", HideForEntryUi);
-        RegisterAfter(modConfig, "GameEntryUI.ReturnHouse", HideForEntryUi);
-        RegisterAfter(modConfig, "GameEntryUI.ShowCareer", ShowForPreparationUi);
-        RegisterAfter(modConfig, "GameEntryUI.ShowDetail", ShowForPreparationUi);
-        RegisterAfter(modConfig, "GameEntryUI.ChangeRole", ShowForPreparationUi);
-        RegisterBefore(modConfig, "GameEntryUI.StartGame", ShowForStartGame);
-        RegisterBefore(modConfig, "GameApp.GameOver", OnAdventureSettlement);
-        RegisterBefore(modConfig, "PlayerManager.GameOver", OnAdventureSettlement);
-        RegisterAfter(modConfig, "GameExitUI.Start", OnAdventureSettlement);
-        RegisterAfter(modConfig, "NormalMapManager.InitRoleTable", ShowForAdventureUi);
-        RegisterAfter(modConfig, "SublimationManager.InitRoleTable", ShowForAdventureUi);
-        RegisterAfter(modConfig, "SlotMachineManager.InitRoleTable", ShowForAdventureUi);
-        RegisterAfter(modConfig, "TopBarUI.Awake", ShowForAdventureUi);
-        RegisterAfter(modConfig, "TopBarUI.Start", ShowForAdventureUi);
-        RegisterAfter(modConfig, "TopBarUI.ShowLeftUp", ShowForAdventureUi);
-        RegisterAfter(modConfig, "MapSelectUI.Start", ShowForAdventureUi);
-        RegisterAfter(modConfig, "MapSelectUI.ReadyToSelect", ShowForAdventureUi);
-        RegisterAfter(modConfig, "MapSelectUI.ShowMap", ShowForAdventureUi);
-        RegisterAfter(modConfig, "MapSelectUI.MapAnimation", ShowForAdventureUi);
-
-        RegisterBefore(modConfig, "StatusManager.Hit", BeforeHit);
-        RegisterAfter(modConfig, "StatusManager.Hit", AfterHit);
-        RegisterBefore(modConfig, "DamageText.Create", BeforeDamageTextCreate);
-        RegisterBefore(modConfig, "ScriptExecutor.PureChangeHp", BeforePureChangeHp);
-        RegisterAfter(modConfig, "ScriptExecutor.PureChangeHp", AfterPureChangeHp);
-        RegisterBefore(modConfig, "StatusManager.set_CurHp", BeforeSetCurHp);
-        RegisterAfter(modConfig, "StatusManager.set_CurHp", AfterSetCurHp);
-        RegisterBefore(modConfig, "ScriptExecutor.AddBuff", BeforeScriptAddBuff);
-        RegisterAfter(modConfig, "ScriptExecutor.AddBuff", AfterScriptAddBuff);
-        RegisterAfter(modConfig, "BuffItemConfig.set_Level", AfterBuffLevelChanged);
-        RegisterAfter(modConfig, "StatusManager.RemoveBuff", AfterRemoveBuff);
-
-        RegisterBefore(modConfig, "FightInit.Init", OnFightInitStarting);
-        RegisterAfter(modConfig, "Fight_Start.Init", OnFightStartFallback);
-        RegisterAfter(modConfig, "Fight_PlayerTurn.Init", OnPlayerRoundStart);
-        RegisterBefore(modConfig, "Fight_Win.ResetStates", OnFightEnding);
-        RegisterBefore(modConfig, "Fight_Escape.ResetStates", OnFightEnding);
-        RegisterBefore(modConfig, "Fight_Loss.Init", OnFightEnding);
-        RegisterAfter(modConfig, "Fight_Win.ResetStates", OnFightEnded);
-        RegisterAfter(modConfig, "Fight_Escape.ResetStates", OnFightEnded);
-        RegisterAfter(modConfig, "Fight_Loss.Init", OnFightEnded);
-
+        AuraToolsDamageMeterRuntime.modConfig = modConfig;
         AuraToolsConfigService.Changed += OnConfigChanged;
+        EnsureHooksMatchConfig();
         EnsureOutOfRunHistoryLoaded();
-        AuraToolsLog.Info("[DamageMeter] DPT hooks and network protocol v"
-                          + DamageMeterProtocol.Version + " registered.");
+        AuraToolsLog.Info("[DamageMeter] DPT runtime initialized. Network protocol v"
+                          + DamageMeterProtocol.Version + ".");
+    }
+
+    private static void EnsureHooksMatchConfig()
+    {
+        if (Enabled)
+        {
+            EnsureHooksRegistered();
+            AuraToolsDamageMeterUi.EnsureDriver();
+            return;
+        }
+
+        ReleaseHooks();
+        AuraToolsDamageMeterUi.ReleaseDriver();
+    }
+
+    private static void EnsureHooksRegistered()
+    {
+        if (hooksRegistered || modConfig == null)
+        {
+            return;
+        }
+
+        RegisterAfter("GameEntryUI.Init", HideForEntryUi);
+        RegisterAfter("GameEntryUI.Outlobby", HideForEntryUi);
+        RegisterAfter("GameEntryUI.ReturnHouse", HideForEntryUi);
+        RegisterAfter("GameEntryUI.ShowCareer", ShowForPreparationUi);
+        RegisterAfter("GameEntryUI.ShowDetail", ShowForPreparationUi);
+        RegisterAfter("GameEntryUI.ChangeRole", ShowForPreparationUi);
+        RegisterBefore("GameEntryUI.StartGame", ShowForStartGame);
+        RegisterBefore("GameApp.GameOver", OnAdventureSettlement);
+        RegisterBefore("PlayerManager.GameOver", OnAdventureSettlement);
+        RegisterAfter("GameExitUI.Start", OnAdventureSettlement);
+        RegisterAfter("NormalMapManager.InitRoleTable", ShowForAdventureUi);
+        RegisterAfter("SublimationManager.InitRoleTable", ShowForAdventureUi);
+        RegisterAfter("SlotMachineManager.InitRoleTable", ShowForAdventureUi);
+        RegisterAfter("TopBarUI.Awake", ShowForAdventureUi);
+        RegisterAfter("TopBarUI.Start", ShowForAdventureUi);
+        RegisterAfter("TopBarUI.ShowLeftUp", ShowForAdventureUi);
+        RegisterAfter("MapSelectUI.Start", ShowForAdventureUi);
+        RegisterAfter("MapSelectUI.ReadyToSelect", ShowForAdventureUi);
+        RegisterAfter("MapSelectUI.ShowMap", ShowForAdventureUi);
+        RegisterAfter("MapSelectUI.MapAnimation", ShowForAdventureUi);
+
+        RegisterBefore("StatusManager.Hit", BeforeHit);
+        RegisterAfter("StatusManager.Hit", AfterHit);
+        RegisterBefore("DamageText.Create", BeforeDamageTextCreate);
+        RegisterBefore("ScriptExecutor.PureChangeHp", BeforePureChangeHp);
+        RegisterAfter("ScriptExecutor.PureChangeHp", AfterPureChangeHp);
+        RegisterBefore("StatusManager.set_CurHp", BeforeSetCurHp);
+        RegisterAfter("StatusManager.set_CurHp", AfterSetCurHp);
+        RegisterBefore("ScriptExecutor.AddBuff", BeforeScriptAddBuff);
+        RegisterAfter("ScriptExecutor.AddBuff", AfterScriptAddBuff);
+        RegisterAfter("BuffItemConfig.set_Level", AfterBuffLevelChanged);
+        RegisterAfter("StatusManager.RemoveBuff", AfterRemoveBuff);
+
+        RegisterBefore("FightInit.Init", OnFightInitStarting);
+        RegisterAfter("Fight_Start.Init", OnFightStartFallback);
+        RegisterAfter("Fight_PlayerTurn.Init", OnPlayerRoundStart);
+        RegisterBefore("Fight_Win.ResetStates", OnFightEnding);
+        RegisterBefore("Fight_Escape.ResetStates", OnFightEnding);
+        RegisterBefore("Fight_Loss.Init", OnFightEnding);
+        RegisterAfter("Fight_Win.ResetStates", OnFightEnded);
+        RegisterAfter("Fight_Escape.ResetStates", OnFightEnded);
+        RegisterAfter("Fight_Loss.Init", OnFightEnded);
+
+        hooksRegistered = true;
+        AuraToolsLog.Info("[DamageMeter] routed hooks enabled.");
+    }
+
+    private static void ReleaseHooks()
+    {
+        if (!hooksRegistered && HookRegistrations.Count == 0)
+        {
+            return;
+        }
+
+        for (var i = HookRegistrations.Count - 1; i >= 0; i--)
+        {
+            try
+            {
+                HookRegistrations[i].Dispose();
+            }
+            catch
+            {
+            }
+        }
+
+        HookRegistrations.Clear();
+        hooksRegistered = false;
+        ResetCaptureState();
+        DamageMeterNetworkRuntime.EndFight("disabled");
+        AuraToolsLog.Info("[DamageMeter] routed hooks disabled.");
     }
 
     public static void Tick()
@@ -259,6 +311,7 @@ public static class AuraToolsDamageMeterRuntime
     private static void OnConfigChanged()
     {
         uiDirty = true;
+        EnsureHooksMatchConfig();
         if (!Enabled)
         {
             try
@@ -1587,14 +1640,34 @@ public static class AuraToolsDamageMeterRuntime
         }
     }
 
-    private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
+    private static void RegisterBefore(string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterBefore(config, target, action, warn: AuraToolsLog.Warn, safeInvoke: true);
+        if (modConfig == null)
+        {
+            return;
+        }
+
+        HookRegistrations.Add(AuraSharedHooks.RegisterBeforeRouted(
+            modConfig,
+            target,
+            action,
+            warn: AuraToolsLog.Warn,
+            safeInvoke: true));
     }
 
-    private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
+    private static void RegisterAfter(string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, warn: AuraToolsLog.Warn, safeInvoke: true);
+        if (modConfig == null)
+        {
+            return;
+        }
+
+        HookRegistrations.Add(AuraSharedHooks.RegisterAfterRouted(
+            modConfig,
+            target,
+            action,
+            warn: AuraToolsLog.Warn,
+            safeInvoke: true));
     }
 
     private static void RunHook(string name, Action action)

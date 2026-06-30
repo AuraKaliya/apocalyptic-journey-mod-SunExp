@@ -27,11 +27,11 @@
         "mode": "slide",
         "fit": "contain",
         "fadeIn": 0.35,
-        "hold": 1.0,
+        "hold": 1,
         "fadeOut": 0.45,
         "focusX": 0.5,
         "focusY": 0.5,
-        "safeScale": 1.0
+        "safeScale": 1
       },
       "defaultActivation": {
         "enabled": true,
@@ -69,7 +69,7 @@
         "fadeOut": 0.5,
         "focusX": 0.5,
         "focusY": 0.5,
-        "safeScale": 1.0
+        "safeScale": 1
       },
       "defaultActivation": {
         "enabled": true,
@@ -85,7 +85,7 @@
     {
       "cgId": "sunexp.blazing-crown-collapse",
       "displayName": "SunExp - 炽冕崩落",
-      "kind": "skill",
+      "kind": "cardUse",
       "targetRoleIds": [
         "*"
       ],
@@ -97,13 +97,15 @@
         "type": "sequence",
         "resource": "CG/SunExp/WuNa/BlazingCrownCollapse",
         "fallbackImage": "CG/SunExp/WuNa/BlazingCrownCollapse",
+        "bundlePath": "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
+        "bundleAssetPrefix": "Assets/SunExp/Visuals/CG/WuNa/BlazingCrownCollapse",
         "frameSeconds": 0.054054,
         "alphaMode": "blackKey",
         "keyThreshold": 0.02,
         "keySoftness": 0.1,
-        "flashAtSeconds": -1.0,
+        "flashAtSeconds": -1,
         "flashDuration": 0.18,
-        "flashMode": "maskedInvert",
+        "flashMode": "hybridBwPulse",
         "flashStartFrame": 6,
         "flashEndFrame": 20,
         "flashPulseEveryFrames": 1,
@@ -117,7 +119,7 @@
         "fadeOut": 0.28,
         "focusX": 0.5,
         "focusY": 0.5,
-        "safeScale": 1.0
+        "safeScale": 1
       },
       "defaultActivation": {
         "enabled": true,
@@ -125,8 +127,7 @@
       },
       "priority": 30,
       "tags": [
-        "skill-cg",
-        "active-skill",
+        "card-use-cg",
         "sequence-cg"
       ],
       "enabled": true
@@ -155,7 +156,7 @@
         "fadeOut": 0.5,
         "focusX": 0.5,
         "focusY": 0.5,
-        "safeScale": 1.0
+        "safeScale": 1
       },
       "defaultActivation": {
         "enabled": true,
@@ -192,7 +193,7 @@
         "fadeOut": 0.5,
         "focusX": 0.5,
         "focusY": 0.5,
-        "safeScale": 1.0
+        "safeScale": 1
       },
       "defaultActivation": {
         "enabled": true,

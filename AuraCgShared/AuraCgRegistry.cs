@@ -303,6 +303,12 @@ public sealed class AuraCgMediaSpec
     [JsonProperty("fallbackImage")]
     public string FallbackImage { get; set; } = "";
 
+    [JsonProperty("bundlePath")]
+    public string BundlePath { get; set; } = "";
+
+    [JsonProperty("bundleAssetPrefix")]
+    public string BundleAssetPrefix { get; set; } = "";
+
     [JsonProperty("frameSeconds")]
     public float FrameSeconds { get; set; } = 0.08f;
 
@@ -347,6 +353,8 @@ public sealed class AuraCgMediaSpec
         Type = SkillCgMediaTypes.Normalize(Type);
         Resource = AuraSharedPaths.NormalizeRelativePath(Resource);
         FallbackImage = AuraSharedPaths.NormalizeRelativePath(FallbackImage);
+        BundlePath = AuraSharedPaths.NormalizeRelativePath(BundlePath);
+        BundleAssetPrefix = AuraSharedPaths.NormalizeRelativePath(BundleAssetPrefix);
         FrameSeconds = Math.Max(0.01f, FrameSeconds);
         AlphaMode = SkillCgAlphaModes.Normalize(AlphaMode);
         KeyThreshold = Math.Max(0f, Math.Min(1f, KeyThreshold));

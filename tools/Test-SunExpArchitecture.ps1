@@ -78,6 +78,7 @@ $requiredFiles = @(
     "SunExp-Dev\GameApi\DialogueUiApi.cs",
     "SunExp-Dev\GameApi\MapItemApi.cs",
     "SunExp-Dev\GameApi\CardVisualSkinApi.cs",
+    "SunExp-Dev\GameApi\CardFrameEffectApi.cs",
     "SunExp-Dev\GameApi\BattleRewardApi.cs",
     "SunExp-Dev\GameApi\SunExpResourceCache.cs",
     "SunExp-Dev\Infrastructure\SunExpDirtyState.cs",
@@ -102,6 +103,8 @@ $requiredFiles = @(
     "SunExp-Dev\Mechanics\CardVisualSkinSpec.cs",
     "SunExp-Dev\Mechanics\CardVisualSkinRule.cs",
     "SunExp-Dev\Mechanics\CardVisualSkinRegistry.cs",
+    "SunExp-Dev\Mechanics\CardFrameEffectSpec.cs",
+    "SunExp-Dev\Mechanics\CardFrameEffectRegistry.cs",
     "SunExp-Dev\Mechanics\CardVisualThemeCatalog.cs",
     "SunExp-Dev\Mechanics\SunCardThemeCatalog.cs",
     "SunExp-Dev\Mechanics\SunExpCardRefreshQueue.cs",
@@ -139,6 +142,8 @@ $requiredFiles = @(
     "SunExp-Dev\Hooks\Visual\EffectTextureCache.cs",
     "SunExp-Dev\Hooks\Visual\FrameImageAnimator.cs",
     "SunExp-Dev\Hooks\Visual\CardVisualSkinApplier.cs",
+    "SunExp-Dev\Hooks\Visual\CardFrameEffectApplier.cs",
+    "SunExp-Dev\Hooks\Visual\CardFrameEffectMaterials.cs",
     "SunExp-Dev\Hooks\Visual\CardVisualSkinSpriteCache.cs",
     "SunExp-Dev\Hooks\Visual\SunCardFrameApplier.cs",
     "SunExp-Dev\Hooks\Visual\SunCardFrameSpriteCache.cs",
@@ -151,6 +156,7 @@ $requiredFiles = @(
     "SunExp-Dev\VisualAssets\sunexp_visuals.pipeline.json",
     "SunExp-Dev\VisualAssets\Editor\SunExpVisualBundleBuilder.cs.txt",
     "SunExp-Dev\VisualAssets\Shaders\StarScoreHud.shader",
+    "SunExp-Dev\VisualAssets\Shaders\CardFrameHoloFlow.shader",
     "tools\Build-SunExpVisualBundle.ps1",
     "SunExp-Dev\Mechanics\StarScoreCadenceCatalog.cs",
     "SunExp-Dev\Mechanics\StarScoreDisplaySnapshot.cs",
@@ -167,6 +173,7 @@ $fieldApi = Read-RepoText "SunExp-Dev\GameApi\FieldApi.cs"
 $buffOverflowApi = Read-RepoText "SunExp-Dev\GameApi\BuffOverflowApi.cs"
 $mapItemApi = Read-RepoText "SunExp-Dev\GameApi\MapItemApi.cs"
 $cardVisualSkinApi = Read-RepoText "SunExp-Dev\GameApi\CardVisualSkinApi.cs"
+$cardFrameEffectApi = Read-RepoText "SunExp-Dev\GameApi\CardFrameEffectApi.cs"
 $dialogueApi = Read-RepoText "SunExp-Dev\GameApi\DialogueApi.cs"
 $dialogueUiApi = Read-RepoText "SunExp-Dev\GameApi\DialogueUiApi.cs"
 $battleRewardApi = Read-RepoText "SunExp-Dev\GameApi\BattleRewardApi.cs"
@@ -207,9 +214,13 @@ $runtimeHooks = Read-RepoText "SunExp-Dev\Hooks\RuntimeHooks.cs"
 $cardVisualSkinSpec = Read-RepoText "SunExp-Dev\Mechanics\CardVisualSkinSpec.cs"
 $cardVisualSkinRule = Read-RepoText "SunExp-Dev\Mechanics\CardVisualSkinRule.cs"
 $cardVisualSkinRegistry = Read-RepoText "SunExp-Dev\Mechanics\CardVisualSkinRegistry.cs"
+$cardFrameEffectSpec = Read-RepoText "SunExp-Dev\Mechanics\CardFrameEffectSpec.cs"
+$cardFrameEffectRegistry = Read-RepoText "SunExp-Dev\Mechanics\CardFrameEffectRegistry.cs"
 $cardVisualThemeCatalog = Read-RepoText "SunExp-Dev\Mechanics\CardVisualThemeCatalog.cs"
 $cardVisualSkinRuntime = Read-RepoText "SunExp-Dev\Hooks\CardVisualSkinRuntime.cs"
 $cardVisualSkinApplier = Read-RepoText "SunExp-Dev\Hooks\Visual\CardVisualSkinApplier.cs"
+$cardFrameEffectApplier = Read-RepoText "SunExp-Dev\Hooks\Visual\CardFrameEffectApplier.cs"
+$cardFrameEffectMaterials = Read-RepoText "SunExp-Dev\Hooks\Visual\CardFrameEffectMaterials.cs"
 $cardVisualSkinSpriteCache = Read-RepoText "SunExp-Dev\Hooks\Visual\CardVisualSkinSpriteCache.cs"
 $sunCardFrameRuntime = Read-RepoText "SunExp-Dev\Hooks\SunCardFrameRuntime.cs"
 $sunCardFrameApplier = Read-RepoText "SunExp-Dev\Hooks\Visual\SunCardFrameApplier.cs"
@@ -237,6 +248,7 @@ $wunaOrbitFireController = Read-RepoText "SunExp-Dev\Hooks\Visual\WunaOrbitFireC
 $visualPipeline = Read-RepoText "SunExp-Dev\VisualAssets\sunexp_visuals.pipeline.json"
 $visualBundleBuilder = Read-RepoText "SunExp-Dev\VisualAssets\Editor\SunExpVisualBundleBuilder.cs.txt"
 $starScoreHudShaderSource = Read-RepoText "SunExp-Dev\VisualAssets\Shaders\StarScoreHud.shader"
+$cardFrameHoloShaderSource = Read-RepoText "SunExp-Dev\VisualAssets\Shaders\CardFrameHoloFlow.shader"
 $visualBundleBuildScript = Read-RepoText "tools\Build-SunExpVisualBundle.ps1"
 $starScoreService = Read-RepoText "SunExp-Dev\Mechanics\StarScoreService.cs"
 $starScoreRuntime = Read-RepoText "SunExp-Dev\Hooks\StarScoreRuntime.cs"
@@ -333,6 +345,8 @@ Assert-Contains $sunExpConfigIndex "public static List<Dictionary<string, string
 Assert-NotContains $sunExpConfigIndex "SunExp.Dll.Hooks" "Config index in Mechanics must not depend on Hook runtimes."
 Assert-Contains $sunExpIds "SunCardVisualSkinId" "SunExpIds must centralize the Sun card visual skin id."
 Assert-Contains $sunExpIds "MorningStarCardVisualSkinId" "SunExpIds must centralize the Morning Star card visual skin id."
+Assert-Contains $sunExpIds "SunCardFrameHoloShaderId" "SunExpIds must centralize the Sun card-frame holo shader id."
+Assert-Contains $sunExpIds "SunCardFrameHoloVisualEffectId" "SunExpIds must centralize the Sun card-frame holo effect id."
 Assert-Contains $sunExpIds "SunThemeCardPackIds" "SunExpIds must centralize Sun theme card-pack ids."
 Assert-Contains $sunExpIds "StellarOvertureCardIds" "SunExpIds must centralize Stellar Overture card ids."
 Assert-Contains $sunExpIds "SunThemeExplicitCardIds" "SunExpIds must centralize explicit Sun theme card ids."
@@ -380,8 +394,22 @@ Assert-Contains $cardVisualSkinRegistry "MissCache" "Card visual skin registry m
 Assert-Contains $cardVisualSkinRule "PackBelong" "Card visual skin rules must support pack-based matching."
 Assert-Contains $cardVisualSkinRule "iconPrefixes" "Card visual skin rules must support theme icon-prefix matching."
 Assert-NotContains $cardVisualThemeCatalog "private static readonly CardVisualSkinSpec SunSkin" "Card visual theme catalog must not hard-code Sun skin specs outside the registry."
-Assert-Contains $cardVisualSkinApplier 'cardRoot.Find("Front/FrontBack")' "Card visual skin applier must replace the card-frame layer."
-Assert-Contains $cardVisualSkinApplier 'cardRoot.Find("Front/background")' "Card visual skin applier must support the optional card-background layer."
+Assert-Contains $cardVisualSkinApplier "CardVisualSkinMarker" "Card visual skin applier must cache per-card UI lookup state."
+Assert-Contains $entrySource 'RunStep("card frame effect registry", CardFrameEffectApi.RegisterSunExpDefaults)' "Entry must register card-frame effects after card visual skins."
+Assert-Contains $cardFrameEffectApi "CardFrameEffectRegistry.Register" "Card-frame effects must expose a modular registration API."
+Assert-Contains $cardFrameEffectApi "SunExpIds.SunCardFrameHoloVisualEffectId" "SunExp default card-frame effect must reference the declared visual effect id."
+Assert-Contains $cardFrameEffectSpec "public sealed class CardFrameEffectSpec" "Card-frame effects must use a typed effect specification."
+Assert-Contains $cardFrameEffectRegistry "Resolve(CardVisualSkinSpec? skin)" "Card-frame effect registry must resolve effects from card visual skins."
+Assert-Contains $cardFrameEffectRegistry "HitCache" "Card-frame effect registry must cache positive skin matches."
+Assert-Contains $cardFrameEffectRegistry "MissCache" "Card-frame effect registry must cache missed skin matches."
+Assert-Contains $cardVisualSkinApplier "CardFrameEffectApplier.Apply" "Card visual skin applier must apply frame-only material effects after replacing sprites."
+Assert-Contains $cardVisualSkinApplier "CardFrameEffectApplier.Clear" "Card visual skin applier must clear frame effects when no themed skin resolves."
+Assert-Contains $cardFrameEffectApplier "marker.FrameImage" "Card-frame effects must target the card-frame UI image when available."
+Assert-Contains $cardFrameEffectApplier "marker.FrameMesh" "Card-frame effects must support mesh-rendered card frames as a fallback."
+Assert-Contains $cardFrameEffectMaterials "EffectMaterialFactory.CreateMaterial" "Card-frame effect materials must be created through the private visual effect factory."
+Assert-Contains $performanceSettings "CardFrameEffectsEnabled" "Card-frame effects must obey performance quality settings."
+Assert-Contains (Read-RepoText "SunExp-Dev\Hooks\Visual\CardVisualSkinMarker.cs") 'Front/FrontBack' "Card visual skin marker must replace the card-frame layer."
+Assert-Contains (Read-RepoText "SunExp-Dev\Hooks\Visual\CardVisualSkinMarker.cs") 'Front/background' "Card visual skin marker must support the optional card-background layer."
 Assert-Contains $cardVisualSkinRuntime "SunExpFrameScheduler.RunOnceNextFrame" "Card visual skin full reapply must be merged through the performance scheduler."
 Assert-Contains $cardVisualSkinRuntime "CardVisualSkin.ReapplyActiveCombatCards" "Card visual skin reapply must be measured by performance counters."
 Assert-Contains $cardVisualSkinSpriteCache "SunExpResourceCache.Load<Sprite>" "Card visual skin sprites must load through the shared resource cache."
@@ -406,15 +434,22 @@ Assert-Contains $visualRegistryJson '"modeEntries"' "Shipped visual registry mus
 Assert-Contains $visualRegistryJson '"shaders"' "Shipped visual registry must declare shader lookup entries."
 Assert-Contains $visualRegistryJson '"effects"' "Shipped visual registry must declare private visual effect entries."
 Assert-Contains $visualRegistryJson '"sunexp.star_score_hud.lit_slot"' "Shipped visual registry must declare the star-score lit-slot effect."
+Assert-Contains $visualRegistryJson '"sunexp.card_frame_holo_flow"' "Shipped visual registry must declare the card-frame holo shader."
+Assert-Contains $visualRegistryJson '"sunexp.card_frame.sun.holo_flow"' "Shipped visual registry must declare the Sun card-frame holo effect."
+Assert-Contains $visualRegistry "SunExpIds.SunCardFrameHoloVisualEffectId" "Built-in visual defaults must include the Sun card-frame holo effect."
 Assert-Contains $visualPipeline '"bundleName": "sunexp_visuals"' "Visual pipeline must declare the private SunExp bundle name."
 Assert-Contains $visualPipeline '"materialPath": "SunExp/Materials/StarScoreHudLit"' "Visual pipeline must match the runtime star-score material asset path."
+Assert-Contains $visualPipeline '"cardFrameHoloMaterialPath": "SunExp/Materials/CardFrameHoloFlow"' "Visual pipeline must match the runtime card-frame holo material asset path."
 Assert-Contains $visualRegistry "public static IReadOnlyList<string> BundlePaths()" "VisualRegistry must expose declared visual bundle paths for release checks."
 Assert-Contains $runtimeHooks "VisualBundleRuntimeValidator.ValidateDeclaredBundles" "Runtime hooks must validate declared visual bundles during startup."
 Assert-Contains $visualBundleRuntimeValidator "VisualRegistry.BundlePaths()" "Visual bundle validator must scan registry-declared bundle paths."
 Assert-Contains $visualBundleRuntimeValidator "WunaOrbitFireBack" "Visual bundle validator must probe Wuna back orbit material."
 Assert-Contains $visualBundleRuntimeValidator "WunaOrbitFireFront" "Visual bundle validator must probe Wuna front orbit material."
+Assert-Contains $visualBundleRuntimeValidator "CardFrameHoloFlow" "Visual bundle validator must probe the card-frame holo material."
 Assert-Contains $visualBundleBuildScript "SunExpVisualBundleBuilder.BuildVisualBundle" "Visual bundle build script must call the Unity Editor builder entrypoint."
+Assert-Contains $visualBundleBuildScript "CardFrameHoloFlow.shader" "Visual bundle build script must copy the card-frame holo shader into the Unity project."
 Assert-Contains $visualBundleBuilder "BuildPipeline.BuildAssetBundles" "Visual pipeline must provide a Unity Editor bundle build entrypoint."
+Assert-Contains $visualBundleBuilder "EnsureCardFrameHoloMaterial" "Visual pipeline must build the card-frame holo material."
 Assert-Contains $visualBundleBuilder 'private const string BundleName = "sunexp_visuals"' "Visual bundle builder must match the runtime bundle name."
 Assert-Contains $visualBundleBuilder 'private const string MaterialAssetPath = "Assets/SunExp/Visuals/Materials/StarScoreHudLit.mat"' "Visual bundle builder must create the declared star-score material asset."
 Assert-Contains $sunExpProject "UnityEngine.AssetBundleModule" "SunExp must reference UnityEngine.AssetBundleModule for private shader bundles."
@@ -465,6 +500,10 @@ Assert-Contains $starScoreHudShaderSource 'Shader "SunExp/StarScoreHud"' "Star s
 Assert-Contains $starScoreHudShaderSource "_SunExpFlowStrength" "Star score HUD shader source must expose the runtime flow property."
 Assert-Contains $starScoreHudShaderSource "_SunExpPulse" "Star score HUD shader source must expose the runtime pulse property."
 Assert-Contains $starScoreHudShaderSource "UnityGet2DClipping" "Star score HUD shader source must remain UI clipping compatible."
+Assert-Contains $cardFrameHoloShaderSource 'Shader "SunExp/CardFrameHoloFlow"' "Card-frame holo shader source must match the runtime shader id."
+Assert-Contains $cardFrameHoloShaderSource "_StencilComp" "Card-frame holo shader must remain compatible with UI stencil masks."
+Assert-Contains $cardFrameHoloShaderSource "UnityGet2DClipping" "Card-frame holo shader must remain UI clipping compatible."
+Assert-Contains $cardFrameHoloShaderSource "mask = saturate(frame.a)" "Card-frame holo shader must mask effects to the frame sprite alpha."
 Assert-Contains $starScoreHudShaderMaterials "using UI layered fallback" "Star score shader material factory must log the fallback path when no shader is bundled."
 Assert-Contains $starScoreHudAssets "FullPath" "StarScoreHudAssets must expose the full star-score frame for shader and fallback rendering."
 Assert-NotContains $starScoreHudView "Input.mousePosition" "StarScoreHudView must not use legacy input polling for hover."

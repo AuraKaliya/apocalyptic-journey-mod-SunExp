@@ -31,9 +31,10 @@ public static class AuraLogRuntime
 
 public sealed class AuraLogFileWriter : IDisposable
 {
-    private readonly BlockingCollection<AuraLogRecord> queue = new();
+    private readonly BlockingCollection<AuraLogRecord> queue;
     private readonly Thread worker;
     private readonly StreamWriter writer;
+    private readonly int flushIntervalMs;
     private int disposed;
 
     public AuraLogFileWriter(string ownerModId, string fileName)
@@ -41,12 +42,16 @@ public sealed class AuraLogFileWriter : IDisposable
     {
     }
 
-    public AuraLogFileWriter(string filePath)
+    public AuraLogFileWriter(string filePath, int maxQueueLength = 4096, int flushIntervalMs = 1000)
     {
         FilePath = filePath;
+        this.flushIntervalMs = Math.Max(100, flushIntervalMs);
+        queue = maxQueueLength > 0
+            ? new BlockingCollection<AuraLogRecord>(Math.Max(128, maxQueueLength))
+            : new BlockingCollection<AuraLogRecord>();
         Directory.CreateDirectory(Path.GetDirectoryName(filePath) ?? ".");
         var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.Read);
-        writer = new StreamWriter(stream, new UTF8Encoding(false)) { AutoFlush = true };
+        writer = new StreamWriter(stream, new UTF8Encoding(false)) { AutoFlush = false };
         worker = new Thread(WriteLoop)
         {
             IsBackground = true,
@@ -66,7 +71,7 @@ public sealed class AuraLogFileWriter : IDisposable
 
         try
         {
-            queue.Add(record);
+            queue.TryAdd(record);
         }
         catch
         {
@@ -95,9 +100,23 @@ public sealed class AuraLogFileWriter : IDisposable
     {
         try
         {
+            var pending = 0;
+            var nextFlushAt = DateTime.UtcNow.AddMilliseconds(flushIntervalMs);
             foreach (var record in queue.GetConsumingEnumerable())
             {
                 WriteRecord(record);
+                pending++;
+                if (pending >= 32 || DateTime.UtcNow >= nextFlushAt)
+                {
+                    writer.Flush();
+                    pending = 0;
+                    nextFlushAt = DateTime.UtcNow.AddMilliseconds(flushIntervalMs);
+                }
+            }
+
+            if (pending > 0)
+            {
+                writer.Flush();
             }
         }
         catch

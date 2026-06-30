@@ -211,6 +211,17 @@ foreach ($resourceId in $requiredSunCgResources) {
         throw "SunExp shared CG package source is missing: $source"
     }
 }
+$sunCardUseCgResource = $sunPackage.resources | Where-Object {
+    $_.system -eq "CG" -and $_.resourceId -eq "SunExp.BlazingCrownCollapse.CardUseCgSequence" -and $_.kind -eq "Directory"
+} | Select-Object -First 1
+if ($null -eq $sunCardUseCgResource -or @($sunCardUseCgResource.tags) -notcontains "card-use-cg" -or
+    $sunCardUseCgResource.metadata.cgKind -ne "cardUse") {
+    throw "SunExp shared CG package manifest is missing Blazing Crown Collapse card-use CG semantics."
+}
+$sunCardUseCgSource = [System.IO.Path]::GetFullPath((Join-Path $sunPackageRoot $sunCardUseCgResource.source))
+if (-not (Test-Path -LiteralPath $sunCardUseCgSource -PathType Container)) {
+    throw "SunExp shared card-use CG package source is missing: $sunCardUseCgSource"
+}
 $sunCgManifestPath = Join-Path $repoRoot "SunExp\SharedResources\cg.registry.json"
 $sunCgManifest = Get-Content -Raw -Encoding UTF8 -LiteralPath $sunCgManifestPath | ConvertFrom-Json
 if ($sunCgManifest.ownerModId -ne "SunExp" -or @($sunCgManifest.entries).Count -lt 4) {
@@ -226,6 +237,13 @@ foreach ($cgId in @("loneer.morning-star-prayer", "wuna.white-sun-prayer")) {
 $wunaCgEntry = $sunCgManifest.entries | Where-Object { $_.cgId -eq "wuna.white-sun-prayer" } | Select-Object -First 1
 if ($wunaCgEntry.defaultPresentation.mode -ne "fullscreenFade" -or $wunaCgEntry.defaultPresentation.fit -ne "cover") {
     throw "WuNa skill CG must use fullscreenFade with cover fitting."
+}
+$blazingCrownCgEntry = $sunCgManifest.entries | Where-Object { $_.cgId -eq "sunexp.blazing-crown-collapse" } | Select-Object -First 1
+if ($null -eq $blazingCrownCgEntry -or $blazingCrownCgEntry.kind -ne "cardUse" -or
+    $blazingCrownCgEntry.media.type -ne "sequence" -or
+    @($blazingCrownCgEntry.tags) -notcontains "card-use-cg" -or
+    $blazingCrownCgEntry.media.flashMode -ne "hybridBwPulse") {
+    throw "Blazing Crown Collapse must be registered as a card-use CG sequence."
 }
 foreach ($cgId in @("loneer.feast", "wuna.feast")) {
     $entry = $sunCgManifest.entries | Where-Object { $_.cgId -eq $cgId } | Select-Object -First 1
@@ -318,7 +336,7 @@ foreach ($required in @("AuraSharedIdentity.SelectRoleId", "activation-skip:", "
 }
 
 $sunSkillCgRuntimeText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Features\SkillCg\SunExpSkillCgRuntime.cs")
-foreach ($required in @("AuraSharedIdentity.SelectRoleId", "TrimStart('*')", "ignored runtime owner id", "no CG request matched")) {
+foreach ($required in @("BuildRequests(trigger)", "BuildRegisteredCardUseRequests", "AuraSharedIdentity.SelectRoleId", "TrimStart('*')", "ignored runtime owner id", "no CG request matched")) {
     if (-not $sunSkillCgRuntimeText.Contains($required)) {
         throw "SunExp SkillCG runtime is missing trigger diagnostics/role fallback: $required"
     }

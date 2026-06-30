@@ -48,6 +48,11 @@ public static class SunExpSkillCgRuntime
             {
                 SkillCgArbiterRuntime.RequestCg(SunExpIds.ModId, request);
             }
+
+            foreach (var request in SkillCgArbiterRuntime.BuildRegisteredCardUseRequests(SunExpIds.ModId, trigger, SunExpIds.ModId))
+            {
+                SkillCgArbiterRuntime.RequestCg(SunExpIds.ModId, request);
+            }
         }
         catch (Exception ex)
         {
@@ -117,38 +122,7 @@ public static class SunExpSkillCgRuntime
                 + ", card=" + trigger.CardId
                 + ", image=" + imageResource);
 
-            yield return new SkillCgRequest
-            {
-                ProviderId = SunExpIds.ModId + ".SkillCG." + entry.CgId,
-                OwnerModId = SunExpIds.ModId,
-                CardId = trigger.CardId,
-                OwnerInstanceId = trigger.OwnerInstanceId,
-                ImagePath = imagePath,
-                ImageResource = imageResource,
-                MediaType = entry.Media.Type,
-                FrameSeconds = entry.Media.FrameSeconds,
-                AlphaMode = entry.Media.AlphaMode,
-                KeyThreshold = entry.Media.KeyThreshold,
-                KeySoftness = entry.Media.KeySoftness,
-                FlashAtSeconds = entry.Media.FlashAtSeconds,
-                FlashDuration = entry.Media.FlashDuration,
-                FlashMode = entry.Media.FlashMode,
-                FlashStartFrame = entry.Media.FlashStartFrame,
-                FlashEndFrame = entry.Media.FlashEndFrame,
-                FlashPulseEveryFrames = entry.Media.FlashPulseEveryFrames,
-                FlashStrength = entry.Media.FlashStrength,
-                Priority = entry.Priority,
-                FadeIn = entry.DefaultPresentation.FadeIn,
-                Hold = entry.DefaultPresentation.Hold,
-                FadeOut = entry.DefaultPresentation.FadeOut,
-                PresentationMode = entry.DefaultPresentation.Mode,
-                FitMode = entry.DefaultPresentation.Fit,
-                FocusX = entry.DefaultPresentation.FocusX,
-                FocusY = entry.DefaultPresentation.FocusY,
-                SafeScale = entry.DefaultPresentation.SafeScale,
-                CreatedAt = Time.unscaledTime,
-                ActionSequence = trigger.ActionSequence
-            };
+            yield return BuildRequest(entry, imageResource, imagePath, trigger);
         }
 
         if (!matched)
@@ -156,6 +130,48 @@ public static class SunExpSkillCgRuntime
             LogDiagnostic("none:" + trigger.OwnerRoleId + ":" + trigger.CardId,
                 "[SkillCG] no CG request matched: role=" + trigger.OwnerRoleId + ", card=" + trigger.CardId);
         }
+    }
+
+    private static SkillCgRequest BuildRequest(
+        AuraCgRegistryEntry entry,
+        string imageResource,
+        string imagePath,
+        SkillCgTriggerContext trigger)
+    {
+        return new SkillCgRequest
+        {
+            ProviderId = SunExpIds.ModId + ".SkillCG." + entry.CgId,
+            OwnerModId = SunExpIds.ModId,
+            CardId = trigger.CardId,
+            OwnerInstanceId = trigger.OwnerInstanceId,
+            ImagePath = imagePath,
+            ImageResource = imageResource,
+            BundlePath = entry.Media.BundlePath,
+            BundleAssetPrefix = entry.Media.BundleAssetPrefix,
+            MediaType = entry.Media.Type,
+            FrameSeconds = entry.Media.FrameSeconds,
+            AlphaMode = entry.Media.AlphaMode,
+            KeyThreshold = entry.Media.KeyThreshold,
+            KeySoftness = entry.Media.KeySoftness,
+            FlashAtSeconds = entry.Media.FlashAtSeconds,
+            FlashDuration = entry.Media.FlashDuration,
+            FlashMode = entry.Media.FlashMode,
+            FlashStartFrame = entry.Media.FlashStartFrame,
+            FlashEndFrame = entry.Media.FlashEndFrame,
+            FlashPulseEveryFrames = entry.Media.FlashPulseEveryFrames,
+            FlashStrength = entry.Media.FlashStrength,
+            Priority = entry.Priority,
+            FadeIn = entry.DefaultPresentation.FadeIn,
+            Hold = entry.DefaultPresentation.Hold,
+            FadeOut = entry.DefaultPresentation.FadeOut,
+            PresentationMode = entry.DefaultPresentation.Mode,
+            FitMode = entry.DefaultPresentation.Fit,
+            FocusX = entry.DefaultPresentation.FocusX,
+            FocusY = entry.DefaultPresentation.FocusY,
+            SafeScale = entry.DefaultPresentation.SafeScale,
+            CreatedAt = Time.unscaledTime,
+            ActionSequence = trigger.ActionSequence
+        };
     }
 
     private static string EntrySkipReason(AuraCgRegistryEntry entry, SkillCgTriggerContext trigger)
@@ -325,6 +341,14 @@ public static class SunExpSkillCgRuntime
     {
         actionSequence = 0;
         SkillCgArbiterRuntime.Clear(SunExpIds.ModId, "fight start");
+        try
+        {
+            SkillCgArbiterRuntime.PreloadRegisteredCardUseCg(SunExpIds.ModId, SunExpIds.ModId);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[SkillCG] preload failed: " + ex.Message);
+        }
     }
 
     private static void OnFightEnded(ModHookContext context)
@@ -335,6 +359,34 @@ public static class SunExpSkillCgRuntime
     private static void OnFightEnding(ModHookContext context)
     {
         SkillCgArbiterRuntime.Clear(SunExpIds.ModId, "fight ending");
+    }
+
+    private static IEnumerable<SkillCgRequest> BuildWarmupRequests()
+    {
+        foreach (var entry in AuraCgRegistryRuntime.GetRegisteredEntries(SunExpIds.ModId))
+        {
+            if (!entry.Enabled
+                || !string.Equals(entry.Kind, "skill", StringComparison.OrdinalIgnoreCase)
+                || !IsSupportedMediaType(entry.Media.Type)
+                || !AuraCgActivationRuntime.CanConsumerPlay(entry, SunExpIds.ModId))
+            {
+                continue;
+            }
+
+            var imageResource = ResolveImageResource(entry);
+            var imagePath = SkillCgArbiterRuntime.ResolveImagePath(SunExpIds.ModId, imageResource);
+            if (!MediaExists(entry.Media.Type, imagePath)
+                && string.IsNullOrWhiteSpace(entry.Media.BundlePath))
+            {
+                continue;
+            }
+
+            yield return BuildRequest(entry, imageResource, imagePath, new SkillCgTriggerContext
+            {
+                CardId = entry.CardIds.FirstOrDefault() ?? "",
+                CreatedAt = Time.unscaledTime
+            });
+        }
     }
 
     private static void RegisterBefore(ModConfig modConfig, string target, Action<ModHookContext> action)

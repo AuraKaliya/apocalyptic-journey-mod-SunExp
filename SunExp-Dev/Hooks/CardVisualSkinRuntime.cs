@@ -261,10 +261,6 @@ public static class CardVisualSkinRuntime
             () =>
             {
                 ReapplyActiveCombatCards(source + ".delayed" + pass);
-                if (pass < 2)
-                {
-                    ReapplyActiveCombatCardsDelayed(source, pass + 1);
-                }
             });
     }
 

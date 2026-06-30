@@ -601,10 +601,13 @@ public sealed class DamageSettlementCgSettings
 public sealed class AuraToolsSkillCgSettings
 {
     [JsonProperty("schemaVersion")]
-    public int SchemaVersion { get; set; } = 2;
+    public int SchemaVersion { get; set; } = 3;
 
     [JsonProperty("enabled")]
     public bool Enabled { get; set; } = true;
+
+    [JsonProperty("cardUseCg")]
+    public AuraToolsCardUseCgSettings CardUseCg { get; set; } = new();
 
     [JsonProperty("syncRemote")]
     public bool SyncRemote { get; set; } = true;
@@ -626,7 +629,9 @@ public sealed class AuraToolsSkillCgSettings
 
     public void Normalize()
     {
-        SchemaVersion = Math.Max(2, SchemaVersion);
+        SchemaVersion = Math.Max(3, SchemaVersion);
+        CardUseCg ??= new AuraToolsCardUseCgSettings();
+        CardUseCg.Normalize();
         MaxQueueLength = Math.Max(1, Math.Min(30, MaxQueueLength));
         MaxRequestAgeSeconds = Math.Max(0.5f, Math.Min(30f, MaxRequestAgeSeconds));
         DuplicateWindowSeconds = Math.Max(0.02f, Math.Min(2f, DuplicateWindowSeconds));
@@ -666,6 +671,16 @@ public sealed class AuraToolsSkillCgSettings
         }
 
         Roles = normalizedRoles;
+    }
+}
+
+public sealed class AuraToolsCardUseCgSettings
+{
+    [JsonProperty("enabled")]
+    public bool Enabled { get; set; } = true;
+
+    public void Normalize()
+    {
     }
 }
 
@@ -983,6 +998,27 @@ public sealed class AuraToolsLoggingSettings
     [JsonProperty("mirrorCommandsLog")]
     public bool MirrorCommandsLog { get; set; } = true;
 
+    [JsonProperty("enabledSources")]
+    public List<string> EnabledSources { get; set; } = new() { "AuraTools", "Unity", "Command" };
+
+    [JsonProperty("unityLogTypes")]
+    public List<string> UnityLogTypes { get; set; } = new() { "Log", "Warning", "Error", "Exception", "Assert" };
+
+    [JsonProperty("includedCommandTags")]
+    public List<string> IncludedCommandTags { get; set; } = new();
+
+    [JsonProperty("excludedCommandTags")]
+    public List<string> ExcludedCommandTags { get; set; } = new();
+
+    [JsonProperty("stackTraceMode")]
+    public string StackTraceMode { get; set; } = "ErrorsOnly";
+
+    [JsonProperty("maxQueueLength")]
+    public int MaxQueueLength { get; set; } = 4096;
+
+    [JsonProperty("flushIntervalMs")]
+    public int FlushIntervalMs { get; set; } = 1000;
+
     [JsonProperty("maxRetainedLogFiles")]
     public int MaxRetainedLogFiles { get; set; } = 10;
 
@@ -990,7 +1026,100 @@ public sealed class AuraToolsLoggingSettings
     {
         SchemaVersion = Math.Max(1, SchemaVersion);
         FileNamePattern = string.IsNullOrWhiteSpace(FileNamePattern) ? "AuraTools-{date}.log" : FileNamePattern.Trim();
-        MinimumLevel = string.IsNullOrWhiteSpace(MinimumLevel) ? "Info" : MinimumLevel.Trim();
+        MinimumLevel = LoggingLevelNames.Normalize(MinimumLevel);
+        EnabledSources = NormalizeList(EnabledSources, new[] { "AuraTools", "Unity", "Command" });
+        UnityLogTypes = NormalizeList(UnityLogTypes, new[] { "Log", "Warning", "Error", "Exception", "Assert" });
+        IncludedCommandTags = NormalizeList(IncludedCommandTags, Array.Empty<string>());
+        ExcludedCommandTags = NormalizeList(ExcludedCommandTags, Array.Empty<string>());
+        StackTraceMode = LoggingStackTraceModes.Normalize(StackTraceMode);
+        MaxQueueLength = Math.Max(128, Math.Min(65536, MaxQueueLength));
+        FlushIntervalMs = Math.Max(100, Math.Min(10000, FlushIntervalMs));
         MaxRetainedLogFiles = Math.Max(1, Math.Min(50, MaxRetainedLogFiles));
+    }
+
+    private static List<string> NormalizeList(IEnumerable<string>? values, IEnumerable<string> fallback)
+    {
+        var list = new List<string>();
+        foreach (var value in values ?? fallback)
+        {
+            var text = value?.Trim() ?? "";
+            if (!string.IsNullOrWhiteSpace(text)
+                && !list.Any(existing => string.Equals(existing, text, StringComparison.OrdinalIgnoreCase)))
+            {
+                list.Add(text);
+            }
+        }
+
+        if (list.Count == 0)
+        {
+            foreach (var value in fallback)
+            {
+                var text = value?.Trim() ?? "";
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    list.Add(text);
+                }
+            }
+        }
+
+        return list;
+    }
+}
+
+public static class LoggingLevelNames
+{
+    public const string Debug = "Debug";
+    public const string Info = "Info";
+    public const string Warning = "Warning";
+    public const string Error = "Error";
+
+    public static string Normalize(string? value)
+    {
+        var text = value?.Trim() ?? "";
+        if (string.Equals(text, Debug, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(text, "Log", StringComparison.OrdinalIgnoreCase))
+        {
+            return Debug;
+        }
+
+        if (string.Equals(text, Warning, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(text, "Warn", StringComparison.OrdinalIgnoreCase))
+        {
+            return Warning;
+        }
+
+        if (string.Equals(text, Error, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(text, "Exception", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(text, "Assert", StringComparison.OrdinalIgnoreCase))
+        {
+            return Error;
+        }
+
+        return Info;
+    }
+}
+
+public static class LoggingStackTraceModes
+{
+    public const string Off = "Off";
+    public const string ErrorsOnly = "ErrorsOnly";
+    public const string All = "All";
+
+    public static string Normalize(string? value)
+    {
+        var text = value?.Trim() ?? "";
+        if (string.Equals(text, Off, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(text, "None", StringComparison.OrdinalIgnoreCase))
+        {
+            return Off;
+        }
+
+        if (string.Equals(text, All, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(text, "Always", StringComparison.OrdinalIgnoreCase))
+        {
+            return All;
+        }
+
+        return ErrorsOnly;
     }
 }

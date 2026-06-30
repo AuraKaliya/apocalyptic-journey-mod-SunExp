@@ -206,30 +206,7 @@ public static class AuraToolsConfigService
 
     private static bool ImportRegisteredSkillCgDefaultsNoLock()
     {
-        try
-        {
-            var entries = AuraCgRegistryRuntime.GetRegisteredEntries()
-                .Where(entry => string.Equals(entry.Kind, "skill", StringComparison.OrdinalIgnoreCase))
-                .Where(entry => string.Equals(entry.Media.Type, "image", StringComparison.OrdinalIgnoreCase))
-                .ToList();
-            var added = 0;
-            foreach (var entry in entries)
-            {
-                added += ImportRegisteredSkillCgEntryNoLock(entry);
-            }
-
-            if (added > 0)
-            {
-                AuraToolsLog.Info("[SkillCG] imported " + added + " registered CG rule(s) from AuraCgShared.");
-            }
-
-            return added > 0;
-        }
-        catch (Exception ex)
-        {
-            AuraToolsLog.Warn("[SkillCG] failed to import registered CG defaults: " + ex.Message);
-            return false;
-        }
+        return false;
     }
 
     private static int ImportRegisteredSkillCgEntryNoLock(AuraCgRegistryEntry entry)

@@ -53,6 +53,20 @@ internal static class AuraToolsDamageMeterUi
         }
     }
 
+    public static void ReleaseDriver()
+    {
+        if (root == null)
+        {
+            return;
+        }
+
+        var driver = root.GetComponent<AuraToolsDamageMeterDriver>();
+        if (driver != null)
+        {
+            Object.Destroy(driver);
+        }
+    }
+
     public static void SetAvailable(bool available)
     {
         EnsureShell();

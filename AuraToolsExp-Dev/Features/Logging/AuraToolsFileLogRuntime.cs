@@ -27,12 +27,13 @@ public static class AuraToolsFileLogRuntime
     {
         if (!AuraToolsConfigService.Root.Logging.Enabled
             || !AuraToolsConfigService.Logging.Enabled
-            || !AuraToolsConfigService.Logging.MirrorCommandsLog)
+            || !AuraToolsConfigService.Logging.MirrorCommandsLog
+            || !ShouldWrite("Command", NormalizeCommandLevel(level), tag))
         {
             return;
         }
 
-        Enqueue(new AuraLogRecord(DateTime.Now, "Command", level, Normalize(tag), Normalize(message), null));
+        Enqueue(new AuraLogRecord(DateTime.Now, "Command", NormalizeCommandLevel(level), Normalize(tag), Normalize(message), null));
     }
 
     private static void ApplyConfig()
@@ -47,25 +48,23 @@ public static class AuraToolsFileLogRuntime
 
             if (writer != null)
             {
+                SyncHooksNoLock();
                 return;
             }
 
             try
             {
-                writer = new AuraLogFileWriter(BuildLogFilePath());
-                writer.Enqueue(new AuraLogRecord(DateTime.Now, "AuraTools", "Info", null, "File logging initialized. File: " + writer.FilePath, null));
-                PruneOldLogFiles(writer.FilePath);
-                if (!unityLogHooked)
+                writer = new AuraLogFileWriter(
+                    BuildLogFilePath(),
+                    AuraToolsConfigService.Logging.MaxQueueLength,
+                    AuraToolsConfigService.Logging.FlushIntervalMs);
+                if (ShouldWrite("AuraTools", "Info", null))
                 {
-                    Application.logMessageReceivedThreaded += OnUnityLog;
-                    unityLogHooked = true;
+                    writer.Enqueue(new AuraLogRecord(DateTime.Now, "AuraTools", "Info", null, "File logging initialized. File: " + writer.FilePath, null));
                 }
 
-                if (!quittingHooked)
-                {
-                    Application.quitting += Shutdown;
-                    quittingHooked = true;
-                }
+                PruneOldLogFiles(writer.FilePath);
+                SyncHooksNoLock();
             }
             catch (Exception ex)
             {
@@ -77,14 +76,23 @@ public static class AuraToolsFileLogRuntime
 
     private static void OnUnityLog(string condition, string stackTrace, LogType type)
     {
+        var level = NormalizeUnityLevel(type);
         if (!AuraToolsConfigService.Root.Logging.Enabled
             || !AuraToolsConfigService.Logging.Enabled
-            || !AuraToolsConfigService.Logging.MirrorUnityLog)
+            || !AuraToolsConfigService.Logging.MirrorUnityLog
+            || !UnityTypeAllowed(type)
+            || !ShouldWrite("Unity", level, null))
         {
             return;
         }
 
-        Enqueue(new AuraLogRecord(DateTime.Now, "Unity", type.ToString(), null, Normalize(condition), Normalize(stackTrace)));
+        Enqueue(new AuraLogRecord(
+            DateTime.Now,
+            "Unity",
+            level,
+            type.ToString(),
+            Normalize(condition),
+            ShouldIncludeStackTrace(level) ? Normalize(stackTrace) : null));
     }
 
     private static void Enqueue(AuraLogRecord record)
@@ -121,7 +129,11 @@ public static class AuraToolsFileLogRuntime
         writer = null;
         try
         {
-            current?.Enqueue(new AuraLogRecord(DateTime.Now, "AuraTools", "Info", null, "File logging stopped.", null));
+            if (current != null && ShouldWrite("AuraTools", "Info", null))
+            {
+                current.Enqueue(new AuraLogRecord(DateTime.Now, "AuraTools", "Info", null, "File logging stopped.", null));
+            }
+
             current?.Dispose();
         }
         catch
@@ -170,11 +182,130 @@ public static class AuraToolsFileLogRuntime
         }
     }
 
+    private static void SyncHooksNoLock()
+    {
+        var shouldHookUnity = AuraToolsConfigService.Root.Logging.Enabled
+                              && AuraToolsConfigService.Logging.Enabled
+                              && AuraToolsConfigService.Logging.MirrorUnityLog;
+        if (shouldHookUnity && !unityLogHooked)
+        {
+            Application.logMessageReceivedThreaded += OnUnityLog;
+            unityLogHooked = true;
+        }
+        else if (!shouldHookUnity && unityLogHooked)
+        {
+            Application.logMessageReceivedThreaded -= OnUnityLog;
+            unityLogHooked = false;
+        }
+
+        if (!quittingHooked)
+        {
+            Application.quitting += Shutdown;
+            quittingHooked = true;
+        }
+    }
+
     private static string Normalize(string? text)
     {
         return (text ?? "")
             .Replace("\r\n", "\n")
             .Replace('\r', '\n')
             .TrimEnd();
+    }
+
+    private static bool ShouldWrite(string source, string level, string? tag)
+    {
+        var settings = AuraToolsConfigService.Logging;
+        return SourceAllowed(settings, source)
+               && LevelRank(level) >= LevelRank(settings.MinimumLevel)
+               && (!string.Equals(source, "Command", StringComparison.OrdinalIgnoreCase)
+                   || TagAllowed(settings, tag));
+    }
+
+    private static bool SourceAllowed(AuraToolsLoggingSettings settings, string source)
+    {
+        var normalized = source?.Trim() ?? "";
+        return settings.EnabledSources.Count == 0
+               || settings.EnabledSources.Any(value => string.Equals(value, normalized, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool TagAllowed(AuraToolsLoggingSettings settings, string? tag)
+    {
+        var normalized = tag?.Trim() ?? "";
+        if (settings.IncludedCommandTags.Count > 0
+            && !settings.IncludedCommandTags.Any(value => string.Equals(value, normalized, StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        return settings.ExcludedCommandTags.Count == 0
+               || !settings.ExcludedCommandTags.Any(value => string.Equals(value, normalized, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool UnityTypeAllowed(LogType type)
+    {
+        return AuraToolsConfigService.Logging.UnityLogTypes.Any(value =>
+            string.Equals(value, type.ToString(), StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool ShouldIncludeStackTrace(string level)
+    {
+        var mode = AuraToolsConfigService.Logging.StackTraceMode;
+        if (string.Equals(mode, LoggingStackTraceModes.Off, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return string.Equals(mode, LoggingStackTraceModes.All, StringComparison.OrdinalIgnoreCase)
+               || LevelRank(level) >= LevelRank(LoggingLevelNames.Error);
+    }
+
+    private static string NormalizeCommandLevel(string? level)
+    {
+        var text = level?.Trim() ?? "";
+        if (string.Equals(text, "Warning", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(text, "Warn", StringComparison.OrdinalIgnoreCase))
+        {
+            return LoggingLevelNames.Warning;
+        }
+
+        if (string.Equals(text, "Error", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(text, "Exception", StringComparison.OrdinalIgnoreCase))
+        {
+            return LoggingLevelNames.Error;
+        }
+
+        if (string.Equals(text, "Debug", StringComparison.OrdinalIgnoreCase))
+        {
+            return LoggingLevelNames.Debug;
+        }
+
+        return LoggingLevelNames.Info;
+    }
+
+    private static string NormalizeUnityLevel(LogType type)
+    {
+        return type switch
+        {
+            LogType.Warning => LoggingLevelNames.Warning,
+            LogType.Error or LogType.Assert or LogType.Exception => LoggingLevelNames.Error,
+            _ => LoggingLevelNames.Info
+        };
+    }
+
+    private static int LevelRank(string? level)
+    {
+        var normalized = LoggingLevelNames.Normalize(level);
+        if (string.Equals(normalized, LoggingLevelNames.Debug, StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        if (string.Equals(normalized, LoggingLevelNames.Warning, StringComparison.OrdinalIgnoreCase))
+        {
+            return 2;
+        }
+
+        return string.Equals(normalized, LoggingLevelNames.Error, StringComparison.OrdinalIgnoreCase) ? 3 : 1;
     }
 }

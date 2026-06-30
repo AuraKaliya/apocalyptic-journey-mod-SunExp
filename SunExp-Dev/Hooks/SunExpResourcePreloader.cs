@@ -56,6 +56,7 @@ public static class SunExpResourcePreloader
 
         foreach (var effectId in new[]
                  {
+                     SunExpIds.SunCardFrameHoloVisualEffectId,
                      "sunexp.wuna.orbit_fire.core.back",
                      "sunexp.wuna.orbit_fire.core.front",
                      "sunexp.wuna.orbit_fire.back",

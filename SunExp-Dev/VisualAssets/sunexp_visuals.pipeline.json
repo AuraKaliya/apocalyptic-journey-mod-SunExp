@@ -7,6 +7,8 @@
     "wunaOrbitFireShader": "Assets/SunExp/Visuals/Shaders/WunaOrbitFire.shader",
     "wunaOrbitFireBackMaterial": "Assets/SunExp/Visuals/Materials/WunaOrbitFireBack.mat",
     "wunaOrbitFireFrontMaterial": "Assets/SunExp/Visuals/Materials/WunaOrbitFireFront.mat",
+    "cardFrameHoloShader": "Assets/SunExp/Visuals/Shaders/CardFrameHoloFlow.shader",
+    "cardFrameHoloMaterial": "Assets/SunExp/Visuals/Materials/CardFrameHoloFlow.mat",
     "wunaOrbitFireTrailMask": "SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
     "wunaOrbitFireTrailNoise": "SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png",
     "wunaOrbitFireFlameAtlas": "SunExp/ModResource/Images/Effects/WunaOrbitFire/Flame02_16x4.png"
@@ -19,6 +21,9 @@
     "wunaOrbitFireShaderPath": "SunExp/WunaOrbitFire",
     "wunaOrbitFireBackMaterialPath": "SunExp/Materials/WunaOrbitFireBack",
     "wunaOrbitFireFrontMaterialPath": "SunExp/Materials/WunaOrbitFireFront",
+    "cardFrameHoloShaderName": "SunExp/CardFrameHoloFlow",
+    "cardFrameHoloShaderPath": "SunExp/CardFrameHoloFlow",
+    "cardFrameHoloMaterialPath": "SunExp/Materials/CardFrameHoloFlow",
     "wunaOrbitFireTrailMaskPath": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
     "wunaOrbitFireTrailNoisePath": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png",
     "wunaOrbitFireFlameAtlasPath": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/Flame02_16x4.png"
@@ -32,6 +37,9 @@
     "_SunExpWunaBackCoreColor": "#FFE184D9",
     "_SunExpWunaBackEdgeColor": "#D94B18B8",
     "_SunExpWunaFrontCoreColor": "#FFF1A8F2",
-    "_SunExpWunaFrontEdgeColor": "#FF6A1FDD"
+    "_SunExpWunaFrontEdgeColor": "#FF6A1FDD",
+    "_SunExpCardFrameHoloColorA": "#FFD65AFF",
+    "_SunExpCardFrameHoloColorB": "#70E6FFFF",
+    "_SunExpCardFrameHoloColorC": "#FF7AD6FF"
   }
 }

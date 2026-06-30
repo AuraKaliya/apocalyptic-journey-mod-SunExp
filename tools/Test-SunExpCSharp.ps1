@@ -38,6 +38,8 @@ function New-ProjectXml {
     $cardVisualSkinSpec = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualSkinSpec.cs"
     $cardVisualSkinRule = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualSkinRule.cs"
     $cardVisualSkinRegistry = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualSkinRegistry.cs"
+    $cardFrameEffectSpec = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardFrameEffectSpec.cs"
+    $cardFrameEffectRegistry = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardFrameEffectRegistry.cs"
     $cardMutationService = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardMutationService.cs"
     $runtimeCardAttachmentService = Join-Path $RepoRoot "SunExp-Dev\Mechanics\RuntimeCardAttachmentService.cs"
     $sunExpCardRefreshQueue = Join-Path $RepoRoot "SunExp-Dev\Mechanics\SunExpCardRefreshQueue.cs"
@@ -75,6 +77,8 @@ function New-ProjectXml {
     <Compile Include="$cardVisualSkinSpec" />
     <Compile Include="$cardVisualSkinRule" />
     <Compile Include="$cardVisualSkinRegistry" />
+    <Compile Include="$cardFrameEffectSpec" />
+    <Compile Include="$cardFrameEffectRegistry" />
     <Compile Include="$sunExpCardRefreshQueue" />
     <Compile Include="$cardMutationService" />
     <Compile Include="$runtimeCardAttachmentService" />
@@ -375,6 +379,7 @@ internal static class Program
         TestTemporaryWhiteRadianceClaim();
         TestSolarMemoryIsolationIds();
         TestCardVisualSkinRegistry();
+        TestCardFrameEffectRegistry();
         TestMapNodeTextureFitService();
         TestModeChoiceDragRange();
         TestLoneerStateOwnership();
@@ -452,6 +457,31 @@ internal static class Program
 
         CardVisualSkinRegistry.ClearOwner("TestMod");
         Equal(null, CardVisualSkinRegistry.Resolve(packCard)?.Id, "Clearing owner removes registered card visual skin rules");
+    }
+
+    private static void TestCardFrameEffectRegistry()
+    {
+        CardFrameEffectRegistry.ClearOwner("TestMod");
+        var skin = new CardVisualSkinSpec("TestMod", "test.skin.frame", "frame", "", "Frame", 10);
+        CardFrameEffectRegistry.Register(new CardFrameEffectSpec(
+            "TestMod",
+            "test.effect.low",
+            skin.Id,
+            "test.visual.low",
+            "Low",
+            1));
+        CardFrameEffectRegistry.Register(new CardFrameEffectSpec(
+            "TestMod",
+            "test.effect.high",
+            skin.Id,
+            SunExpIds.SunCardFrameHoloVisualEffectId,
+            "High",
+            20));
+
+        Equal("test.effect.high", CardFrameEffectRegistry.Resolve(skin)?.Id, "Card frame effect resolves the highest-priority effect by visual skin id");
+
+        CardFrameEffectRegistry.ClearOwner("TestMod");
+        Equal(null, CardFrameEffectRegistry.Resolve(skin)?.Id, "Clearing owner removes registered card frame effects");
     }
 
     private static void TestMapNodeTextureFitService()

@@ -30,6 +30,7 @@ public static class VisualBundleRuntimeValidator
         }
 
         ValidateWunaMaterials();
+        ValidateCardFrameMaterials();
         RegisterAuraCgMaterials();
     }
 
@@ -49,15 +50,38 @@ public static class VisualBundleRuntimeValidator
         }
     }
 
+    private static void ValidateCardFrameMaterials()
+    {
+        var material = AssetBundleCache.LoadAsset<Material>(
+            "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
+            "SunExp/Materials/CardFrameHoloFlow",
+            LogPrefix);
+        if (material != null)
+        {
+            SunExpLog.Info(LogPrefix + " card frame holo material loaded from bundle.");
+        }
+    }
+
     private static void RegisterAuraCgMaterials()
     {
+        const string bundlePath = "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals";
+        var bundle = AssetBundleCache.LoadBundle(bundlePath, LogPrefix);
+        if (bundle != null)
+        {
+            SkillCgArbiterRuntime.RegisterAssetBundle(bundlePath, bundle);
+        }
+
         var lumaKey = AssetBundleCache.LoadAsset<Material>(
-            "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
+            bundlePath,
             "AuraCgLumaKeyUI",
             LogPrefix);
         var maskedInvert = AssetBundleCache.LoadAsset<Material>(
-            "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
+            bundlePath,
             "AuraCgMaskedInvertFlash",
+            LogPrefix);
+        var screenBwFlash = AssetBundleCache.LoadAsset<Material>(
+            bundlePath,
+            "AuraCgScreenBwFlash",
             LogPrefix);
 
         if (lumaKey != null)
@@ -70,9 +94,14 @@ public static class VisualBundleRuntimeValidator
             SkillCgArbiterRuntime.RegisterMaterial("AuraCg/MaskedInvertFlash", maskedInvert);
         }
 
-        if (lumaKey != null && maskedInvert != null)
+        if (screenBwFlash != null)
         {
-            SunExpLog.Info(LogPrefix + " Aura CG shader materials registered from bundle.");
+            SkillCgArbiterRuntime.RegisterMaterial("AuraCg/ScreenBwFlash", screenBwFlash);
+        }
+
+        if (lumaKey != null && maskedInvert != null && screenBwFlash != null && bundle != null)
+        {
+            SunExpLog.Info(LogPrefix + " Aura CG shader materials and bundle registered.");
         }
     }
 }

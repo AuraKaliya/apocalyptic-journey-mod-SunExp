@@ -11,6 +11,8 @@ $bundlePath = Join-Path $repoRoot "SunExp\ModResource\VisualBundles\sunexp_visua
 $builderSource = Join-Path $repoRoot "SunExp-Dev\VisualAssets\Editor\SunExpVisualBundleBuilder.cs.txt"
 $defaultUnityProjectPath = Join-Path $repoRoot "SunExp-Dev\VisualAssets\UnityProject"
 $shaderSourceDir = Join-Path $repoRoot "SunExp-Dev\VisualAssets\Shaders"
+$auraCgShaderSourceDir = Join-Path $repoRoot "AuraCgShared\VisualAssets\Shaders"
+$cgFrameSourceDir = Join-Path $repoRoot "SunExp\SharedResources\CG\WuNa\BlazingCrownCollapse"
 
 function Find-UnityEditor {
     if (-not [string]::IsNullOrWhiteSpace($UnityPath)) {
@@ -76,18 +78,26 @@ function Prepare-UnityProject {
     $assetsDir = Join-Path $ProjectPath "Assets"
     $editorDir = Join-Path $assetsDir "Editor"
     $shaderDestDir = Join-Path $assetsDir "SunExp\Visuals\Shaders"
+    $cgFrameDestDir = Join-Path $assetsDir "SunExp\Visuals\CG\WuNa\BlazingCrownCollapse"
     $packagesDir = Join-Path $ProjectPath "Packages"
     $projectSettingsDir = Join-Path $ProjectPath "ProjectSettings"
 
     New-Item -ItemType Directory -Path $editorDir -Force | Out-Null
     New-Item -ItemType Directory -Path $shaderDestDir -Force | Out-Null
+    New-Item -ItemType Directory -Path $cgFrameDestDir -Force | Out-Null
     New-Item -ItemType Directory -Path $packagesDir -Force | Out-Null
     New-Item -ItemType Directory -Path $projectSettingsDir -Force | Out-Null
 
     Copy-Item -LiteralPath (Join-Path $shaderSourceDir "StarScoreHud.shader") -Destination (Join-Path $shaderDestDir "StarScoreHud.shader") -Force
     Copy-Item -LiteralPath (Join-Path $shaderSourceDir "WunaOrbitFire.shader") -Destination (Join-Path $shaderDestDir "WunaOrbitFire.shader") -Force
-    Copy-Item -LiteralPath (Join-Path $shaderSourceDir "AuraCgLumaKeyUI.shader") -Destination (Join-Path $shaderDestDir "AuraCgLumaKeyUI.shader") -Force
-    Copy-Item -LiteralPath (Join-Path $shaderSourceDir "AuraCgMaskedInvertFlash.shader") -Destination (Join-Path $shaderDestDir "AuraCgMaskedInvertFlash.shader") -Force
+    Copy-Item -LiteralPath (Join-Path $shaderSourceDir "CardFrameHoloFlow.shader") -Destination (Join-Path $shaderDestDir "CardFrameHoloFlow.shader") -Force
+    Copy-Item -LiteralPath (Join-Path $auraCgShaderSourceDir "AuraCgLumaKeyUI.shader") -Destination (Join-Path $shaderDestDir "AuraCgLumaKeyUI.shader") -Force
+    Copy-Item -LiteralPath (Join-Path $auraCgShaderSourceDir "AuraCgMaskedInvertFlash.shader") -Destination (Join-Path $shaderDestDir "AuraCgMaskedInvertFlash.shader") -Force
+    Copy-Item -LiteralPath (Join-Path $auraCgShaderSourceDir "AuraCgScreenBwFlash.shader") -Destination (Join-Path $shaderDestDir "AuraCgScreenBwFlash.shader") -Force
+    if (Test-Path -LiteralPath $cgFrameSourceDir) {
+        Copy-Item -Path (Join-Path $cgFrameSourceDir "*.png") -Destination $cgFrameDestDir -Force
+    }
+
     Copy-Item -LiteralPath $builderSource -Destination (Join-Path $editorDir "SunExpVisualBundleBuilder.cs") -Force
 
     $manifestPath = Join-Path $packagesDir "manifest.json"

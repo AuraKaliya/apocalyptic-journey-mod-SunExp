@@ -17,6 +17,8 @@ namespace AuraCg.Shared;
 
 public static class SkillCgArbiterRuntime
 {
+    public const string SkillCgKind = "skill";
+    public const string CardUseCgKind = "cardUse";
     private const string GlobalObjectName = "AuraCg.Global";
     private const string ComponentFullName = "AuraCg.Shared.SkillCgArbiterRuntime+SkillCgArbiterComponent";
     private const float SlideDurationSeconds = 2.0f;
@@ -31,13 +33,15 @@ public static class SkillCgArbiterRuntime
     private const int OverlaySortingOrder = 32760;
     private const string MaskedInvertShaderName = "AuraCg/MaskedInvertFlash";
     private const string LumaKeyShaderName = "AuraCg/LumaKeyUI";
-    public const string CurrentBuildId = "aura-cg-shared-2026-06-30-v6";
-    public const int CurrentProtocolVersion = 4;
+    private const string ScreenBwFlashShaderName = "AuraCg/ScreenBwFlash";
+    public const string CurrentBuildId = "aura-cg-shared-2026-06-30-v7";
+    public const int CurrentProtocolVersion = 5;
     public const int MinimumSupportedProtocolVersion = 1;
     private static readonly HashSet<string> ReuseLogOwners = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> CompatibilityErrorsShown = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, string> DataDirectories = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, Material> RegisteredMaterials = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, AssetBundle> RegisteredBundles = new(StringComparer.OrdinalIgnoreCase);
 
     public static void Initialize(ModConfig? modConfig, string ownerModId, SkillCgArbiterOptions? options = null)
     {
@@ -85,6 +89,348 @@ public static class SkillCgArbiterRuntime
         RegisteredMaterials[id] = material;
     }
 
+    public static void RegisterAssetBundle(string bundleId, AssetBundle? bundle)
+    {
+        var id = NormalizeBundleId(bundleId);
+        if (id.Length == 0 || bundle == null)
+        {
+            return;
+        }
+
+        RegisteredBundles[id] = bundle;
+    }
+
+    public static void PreloadCg(string ownerModId, IEnumerable<SkillCgRequest> requests)
+    {
+        var batch = (requests ?? Array.Empty<SkillCgRequest>()).ToList();
+        if (batch.Count == 0)
+        {
+            return;
+        }
+
+        var arbiter = EnsureArbiter(ownerModId);
+        Invoke(arbiter, "PreloadCg", batch);
+    }
+
+    public static IReadOnlyList<SkillCgRegisteredEntryView> GetRegisteredSkillCgEntries(string ownerModId = "")
+    {
+        return GetRegisteredCgEntriesByKind(SkillCgKind, ownerModId);
+    }
+
+    public static IReadOnlyList<SkillCgRegisteredEntryView> GetRegisteredCardUseCgEntries(string ownerModId = "")
+    {
+        return GetRegisteredCgEntriesByKind(CardUseCgKind, ownerModId);
+    }
+
+    private static IReadOnlyList<SkillCgRegisteredEntryView> GetRegisteredCgEntriesByKind(string kind, string ownerModId)
+    {
+        return AuraCgRegistryRuntime.GetRegisteredEntries(ownerModId)
+            .Where(entry => IsRegisteredCgEntry(entry, kind))
+            .Select(entry => new SkillCgRegisteredEntryView(entry, AuraCgActivationRuntime.GetEffectiveState(entry)))
+            .OrderBy(view => view.OwnerModId, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(view => view.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(view => view.CgId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    public static IReadOnlyList<SkillCgRequest> BuildRegisteredRequests(
+        string consumerModId,
+        SkillCgTriggerContext context,
+        string ownerModId = "",
+        bool disableSync = false)
+    {
+        return BuildRegisteredRequestsByKind(SkillCgKind, consumerModId, context, ownerModId, disableSync);
+    }
+
+    public static IReadOnlyList<SkillCgRequest> BuildRegisteredCardUseRequests(
+        string consumerModId,
+        SkillCgTriggerContext context,
+        string ownerModId = "",
+        bool disableSync = false)
+    {
+        return BuildRegisteredRequestsByKind(CardUseCgKind, consumerModId, context, ownerModId, disableSync);
+    }
+
+    private static IReadOnlyList<SkillCgRequest> BuildRegisteredRequestsByKind(
+        string kind,
+        string consumerModId,
+        SkillCgTriggerContext context,
+        string ownerModId,
+        bool disableSync)
+    {
+        var requests = new List<SkillCgRequest>();
+        foreach (var entry in AuraCgRegistryRuntime.GetRegisteredEntries(ownerModId))
+        {
+            var request = BuildRegisteredRequestByKind(entry, kind, consumerModId, context, disableSync);
+            if (request != null)
+            {
+                requests.Add(request);
+            }
+        }
+
+        return requests
+            .OrderByDescending(request => request.Priority)
+            .ThenBy(request => request.QualifiedProviderId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    public static SkillCgRequest? BuildRegisteredRequest(
+        AuraCgRegistryEntry entry,
+        string consumerModId,
+        SkillCgTriggerContext context,
+        bool disableSync = false)
+    {
+        return BuildRegisteredRequestByKind(entry, SkillCgKind, consumerModId, context, disableSync);
+    }
+
+    public static SkillCgRequest? BuildRegisteredCardUseRequest(
+        AuraCgRegistryEntry entry,
+        string consumerModId,
+        SkillCgTriggerContext context,
+        bool disableSync = false)
+    {
+        return BuildRegisteredRequestByKind(entry, CardUseCgKind, consumerModId, context, disableSync);
+    }
+
+    private static SkillCgRequest? BuildRegisteredRequestByKind(
+        AuraCgRegistryEntry entry,
+        string kind,
+        string consumerModId,
+        SkillCgTriggerContext context,
+        bool disableSync)
+    {
+        if (!EntryMatchesTrigger(entry, kind, consumerModId, context))
+        {
+            return null;
+        }
+
+        var imageResource = ResolveRegisteredImageResource(entry);
+        var imagePath = ResolveImagePath(entry.OwnerModId, imageResource);
+        if (!RegisteredMediaExists(entry.Media.Type, imagePath, entry.Media.BundlePath))
+        {
+            AuraCgLog.WarnOnce("registered-media-missing:" + entry.QualifiedCgId, "Registered CG media is missing: " + entry.QualifiedCgId + ", resource=" + imageResource);
+            return null;
+        }
+
+        return CreateRegisteredRequest(entry, imageResource, imagePath, context, disableSync);
+    }
+
+    public static SkillCgRequest? BuildPreviewRequest(string consumerModId, string ownerModId, string cgId)
+    {
+        return BuildPreviewRequestByKind(SkillCgKind, consumerModId, ownerModId, cgId);
+    }
+
+    public static SkillCgRequest? BuildCardUsePreviewRequest(string consumerModId, string ownerModId, string cgId)
+    {
+        return BuildPreviewRequestByKind(CardUseCgKind, consumerModId, ownerModId, cgId);
+    }
+
+    private static SkillCgRequest? BuildPreviewRequestByKind(string kind, string consumerModId, string ownerModId, string cgId)
+    {
+        var entry = AuraCgRegistryRuntime.GetRegisteredEntries(ownerModId)
+            .FirstOrDefault(item => string.Equals(item.CgId, cgId, StringComparison.OrdinalIgnoreCase));
+        if (entry == null || !IsRegisteredCgEntry(entry, kind))
+        {
+            return null;
+        }
+
+        var cardId = (entry.CardIds ?? new List<string>())
+            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value) && !value.Contains("*")) ?? "*";
+        return BuildRegisteredRequestByKind(entry, kind, consumerModId, new SkillCgTriggerContext
+        {
+            ActionSequence = -Math.Abs(DateTime.UtcNow.Ticks),
+            Action = "*",
+            CardId = cardId,
+            OwnerRoleId = (entry.TargetRoleIds ?? new List<string>()).FirstOrDefault() ?? "*",
+            CreatedAt = Time.unscaledTime
+        }, disableSync: true);
+    }
+
+    public static bool PreviewRegisteredCg(string consumerModId, string ownerModId, string cgId)
+    {
+        var request = BuildPreviewRequest(consumerModId, ownerModId, cgId);
+        if (request == null)
+        {
+            return false;
+        }
+
+        RequestCg(consumerModId, request);
+        return true;
+    }
+
+    public static bool PreviewRegisteredCardUseCg(string consumerModId, string ownerModId, string cgId)
+    {
+        var request = BuildCardUsePreviewRequest(consumerModId, ownerModId, cgId);
+        if (request == null)
+        {
+            return false;
+        }
+
+        RequestCg(consumerModId, request);
+        return true;
+    }
+
+    public static void PreloadRegisteredCg(string consumerModId, string ownerModId = "", string roleId = "")
+    {
+        PreloadRegisteredCgByKind(SkillCgKind, consumerModId, ownerModId, roleId);
+    }
+
+    public static void PreloadRegisteredCardUseCg(string consumerModId, string ownerModId = "", string roleId = "")
+    {
+        PreloadRegisteredCgByKind(CardUseCgKind, consumerModId, ownerModId, roleId);
+    }
+
+    private static void PreloadRegisteredCgByKind(string kind, string consumerModId, string ownerModId, string roleId)
+    {
+        var requests = AuraCgRegistryRuntime.GetRegisteredEntries(ownerModId)
+            .Where(entry => IsRegisteredCgEntry(entry, kind))
+            .Where(entry => AuraCgActivationRuntime.CanConsumerPlay(entry, consumerModId))
+            .Where(entry => string.IsNullOrWhiteSpace(roleId) || EntryMatchesRole(entry, roleId))
+            .Select(entry => CreateRegisteredRequest(entry, ResolveRegisteredImageResource(entry), ResolveImagePath(entry.OwnerModId, ResolveRegisteredImageResource(entry)), new SkillCgTriggerContext
+            {
+                CardId = (entry.CardIds ?? new List<string>()).FirstOrDefault() ?? "*",
+                OwnerRoleId = roleId,
+                CreatedAt = Time.unscaledTime
+            }, disableSync: true))
+            .Where(request => request != null)
+            .Cast<SkillCgRequest>()
+            .ToList();
+        PreloadCg(consumerModId, requests);
+    }
+
+    private static bool EntryMatchesTrigger(AuraCgRegistryEntry entry, string kind, string consumerModId, SkillCgTriggerContext context)
+    {
+        return IsRegisteredCgEntry(entry, kind)
+               && AuraCgActivationRuntime.CanConsumerPlay(entry, consumerModId)
+               && EntryMatchesRole(entry, context.OwnerRoleId)
+               && EntryMatchesCard(entry, context.CardId)
+               && EntryMatchesAction(context.Action);
+    }
+
+    private static bool IsSkillCgEntry(AuraCgRegistryEntry entry)
+    {
+        return IsRegisteredCgEntry(entry, SkillCgKind);
+    }
+
+    private static bool IsRegisteredCgEntry(AuraCgRegistryEntry entry, string kind)
+    {
+        return entry != null
+               && entry.Enabled
+               && string.Equals(entry.Kind, kind, StringComparison.OrdinalIgnoreCase)
+               && (string.Equals(entry.Media.Type, SkillCgMediaTypes.Image, StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(entry.Media.Type, SkillCgMediaTypes.Sequence, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static SkillCgRequest CreateRegisteredRequest(
+        AuraCgRegistryEntry entry,
+        string imageResource,
+        string imagePath,
+        SkillCgTriggerContext context,
+        bool disableSync)
+    {
+        return new SkillCgRequest
+        {
+            ProviderId = entry.OwnerModId + ".SkillCG." + entry.CgId,
+            OwnerModId = entry.OwnerModId,
+            CardId = string.IsNullOrWhiteSpace(context.CardId) ? "*" : context.CardId,
+            OwnerInstanceId = context.OwnerInstanceId,
+            ImagePath = imagePath,
+            ImageResource = imageResource,
+            BundlePath = entry.Media.BundlePath,
+            BundleAssetPrefix = entry.Media.BundleAssetPrefix,
+            MediaType = entry.Media.Type,
+            FrameSeconds = entry.Media.FrameSeconds,
+            AlphaMode = entry.Media.AlphaMode,
+            KeyThreshold = entry.Media.KeyThreshold,
+            KeySoftness = entry.Media.KeySoftness,
+            FlashAtSeconds = entry.Media.FlashAtSeconds,
+            FlashDuration = entry.Media.FlashDuration,
+            FlashMode = entry.Media.FlashMode,
+            FlashStartFrame = entry.Media.FlashStartFrame,
+            FlashEndFrame = entry.Media.FlashEndFrame,
+            FlashPulseEveryFrames = entry.Media.FlashPulseEveryFrames,
+            FlashStrength = entry.Media.FlashStrength,
+            Priority = entry.Priority,
+            FadeIn = entry.DefaultPresentation.FadeIn,
+            Hold = entry.DefaultPresentation.Hold,
+            FadeOut = entry.DefaultPresentation.FadeOut,
+            PresentationMode = entry.DefaultPresentation.Mode,
+            FitMode = entry.DefaultPresentation.Fit,
+            FocusX = entry.DefaultPresentation.FocusX,
+            FocusY = entry.DefaultPresentation.FocusY,
+            SafeScale = entry.DefaultPresentation.SafeScale,
+            CreatedAt = Time.unscaledTime,
+            ActionSequence = context.ActionSequence,
+            DisableSync = disableSync
+        };
+    }
+
+    private static string ResolveRegisteredImageResource(AuraCgRegistryEntry entry)
+    {
+        return string.IsNullOrWhiteSpace(entry.Media.Resource)
+            ? entry.Media.FallbackImage
+            : entry.Media.Resource;
+    }
+
+    private static bool RegisteredMediaExists(string mediaType, string path, string bundlePath)
+    {
+        if (!string.IsNullOrWhiteSpace(bundlePath))
+        {
+            return true;
+        }
+
+        if (string.Equals(mediaType, SkillCgMediaTypes.Sequence, StringComparison.OrdinalIgnoreCase))
+        {
+            return Directory.Exists(path) || File.Exists(path);
+        }
+
+        return File.Exists(path);
+    }
+
+    private static bool EntryMatchesRole(AuraCgRegistryEntry entry, string roleId)
+    {
+        var normalizedRole = (roleId ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(normalizedRole))
+        {
+            return true;
+        }
+
+        foreach (var target in entry.TargetRoleIds ?? new List<string>())
+        {
+            var normalizedTarget = (target ?? "").Trim();
+            if (string.Equals(normalizedTarget, "*", StringComparison.Ordinal)
+                || string.Equals(normalizedTarget, normalizedRole, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool EntryMatchesCard(AuraCgRegistryEntry entry, string cardId)
+    {
+        var normalizedCard = (cardId ?? "").Trim();
+        var normalizedTrimmed = normalizedCard.TrimStart('*');
+        foreach (var value in entry.CardIds ?? new List<string>())
+        {
+            var pattern = (value ?? "").Trim();
+            if (string.Equals(pattern, "*", StringComparison.Ordinal)
+                || string.Equals(pattern, normalizedCard, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(pattern.TrimStart('*'), normalizedTrimmed, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool EntryMatchesAction(string action)
+    {
+        return true;
+    }
+
     public static string ResolveImagePath(string ownerModId, string imageResource, string fallbackPath = "")
     {
         var resource = imageResource?.Trim() ?? "";
@@ -127,6 +473,15 @@ public static class SkillCgArbiterRuntime
             .Replace('\\', '/')
             .TrimStart('/');
         return normalized;
+    }
+
+    private static string NormalizeBundleId(string value)
+    {
+        return (value ?? "")
+            .Trim()
+            .Trim('"')
+            .Replace('\\', '/')
+            .TrimStart('/');
     }
 
     private static void AddCandidate(List<string> candidates, HashSet<string> seen, string rootDirectory, string relativeResource)
@@ -214,7 +569,7 @@ public static class SkillCgArbiterRuntime
         var protocolVersion = ReadIntProperty(existing, "ProtocolVersion", 0);
         var minimumSupported = ReadIntProperty(existing, "MinimumSupportedProtocolVersion", int.MaxValue);
         var buildId = ReadStringProperty(existing, "BuildId");
-        var methodsPresent = new[] { "Configure", "RegisterProvider", "Trigger", "RequestCg", "ClearQueue" }
+        var methodsPresent = new[] { "Configure", "RegisterProvider", "Trigger", "RequestCg", "PreloadCg", "ClearQueue" }
             .All(name => type.GetMethod(name, BindingFlags.Instance | BindingFlags.Public) != null);
         var compatible = protocolVersion >= MinimumSupportedProtocolVersion
             && minimumSupported <= CurrentProtocolVersion
@@ -304,6 +659,9 @@ public static class SkillCgArbiterRuntime
         private readonly List<QueuedRequest> queue = new();
         private readonly Dictionary<string, float> recentKeys = new(StringComparer.Ordinal);
         private readonly Dictionary<string, Sprite> spriteCache = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, List<Sprite>> sequenceCache = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, AssetBundle?> assetBundleCache = new(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> preloadKeys = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<int, Sprite> invertedSpriteCache = new();
         private SkillCgArbiterOptions options = new();
         private bool playing;
@@ -313,10 +671,14 @@ public static class SkillCgArbiterRuntime
         private CanvasGroup? overlayGroup;
         private Image? overlayImage;
         private Image? overlayFlash;
+        private Image? overlayScreenFlash;
+        private Sprite? screenFlashSprite;
         private Material? lumaKeyMaterial;
         private bool lumaKeyMaterialResolved;
         private Material? maskedInvertMaterial;
         private bool maskedInvertMaterialResolved;
+        private Material? screenBwFlashMaterial;
+        private bool screenBwFlashMaterialResolved;
         private int playGeneration;
 
         public int ProtocolVersion => CurrentProtocolVersion;
@@ -439,6 +801,54 @@ public static class SkillCgArbiterRuntime
             }
         }
 
+        public void PreloadCg(object? value)
+        {
+            if (value is not IEnumerable<SkillCgRequest> requests)
+            {
+                return;
+            }
+
+            foreach (var request in requests)
+            {
+                if (request == null)
+                {
+                    continue;
+                }
+
+                request.Normalize();
+                var key = SequenceCacheKey(request);
+                if (sequenceCache.ContainsKey(key) || !preloadKeys.Add(key))
+                {
+                    continue;
+                }
+
+                StartCoroutine(PreloadRequest(request, key));
+            }
+        }
+
+        private IEnumerator PreloadRequest(SkillCgRequest request, string key)
+        {
+            if (!string.Equals(request.MediaType, SkillCgMediaTypes.Sequence, StringComparison.OrdinalIgnoreCase))
+            {
+                preloadKeys.Remove(key);
+                yield break;
+            }
+
+            List<Sprite> sprites = new();
+            yield return LoadSequenceSprites(request, result => sprites = result);
+            if (sprites.Count > 0)
+            {
+                sequenceCache[key] = sprites;
+                AuraCgLog.InfoOnce(
+                    "sequence-preloaded:" + key,
+                    "CG sequence preloaded: provider=" + request.ProviderId
+                    + ", frames=" + sprites.Count
+                    + ", bundle=" + (string.IsNullOrWhiteSpace(request.BundlePath) ? "<file>" : request.BundlePath));
+            }
+
+            preloadKeys.Remove(key);
+        }
+
         public void ClearQueue(object? reason)
         {
             playGeneration++;
@@ -470,6 +880,14 @@ public static class SkillCgArbiterRuntime
                 overlayFlash.material = null;
             }
 
+            if (overlayScreenFlash != null)
+            {
+                overlayScreenFlash.raycastTarget = false;
+                overlayScreenFlash.enabled = false;
+                overlayScreenFlash.color = Color.clear;
+                overlayScreenFlash.material = null;
+            }
+
             if (overlayGroup != null)
             {
                 overlayGroup.alpha = 0f;
@@ -499,6 +917,7 @@ public static class SkillCgArbiterRuntime
             overlayGroup = null;
             overlayImage = null;
             overlayFlash = null;
+            overlayScreenFlash = null;
             DestroyRuntimeMaterial();
         }
 
@@ -704,6 +1123,12 @@ public static class SkillCgArbiterRuntime
                 overlayFlash.sprite = null;
                 overlayFlash.material = null;
             }
+            if (overlayScreenFlash != null)
+            {
+                overlayScreenFlash.enabled = false;
+                overlayScreenFlash.color = Color.clear;
+                overlayScreenFlash.material = null;
+            }
 
             ConfigureFullscreenImage(sprites[0], request);
 
@@ -717,6 +1142,7 @@ public static class SkillCgArbiterRuntime
             yield return Fade(0f, 1f, request.FadeIn, generation);
             yield return PlaySequenceFrames(sprites, request, generation);
             DisableMaskedFlash();
+            DisableScreenFlash();
             yield return Wait(request.Hold, generation);
             yield return Fade(1f, 0f, request.FadeOut, generation);
 
@@ -959,6 +1385,8 @@ public static class SkillCgArbiterRuntime
 
         private void UpdateSequenceFlash(SkillCgRequest request, float elapsed, int frameNumber, Sprite sprite)
         {
+            UpdateScreenBwFlash(request, frameNumber);
+
             if (ShouldUseMaskedFlash(request))
             {
                 UpdateMaskedFlash(request, frameNumber, sprite);
@@ -966,6 +1394,68 @@ public static class SkillCgArbiterRuntime
             }
 
             UpdateFlash(request, elapsed);
+        }
+
+        private void UpdateScreenBwFlash(SkillCgRequest request, int frameNumber)
+        {
+            if (overlayScreenFlash == null || !ShouldUseScreenBwFlash(request))
+            {
+                return;
+            }
+
+            var startFrame = Mathf.Max(1, request.FlashStartFrame);
+            var endFrame = Mathf.Max(startFrame, request.FlashEndFrame <= 0 ? startFrame : request.FlashEndFrame);
+            if (frameNumber < startFrame || frameNumber > endFrame)
+            {
+                DisableScreenFlash();
+                return;
+            }
+
+            var localFrame = frameNumber - startFrame;
+            var baseStrength = Mathf.Clamp01(request.FlashStrength <= 0f ? 1f : request.FlashStrength);
+            var pulse = ScreenBwPulse(localFrame) * baseStrength;
+            if (pulse <= 0.001f)
+            {
+                DisableScreenFlash();
+                return;
+            }
+
+            overlayScreenFlash.sprite = ScreenFlashSprite();
+            overlayScreenFlash.raycastTarget = false;
+            overlayScreenFlash.enabled = true;
+            overlayScreenFlash.rectTransform.anchorMin = Vector2.zero;
+            overlayScreenFlash.rectTransform.anchorMax = Vector2.one;
+            overlayScreenFlash.rectTransform.offsetMin = Vector2.zero;
+            overlayScreenFlash.rectTransform.offsetMax = Vector2.zero;
+
+            var material = ResolveScreenBwFlashMaterial();
+            if (material != null && localFrame <= 6 && localFrame % 2 == 0)
+            {
+                overlayScreenFlash.material = material;
+                SetMaterialFloat(material, "_AuraCgFlashStrength", pulse);
+                overlayScreenFlash.color = Color.white;
+                return;
+            }
+
+            overlayScreenFlash.material = null;
+            overlayScreenFlash.color = localFrame % 2 == 0
+                ? new Color(1f, 1f, 1f, pulse * 0.86f)
+                : new Color(0f, 0f, 0f, pulse * 0.72f);
+        }
+
+        private static float ScreenBwPulse(int localFrame)
+        {
+            return localFrame switch
+            {
+                0 => 1.0f,
+                1 => 0.82f,
+                2 => 0.68f,
+                3 => 0.48f,
+                4 => 0.34f,
+                5 => 0.24f,
+                6 => 0.16f,
+                _ => 0.08f
+            };
         }
 
         private void UpdateFlash(SkillCgRequest request, float elapsed)
@@ -1035,9 +1525,21 @@ public static class SkillCgArbiterRuntime
 
         private bool ShouldUseMaskedFlash(SkillCgRequest request)
         {
+            if (string.Equals(request.FlashMode, SkillCgFlashModes.ScreenBwPulse, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
             return string.Equals(request.FlashMode, SkillCgFlashModes.MaskedInvert, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(request.FlashMode, SkillCgFlashModes.HybridBwPulse, StringComparison.OrdinalIgnoreCase)
                 || request.FlashStartFrame > 0
                 || request.FlashEndFrame > 0;
+        }
+
+        private static bool ShouldUseScreenBwFlash(SkillCgRequest request)
+        {
+            return string.Equals(request.FlashMode, SkillCgFlashModes.ScreenBwPulse, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(request.FlashMode, SkillCgFlashModes.HybridBwPulse, StringComparison.OrdinalIgnoreCase);
         }
 
         private void DisableMaskedFlash()
@@ -1051,6 +1553,18 @@ public static class SkillCgArbiterRuntime
             overlayFlash.color = Color.clear;
             overlayFlash.sprite = null;
             overlayFlash.material = null;
+        }
+
+        private void DisableScreenFlash()
+        {
+            if (overlayScreenFlash == null)
+            {
+                return;
+            }
+
+            overlayScreenFlash.enabled = false;
+            overlayScreenFlash.color = Color.clear;
+            overlayScreenFlash.material = null;
         }
 
         private Material? ResolveMaskedInvertMaterial(SkillCgRequest request)
@@ -1089,6 +1603,46 @@ public static class SkillCgArbiterRuntime
                 AuraCgLog.WarnOnce("masked-invert-shader-failed", "Masked invert shader setup failed: " + ex.Message);
                 return null;
             }
+        }
+
+        private Material? ResolveScreenBwFlashMaterial()
+        {
+            if (screenBwFlashMaterialResolved)
+            {
+                return screenBwFlashMaterial;
+            }
+
+            screenBwFlashMaterialResolved = true;
+            try
+            {
+                screenBwFlashMaterial = CloneRegisteredMaterial(ScreenBwFlashShaderName, "AuraCg.ScreenBwFlash.Runtime");
+                if (screenBwFlashMaterial != null)
+                {
+                    return screenBwFlashMaterial;
+                }
+
+                var shader = Shader.Find(ScreenBwFlashShaderName);
+                if (shader != null)
+                {
+                    screenBwFlashMaterial = new Material(shader)
+                    {
+                        name = "AuraCg.ScreenBwFlash.Runtime"
+                    };
+                }
+                else
+                {
+                    AuraCgLog.WarnOnce(
+                        "screen-bw-flash-shader-missing",
+                        "Screen black-white flash shader is not loaded; using color overlay fallback. shader=" + ScreenBwFlashShaderName);
+                }
+            }
+            catch (Exception ex)
+            {
+                AuraCgLog.WarnOnce("screen-bw-flash-material-failed", "Screen black-white flash material failed: " + ex.Message);
+                screenBwFlashMaterial = null;
+            }
+
+            return screenBwFlashMaterial;
         }
 
         private Material? ResolveLumaKeyMaterial(SkillCgRequest request)
@@ -1220,6 +1774,24 @@ public static class SkillCgArbiterRuntime
             }
         }
 
+        private Sprite ScreenFlashSprite()
+        {
+            if (screenFlashSprite != null)
+            {
+                return screenFlashSprite;
+            }
+
+            var texture = new Texture2D(1, 1, TextureFormat.RGBA32, false)
+            {
+                name = "AuraCg.ScreenFlash.WhitePixel"
+            };
+            texture.SetPixel(0, 0, Color.white);
+            texture.Apply(false, false);
+            screenFlashSprite = Sprite.Create(texture, new Rect(0f, 0f, 1f, 1f), new Vector2(0.5f, 0.5f), 100f);
+            screenFlashSprite.name = "AuraCg.ScreenFlash.Sprite";
+            return screenFlashSprite;
+        }
+
         private void DestroyRuntimeMaterial()
         {
             if (lumaKeyMaterial != null)
@@ -1232,15 +1804,40 @@ public static class SkillCgArbiterRuntime
                 UnityEngine.Object.Destroy(maskedInvertMaterial);
             }
 
+            if (screenBwFlashMaterial != null)
+            {
+                UnityEngine.Object.Destroy(screenBwFlashMaterial);
+            }
+
             lumaKeyMaterial = null;
             lumaKeyMaterialResolved = false;
             maskedInvertMaterial = null;
             maskedInvertMaterialResolved = false;
+            screenBwFlashMaterial = null;
+            screenBwFlashMaterialResolved = false;
         }
 
         private IEnumerator LoadSequenceSprites(SkillCgRequest request, Action<List<Sprite>> onLoaded)
         {
+            var cacheKey = SequenceCacheKey(request);
+            if (sequenceCache.TryGetValue(cacheKey, out var cached) && cached.Count > 0)
+            {
+                onLoaded(cached);
+                yield break;
+            }
+
             var result = new List<Sprite>();
+            if (!string.IsNullOrWhiteSpace(request.BundlePath))
+            {
+                yield return LoadBundleSequenceSprites(request, result);
+                if (result.Count > 0)
+                {
+                    sequenceCache[cacheKey] = result;
+                    onLoaded(result);
+                    yield break;
+                }
+            }
+
             foreach (var framePath in ResolveSequenceFramePaths(request.ImagePath))
             {
                 Sprite? frame = null;
@@ -1256,12 +1853,139 @@ public static class SkillCgArbiterRuntime
                 }
             }
 
+            if (result.Count > 0)
+            {
+                sequenceCache[cacheKey] = result;
+            }
+
             if (result.Count == 0)
             {
                 AuraCgLog.WarnOnce("sequence-empty:" + request.ImagePath, "CG sequence has no loadable frames: " + request.ImagePath);
             }
 
             onLoaded(result);
+        }
+
+        private IEnumerator LoadBundleSequenceSprites(SkillCgRequest request, List<Sprite> result)
+        {
+            var bundle = ResolveAssetBundle(request.BundlePath);
+            if (bundle == null)
+            {
+                yield break;
+            }
+
+            string[] assetNames;
+            try
+            {
+                var prefix = NormalizeRelativeResourcePath(request.BundleAssetPrefix);
+                assetNames = bundle.GetAllAssetNames()
+                    .Where(name => IsBundleSequenceAsset(name, prefix))
+                    .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+            }
+            catch (Exception ex)
+            {
+                AuraCgLog.WarnOnce("bundle-sequence-list-failed:" + request.BundlePath, "CG bundle sequence list failed: " + request.BundlePath + ", error=" + ex.Message);
+                yield break;
+            }
+
+            foreach (var assetName in assetNames)
+            {
+                Sprite? sprite = null;
+                var spriteRequest = bundle.LoadAssetAsync<Sprite>(assetName);
+                yield return spriteRequest;
+                sprite = spriteRequest.asset as Sprite;
+                if (sprite == null)
+                {
+                    var textureRequest = bundle.LoadAssetAsync<Texture2D>(assetName);
+                    yield return textureRequest;
+                    if (textureRequest.asset is Texture2D texture)
+                    {
+                        sprite = Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f);
+                        sprite.name = Path.GetFileNameWithoutExtension(assetName);
+                    }
+                }
+
+                if (sprite != null)
+                {
+                    result.Add(sprite);
+                }
+            }
+
+            if (result.Count > 0)
+            {
+                AuraCgLog.InfoOnce(
+                    "bundle-sequence-loaded:" + request.BundlePath + ":" + request.BundleAssetPrefix,
+                    "CG bundle sequence loaded: bundle=" + request.BundlePath
+                    + ", prefix=" + request.BundleAssetPrefix
+                    + ", frames=" + result.Count);
+            }
+        }
+
+        private static bool IsBundleSequenceAsset(string assetName, string prefix)
+        {
+            var normalized = NormalizeRelativeResourcePath(assetName);
+            if (!string.IsNullOrWhiteSpace(prefix))
+            {
+                var normalizedPrefix = NormalizeRelativeResourcePath(prefix).TrimEnd('/') + "/";
+                if (!normalized.StartsWith(normalizedPrefix, StringComparison.OrdinalIgnoreCase)
+                    && normalized.IndexOf("/" + normalizedPrefix, StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    return false;
+                }
+            }
+
+            return IsSupportedSequenceFrame(normalized);
+        }
+
+        private AssetBundle? ResolveAssetBundle(string bundlePath)
+        {
+            var id = NormalizeBundleId(bundlePath);
+            if (id.Length == 0)
+            {
+                return null;
+            }
+
+            if (RegisteredBundles.TryGetValue(id, out var registered) && registered != null)
+            {
+                return registered;
+            }
+
+            if (assetBundleCache.TryGetValue(id, out var cached))
+            {
+                return cached;
+            }
+
+            var resolved = ResolveImagePath("", id, id);
+            if (!File.Exists(resolved))
+            {
+                assetBundleCache[id] = null;
+                AuraCgLog.WarnOnce("bundle-missing:" + id, "CG asset bundle is not registered or found: " + id);
+                return null;
+            }
+
+            try
+            {
+                var bundle = AssetBundle.LoadFromFile(resolved);
+                assetBundleCache[id] = bundle;
+                return bundle;
+            }
+            catch (Exception ex)
+            {
+                assetBundleCache[id] = null;
+                AuraCgLog.WarnOnce("bundle-load-failed:" + id, "CG asset bundle load failed: " + id + ", error=" + ex.Message);
+                return null;
+            }
+        }
+
+        private static string SequenceCacheKey(SkillCgRequest request)
+        {
+            return (request.BundlePath ?? "")
+                + "\u001f" + (request.BundleAssetPrefix ?? "")
+                + "\u001f" + (request.ImagePath ?? "")
+                + "\u001f" + SkillCgAlphaModes.Normalize(request.AlphaMode)
+                + "\u001f" + request.KeyThreshold.ToString("0.####")
+                + "\u001f" + request.KeySoftness.ToString("0.####");
         }
 
         private static IEnumerable<string> ResolveSequenceFramePaths(string path)
@@ -1331,12 +2055,26 @@ public static class SkillCgArbiterRuntime
             }
 
             texture.name = Path.GetFileNameWithoutExtension(path);
-            ApplyAlphaMode(texture, alphaMode, keyThreshold, keySoftness, path);
+            if (ShouldApplyCpuAlphaMode(alphaMode))
+            {
+                ApplyAlphaMode(texture, alphaMode, keyThreshold, keySoftness, path);
+            }
+
             var sprite = Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f);
             sprite.name = texture.name;
             spriteCache[cacheKey] = sprite;
             AuraCgLog.InfoOnce("image-loaded:" + path, "CG image loaded: " + Path.GetFileName(path) + " (" + texture.width + "x" + texture.height + ")");
             onLoaded(sprite);
+        }
+
+        private bool ShouldApplyCpuAlphaMode(string alphaMode)
+        {
+            if (!string.Equals(SkillCgAlphaModes.Normalize(alphaMode), SkillCgAlphaModes.BlackKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            return ResolveLumaKeyMaterial(new SkillCgRequest { AlphaMode = alphaMode }) == null;
         }
 
         private static string SpriteCacheKey(string path, string alphaMode, float keyThreshold, float keySoftness)
@@ -1383,12 +2121,13 @@ public static class SkillCgArbiterRuntime
                 && overlayCanvas != null
                 && overlayGroup != null
                 && overlayImage != null
-                && overlayFlash != null)
+                && overlayFlash != null
+                && overlayScreenFlash != null)
             {
                 return true;
             }
 
-            if (overlayRoot != null || overlayCanvas != null || overlayGroup != null || overlayImage != null || overlayFlash != null)
+            if (overlayRoot != null || overlayCanvas != null || overlayGroup != null || overlayImage != null || overlayFlash != null || overlayScreenFlash != null)
             {
                 DestroyOverlay();
             }
@@ -1437,6 +2176,19 @@ public static class SkillCgArbiterRuntime
             overlayFlash.color = Color.clear;
             overlayFlash.raycastTarget = false;
             overlayFlash.enabled = false;
+
+            var screenFlashObject = new GameObject("AuraCg.ScreenFlash", typeof(RectTransform), typeof(Image));
+            screenFlashObject.transform.SetParent(overlayRoot.transform, false);
+            var screenFlashRect = screenFlashObject.GetComponent<RectTransform>();
+            screenFlashRect.anchorMin = Vector2.zero;
+            screenFlashRect.anchorMax = Vector2.one;
+            screenFlashRect.offsetMin = Vector2.zero;
+            screenFlashRect.offsetMax = Vector2.zero;
+
+            overlayScreenFlash = screenFlashObject.GetComponent<Image>();
+            overlayScreenFlash.color = Color.clear;
+            overlayScreenFlash.raycastTarget = false;
+            overlayScreenFlash.enabled = false;
             overlayRoot.SetActive(false);
             AuraCgLog.InfoOnce("overlay-created", "CG overlay created on an independent non-interactive canvas.");
             return true;
@@ -1620,6 +2372,72 @@ public sealed class SkillCgArbiterOptions
 }
 
 [Serializable]
+public sealed class SkillCgRegisteredEntryView
+{
+    public SkillCgRegisteredEntryView()
+    {
+    }
+
+    public SkillCgRegisteredEntryView(AuraCgRegistryEntry entry, AuraCgActivationEntryState activation)
+    {
+        OwnerModId = entry.OwnerModId;
+        CgId = entry.CgId;
+        QualifiedCgId = entry.QualifiedCgId;
+        DisplayName = entry.DisplayName;
+        Kind = entry.Kind;
+        TargetRoleIds = (entry.TargetRoleIds ?? new List<string>()).ToList();
+        CardIds = (entry.CardIds ?? new List<string>()).ToList();
+        MediaType = entry.Media.Type;
+        Resource = entry.Media.Resource;
+        FallbackImage = entry.Media.FallbackImage;
+        BundlePath = entry.Media.BundlePath;
+        BundleAssetPrefix = entry.Media.BundleAssetPrefix;
+        FlashMode = entry.Media.FlashMode;
+        Priority = entry.Priority;
+        Enabled = activation.Enabled;
+        ConsumerMode = activation.ConsumerMode;
+        ConsumerModId = activation.ConsumerModId;
+        UserOverridden = activation.UserOverridden;
+    }
+
+    public string OwnerModId { get; set; } = "";
+
+    public string CgId { get; set; } = "";
+
+    public string QualifiedCgId { get; set; } = "";
+
+    public string DisplayName { get; set; } = "";
+
+    public string Kind { get; set; } = "";
+
+    public List<string> TargetRoleIds { get; set; } = new();
+
+    public List<string> CardIds { get; set; } = new();
+
+    public string MediaType { get; set; } = "";
+
+    public string Resource { get; set; } = "";
+
+    public string FallbackImage { get; set; } = "";
+
+    public string BundlePath { get; set; } = "";
+
+    public string BundleAssetPrefix { get; set; } = "";
+
+    public string FlashMode { get; set; } = "";
+
+    public int Priority { get; set; }
+
+    public bool Enabled { get; set; }
+
+    public string ConsumerMode { get; set; } = "";
+
+    public string ConsumerModId { get; set; } = "";
+
+    public bool UserOverridden { get; set; }
+}
+
+[Serializable]
 public sealed class SkillCgTriggerContext
 {
     public long ActionSequence { get; set; }
@@ -1649,6 +2467,10 @@ public sealed class SkillCgRequest
     public string ImagePath { get; set; } = "";
 
     public string ImageResource { get; set; } = "";
+
+    public string BundlePath { get; set; } = "";
+
+    public string BundleAssetPrefix { get; set; } = "";
 
     public string MediaType { get; set; } = SkillCgMediaTypes.Image;
 
@@ -1700,7 +2522,7 @@ public sealed class SkillCgRequest
 
     public bool DisableSync { get; set; }
 
-    public string DuplicateKey => ProviderId + "|" + OwnerInstanceId + "|" + CardId + "|" + (string.IsNullOrWhiteSpace(ImageResource) ? ImagePath : ImageResource) + "|" + MediaType + "|" + FrameSeconds.ToString("0.###") + "|" + AlphaMode + "|" + FlashMode + "|" + FlashAtSeconds.ToString("0.###") + "|" + FlashStartFrame + "|" + FlashEndFrame + "|" + FlashPulseEveryFrames + "|" + PresentationMode + "|" + FitMode + "|" + FocusX.ToString("0.###") + "|" + FocusY.ToString("0.###") + "|" + SafeScale.ToString("0.###");
+    public string DuplicateKey => ProviderId + "|" + OwnerInstanceId + "|" + CardId + "|" + (string.IsNullOrWhiteSpace(ImageResource) ? ImagePath : ImageResource) + "|" + BundlePath + "|" + BundleAssetPrefix + "|" + MediaType + "|" + FrameSeconds.ToString("0.###") + "|" + AlphaMode + "|" + FlashMode + "|" + FlashAtSeconds.ToString("0.###") + "|" + FlashStartFrame + "|" + FlashEndFrame + "|" + FlashPulseEveryFrames + "|" + PresentationMode + "|" + FitMode + "|" + FocusX.ToString("0.###") + "|" + FocusY.ToString("0.###") + "|" + SafeScale.ToString("0.###");
 
     public string QualifiedProviderId => QualifyProviderId(OwnerModId, ProviderId);
 
@@ -1712,6 +2534,8 @@ public sealed class SkillCgRequest
         OwnerInstanceId = OwnerInstanceId?.Trim() ?? "";
         ImagePath = ImagePath?.Trim() ?? "";
         ImageResource = ImageResource?.Trim() ?? "";
+        BundlePath = NormalizeBundlePath(BundlePath);
+        BundleAssetPrefix = NormalizeRequestRelativePath(BundleAssetPrefix);
         if (string.IsNullOrWhiteSpace(ImageResource) && !string.IsNullOrWhiteSpace(ImagePath))
         {
             ImageResource = Path.GetFileName(ImagePath);
@@ -1770,6 +2594,8 @@ public sealed class SkillCgRequest
             OwnerInstanceId = ReadString(type, source, "OwnerInstanceId", context.OwnerInstanceId),
             ImagePath = ReadString(type, source, "ImagePath", ""),
             ImageResource = ReadString(type, source, "ImageResource", ""),
+            BundlePath = ReadString(type, source, "BundlePath", ""),
+            BundleAssetPrefix = ReadString(type, source, "BundleAssetPrefix", ""),
             MediaType = ReadString(type, source, "MediaType", SkillCgMediaTypes.Image),
             FrameSeconds = ReadFloat(type, source, "FrameSeconds", 0.08f),
             AlphaMode = ReadString(type, source, "AlphaMode", SkillCgAlphaModes.None),
@@ -1825,6 +2651,24 @@ public sealed class SkillCgRequest
         }
 
         return owner + ":" + id;
+    }
+
+    private static string NormalizeBundlePath(string value)
+    {
+        return (value ?? "")
+            .Trim()
+            .Trim('"')
+            .Replace('\\', '/')
+            .TrimStart('/');
+    }
+
+    private static string NormalizeRequestRelativePath(string value)
+    {
+        return (value ?? "")
+            .Trim()
+            .Trim('"')
+            .Replace('\\', '/')
+            .TrimStart('/');
     }
 
     private static int ReadInt(Type type, object source, string name, int fallback)
@@ -1893,6 +2737,10 @@ public sealed class SkillCgNetworkEvent
 
     public string ImageResource { get; set; } = "";
 
+    public string BundlePath { get; set; } = "";
+
+    public string BundleAssetPrefix { get; set; } = "";
+
     public string MediaType { get; set; } = SkillCgMediaTypes.Image;
 
     public float FrameSeconds { get; set; } = 0.08f;
@@ -1956,6 +2804,8 @@ public sealed class RpcSkillCgEvent : RpcCommandBase
             CardId = request.CardId,
             OwnerInstanceId = request.OwnerInstanceId,
             ImageResource = string.IsNullOrWhiteSpace(request.ImageResource) ? Path.GetFileName(request.ImagePath) : request.ImageResource,
+            BundlePath = request.BundlePath,
+            BundleAssetPrefix = request.BundleAssetPrefix,
             MediaType = request.MediaType,
             FrameSeconds = request.FrameSeconds,
             AlphaMode = request.AlphaMode,
@@ -1995,6 +2845,8 @@ public sealed class RpcSkillCgEvent : RpcCommandBase
             OwnerInstanceId = Event.OwnerInstanceId,
             ImageResource = Event.ImageResource,
             ImagePath = SkillCgArbiterRuntime.ResolveImagePath(ownerModId, Event.ImageResource),
+            BundlePath = Event.BundlePath,
+            BundleAssetPrefix = Event.BundleAssetPrefix,
             MediaType = Event.MediaType,
             FrameSeconds = Event.FrameSeconds,
             AlphaMode = Event.AlphaMode,
@@ -2066,10 +2918,28 @@ public static class SkillCgFlashModes
 {
     public const string Screen = "screen";
     public const string MaskedInvert = "maskedInvert";
+    public const string ScreenBwPulse = "screenBwPulse";
+    public const string HybridBwPulse = "hybridBwPulse";
 
     public static string Normalize(string? value)
     {
         var mode = value?.Trim() ?? "";
+        if (string.Equals(mode, HybridBwPulse, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mode, "hybridBlackWhite", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mode, "hybridBw", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mode, "blackWhiteImpact", StringComparison.OrdinalIgnoreCase))
+        {
+            return HybridBwPulse;
+        }
+
+        if (string.Equals(mode, ScreenBwPulse, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mode, "screenBlackWhite", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mode, "blackWhiteScreen", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mode, "bwPulse", StringComparison.OrdinalIgnoreCase))
+        {
+            return ScreenBwPulse;
+        }
+
         if (string.Equals(mode, MaskedInvert, StringComparison.OrdinalIgnoreCase)
             || string.Equals(mode, "objectInvert", StringComparison.OrdinalIgnoreCase)
             || string.Equals(mode, "maskedDifference", StringComparison.OrdinalIgnoreCase)

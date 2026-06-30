@@ -759,7 +759,7 @@ public static class AuraToolsSettingsRuntime
             AuraToolsUi.AddText(content, "声明：该模块初始版本代码由【哈基米】提供，后续由【Aura】进行维护和功能开发。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
         }, damageMeter.Enabled ? AuraToolsUi.SuccessText : AuraToolsUi.MutedText);
 
-        CreateSubmodule(parent, "技能CG", AuraToolsConfigService.SkillCg.Enabled, value =>
+        CreateSubmodule(parent, "\u6280\u80fdCG\u7279\u6548\u7ba1\u7406", AuraToolsConfigService.SkillCg.Enabled, value =>
         {
             AuraToolsConfigService.SkillCg.Enabled = value;
             AuraToolsConfigService.SaveSkillCg();
@@ -767,14 +767,26 @@ public static class AuraToolsSettingsRuntime
         {
             var row = CreateInlineRow(content, "SkillCgConfigRow");
             var ruleCount = AuraToolsConfigService.SkillCg.Roles.Values.Sum(role => role.Rules.Count);
-            AuraToolsUi.AddText(row.transform, "角色：" + AuraToolsConfigService.SkillCg.Roles.Count + "，规则：" + ruleCount + "，联机同步：" + (AuraToolsConfigService.SkillCg.SyncRemote ? "开" : "关"), AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
-            AuraToolsUi.AddButton(row.transform, "配置", () => AuraToolsSkillCgEditor.Show(activePanel!.transform), 88f);
-            AuraToolsUi.AddButton(row.transform, AuraToolsConfigService.SkillCg.SyncRemote ? "关闭同步" : "开启同步", () =>
+            AuraToolsUi.AddText(row.transform, "\u672c\u5730\u89c4\u5219\uff1a" + ruleCount + "\uff0c\u8054\u673a\u540c\u6b65\uff1a" + (AuraToolsConfigService.SkillCg.SyncRemote ? "\u5f00" : "\u5173"), AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
+            AuraToolsUi.AddButton(row.transform, "\u914d\u7f6e", () => AuraToolsSkillCgEditor.Show(activePanel!.transform), 88f);
+            AuraToolsUi.AddButton(row.transform, AuraToolsConfigService.SkillCg.SyncRemote ? "\u5173\u95ed\u540c\u6b65" : "\u5f00\u542f\u540c\u6b65", () =>
             {
                 AuraToolsConfigService.SkillCg.SyncRemote = !AuraToolsConfigService.SkillCg.SyncRemote;
                 AuraToolsConfigService.SaveSkillCg();
                 RebuildPanel(activePanel!.transform);
             }, 96f);
+        });
+
+        CreateSubmodule(parent, "\u5361\u724c\u4f7f\u7528CG", AuraToolsConfigService.SkillCg.CardUseCg.Enabled, value =>
+        {
+            AuraToolsConfigService.SkillCg.CardUseCg.Enabled = value;
+            AuraToolsConfigService.SaveSkillCg();
+        }, content =>
+        {
+            var row = CreateInlineRow(content, "CardUseCgConfigRow");
+            var registeredCount = AuraCg.Shared.SkillCgArbiterRuntime.GetRegisteredCardUseCgEntries().Count;
+            AuraToolsUi.AddText(row.transform, "\u5df2\u6ce8\u518c\uff1a" + registeredCount, AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
+            AuraToolsUi.AddButton(row.transform, "\u7ba1\u7406", () => AuraToolsSkillCgManager.Show(activePanel!.transform), 88f);
         });
     }
 
@@ -787,7 +799,85 @@ public static class AuraToolsSettingsRuntime
             AuraToolsConfigService.SaveLogging();
         }, content =>
         {
+            var settings = AuraToolsConfigService.Logging;
             var row = CreateInlineRow(content, "LoggingRow");
+            var levelLabels = new List<string> { "Debug", "Info", "Warning", "Error" };
+            AuraToolsUi.AddText(row.transform, "最低等级", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 0f, 90f);
+            AuraToolsUi.AddSelectButton(row.transform, levelLabels, SelectedLoggingLevelIndex(settings.MinimumLevel), index =>
+            {
+                if (index >= 0 && index < levelLabels.Count)
+                {
+                    settings.MinimumLevel = levelLabels[index];
+                    settings.Normalize();
+                    AuraToolsConfigService.SaveLogging();
+                    RebuildPanel(activePanel!.transform);
+                }
+            }, 180f);
+            AuraToolsUi.AddText(row.transform, "队列 " + settings.MaxQueueLength + " / Flush " + settings.FlushIntervalMs + "ms", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
+
+            var mirrorRow = CreateInlineRow(content, "LoggingMirrorRow");
+            AuraToolsUi.AddToggle(mirrorRow.transform, settings.MirrorUnityLog, value =>
+            {
+                settings.MirrorUnityLog = value;
+                AuraToolsConfigService.SaveLogging();
+            });
+            AuraToolsUi.AddText(mirrorRow.transform, "镜像 Unity 日志", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
+            AuraToolsUi.AddToggle(mirrorRow.transform, settings.MirrorCommandsLog, value =>
+            {
+                settings.MirrorCommandsLog = value;
+                AuraToolsConfigService.SaveLogging();
+            });
+            AuraToolsUi.AddText(mirrorRow.transform, "镜像 Commands 日志", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
+
+            var sourceRow = CreateInlineRow(content, "LoggingSourceRow");
+            AuraToolsUi.AddText(sourceRow.transform, "来源", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 0f, 48f);
+            CreateLoggingListToggle(sourceRow.transform, settings.EnabledSources, "AuraTools");
+            CreateLoggingListToggle(sourceRow.transform, settings.EnabledSources, "Unity");
+            CreateLoggingListToggle(sourceRow.transform, settings.EnabledSources, "Command");
+
+            var unityRow = CreateInlineRow(content, "LoggingUnityTypesRow");
+            AuraToolsUi.AddText(unityRow.transform, "Unity 类型", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 0f, 82f);
+            foreach (var type in new[] { "Log", "Warning", "Error", "Exception", "Assert" })
+            {
+                CreateLoggingListToggle(unityRow.transform, settings.UnityLogTypes, type);
+            }
+
+            var stackRow = CreateInlineRow(content, "LoggingStackTraceRow");
+            AuraToolsUi.AddText(stackRow.transform, "堆栈", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 0f, 60f);
+            var stackLabels = new List<string> { "关闭", "仅错误", "全部" };
+            var stackValues = new List<string> { LoggingStackTraceModes.Off, LoggingStackTraceModes.ErrorsOnly, LoggingStackTraceModes.All };
+            AuraToolsUi.AddSelectButton(stackRow.transform, stackLabels, SelectedLoggingStackIndex(settings.StackTraceMode), index =>
+            {
+                if (index >= 0 && index < stackValues.Count)
+                {
+                    settings.StackTraceMode = stackValues[index];
+                    AuraToolsConfigService.SaveLogging();
+                    RebuildPanel(activePanel!.transform);
+                }
+            }, 180f);
+            AuraToolsUi.AddText(stackRow.transform, "Command tag 可在 JSON 的 includedCommandTags / excludedCommandTags 中长期配置。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
+
+            var queueRow = CreateInlineRow(content, "LoggingQueueRow");
+            AuraToolsUi.AddText(queueRow.transform, "队列上限", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 0f, 72f);
+            AuraToolsUi.AddInput(queueRow.transform, settings.MaxQueueLength.ToString(), value =>
+            {
+                if (int.TryParse(value, out var parsed))
+                {
+                    settings.MaxQueueLength = parsed;
+                    settings.Normalize();
+                    AuraToolsConfigService.SaveLogging();
+                }
+            }, 110f);
+            AuraToolsUi.AddText(queueRow.transform, "Flush ms", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 0f, 72f);
+            AuraToolsUi.AddInput(queueRow.transform, settings.FlushIntervalMs.ToString(), value =>
+            {
+                if (int.TryParse(value, out var parsed))
+                {
+                    settings.FlushIntervalMs = parsed;
+                    settings.Normalize();
+                    AuraToolsConfigService.SaveLogging();
+                }
+            }, 110f);
             AuraToolsUi.AddText(row.transform, "默认开启；日志目录：" + AuraToolsConfigService.LogsDirectory, AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
             AuraToolsUi.AddButton(row.transform, "打开目录", () => FileResourceUtil.OpenDirectory(AuraToolsConfigService.LogsDirectory), 92f);
         });
@@ -967,6 +1057,55 @@ public static class AuraToolsSettingsRuntime
         layout.childControlHeight = true;
         layout.childForceExpandWidth = false;
         return row;
+    }
+
+    private static int SelectedLoggingLevelIndex(string level)
+    {
+        var normalized = LoggingLevelNames.Normalize(level);
+        if (string.Equals(normalized, LoggingLevelNames.Debug, StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        if (string.Equals(normalized, LoggingLevelNames.Warning, StringComparison.OrdinalIgnoreCase))
+        {
+            return 2;
+        }
+
+        return string.Equals(normalized, LoggingLevelNames.Error, StringComparison.OrdinalIgnoreCase) ? 3 : 1;
+    }
+
+    private static int SelectedLoggingStackIndex(string mode)
+    {
+        var normalized = LoggingStackTraceModes.Normalize(mode);
+        if (string.Equals(normalized, LoggingStackTraceModes.Off, StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        return string.Equals(normalized, LoggingStackTraceModes.All, StringComparison.OrdinalIgnoreCase) ? 2 : 1;
+    }
+
+    private static void CreateLoggingListToggle(Transform parent, List<string> values, string value)
+    {
+        var enabled = values.Any(item => string.Equals(item, value, StringComparison.OrdinalIgnoreCase));
+        AuraToolsUi.AddToggle(parent, enabled, selected =>
+        {
+            SetLoggingListValue(values, value, selected);
+            AuraToolsConfigService.Logging.Normalize();
+            AuraToolsConfigService.SaveLogging();
+            RebuildPanel(activePanel!.transform);
+        });
+        AuraToolsUi.AddText(parent, value, AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 0f, 82f);
+    }
+
+    private static void SetLoggingListValue(List<string> values, string value, bool selected)
+    {
+        values.RemoveAll(item => string.Equals(item, value, StringComparison.OrdinalIgnoreCase));
+        if (selected)
+        {
+            values.Add(value);
+        }
     }
 
     private static void CreateDamageMeterToggleRow(Transform parent, string label, bool value, Action<bool> changed)

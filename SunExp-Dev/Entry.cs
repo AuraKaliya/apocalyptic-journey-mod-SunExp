@@ -28,6 +28,7 @@ public static class Entry
         RunStep("shared registry", () => AuraSharedRegistry.RegisterManifest(modConfig, "SunExp"));
         RunStep("visual registry", () => VisualRegistry.Load(modConfig));
         RunStep("card visual skin registry", CardVisualSkinApi.RegisterSunExpDefaults);
+        RunStep("card frame effect registry", CardFrameEffectApi.RegisterSunExpDefaults);
         RunStep("CG registry", () => AuraCgRegistryRuntime.RegisterManifest(modConfig, "SunExp"));
         RunStep("skill CG runtime", () => SunExpSkillCgRuntime.Initialize(modConfig));
         RunStep("starter deck profiles", () => StarterDeckArbiterRuntime.RegisterProfileManifest(modConfig, "SunExp"));

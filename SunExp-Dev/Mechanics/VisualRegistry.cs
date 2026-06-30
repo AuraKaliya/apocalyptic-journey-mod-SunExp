@@ -464,6 +464,14 @@ internal static class VisualRegistryDefaults
                     BundlePath = "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
                     MaterialPath = "SunExp/Materials/WunaOrbitFireFront",
                     ShaderPath = "SunExp/WunaOrbitFire"
+                },
+                new()
+                {
+                    Id = SunExpIds.SunCardFrameHoloShaderId,
+                    ShaderName = "SunExp/CardFrameHoloFlow",
+                    BundlePath = "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
+                    MaterialPath = "SunExp/Materials/CardFrameHoloFlow",
+                    ShaderPath = "SunExp/CardFrameHoloFlow"
                 }
             },
             Effects = new List<VisualEffectVisualSpec>
@@ -485,6 +493,35 @@ internal static class VisualRegistryDefaults
                     {
                         ["_SunExpGlowColor"] = "#FFE08AFF",
                         ["_SunExpFlowColor"] = "#9DDCFFFF"
+                    }
+                },
+                new()
+                {
+                    Id = SunExpIds.SunCardFrameHoloVisualEffectId,
+                    Kind = "card-frame-material",
+                    ShaderId = SunExpIds.SunCardFrameHoloShaderId,
+                    BundlePath = "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
+                    MaterialPath = "SunExp/Materials/CardFrameHoloFlow",
+                    Textures = new Dictionary<string, string>
+                    {
+                        ["_NoiseTex"] = "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
+                    },
+                    Floats = new Dictionary<string, float>
+                    {
+                        ["_SunExpFlowSpeed"] = 0.42f,
+                        ["_SunExpFlowScale"] = 2.2f,
+                        ["_SunExpNoiseScale"] = 3.4f,
+                        ["_SunExpDistortion"] = 0.035f,
+                        ["_SunExpEffectIntensity"] = 0.78f,
+                        ["_SunExpEdgeGlow"] = 0.28f,
+                        ["_SunExpSweepFrequency"] = 7.5f,
+                        ["_SunExpSweepWidth"] = 0.22f
+                    },
+                    Colors = new Dictionary<string, string>
+                    {
+                        ["_SunExpHoloColorA"] = "#FFD65AFF",
+                        ["_SunExpHoloColorB"] = "#70E6FFFF",
+                        ["_SunExpHoloColorC"] = "#FF7AD6FF"
                     }
                 },
                 new()

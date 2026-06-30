@@ -117,6 +117,24 @@ public static class AuraCgActivationRuntime
         });
     }
 
+    public static bool SetEnabledOverride(string ownerModId, string cgId, bool enabled, string consumerModId)
+    {
+        var registered = AuraCgRegistryRuntime.GetRegisteredEntries(ownerModId)
+            .FirstOrDefault(entry => string.Equals(entry.CgId, cgId, StringComparison.OrdinalIgnoreCase));
+        if (registered == null)
+        {
+            return SetOverride(ownerModId, cgId, enabled, AuraCgConsumerModes.ContentOwned, consumerModId);
+        }
+
+        var effective = GetEffectiveState(registered);
+        return SetOverride(
+            ownerModId,
+            cgId,
+            enabled,
+            effective.ConsumerMode,
+            string.IsNullOrWhiteSpace(effective.ConsumerModId) ? consumerModId : effective.ConsumerModId);
+    }
+
     public static bool ClearOverride(string ownerModId, string cgId)
     {
         var registered = AuraCgRegistryRuntime.GetRegisteredEntries(ownerModId)

@@ -97,6 +97,17 @@ public static class SunExpPerformanceSettings
         _ => 32
     };
 
+    public static bool CardFrameEffectsEnabled => Quality != SunExpPerformanceQuality.UltraLow;
+
+    public static float CardFrameEffectQualityScale => Quality switch
+    {
+        SunExpPerformanceQuality.High => 1f,
+        SunExpPerformanceQuality.Balanced => 0.86f,
+        SunExpPerformanceQuality.Low => 0.55f,
+        SunExpPerformanceQuality.UltraLow => 0f,
+        _ => 0.86f
+    };
+
     public static int WunaCoreSections => WunaOrbitFireQuality switch
     {
         SunExpPerformanceQuality.High => 96,

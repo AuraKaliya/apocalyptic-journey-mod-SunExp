@@ -1,6 +1,9 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "enabled": true,
+  "cardUseCg": {
+    "enabled": true
+  },
   "syncRemote": true,
   "maxQueueLength": 8,
   "maxRequestAgeSeconds": 6.0,
