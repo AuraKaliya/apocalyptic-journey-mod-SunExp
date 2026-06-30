@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using AuraCg.Shared;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
 using UnityEngine;
@@ -29,6 +30,7 @@ public static class VisualBundleRuntimeValidator
         }
 
         ValidateWunaMaterials();
+        RegisterAuraCgMaterials();
     }
 
     private static void ValidateWunaMaterials()
@@ -44,6 +46,33 @@ public static class VisualBundleRuntimeValidator
         if (back != null && front != null)
         {
             SunExpLog.Info(LogPrefix + " Wuna orbit fire materials loaded from bundle.");
+        }
+    }
+
+    private static void RegisterAuraCgMaterials()
+    {
+        var lumaKey = AssetBundleCache.LoadAsset<Material>(
+            "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
+            "AuraCgLumaKeyUI",
+            LogPrefix);
+        var maskedInvert = AssetBundleCache.LoadAsset<Material>(
+            "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
+            "AuraCgMaskedInvertFlash",
+            LogPrefix);
+
+        if (lumaKey != null)
+        {
+            SkillCgArbiterRuntime.RegisterMaterial("AuraCg/LumaKeyUI", lumaKey);
+        }
+
+        if (maskedInvert != null)
+        {
+            SkillCgArbiterRuntime.RegisterMaterial("AuraCg/MaskedInvertFlash", maskedInvert);
+        }
+
+        if (lumaKey != null && maskedInvert != null)
+        {
+            SunExpLog.Info(LogPrefix + " Aura CG shader materials registered from bundle.");
         }
     }
 }

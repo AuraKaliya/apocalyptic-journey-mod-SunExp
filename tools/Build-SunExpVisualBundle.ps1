@@ -86,6 +86,8 @@ function Prepare-UnityProject {
 
     Copy-Item -LiteralPath (Join-Path $shaderSourceDir "StarScoreHud.shader") -Destination (Join-Path $shaderDestDir "StarScoreHud.shader") -Force
     Copy-Item -LiteralPath (Join-Path $shaderSourceDir "WunaOrbitFire.shader") -Destination (Join-Path $shaderDestDir "WunaOrbitFire.shader") -Force
+    Copy-Item -LiteralPath (Join-Path $shaderSourceDir "AuraCgLumaKeyUI.shader") -Destination (Join-Path $shaderDestDir "AuraCgLumaKeyUI.shader") -Force
+    Copy-Item -LiteralPath (Join-Path $shaderSourceDir "AuraCgMaskedInvertFlash.shader") -Destination (Join-Path $shaderDestDir "AuraCgMaskedInvertFlash.shader") -Force
     Copy-Item -LiteralPath $builderSource -Destination (Join-Path $editorDir "SunExpVisualBundleBuilder.cs") -Force
 
     $manifestPath = Join-Path $packagesDir "manifest.json"

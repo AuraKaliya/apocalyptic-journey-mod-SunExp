@@ -97,12 +97,17 @@
         "type": "sequence",
         "resource": "CG/SunExp/WuNa/BlazingCrownCollapse",
         "fallbackImage": "CG/SunExp/WuNa/BlazingCrownCollapse",
-        "frameSeconds": 0.12,
+        "frameSeconds": 0.054054,
         "alphaMode": "blackKey",
         "keyThreshold": 0.02,
         "keySoftness": 0.1,
-        "flashAtSeconds": 0.12,
-        "flashDuration": 0.18
+        "flashAtSeconds": -1.0,
+        "flashDuration": 0.18,
+        "flashMode": "maskedInvert",
+        "flashStartFrame": 6,
+        "flashEndFrame": 20,
+        "flashPulseEveryFrames": 1,
+        "flashStrength": 0.88
       },
       "defaultPresentation": {
         "mode": "fullscreenFade",

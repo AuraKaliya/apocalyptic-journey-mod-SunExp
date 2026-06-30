@@ -29,12 +29,15 @@ public static class SkillCgArbiterRuntime
     private const float AlphaFadeOutStartXRatio = 0.18f;
     private const float AlphaFadeOutEndXRatio = -0.05f;
     private const int OverlaySortingOrder = 32760;
-    public const string CurrentBuildId = "aura-cg-shared-2026-06-30-v5";
-    public const int CurrentProtocolVersion = 3;
+    private const string MaskedInvertShaderName = "AuraCg/MaskedInvertFlash";
+    private const string LumaKeyShaderName = "AuraCg/LumaKeyUI";
+    public const string CurrentBuildId = "aura-cg-shared-2026-06-30-v6";
+    public const int CurrentProtocolVersion = 4;
     public const int MinimumSupportedProtocolVersion = 1;
     private static readonly HashSet<string> ReuseLogOwners = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> CompatibilityErrorsShown = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, string> DataDirectories = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, Material> RegisteredMaterials = new(StringComparer.OrdinalIgnoreCase);
 
     public static void Initialize(ModConfig? modConfig, string ownerModId, SkillCgArbiterOptions? options = null)
     {
@@ -69,6 +72,17 @@ public static class SkillCgArbiterRuntime
 
         var arbiter = EnsureArbiter(ownerModId);
         Invoke(arbiter, "RequestCg", request);
+    }
+
+    public static void RegisterMaterial(string materialId, Material? material)
+    {
+        var id = (materialId ?? "").Trim();
+        if (id.Length == 0 || material == null)
+        {
+            return;
+        }
+
+        RegisteredMaterials[id] = material;
     }
 
     public static string ResolveImagePath(string ownerModId, string imageResource, string fallbackPath = "")
@@ -290,6 +304,7 @@ public static class SkillCgArbiterRuntime
         private readonly List<QueuedRequest> queue = new();
         private readonly Dictionary<string, float> recentKeys = new(StringComparer.Ordinal);
         private readonly Dictionary<string, Sprite> spriteCache = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<int, Sprite> invertedSpriteCache = new();
         private SkillCgArbiterOptions options = new();
         private bool playing;
         private long enqueueSequence;
@@ -298,6 +313,10 @@ public static class SkillCgArbiterRuntime
         private CanvasGroup? overlayGroup;
         private Image? overlayImage;
         private Image? overlayFlash;
+        private Material? lumaKeyMaterial;
+        private bool lumaKeyMaterialResolved;
+        private Material? maskedInvertMaterial;
+        private bool maskedInvertMaterialResolved;
         private int playGeneration;
 
         public int ProtocolVersion => CurrentProtocolVersion;
@@ -439,6 +458,7 @@ public static class SkillCgArbiterRuntime
                 overlayImage.raycastTarget = false;
                 overlayImage.enabled = false;
                 overlayImage.sprite = null;
+                overlayImage.material = null;
             }
 
             if (overlayFlash != null)
@@ -446,6 +466,8 @@ public static class SkillCgArbiterRuntime
                 overlayFlash.raycastTarget = false;
                 overlayFlash.enabled = false;
                 overlayFlash.color = Color.clear;
+                overlayFlash.sprite = null;
+                overlayFlash.material = null;
             }
 
             if (overlayGroup != null)
@@ -477,6 +499,7 @@ public static class SkillCgArbiterRuntime
             overlayGroup = null;
             overlayImage = null;
             overlayFlash = null;
+            DestroyRuntimeMaterial();
         }
 
         private bool TryEnqueue(SkillCgRequest request)
@@ -601,6 +624,7 @@ public static class SkillCgArbiterRuntime
             }
 
             overlayImage!.sprite = sprite;
+            overlayImage.material = ResolveLumaKeyMaterial(request);
             overlayImage.raycastTarget = false;
             overlayImage.enabled = true;
             overlayGroup!.alpha = 0f;
@@ -667,6 +691,7 @@ public static class SkillCgArbiterRuntime
             }
 
             overlayImage!.sprite = sprites[0];
+            overlayImage.material = ResolveLumaKeyMaterial(request);
             overlayImage.raycastTarget = false;
             overlayImage.enabled = true;
             overlayGroup!.alpha = 0f;
@@ -676,6 +701,8 @@ public static class SkillCgArbiterRuntime
             {
                 overlayFlash.enabled = false;
                 overlayFlash.color = Color.clear;
+                overlayFlash.sprite = null;
+                overlayFlash.material = null;
             }
 
             ConfigureFullscreenImage(sprites[0], request);
@@ -689,6 +716,7 @@ public static class SkillCgArbiterRuntime
 
             yield return Fade(0f, 1f, request.FadeIn, generation);
             yield return PlaySequenceFrames(sprites, request, generation);
+            DisableMaskedFlash();
             yield return Wait(request.Hold, generation);
             yield return Fade(1f, 0f, request.FadeOut, generation);
 
@@ -769,12 +797,17 @@ public static class SkillCgArbiterRuntime
                 return;
             }
 
-            var imageRect = overlayImage.rectTransform;
+            ConfigureFullscreenGraphic(overlayImage, sprite, request);
+        }
+
+        private void ConfigureFullscreenGraphic(Image image, Sprite sprite, SkillCgRequest request)
+        {
+            var imageRect = image.rectTransform;
             imageRect.pivot = new Vector2(0.5f, 0.5f);
 
             if (string.Equals(request.FitMode, SkillCgFitModes.Stretch, StringComparison.OrdinalIgnoreCase))
             {
-                overlayImage.preserveAspect = false;
+                image.preserveAspect = false;
                 imageRect.anchorMin = Vector2.zero;
                 imageRect.anchorMax = Vector2.one;
                 imageRect.offsetMin = Vector2.zero;
@@ -784,7 +817,7 @@ public static class SkillCgArbiterRuntime
                 return;
             }
 
-            overlayImage.preserveAspect = true;
+            image.preserveAspect = true;
             imageRect.anchorMin = new Vector2(0.5f, 0.5f);
             imageRect.anchorMax = new Vector2(0.5f, 0.5f);
             var viewport = GetOverlayViewportSize();
@@ -911,7 +944,7 @@ public static class SkillCgArbiterRuntime
                     lastIndex = index;
                 }
 
-                UpdateFlash(request, elapsed);
+                UpdateSequenceFlash(request, elapsed, index + 1, sprites[index]);
                 elapsed += Time.unscaledDeltaTime;
                 yield return null;
             }
@@ -920,8 +953,19 @@ public static class SkillCgArbiterRuntime
             {
                 overlayImage.sprite = sprites[sprites.Count - 1];
                 ConfigureFullscreenImage(sprites[sprites.Count - 1], request);
-                UpdateFlash(request, totalSeconds);
+                UpdateSequenceFlash(request, totalSeconds, sprites.Count, sprites[sprites.Count - 1]);
             }
+        }
+
+        private void UpdateSequenceFlash(SkillCgRequest request, float elapsed, int frameNumber, Sprite sprite)
+        {
+            if (ShouldUseMaskedFlash(request))
+            {
+                UpdateMaskedFlash(request, frameNumber, sprite);
+                return;
+            }
+
+            UpdateFlash(request, elapsed);
         }
 
         private void UpdateFlash(SkillCgRequest request, float elapsed)
@@ -942,6 +986,256 @@ public static class SkillCgArbiterRuntime
             var alpha = Mathf.Clamp01(1f - since / Mathf.Max(0.03f, request.FlashDuration));
             overlayFlash.enabled = alpha > 0.001f;
             overlayFlash.color = new Color(1f, 0.94f, 0.72f, alpha * 0.82f);
+        }
+
+        private void UpdateMaskedFlash(SkillCgRequest request, int frameNumber, Sprite sprite)
+        {
+            if (overlayFlash == null)
+            {
+                return;
+            }
+
+            var startFrame = Mathf.Max(1, request.FlashStartFrame);
+            var endFrame = Mathf.Max(startFrame, request.FlashEndFrame <= 0 ? startFrame : request.FlashEndFrame);
+            if (frameNumber < startFrame || frameNumber > endFrame)
+            {
+                DisableMaskedFlash();
+                return;
+            }
+
+            var pulseEvery = Mathf.Max(1, request.FlashPulseEveryFrames);
+            if (pulseEvery > 1 && (frameNumber - startFrame) % pulseEvery != 0)
+            {
+                DisableMaskedFlash();
+                return;
+            }
+
+            var strength = Mathf.Clamp01(request.FlashStrength <= 0f ? 1f : request.FlashStrength);
+            var material = ResolveMaskedInvertMaterial(request);
+            if (material != null)
+            {
+                overlayFlash.sprite = sprite;
+                overlayFlash.material = material;
+                SetMaterialFloat(material, "_AuraCgFlashStrength", strength);
+                SetMaterialFloat(material, "_AuraCgKeyThreshold", request.KeyThreshold);
+                SetMaterialFloat(material, "_AuraCgKeySoftness", request.KeySoftness);
+                overlayFlash.color = Color.white;
+            }
+            else
+            {
+                overlayFlash.sprite = CreateInvertedSprite(sprite);
+                overlayFlash.material = null;
+                overlayFlash.color = new Color(1f, 1f, 1f, strength);
+            }
+
+            overlayFlash.raycastTarget = false;
+            overlayFlash.enabled = overlayFlash.sprite != null;
+            ConfigureFullscreenGraphic(overlayFlash, sprite, request);
+        }
+
+        private bool ShouldUseMaskedFlash(SkillCgRequest request)
+        {
+            return string.Equals(request.FlashMode, SkillCgFlashModes.MaskedInvert, StringComparison.OrdinalIgnoreCase)
+                || request.FlashStartFrame > 0
+                || request.FlashEndFrame > 0;
+        }
+
+        private void DisableMaskedFlash()
+        {
+            if (overlayFlash == null)
+            {
+                return;
+            }
+
+            overlayFlash.enabled = false;
+            overlayFlash.color = Color.clear;
+            overlayFlash.sprite = null;
+            overlayFlash.material = null;
+        }
+
+        private Material? ResolveMaskedInvertMaterial(SkillCgRequest request)
+        {
+            if (maskedInvertMaterialResolved)
+            {
+                return maskedInvertMaterial;
+            }
+
+            maskedInvertMaterialResolved = true;
+            try
+            {
+                maskedInvertMaterial = CloneRegisteredMaterial(MaskedInvertShaderName, "AuraCg.MaskedInvertFlash.Runtime");
+                if (maskedInvertMaterial != null)
+                {
+                    return maskedInvertMaterial;
+                }
+
+                var shader = Shader.Find(MaskedInvertShaderName);
+                if (shader == null)
+                {
+                    AuraCgLog.WarnOnce(
+                        "masked-invert-shader-missing",
+                        "Masked invert shader is not loaded; using CPU inverted-sprite fallback. shader=" + MaskedInvertShaderName);
+                    return null;
+                }
+
+                maskedInvertMaterial = new Material(shader)
+                {
+                    name = "AuraCg.MaskedInvertFlash.Runtime"
+                };
+                return maskedInvertMaterial;
+            }
+            catch (Exception ex)
+            {
+                AuraCgLog.WarnOnce("masked-invert-shader-failed", "Masked invert shader setup failed: " + ex.Message);
+                return null;
+            }
+        }
+
+        private Material? ResolveLumaKeyMaterial(SkillCgRequest request)
+        {
+            if (!string.Equals(SkillCgAlphaModes.Normalize(request.AlphaMode), SkillCgAlphaModes.BlackKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            if (!lumaKeyMaterialResolved)
+            {
+                lumaKeyMaterialResolved = true;
+                try
+                {
+                    lumaKeyMaterial = CloneRegisteredMaterial(LumaKeyShaderName, "AuraCg.LumaKeyUI.Runtime");
+                    if (lumaKeyMaterial != null)
+                    {
+                        SetMaterialFloat(lumaKeyMaterial, "_AuraCgKeyThreshold", request.KeyThreshold);
+                        SetMaterialFloat(lumaKeyMaterial, "_AuraCgKeySoftness", request.KeySoftness);
+                        return lumaKeyMaterial;
+                    }
+
+                    var shader = Shader.Find(LumaKeyShaderName);
+                    if (shader != null)
+                    {
+                        lumaKeyMaterial = new Material(shader)
+                        {
+                            name = "AuraCg.LumaKeyUI.Runtime"
+                        };
+                    }
+                    else
+                    {
+                        AuraCgLog.WarnOnce(
+                            "luma-key-shader-missing",
+                            "Luma-key shader is not loaded; using CPU black-key fallback. shader=" + LumaKeyShaderName);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AuraCgLog.WarnOnce("luma-key-shader-failed", "Luma-key shader setup failed: " + ex.Message);
+                }
+            }
+
+            if (lumaKeyMaterial != null)
+            {
+                SetMaterialFloat(lumaKeyMaterial, "_AuraCgKeyThreshold", request.KeyThreshold);
+                SetMaterialFloat(lumaKeyMaterial, "_AuraCgKeySoftness", request.KeySoftness);
+            }
+
+            return lumaKeyMaterial;
+        }
+
+        private static Material? CloneRegisteredMaterial(string materialId, string runtimeName)
+        {
+            try
+            {
+                if (!RegisteredMaterials.TryGetValue(materialId, out var source) || source == null)
+                {
+                    return null;
+                }
+
+                return new Material(source)
+                {
+                    name = runtimeName
+                };
+            }
+            catch (Exception ex)
+            {
+                AuraCgLog.WarnOnce("registered-material-clone-failed:" + materialId, "Registered CG material clone failed: " + materialId + ", error=" + ex.Message);
+                return null;
+            }
+        }
+
+        private static void SetMaterialFloat(Material material, string propertyName, float value)
+        {
+            try
+            {
+                if (material.HasProperty(propertyName))
+                {
+                    material.SetFloat(propertyName, value);
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        private Sprite CreateInvertedSprite(Sprite source)
+        {
+            var texture = source.texture;
+            var key = texture.GetInstanceID();
+            if (invertedSpriteCache.TryGetValue(key, out var cached) && cached != null)
+            {
+                return cached;
+            }
+
+            try
+            {
+                var pixels = texture.GetPixels32();
+                for (var i = 0; i < pixels.Length; i++)
+                {
+                    var color = pixels[i];
+                    color.r = (byte)(255 - color.r);
+                    color.g = (byte)(255 - color.g);
+                    color.b = (byte)(255 - color.b);
+                    pixels[i] = color;
+                }
+
+                var invertedTexture = new Texture2D(texture.width, texture.height, TextureFormat.RGBA32, false)
+                {
+                    name = texture.name + "_masked_invert"
+                };
+                invertedTexture.SetPixels32(pixels);
+                invertedTexture.Apply(false, false);
+
+                var sprite = Sprite.Create(
+                    invertedTexture,
+                    new Rect(0f, 0f, invertedTexture.width, invertedTexture.height),
+                    new Vector2(0.5f, 0.5f),
+                    100f);
+                sprite.name = source.name + "_masked_invert";
+                invertedSpriteCache[key] = sprite;
+                return sprite;
+            }
+            catch (Exception ex)
+            {
+                AuraCgLog.WarnOnce("masked-invert-cpu-failed:" + source.name, "CPU masked invert fallback failed: " + ex.Message);
+                return source;
+            }
+        }
+
+        private void DestroyRuntimeMaterial()
+        {
+            if (lumaKeyMaterial != null)
+            {
+                UnityEngine.Object.Destroy(lumaKeyMaterial);
+            }
+
+            if (maskedInvertMaterial != null)
+            {
+                UnityEngine.Object.Destroy(maskedInvertMaterial);
+            }
+
+            lumaKeyMaterial = null;
+            lumaKeyMaterialResolved = false;
+            maskedInvertMaterial = null;
+            maskedInvertMaterialResolved = false;
         }
 
         private IEnumerator LoadSequenceSprites(SkillCgRequest request, Action<List<Sprite>> onLoaded)
@@ -1370,6 +1664,16 @@ public sealed class SkillCgRequest
 
     public float FlashDuration { get; set; } = 0.18f;
 
+    public string FlashMode { get; set; } = SkillCgFlashModes.Screen;
+
+    public int FlashStartFrame { get; set; }
+
+    public int FlashEndFrame { get; set; }
+
+    public int FlashPulseEveryFrames { get; set; } = 1;
+
+    public float FlashStrength { get; set; } = 0.82f;
+
     public int Priority { get; set; }
 
     public float FadeIn { get; set; } = 0.35f;
@@ -1396,7 +1700,7 @@ public sealed class SkillCgRequest
 
     public bool DisableSync { get; set; }
 
-    public string DuplicateKey => ProviderId + "|" + OwnerInstanceId + "|" + CardId + "|" + (string.IsNullOrWhiteSpace(ImageResource) ? ImagePath : ImageResource) + "|" + MediaType + "|" + FrameSeconds.ToString("0.###") + "|" + AlphaMode + "|" + FlashAtSeconds.ToString("0.###") + "|" + PresentationMode + "|" + FitMode + "|" + FocusX.ToString("0.###") + "|" + FocusY.ToString("0.###") + "|" + SafeScale.ToString("0.###");
+    public string DuplicateKey => ProviderId + "|" + OwnerInstanceId + "|" + CardId + "|" + (string.IsNullOrWhiteSpace(ImageResource) ? ImagePath : ImageResource) + "|" + MediaType + "|" + FrameSeconds.ToString("0.###") + "|" + AlphaMode + "|" + FlashMode + "|" + FlashAtSeconds.ToString("0.###") + "|" + FlashStartFrame + "|" + FlashEndFrame + "|" + FlashPulseEveryFrames + "|" + PresentationMode + "|" + FitMode + "|" + FocusX.ToString("0.###") + "|" + FocusY.ToString("0.###") + "|" + SafeScale.ToString("0.###");
 
     public string QualifiedProviderId => QualifyProviderId(OwnerModId, ProviderId);
 
@@ -1420,6 +1724,16 @@ public sealed class SkillCgRequest
         KeySoftness = Mathf.Clamp(KeySoftness, 0.001f, 1f);
         FlashAtSeconds = FlashAtSeconds < 0f ? -1f : FlashAtSeconds;
         FlashDuration = Mathf.Clamp(FlashDuration <= 0f ? 0.18f : FlashDuration, 0.03f, 1f);
+        FlashMode = SkillCgFlashModes.Normalize(FlashMode);
+        FlashStartFrame = Math.Max(0, FlashStartFrame);
+        FlashEndFrame = Math.Max(0, FlashEndFrame);
+        if (FlashStartFrame > 0 && FlashEndFrame > 0 && FlashEndFrame < FlashStartFrame)
+        {
+            FlashEndFrame = FlashStartFrame;
+        }
+
+        FlashPulseEveryFrames = Math.Max(1, FlashPulseEveryFrames);
+        FlashStrength = Mathf.Clamp01(FlashStrength <= 0f ? 0.82f : FlashStrength);
         FadeIn = Mathf.Max(0f, FadeIn);
         Hold = Mathf.Max(0f, Hold);
         FadeOut = Mathf.Max(0f, FadeOut);
@@ -1463,6 +1777,11 @@ public sealed class SkillCgRequest
             KeySoftness = ReadFloat(type, source, "KeySoftness", 0.08f),
             FlashAtSeconds = ReadFloat(type, source, "FlashAtSeconds", -1f),
             FlashDuration = ReadFloat(type, source, "FlashDuration", 0.18f),
+            FlashMode = ReadString(type, source, "FlashMode", SkillCgFlashModes.Screen),
+            FlashStartFrame = ReadInt(type, source, "FlashStartFrame", 0),
+            FlashEndFrame = ReadInt(type, source, "FlashEndFrame", 0),
+            FlashPulseEveryFrames = ReadInt(type, source, "FlashPulseEveryFrames", 1),
+            FlashStrength = ReadFloat(type, source, "FlashStrength", 0.82f),
             Priority = ReadInt(type, source, "Priority", priority),
             FadeIn = ReadFloat(type, source, "FadeIn", 0.35f),
             Hold = ReadFloat(type, source, "Hold", 1f),
@@ -1588,6 +1907,16 @@ public sealed class SkillCgNetworkEvent
 
     public float FlashDuration { get; set; } = 0.18f;
 
+    public string FlashMode { get; set; } = SkillCgFlashModes.Screen;
+
+    public int FlashStartFrame { get; set; }
+
+    public int FlashEndFrame { get; set; }
+
+    public int FlashPulseEveryFrames { get; set; } = 1;
+
+    public float FlashStrength { get; set; } = 0.82f;
+
     public int Priority { get; set; }
 
     public float FadeIn { get; set; } = 0.35f;
@@ -1634,6 +1963,11 @@ public sealed class RpcSkillCgEvent : RpcCommandBase
             KeySoftness = request.KeySoftness,
             FlashAtSeconds = request.FlashAtSeconds,
             FlashDuration = request.FlashDuration,
+            FlashMode = request.FlashMode,
+            FlashStartFrame = request.FlashStartFrame,
+            FlashEndFrame = request.FlashEndFrame,
+            FlashPulseEveryFrames = request.FlashPulseEveryFrames,
+            FlashStrength = request.FlashStrength,
             Priority = request.Priority,
             FadeIn = request.FadeIn,
             Hold = request.Hold,
@@ -1668,6 +2002,11 @@ public sealed class RpcSkillCgEvent : RpcCommandBase
             KeySoftness = Event.KeySoftness,
             FlashAtSeconds = Event.FlashAtSeconds,
             FlashDuration = Event.FlashDuration,
+            FlashMode = Event.FlashMode,
+            FlashStartFrame = Event.FlashStartFrame,
+            FlashEndFrame = Event.FlashEndFrame,
+            FlashPulseEveryFrames = Event.FlashPulseEveryFrames,
+            FlashStrength = Event.FlashStrength,
             Priority = Event.Priority,
             FadeIn = Event.FadeIn,
             Hold = Event.Hold,
@@ -1720,6 +2059,26 @@ public static class SkillCgAlphaModes
         }
 
         return None;
+    }
+}
+
+public static class SkillCgFlashModes
+{
+    public const string Screen = "screen";
+    public const string MaskedInvert = "maskedInvert";
+
+    public static string Normalize(string? value)
+    {
+        var mode = value?.Trim() ?? "";
+        if (string.Equals(mode, MaskedInvert, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mode, "objectInvert", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mode, "maskedDifference", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mode, "difference", StringComparison.OrdinalIgnoreCase))
+        {
+            return MaskedInvert;
+        }
+
+        return Screen;
     }
 }
 

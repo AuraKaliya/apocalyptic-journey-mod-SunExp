@@ -321,6 +321,21 @@ public sealed class AuraCgMediaSpec
     [JsonProperty("flashDuration")]
     public float FlashDuration { get; set; } = 0.18f;
 
+    [JsonProperty("flashMode")]
+    public string FlashMode { get; set; } = SkillCgFlashModes.Screen;
+
+    [JsonProperty("flashStartFrame")]
+    public int FlashStartFrame { get; set; }
+
+    [JsonProperty("flashEndFrame")]
+    public int FlashEndFrame { get; set; }
+
+    [JsonProperty("flashPulseEveryFrames")]
+    public int FlashPulseEveryFrames { get; set; } = 1;
+
+    [JsonProperty("flashStrength")]
+    public float FlashStrength { get; set; } = 0.82f;
+
     [JsonProperty("version")]
     public string Version { get; set; } = "";
 
@@ -338,6 +353,16 @@ public sealed class AuraCgMediaSpec
         KeySoftness = Math.Max(0.001f, Math.Min(1f, KeySoftness));
         FlashAtSeconds = FlashAtSeconds < 0f ? -1f : FlashAtSeconds;
         FlashDuration = Math.Max(0.03f, Math.Min(1f, FlashDuration));
+        FlashMode = SkillCgFlashModes.Normalize(FlashMode);
+        FlashStartFrame = Math.Max(0, FlashStartFrame);
+        FlashEndFrame = Math.Max(0, FlashEndFrame);
+        if (FlashStartFrame > 0 && FlashEndFrame > 0 && FlashEndFrame < FlashStartFrame)
+        {
+            FlashEndFrame = FlashStartFrame;
+        }
+
+        FlashPulseEveryFrames = Math.Max(1, FlashPulseEveryFrames);
+        FlashStrength = Math.Max(0f, Math.Min(1f, FlashStrength <= 0f ? 0.82f : FlashStrength));
         Version = (Version ?? "").Trim();
         Hash = (Hash ?? "").Trim();
     }

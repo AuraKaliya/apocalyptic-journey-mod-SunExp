@@ -16,6 +16,10 @@ public static class SunExpVisualBundleBuilder
     private const string WunaOrbitFireShaderAssetPath = "Assets/SunExp/Visuals/Shaders/WunaOrbitFire.shader";
     private const string WunaOrbitFireBackMaterialAssetPath = "Assets/SunExp/Visuals/Materials/WunaOrbitFireBack.mat";
     private const string WunaOrbitFireFrontMaterialAssetPath = "Assets/SunExp/Visuals/Materials/WunaOrbitFireFront.mat";
+    private const string AuraCgLumaKeyShaderAssetPath = "Assets/SunExp/Visuals/Shaders/AuraCgLumaKeyUI.shader";
+    private const string AuraCgLumaKeyMaterialAssetPath = "Assets/SunExp/Visuals/Materials/AuraCgLumaKeyUI.mat";
+    private const string AuraCgMaskedInvertShaderAssetPath = "Assets/SunExp/Visuals/Shaders/AuraCgMaskedInvertFlash.shader";
+    private const string AuraCgMaskedInvertMaterialAssetPath = "Assets/SunExp/Visuals/Materials/AuraCgMaskedInvertFlash.mat";
     private const string BuildOutputDirectory = "Build/SunExpVisualBundles";
     private const string ModOutputPath = "../SunExp/ModResource/VisualBundles/sunexp_visuals";
 
@@ -24,11 +28,15 @@ public static class SunExpVisualBundleBuilder
     {
         EnsureStarScoreMaterial();
         EnsureWunaOrbitFireMaterials();
+        EnsureAuraCgLumaKeyMaterial();
+        EnsureAuraCgMaskedInvertMaterial();
 
         var starScoreMaterial = AssetImporter.GetAtPath(StarScoreMaterialAssetPath);
         var wunaBackMaterial = AssetImporter.GetAtPath(WunaOrbitFireBackMaterialAssetPath);
         var wunaFrontMaterial = AssetImporter.GetAtPath(WunaOrbitFireFrontMaterialAssetPath);
-        if (starScoreMaterial == null || wunaBackMaterial == null || wunaFrontMaterial == null)
+        var auraCgLumaKeyMaterial = AssetImporter.GetAtPath(AuraCgLumaKeyMaterialAssetPath);
+        var auraCgMaskedInvertMaterial = AssetImporter.GetAtPath(AuraCgMaskedInvertMaterialAssetPath);
+        if (starScoreMaterial == null || wunaBackMaterial == null || wunaFrontMaterial == null || auraCgLumaKeyMaterial == null || auraCgMaskedInvertMaterial == null)
         {
             throw new FileNotFoundException("One or more SunExp material assets are missing.");
         }
@@ -36,6 +44,8 @@ public static class SunExpVisualBundleBuilder
         starScoreMaterial.assetBundleName = BundleName;
         wunaBackMaterial.assetBundleName = BundleName;
         wunaFrontMaterial.assetBundleName = BundleName;
+        auraCgLumaKeyMaterial.assetBundleName = BundleName;
+        auraCgMaskedInvertMaterial.assetBundleName = BundleName;
 
         Directory.CreateDirectory(BuildOutputDirectory);
         BuildPipeline.BuildAssetBundles(
@@ -126,6 +136,37 @@ public static class SunExpVisualBundleBuilder
 
         EditorUtility.SetDirty(back);
         EditorUtility.SetDirty(front);
+        AssetDatabase.SaveAssets();
+    }
+
+    private static void EnsureAuraCgLumaKeyMaterial()
+    {
+        var shader = AssetDatabase.LoadAssetAtPath<Shader>(AuraCgLumaKeyShaderAssetPath);
+        if (shader == null)
+        {
+            throw new FileNotFoundException("Aura CG luma-key shader asset is missing.", AuraCgLumaKeyShaderAssetPath);
+        }
+
+        var material = EnsureMaterial(AuraCgLumaKeyMaterialAssetPath, shader, "AuraCgLumaKeyUI");
+        material.SetFloat("_AuraCgKeyThreshold", 0.02f);
+        material.SetFloat("_AuraCgKeySoftness", 0.1f);
+        EditorUtility.SetDirty(material);
+        AssetDatabase.SaveAssets();
+    }
+
+    private static void EnsureAuraCgMaskedInvertMaterial()
+    {
+        var shader = AssetDatabase.LoadAssetAtPath<Shader>(AuraCgMaskedInvertShaderAssetPath);
+        if (shader == null)
+        {
+            throw new FileNotFoundException("Aura CG masked invert shader asset is missing.", AuraCgMaskedInvertShaderAssetPath);
+        }
+
+        var material = EnsureMaterial(AuraCgMaskedInvertMaterialAssetPath, shader, "AuraCgMaskedInvertFlash");
+        material.SetFloat("_AuraCgFlashStrength", 0.88f);
+        material.SetFloat("_AuraCgKeyThreshold", 0.02f);
+        material.SetFloat("_AuraCgKeySoftness", 0.1f);
+        EditorUtility.SetDirty(material);
         AssetDatabase.SaveAssets();
     }
 
