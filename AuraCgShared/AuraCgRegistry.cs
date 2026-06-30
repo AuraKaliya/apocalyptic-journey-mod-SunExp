@@ -303,6 +303,24 @@ public sealed class AuraCgMediaSpec
     [JsonProperty("fallbackImage")]
     public string FallbackImage { get; set; } = "";
 
+    [JsonProperty("frameSeconds")]
+    public float FrameSeconds { get; set; } = 0.08f;
+
+    [JsonProperty("alphaMode")]
+    public string AlphaMode { get; set; } = SkillCgAlphaModes.None;
+
+    [JsonProperty("keyThreshold")]
+    public float KeyThreshold { get; set; } = 0.03f;
+
+    [JsonProperty("keySoftness")]
+    public float KeySoftness { get; set; } = 0.08f;
+
+    [JsonProperty("flashAtSeconds")]
+    public float FlashAtSeconds { get; set; } = -1f;
+
+    [JsonProperty("flashDuration")]
+    public float FlashDuration { get; set; } = 0.18f;
+
     [JsonProperty("version")]
     public string Version { get; set; } = "";
 
@@ -311,9 +329,15 @@ public sealed class AuraCgMediaSpec
 
     public void Normalize()
     {
-        Type = string.IsNullOrWhiteSpace(Type) ? "image" : Type.Trim();
+        Type = SkillCgMediaTypes.Normalize(Type);
         Resource = AuraSharedPaths.NormalizeRelativePath(Resource);
         FallbackImage = AuraSharedPaths.NormalizeRelativePath(FallbackImage);
+        FrameSeconds = Math.Max(0.01f, FrameSeconds);
+        AlphaMode = SkillCgAlphaModes.Normalize(AlphaMode);
+        KeyThreshold = Math.Max(0f, Math.Min(1f, KeyThreshold));
+        KeySoftness = Math.Max(0.001f, Math.Min(1f, KeySoftness));
+        FlashAtSeconds = FlashAtSeconds < 0f ? -1f : FlashAtSeconds;
+        FlashDuration = Math.Max(0.03f, Math.Min(1f, FlashDuration));
         Version = (Version ?? "").Trim();
         Hash = (Hash ?? "").Trim();
     }

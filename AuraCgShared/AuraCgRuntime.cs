@@ -29,8 +29,8 @@ public static class SkillCgArbiterRuntime
     private const float AlphaFadeOutStartXRatio = 0.18f;
     private const float AlphaFadeOutEndXRatio = -0.05f;
     private const int OverlaySortingOrder = 32760;
-    public const string CurrentBuildId = "aura-cg-shared-2026-06-27-v4";
-    public const int CurrentProtocolVersion = 2;
+    public const string CurrentBuildId = "aura-cg-shared-2026-06-30-v5";
+    public const int CurrentProtocolVersion = 3;
     public const int MinimumSupportedProtocolVersion = 1;
     private static readonly HashSet<string> ReuseLogOwners = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> CompatibilityErrorsShown = new(StringComparer.OrdinalIgnoreCase);
@@ -297,6 +297,7 @@ public static class SkillCgArbiterRuntime
         private Canvas? overlayCanvas;
         private CanvasGroup? overlayGroup;
         private Image? overlayImage;
+        private Image? overlayFlash;
         private int playGeneration;
 
         public int ProtocolVersion => CurrentProtocolVersion;
@@ -440,6 +441,13 @@ public static class SkillCgArbiterRuntime
                 overlayImage.sprite = null;
             }
 
+            if (overlayFlash != null)
+            {
+                overlayFlash.raycastTarget = false;
+                overlayFlash.enabled = false;
+                overlayFlash.color = Color.clear;
+            }
+
             if (overlayGroup != null)
             {
                 overlayGroup.alpha = 0f;
@@ -468,6 +476,7 @@ public static class SkillCgArbiterRuntime
             overlayCanvas = null;
             overlayGroup = null;
             overlayImage = null;
+            overlayFlash = null;
         }
 
         private bool TryEnqueue(SkillCgRequest request)
@@ -475,7 +484,7 @@ public static class SkillCgArbiterRuntime
             request.Normalize();
             if (string.IsNullOrWhiteSpace(request.ImagePath))
             {
-                AuraCgLog.WarnOnce("empty-image:" + request.ProviderId, "CG request skipped: image path is empty. provider=" + request.ProviderId);
+                AuraCgLog.WarnOnce("empty-media:" + request.ProviderId, "CG request skipped: media path is empty. provider=" + request.ProviderId);
                 return false;
             }
 
@@ -551,6 +560,17 @@ public static class SkillCgArbiterRuntime
 
         private IEnumerator PlayRequest(SkillCgRequest request, int generation)
         {
+            if (string.Equals(request.MediaType, SkillCgMediaTypes.Sequence, StringComparison.OrdinalIgnoreCase))
+            {
+                yield return PlaySequenceRequest(request, generation);
+                yield break;
+            }
+
+            yield return PlayImageRequest(request, generation);
+        }
+
+        private IEnumerator PlayImageRequest(SkillCgRequest request, int generation)
+        {
             var spriteReady = false;
             Sprite? sprite = null;
             yield return LoadSprite(request.ImagePath, result =>
@@ -606,6 +626,71 @@ public static class SkillCgArbiterRuntime
             {
                 yield return SlideRightToLeft(sprite, generation);
             }
+
+            if (generation != playGeneration)
+            {
+                yield break;
+            }
+
+            HideOverlay();
+        }
+
+        private IEnumerator PlaySequenceRequest(SkillCgRequest request, int generation)
+        {
+            var spritesReady = false;
+            List<Sprite> sprites = new();
+            yield return LoadSequenceSprites(request, result =>
+            {
+                sprites = result;
+                spritesReady = true;
+            });
+
+            if (!spritesReady || sprites.Count == 0)
+            {
+                yield break;
+            }
+
+            if (generation != playGeneration)
+            {
+                yield break;
+            }
+
+            if (!EnsureOverlay())
+            {
+                yield break;
+            }
+
+            overlayRoot!.SetActive(true);
+            if (overlayRoot.transform.parent != null)
+            {
+                overlayRoot.transform.SetAsLastSibling();
+            }
+
+            overlayImage!.sprite = sprites[0];
+            overlayImage.raycastTarget = false;
+            overlayImage.enabled = true;
+            overlayGroup!.alpha = 0f;
+            overlayGroup.blocksRaycasts = false;
+            overlayGroup.interactable = false;
+            if (overlayFlash != null)
+            {
+                overlayFlash.enabled = false;
+                overlayFlash.color = Color.clear;
+            }
+
+            ConfigureFullscreenImage(sprites[0], request);
+
+            AuraCgLog.DebugLog(
+                "CG play sequence: provider=" + request.ProviderId
+                + ", card=" + request.CardId
+                + ", frames=" + sprites.Count
+                + ", frameSeconds=" + request.FrameSeconds.ToString("0.###")
+                + ", fit=" + request.FitMode);
+
+            yield return Fade(0f, 1f, request.FadeIn, generation);
+            yield return PlaySequenceFrames(sprites, request, generation);
+            yield return Wait(request.Hold, generation);
+            yield return Fade(1f, 0f, request.FadeOut, generation);
 
             if (generation != playGeneration)
             {
@@ -805,9 +890,123 @@ public static class SkillCgArbiterRuntime
             return 1f;
         }
 
+        private IEnumerator PlaySequenceFrames(IReadOnlyList<Sprite> sprites, SkillCgRequest request, int generation)
+        {
+            if (overlayImage == null)
+            {
+                yield break;
+            }
+
+            var frameSeconds = Mathf.Max(0.01f, request.FrameSeconds);
+            var totalSeconds = Mathf.Max(frameSeconds, sprites.Count * frameSeconds);
+            var elapsed = 0f;
+            var lastIndex = -1;
+            while (generation == playGeneration && elapsed < totalSeconds)
+            {
+                var index = Mathf.Clamp((int)(elapsed / frameSeconds), 0, sprites.Count - 1);
+                if (index != lastIndex)
+                {
+                    overlayImage.sprite = sprites[index];
+                    ConfigureFullscreenImage(sprites[index], request);
+                    lastIndex = index;
+                }
+
+                UpdateFlash(request, elapsed);
+                elapsed += Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            if (generation == playGeneration && sprites.Count > 0)
+            {
+                overlayImage.sprite = sprites[sprites.Count - 1];
+                ConfigureFullscreenImage(sprites[sprites.Count - 1], request);
+                UpdateFlash(request, totalSeconds);
+            }
+        }
+
+        private void UpdateFlash(SkillCgRequest request, float elapsed)
+        {
+            if (overlayFlash == null || request.FlashAtSeconds < 0f)
+            {
+                return;
+            }
+
+            var since = elapsed - request.FlashAtSeconds;
+            if (since < 0f || since > request.FlashDuration)
+            {
+                overlayFlash.color = Color.clear;
+                overlayFlash.enabled = false;
+                return;
+            }
+
+            var alpha = Mathf.Clamp01(1f - since / Mathf.Max(0.03f, request.FlashDuration));
+            overlayFlash.enabled = alpha > 0.001f;
+            overlayFlash.color = new Color(1f, 0.94f, 0.72f, alpha * 0.82f);
+        }
+
+        private IEnumerator LoadSequenceSprites(SkillCgRequest request, Action<List<Sprite>> onLoaded)
+        {
+            var result = new List<Sprite>();
+            foreach (var framePath in ResolveSequenceFramePaths(request.ImagePath))
+            {
+                Sprite? frame = null;
+                yield return LoadSprite(
+                    framePath,
+                    request.AlphaMode,
+                    request.KeyThreshold,
+                    request.KeySoftness,
+                    sprite => frame = sprite);
+                if (frame != null)
+                {
+                    result.Add(frame);
+                }
+            }
+
+            if (result.Count == 0)
+            {
+                AuraCgLog.WarnOnce("sequence-empty:" + request.ImagePath, "CG sequence has no loadable frames: " + request.ImagePath);
+            }
+
+            onLoaded(result);
+        }
+
+        private static IEnumerable<string> ResolveSequenceFramePaths(string path)
+        {
+            if (Directory.Exists(path))
+            {
+                return Directory.GetFiles(path)
+                    .Where(IsSupportedSequenceFrame)
+                    .OrderBy(item => item, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+            }
+
+            return File.Exists(path) && IsSupportedSequenceFrame(path)
+                ? new[] { path }
+                : Array.Empty<string>();
+        }
+
+        private static bool IsSupportedSequenceFrame(string path)
+        {
+            var extension = Path.GetExtension(path);
+            return string.Equals(extension, ".png", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(extension, ".jpg", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(extension, ".jpeg", StringComparison.OrdinalIgnoreCase);
+        }
+
         private IEnumerator LoadSprite(string path, Action<Sprite?> onLoaded)
         {
-            if (spriteCache.TryGetValue(path, out var cached) && cached != null)
+            yield return LoadSprite(path, SkillCgAlphaModes.None, 0.03f, 0.08f, onLoaded);
+        }
+
+        private IEnumerator LoadSprite(
+            string path,
+            string alphaMode,
+            float keyThreshold,
+            float keySoftness,
+            Action<Sprite?> onLoaded)
+        {
+            var cacheKey = SpriteCacheKey(path, alphaMode, keyThreshold, keySoftness);
+            if (spriteCache.TryGetValue(cacheKey, out var cached) && cached != null)
             {
                 onLoaded(cached);
                 yield break;
@@ -838,11 +1037,50 @@ public static class SkillCgArbiterRuntime
             }
 
             texture.name = Path.GetFileNameWithoutExtension(path);
+            ApplyAlphaMode(texture, alphaMode, keyThreshold, keySoftness, path);
             var sprite = Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f);
             sprite.name = texture.name;
-            spriteCache[path] = sprite;
+            spriteCache[cacheKey] = sprite;
             AuraCgLog.InfoOnce("image-loaded:" + path, "CG image loaded: " + Path.GetFileName(path) + " (" + texture.width + "x" + texture.height + ")");
             onLoaded(sprite);
+        }
+
+        private static string SpriteCacheKey(string path, string alphaMode, float keyThreshold, float keySoftness)
+        {
+            return path
+                + "\u001f" + SkillCgAlphaModes.Normalize(alphaMode)
+                + "\u001f" + keyThreshold.ToString("0.####")
+                + "\u001f" + keySoftness.ToString("0.####");
+        }
+
+        private static void ApplyAlphaMode(Texture2D texture, string alphaMode, float keyThreshold, float keySoftness, string path)
+        {
+            if (!string.Equals(SkillCgAlphaModes.Normalize(alphaMode), SkillCgAlphaModes.BlackKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            try
+            {
+                var pixels = texture.GetPixels32();
+                var threshold = Mathf.Clamp01(keyThreshold);
+                var softness = Mathf.Clamp(keySoftness, 0.001f, 1f);
+                for (var i = 0; i < pixels.Length; i++)
+                {
+                    var color = pixels[i];
+                    var luma = (0.299f * color.r + 0.587f * color.g + 0.114f * color.b) / 255f;
+                    var alpha = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((luma - threshold) / softness));
+                    color.a = (byte)Mathf.Clamp(Mathf.RoundToInt(color.a * alpha), 0, 255);
+                    pixels[i] = color;
+                }
+
+                texture.SetPixels32(pixels);
+                texture.Apply(false, false);
+            }
+            catch (Exception ex)
+            {
+                AuraCgLog.WarnOnce("black-key-failed:" + path, "CG black-key alpha fallback failed: " + Path.GetFileName(path) + ", error=" + ex.Message);
+            }
         }
 
         private bool EnsureOverlay()
@@ -850,12 +1088,13 @@ public static class SkillCgArbiterRuntime
             if (overlayRoot != null
                 && overlayCanvas != null
                 && overlayGroup != null
-                && overlayImage != null)
+                && overlayImage != null
+                && overlayFlash != null)
             {
                 return true;
             }
 
-            if (overlayRoot != null || overlayCanvas != null || overlayGroup != null || overlayImage != null)
+            if (overlayRoot != null || overlayCanvas != null || overlayGroup != null || overlayImage != null || overlayFlash != null)
             {
                 DestroyOverlay();
             }
@@ -891,6 +1130,19 @@ public static class SkillCgArbiterRuntime
             overlayImage.preserveAspect = true;
             overlayImage.raycastTarget = false;
             overlayImage.enabled = false;
+
+            var flashObject = new GameObject("AuraCg.Flash", typeof(RectTransform), typeof(Image));
+            flashObject.transform.SetParent(overlayRoot.transform, false);
+            var flashRect = flashObject.GetComponent<RectTransform>();
+            flashRect.anchorMin = Vector2.zero;
+            flashRect.anchorMax = Vector2.one;
+            flashRect.offsetMin = Vector2.zero;
+            flashRect.offsetMax = Vector2.zero;
+
+            overlayFlash = flashObject.GetComponent<Image>();
+            overlayFlash.color = Color.clear;
+            overlayFlash.raycastTarget = false;
+            overlayFlash.enabled = false;
             overlayRoot.SetActive(false);
             AuraCgLog.InfoOnce("overlay-created", "CG overlay created on an independent non-interactive canvas.");
             return true;
@@ -1104,6 +1356,20 @@ public sealed class SkillCgRequest
 
     public string ImageResource { get; set; } = "";
 
+    public string MediaType { get; set; } = SkillCgMediaTypes.Image;
+
+    public float FrameSeconds { get; set; } = 0.08f;
+
+    public string AlphaMode { get; set; } = SkillCgAlphaModes.None;
+
+    public float KeyThreshold { get; set; } = 0.03f;
+
+    public float KeySoftness { get; set; } = 0.08f;
+
+    public float FlashAtSeconds { get; set; } = -1f;
+
+    public float FlashDuration { get; set; } = 0.18f;
+
     public int Priority { get; set; }
 
     public float FadeIn { get; set; } = 0.35f;
@@ -1130,7 +1396,7 @@ public sealed class SkillCgRequest
 
     public bool DisableSync { get; set; }
 
-    public string DuplicateKey => ProviderId + "|" + OwnerInstanceId + "|" + CardId + "|" + (string.IsNullOrWhiteSpace(ImageResource) ? ImagePath : ImageResource) + "|" + PresentationMode + "|" + FitMode + "|" + FocusX.ToString("0.###") + "|" + FocusY.ToString("0.###") + "|" + SafeScale.ToString("0.###");
+    public string DuplicateKey => ProviderId + "|" + OwnerInstanceId + "|" + CardId + "|" + (string.IsNullOrWhiteSpace(ImageResource) ? ImagePath : ImageResource) + "|" + MediaType + "|" + FrameSeconds.ToString("0.###") + "|" + AlphaMode + "|" + FlashAtSeconds.ToString("0.###") + "|" + PresentationMode + "|" + FitMode + "|" + FocusX.ToString("0.###") + "|" + FocusY.ToString("0.###") + "|" + SafeScale.ToString("0.###");
 
     public string QualifiedProviderId => QualifyProviderId(OwnerModId, ProviderId);
 
@@ -1147,6 +1413,13 @@ public sealed class SkillCgRequest
             ImageResource = Path.GetFileName(ImagePath);
         }
 
+        MediaType = SkillCgMediaTypes.Normalize(MediaType);
+        FrameSeconds = Mathf.Max(0.01f, FrameSeconds);
+        AlphaMode = SkillCgAlphaModes.Normalize(AlphaMode);
+        KeyThreshold = Mathf.Clamp01(KeyThreshold);
+        KeySoftness = Mathf.Clamp(KeySoftness, 0.001f, 1f);
+        FlashAtSeconds = FlashAtSeconds < 0f ? -1f : FlashAtSeconds;
+        FlashDuration = Mathf.Clamp(FlashDuration <= 0f ? 0.18f : FlashDuration, 0.03f, 1f);
         FadeIn = Mathf.Max(0f, FadeIn);
         Hold = Mathf.Max(0f, Hold);
         FadeOut = Mathf.Max(0f, FadeOut);
@@ -1183,6 +1456,13 @@ public sealed class SkillCgRequest
             OwnerInstanceId = ReadString(type, source, "OwnerInstanceId", context.OwnerInstanceId),
             ImagePath = ReadString(type, source, "ImagePath", ""),
             ImageResource = ReadString(type, source, "ImageResource", ""),
+            MediaType = ReadString(type, source, "MediaType", SkillCgMediaTypes.Image),
+            FrameSeconds = ReadFloat(type, source, "FrameSeconds", 0.08f),
+            AlphaMode = ReadString(type, source, "AlphaMode", SkillCgAlphaModes.None),
+            KeyThreshold = ReadFloat(type, source, "KeyThreshold", 0.03f),
+            KeySoftness = ReadFloat(type, source, "KeySoftness", 0.08f),
+            FlashAtSeconds = ReadFloat(type, source, "FlashAtSeconds", -1f),
+            FlashDuration = ReadFloat(type, source, "FlashDuration", 0.18f),
             Priority = ReadInt(type, source, "Priority", priority),
             FadeIn = ReadFloat(type, source, "FadeIn", 0.35f),
             Hold = ReadFloat(type, source, "Hold", 1f),
@@ -1294,6 +1574,20 @@ public sealed class SkillCgNetworkEvent
 
     public string ImageResource { get; set; } = "";
 
+    public string MediaType { get; set; } = SkillCgMediaTypes.Image;
+
+    public float FrameSeconds { get; set; } = 0.08f;
+
+    public string AlphaMode { get; set; } = SkillCgAlphaModes.None;
+
+    public float KeyThreshold { get; set; } = 0.03f;
+
+    public float KeySoftness { get; set; } = 0.08f;
+
+    public float FlashAtSeconds { get; set; } = -1f;
+
+    public float FlashDuration { get; set; } = 0.18f;
+
     public int Priority { get; set; }
 
     public float FadeIn { get; set; } = 0.35f;
@@ -1333,6 +1627,13 @@ public sealed class RpcSkillCgEvent : RpcCommandBase
             CardId = request.CardId,
             OwnerInstanceId = request.OwnerInstanceId,
             ImageResource = string.IsNullOrWhiteSpace(request.ImageResource) ? Path.GetFileName(request.ImagePath) : request.ImageResource,
+            MediaType = request.MediaType,
+            FrameSeconds = request.FrameSeconds,
+            AlphaMode = request.AlphaMode,
+            KeyThreshold = request.KeyThreshold,
+            KeySoftness = request.KeySoftness,
+            FlashAtSeconds = request.FlashAtSeconds,
+            FlashDuration = request.FlashDuration,
             Priority = request.Priority,
             FadeIn = request.FadeIn,
             Hold = request.Hold,
@@ -1360,6 +1661,13 @@ public sealed class RpcSkillCgEvent : RpcCommandBase
             OwnerInstanceId = Event.OwnerInstanceId,
             ImageResource = Event.ImageResource,
             ImagePath = SkillCgArbiterRuntime.ResolveImagePath(ownerModId, Event.ImageResource),
+            MediaType = Event.MediaType,
+            FrameSeconds = Event.FrameSeconds,
+            AlphaMode = Event.AlphaMode,
+            KeyThreshold = Event.KeyThreshold,
+            KeySoftness = Event.KeySoftness,
+            FlashAtSeconds = Event.FlashAtSeconds,
+            FlashDuration = Event.FlashDuration,
             Priority = Event.Priority,
             FadeIn = Event.FadeIn,
             Hold = Event.Hold,
@@ -1374,6 +1682,44 @@ public sealed class RpcSkillCgEvent : RpcCommandBase
             IsRemote = true,
             DisableSync = true
         });
+    }
+}
+
+public static class SkillCgMediaTypes
+{
+    public const string Image = "image";
+    public const string Sequence = "sequence";
+
+    public static string Normalize(string? value)
+    {
+        var type = value?.Trim() ?? "";
+        if (string.Equals(type, Sequence, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(type, "frames", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(type, "pngSequence", StringComparison.OrdinalIgnoreCase))
+        {
+            return Sequence;
+        }
+
+        return Image;
+    }
+}
+
+public static class SkillCgAlphaModes
+{
+    public const string None = "none";
+    public const string BlackKey = "blackKey";
+
+    public static string Normalize(string? value)
+    {
+        var mode = value?.Trim() ?? "";
+        if (string.Equals(mode, BlackKey, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mode, "lumaKey", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mode, "black", StringComparison.OrdinalIgnoreCase))
+        {
+            return BlackKey;
+        }
+
+        return None;
     }
 }
 

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "packageId": "SunExp.SharedResources",
-  "packageVersion": 4,
+  "packageVersion": 5,
   "ownerModId": "SunExp",
   "packageKind": "RolePack",
   "displayName": "SunExp bundled role resources",
@@ -45,6 +45,27 @@
         "cardId": "SunExp_wuna_wuna_white_sun_prayer",
         "presentationMode": "fullscreenFade",
         "fit": "cover",
+        "focusX": "0.5",
+        "focusY": "0.5",
+        "safeScale": "1.0"
+      }
+    },
+    {
+      "system": "CG",
+      "resourceId": "SunExp.BlazingCrownCollapse.SkillCgSequence",
+      "kind": "Directory",
+      "source": "CG/WuNa/BlazingCrownCollapse",
+      "destination": "CG/SunExp/WuNa/BlazingCrownCollapse",
+      "targetRoleIds": ["*"],
+      "tags": ["skill-cg", "active-skill", "sequence-cg"],
+      "metadata": {
+        "cardId": "SunExp_sunexp_blazing_crown_collapse",
+        "presentationMode": "fullscreenFade",
+        "fit": "cover",
+        "frameSeconds": "0.12",
+        "alphaMode": "blackKey",
+        "flashAtSeconds": "0.12",
+        "flashDuration": "0.18",
         "focusX": "0.5",
         "focusY": "0.5",
         "safeScale": "1.0"

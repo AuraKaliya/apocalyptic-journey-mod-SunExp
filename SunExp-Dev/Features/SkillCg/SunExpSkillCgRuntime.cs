@@ -104,9 +104,9 @@ public static class SunExpSkillCgRuntime
 
             var imageResource = ResolveImageResource(entry);
             var imagePath = SkillCgArbiterRuntime.ResolveImagePath(SunExpIds.ModId, imageResource);
-            if (!File.Exists(imagePath))
+            if (!MediaExists(entry.Media.Type, imagePath))
             {
-                SunExpLog.Warn("[SkillCG] image missing: " + imageResource);
+                SunExpLog.Warn("[SkillCG] media missing: " + imageResource);
                 continue;
             }
 
@@ -125,6 +125,13 @@ public static class SunExpSkillCgRuntime
                 OwnerInstanceId = trigger.OwnerInstanceId,
                 ImagePath = imagePath,
                 ImageResource = imageResource,
+                MediaType = entry.Media.Type,
+                FrameSeconds = entry.Media.FrameSeconds,
+                AlphaMode = entry.Media.AlphaMode,
+                KeyThreshold = entry.Media.KeyThreshold,
+                KeySoftness = entry.Media.KeySoftness,
+                FlashAtSeconds = entry.Media.FlashAtSeconds,
+                FlashDuration = entry.Media.FlashDuration,
                 Priority = entry.Priority,
                 FadeIn = entry.DefaultPresentation.FadeIn,
                 Hold = entry.DefaultPresentation.Hold,
@@ -153,7 +160,7 @@ public static class SunExpSkillCgRuntime
             return "kind";
         }
 
-        if (!string.Equals(entry.Media.Type, "image", StringComparison.OrdinalIgnoreCase))
+        if (!IsSupportedMediaType(entry.Media.Type))
         {
             return "media";
         }
@@ -214,11 +221,28 @@ public static class SunExpSkillCgRuntime
         return false;
     }
 
+    private static bool IsSupportedMediaType(string type)
+    {
+        return string.Equals(type, SkillCgMediaTypes.Image, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(type, SkillCgMediaTypes.Sequence, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string ResolveImageResource(AuraCgRegistryEntry entry)
     {
         return string.IsNullOrWhiteSpace(entry.Media.Resource)
             ? entry.Media.FallbackImage
             : entry.Media.Resource;
+    }
+
+    private static bool MediaExists(string mediaType, string path)
+    {
+        if (string.Equals(mediaType, SkillCgMediaTypes.Sequence, StringComparison.OrdinalIgnoreCase))
+        {
+            return Directory.Exists(path)
+                || File.Exists(path);
+        }
+
+        return File.Exists(path);
     }
 
     private static string ReadData(IDataConfig dataConfig, string key)
