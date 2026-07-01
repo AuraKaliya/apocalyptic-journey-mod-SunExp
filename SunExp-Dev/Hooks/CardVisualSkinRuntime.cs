@@ -11,6 +11,10 @@ namespace SunExp.Dll.Hooks;
 
 public static class CardVisualSkinRuntime
 {
+    private static readonly object ReapplySync = new();
+    private static string pendingReapplySource = "";
+    private static int pendingReapplyCount;
+
     public static void Initialize(ModConfig modConfig)
     {
         RegisterAfter(modConfig, "ICard.SetCardStyle", ApplyFromSetCardStyle);
@@ -21,9 +25,9 @@ public static class CardVisualSkinRuntime
         RegisterAfter(modConfig, "CardItem.DrawEffect", context => ApplyFromItemRoot(context, "CardItem.DrawEffect"));
         RegisterAfter(modConfig, "CommonCardItem.DrawEffect", context => ApplyFromItemRoot(context, "CommonCardItem.DrawEffect"));
         RegisterAfter(modConfig, "AttackCardItem.DrawEffect", context => ApplyFromItemRoot(context, "AttackCardItem.DrawEffect"));
-        RegisterAfter(modConfig, "FightUI.CreateCardItem", context => ReapplyActiveCombatCardsNowAndLater("FightUI.CreateCardItem"));
+        RegisterAfter(modConfig, "FightUI.CreateCardItem", context => RequestActiveCombatCardsReapply("FightUI.CreateCardItem"));
         RegisterAfter(modConfig, "FightUI.CreateCardItemInternal", ApplyFromFightUiCreateCardItemInternal);
-        RegisterAfter(modConfig, "ScriptExecutor.GetCardFromDeck", context => ReapplyActiveCombatCardsNowAndLater("ScriptExecutor.GetCardFromDeck"));
+        RegisterAfter(modConfig, "ScriptExecutor.GetCardFromDeck", context => RequestActiveCombatCardsReapply("ScriptExecutor.GetCardFromDeck"));
 
         RegisterAfter(modConfig, "DictItem.Init", context => ApplyFromArgumentRoot(context, 0, null, "DictItem.Init"));
         RegisterAfter(modConfig, "DictionaryShowItem.Init", context => ApplyFromArgumentRoot(context, 0, null, "DictionaryShowItem.Init"));
@@ -150,7 +154,7 @@ public static class CardVisualSkinRuntime
             if (config != null)
             {
                 ApplySafely(FindCombatCardRoot(config), config, "FightUI.CreateCardItemInternal");
-                ReapplyActiveCombatCardsNowAndLater("FightUI.CreateCardItemInternal");
+                RequestActiveCombatCardsReapply("FightUI.CreateCardItemInternal");
             }
         }
         catch (Exception ex)
@@ -248,20 +252,33 @@ public static class CardVisualSkinRuntime
         }
     }
 
-    private static void ReapplyActiveCombatCardsNowAndLater(string source)
+    private static void RequestActiveCombatCardsReapply(string source)
     {
-        ReapplyActiveCombatCards(source);
-        ReapplyActiveCombatCardsDelayed(source, 1);
+        lock (ReapplySync)
+        {
+            pendingReapplySource = source;
+            pendingReapplyCount++;
+        }
+
+        if (!SunExpFrameScheduler.RunOnceNextFrame("CardVisualSkinRuntime.ReapplyActiveCombatCards", FlushActiveCombatCardsReapply))
+        {
+            SunExpPerformanceCounters.Record("CardVisualSkin.ReapplyDeduped");
+        }
     }
 
-    private static void ReapplyActiveCombatCardsDelayed(string source, int pass)
+    private static void FlushActiveCombatCardsReapply()
     {
-        SunExpFrameScheduler.RunOnceNextFrame(
-            "CardVisualSkinRuntime.ReapplyActiveCombatCards.Pass" + pass,
-            () =>
-            {
-                ReapplyActiveCombatCards(source + ".delayed" + pass);
-            });
+        string source;
+        int count;
+        lock (ReapplySync)
+        {
+            source = pendingReapplySource;
+            count = pendingReapplyCount;
+            pendingReapplySource = "";
+            pendingReapplyCount = 0;
+        }
+
+        ReapplyActiveCombatCards(count > 1 ? source + ".merged" + count : source + ".merged");
     }
 
     private static void ApplySafely(Transform? root, IDataConfig? config, string source)

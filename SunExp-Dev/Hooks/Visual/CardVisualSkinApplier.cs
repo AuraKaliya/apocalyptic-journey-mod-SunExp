@@ -15,12 +15,22 @@ public static class CardVisualSkinApplier
 
     public static bool Apply(Transform? cardRoot, IDataConfig? config)
     {
+        var start = SunExpPerformanceCounters.Timestamp();
+        try
+        {
         if (cardRoot == null)
         {
             return false;
         }
 
         var marker = cardRoot.GetComponent<CardVisualSkinMarker>() ?? cardRoot.gameObject.AddComponent<CardVisualSkinMarker>();
+        var visualSignature = VisualSignature(config);
+        if (visualSignature.Length > 0 && marker.LastVisualSignature == visualSignature)
+        {
+            SunExpPerformanceCounters.Record("CardVisualSkin.SignatureSkip");
+            return false;
+        }
+
         var skin = CardVisualThemeCatalog.Resolve(config);
         var appliedFrame = false;
         var appliedBackground = false;
@@ -43,8 +53,16 @@ public static class CardVisualSkinApplier
             }
         }
 
+        var effectStart = SunExpPerformanceCounters.Timestamp();
         var appliedEffect = CardVisualEffectApplier.Apply(marker, config);
+        SunExpPerformanceCounters.RecordDuration("CardVisualSkin.ApplyEffect", effectStart);
+        marker.LastVisualSignature = visualSignature;
         return appliedFrame || appliedBackground || appliedEffect;
+        }
+        finally
+        {
+            SunExpPerformanceCounters.RecordDuration("CardVisualSkin.Apply", start);
+        }
     }
 
     private static void LogUnresolvedSunExpCard(IDataConfig? config)
@@ -146,5 +164,29 @@ public static class CardVisualSkinApplier
         }
 
         return false;
+    }
+
+    private static string VisualSignature(IDataConfig? config)
+    {
+        if (config == null)
+        {
+            return "";
+        }
+
+        return DictionaryUtil.Get(config.data, "Id")
+            + "\u001f"
+            + DictionaryUtil.Get(config.data, "PackBelong")
+            + "\u001f"
+            + DictionaryUtil.Get(config.data, "Icon")
+            + "\u001f"
+            + DictionaryUtil.Get(config.data, "Tag")
+            + "\u001f"
+            + DictionaryUtil.Get(config.Vars, "Tag")
+            + "\u001f"
+            + DictionaryUtil.Get(config.Vars, "SpecialTag")
+            + "\u001f"
+            + DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey)
+            + "\u001f"
+            + SunExpPerformanceSettings.Quality;
     }
 }

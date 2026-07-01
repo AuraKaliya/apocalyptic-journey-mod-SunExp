@@ -7,6 +7,9 @@ public static class SolarRadianceService
 {
     public static bool HandleSolarCardUsed(ScriptExecutor? executor, int cost, string source)
     {
+        var start = SunExpPerformanceCounters.Timestamp();
+        try
+        {
         if (executor?.Self == null)
         {
             SunExpLog.Debug("HandleSolarCardUsed skipped: executor/self missing, source=" + source);
@@ -35,10 +38,18 @@ public static class SolarRadianceService
         executor.AddBuff(SunExpIds.SolarRadiance, gain.ToString());
         SunExpLog.Debug("HandleSolarCardUsed radiance added=" + gain + ", radianceAfter=" + BuffApi.Level(executor.Self, SunExpIds.SolarRadiance));
         return true;
+        }
+        finally
+        {
+            SunExpPerformanceCounters.RecordDuration("SolarRadiance.HandleSolarCardUsed", start);
+        }
     }
 
     private static bool TriggerSolarCrown(ScriptExecutor executor, string source)
     {
+        var start = SunExpPerformanceCounters.Timestamp();
+        try
+        {
         if (executor.Self == null || !BuffApi.Has(executor.Self, SunExpIds.SolarCrown))
         {
             return false;
@@ -96,6 +107,11 @@ public static class SolarRadianceService
 
         SunExpLog.Debug("SolarCrown triggered effectCount=" + effectCount + ", tier=" + tier + ", radiance=" + BuffApi.Level(executor.Self, SunExpIds.SolarRadiance));
         return true;
+        }
+        finally
+        {
+            SunExpPerformanceCounters.RecordDuration("SolarRadiance.TriggerSolarCrown", start);
+        }
     }
 
     private static string SolarCrownEffectSummary(int tier)
@@ -126,6 +142,9 @@ public static class SolarRadianceService
 
     private static void TriggerBurnAllEnemies(ScriptExecutor executor)
     {
+        var start = SunExpPerformanceCounters.Timestamp();
+        try
+        {
         var targets = executor.SetStatus("AllTarget");
         if (targets != null)
         {
@@ -137,5 +156,10 @@ public static class SolarRadianceService
 
         executor.SetStatus("AllTarget");
         executor.RunImmediately(SunExpIds.Burn, "StartRound");
+        }
+        finally
+        {
+            SunExpPerformanceCounters.RecordDuration("SolarRadiance.TriggerBurnAllEnemies", start);
+        }
     }
 }

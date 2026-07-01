@@ -275,14 +275,7 @@ public static class CardMutationService
 
     private static void RefreshDataConfigTags(IDataConfig config)
     {
-        try
-        {
-            FightCardManager.Instance?.RefreshTag(config);
-        }
-        catch
-        {
-            // Tag refresh is presentation-only for deck/discard configs.
-        }
+        SunExpCardRefreshQueue.RequestConfigTagRefresh(config, "CardMutation");
     }
 
     private static void RefreshCardItem(CardItem card)

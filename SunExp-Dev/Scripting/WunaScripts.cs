@@ -140,19 +140,9 @@ public static class WunaScripts
             SunExpLog.Warn("Wuna coronation token grant failed: step=" + grant.FailureStep + ", error=" + grant.FailureReason);
         }
 
-        TagWhiteSunPrayerHands(self, "immediate");
-        var retryRegistered = ExecutorApi.TryAddTempEvent(self, "ActionAfter", new Action(() =>
-        {
-            TagWhiteSunPrayerHands(self, "action-after");
-        }), "wuna_white_sun_prayer_hand_tags");
-        SunExpLog.Info("Wuna white sun prayer hand tag retry registered=" + retryRegistered);
+        var handTagRequested = SunExpCardTagService.RequestBurnoutAndWhiteRadianceForFriendlyHands(self, "Wuna.WhiteSunPrayer");
+        SunExpLog.Info("Wuna white sun prayer hand tag requested=" + handTagRequested);
         PlayerApi.SetSkillTime(SunExpIds.WunaWhiteSunPrayerCardId, 5);
-    }
-
-    private static void TagWhiteSunPrayerHands(ScriptExecutor self, string stage)
-    {
-        var changed = SunExpCardTagService.ApplyBurnoutAndWhiteRadianceToFriendlyHands(self);
-        SunExpLog.Info("Wuna white sun prayer tagged friendly hand cards (" + stage + "): changed=" + changed);
     }
 
     private static void UseGraveSong(ScriptExecutor self)

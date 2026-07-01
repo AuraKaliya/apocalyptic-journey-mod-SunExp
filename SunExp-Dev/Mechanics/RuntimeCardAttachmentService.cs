@@ -78,6 +78,8 @@ public static class RuntimeCardAttachmentService
     private const string SnapshotSpecialTagKey = "SunExpRuntimeAttachmentOriginalSpecialTag";
     private const string SnapshotMarkersKey = "SunExpRuntimeAttachmentOriginalMarkers";
     private const string AddedVisibleTagsKey = "SunExpRuntimeAttachmentAddedVisibleTags";
+    private static readonly object PendingAttachmentSync = new();
+    private static readonly Dictionary<string, PendingHandAttachment> PendingHandAttachments = new(StringComparer.Ordinal);
 
     public static RuntimeCardAttachment WunaWhiteSunPrayerHandAttachment()
     {
@@ -102,8 +104,30 @@ public static class RuntimeCardAttachmentService
         return new CardGrantMutation("runtime-card-attachment", config => AttachToConfig(config, attachment));
     }
 
+    public static bool RequestAttachToCurrentHand(ScriptExecutor? executor, RuntimeCardAttachment attachment, string source)
+    {
+        if (attachment == null)
+        {
+            return false;
+        }
+
+        lock (PendingAttachmentSync)
+        {
+            PendingHandAttachments[PendingHandAttachmentKey(attachment, source)] = new PendingHandAttachment(executor, attachment, source);
+        }
+
+        var enqueued = SunExpFrameDispatcher.RunOnceNextFrame("RuntimeCardAttachment.AttachToCurrentHand", FlushPendingHandAttachment);
+        if (!enqueued)
+        {
+            SunExpPerformanceCounters.Record("RuntimeCardAttachment.HandAttachDeduped");
+        }
+
+        return true;
+    }
+
     public static RuntimeCardAttachmentResult AttachToCurrentHand(ScriptExecutor? executor, RuntimeCardAttachment attachment)
     {
+        var start = SunExpPerformanceCounters.Timestamp();
         var result = new RuntimeCardAttachmentResult();
         var seenCards = new HashSet<CardItem>();
         var seenConfigs = new HashSet<IDataConfig>();
@@ -166,6 +190,7 @@ public static class RuntimeCardAttachmentService
             SunExpLog.Debug("Runtime card attachment manager fallback skipped: " + ex.Message);
         }
 
+        SunExpPerformanceCounters.RecordDuration("RuntimeCardAttachment.AttachToCurrentHand", start);
         return result;
     }
 
@@ -754,14 +779,7 @@ public static class RuntimeCardAttachmentService
 
     private static void RefreshDataConfigTags(IDataConfig config)
     {
-        try
-        {
-            FightCardManager.Instance?.RefreshTag(config);
-        }
-        catch
-        {
-            // Presentation-only refresh.
-        }
+        SunExpCardRefreshQueue.RequestConfigTagRefresh(config, "RuntimeCardAttachment");
     }
 
     private static void RefreshCardItem(CardItem card)
@@ -771,12 +789,66 @@ public static class RuntimeCardAttachmentService
             SunExpCardRefreshQueue.RequestFullRefresh(card, "RuntimeCardAttachment");
             if (card.dataConfig != null)
             {
-                FightCardManager.Instance?.RefreshTag(card.dataConfig);
+                SunExpCardRefreshQueue.RequestConfigTagRefresh(card.dataConfig, "RuntimeCardAttachment.CardItem");
             }
         }
         catch (Exception ex)
         {
             SunExpLog.Debug("Runtime card attachment refresh skipped: " + ex.Message);
         }
+    }
+
+    private static void FlushPendingHandAttachment()
+    {
+        PendingHandAttachment[] pending;
+        lock (PendingAttachmentSync)
+        {
+            if (PendingHandAttachments.Count == 0)
+            {
+                return;
+            }
+
+            pending = new PendingHandAttachment[PendingHandAttachments.Count];
+            PendingHandAttachments.Values.CopyTo(pending, 0);
+            PendingHandAttachments.Clear();
+        }
+
+        foreach (var item in pending)
+        {
+            var result = AttachToCurrentHand(item.Executor, item.Attachment);
+            SunExpLog.Info("Runtime hand attachment applied from "
+                + item.Source
+                + ": "
+                + result.ToLogString());
+        }
+    }
+
+    private static string PendingHandAttachmentKey(RuntimeCardAttachment attachment, string source)
+    {
+        return (source ?? "").Trim()
+            + "|native="
+            + string.Join(",", attachment.NativeTags)
+            + "|special="
+            + string.Join(",", attachment.SpecialTags)
+            + "|markers="
+            + string.Join(",", attachment.Markers)
+            + "|temp="
+            + attachment.TemporaryWhiteRadiance;
+    }
+
+    private readonly struct PendingHandAttachment
+    {
+        public PendingHandAttachment(ScriptExecutor? executor, RuntimeCardAttachment attachment, string source)
+        {
+            Executor = executor;
+            Attachment = attachment;
+            Source = source;
+        }
+
+        public ScriptExecutor? Executor { get; }
+
+        public RuntimeCardAttachment Attachment { get; }
+
+        public string Source { get; }
     }
 }

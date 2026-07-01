@@ -32,6 +32,8 @@ function New-ProjectXml {
     $auraSharedDictionary = Join-Path $RepoRoot "AuraSharedCore\AuraSharedDictionary.cs"
     $sunExpIds = Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpIds.cs"
     $sunExpFrameDispatcher = Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpFrameDispatcher.cs"
+    $sunExpPerformanceQuality = Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpPerformanceQuality.cs"
+    $sunExpPerformanceSettings = Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpPerformanceSettings.cs"
     $cardApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardApi.cs"
     $cardConfigApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardConfigApi.cs"
     $cardVisualSkinApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardVisualSkinApi.cs"
@@ -72,6 +74,8 @@ function New-ProjectXml {
     <Compile Include="$dictionaryUtil" />
     <Compile Include="$sunExpIds" />
     <Compile Include="$sunExpFrameDispatcher" />
+    <Compile Include="$sunExpPerformanceQuality" />
+    <Compile Include="$sunExpPerformanceSettings" />
     <Compile Include="$cardApi" />
     <Compile Include="$cardConfigApi" />
     <Compile Include="$cardVisualSkinApi" />
@@ -1166,7 +1170,7 @@ function Invoke-SourceAssertions {
     Assert-True $executorApi.Contains("public static IStatusManager? PrimaryTargetIncludingSelf") "ExecutorApi.PrimaryTargetIncludingSelf is missing."
     Assert-True $playerApi.Contains("public static string ScopedGameVarKey") "PlayerApi.ScopedGameVarKey is missing."
     Assert-True $wunaScripts.Contains("PlayerApi.GetScopedGameVar(SunExpIds.WunaPersistentEmber") "Wuna persistent ember must read from a player-scoped GameVar."
-    Assert-True $wunaScripts.Contains("SunExpCardTagService.ApplyBurnoutAndWhiteRadianceToFriendlyHands(self)") "White Sun Prayer must tag friendly hand cards with Burnout and White Radiance."
+    Assert-True $wunaScripts.Contains("SunExpCardTagService.RequestBurnoutAndWhiteRadianceForFriendlyHands(self") "White Sun Prayer must schedule friendly hand Burnout and White Radiance tagging."
     Assert-True $runtimeCardAttachmentService.Contains("WunaWhiteSunPrayerHandAttachment") "Runtime card attachment service must expose Wuna hand attachment recipe."
     Assert-True $runtimeCardAttachmentService.Contains("WunaCoronationTokenAttachment") "Runtime card attachment service must expose Wuna coronation token attachment recipe."
     Assert-True $runtimeCardAttachmentService.Contains("MarkTemporaryWhiteRadiance") "Runtime card attachment service must mark temporary white radiance with a combat lock."

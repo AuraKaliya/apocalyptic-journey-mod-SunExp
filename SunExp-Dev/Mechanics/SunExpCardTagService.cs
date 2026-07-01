@@ -128,6 +128,14 @@ public static class SunExpCardTagService
         return result.Changed;
     }
 
+    public static bool RequestBurnoutAndWhiteRadianceForFriendlyHands(ScriptExecutor? executor = null, string source = "")
+    {
+        return RuntimeCardAttachmentService.RequestAttachToCurrentHand(
+            executor,
+            RuntimeCardAttachmentService.WunaWhiteSunPrayerHandAttachment(),
+            string.IsNullOrWhiteSpace(source) ? "WunaWhiteSunPrayer" : source);
+    }
+
     public static bool EnsureCardItemTag(CardItem? card, string tag)
     {
         return CardMutationService.AddSpecialTags(card, tag);
