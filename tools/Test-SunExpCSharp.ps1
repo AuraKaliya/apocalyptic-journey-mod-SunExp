@@ -471,7 +471,7 @@ internal static class Program
         CardVisualEffectRegistry.Register(new CardVisualEffectSpec(
             "TestMod",
             "test.effect.low",
-            CardVisualEffectTarget.Frame,
+            CardVisualEffectTarget.Face,
             "test.visual.low",
             "Low",
             1,
@@ -479,8 +479,8 @@ internal static class Program
         CardVisualEffectRegistry.Register(new CardVisualEffectSpec(
             "TestMod",
             "test.effect.high",
-            CardVisualEffectTarget.Frame,
-            SunExpIds.CardFrameHoloFlowVisualEffectId,
+            CardVisualEffectTarget.Face,
+            SunExpIds.CardFaceFoilHoloVisualEffectId,
             "High",
             20,
             new[] { "target_card" }));
@@ -493,14 +493,14 @@ internal static class Program
         {
             ["Id"] = "other_sun_card"
         });
-        Equal("test.effect.high", CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, target)?.Id, "Card visual effect resolves the highest-priority frame effect by explicit card id");
-        Equal(null, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, other)?.Id, "Card visual effect does not apply to other cards just because they share a skin");
+        Equal("test.effect.high", CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Face, target)?.Id, "Card visual effect resolves the highest-priority face effect by explicit card id");
+        Equal(null, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Face, other)?.Id, "Card visual effect does not apply to other cards just because they share a skin");
 
         CardVisualEffectRegistry.Register(new CardVisualEffectSpec(
             "TestMod",
             "test.effect.full",
-            CardVisualEffectTarget.Frame,
-            SunExpIds.CardFrameHoloFlowVisualEffectId,
+            CardVisualEffectTarget.Face,
+            SunExpIds.CardFaceFoilHoloVisualEffectId,
             "Full",
             30,
             new[] { SunExpIds.BlazingCrownCollapseCardId }));
@@ -508,10 +508,10 @@ internal static class Program
         {
             ["Id"] = SunExpIds.BlazingCrownCollapseCardId
         });
-        Equal("test.effect.full", CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, blazingCrownCollapse)?.Id, "Card visual effect supports full mod-qualified card ids");
+        Equal("test.effect.full", CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Face, blazingCrownCollapse)?.Id, "Card visual effect supports full mod-qualified card ids");
 
         CardVisualEffectRegistry.ClearOwner("TestMod");
-        Equal(null, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, target)?.Id, "Clearing owner removes registered card visual effects");
+        Equal(null, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Face, target)?.Id, "Clearing owner removes registered card visual effects");
     }
 
     private static void TestMapNodeTextureFitService()

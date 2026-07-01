@@ -7,6 +7,12 @@ boss routing, finale routing, or old-save settlement.
 
 - `SunExp-Dev/Hooks/SolarMemoryModeRuntime.cs`: mode hooks, map lifecycle,
   completion, fight abort/loss handling, and UI entry integration.
+- `SunExp-Dev/Hooks/ModeChoiceEntryRegistry.cs`: custom mode entry
+  registration.
+- `SunExp-Dev/Hooks/ModeChoiceLayoutRuntime.cs`: mode-choice layout,
+  native-slot protection, fallback entry creation, and drag surface handling.
+- `SunExp-Dev/Hooks/SolarMemoryModeEntryRuntime.cs`: Solar Memory mode entry
+  integration and title art lookup.
 - `SunExp-Dev/Hooks/SolarMemoryRunLauncher.cs`: save creation and preparation
   state initialization.
 - `SunExp-Dev/Hooks/SolarMemoryPreparationRuntime.cs`: explicit preparation
@@ -15,6 +21,10 @@ boss routing, finale routing, or old-save settlement.
   candidate filtering.
 - `SunExp-Dev/Hooks/SolarMemorySetupFlowRuntime.cs`: origin allocation UI.
 - `SunExp-Dev/Hooks/SolarMemoryBlessingPickerRuntime.cs`: quota blessing picker.
+- `SunExp-Dev/Hooks/Ui/SunExpModalHost.cs`: shared modal parent and close path.
+- `SunExp-Dev/Hooks/Ui/SunExpUiPool.cs`: pooled repeated rows.
+- `SunExp-Dev/Hooks/Ui/SunExpUiSprites.cs`: cached UI sprites and nine-slice
+  creation.
 - `SunExp-Dev/GameApi/SolarMemoryFlowApi.cs`: event-script facade into hook
   runtimes.
 - `SunExp-Dev/Scripting/EventScripts.cs`: CSV-callable event options.
@@ -45,6 +55,18 @@ Current preparation responsibilities:
 Avoid competing completion paths. Do not chain the native blessing picker from
 Solar Memory setup.
 
+## Mode Entry
+
+Solar Memory mode entry should be registered through
+`ModeChoiceEntryRegistry` and rendered through `ModeChoiceLayoutRuntime`.
+Preserve native mode entries and avoid occupying protected slots such as
+`StoryMode`. Custom entries should use layout slots/proxies rather than stale
+overlay placement or sibling-order hacks.
+
+Use `SolarMemoryModeEntryRuntime` for entry display and activation. Resolve
+title art through `VisualRegistry` and route visual work through
+`sunexp-visual-runtime-dev`.
+
 ## Boss And Finale Routing
 
 Solar Memory settles immediately after the third-layer boss through native
@@ -61,6 +83,12 @@ initialization can index stale map lists.
 ## UI Lifecycle
 
 Transient Solar Memory UI must be safe during fight abort, loss, and map
-transition. Reuse `SunExpUiSafety.DisableRaycastsAndDestroyByName` for teardown
-and `SunExpUiBuilder` for repeated panel construction. Close setup UI after
-native fight reset and clear pending finale battle state on abort.
+transition. Use `SunExpModalHost` for modal close paths, `SunExpUiSafety` for
+safe teardown, `SunExpUiPool` for repeated rows, `SunExpUiSprites` for cached
+button/nine-slice sprites, and `SunExpUiBuilder` for repeated panel
+construction. Close setup UI after native fight reset and clear pending finale
+battle state on abort.
+
+Do not duplicate button sprite caches, direct active-root destruction, or
+nine-slice creation inside starter deck, origin setup, or blessing picker
+runtimes.

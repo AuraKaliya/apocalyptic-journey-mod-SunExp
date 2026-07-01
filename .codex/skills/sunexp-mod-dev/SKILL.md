@@ -1,6 +1,6 @@
 ---
 name: sunexp-mod-dev
-description: Project-local routing and general-development skill for SunExp mod work in Witch's Apocalyptic Journey. Use when editing or reviewing SunExp shipped mod content, C# DLL scripts, CSV data and localization, cards, buffs, relics, card packs, roles, dialogue, assets, validation, or when deciding which specialized SunExp skill to load for architecture, Solar Memory, events, shared runtime, art, or skill evolution.
+description: Project-local routing and general-development skill for SunExp mod work in Witch's Apocalyptic Journey. Use when editing or reviewing SunExp shipped mod content, C# DLL scripts, CSV data and localization, cards, buffs, relics, card packs, roles, dialogue, assets, validation, or when deciding which specialized SunExp skill to load for architecture, Solar Memory, events, shared runtime, visual runtime, card art, or skill evolution.
 ---
 
 # SunExp Mod Dev
@@ -23,9 +23,13 @@ Use the smallest specialist set that covers the task:
 - `sunexp-event-dev`: non-Solar-Memory EventList/Map rows, story chains,
   reward helpers, and ordinary map-visible events.
 - `sunexp-shared-runtime-dev`: Aura shared runtimes, shared resources, Journey,
-  Skin, Audio, BGM, StarterDeck, UI safety, or shared release gates.
+  Skin, Audio, BGM, StarterDeck, CG, UI safety, RPC authority, shared DLL
+  packaging, or shared release gates.
+- `sunexp-visual-runtime-dev`: `visual.registry.json`, VisualBundles, shaders,
+  card visual skins/effects, Skill CG, animated icons, map-node visuals, Star
+  Score HUD, Wuna orbit fire, or visual runtime validation.
 - `sunexp-card-art-style`: card-face art, relic icons, contact sheets, and
-  image asset validation.
+  bitmap image asset validation.
 - `sunexp-skill-evolution`: updating the project-local skills from development
   traces or planned renaming/generalization.
 
@@ -37,6 +41,8 @@ Use the smallest specialist set that covers the task:
    - `SunExp/Text/**/*.csv`
    - `SunExp/ModConfig.json`
    - `SunExp/audio.registry.json` when audio, vocal, or BGM behavior changes.
+   - `SunExp/visual.registry.json` and `SunExp/SharedResources/*` when runtime
+     visuals, Skill CG, or shared resource manifests change.
    - release-facing docs only when behavior, counts, or user-facing claims change.
 2. Load only the relevant reference:
    - Card, Buff, Relic, CardPack fields: `references/csv-schema.md`
@@ -47,12 +53,14 @@ Use the smallest specialist set that covers the task:
    - For C# architecture refactors, also use `sunexp-architecture-dev`.
    - For Solar Memory work, also use `sunexp-solar-memory-dev`.
    - For shared runtime work, also use `sunexp-shared-runtime-dev`.
+   - For runtime visual work, also use `sunexp-visual-runtime-dev`.
    - For EventList, Text/EventList, map-visible event, and event helper work, also use the project-local `sunexp-event-dev` skill.
 3. Keep behavior in C# by default:
    - CSV script columns should call `CS.SunExp.Dll.Scripting.*` entry points.
    - Put card, buff, relic, role, boss, and event behavior in the matching `SunExp-Dev/Scripting/*Scripts.cs` file.
    - Put shared game-facing wrappers in `SunExp-Dev/GameApi/`, reusable implementation code in `SunExp-Dev/Mechanics/`, and IDs/utilities in `SunExp-Dev/Infrastructure/`.
    - Put runtime hook and UI integration code in `SunExp-Dev/Hooks/`.
+   - Put feature runtimes that are not CSV entry points under `SunExp-Dev/Features/`.
 4. Keep Data and Text rows synchronized. Any new card, buff, relic, card pack, role, dialogue, map, or event needs both config and localized text when the template has both sides.
 5. Prefer existing SunExp C# helpers over inline CSV logic. Add a shared helper only when multiple scripts need the same behavior or nil-safe wrapper.
 6. Treat the repository `Managed/` assemblies as the current compile contract. Use the decompiled reference to understand behavior, then verify signatures against current assemblies when APIs may have changed.
@@ -65,6 +73,7 @@ tools\Build-SunExpDll.ps1
 tools\Test-SunExpArchitecture.ps1
 tools\Test-SunExpCSharp.ps1
 .codex\skills\sunexp-event-dev\scripts\validate-sunexp-events.ps1 # when events or maps change
+tools\Build-SunExpVisualBundle.ps1 # when VisualAssets or VisualBundles change
 .codex\skills\sunexp-mod-dev\scripts\validate-sunexp.ps1
 ```
 
@@ -86,6 +95,8 @@ tools\Test-SunExpCSharp.ps1
 - CSV script columns should stay short and delegate to `CS.SunExp.Dll.Scripting.*`.
 - New public CSV-callable C# methods should have stable names and small parameter lists.
 - Hook code should be isolated under `SunExp-Dev/Hooks/` and verified against the decompiled method signature before use.
+- Runtime visual declarations should be centralized in `SunExp/visual.registry.json`
+  and the visual runtime skill, not hidden in feature-specific hard-coded paths.
 - New `MapTree.Node` instances must receive a valid deterministic `NodeDice` before entering map lists or sync arrays.
 - Rebuild `SunExp/Scripts/Entry.dll` after every C# compatibility or hook change; source edits alone do not change shipped behavior.
 - Data/Text CSV rows, icon paths, and localized descriptions should be updated in the same change.

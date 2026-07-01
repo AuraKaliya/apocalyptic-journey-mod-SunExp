@@ -33,10 +33,21 @@ public static class CardVisualEffectApi
         int priority,
         IEnumerable<string>? cardIds)
     {
+        RegisterFaceEffect(ownerModId, id, visualEffectId, displayName, priority, cardIds);
+    }
+
+    public static void RegisterFaceEffect(
+        string ownerModId,
+        string id,
+        string visualEffectId,
+        string displayName,
+        int priority,
+        IEnumerable<string>? cardIds)
+    {
         RegisterEffect(
             ownerModId,
             id,
-            CardVisualEffectTarget.Frame,
+            CardVisualEffectTarget.Face,
             visualEffectId,
             displayName,
             priority,
@@ -49,10 +60,17 @@ public static class CardVisualEffectApi
         RegisterFrameEffect(
             SunExpIds.ModId,
             SunExpIds.BlazingCrownCollapseHoloEffectBindingId,
-            SunExpIds.CardFrameHoloFlowVisualEffectId,
-            "Blazing Crown Collapse Holo Flow",
+            SunExpIds.CardFaceFoilHoloVisualEffectId,
+            "Blazing Crown Collapse Foil Holo",
             100,
             SunExpIds.BlazingCrownCollapseCardEffectIds);
+        RegisterFaceEffect(
+            SunExpIds.ModId,
+            SunExpIds.StellarOvertureStardustEffectBindingId,
+            SunExpIds.CardFaceStardustVisualEffectId,
+            "Stellar Overture Stardust",
+            120,
+            SunExpIds.StellarOvertureCardIds);
         SunExpLog.Info("Card visual effect registry initialized: effects=" + CardVisualEffectRegistry.EffectCount);
     }
 }

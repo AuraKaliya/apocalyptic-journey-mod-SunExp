@@ -17,6 +17,7 @@ content isolation, and multiplayer role commit path.
 
 1. Classify the touched surface:
    - Mode entry or run launch.
+   - Mode-choice registration, custom entry layout, or title art.
    - Journey registration or route graph.
    - Preparation flow: starter deck, origin allocation, blessing picker.
    - Map node pool, fixed story node, boss node, or sync repair.
@@ -25,6 +26,9 @@ content isolation, and multiplayer role commit path.
    - Multiplayer role submission or player-scoped setup state.
 2. Inspect only the relevant code and data before editing:
    - `SunExp-Dev/Hooks/SolarMemory*.cs`
+   - `SunExp-Dev/Hooks/ModeChoice*.cs`
+   - `SunExp-Dev/Hooks/Ui/SunExpModalHost.cs`
+   - `SunExp-Dev/Hooks/Ui/SunExpUi*.cs`
    - `SunExp-Dev/GameApi/SolarMemory*.cs`
    - `SunExp-Dev/Mechanics/SolarMemory*.cs`
    - `SunExp-Dev/Mechanics/MapNodeSafetyService.cs`
@@ -33,9 +37,10 @@ content isolation, and multiplayer role commit path.
    - `SunExp/Data/EventList/sunexp.csv`, `SunExp/Text/EventList/sunexp.csv`
    - `SunExp/Data/Map/sunexp.csv`, `SunExp/Text/Map/sunexp.csv`
 3. Load references as needed:
-   - `references/mode-flow.md`: preparation, event-script facade, finale, and old-save flow.
+   - `references/mode-flow.md`: mode choice, run launcher, preparation, event-script facade, finale, and old-save flow.
    - `references/map-node-contract.md`: map row isolation, node generation, `NodeDice`, and sync arrays.
    - `references/multiplayer-role-commit.md`: player-scoped setup state and final authoritative role commit.
+   - Use `sunexp-visual-runtime-dev` for title art, map-card visuals, or setup-window visual polish.
 4. Keep CSV event scripts narrow. `EventScripts` should call
    `SolarMemoryFlowApi` for mode behavior; it must not import `Hooks`.
 5. Run Solar Memory validation through the normal SunExp checks before finishing.
@@ -55,11 +60,17 @@ content isolation, and multiplayer role commit path.
   `MapItemInit`; fixed completion currently settles after the third layer.
 - Do not create a separate finale map layer unless the routing model is
   intentionally redesigned with new tests.
+- Keep custom mode entry registration in `ModeChoiceEntryRegistry` and layout
+  in `ModeChoiceLayoutRuntime`; do not let Solar Memory occupy a native mode
+  slot such as `StoryMode`.
+- Keep run save creation and preparation initialization in
+  `SolarMemoryRunLauncher`; do not move it back into `SolarMemoryModeRuntime`.
 - Keep preparation choices player-scoped. Suppress intermediate role sync and
   submit only the final prepared role through `SolarMemoryRoleCommitApi`.
 - Do not migrate legacy global preparation values during multiplayer.
-- Use `SunExpUiSafety` for transient UI teardown and `SunExpUiBuilder` for
-  shared panel construction.
+- Use `SunExpModalHost`, `SunExpUiSafety`, `SunExpUiPool`, `SunExpUiSprites`,
+  and `SunExpUiBuilder` for transient setup UI, pooling, cached sprites, and
+  teardown.
 
 ## Validation
 

@@ -9,6 +9,8 @@ Add or update tests for these risks when the touched event surface requires them
 - `Entry.dll` is rebuilt after C# changes.
 - Story-chain ids use `Sub_`.
 - Repeat events appear only after the required progress.
+- Retired `wuna_event_`, `Sub_wuna_event_`, `Sub_solar_finale_`, and
+  `Sub_solar_memory_start` rows do not remain in shipped EventList data.
 
 ## Rewards
 

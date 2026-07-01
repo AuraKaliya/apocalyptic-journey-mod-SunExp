@@ -15,9 +15,14 @@ internal sealed class CardVisualSkinMarker : MonoBehaviour
     private Material? backgroundMaterial;
     private Material? originalFrameImageMaterial;
     private Material? originalFrameMeshMaterial;
+    private Material? originalFaceImageMaterial;
+    private Material? originalFaceMeshMaterial;
     private Material? frameEffectOwnedMaterial;
+    private Material? faceEffectOwnedMaterial;
     private bool originalFrameImageMaterialCaptured;
     private bool originalFrameMeshMaterialCaptured;
+    private bool originalFaceImageMaterialCaptured;
+    private bool originalFaceMeshMaterialCaptured;
 
     public Transform? FrameNode => ResolveNode(ref frameNode, "Front/FrontBack");
 
@@ -27,13 +32,19 @@ internal sealed class CardVisualSkinMarker : MonoBehaviour
 
     public Image? BackgroundImage => ResolveImage(BackgroundNode, ref backgroundImage);
 
+    public Image? FaceImage => BackgroundImage;
+
     public MeshRenderer? FrameMesh => ResolveMesh(FrameNode, ref frameMesh);
 
     public MeshRenderer? BackgroundMesh => ResolveMesh(BackgroundNode, ref backgroundMesh);
 
+    public MeshRenderer? FaceMesh => BackgroundMesh;
+
     public Material? FrameMaterial => ResolveMaterial(FrameMesh, ref frameMaterial);
 
     public Material? BackgroundMaterial => ResolveMaterial(BackgroundMesh, ref backgroundMaterial);
+
+    public Material? FaceMaterial => BackgroundMaterial;
 
     public string LastSkinId { get; set; } = "";
 
@@ -41,13 +52,120 @@ internal sealed class CardVisualSkinMarker : MonoBehaviour
 
     public string LastFrameEffectId { get; set; } = "";
 
+    public string LastFaceEffectId { get; set; } = "";
+
     public int LastFrameTextureId { get; set; }
 
     public int LastBackgroundTextureId { get; set; }
 
     public Texture? LastFrameTexture { get; set; }
 
+    public Texture? LastFaceTexture { get; set; }
+
     public Material? FrameEffectOwnedMaterial => frameEffectOwnedMaterial;
+
+    public Material? FaceEffectOwnedMaterial => faceEffectOwnedMaterial;
+
+    public bool ApplyFaceImageEffectMaterial(Material material)
+    {
+        var image = FaceImage;
+        if (image == null)
+        {
+            return false;
+        }
+
+        if (!originalFaceImageMaterialCaptured)
+        {
+            originalFaceImageMaterial = image.material;
+            originalFaceImageMaterialCaptured = true;
+        }
+
+        var changed = !ReferenceEquals(image.material, material);
+        image.material = material;
+        return changed;
+    }
+
+    public bool ApplyFaceMeshEffectMaterial(Material material)
+    {
+        var mesh = FaceMesh;
+        if (mesh == null)
+        {
+            return false;
+        }
+
+        if (!originalFaceMeshMaterialCaptured)
+        {
+            originalFaceMeshMaterial = FaceMaterial;
+            originalFaceMeshMaterialCaptured = true;
+        }
+
+        var changed = !ReferenceEquals(FaceMaterial, material);
+        mesh.material = material;
+        backgroundMaterial = material;
+        return changed;
+    }
+
+    public bool ClearFaceEffectMaterial()
+    {
+        var changed = false;
+        if (originalFaceImageMaterialCaptured)
+        {
+            var image = FaceImage;
+            if (image != null)
+            {
+                changed = changed || !ReferenceEquals(image.material, originalFaceImageMaterial);
+                image.material = originalFaceImageMaterial;
+            }
+
+            originalFaceImageMaterial = null;
+            originalFaceImageMaterialCaptured = false;
+        }
+
+        if (originalFaceMeshMaterialCaptured)
+        {
+            var mesh = FaceMesh;
+            if (mesh != null)
+            {
+                changed = true;
+                mesh.material = originalFaceMeshMaterial;
+                backgroundMaterial = originalFaceMeshMaterial;
+                if (LastFaceTexture != null && backgroundMaterial != null)
+                {
+                    backgroundMaterial.mainTexture = LastFaceTexture;
+                }
+            }
+
+            originalFaceMeshMaterial = null;
+            originalFaceMeshMaterialCaptured = false;
+        }
+
+        ClearOwnedFaceEffectMaterial();
+        if (LastFaceEffectId.Length > 0)
+        {
+            changed = true;
+        }
+
+        LastFaceEffectId = "";
+        return changed;
+    }
+
+    public void ReplaceOwnedFaceEffectMaterial(Material? material)
+    {
+        if (!ReferenceEquals(faceEffectOwnedMaterial, material))
+        {
+            ClearOwnedFaceEffectMaterial();
+            faceEffectOwnedMaterial = material;
+        }
+    }
+
+    public void ClearOwnedFaceEffectMaterial()
+    {
+        if (faceEffectOwnedMaterial != null)
+        {
+            CardFaceEffectMaterials.DestroyOwned(faceEffectOwnedMaterial);
+            faceEffectOwnedMaterial = null;
+        }
+    }
 
     public bool ApplyFrameImageEffectMaterial(Material material)
     {
@@ -196,6 +314,7 @@ internal sealed class CardVisualSkinMarker : MonoBehaviour
 
     private void OnDestroy()
     {
+        ClearOwnedFaceEffectMaterial();
         ClearOwnedFrameEffectMaterial();
     }
 }

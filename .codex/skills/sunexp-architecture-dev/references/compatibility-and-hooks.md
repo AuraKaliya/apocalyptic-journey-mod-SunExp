@@ -30,6 +30,11 @@ Independent startup or fight-start actions should run in separately named
 steps. A failed HP adjustment, UI setup, listener, resource registration, or
 tag setup must not block later unrelated actions.
 
+Entry initialization should keep independent systems in named `RunStep` calls:
+shared core, RPC authority, shared resources, visual registry, Skill CG,
+Journey, audio, UI guard, performance runtime, gameplay hooks, and tags should
+fail independently.
+
 ## Event Registration
 
 In script behavior, use `ScriptEventApi` or `ExecutorApi` wrappers for event
@@ -39,6 +44,16 @@ otherwise duplicate listeners.
 When a listener targets player, enemy, or field state, resolve the intended
 status explicitly. Do not borrow unrelated active `ScriptExecutor` state for a
 global or cross-status effect.
+
+## RPC Sender Binding
+
+Remote RPC authority must come from the server receive context, not from fields
+inside the RPC payload. SunExp server-bound commands should bind a
+`SunExpRpcSender` through `SunExpRpcAuthorityRuntime` and pass that sender into
+server-side validation.
+
+Host-local direct paths should create a local server sender and use the same
+validation flow as remote RPC paths.
 
 ## Build Output
 

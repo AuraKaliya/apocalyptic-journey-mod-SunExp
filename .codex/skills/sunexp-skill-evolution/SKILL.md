@@ -31,11 +31,13 @@ references for detailed context.
    - move verbose body content into `references/`;
    - add a focused sub-skill when one domain has its own workflow;
    - add or update validation when a rule is easy to check.
-4. Edit skills with progressive disclosure:
+4. Use `references/evolution-log-pattern.md` when drafting a reusable evidence
+   packet or patch proposal for a skill update.
+5. Edit skills with progressive disclosure:
    - keep `SKILL.md` short and action-oriented;
    - keep references one hop from `SKILL.md`;
    - avoid duplicated rules across skills; route instead.
-5. Validate skill metadata and representative project checks.
+6. Validate skill metadata and representative project checks.
 
 ## Distillation Rules
 
@@ -65,7 +67,7 @@ references for detailed context.
 Run:
 
 ```powershell
-python C:\Users\Administrator\.codex\skills\skill-creator\scripts\quick_validate.py .codex\skills\<skill-name>
+python C:\Users\75601\.codex\skills\.system\skill-creator\scripts\quick_validate.py .codex\skills\<skill-name>
 ```
 
 Run this for every changed or newly created skill. Then run representative

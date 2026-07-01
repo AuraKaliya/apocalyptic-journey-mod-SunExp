@@ -467,11 +467,11 @@ internal static class VisualRegistryDefaults
                 },
                 new()
                 {
-                    Id = SunExpIds.CardFrameHoloFlowShaderId,
-                    ShaderName = "SunExp/CardFrameHoloFlow",
+                    Id = SunExpIds.CardFaceEffectShaderId,
+                    ShaderName = "SunExp/CardFaceEffect",
                     BundlePath = "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
-                    MaterialPath = "SunExp/Materials/CardFrameHoloFlow",
-                    ShaderPath = "SunExp/CardFrameHoloFlow"
+                    MaterialPath = "SunExp/Materials/CardFaceEffect",
+                    ShaderPath = "SunExp/CardFaceEffect"
                 }
             },
             Effects = new List<VisualEffectVisualSpec>
@@ -497,36 +497,71 @@ internal static class VisualRegistryDefaults
                 },
                 new()
                 {
-                    Id = SunExpIds.CardFrameHoloFlowVisualEffectId,
-                    Kind = "card-visual-frame-material",
-                    ShaderId = SunExpIds.CardFrameHoloFlowShaderId,
+                    Id = SunExpIds.CardFaceFoilHoloVisualEffectId,
+                    Kind = "card-visual-face-material",
+                    ShaderId = SunExpIds.CardFaceEffectShaderId,
                     BundlePath = "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
-                    MaterialPath = "SunExp/Materials/CardFrameHoloFlow",
+                    MaterialPath = "SunExp/Materials/CardFaceEffect",
                     Textures = new Dictionary<string, string>
                     {
                         ["_NoiseTex"] = "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
                     },
                     Floats = new Dictionary<string, float>
                     {
+                        ["_SunExpEffectMode"] = 0f,
                         ["_SunExpFlowSpeed"] = 0.36f,
                         ["_SunExpFlowScale"] = 1.65f,
                         ["_SunExpNoiseScale"] = 4.8f,
-                        ["_SunExpDistortion"] = 0.018f,
-                        ["_SunExpEffectIntensity"] = 0.72f,
-                        ["_SunExpEdgeGlow"] = 0.22f,
+                        ["_SunExpDistortion"] = 0.014f,
+                        ["_SunExpEffectIntensity"] = 0.68f,
+                        ["_SunExpEdgeGlow"] = 0.16f,
                         ["_SunExpSweepFrequency"] = 5.6f,
-                        ["_SunExpSweepWidth"] = 0.16f,
-                        ["_SunExpSweepIntensity"] = 0.9f,
-                        ["_SunExpPrismScale"] = 14f,
-                        ["_SunExpPrismStrength"] = 0.68f,
-                        ["_SunExpFoilGrain"] = 0.26f,
+                        ["_SunExpSweepWidth"] = 0.105f,
+                        ["_SunExpSweepIntensity"] = 1.15f,
+                        ["_SunExpPrismScale"] = 16f,
+                        ["_SunExpPrismStrength"] = 0.58f,
+                        ["_SunExpFoilGrain"] = 0.34f,
+                        ["_SunExpMirrorSweep"] = 0.52f,
+                        ["_SunExpSwirlStrength"] = 0.2f,
                         ["_SunExpEdgeSample"] = 2f
                     },
                     Colors = new Dictionary<string, string>
                     {
-                        ["_SunExpHoloColorA"] = "#FFD65AFF",
-                        ["_SunExpHoloColorB"] = "#70E6FFFF",
-                        ["_SunExpHoloColorC"] = "#FF7AD6FF"
+                        ["_SunExpHoloColorA"] = "#FFE36DFF",
+                        ["_SunExpHoloColorB"] = "#89E8FFFF",
+                        ["_SunExpHoloColorC"] = "#FF8BE0FF"
+                    }
+                },
+                new()
+                {
+                    Id = SunExpIds.CardFaceStardustVisualEffectId,
+                    Kind = "card-visual-face-material",
+                    ShaderId = SunExpIds.CardFaceEffectShaderId,
+                    BundlePath = "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
+                    MaterialPath = "SunExp/Materials/CardFaceEffect",
+                    Textures = new Dictionary<string, string>
+                    {
+                        ["_NoiseTex"] = "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
+                    },
+                    Floats = new Dictionary<string, float>
+                    {
+                        ["_SunExpEffectMode"] = 1f,
+                        ["_SunExpFlowSpeed"] = 0.26f,
+                        ["_SunExpFlowScale"] = 1.2f,
+                        ["_SunExpNoiseScale"] = 3.6f,
+                        ["_SunExpDistortion"] = 0.006f,
+                        ["_SunExpEffectIntensity"] = 0.72f,
+                        ["_SunExpEdgeGlow"] = 0.1f,
+                        ["_SunExpFoilGrain"] = 0.22f,
+                        ["_SunExpStardustDensity"] = 0.48f,
+                        ["_SunExpStardustTwinkle"] = 1.18f,
+                        ["_SunExpStardustOrbit"] = 0.36f,
+                        ["_SunExpEdgeSample"] = 2f
+                    },
+                    Colors = new Dictionary<string, string>
+                    {
+                        ["_SunExpStardustColorA"] = "#DDF2FFFF",
+                        ["_SunExpStardustColorB"] = "#FFE08AFF"
                     }
                 },
                 new()

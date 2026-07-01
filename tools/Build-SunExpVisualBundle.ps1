@@ -90,7 +90,7 @@ function Prepare-UnityProject {
 
     Copy-Item -LiteralPath (Join-Path $shaderSourceDir "StarScoreHud.shader") -Destination (Join-Path $shaderDestDir "StarScoreHud.shader") -Force
     Copy-Item -LiteralPath (Join-Path $shaderSourceDir "WunaOrbitFire.shader") -Destination (Join-Path $shaderDestDir "WunaOrbitFire.shader") -Force
-    Copy-Item -LiteralPath (Join-Path $shaderSourceDir "CardFrameHoloFlow.shader") -Destination (Join-Path $shaderDestDir "CardFrameHoloFlow.shader") -Force
+    Copy-Item -LiteralPath (Join-Path $shaderSourceDir "CardFaceEffect.shader") -Destination (Join-Path $shaderDestDir "CardFaceEffect.shader") -Force
     Copy-Item -LiteralPath (Join-Path $auraCgShaderSourceDir "AuraCgLumaKeyUI.shader") -Destination (Join-Path $shaderDestDir "AuraCgLumaKeyUI.shader") -Force
     Copy-Item -LiteralPath (Join-Path $auraCgShaderSourceDir "AuraCgMaskedInvertFlash.shader") -Destination (Join-Path $shaderDestDir "AuraCgMaskedInvertFlash.shader") -Force
     Copy-Item -LiteralPath (Join-Path $auraCgShaderSourceDir "AuraCgScreenBwFlash.shader") -Destination (Join-Path $shaderDestDir "AuraCgScreenBwFlash.shader") -Force

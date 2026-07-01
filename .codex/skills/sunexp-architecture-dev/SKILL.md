@@ -1,6 +1,6 @@
 ---
 name: sunexp-architecture-dev
-description: Project-local skill for refactoring or reviewing SunExp C# architecture boundaries, including Scripting entry points, GameApi facades and wrappers, Mechanics services, Hooks runtimes, Infrastructure ids, handler registries, Managed compatibility, event registration wrappers, architecture tests, and DLL validation for Witch's Apocalyptic Journey.
+description: Project-local skill for refactoring or reviewing SunExp C# architecture boundaries, including Scripting entry points, GameApi facades and wrappers, Mechanics services, Features runtimes, Hooks and UI/Visual runtimes, Infrastructure ids and performance surfaces, handler registries, Managed compatibility, event registration wrappers, SunExp Network/RPC authority, architecture tests, and DLL validation for Witch's Apocalyptic Journey.
 ---
 
 # SunExp Architecture Dev
@@ -15,6 +15,7 @@ content workflow and validation.
    - CSV-callable `Scripting` entry point.
    - Game-facing wrapper or compatibility facade under `GameApi`.
    - Reusable service under `Mechanics`.
+   - Non-CSV feature runtime under `Features`.
    - Hook/runtime lifecycle code under `Hooks`.
    - IDs, logging, field ids, or parsing under `Infrastructure`.
    - Network/RPC code under `Network`.
@@ -24,7 +25,9 @@ content workflow and validation.
    - affected files under `SunExp-Dev/`
 3. Load `references/architecture-boundaries.md` for placement and dependency
    rules. Load `references/compatibility-and-hooks.md` when Managed signatures,
-   event registration, or lifecycle hooks are involved.
+   event registration, lifecycle hooks, or RPC sender binding are involved.
+   Load `references/performance-runtime.md` when touching frame scheduling,
+   resource/config caches, repeated listeners, UI pools, or hot-path visuals.
 4. Add or adjust architecture assertions when the task creates a new boundary
    that future edits must preserve.
 
@@ -43,6 +46,10 @@ content workflow and validation.
   deterministic fallback.
 - Use named/logged lifecycle steps so one failed setup action does not abort
   unrelated initialization.
+- Use `SunExpRpcAuthorityRuntime` for server-bound SunExp RPC sender binding.
+  Remote commands must not authorize from payload-provided identity.
+- Use the established performance surfaces before adding new knobs, frame
+  loops, resource caches, or repeated listener registrations.
 - Rebuild `SunExp/Scripts/Entry.dll` after C# changes.
 
 ## Validation

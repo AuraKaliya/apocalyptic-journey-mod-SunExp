@@ -30,7 +30,7 @@ public static class VisualBundleRuntimeValidator
         }
 
         ValidateWunaMaterials();
-        ValidateCardFrameMaterials();
+        ValidateCardFaceMaterials();
         RegisterAuraCgMaterials();
     }
 
@@ -50,15 +50,15 @@ public static class VisualBundleRuntimeValidator
         }
     }
 
-    private static void ValidateCardFrameMaterials()
+    private static void ValidateCardFaceMaterials()
     {
         var material = AssetBundleCache.LoadAsset<Material>(
             "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
-            "SunExp/Materials/CardFrameHoloFlow",
+            "SunExp/Materials/CardFaceEffect",
             LogPrefix);
         if (material != null)
         {
-            SunExpLog.Info(LogPrefix + " card frame holo material loaded from bundle.");
+            SunExpLog.Info(LogPrefix + " card face effect material loaded from bundle.");
         }
     }
 

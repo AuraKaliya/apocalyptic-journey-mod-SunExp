@@ -149,6 +149,7 @@ public static class CardVisualSkinApplier
             if (background)
             {
                 marker.LastBackgroundTextureId = textureId;
+                marker.LastFaceTexture = sprite.texture;
             }
             else
             {

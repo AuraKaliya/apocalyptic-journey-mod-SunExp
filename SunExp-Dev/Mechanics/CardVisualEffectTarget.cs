@@ -2,5 +2,6 @@ namespace SunExp.Dll.Mechanics;
 
 public enum CardVisualEffectTarget
 {
-    Frame = 0
+    Face = 0,
+    Frame = Face
 }

@@ -98,6 +98,15 @@ Shared components that advance state must identify the authority writer. Client
 presentation is allowed; shared progression, registry mutation, and shared
 runtime state should be host/server-authoritative.
 
+For server-bound RPC, bind the sender from the server receive context rather
+than trusting payload fields such as reporter, issuer, or role owner. Centralize
+authorization in a policy/runtime layer and pass the bound sender into command
+application.
+
+Payload transports should enforce byte budgets before Mirror serialization.
+Large shared payloads should use a bounded chunked-transfer path with checksum,
+expiration, and a cap on active receiver buffers.
+
 ## Tests
 
 Keep architecture tests close to the contract. Shared tests currently scan for

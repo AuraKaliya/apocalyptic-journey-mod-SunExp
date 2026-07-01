@@ -7,8 +7,8 @@
     "wunaOrbitFireShader": "Assets/SunExp/Visuals/Shaders/WunaOrbitFire.shader",
     "wunaOrbitFireBackMaterial": "Assets/SunExp/Visuals/Materials/WunaOrbitFireBack.mat",
     "wunaOrbitFireFrontMaterial": "Assets/SunExp/Visuals/Materials/WunaOrbitFireFront.mat",
-    "cardFrameHoloShader": "Assets/SunExp/Visuals/Shaders/CardFrameHoloFlow.shader",
-    "cardFrameHoloMaterial": "Assets/SunExp/Visuals/Materials/CardFrameHoloFlow.mat",
+    "cardFaceEffectShader": "Assets/SunExp/Visuals/Shaders/CardFaceEffect.shader",
+    "cardFaceEffectMaterial": "Assets/SunExp/Visuals/Materials/CardFaceEffect.mat",
     "wunaOrbitFireTrailMask": "SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
     "wunaOrbitFireTrailNoise": "SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png",
     "wunaOrbitFireFlameAtlas": "SunExp/ModResource/Images/Effects/WunaOrbitFire/Flame02_16x4.png"
@@ -21,9 +21,9 @@
     "wunaOrbitFireShaderPath": "SunExp/WunaOrbitFire",
     "wunaOrbitFireBackMaterialPath": "SunExp/Materials/WunaOrbitFireBack",
     "wunaOrbitFireFrontMaterialPath": "SunExp/Materials/WunaOrbitFireFront",
-    "cardFrameHoloShaderName": "SunExp/CardFrameHoloFlow",
-    "cardFrameHoloShaderPath": "SunExp/CardFrameHoloFlow",
-    "cardFrameHoloMaterialPath": "SunExp/Materials/CardFrameHoloFlow",
+    "cardFaceEffectShaderName": "SunExp/CardFaceEffect",
+    "cardFaceEffectShaderPath": "SunExp/CardFaceEffect",
+    "cardFaceEffectMaterialPath": "SunExp/Materials/CardFaceEffect",
     "wunaOrbitFireTrailMaskPath": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
     "wunaOrbitFireTrailNoisePath": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png",
     "wunaOrbitFireFlameAtlasPath": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/Flame02_16x4.png"
@@ -38,12 +38,14 @@
     "_SunExpWunaBackEdgeColor": "#D94B18B8",
     "_SunExpWunaFrontCoreColor": "#FFF1A8F2",
     "_SunExpWunaFrontEdgeColor": "#FF6A1FDD",
-    "_SunExpCardFrameHoloColorA": "#FFD65AFF",
-    "_SunExpCardFrameHoloColorB": "#70E6FFFF",
-    "_SunExpCardFrameHoloColorC": "#FF7AD6FF",
-    "_SunExpCardFrameHoloPrismScale": 14.0,
-    "_SunExpCardFrameHoloPrismStrength": 0.68,
-    "_SunExpCardFrameHoloFoilGrain": 0.26,
-    "_SunExpCardFrameHoloDistortion": 0.018
+    "_SunExpCardFaceHoloColorA": "#FFE36DFF",
+    "_SunExpCardFaceHoloColorB": "#89E8FFFF",
+    "_SunExpCardFaceHoloColorC": "#FF8BE0FF",
+    "_SunExpCardFaceHoloPrismScale": 16.0,
+    "_SunExpCardFaceHoloPrismStrength": 0.58,
+    "_SunExpCardFaceFoilGrain": 0.34,
+    "_SunExpCardFaceHoloDistortion": 0.014,
+    "_SunExpCardFaceStardustColorA": "#DDF2FFFF",
+    "_SunExpCardFaceStardustColorB": "#FFE08AFF"
   }
 }

@@ -8,9 +8,13 @@ public static class SunExpIds
 
     public const string SunCardVisualSkinId = "sunexp.card_visual.sun";
     public const string MorningStarCardVisualSkinId = "sunexp.card_visual.morning_star";
-    public const string CardFrameHoloFlowShaderId = "sunexp.card_visual_effect.frame_holo_flow.shader";
-    public const string CardFrameHoloFlowVisualEffectId = "sunexp.card_visual_effect.frame_holo_flow";
+    public const string CardFaceEffectShaderId = "sunexp.card_visual_effect.card_face.shader";
+    public const string CardFaceFoilHoloVisualEffectId = "sunexp.card_visual_effect.foil_holo";
+    public const string CardFaceStardustVisualEffectId = "sunexp.card_visual_effect.stardust_overture";
+    public const string CardFrameHoloFlowShaderId = CardFaceEffectShaderId;
+    public const string CardFrameHoloFlowVisualEffectId = CardFaceFoilHoloVisualEffectId;
     public const string BlazingCrownCollapseHoloEffectBindingId = "sunexp.card_visual_effect.blazing_crown_collapse.holo_flow";
+    public const string StellarOvertureStardustEffectBindingId = "sunexp.card_visual_effect.stellar_overture.stardust";
     public const string SunCardFramePath = "Mods/SunExp/ModResource/Images/UI/\u65e5\u8000-\u5361\u68461.png";
     public const string SunCardBackgroundPath = "Mods/SunExp/ModResource/Images/UI/\u5361\u9762\u80cc\u666f.png";
     public const string MorningStarCardFramePath = "Mods/SunExp/ModResource/Images/UI/\u6668\u661f-\u5361\u68461.png";

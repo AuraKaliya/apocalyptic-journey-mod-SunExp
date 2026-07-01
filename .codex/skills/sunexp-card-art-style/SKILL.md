@@ -7,7 +7,9 @@ description: Project-local skill for generating, redesigning, replacing, reviewi
 
 Use this skill inside this repository for card-face artwork, relic icons, and
 contact-sheet review. Pair it with `imagegen` when generating bitmap assets.
-Pair it with `sunexp-mod-dev` when CSV icon paths or validation matter.
+Pair it with `sunexp-mod-dev` when CSV icon paths or validation matter. Use
+`sunexp-visual-runtime-dev` instead for VisualBundles, shaders, card frame
+effects, Skill CG playback, or runtime visual application.
 
 ## Reference Images
 
