@@ -1,20 +1,15 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace SunExp.Dll.Mechanics;
 
 public sealed class LoneerCombatState
 {
-    private readonly List<string> stones = new();
-
     public string GuidanceCardId { get; set; } = "";
 
     public int ClockValue { get; set; }
 
     public int ClockMax { get; set; }
-
-    public int BlackStoneMax { get; set; }
 
     public int PrayerCooldown { get; set; }
 
@@ -28,49 +23,11 @@ public sealed class LoneerCombatState
 
     public bool Initialized { get; set; }
 
-    public IReadOnlyList<string> Stones => stones;
-
-    public int BlackStoneCount(string blackStone)
-    {
-        return stones.Count(stone => stone == blackStone);
-    }
-
-    public void ReplaceStones(IEnumerable<string> values)
-    {
-        stones.Clear();
-        stones.AddRange(values);
-    }
-
-    public string DrawStone()
-    {
-        if (stones.Count == 0)
-        {
-            return "";
-        }
-
-        var stone = stones[0];
-        stones.RemoveAt(0);
-        return stone;
-    }
-
-    public bool RemoveStoneAt(int index)
-    {
-        if (index < 0 || index >= stones.Count)
-        {
-            return false;
-        }
-
-        stones.RemoveAt(index);
-        return true;
-    }
-
     public void Reset()
     {
-        stones.Clear();
         GuidanceCardId = "";
         ClockValue = 0;
         ClockMax = 0;
-        BlackStoneMax = 0;
         PrayerCooldown = 0;
         PrayerUseCount = 0;
         ActionResolving = false;

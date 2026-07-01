@@ -299,6 +299,34 @@ public static class BuffApi
         buff.buffConfig.Level = level;
     }
 
+    public static void SetExactLevel(IStatusManager? status, string buffId, int nextLevel, bool keepZero)
+    {
+        if (!keepZero)
+        {
+            SetExactLevel(status, buffId, nextLevel);
+            return;
+        }
+
+        if (status == null || string.IsNullOrWhiteSpace(buffId))
+        {
+            return;
+        }
+
+        var level = Math.Max(0, nextLevel);
+        var buff = status.GetBuff(buffId);
+        if (buff?.buffConfig == null)
+        {
+            if (level > 0)
+            {
+                status.AddBuff(buffId, level);
+            }
+
+            return;
+        }
+
+        buff.buffConfig.Level = level;
+    }
+
     public static int ConsumeEmberBeforeBurn(ScriptExecutor executor, IStatusManager? status)
     {
         if (status == null)

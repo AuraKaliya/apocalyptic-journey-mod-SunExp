@@ -71,6 +71,36 @@ public static class StarScoreService
         }
     }
 
+    public static void ApplyScoreBuff(ScriptExecutor? self)
+    {
+        var owner = self?.Self;
+        var state = StarScoreCombatStateStore.Get(owner);
+        if (state == null)
+        {
+            PublishEmpty(owner);
+            return;
+        }
+
+        PublishChanged(owner, state);
+    }
+
+    public static void ClearScoreBuff(ScriptExecutor? self)
+    {
+        var owner = self?.Self;
+        var state = StarScoreCombatStateStore.Get(owner);
+        if (state != null)
+        {
+            state.Clear();
+            PublishChanged(owner, state);
+        }
+        else
+        {
+            PublishEmpty(owner);
+        }
+
+        StarScoreCombatStateStore.Remove(owner);
+    }
+
     public static void RemoveState(IStatusManager? owner)
     {
         StarScoreCombatStateStore.Remove(owner);
@@ -508,5 +538,10 @@ public static class StarScoreService
                 SunExpLog.Error("Star score display subscriber failed", ex);
             }
         }
+    }
+
+    private static void PublishEmpty(IStatusManager? owner)
+    {
+        PublishChanged(owner, new StarScoreCombatState());
     }
 }

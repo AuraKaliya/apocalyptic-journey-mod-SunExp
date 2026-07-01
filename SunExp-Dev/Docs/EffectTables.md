@@ -108,7 +108,7 @@ Source: `SunExp/Data/Buff/sunexp.csv`, `SunExp/Text/Buff/sunexp.csv`
 | SunExp_sunexp_cycle_gathered_flame | 轮转：聚炎 | Cycle: Gathered Flame | 能力 | 1 | 0 | FALSE | 自身灼烧每增加1层，获得1层聚炎。 |
 | SunExp_sunexp_afterglow_omen | 残光病兆 | Afterglow Omen | 能力 | 1 | 0 | FALSE | 回合开始时，所有带有{buff_burn}的敌人获得等同于其{buff_burn}层数一半的{buff_vulnerability}。 |
 | SunExp_sunexp_dusk_afterheat_recovery_trait | 余热回收 | Afterheat Recovery | 特性 | 1 | 0 | FALSE | 每当敌人的{buff_burn}触发时，拥有者获得其{buff_burn}层数一半的{SunExp_sunexp_ember}。 |
-| SunExp_sunexp_boss_trait_mirror_array | 三千环日镜 | Three Thousand Orbit Mirrors | 特性 | 1 | 0 | FALSE | 敌方回合开始时，若所有目标都没有{buff_burn}，全体目标获得2层{buff_burn}；否则首领按带有{buff_burn}的目标数获得护盾。带有{buff_burn}的目标受到折射时，会立即结算一次{buff_burn}。 |
-| SunExp_sunexp_boss_trait_merciless_daylight | 无慈白昼 | Merciless Daylight | 特性 | 1 | 0 | FALSE | 敌方回合开始时，若全队{buff_burn}总层数不低于8，触发焚书：将1个保存名字转为焚毁名字；若无保存名字，则全体目标获得2层{SunExp_sunexp_body_burn}。触发后首领获得2层{SunExp_sunexp_gathered_flame}。 |
-| SunExp_sunexp_boss_trait_white_radiance_saint | 白曜圣女 | White Radiance Saint | 特性 | 1 | 0 | FALSE | 敌方回合开始时，若自身没有{buff_burn}或{SunExp_sunexp_body_burn}，进行圣祷：通过时光铭刻将1个保存名字转为无名之人，并获得12点护盾。 |
+| SunExp_sunexp_boss_trait_mirror_array | 三千环日镜 | Three Thousand Orbit Mirrors | 特性 | 1 | 0 | FALSE | 敌方回合开始时，全体目标获得2层{buff_burn}，三千镜按全体{buff_burn}总层数获得护盾。 |
+| SunExp_sunexp_boss_trait_merciless_daylight | 无悯白昼 | Merciless Daylight | 特性 | 1 | 0 | FALSE | 敌方回合开始时，若玩家全体{buff_burn}总层数不低于8，焚毁1个保存名字；若没有保存名字，则玩家全体获得10层{SunExp_sunexp_body_burn}。 |
+| SunExp_sunexp_boss_trait_white_radiance_saint | 白曜圣女 | White Radiance Saint | 特性 | 1 | 0 | FALSE | 敌方回合开始时，若自身没有{SunExp_sunexp_body_burn}，则将1个保存名字焚尽，获得6层{SunExp_sunexp_solar_radiance}与10%最大生命值的护盾。自身{SunExp_sunexp_solar_radiance}不少于12时，进入{SunExp_sunexp_boss_white_radiance_crown}。 |
 

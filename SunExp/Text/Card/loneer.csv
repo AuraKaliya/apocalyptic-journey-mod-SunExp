@@ -1,3 +1,3 @@
 Id,是否完成,Type,Note,Name,Name_en,Name_zh-Hant,Name_ja,Description,Description_zh-Hant,Description_en,Description_ja
 唯一标识,FALSE,类型,备注,名称,Name,名稱,名称,描述,描述,Description,説明
-"*loneer_morning_star_prayer","TRUE","职业技能","","晨星祈愿","Morning Star Prayer","晨星祈願","晨星祈願","获得一张当前【指引牌】的复制。本场战斗中，【星石袋】黑石上限-2，最低为1。","獲得一張目前【指引牌】的複製。本場戰鬥中，【星石袋】黑石上限-2，最低為1。","Gain a copy of the current Guidance card. For this combat, the Star Stone Pouch's black stone cap is reduced by 2, to a minimum of 1.","現在の【導き札】のコピーを1枚得る。この戦闘中、【星石袋】の黒石上限-2。最低1。"
+"*loneer_morning_star_prayer","TRUE","职业技能","","晨星祈愿","Morning Star Prayer","晨星祈願","晨星祈願","触发【自然晨星】。本场战斗中，【星石袋】黑石上限-2，最低为1。","觸發【自然晨星】。本場戰鬥中，【星石袋】黑石上限-2，最低為1。","Trigger Natural Morning Star. For this combat, the Star Stone Pouch's black stone cap is reduced by 2, to a minimum of 1.","【自然晨星】を発動する。この戦闘中、【星石袋】の黒石上限-2。最低1。"

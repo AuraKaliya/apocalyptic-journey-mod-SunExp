@@ -10,9 +10,8 @@ namespace SunExp.Dll.Scripting;
 public static class BossScripts
 {
     private const int MirrorArrayBurn = 2;
-    private const int MirrorArrayBlockPerBurningTarget = 4;
     private const int MercilessDaylightBurnThreshold = 8;
-    private const int MercilessDaylightBodyBurn = 5;
+    private const int MercilessDaylightBodyBurn = 10;
     private const int LastDayNoonDamage = 28;
     private const int LastDayNoonWeak = 2;
     private const int LastDayNoonCripple = 2;
@@ -25,7 +24,7 @@ public static class BossScripts
     private const int SaintCrownMaxTier = 5;
     private const int SaintCrownExtraordinaryPerTier = 8;
     private const int SaintCrownAnnihilateCount = 3;
-    private const int WhiteRadianceSaintBlock = 12;
+    private const int WhiteRadianceSaintRadiance = 6;
 
     public static void InitEnemy(ScriptExecutor self, string bossId)
     {
@@ -130,7 +129,7 @@ public static class BossScripts
                     var hadBurn = ExecutorApi.StatusBuffLevel(target, SunExpIds.Burn) > 0;
                     ExecutorApi.DealDamageToTarget(self, target, 20);
                     ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, 10);
-                    if (hadBurn && ExecutorApi.SelfBuffLevel(self, SunExpIds.BossTraitMirrorArray) > 0)
+                    if (hadBurn)
                     {
                         ExecutorApi.TriggerBurn(self, target);
                     }
@@ -243,26 +242,20 @@ public static class BossScripts
             return;
         }
 
-        var burningTargets = 0;
+        var burnTotal = 0;
         foreach (var target in targets)
         {
-            if (ExecutorApi.StatusBuffLevel(target, SunExpIds.Burn) > 0)
-            {
-                burningTargets++;
-            }
+            ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, MirrorArrayBurn);
+            burnTotal += ExecutorApi.StatusBuffLevel(target, SunExpIds.Burn);
         }
 
-        if (burningTargets <= 0)
+        if (burnTotal <= 0)
         {
-            foreach (var target in targets)
-            {
-                ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, MirrorArrayBurn);
-            }
-
             return;
         }
 
-        ChangeSelfDefence(self, burningTargets * MirrorArrayBlockPerBurningTarget);
+        var maxHp = Math.Max(0, ExecutorApi.StatusMaxHp(self.Self));
+        ChangeSelfDefence(self, Math.Max(1, maxHp * burnTotal / 100));
     }
 
     private static void TriggerMercilessDaylight(ScriptExecutor self)
@@ -296,11 +289,12 @@ public static class BossScripts
 
     private static void TriggerWhiteRadianceSaint(ScriptExecutor self)
     {
-        if (ExecutorApi.SelfBuffLevel(self, SunExpIds.BodyBurn) <= 0 && MoveSavedNameToNameless())
+        if (ExecutorApi.SelfBuffLevel(self, SunExpIds.BodyBurn) <= 0 && MoveSavedNameToBurned())
         {
             var shield = Math.Max(1, ExecutorApi.StatusMaxHp(self.Self) / 10);
+            AddSelfBuff(self, SunExpIds.SolarRadiance, WhiteRadianceSaintRadiance);
             ChangeSelfDefence(self, shield);
-            PlayerApi.ShowCaption("白曜圣女将一个保存名字铭刻为无名之人。");
+            PlayerApi.ShowCaption("白曜圣女将一个保存名字焚尽。");
         }
 
         var crownedBefore = IsWhiteRadianceCrowned(self);
@@ -315,23 +309,6 @@ public static class BossScripts
         }
 
         ResolveWhiteRadianceStartRound(self);
-    }
-
-    private static void TriggerWhiteRadianceSaintLegacy(ScriptExecutor self)
-    {
-        if (ExecutorApi.SelfBuffLevel(self, SunExpIds.Burn) > 0
-            || ExecutorApi.SelfBuffLevel(self, SunExpIds.BodyBurn) > 0)
-        {
-            return;
-        }
-
-        if (!MoveSavedNameToNameless())
-        {
-            return;
-        }
-
-        ChangeSelfDefence(self, WhiteRadianceSaintBlock);
-        PlayerApi.ShowCaption("白曜圣女将一个保存名字铭刻为无名之人。");
     }
 
     private static bool IsSaintAction(string cardId)

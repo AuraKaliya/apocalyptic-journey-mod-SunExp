@@ -876,16 +876,18 @@ internal static class Program
         var other = new FakeStatus("loneer-b");
         var selectedFromCareer = LoneerCombatStateStore.ResetForFight(owner)!;
         selectedFromCareer.GuidanceCardId = "selected-guide";
-        selectedFromCareer.ReplaceStones(new[] { "B", "W", "B" });
+        selectedFromCareer.ClockValue = 7;
+        selectedFromCareer.SelectionVersion = 2;
 
         var readFromSkill = LoneerCombatStateStore.GetOrCreate(owner)!;
         True(ReferenceEquals(selectedFromCareer, readFromSkill), "Loneer state is shared across executors for the same owner");
         Equal("selected-guide", readFromSkill.GuidanceCardId, "Guidance survives executor changes");
-        Equal("B", readFromSkill.DrawStone(), "Stone draws use the shared owner bag");
-        Equal(1, readFromSkill.BlackStoneCount("B"), "Shared stone bag advances exactly once");
+        Equal(7, readFromSkill.ClockValue, "Miracle Clock state survives executor changes");
+        Equal(2, readFromSkill.SelectionVersion, "Guidance selection version survives executor changes");
 
         var isolated = LoneerCombatStateStore.GetOrCreate(other)!;
         Equal("", isolated.GuidanceCardId, "Different owners receive isolated guidance state");
+        Equal(0, isolated.ClockValue, "Different owners receive isolated Miracle Clock state");
         LoneerCombatStateStore.Remove(owner);
         Equal("", LoneerCombatStateStore.GetOrCreate(owner)!.GuidanceCardId, "Removed combat state does not leak into the next fight");
     }
@@ -1049,6 +1051,7 @@ function Invoke-SourceAssertions {
     $starScoreRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\StarScoreRuntime.cs"))
     $starScoreHudRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\StarScoreHudRuntime.cs"))
     $loneerService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\LoneerMiracleService.cs"))
+    $starStonePouchService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarStonePouchService.cs"))
     $loneerState = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\LoneerCombatState.cs"))
     $cardSelectionApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\CardSelectionApi.cs"))
     $starScoreService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreService.cs"))
@@ -1119,6 +1122,7 @@ function Invoke-SourceAssertions {
     $enemyCardText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\EnemyCard\sunexp.csv"))
     $buffData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Buff\sunexp.csv"))
     $buffText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\Buff\sunexp.csv"))
+    $enchTagData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\EnchTag\sunexp.csv"))
     $keywordText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\KeyWordsDic\sunexp.csv"))
     $eventData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\EventList\sunexp.csv"))
     $eventText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\EventList\sunexp.csv"))
@@ -1306,7 +1310,14 @@ function Invoke-SourceAssertions {
     Assert-True $starScoreRuntime.Contains("RefundBlessing();") "A rejected card use must refund the consumed Star Blessing."
     Assert-True $starBlessingCostOverrideStore.Contains('DictionaryUtil.Set(config.Vars, "OnceExCost", entry.OriginalOnceCost.ToString())') "Cancelling Star Blessing must restore the exact original one-use cost."
     Assert-True $starBlessingCostOverrideStore.Contains('DictionaryUtil.Set(config.Vars, "OnceExCost", "0")') "Successful Star Blessing use must clear one-use cost state."
-    Assert-True $loneerRuntime.Contains("LoneerMiracleService.OnCardActionAfter") "Loneer runtime must own non-derived card action dispatch."
+    Assert-True (-not $loneerRuntime.Contains("LoneerMiracleService.OnCardActionAfter")) "Loneer runtime must not own Star Stone Pouch action dispatch."
+    Assert-True $buffScripts.Contains('["star_stone_pouch"] = ApplyStarStonePouch') "BuffScripts must route Star Stone Pouch apply behavior."
+    Assert-True $buffScripts.Contains('["star_stone_pouch"] = ClearStarStonePouch') "BuffScripts must route Star Stone Pouch clear behavior."
+    Assert-True $buffScripts.Contains('["star_score"] = ApplyStarScore') "BuffScripts must route Star Score apply behavior."
+    Assert-True $buffScripts.Contains('["star_score"] = ClearStarScore') "BuffScripts must route Star Score clear behavior."
+    Assert-True $starStonePouchService.Contains('ExecutorApi.TryAddTokenedEvent(self, "ActionAfter"') "Star Stone Pouch must own its own after-action draw hook."
+    Assert-True $loneerService.Contains("StarStonePouchService.Drawn += OnStarStonePouchDrawn") "Loneer must subscribe to Star Stone Pouch draw results instead of owning the pouch."
+    Assert-True (-not $loneerService.Contains("private static void DrawStone")) "Loneer miracle logic must not keep a role-owned Star Stone draw flow."
     Assert-True $loneerState.Contains("Dictionary<string, LoneerCombatState>") "Loneer combat state must be keyed by owner status instead of ScriptExecutor.Vars."
     Assert-True $loneerService.Contains("LoneerCombatStateStore.GetOrCreate(self.Self)") "Loneer skill and action flows must resolve owner-scoped combat state."
     Assert-True $cardSelectionApi.Contains("Action? onCancelled = null") "Card selection API must expose cancellation separately from empty candidate pools."
@@ -1335,26 +1346,38 @@ function Invoke-SourceAssertions {
     Assert-True (-not $cardApi.Contains("could not verify added card")) "The inverted draw-pile count verifier must remain removed."
     Assert-True $loneerService.Contains("SetMorningPrayerCooldown(self, state, PrayerCooldownRounds);") "Morning Star Prayer must commit its cooldown after a successful copy."
     Assert-True $loneerService.Contains("self?.UpdateSkillTime();") "Morning Star Prayer cooldown changes must refresh the skill UI."
-    $loneerActionFlow = [regex]::Match($loneerService, "public\s+static\s+void\s+OnCardActionAfter[\s\S]*?public\s+static\s+void\s+UseMorningStarPrayer")
-    Assert-True $loneerActionFlow.Success "Could not locate Loneer action flow for source assertion."
-    Assert-True (-not $loneerActionFlow.Value.Contains("IsExcludedActionCard(config)")) "Every player card action, including generated and Stellar Overture cards, must draw a Star Stone."
+    $starStoneActionFlow = [regex]::Match($starStonePouchService, "private\s+static\s+void\s+DrawForAction[\s\S]*?private\s+static\s+void\s+PublishDrawn")
+    Assert-True $starStoneActionFlow.Success "Could not locate Star Stone Pouch action flow for source assertion."
+    Assert-True (-not $starStoneActionFlow.Value.Contains("IsExcludedActionCard")) "Every action taken with Star Stone Pouch should be eligible to draw a Star Stone."
     $naturalMorningStar = [regex]::Match($loneerService, "private\s+static\s+void\s+TriggerNaturalMorningStar[\s\S]*?private\s+static\s+void\s+TriggerBorrowedMiracle")
     Assert-True $naturalMorningStar.Success "Could not locate Natural Morning Star for source assertion."
     Assert-True (-not $naturalMorningStar.Value.Contains("AddStarlight")) "Natural Morning Star must not grant Starlight directly."
+    Assert-True $naturalMorningStar.Value.Contains("StarStonePouchService.ResetPouch(self);") "Natural Morning Star must reset the shared Star Stone Pouch."
     Assert-True $naturalMorningStar.Value.Contains("RequestGuidanceSelection") "Natural Morning Star must reselect Guidance after copying it."
-    $stoneDraw = [regex]::Match($loneerService, "private\s+static\s+void\s+DrawStone[\s\S]*?private\s+static\s+void\s+ReduceBlackStoneMax")
-    Assert-True $stoneDraw.Success "Could not locate Loneer stone draw flow for source assertion."
-    Assert-True $stoneDraw.Value.Contains("var whiteStarlight = state.BlackStoneCount(BlackStone);") "A white stone must count the black stones currently remaining in the pouch."
-    Assert-True $stoneDraw.Value.Contains("StarScoreService.AddStarlight(self, whiteStarlight);") "A white stone must grant Starlight equal to the current black-stone count."
-    Assert-True $stoneDraw.Value.Contains("StarScoreService.AddStarlight(self, 1);") "A black stone must grant exactly 1 Starlight."
+    $stoneDraw = [regex]::Match($starStonePouchService, "private\s+static\s+void\s+DrawForAction[\s\S]*?private\s+static\s+void\s+PublishDrawn")
+    Assert-True $stoneDraw.Success "Could not locate Star Stone Pouch draw flow for source assertion."
+    Assert-True $stoneDraw.Value.Contains("var blackStonesRemaining = state.BlackStoneCount();") "A white stone must count the black stones currently remaining in the pouch."
+    Assert-True $stoneDraw.Value.Contains("var starlightGain = stone == WhiteStone ? blackStonesRemaining : 1;") "Star Stone Pouch must derive black and white stone Starlight gains inside the buff service."
+    Assert-True $stoneDraw.Value.Contains("StarScoreService.AddStarlight(self, starlightGain);") "Star Stone Pouch must grant Starlight from the draw result."
+    Assert-True $stoneDraw.Value.Contains("PublishDrawn(self, new StarStonePouchDrawResult") "Star Stone Pouch must publish draw results for role-specific reactions."
     $borrowedMiracle = [regex]::Match($loneerService, "private\s+static\s+void\s+TriggerBorrowedMiracle[\s\S]*?private\s+static\s+void\s+ReduceClock")
     Assert-True $borrowedMiracle.Success "Could not locate Borrowed Miracle for source assertion."
     Assert-True $borrowedMiracle.Value.Contains("ResetPouchAndClock(self, state, grantStarlight: true);") "Restoring the Miracle Clock must grant Starlight equal to its cap."
     Assert-True $borrowedMiracle.Value.Contains("RequestGuidanceSelection") "Borrowed Miracle must reselect Guidance after copying it."
-    Assert-True $loneerCareerText.Contains("After each action, draw a Star Stone from the Star Stone Pouch.") "Loneer career text must describe the every-action Star Stone draw."
+    $resetPouchAndClock = [regex]::Match($loneerService, "private\s+static\s+void\s+ResetPouchAndClock[\s\S]*?private\s+static\s+void\s+EnsureInitialized")
+    Assert-True $resetPouchAndClock.Success "Could not locate ResetPouchAndClock for source assertion."
+    Assert-True $resetPouchAndClock.Value.Contains("StarStonePouchService.ResetPouch(self);") "Borrowed Miracle must reset the shared Star Stone Pouch through ResetPouchAndClock."
+    Assert-True $loneerCareerText.Contains("When the Star Stone Pouch draws a white stone") "Loneer career text must describe only Loneer's reaction to Star Stone Pouch draws."
     Assert-True $buffText.Contains("When the Miracle Clock is restored to its cap, gain {SunExp_sunexp_starlight} equal to that cap.") "Miracle Clock text must describe its Starlight restoration reward."
-    Assert-True $buffText.Contains("When you draw a black stone, gain 1 {SunExp_sunexp_starlight}.") "Star Stone Pouch text must describe black-stone Starlight gain."
+    Assert-True $buffText.Contains("After each action, draw one Star Stone.") "Star Stone Pouch text must own the every-action draw rule."
+    Assert-True $buffText.Contains("If it is black, gain 1 {SunExp_sunexp_starlight}") "Star Stone Pouch text must describe black-stone Starlight gain."
     Assert-True $buffText.Contains("equal to the current number of black stones.") "Star Stone Pouch text must describe white-stone Starlight gain."
+    Assert-True ([regex]::IsMatch($buffData, '(?m)^"star_stone_pouch".*"TRUE"\r?$')) "Star Stone Pouch buff data must allow a zero-layer pouch while the white stone remains."
+    Assert-True $buffData.Contains('BuffScripts.Apply(self, ""star_stone_pouch"")') "Star Stone Pouch buff data must call its apply script."
+    Assert-True $buffData.Contains('BuffScripts.Clear(self, ""star_stone_pouch"")') "Star Stone Pouch buff data must call its clear script."
+    Assert-True $buffData.Contains('BuffScripts.Apply(self, ""star_score"")') "Star Score buff data must bind its UI lifecycle to the buff apply script."
+    Assert-True $buffData.Contains('BuffScripts.Clear(self, ""star_score"")') "Star Score buff data must bind its UI lifecycle to the buff clear script."
+    Assert-True ([regex]::IsMatch($enchTagData, '(?m)^"morning_star_seal",.*,"3",')) "Morning Star Seal must be rarity tier 3."
     Assert-True $keywordText.Contains('"Natural Morning Star"') "Natural Morning Star keyword localization is missing."
     Assert-True $keywordText.Contains('"Borrowed Miracle"') "Borrowed Miracle keyword localization is missing."
     Assert-True $cardScripts.Contains('id = NormalizeId(id);') "Card script entry points must normalize generated-card ids."
@@ -1575,8 +1598,13 @@ function Invoke-SourceAssertions {
     Assert-True $bossScripts.Contains("LastDayNoonDamage = 28") "Second Sun noon action must deal 28 damage."
     Assert-True $bossScripts.Contains("ExecutorApi.DealDamageToTarget(self, noonTarget, LastDayNoonDamage)") "Second Sun noon action must deal damage to its explicit target."
     Assert-True $bossScripts.Contains("SunExpIds.Cripple") "Second Sun noon action must apply the official Cripple buff."
-    Assert-True $bossScripts.Contains("MercilessDaylightBodyBurn = 5") "Second Sun failed name burn must apply 5 Body Burn."
+    Assert-True $bossScripts.Contains("ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, MirrorArrayBurn);") "Mirror Array must apply Burn before counting total Burn stacks."
+    Assert-True $bossScripts.Contains("burnTotal += ExecutorApi.StatusBuffLevel(target, SunExpIds.Burn);") "Mirror Array shield must count post-application Burn stacks across all targets."
+    Assert-True $bossScripts.Contains("maxHp * burnTotal / 100") "Mirror Array shield must scale by 1 percent max HP per Burn stack."
+    Assert-True $bossScripts.Contains("MercilessDaylightBodyBurn = 10") "Second Sun failed name burn must apply 10 Body Burn."
     Assert-True (-not $bossScripts.Contains("MercilessDaylightFlame")) "Second Sun trait must no longer grant gathered flame after burning names."
+    Assert-True $bossScripts.Contains("WhiteRadianceSaintRadiance = 6") "White Radiance Saint start-round prayer must grant 6 Solar Radiance."
+    Assert-True $bossScripts.Contains("ExecutorApi.StatusMaxHp(self.Self) / 10") "White Radiance Saint start-round prayer must grant a 10 percent max HP shield."
     Assert-True $bossScripts.Contains("SaintCoronationRadianceThreshold = 12") "Saint Wuna must coronate at 12 Solar Radiance."
     Assert-True $bossScripts.Contains("SetWhiteRadianceTier(self, WhiteRadianceTier(self) + 1)") "White Radiance Crown must gain one tier each round after coronation."
     Assert-True $bossScripts.Contains("AnnihilateRandomPlayerCards(self, SaintCrownAnnihilateCount)") "White Radiance tier 4 must annihilate random player cards."

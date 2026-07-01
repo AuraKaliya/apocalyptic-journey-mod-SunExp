@@ -8,14 +8,9 @@ namespace SunExp.Dll.Mechanics;
 
 public static class LoneerMiracleService
 {
-    private const int InitialBlackStones = 9;
-    private const int InitialWhiteStones = 1;
     private const int InitialClockMax = 12;
     private const int MinClockMax = 6;
-    private const int MinBlackStones = 1;
     private const int PrayerCooldownRounds = 2;
-    private const string BlackStone = "B";
-    private const string WhiteStone = "W";
     private static readonly string[] MorningPrayerCooldownKeys =
     {
         SunExpIds.LoneerMorningPrayerSkillCardId,
@@ -27,6 +22,8 @@ public static class LoneerMiracleService
     {
         PlayerApi.SetGameVar(SunExpIds.LoneerActive, "1");
         SetMorningPrayerCooldown(self, null, 0);
+        StarStonePouchService.Drawn -= OnStarStonePouchDrawn;
+        StarStonePouchService.Drawn += OnStarStonePouchDrawn;
 
         var token = (DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "SunExpLoneerCareerToken", "0")) + 1).ToString();
         var fightStartRegistered = ExecutorApi.TryAddEvent(self, "FightStart", new Action(() =>
@@ -85,19 +82,22 @@ public static class LoneerMiracleService
         InitializeState(state);
         StarScoreService.ClearScore(self);
         ClearCombatBuffs(self);
+        StarStonePouchService.GrantInitial(self);
         SyncBuffs(self, state);
-        SunExpLog.Info("Loneer fight state initialized: owner=" + self.Self.InstanceId + ", stones=" + state.Stones.Count + ", clock=" + state.ClockValue);
+        SunExpLog.Info("Loneer fight state initialized: owner=" + self.Self.InstanceId
+            + ", starStoneBlack=" + StarStonePouchService.CurrentBlackStones(self)
+            + ", clock=" + state.ClockValue);
         RequestGuidanceSelection(self, state, "\u9009\u62e9\u3010\u6307\u5f15\u724c\u3011");
     }
 
-    public static void OnCardActionAfter(ScriptExecutor self, IDataConfig config)
+    private static void OnStarStonePouchDrawn(ScriptExecutor self, StarStonePouchDrawResult result)
     {
-        if (!IsActive() || self?.Self == null || config == null)
+        if (!IsActive() || self?.Self == null || result.OwnerStatusId != self.Self.InstanceId)
         {
             return;
         }
 
-        var state = LoneerCombatStateStore.GetOrCreate(self.Self);
+        var state = LoneerCombatStateStore.Get(self.Self);
         if (state == null || state.ActionResolving)
         {
             return;
@@ -107,7 +107,14 @@ public static class LoneerMiracleService
         state.ActionResolving = true;
         try
         {
-            DrawStone(self, state);
+            if (result.IsWhite)
+            {
+                TriggerNaturalMorningStar(self, state);
+            }
+            else if (result.IsBlack)
+            {
+                ReduceClock(self, state, 1);
+            }
         }
         finally
         {
@@ -152,7 +159,7 @@ public static class LoneerMiracleService
         SetMorningPrayerCooldown(self, state, PrayerCooldownRounds);
         SunExpLog.Info("Morning Star Prayer resolved: owner=" + self.Self.InstanceId
             + ", cooldown=" + state.PrayerCooldown
-            + ", blackStoneMax=" + state.BlackStoneMax
+            + ", blackStoneMax=" + StarStonePouchService.BlackStoneMax(self)
             + ", useCount=" + state.PrayerUseCount);
     }
 
@@ -160,67 +167,26 @@ public static class LoneerMiracleService
     {
         ClearCombatBuffs(self);
         StarScoreService.RemoveState(self?.Self);
+        StarStonePouchService.RemoveState(self?.Self);
         LoneerCombatStateStore.Remove(self?.Self);
-    }
-
-    private static void DrawStone(ScriptExecutor self, LoneerCombatState state)
-    {
-        if (state.Stones.Count == 0)
-        {
-            ResetStoneBag(state);
-        }
-
-        var stone = state.DrawStone();
-        if (stone == WhiteStone)
-        {
-            var whiteStarlight = state.BlackStoneCount(BlackStone);
-            StarScoreService.AddStarlight(self, whiteStarlight);
-            PlayerApi.ShowCaption("\u661f\u77f3\u888b\uff1a\u62bd\u51fa\u767d\u77f3\uff0c\u661f\u8f89+" + whiteStarlight + "\u3002");
-            TriggerNaturalMorningStar(self, state);
-            return;
-        }
-
-        StarScoreService.AddStarlight(self, 1);
-        PlayerApi.ShowCaption("\u661f\u77f3\u888b\uff1a\u62bd\u51fa\u9ed1\u77f3\uff0c\u661f\u8f89+1\u3002");
-        ReduceClock(self, state, 1);
     }
 
     private static void ReduceBlackStoneMax(ScriptExecutor self, LoneerCombatState state, int amount)
     {
-        var beforeMax = Math.Max(MinBlackStones, state.BlackStoneMax <= 0 ? InitialBlackStones : state.BlackStoneMax);
-        state.BlackStoneMax = Math.Max(MinBlackStones, beforeMax - Math.Max(0, amount));
-        TrimBlackStonesToMax(state);
-        SyncBuffs(self, state);
+        var beforeMax = StarStonePouchService.BlackStoneMax(self);
+        var afterMax = StarStonePouchService.ReduceBlackStoneMax(self, amount);
         SunExpLog.Info("Loneer black stone cap reduced: owner=" + self.Self.InstanceId
             + ", beforeMax=" + beforeMax
-            + ", afterMax=" + state.BlackStoneMax
-            + ", currentBlack=" + state.BlackStoneCount(BlackStone)
+            + ", afterMax=" + afterMax
+            + ", currentBlack=" + StarStonePouchService.CurrentBlackStones(self)
             + ", prayerUses=" + state.PrayerUseCount);
-    }
-
-    private static void TrimBlackStonesToMax(LoneerCombatState state)
-    {
-        while (state.BlackStoneCount(BlackStone) > state.BlackStoneMax)
-        {
-            var blackIndexes = state.Stones
-                .Select((stone, index) => stone == BlackStone ? index : -1)
-                .Where(index => index >= 0)
-                .ToList();
-            if (blackIndexes.Count == 0)
-            {
-                return;
-            }
-
-            state.RemoveStoneAt(blackIndexes[UnityEngine.Random.Range(0, blackIndexes.Count)]);
-        }
     }
 
     private static void TriggerNaturalMorningStar(ScriptExecutor self, LoneerCombatState state)
     {
         var copiedGuide = state.GuidanceCardId;
         var copied = TryAddGuidedCard(self, state, "natural");
-        ResetStoneBag(state);
-        SyncBuffs(self, state);
+        StarStonePouchService.ResetPouch(self);
         PlayerApi.ShowCaption("\u81ea\u7136\u6668\u661f\uff1a\u83b7\u5f97\u6307\u5f15\u724c\u590d\u5236\u3002");
         SunExpLog.Info("Natural Morning Star resolved: owner=" + self.Self.InstanceId + ", copied=" + copiedGuide + ", success=" + copied);
         RequestGuidanceSelection(self, state, "\u91cd\u65b0\u9009\u62e9\u3010\u6307\u5f15\u724c\u3011");
@@ -251,7 +217,7 @@ public static class LoneerMiracleService
 
     private static void ResetPouchAndClock(ScriptExecutor self, LoneerCombatState state, bool grantStarlight)
     {
-        ResetStoneBag(state);
+        StarStonePouchService.ResetPouch(self);
         state.ClockValue = state.ClockMax;
         if (grantStarlight)
         {
@@ -277,11 +243,9 @@ public static class LoneerMiracleService
     {
         state.ClockMax = InitialClockMax;
         state.ClockValue = InitialClockMax;
-        state.BlackStoneMax = InitialBlackStones;
         state.PrayerCooldown = 0;
         state.PrayerUseCount = 0;
         state.ActionResolving = false;
-        ResetStoneBag(state);
         state.Initialized = true;
     }
 
@@ -406,34 +370,6 @@ public static class LoneerMiracleService
         }
     }
 
-    private static void ResetStoneBag(LoneerCombatState state)
-    {
-        var stones = new List<string>();
-        var blackStoneMax = Math.Max(MinBlackStones, state.BlackStoneMax <= 0 ? InitialBlackStones : state.BlackStoneMax);
-        state.BlackStoneMax = blackStoneMax;
-        for (var i = 0; i < blackStoneMax; i++)
-        {
-            stones.Add(BlackStone);
-        }
-
-        for (var i = 0; i < InitialWhiteStones; i++)
-        {
-            stones.Add(WhiteStone);
-        }
-
-        Shuffle(stones);
-        state.ReplaceStones(stones);
-    }
-
-    private static void Shuffle(IList<string> stones)
-    {
-        for (var i = stones.Count - 1; i > 0; i--)
-        {
-            var j = UnityEngine.Random.Range(0, i + 1);
-            (stones[i], stones[j]) = (stones[j], stones[i]);
-        }
-    }
-
     private static string CardDisplayName(IDataConfig card)
     {
         try
@@ -472,7 +408,6 @@ public static class LoneerMiracleService
 
     private static void SyncBuffs(ScriptExecutor self, LoneerCombatState state)
     {
-        BuffApi.SetExactLevel(self?.Self, SunExpIds.StarStonePouch, state.BlackStoneCount(BlackStone));
         BuffApi.SetExactLevel(self?.Self, SunExpIds.MiracleClock, state.ClockValue);
     }
 
@@ -484,6 +419,7 @@ public static class LoneerMiracleService
             return;
         }
 
+        StarStonePouchService.RemoveState(status);
         foreach (var buffId in new[]
                  {
                      SunExpIds.StarStonePouch,

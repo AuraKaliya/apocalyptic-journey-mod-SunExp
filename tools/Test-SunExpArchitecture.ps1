@@ -109,6 +109,7 @@ $requiredFiles = @(
     "SunExp-Dev\Mechanics\CardVisualThemeCatalog.cs",
     "SunExp-Dev\Mechanics\SunCardThemeCatalog.cs",
     "SunExp-Dev\Mechanics\SunExpCardRefreshQueue.cs",
+    "SunExp-Dev\Mechanics\StarStonePouchService.cs",
     "SunExp-Dev\Hooks\DialogueFlowRuntime.cs",
     "SunExp-Dev\Hooks\SunExpFrameScheduler.cs",
     "SunExp-Dev\Hooks\SunExpActionEventRouter.cs",
@@ -257,6 +258,7 @@ $starScoreHudShaderSource = Read-RepoText "SunExp-Dev\VisualAssets\Shaders\StarS
 $cardFrameHoloShaderSource = Read-RepoText "SunExp-Dev\VisualAssets\Shaders\CardFrameHoloFlow.shader"
 $visualBundleBuildScript = Read-RepoText "tools\Build-SunExpVisualBundle.ps1"
 $starScoreService = Read-RepoText "SunExp-Dev\Mechanics\StarScoreService.cs"
+$starStonePouchService = Read-RepoText "SunExp-Dev\Mechanics\StarStonePouchService.cs"
 $starScoreRuntime = Read-RepoText "SunExp-Dev\Hooks\StarScoreRuntime.cs"
 $specialTagRuntime = Read-RepoText "SunExp-Dev\Hooks\SpecialTagRuntime.cs"
 $loneerRuntime = Read-RepoText "SunExp-Dev\Hooks\LoneerRuntime.cs"
@@ -337,8 +339,11 @@ Assert-Contains $sunExpActionEventRouter 'AddEventListener("ActionAfter" + statu
 Assert-Contains $sunExpActionEventRouter "CardConfigApi.FromActionPayload(payload)" "The Action router must parse card payloads once before handler fanout."
 Assert-Contains $specialTagRuntime 'SunExpActionEventRouter.RegisterHandler("SpecialTag.WhiteRadiance"' "SpecialTagRuntime must register through the shared Action router."
 Assert-Contains $starScoreRuntime 'SunExpActionEventRouter.RegisterHandler("StarScore"' "StarScoreRuntime must register through the shared Action router."
-Assert-Contains $loneerRuntime 'SunExpActionEventRouter.RegisterHandler("Loneer"' "LoneerRuntime must register through the shared Action router."
-Assert-NotContains ($specialTagRuntime + "`n" + $starScoreRuntime + "`n" + $loneerRuntime) "AddEventListener(" "Card-use feature runtimes must not register duplicate direct Action listeners."
+Assert-NotContains $loneerRuntime 'SunExpActionEventRouter.RegisterHandler("Loneer"' "LoneerRuntime must not own Star Stone Pouch action dispatch."
+Assert-Contains $starStonePouchService 'ExecutorApi.TryAddTokenedEvent(self, "ActionAfter"' "Star Stone Pouch buff service must own its after-action draw hook."
+Assert-Contains $buffScripts "StarStonePouchService.Apply(self)" "BuffScripts must attach Star Stone Pouch behavior through the buff lifecycle."
+Assert-Contains $buffScripts "StarScoreService.ApplyScoreBuff(self)" "BuffScripts must attach Star Score HUD state through the buff lifecycle."
+Assert-NotContains ($specialTagRuntime + "`n" + $starScoreRuntime + "`n" + $loneerRuntime + "`n" + $starStonePouchService) "AddEventListener(" "Card-use feature runtimes must not register duplicate direct Action listeners."
 Assert-Contains $sunExpCardRefreshQueue "RunOnceNextFrame" "Card refresh queue must debounce repeated card presentation refreshes."
 Assert-Contains $sunExpCardRefreshQueue "RequestConfigTagRefresh" "Config tag refreshes must be queued with card presentation refreshes."
 Assert-Contains $sunExpCardRefreshQueue "RefreshBudgetPerFrame" "Card refresh queue flushes must be split across frame-budgeted batches."

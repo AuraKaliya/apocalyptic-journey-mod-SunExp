@@ -19,7 +19,9 @@ public static class BuffScripts
         ["solar_crown"] = ApplySolarCrown,
         ["origin_core_radiance"] = ApplyOriginCoreRadiance,
         ["cycle_gathered_flame"] = ApplyCycleGatheredFlame,
-        ["afterglow_omen"] = ApplyAfterglowOmen
+        ["afterglow_omen"] = ApplyAfterglowOmen,
+        ["star_stone_pouch"] = ApplyStarStonePouch,
+        ["star_score"] = ApplyStarScore
     };
 
     private static readonly Dictionary<string, Action<ScriptExecutor>> ClearHandlers = new(StringComparer.Ordinal)
@@ -33,7 +35,9 @@ public static class BuffScripts
         ["solar_crown"] = ClearSolarCrown,
         ["origin_core_radiance"] = ClearOriginCoreRadiance,
         ["cycle_gathered_flame"] = ClearCycleGatheredFlame,
-        ["afterglow_omen"] = ClearAfterglowOmen
+        ["afterglow_omen"] = ClearAfterglowOmen,
+        ["star_stone_pouch"] = ClearStarStonePouch,
+        ["star_score"] = ClearStarScore
     };
 
     private static readonly HashSet<string> BossTraitIds = new(StringComparer.Ordinal)
@@ -129,6 +133,16 @@ public static class BuffScripts
         ExecutorApi.ClearHook(self, "SunExpAfterglowHook", "SunExpAfterglowToken");
     }
 
+    private static void ClearStarStonePouch(ScriptExecutor self)
+    {
+        StarStonePouchService.Clear(self);
+    }
+
+    private static void ClearStarScore(ScriptExecutor self)
+    {
+        StarScoreService.ClearScoreBuff(self);
+    }
+
     private static void ApplySolarRadiance(ScriptExecutor self)
     {
         var token = ExecutorApi.RegisterHook(self, "SunExpSolarRadianceHook", "SunExpSolarRadianceToken");
@@ -149,6 +163,16 @@ public static class BuffScripts
             self.SetStatus("Self");
             self.AddBuff("buff_extraordinary", gain.ToString());
         }), "solar_radiance");
+    }
+
+    private static void ApplyStarStonePouch(ScriptExecutor self)
+    {
+        StarStonePouchService.Apply(self);
+    }
+
+    private static void ApplyStarScore(ScriptExecutor self)
+    {
+        StarScoreService.ApplyScoreBuff(self);
     }
 
     private static void ApplyGatheredFlame(ScriptExecutor self)
