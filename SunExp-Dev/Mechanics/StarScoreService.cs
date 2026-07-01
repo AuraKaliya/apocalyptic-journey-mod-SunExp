@@ -78,6 +78,20 @@ public static class StarScoreService
         return count;
     }
 
+    public static IReadOnlyList<StarScoreNote> ClearCurrentNotesAndReturn(ScriptExecutor? self)
+    {
+        var state = StarScoreCombatStateStore.GetOrCreate(self?.Self);
+        var notes = state?.Notes.ToList() ?? new List<StarScoreNote>();
+        var count = state?.ClearNotesOnly() ?? 0;
+        SyncScoreBuff(self, state?.Notes.Count ?? 0);
+        if (count > 0 && state != null)
+        {
+            PublishChanged(self?.Self, state);
+        }
+
+        return notes;
+    }
+
     public static bool CycleLastNote(ScriptExecutor? self)
     {
         var state = StarScoreCombatStateStore.GetOrCreate(self?.Self);
@@ -101,7 +115,7 @@ public static class StarScoreService
 
         SyncScoreBuff(self, state.Notes.Count);
         PublishChanged(self?.Self, state);
-        PlayerApi.ShowCaption("拍号重订：星谱改为" + StarScoreCadenceCatalog.DisplayName(next));
+        PlayerApi.ShowCaption("星律重订：星谱改为" + StarScoreCadenceCatalog.DisplayName(next));
         return true;
     }
 
@@ -120,7 +134,7 @@ public static class StarScoreService
         }
 
         ApplyCadenceEffect(self!, pattern);
-        PlayerApi.ShowCaption("星谱回响：复奏最近谱句。");
+        PlayerApi.ShowCaption("晨星：复奏：复奏最近谱句。");
         return true;
     }
 

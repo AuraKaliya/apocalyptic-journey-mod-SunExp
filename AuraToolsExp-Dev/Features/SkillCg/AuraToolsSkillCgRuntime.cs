@@ -279,7 +279,7 @@ public static class AuraToolsSkillCgRuntime
     {
         if (DiagnosticKeys.Add(key))
         {
-            AuraToolsLog.Info(message);
+            AuraToolsLog.Debug(message);
         }
     }
 }

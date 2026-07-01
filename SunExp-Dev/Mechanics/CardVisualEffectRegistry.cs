@@ -120,13 +120,19 @@ public static class CardVisualEffectRegistry
         foreach (var pattern in spec.CardIds)
         {
             if (string.Equals(pattern, cardId, StringComparison.Ordinal)
-                || WildcardMatches(pattern, cardId))
+                || IsWildcardPattern(pattern) && WildcardMatches(pattern, cardId))
             {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private static bool IsWildcardPattern(string pattern)
+    {
+        var index = string.IsNullOrWhiteSpace(pattern) ? -1 : pattern.IndexOf('*');
+        return index > 0;
     }
 
     private static bool WildcardMatches(string pattern, string value)

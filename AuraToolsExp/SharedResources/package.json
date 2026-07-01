@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "packageId": "AuraToolsExp.SharedResources",
-  "packageVersion": 2,
+  "packageVersion": 3,
   "ownerModId": "AuraToolsExp",
   "packageKind": "ToolingPack",
   "displayName": "AuraToolsExp bundled resources",

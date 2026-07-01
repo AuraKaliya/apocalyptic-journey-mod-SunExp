@@ -509,27 +509,31 @@ internal static class VisualRegistryDefaults
                     Floats = new Dictionary<string, float>
                     {
                         ["_SunExpEffectMode"] = 0f,
-                        ["_SunExpFlowSpeed"] = 0.36f,
-                        ["_SunExpFlowScale"] = 1.65f,
-                        ["_SunExpNoiseScale"] = 4.8f,
-                        ["_SunExpDistortion"] = 0.014f,
-                        ["_SunExpEffectIntensity"] = 0.68f,
-                        ["_SunExpEdgeGlow"] = 0.16f,
-                        ["_SunExpSweepFrequency"] = 5.6f,
-                        ["_SunExpSweepWidth"] = 0.105f,
-                        ["_SunExpSweepIntensity"] = 1.15f,
-                        ["_SunExpPrismScale"] = 16f,
-                        ["_SunExpPrismStrength"] = 0.58f,
-                        ["_SunExpFoilGrain"] = 0.34f,
-                        ["_SunExpMirrorSweep"] = 0.52f,
-                        ["_SunExpSwirlStrength"] = 0.2f,
+                        ["_SunExpFlowSpeed"] = 0.42f,
+                        ["_SunExpFlowScale"] = 1.25f,
+                        ["_SunExpNoiseScale"] = 4f,
+                        ["_SunExpDistortion"] = 0.012f,
+                        ["_SunExpEffectIntensity"] = 0.92f,
+                        ["_SunExpEdgeGlow"] = 0.24f,
+                        ["_SunExpSweepFrequency"] = 3.6f,
+                        ["_SunExpSweepWidth"] = 0.18f,
+                        ["_SunExpSweepIntensity"] = 0.72f,
+                        ["_SunExpPrismScale"] = 11f,
+                        ["_SunExpPrismStrength"] = 0.78f,
+                        ["_SunExpFoilGrain"] = 0.12f,
+                        ["_SunExpMirrorSweep"] = 0.32f,
+                        ["_SunExpSwirlStrength"] = 0.08f,
+                        ["_SunExpFoilShardScale"] = 12f,
+                        ["_SunExpFoilShardWarp"] = 0.18f,
+                        ["_SunExpFoilGalaxyDensity"] = 0.04f,
+                        ["_SunExpFoilGlintSpeed"] = 0.85f,
                         ["_SunExpEdgeSample"] = 2f
                     },
                     Colors = new Dictionary<string, string>
                     {
-                        ["_SunExpHoloColorA"] = "#FFE36DFF",
-                        ["_SunExpHoloColorB"] = "#89E8FFFF",
-                        ["_SunExpHoloColorC"] = "#FF8BE0FF"
+                        ["_SunExpHoloColorA"] = "#FFF0A6FF",
+                        ["_SunExpHoloColorB"] = "#A6F2FFFF",
+                        ["_SunExpHoloColorC"] = "#D2B8FFFF"
                     }
                 },
                 new()
@@ -546,22 +550,28 @@ internal static class VisualRegistryDefaults
                     Floats = new Dictionary<string, float>
                     {
                         ["_SunExpEffectMode"] = 1f,
-                        ["_SunExpFlowSpeed"] = 0.26f,
-                        ["_SunExpFlowScale"] = 1.2f,
-                        ["_SunExpNoiseScale"] = 3.6f,
-                        ["_SunExpDistortion"] = 0.006f,
-                        ["_SunExpEffectIntensity"] = 0.72f,
-                        ["_SunExpEdgeGlow"] = 0.1f,
-                        ["_SunExpFoilGrain"] = 0.22f,
-                        ["_SunExpStardustDensity"] = 0.48f,
-                        ["_SunExpStardustTwinkle"] = 1.18f,
-                        ["_SunExpStardustOrbit"] = 0.36f,
+                        ["_SunExpFlowSpeed"] = 0.72f,
+                        ["_SunExpFlowScale"] = 1.5f,
+                        ["_SunExpNoiseScale"] = 6.2f,
+                        ["_SunExpDistortion"] = 0.004f,
+                        ["_SunExpEffectIntensity"] = 0.95f,
+                        ["_SunExpEdgeGlow"] = 0.12f,
+                        ["_SunExpFoilGrain"] = 0.28f,
+                        ["_SunExpStardustDensity"] = 0.46f,
+                        ["_SunExpStardustTwinkle"] = 1.25f,
+                        ["_SunExpStardustTwinkleSpeed"] = 2.15f,
+                        ["_SunExpStardustOrbit"] = 0.18f,
+                        ["_SunExpStardustGlowRadius"] = 0.18f,
+                        ["_SunExpStardustGlowPower"] = 5.4f,
+                        ["_SunExpStardustSweepSpeed"] = 1.85f,
+                        ["_SunExpStardustSweepIntensity"] = 0.62f,
+                        ["_SunExpStardustSweepWidth"] = 0.045f,
                         ["_SunExpEdgeSample"] = 2f
                     },
                     Colors = new Dictionary<string, string>
                     {
-                        ["_SunExpStardustColorA"] = "#DDF2FFFF",
-                        ["_SunExpStardustColorB"] = "#FFE08AFF"
+                        ["_SunExpStardustColorA"] = "#F3FBFFFF",
+                        ["_SunExpStardustColorB"] = "#FFE6A8FF"
                     }
                 },
                 new()

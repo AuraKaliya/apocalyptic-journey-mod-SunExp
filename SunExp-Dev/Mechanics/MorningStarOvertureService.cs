@@ -301,7 +301,7 @@ public static class MorningStarOvertureService
         return DictionaryUtil.Get(row, "Name");
     }
 
-    private static string CardIdForNote(StarScoreNote note)
+    public static string CardIdForNote(StarScoreNote note)
     {
         return note switch
         {

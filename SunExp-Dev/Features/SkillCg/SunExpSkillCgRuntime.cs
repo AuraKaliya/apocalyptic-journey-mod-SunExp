@@ -333,7 +333,7 @@ public static class SunExpSkillCgRuntime
     {
         if (DiagnosticKeys.Add(key))
         {
-            SunExpLog.Info(message);
+            SunExpLog.Debug(message);
         }
     }
 

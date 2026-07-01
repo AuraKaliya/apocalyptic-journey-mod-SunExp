@@ -37,6 +37,7 @@ function New-ProjectXml {
     $cardApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardApi.cs"
     $cardConfigApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardConfigApi.cs"
     $cardVisualSkinApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardVisualSkinApi.cs"
+    $cardVisualEffectApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardVisualEffectApi.cs"
     $cardVisualEffectTarget = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualEffectTarget.cs"
     $cardVisualEffectSpec = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualEffectSpec.cs"
     $cardVisualEffectRegistry = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualEffectRegistry.cs"
@@ -79,6 +80,7 @@ function New-ProjectXml {
     <Compile Include="$cardApi" />
     <Compile Include="$cardConfigApi" />
     <Compile Include="$cardVisualSkinApi" />
+    <Compile Include="$cardVisualEffectApi" />
     <Compile Include="$cardVisualEffectTarget" />
     <Compile Include="$cardVisualEffectSpec" />
     <Compile Include="$cardVisualEffectRegistry" />
@@ -463,6 +465,24 @@ internal static class Program
 
         CardVisualSkinRegistry.ClearOwner("TestMod");
         Equal(null, CardVisualSkinRegistry.Resolve(packCard)?.Id, "Clearing owner removes registered card visual skin rules");
+
+        CardVisualSkinApi.RegisterSunExpDefaults();
+        var radiantSparkCard = new DataConfig(new Dictionary<string, string>
+        {
+            ["Id"] = "SunExp_sunexp_morning_light_bulwark",
+            ["PackBelong"] = SunExpIds.RadiantSparkCardPackId,
+            ["Icon"] = "Mods/SunExp/ModResource/Images/Card/SunExp/morning_light_bulwark"
+        });
+        Equal(SunExpIds.SunCardVisualSkinId, CardVisualSkinRegistry.Resolve(radiantSparkCard)?.Id, "SunExp defaults keep Sun packs on the Sun card visual skin");
+
+        var morningStarPackCard = new DataConfig(new Dictionary<string, string>
+        {
+            ["Id"] = SunExpIds.PrewrittenMeasureCardId,
+            ["PackBelong"] = SunExpIds.MorningStarOvertureCardPackId,
+            ["Icon"] = "Mods/SunExp/ModResource/Images/Card/MorningStar/prewritten_measure"
+        });
+        Equal(SunExpIds.MorningStarCardVisualSkinId, CardVisualSkinRegistry.Resolve(morningStarPackCard)?.Id, "Morning Star Overture pack cards use the Morning Star card visual skin");
+        CardVisualSkinRegistry.ClearOwner(SunExpIds.ModId);
     }
 
     private static void TestCardVisualEffectRegistry()
@@ -499,7 +519,7 @@ internal static class Program
         CardVisualEffectRegistry.Register(new CardVisualEffectSpec(
             "TestMod",
             "test.effect.full",
-            CardVisualEffectTarget.Face,
+            CardVisualEffectTarget.Frame,
             SunExpIds.CardFaceFoilHoloVisualEffectId,
             "Full",
             30,
@@ -508,10 +528,63 @@ internal static class Program
         {
             ["Id"] = SunExpIds.BlazingCrownCollapseCardId
         });
-        Equal("test.effect.full", CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Face, blazingCrownCollapse)?.Id, "Card visual effect supports full mod-qualified card ids");
+        Equal("test.effect.full", CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, blazingCrownCollapse)?.Id, "Card visual effect supports full mod-qualified card ids on the frame target");
+        Equal(null, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Face, blazingCrownCollapse)?.Id, "Frame card visual effects do not bleed into the face target");
 
         CardVisualEffectRegistry.ClearOwner("TestMod");
         Equal(null, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Face, target)?.Id, "Clearing owner removes registered card visual effects");
+        Equal(null, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, blazingCrownCollapse)?.Id, "Clearing owner removes registered frame visual effects");
+
+        CardVisualEffectApi.RegisterSunExpDefaults();
+        Equal(SunExpIds.BlazingCrownCollapseHoloEffectBindingId, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, blazingCrownCollapse)?.Id, "Blazing Crown Collapse foil applies to the card frame");
+        Equal(null, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Face, blazingCrownCollapse)?.Id, "Blazing Crown Collapse foil does not apply to the card face");
+        foreach (var cardId in new[]
+        {
+            "*stellar_overture_start",
+            "*stellar_overture_sustain",
+            "*stellar_overture_turn",
+            "*stellar_overture_close"
+        })
+        {
+            var generatedOverture = new DataConfig(new Dictionary<string, string>
+            {
+                ["Id"] = cardId
+            });
+            Equal(SunExpIds.StellarOvertureStardustEffectBindingId, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, generatedOverture)?.Id, "Stardust applies to generated Stellar Overture frame id " + cardId);
+            Equal(null, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Face, generatedOverture)?.Id, "Stardust does not apply to generated Stellar Overture face id " + cardId);
+        }
+
+        foreach (var cardId in new[]
+        {
+            SunExpIds.StellarOvertureStartShortCardId,
+            SunExpIds.StellarOvertureSustainShortCardId,
+            SunExpIds.StellarOvertureTurnShortCardId,
+            SunExpIds.StellarOvertureCloseShortCardId,
+            SunExpIds.StellarOvertureStartCardId,
+            SunExpIds.StellarOvertureSustainCardId,
+            SunExpIds.StellarOvertureTurnCardId,
+            SunExpIds.StellarOvertureCloseCardId
+        })
+        {
+            var overture = new DataConfig(new Dictionary<string, string>
+            {
+                ["Id"] = cardId
+            });
+            Equal(SunExpIds.StellarOvertureStardustEffectBindingId, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, overture)?.Id, "Stardust applies to Stellar Overture frame id " + cardId);
+            Equal(null, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Face, overture)?.Id, "Stardust does not apply to Stellar Overture face id " + cardId);
+        }
+
+        var unrelatedGeneratedSuffix = new DataConfig(new Dictionary<string, string>
+        {
+            ["Id"] = "OtherMod_sunexp_stellar_overture_start"
+        });
+        Equal(null, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, unrelatedGeneratedSuffix)?.Id, "Leading star generated-card ids are matched literally, not as broad wildcards");
+
+        var ordinaryMorningStarCard = new DataConfig(new Dictionary<string, string>
+        {
+            ["Id"] = SunExpIds.PrewrittenMeasureCardId
+        });
+        Equal(null, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, ordinaryMorningStarCard)?.Id, "Stardust does not apply to ordinary Morning Star cards");
     }
 
     private static void TestMapNodeTextureFitService()

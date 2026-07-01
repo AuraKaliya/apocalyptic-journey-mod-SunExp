@@ -162,6 +162,11 @@ public static class CardApi
 
     public static int BurnAllHandCards(ScriptExecutor? self)
     {
+        return BurnHandCards(self, int.MaxValue);
+    }
+
+    public static int BurnHandCards(ScriptExecutor? self, int count)
+    {
         if (self == null)
         {
             return 0;
@@ -170,27 +175,30 @@ public static class CardApi
         var cards = (self.HandCard ?? Enumerable.Empty<CardItem>())
             .Select(card => card?.dataConfig)
             .Where(card => card != null)
+            .Take(Math.Max(0, count))
             .ToList();
+        var method = self.GetType().GetMethod("BurnCardByData", new[] { typeof(IDataConfig) });
+        if (method == null)
+        {
+            SunExpLog.Warn("BurnHandCards failed: ScriptExecutor.BurnCardByData unavailable");
+            return 0;
+        }
+
+        var burned = 0;
         foreach (var card in cards)
         {
             try
             {
-                var method = self.GetType().GetMethod("BurnCardByData", new[] { typeof(IDataConfig) });
-                if (method == null)
-                {
-                    SunExpLog.Warn("BurnAllHandCards failed: ScriptExecutor.BurnCardByData unavailable");
-                    return 0;
-                }
-
                 method.Invoke(self, new object[] { card! });
+                burned++;
             }
             catch (Exception ex)
             {
-                SunExpLog.Warn("BurnAllHandCards item failed: " + ex.Message);
+                SunExpLog.Warn("BurnHandCards item failed: " + ex.Message);
             }
         }
 
-        return cards.Count;
+        return burned;
     }
 
     public static bool AddCardToHand(ScriptExecutor self, string cardId, string runtimeTag = "")

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
@@ -56,28 +57,23 @@ public static class MorningStarCardScripts
     private static void UseStarMap(ScriptExecutor self)
     {
         self.SetStatus("Self");
+        var existing = CurrentHandConfigs(self);
         self.DrawCount("3");
-        ThrowHandCards(self, 2);
+        AttachMorningStarSealToNewHandCards(self, existing);
+        CardApi.BurnHandCards(self, 3);
     }
 
     private static void UseBlankStarScore(ScriptExecutor self)
     {
+        StarScoreService.ClearCurrentNotes(self);
         self.SetStatus("Self");
+        self.AddBuff(SunExpIds.StarBlessing, "1");
         self.DrawCount("1");
-        if (StarScoreService.IsScoreEmpty(self))
-        {
-            self.AddBuff(SunExpIds.StarBlessing, "1");
-        }
     }
 
     private static void UseMeterRewrite(ScriptExecutor self)
     {
-        if (StarScoreService.CycleLastNote(self))
-        {
-            return;
-        }
-
-        CardApi.AddCardToHand(self, SunExpIds.StellarOvertureStartCardId);
+        StarScoreService.CycleLastNote(self);
     }
 
     private static void UsePrewrittenMeasure(ScriptExecutor self)
@@ -91,7 +87,10 @@ public static class MorningStarCardScripts
 
     private static void UseStarOrbitTranspose(ScriptExecutor self)
     {
-        MorningStarOvertureService.SelectHandCardForTranspose(self);
+        foreach (var note in StarScoreService.ClearCurrentNotesAndReturn(self))
+        {
+            CardApi.AddCardToHand(self, MorningStarOvertureService.CardIdForNote(note));
+        }
     }
 
     private static void UseRestMark(ScriptExecutor self)
@@ -104,10 +103,7 @@ public static class MorningStarCardScripts
 
         self.SetStatus("Self");
         self.AddBuff(SunExpIds.Resonance, cleared.ToString());
-        if (cleared >= 2)
-        {
-            self.AddBuff(SunExpIds.StarBlessing, "1");
-        }
+        self.DrawCount(cleared.ToString());
     }
 
     private static void UseMorningStarStage(ScriptExecutor self)
@@ -129,20 +125,23 @@ public static class MorningStarCardScripts
         MorningStarOvertureService.Compose(self);
     }
 
-    private static void ThrowHandCards(ScriptExecutor self, int count)
+    private static HashSet<IDataConfig> CurrentHandConfigs(ScriptExecutor self)
     {
-        if (count <= 0 || CardApi.HandCardCount(self) <= 0)
-        {
-            return;
-        }
+        return (self.HandCard ?? Enumerable.Empty<CardItem>())
+            .Select(card => card?.dataConfig)
+            .Where(config => config != null)
+            .Cast<IDataConfig>()
+            .ToHashSet();
+    }
 
-        try
+    private static void AttachMorningStarSealToNewHandCards(ScriptExecutor self, HashSet<IDataConfig> existing)
+    {
+        foreach (var card in self.HandCard ?? Enumerable.Empty<CardItem>())
         {
-            self.ThrowCard(count.ToString(), "Hand");
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Warn("Star Map discard skipped: " + ex.Message);
+            if (card?.dataConfig != null && !existing.Contains(card.dataConfig))
+            {
+                CardMutationService.AddSpecialTags(card, SunExpIds.MorningStarSealTag);
+            }
         }
     }
 

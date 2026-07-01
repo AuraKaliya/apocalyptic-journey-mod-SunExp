@@ -554,7 +554,7 @@ public static class AuraToolsFeastRuntime
     {
         if (DiagnosticKeys.Add(key))
         {
-            AuraToolsLog.Info(message);
+            AuraToolsLog.Debug(message);
         }
     }
 }

@@ -36,17 +36,17 @@ internal static class CardFaceEffectApplier
 
     private static bool ApplyImageMaterial(CardVisualSkinMarker marker, CardVisualEffectSpec effect)
     {
-        var material = CardFaceEffectMaterials.SharedUiMaterial(effect);
+        var material = CardFaceEffectMaterials.SharedUiOverlayMaterial(effect);
         if (material == null)
         {
             return Clear(marker);
         }
 
         marker.ClearOwnedFaceEffectMaterial();
-        var changed = marker.ApplyFaceImageEffectMaterial(material)
+        var changed = marker.ApplyFaceImageEffectOverlay(material)
             || marker.LastFaceEffectId != effect.Id;
         marker.LastFaceEffectId = effect.Id;
-        LogApplied(effect);
+        LogApplied(effect, marker.FaceEffectTargetSummary);
         return changed;
     }
 
@@ -68,15 +68,16 @@ internal static class CardFaceEffectApplier
         var changed = marker.ApplyFaceMeshEffectMaterial(material)
             || marker.LastFaceEffectId != effect.Id;
         marker.LastFaceEffectId = effect.Id;
-        LogApplied(effect);
+        LogApplied(effect, "mesh");
         return changed;
     }
 
-    private static void LogApplied(CardVisualEffectSpec effect)
+    private static void LogApplied(CardVisualEffectSpec effect, string target)
     {
         if (LoggedEffects.Add(effect.Id))
         {
-            SunExpLog.Info(LogPrefix + " applied " + effect.DisplayName + ": " + effect.VisualEffectId);
+            var targetSuffix = string.IsNullOrWhiteSpace(target) ? "" : " (" + target + ")";
+            SunExpLog.Info(LogPrefix + " applied " + effect.DisplayName + ": " + effect.VisualEffectId + targetSuffix);
         }
     }
 }

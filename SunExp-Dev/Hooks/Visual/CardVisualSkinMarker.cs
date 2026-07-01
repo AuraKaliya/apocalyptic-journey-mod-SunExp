@@ -5,10 +5,14 @@ namespace SunExp.Dll.Hooks.Visual;
 
 internal sealed class CardVisualSkinMarker : MonoBehaviour
 {
+    private const string FaceEffectOverlayName = "SunExp_CardFaceEffectOverlay";
+
     private Transform? frameNode;
     private Transform? backgroundNode;
     private Image? frameImage;
     private Image? backgroundImage;
+    private Image? faceEffectOverlayImage;
+    private RectTransform? faceEffectOverlayRect;
     private MeshRenderer? frameMesh;
     private MeshRenderer? backgroundMesh;
     private Material? frameMaterial;
@@ -66,6 +70,34 @@ internal sealed class CardVisualSkinMarker : MonoBehaviour
 
     public Material? FaceEffectOwnedMaterial => faceEffectOwnedMaterial;
 
+    public string FaceEffectTargetSummary { get; private set; } = "";
+
+    public bool ApplyFaceImageEffectOverlay(Material material)
+    {
+        var source = FaceImage;
+        if (source == null)
+        {
+            DestroyFaceEffectOverlay();
+            return false;
+        }
+
+        var overlay = EnsureFaceEffectOverlay(source);
+        if (overlay == null)
+        {
+            return false;
+        }
+
+        CopyImageShape(source, overlay);
+        var changed = !ReferenceEquals(overlay.material, material)
+            || !ReferenceEquals(overlay.sprite, source.sprite)
+            || !overlay.gameObject.activeSelf;
+        overlay.material = material;
+        overlay.sprite = source.sprite;
+        overlay.gameObject.SetActive(true);
+        FaceEffectTargetSummary = "overlay=" + FaceEffectOverlayName;
+        return changed;
+    }
+
     public bool ApplyFaceImageEffectMaterial(Material material)
     {
         var image = FaceImage;
@@ -108,6 +140,7 @@ internal sealed class CardVisualSkinMarker : MonoBehaviour
     public bool ClearFaceEffectMaterial()
     {
         var changed = false;
+        changed = DestroyFaceEffectOverlay() || changed;
         if (originalFaceImageMaterialCaptured)
         {
             var image = FaceImage;
@@ -146,6 +179,7 @@ internal sealed class CardVisualSkinMarker : MonoBehaviour
         }
 
         LastFaceEffectId = "";
+        FaceEffectTargetSummary = "";
         return changed;
     }
 
@@ -312,8 +346,125 @@ internal sealed class CardVisualSkinMarker : MonoBehaviour
         return cached;
     }
 
+    private Image? EnsureFaceEffectOverlay(Image source)
+    {
+        if (faceEffectOverlayImage != null)
+        {
+            PositionFaceEffectOverlay(source);
+            return faceEffectOverlayImage;
+        }
+
+        var parent = ResolveFaceEffectOverlayParent(source);
+        if (parent == null)
+        {
+            return null;
+        }
+
+        var overlayObject = new GameObject(FaceEffectOverlayName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        overlayObject.layer = source.gameObject.layer;
+        overlayObject.transform.SetParent(parent, false);
+
+        faceEffectOverlayRect = overlayObject.GetComponent<RectTransform>();
+        faceEffectOverlayImage = overlayObject.GetComponent<Image>();
+        faceEffectOverlayImage.raycastTarget = false;
+        faceEffectOverlayImage.maskable = source.maskable;
+        PositionFaceEffectOverlay(source);
+        return faceEffectOverlayImage;
+    }
+
+    private Transform? ResolveFaceEffectOverlayParent(Image source)
+    {
+        var frame = FrameNode;
+        if (frame != null && frame.parent != null)
+        {
+            return frame.parent;
+        }
+
+        var background = BackgroundNode;
+        if (background != null && background.parent != null)
+        {
+            return background.parent;
+        }
+
+        return source.transform.parent;
+    }
+
+    private void PositionFaceEffectOverlay(Image source)
+    {
+        if (faceEffectOverlayImage == null || faceEffectOverlayRect == null)
+        {
+            return;
+        }
+
+        var parent = ResolveFaceEffectOverlayParent(source);
+        if (parent != null && faceEffectOverlayImage.transform.parent != parent)
+        {
+            faceEffectOverlayImage.transform.SetParent(parent, false);
+        }
+
+        var sourceRect = source.transform as RectTransform;
+        if (sourceRect != null)
+        {
+            CopyRectShape(sourceRect, faceEffectOverlayRect);
+        }
+
+        var frame = FrameNode;
+        if (frame != null && frame.parent == faceEffectOverlayImage.transform.parent)
+        {
+            var frameIndex = frame.GetSiblingIndex();
+            var overlayIndex = faceEffectOverlayImage.transform.GetSiblingIndex();
+            var targetIndex = overlayIndex < frameIndex ? frameIndex - 1 : frameIndex;
+            faceEffectOverlayImage.transform.SetSiblingIndex(targetIndex);
+        }
+        else
+        {
+            faceEffectOverlayImage.transform.SetAsLastSibling();
+        }
+    }
+
+    private static void CopyImageShape(Image source, Image target)
+    {
+        target.type = source.type;
+        target.color = Color.white;
+        target.preserveAspect = source.preserveAspect;
+        target.fillCenter = source.fillCenter;
+        target.fillMethod = source.fillMethod;
+        target.fillOrigin = source.fillOrigin;
+        target.fillAmount = source.fillAmount;
+        target.fillClockwise = source.fillClockwise;
+        target.raycastTarget = false;
+        target.maskable = source.maskable;
+    }
+
+    private static void CopyRectShape(RectTransform source, RectTransform target)
+    {
+        target.anchorMin = source.anchorMin;
+        target.anchorMax = source.anchorMax;
+        target.anchoredPosition = source.anchoredPosition;
+        target.sizeDelta = source.sizeDelta;
+        target.pivot = source.pivot;
+        target.localScale = source.localScale;
+        target.localRotation = source.localRotation;
+    }
+
+    private bool DestroyFaceEffectOverlay()
+    {
+        if (faceEffectOverlayImage == null)
+        {
+            faceEffectOverlayRect = null;
+            return false;
+        }
+
+        var overlayObject = faceEffectOverlayImage.gameObject;
+        faceEffectOverlayImage = null;
+        faceEffectOverlayRect = null;
+        Destroy(overlayObject);
+        return true;
+    }
+
     private void OnDestroy()
     {
+        DestroyFaceEffectOverlay();
         ClearOwnedFaceEffectMaterial();
         ClearOwnedFrameEffectMaterial();
     }

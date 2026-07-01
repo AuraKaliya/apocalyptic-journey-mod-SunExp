@@ -52,17 +52,46 @@ public static class SunExpVisualBundleBuilder
             throw new FileNotFoundException("One or more SunExp material assets are missing.");
         }
 
-        starScoreMaterial.assetBundleName = BundleName;
-        wunaBackMaterial.assetBundleName = BundleName;
-        wunaFrontMaterial.assetBundleName = BundleName;
-        cardFaceEffectMaterial.assetBundleName = BundleName;
-        auraCgLumaKeyMaterial.assetBundleName = BundleName;
-        auraCgMaskedInvertMaterial.assetBundleName = BundleName;
-        auraCgScreenBwFlashMaterial.assetBundleName = BundleName;
+        AssignBundleName(starScoreMaterial);
+        AssignBundleName(wunaBackMaterial);
+        AssignBundleName(wunaFrontMaterial);
+        AssignBundleName(cardFaceEffectMaterial);
+        AssignBundleName(auraCgLumaKeyMaterial);
+        AssignBundleName(auraCgMaskedInvertMaterial);
+        AssignBundleName(auraCgScreenBwFlashMaterial);
+        AssetDatabase.RemoveUnusedAssetBundleNames();
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+
+        var frameAssets = AssetDatabase.FindAssets("t:Texture2D", new[] { BlazingCrownCollapseFrameDirectory })
+            .Select(AssetDatabase.GUIDToAssetPath)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase);
+        var bundleAssets = new[]
+            {
+                StarScoreMaterialAssetPath,
+                WunaOrbitFireBackMaterialAssetPath,
+                WunaOrbitFireFrontMaterialAssetPath,
+                CardFaceEffectMaterialAssetPath,
+                AuraCgLumaKeyMaterialAssetPath,
+                AuraCgMaskedInvertMaterialAssetPath,
+                AuraCgScreenBwFlashMaterialAssetPath
+            }
+            .Concat(frameAssets)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var builds = new[]
+        {
+            new AssetBundleBuild
+            {
+                assetBundleName = BundleName,
+                assetNames = bundleAssets
+            }
+        };
 
         Directory.CreateDirectory(BuildOutputDirectory);
         BuildPipeline.BuildAssetBundles(
             BuildOutputDirectory,
+            builds,
             BuildAssetBundleOptions.ChunkBasedCompression,
             EditorUserBuildSettings.activeBuildTarget);
 
@@ -83,6 +112,17 @@ public static class SunExpVisualBundleBuilder
     {
         var explicitPath = Environment.GetEnvironmentVariable("SUNEXP_VISUAL_BUNDLE_OUTPUT");
         return string.IsNullOrWhiteSpace(explicitPath) ? ModOutputPath : explicitPath;
+    }
+
+    private static void AssignBundleName(AssetImporter importer)
+    {
+        if (importer.assetBundleName == BundleName)
+        {
+            return;
+        }
+
+        importer.assetBundleName = BundleName;
+        importer.SaveAndReimport();
     }
 
     private static void EnsureStarScoreMaterial()
@@ -162,30 +202,40 @@ public static class SunExpVisualBundleBuilder
 
         var material = EnsureMaterial(CardFaceEffectMaterialAssetPath, shader, "CardFaceEffect");
         material.SetFloat("_SunExpEffectMode", 0f);
-        material.SetFloat("_SunExpFlowSpeed", 0.36f);
-        material.SetFloat("_SunExpFlowScale", 1.65f);
-        material.SetFloat("_SunExpNoiseScale", 4.8f);
-        material.SetFloat("_SunExpDistortion", 0.014f);
-        material.SetFloat("_SunExpEffectIntensity", 0.68f);
+        material.SetFloat("_SunExpFlowSpeed", 0.42f);
+        material.SetFloat("_SunExpFlowScale", 1.25f);
+        material.SetFloat("_SunExpNoiseScale", 4f);
+        material.SetFloat("_SunExpDistortion", 0.012f);
+        material.SetFloat("_SunExpEffectIntensity", 0.92f);
         material.SetFloat("_SunExpQualityScale", 1f);
-        material.SetFloat("_SunExpEdgeGlow", 0.16f);
-        material.SetFloat("_SunExpSweepFrequency", 5.6f);
-        material.SetFloat("_SunExpSweepWidth", 0.105f);
-        material.SetFloat("_SunExpSweepIntensity", 1.15f);
-        material.SetFloat("_SunExpPrismScale", 16f);
-        material.SetFloat("_SunExpPrismStrength", 0.58f);
-        material.SetFloat("_SunExpFoilGrain", 0.34f);
-        material.SetFloat("_SunExpMirrorSweep", 0.52f);
-        material.SetFloat("_SunExpSwirlStrength", 0.2f);
-        material.SetFloat("_SunExpStardustDensity", 0.38f);
-        material.SetFloat("_SunExpStardustTwinkle", 1f);
-        material.SetFloat("_SunExpStardustOrbit", 0.32f);
+        material.SetFloat("_SunExpEdgeGlow", 0.24f);
+        material.SetFloat("_SunExpSweepFrequency", 3.6f);
+        material.SetFloat("_SunExpSweepWidth", 0.18f);
+        material.SetFloat("_SunExpSweepIntensity", 0.72f);
+        material.SetFloat("_SunExpPrismScale", 11f);
+        material.SetFloat("_SunExpPrismStrength", 0.78f);
+        material.SetFloat("_SunExpFoilGrain", 0.12f);
+        material.SetFloat("_SunExpMirrorSweep", 0.32f);
+        material.SetFloat("_SunExpSwirlStrength", 0.08f);
+        material.SetFloat("_SunExpFoilShardScale", 12f);
+        material.SetFloat("_SunExpFoilShardWarp", 0.18f);
+        material.SetFloat("_SunExpFoilGalaxyDensity", 0.04f);
+        material.SetFloat("_SunExpFoilGlintSpeed", 0.85f);
+        material.SetFloat("_SunExpStardustDensity", 0.46f);
+        material.SetFloat("_SunExpStardustTwinkle", 1.25f);
+        material.SetFloat("_SunExpStardustTwinkleSpeed", 2.15f);
+        material.SetFloat("_SunExpStardustOrbit", 0.18f);
+        material.SetFloat("_SunExpStardustGlowRadius", 0.18f);
+        material.SetFloat("_SunExpStardustGlowPower", 5.4f);
+        material.SetFloat("_SunExpStardustSweepSpeed", 1.85f);
+        material.SetFloat("_SunExpStardustSweepIntensity", 0.62f);
+        material.SetFloat("_SunExpStardustSweepWidth", 0.045f);
         material.SetFloat("_SunExpEdgeSample", 2f);
-        material.SetColor("_SunExpHoloColorA", new Color(1f, 0.89f, 0.43f, 1f));
-        material.SetColor("_SunExpHoloColorB", new Color(0.54f, 0.91f, 1f, 1f));
-        material.SetColor("_SunExpHoloColorC", new Color(1f, 0.55f, 0.88f, 1f));
-        material.SetColor("_SunExpStardustColorA", new Color(0.87f, 0.95f, 1f, 1f));
-        material.SetColor("_SunExpStardustColorB", new Color(1f, 0.88f, 0.54f, 1f));
+        material.SetColor("_SunExpHoloColorA", new Color(1f, 0.94f, 0.65f, 1f));
+        material.SetColor("_SunExpHoloColorB", new Color(0.65f, 0.95f, 1f, 1f));
+        material.SetColor("_SunExpHoloColorC", new Color(0.82f, 0.72f, 1f, 1f));
+        material.SetColor("_SunExpStardustColorA", new Color(0.953f, 0.984f, 1f, 1f));
+        material.SetColor("_SunExpStardustColorB", new Color(1f, 0.902f, 0.659f, 1f));
         EditorUtility.SetDirty(material);
         AssetDatabase.SaveAssets();
     }

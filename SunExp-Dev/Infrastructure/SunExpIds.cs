@@ -29,7 +29,11 @@ public static class SunExpIds
     {
         RadiantSparkCardPackId,
         EmberCrownCardPackId,
-        SolarCanopyCardPackId,
+        SolarCanopyCardPackId
+    };
+
+    public static readonly string[] MorningStarThemeCardPackIds =
+    {
         MorningStarOvertureCardPackId
     };
 
@@ -79,6 +83,10 @@ public static class SunExpIds
     public const string LoneerCareerId = "loneer";
     public const string LoneerActive = "SunExpLoneerActive";
     public const string LoneerMorningPrayerSkillCardId = "SunExp_loneer_loneer_morning_star_prayer";
+    public const string StellarOvertureStartShortCardId = "stellar_overture_start";
+    public const string StellarOvertureSustainShortCardId = "stellar_overture_sustain";
+    public const string StellarOvertureTurnShortCardId = "stellar_overture_turn";
+    public const string StellarOvertureCloseShortCardId = "stellar_overture_close";
     public const string StellarOvertureStartCardId = "SunExp_sunexp_stellar_overture_start";
     public const string StellarOvertureSustainCardId = "SunExp_sunexp_stellar_overture_sustain";
     public const string StellarOvertureTurnCardId = "SunExp_sunexp_stellar_overture_turn";
@@ -99,6 +107,22 @@ public static class SunExpIds
         StellarOvertureSustainCardId,
         StellarOvertureTurnCardId,
         StellarOvertureCloseCardId
+    };
+
+    public static readonly string[] StellarOvertureCardEffectIds =
+    {
+        StellarOvertureStartCardId,
+        StellarOvertureSustainCardId,
+        StellarOvertureTurnCardId,
+        StellarOvertureCloseCardId,
+        StellarOvertureStartShortCardId,
+        StellarOvertureSustainShortCardId,
+        StellarOvertureTurnShortCardId,
+        StellarOvertureCloseShortCardId,
+        "*" + StellarOvertureStartShortCardId,
+        "*" + StellarOvertureSustainShortCardId,
+        "*" + StellarOvertureTurnShortCardId,
+        "*" + StellarOvertureCloseShortCardId
     };
 
     public static readonly string[] SunThemeExplicitCardIds =

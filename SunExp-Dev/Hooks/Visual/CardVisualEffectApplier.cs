@@ -8,8 +8,16 @@ internal static class CardVisualEffectApplier
     public static bool Apply(CardVisualSkinMarker marker, IDataConfig? config)
     {
         var faceEffect = CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Face, config);
-        return faceEffect == null
+        var frameEffect = CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, config);
+
+        var changed = faceEffect == null
             ? CardFaceEffectApplier.Clear(marker)
             : CardFaceEffectApplier.Apply(marker, faceEffect);
+
+        changed = (frameEffect == null
+            ? CardFrameEffectApplier.Clear(marker)
+            : CardFrameEffectApplier.Apply(marker, frameEffect)) || changed;
+
+        return changed;
     }
 }

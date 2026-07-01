@@ -245,6 +245,66 @@
       "priority": 10,
       "tags": ["feast-cg", "official-role"],
       "enabled": true
+    },
+    {
+      "cgId": "agua.feast",
+      "displayName": "Agua - Feast",
+      "kind": "feast",
+      "targetRoleIds": ["Agua_agua_agua", "agua"],
+      "cardIds": ["*"],
+      "media": {
+        "type": "image",
+        "resource": "CG/AuraToolsExp/Feast/Roles/agua/feast_cg.png",
+        "fallbackImage": "CG/AuraToolsExp/Feast/Roles/agua/feast_cg.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1.0
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 10,
+      "tags": ["feast-cg", "mod-role", "agua"],
+      "enabled": true
+    },
+    {
+      "cgId": "saya.feast",
+      "displayName": "Saya - Feast",
+      "kind": "feast",
+      "targetRoleIds": ["Saya_careersample_saya", "saya"],
+      "cardIds": ["*"],
+      "media": {
+        "type": "image",
+        "resource": "CG/AuraToolsExp/Feast/Roles/saya/feast_cg.png",
+        "fallbackImage": "CG/AuraToolsExp/Feast/Roles/saya/feast_cg.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1.0
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 10,
+      "tags": ["feast-cg", "mod-role", "saya"],
+      "enabled": true
     }
   ]
 }
