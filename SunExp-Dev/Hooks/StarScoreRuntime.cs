@@ -51,6 +51,7 @@ public static class StarScoreRuntime
     {
         CostOverrides.CancelAll();
         Pending.Clear();
+        MorningStarOvertureService.ResetForFight();
         StarScoreCombatStateStore.ClearAll();
         ExecutorApi.CombatIntSet("SunExpStarScorePlayerActionPending", 0);
         SunExpActionEventRouter.ResetForFight("StarScore.Fight_Start.Init");
@@ -213,6 +214,7 @@ public static class StarScoreRuntime
             }
 
             CostOverrides.MarkActionObserved(config);
+            MorningStarOvertureService.OnAction(config);
             var executor = config.scriptExecutor as ScriptExecutor;
             var pendingPreludeCost = DictionaryUtil.Get(config.Vars, PendingPreludeCostVar);
             var preludeCost = string.IsNullOrWhiteSpace(pendingPreludeCost)
@@ -253,6 +255,8 @@ public static class StarScoreRuntime
                 pending.Executor.AddBuff(SunExpIds.StarBlessing, pending.SealBlessingGain.ToString());
                 PlayerApi.ShowCaption("\u542f\u660e\u661f\uff1a\u661f\u8fb0\u795d\u798f+" + pending.SealBlessingGain);
             }
+
+            MorningStarOvertureService.OnActionAfter(pending.Executor);
 
             DictionaryUtil.Set(pending.Config.Vars, PendingPreludeCostVar, "");
             DictionaryUtil.Set(pending.Config.Vars, PendingSealBlessingVar, "");

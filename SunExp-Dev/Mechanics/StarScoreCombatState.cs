@@ -54,6 +54,31 @@ public sealed class StarScoreCombatState
         Version++;
     }
 
+    public int ClearNotesOnly()
+    {
+        var count = notes.Count;
+        if (count <= 0)
+        {
+            return 0;
+        }
+
+        notes.Clear();
+        Version++;
+        return count;
+    }
+
+    public bool ReplaceLastNote(StarScoreNote note)
+    {
+        if (notes.Count <= 0)
+        {
+            return false;
+        }
+
+        notes[notes.Count - 1] = note;
+        Version++;
+        return true;
+    }
+
     public void Clear()
     {
         notes.Clear();

@@ -23,12 +23,14 @@ public static class SunExpIds
     public const string RadiantSparkCardPackId = "SunExp_sunexp_cardpack_radiant_spark";
     public const string EmberCrownCardPackId = "SunExp_sunexp_cardpack_ember_crown";
     public const string SolarCanopyCardPackId = "SunExp_sunexp_cardpack_solar_canopy";
+    public const string MorningStarOvertureCardPackId = "SunExp_sunexp_cardpack_morning_star_overture";
 
     public static readonly string[] SunThemeCardPackIds =
     {
         RadiantSparkCardPackId,
         EmberCrownCardPackId,
-        SolarCanopyCardPackId
+        SolarCanopyCardPackId,
+        MorningStarOvertureCardPackId
     };
 
     public const string WhiteRadianceTag = "白曜";
@@ -57,6 +59,7 @@ public static class SunExpIds
     public const string StarBlessing = "SunExp_sunexp_star_blessing";
     public const string StarScore = "SunExp_sunexp_star_score";
     public const string Resonance = "SunExp_sunexp_resonance";
+    public const string StarStage = "SunExp_sunexp_star_stage";
     public const string StarClayBody = "SunExp_sunexp_star_clay_body";
     public const string StarClayDollTrait = "SunExp_sunexp_star_clay_doll_trait";
     public const string Cripple = "buff_cripple";
@@ -81,6 +84,14 @@ public static class SunExpIds
     public const string StellarOvertureTurnCardId = "SunExp_sunexp_stellar_overture_turn";
     public const string StellarOvertureCloseCardId = "SunExp_sunexp_stellar_overture_close";
     public const string WitchStarScoreCardId = "SunExp_sunexp_witch_star_score";
+    public const string StarMapCardId = "SunExp_sunexp_star_map";
+    public const string BlankStarScoreCardId = "SunExp_sunexp_blank_star_score";
+    public const string MeterRewriteCardId = "SunExp_sunexp_meter_rewrite";
+    public const string PrewrittenMeasureCardId = "SunExp_sunexp_prewritten_measure";
+    public const string StarOrbitTransposeCardId = "SunExp_sunexp_star_orbit_transpose";
+    public const string RestMarkCardId = "SunExp_sunexp_rest_mark";
+    public const string MorningStarStageCardId = "SunExp_sunexp_morning_star_stage";
+    public const string StarScoreEchoCardId = "SunExp_sunexp_star_score_echo";
 
     public static readonly string[] StellarOvertureCardIds =
     {

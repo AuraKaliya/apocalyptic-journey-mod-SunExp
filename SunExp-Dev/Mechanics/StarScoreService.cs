@@ -59,6 +59,71 @@ public static class StarScoreService
         return baseCost == 2 ? "星辰序曲·转" : "星辰序曲·合";
     }
 
+    public static bool IsScoreEmpty(ScriptExecutor? self)
+    {
+        var state = StarScoreCombatStateStore.Get(self?.Self);
+        return state == null || state.Notes.Count == 0;
+    }
+
+    public static int ClearCurrentNotes(ScriptExecutor? self)
+    {
+        var state = StarScoreCombatStateStore.GetOrCreate(self?.Self);
+        var count = state?.ClearNotesOnly() ?? 0;
+        SyncScoreBuff(self, state?.Notes.Count ?? 0);
+        if (state != null)
+        {
+            PublishChanged(self?.Self, state);
+        }
+
+        return count;
+    }
+
+    public static bool CycleLastNote(ScriptExecutor? self)
+    {
+        var state = StarScoreCombatStateStore.GetOrCreate(self?.Self);
+        if (state == null || state.Notes.Count == 0)
+        {
+            return false;
+        }
+
+        var next = state.Notes[state.Notes.Count - 1] switch
+        {
+            StarScoreNote.Opening => StarScoreNote.Sustain,
+            StarScoreNote.Sustain => StarScoreNote.Turn,
+            StarScoreNote.Turn => StarScoreNote.Close,
+            StarScoreNote.Close => StarScoreNote.Opening,
+            _ => StarScoreNote.Opening
+        };
+        if (!state.ReplaceLastNote(next))
+        {
+            return false;
+        }
+
+        SyncScoreBuff(self, state.Notes.Count);
+        PublishChanged(self?.Self, state);
+        PlayerApi.ShowCaption("拍号重订：星谱改为" + StarScoreCadenceCatalog.DisplayName(next));
+        return true;
+    }
+
+    public static bool ReplayMostRecentCadence(ScriptExecutor self)
+    {
+        if (self == null)
+        {
+            return false;
+        }
+
+        var state = StarScoreCombatStateStore.GetOrCreate(self?.Self);
+        var pattern = state?.CompletedCadences.LastOrDefault() ?? "";
+        if (string.IsNullOrWhiteSpace(pattern))
+        {
+            return false;
+        }
+
+        ApplyCadenceEffect(self!, pattern);
+        PlayerApi.ShowCaption("星谱回响：复奏最近谱句。");
+        return true;
+    }
+
     public static void ClearScore(ScriptExecutor? self)
     {
         var owner = self?.Self;

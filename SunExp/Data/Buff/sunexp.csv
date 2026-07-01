@@ -23,5 +23,6 @@
 "star_blessing","","","","0","0","0","9","Mods/SunExp/ModResource/Images/Buff/Loneer/星辰祝福","能力","3","","","","FALSE"
 "star_score","","CS.SunExp.Dll.Scripting.BuffScripts.Apply(self, ""star_score"");","CS.SunExp.Dll.Scripting.BuffScripts.Clear(self, ""star_score"");","0","0","0","3","Mods/SunExp/ModResource/Images/Buff/Loneer/星谱","能力","2","","","","FALSE"
 "resonance","","","","0","0","0","9","Mods/SunExp/ModResource/Images/Buff/Loneer/余音","能力","2","","","","FALSE"
+"star_stage","","CS.SunExp.Dll.Scripting.BuffScripts.Apply(self, ""star_stage"");","CS.SunExp.Dll.Scripting.BuffScripts.Clear(self, ""star_stage"");","0","0","0","9","Mods/SunExp/ModResource/Images/Buff/Loneer/星谱","能力","3","","","","FALSE"
 "star_clay_body","","","","0","0","0","9","Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_1","能力","3","","","","FALSE"
 "star_clay_doll_trait","","CS.SunExp.Dll.Scripting.StarClayDollScripts.ApplyTrait(self);","CS.SunExp.Dll.Scripting.StarClayDollScripts.ClearTrait(self);","0","0","0","1","Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_1","特性","2","","","","FALSE"

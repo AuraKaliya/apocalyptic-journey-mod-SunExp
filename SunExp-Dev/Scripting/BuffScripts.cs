@@ -21,7 +21,8 @@ public static class BuffScripts
         ["cycle_gathered_flame"] = ApplyCycleGatheredFlame,
         ["afterglow_omen"] = ApplyAfterglowOmen,
         ["star_stone_pouch"] = ApplyStarStonePouch,
-        ["star_score"] = ApplyStarScore
+        ["star_score"] = ApplyStarScore,
+        ["star_stage"] = ApplyStarStage
     };
 
     private static readonly Dictionary<string, Action<ScriptExecutor>> ClearHandlers = new(StringComparer.Ordinal)
@@ -37,7 +38,8 @@ public static class BuffScripts
         ["cycle_gathered_flame"] = ClearCycleGatheredFlame,
         ["afterglow_omen"] = ClearAfterglowOmen,
         ["star_stone_pouch"] = ClearStarStonePouch,
-        ["star_score"] = ClearStarScore
+        ["star_score"] = ClearStarScore,
+        ["star_stage"] = ClearStarStage
     };
 
     private static readonly HashSet<string> BossTraitIds = new(StringComparer.Ordinal)
@@ -143,6 +145,11 @@ public static class BuffScripts
         StarScoreService.ClearScoreBuff(self);
     }
 
+    private static void ClearStarStage(ScriptExecutor self)
+    {
+        MorningStarOvertureService.ClearStarStage(self);
+    }
+
     private static void ApplySolarRadiance(ScriptExecutor self)
     {
         var token = ExecutorApi.RegisterHook(self, "SunExpSolarRadianceHook", "SunExpSolarRadianceToken");
@@ -173,6 +180,11 @@ public static class BuffScripts
     private static void ApplyStarScore(ScriptExecutor self)
     {
         StarScoreService.ApplyScoreBuff(self);
+    }
+
+    private static void ApplyStarStage(ScriptExecutor self)
+    {
+        MorningStarOvertureService.ApplyStarStage(self);
     }
 
     private static void ApplyGatheredFlame(ScriptExecutor self)

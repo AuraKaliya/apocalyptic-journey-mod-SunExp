@@ -72,6 +72,12 @@ public static class CardScripts
                 return;
             }
 
+            if (MorningStarCardScripts.IsMorningStarCard(id))
+            {
+                MorningStarCardScripts.Init(self, id);
+                return;
+            }
+
             if (InitHandlers.TryGetValue(id, out var handler))
             {
                 handler(self);
@@ -94,6 +100,12 @@ public static class CardScripts
             if (IsStarScoreEntry(id))
             {
                 StarScoreService.Use(self, id);
+                return;
+            }
+
+            if (MorningStarCardScripts.IsMorningStarCard(id))
+            {
+                MorningStarCardScripts.Use(self, id);
                 return;
             }
 
