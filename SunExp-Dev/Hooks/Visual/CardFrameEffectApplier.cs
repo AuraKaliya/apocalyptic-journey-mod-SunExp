@@ -17,7 +17,7 @@ internal static class CardFrameEffectApplier
             return Clear(marker);
         }
 
-        if (marker.FrameImage != null || marker.BackgroundImage != null)
+        if (marker.FrameImage != null)
         {
             return ApplyImageMaterial(marker, effect);
         }
@@ -37,9 +37,7 @@ internal static class CardFrameEffectApplier
 
     private static bool ApplyImageMaterial(CardVisualSkinMarker marker, CardVisualEffectSpec effect)
     {
-        var material = CardFrameEffectMaterials.SharedUiOverlayMaterial(
-            effect,
-            frameOnlyOverlay: marker.FrameImage == null && marker.BackgroundImage != null);
+        var material = CardFrameEffectMaterials.SharedUiOverlayMaterial(effect);
         if (material == null)
         {
             return Clear(marker);
@@ -58,7 +56,7 @@ internal static class CardFrameEffectApplier
         var material = marker.FrameEffectOwnedMaterial;
         if (material == null || marker.LastFrameEffectId != effect.Id)
         {
-            material = CardFrameEffectMaterials.CreateOwnedMaterial(effect);
+            material = CardFrameEffectMaterials.CreateOwnedOverlayMaterial(effect);
             if (material == null)
             {
                 return Clear(marker);
@@ -68,7 +66,7 @@ internal static class CardFrameEffectApplier
         }
 
         CardFrameEffectMaterials.ApplyRuntimeTexture(material, marker.LastFrameTexture ?? marker.FrameMaterial?.mainTexture);
-        var changed = marker.ApplyFrameMeshEffectMaterial(material)
+        var changed = marker.ApplyFrameMeshEffectOverlay(material)
             || marker.LastFrameEffectId != effect.Id;
         marker.LastFrameEffectId = effect.Id;
         LogApplied(effect);

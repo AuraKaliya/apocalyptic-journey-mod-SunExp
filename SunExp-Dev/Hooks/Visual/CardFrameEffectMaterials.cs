@@ -51,13 +51,12 @@ internal static class CardFrameEffectMaterials
         return material;
     }
 
-    public static Material? SharedUiOverlayMaterial(CardVisualEffectSpec spec, bool frameOnlyOverlay = false)
+    public static Material? SharedUiOverlayMaterial(CardVisualEffectSpec spec)
     {
-        var cacheKey = spec.Id + "\u001f" + (frameOnlyOverlay ? "frame-only" : "sprite-mask");
-        if (UiOverlayMaterialCache.TryGetValue(cacheKey, out var cached))
+        if (UiOverlayMaterialCache.TryGetValue(spec.Id, out var cached))
         {
             ApplyOverlayMode(cached, true);
-            ApplyFrameOnlyOverlay(cached, frameOnlyOverlay);
+            ApplyFrameOnlyOverlay(cached, false);
             ApplyQualityScale(cached);
             return cached;
         }
@@ -65,7 +64,7 @@ internal static class CardFrameEffectMaterials
         var shared = SharedUiMaterial(spec);
         if (shared == null)
         {
-            UiOverlayMaterialCache[cacheKey] = null;
+            UiOverlayMaterialCache[spec.Id] = null;
             return null;
         }
 
@@ -74,9 +73,27 @@ internal static class CardFrameEffectMaterials
             name = shared.name + "_Overlay"
         };
         ApplyOverlayMode(material, true);
-        ApplyFrameOnlyOverlay(material, frameOnlyOverlay);
+        ApplyFrameOnlyOverlay(material, false);
         ApplyQualityScale(material);
-        UiOverlayMaterialCache[cacheKey] = material;
+        UiOverlayMaterialCache[spec.Id] = material;
+        return material;
+    }
+
+    public static Material? CreateOwnedOverlayMaterial(CardVisualEffectSpec spec)
+    {
+        var shared = SharedUiMaterial(spec);
+        if (shared == null)
+        {
+            return null;
+        }
+
+        var material = new Material(shared)
+        {
+            name = shared.name + "_OwnedOverlay"
+        };
+        ApplyOverlayMode(material, true);
+        ApplyFrameOnlyOverlay(material, false);
+        ApplyQualityScale(material);
         return material;
     }
 
@@ -123,7 +140,7 @@ internal static class CardFrameEffectMaterials
             return;
         }
 
-        material.SetFloat(CardFrameEffectShaderIds.QualityScale, 1f);
+        material.SetFloat(CardFrameEffectShaderIds.QualityScale, SunExpPerformanceSettings.CardFrameEffectQualityScale);
     }
 
     private static void ApplyOverlayMode(Material? material, bool enabled)

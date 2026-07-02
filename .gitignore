@@ -5,3 +5,14 @@ obj/
 SunExp-Dev/VisualAssets/UnityProject/
 SunExp-Dev/VisualAssets/*.unity-build.log
 SunExp-Dev/VisualAssets/unity-*.log
+SunExpCardFrameDebug/Library/
+SunExpCardFrameDebug/Temp/
+SunExpCardFrameDebug/Obj/
+SunExpCardFrameDebug/Logs/
+SunExpCardFrameDebug/UserSettings/
+SunExpCardFrameDebug/Build/
+SunExpCardFrameDebug/Builds/
+SunExpCardFrameDebug/*.csproj
+SunExpCardFrameDebug/*.sln
+SunExpCardFrameDebug/*.user
+SunExpCardFrameDebug.create.log
