@@ -53,6 +53,11 @@ public static class LoneerMiracleService
 
     public static bool IsActive()
     {
+        if (PolymorphStateStore.IsLocalRoleSuppressed(SunExpIds.LoneerCareerId))
+        {
+            return false;
+        }
+
         var careerId = PlayerApi.GetCurrentCareerId();
         if (!string.IsNullOrWhiteSpace(careerId)
             && careerId.IndexOf(SunExpIds.LoneerCareerId, StringComparison.OrdinalIgnoreCase) >= 0)
@@ -66,6 +71,11 @@ public static class LoneerMiracleService
 
     public static void OnFightStart(ScriptExecutor self)
     {
+        if (!IsActive())
+        {
+            return;
+        }
+
         if (self?.Self == null)
         {
             SunExpLog.Warn("Loneer fight state initialization skipped: owner status unavailable.");
@@ -124,6 +134,12 @@ public static class LoneerMiracleService
 
     public static void UseMorningStarPrayer(ScriptExecutor self)
     {
+        if (!IsActive())
+        {
+            PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u6d1b\u5948\u5c14\u6280\u80fd\u5df2\u88ab\u5f53\u524d\u5316\u8eab\u8986\u76d6\u3002");
+            return;
+        }
+
         if (self?.Self == null)
         {
             SunExpLog.Warn("Morning Star Prayer skipped: Loneer owner status unavailable.");
@@ -134,6 +150,11 @@ public static class LoneerMiracleService
         if (state == null)
         {
             SunExpLog.Warn("Morning Star Prayer skipped: Loneer owner status unavailable.");
+            return;
+        }
+
+        if (PolymorphCooldownService.TryUseSharedSkill(self, "Loneer.MorningStarPrayer"))
+        {
             return;
         }
 
@@ -156,7 +177,10 @@ public static class LoneerMiracleService
         TriggerNaturalMorningStar(self, state);
         state.PrayerUseCount += 1;
         ReduceBlackStoneMax(self, state, 2);
-        SetMorningPrayerCooldown(self, state, PrayerCooldownRounds);
+        if (!PolymorphCooldownService.MarkSkillUsed(self, "Loneer.MorningStarPrayer"))
+        {
+            SetMorningPrayerCooldown(self, state, PrayerCooldownRounds);
+        }
         SunExpLog.Info("Morning Star Prayer resolved: owner=" + self.Self.InstanceId
             + ", cooldown=" + state.PrayerCooldown
             + ", blackStoneMax=" + StarStonePouchService.BlackStoneMax(self)
@@ -475,6 +499,11 @@ public static class LoneerMiracleService
 
     private static void TickMorningPrayerCooldown(ScriptExecutor self)
     {
+        if (PolymorphCooldownService.IsActive(self?.Self))
+        {
+            return;
+        }
+
         var state = LoneerCombatStateStore.Get(self?.Self);
         var cooldown = MorningPrayerCooldown(state);
         if (cooldown > 0)

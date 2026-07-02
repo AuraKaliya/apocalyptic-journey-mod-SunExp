@@ -29,7 +29,8 @@ public static class BuffApi
         SunExpIds.StarScore,
         SunExpIds.Resonance,
         SunExpIds.StarClayBody,
-        SunExpIds.StarClayDollTrait
+        SunExpIds.StarClayDollTrait,
+        SunExpIds.PolymorphTraitBuffId
     };
 
     public static int Level(IStatusManager? status, string buffId)

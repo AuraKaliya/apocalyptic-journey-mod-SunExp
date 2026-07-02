@@ -93,6 +93,18 @@ public static class CardVisualSkinApplier
             return false;
         }
 
+        var sprite = CardVisualSkinSpriteCache.Load(path, LogPrefix);
+        if (sprite == null)
+        {
+            return false;
+        }
+
+        if (!background)
+        {
+            marker.LastFrameSprite = sprite;
+            marker.LastFrameTexture = sprite.texture;
+        }
+
         var node = background ? marker.BackgroundNode : marker.FrameNode;
         if (node == null)
         {
@@ -104,15 +116,15 @@ public static class CardVisualSkinApplier
             return false;
         }
 
-        var sprite = CardVisualSkinSpriteCache.Load(path, LogPrefix);
-        if (sprite == null)
-        {
-            return false;
-        }
-
         var image = background ? marker.BackgroundImage : marker.FrameImage;
         if (image != null)
         {
+            if (!background)
+            {
+                marker.LastFrameSprite = sprite;
+                marker.LastFrameTexture = sprite.texture;
+            }
+
             if (image.sprite == sprite)
             {
                 return false;

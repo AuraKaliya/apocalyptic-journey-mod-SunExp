@@ -11,6 +11,11 @@ public static class CardVisualThemeCatalog
 {
     public static CardVisualSkinSpec? Resolve(IDataConfig? config)
     {
+        if (IsPolymorphRoleCard(config))
+        {
+            return null;
+        }
+
         return CardVisualSkinRegistry.Resolve(config);
     }
 
@@ -65,6 +70,14 @@ public static class CardVisualThemeCatalog
         var iconPath = DictionaryUtil.Get(config.data, "Icon");
         return id.StartsWith("SunExp_", StringComparison.Ordinal)
             || iconPath.StartsWith("Mods/SunExp/", StringComparison.Ordinal);
+    }
+
+    private static bool IsPolymorphRoleCard(IDataConfig? config)
+    {
+        return config != null
+            && DictionaryUtil.ContainsToken(
+                DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey),
+                SunExpIds.PolymorphRoleCardMarker);
     }
 
     private static bool StartsWithAny(string value, IEnumerable<string> prefixes)

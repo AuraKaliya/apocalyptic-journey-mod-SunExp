@@ -212,6 +212,8 @@
         "_FoilTex": "Mods/SunExp/ModResource/Images/Effects/CardFoil/pokemon_holo_foil.png"
       },
       "floats": {
+        "_SunExpOverlayMode": 0,
+        "_SunExpFrameOnlyOverlay": 1,
         "_SunExpEffectMode": 0.23,
         "_SunExpFoilMode": 1.603,
         "_SunExpFlowSpeed": -2,

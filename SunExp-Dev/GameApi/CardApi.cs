@@ -1,6 +1,8 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using SunExp.Dll.Infrastructure;
 
 namespace SunExp.Dll.GameApi;
@@ -21,6 +23,8 @@ public sealed class CardGrantRequest
     public string Source { get; private set; } = "";
 
     public bool AbortOnMutationFailure { get; private set; }
+
+    public bool RequiresWritableRuntimeConfig { get; private set; }
 
     public IReadOnlyList<CardGrantMutation> Mutations => mutations;
 
@@ -44,12 +48,20 @@ public sealed class CardGrantRequest
     public CardGrantRequest RequireMutations()
     {
         AbortOnMutationFailure = true;
+        RequiresWritableRuntimeConfig = true;
+        return this;
+    }
+
+    public CardGrantRequest WithWritableRuntimeConfig()
+    {
+        RequiresWritableRuntimeConfig = true;
         return this;
     }
 
     public CardGrantRequest Configure(string name, Action<DataConfig> apply)
     {
         mutations.Add(new CardGrantMutation(name, apply));
+        RequiresWritableRuntimeConfig = true;
         return this;
     }
 
@@ -58,6 +70,7 @@ public sealed class CardGrantRequest
         if (mutation.Apply != null)
         {
             mutations.Add(mutation);
+            RequiresWritableRuntimeConfig = true;
         }
 
         return this;
@@ -246,6 +259,19 @@ public static class CardApi
             return Fail(resolved, null, "locate", "created card not found", warnings);
         }
 
+        if (NeedsWritableRuntimeConfig(request))
+        {
+            try
+            {
+                added = EnsureWritableRuntimeConfig(added, cards);
+            }
+            catch (Exception ex)
+            {
+                CleanupCreatedCard(cards, added);
+                return Fail(resolved, added, "clone-runtime-config", ex.Message, warnings);
+            }
+        }
+
         foreach (var mutation in request?.Mutations ?? Array.Empty<CardGrantMutation>())
         {
             try
@@ -259,6 +285,7 @@ public static class CardApi
                 SunExpLog.Warn("AddCardToHand " + warning + ", cardId=" + resolved + SourceSuffix(request));
                 if (request?.AbortOnMutationFailure == true)
                 {
+                    CleanupCreatedCard(cards, added);
                     return Fail(resolved, added, "mutate:" + mutation.Name, ex.Message, warnings);
                 }
             }
@@ -271,6 +298,7 @@ public static class CardApi
         }
         catch (Exception ex)
         {
+            CleanupCreatedCard(cards, added);
             return Fail(resolved, added, "deliver", ex.Message, warnings);
         }
     }
@@ -315,6 +343,138 @@ public static class CardApi
             "SunExp_loneer_" + id,
             "SunExp_wuna_" + id
         };
+    }
+
+    private static bool NeedsWritableRuntimeConfig(CardGrantRequest? request)
+    {
+        return request?.RequiresWritableRuntimeConfig == true || request?.Mutations.Count > 0;
+    }
+
+    private static DataConfig EnsureWritableRuntimeConfig(DataConfig source, IList<DataConfig> cards)
+    {
+        if (source == null)
+        {
+            throw new ArgumentNullException(nameof(source));
+        }
+
+        var data = source.data == null
+            ? new Dictionary<string, string>()
+            : new Dictionary<string, string>(source.data);
+        var vars = source.Vars == null
+            ? new Dictionary<string, string>()
+            : new Dictionary<string, string>(source.Vars);
+        var id = DictionaryUtil.Get(data, "Id", CardConfigApi.Id(source));
+        if (!string.IsNullOrWhiteSpace(id))
+        {
+            data["Id"] = id;
+        }
+
+        var writable = new DataConfig(data, vars);
+        var index = IndexOfReference(cards, source);
+        if (index < 0)
+        {
+            throw new InvalidOperationException("created card no longer exists in combat card list");
+        }
+
+        cards[index] = writable;
+        ReplaceCardTags(source, writable);
+        return writable;
+    }
+
+    private static int IndexOfReference(IList<DataConfig> cards, DataConfig target)
+    {
+        for (var i = 0; i < cards.Count; i++)
+        {
+            if (ReferenceEquals(cards[i], target))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private static void ReplaceCardTags(DataConfig source, DataConfig replacement)
+    {
+        try
+        {
+            var tags = ReadCardTags();
+            if (tags == null)
+            {
+                return;
+            }
+
+            if (tags.Contains(source))
+            {
+                var existingTags = tags[source];
+                tags.Remove(source);
+                tags[replacement] = existingTags;
+                return;
+            }
+
+            if (!tags.Contains(replacement))
+            {
+                tags[replacement] = new HashSet<string>();
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Debug("AddCardToHand card tag replacement skipped: " + ex.Message);
+        }
+    }
+
+    private static void CleanupCreatedCard(IList<DataConfig> cards, DataConfig? card)
+    {
+        if (card == null)
+        {
+            return;
+        }
+
+        try
+        {
+            for (var i = cards.Count - 1; i >= 0; i--)
+            {
+                if (ReferenceEquals(cards[i], card))
+                {
+                    cards.RemoveAt(i);
+                    break;
+                }
+            }
+
+            ReadCardTags()?.Remove(card);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Debug("AddCardToHand cleanup skipped: " + ex.Message);
+        }
+    }
+
+    private static IDictionary? ReadCardTags()
+    {
+        try
+        {
+            var manager = FightCardManager.Instance;
+            if (manager == null)
+            {
+                return null;
+            }
+
+            const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+            var type = manager.GetType();
+            var property = type.GetProperty("CardTags", flags);
+            if (property?.GetValue(manager) is IDictionary propertyValue)
+            {
+                return propertyValue;
+            }
+
+            var field = type.GetField("CardTags", flags);
+            return field?.GetValue(manager) as IDictionary;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Debug("AddCardToHand CardTags lookup skipped: " + ex.Message);
+            return null;
+        }
     }
 
     private static CardGrantResult Fail(string cardId, DataConfig? config, string step, string reason, IReadOnlyList<string> warnings)

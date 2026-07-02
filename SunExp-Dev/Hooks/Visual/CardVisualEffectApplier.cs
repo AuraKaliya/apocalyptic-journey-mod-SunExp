@@ -16,7 +16,7 @@ internal static class CardVisualEffectApplier
 
         changed = (frameEffect == null
             ? CardFrameEffectApplier.Clear(marker)
-            : CardFrameEffectApplier.Apply(marker, frameEffect)) || changed;
+            : CardFrameEffectApplier.Apply(marker, frameEffect, config)) || changed;
 
         return changed;
     }

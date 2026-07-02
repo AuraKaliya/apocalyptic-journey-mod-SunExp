@@ -22,7 +22,8 @@ public static class BuffScripts
         ["afterglow_omen"] = ApplyAfterglowOmen,
         ["star_stone_pouch"] = ApplyStarStonePouch,
         ["star_score"] = ApplyStarScore,
-        ["star_stage"] = ApplyStarStage
+        ["star_stage"] = ApplyStarStage,
+        [SunExpIds.PolymorphTraitBuffShortId] = ApplyPolymorphTrait
     };
 
     private static readonly Dictionary<string, Action<ScriptExecutor>> ClearHandlers = new(StringComparer.Ordinal)
@@ -39,7 +40,8 @@ public static class BuffScripts
         ["afterglow_omen"] = ClearAfterglowOmen,
         ["star_stone_pouch"] = ClearStarStonePouch,
         ["star_score"] = ClearStarScore,
-        ["star_stage"] = ClearStarStage
+        ["star_stage"] = ClearStarStage,
+        [SunExpIds.PolymorphTraitBuffShortId] = ClearPolymorphTrait
     };
 
     private static readonly HashSet<string> BossTraitIds = new(StringComparer.Ordinal)
@@ -148,6 +150,16 @@ public static class BuffScripts
     private static void ClearStarStage(ScriptExecutor self)
     {
         MorningStarOvertureService.ClearStarStage(self);
+    }
+
+    private static void ApplyPolymorphTrait(ScriptExecutor self)
+    {
+        PolymorphBuffService.Apply(self);
+    }
+
+    private static void ClearPolymorphTrait(ScriptExecutor self)
+    {
+        PolymorphBuffService.Clear(self);
     }
 
     private static void ApplySolarRadiance(ScriptExecutor self)

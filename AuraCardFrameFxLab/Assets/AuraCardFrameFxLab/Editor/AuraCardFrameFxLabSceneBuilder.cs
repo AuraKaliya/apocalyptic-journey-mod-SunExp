@@ -15,6 +15,7 @@ namespace AuraCardFrameFxLabEditor
         private const string ShaderPath = RootPath + "/Shaders/CardFaceEffect.shader";
         private const string BackgroundPath = RootPath + "/Art/CardBackground.png";
         private const string FramePath = RootPath + "/Art/SunCardFrame.png";
+        private const string CardArtPath = RootPath + "/Art/BlazingCrownCollapse.png";
         private const string NoisePath = RootPath + "/Effects/WunaOrbitTrailNoise.png";
         private const string FoilPath = RootPath + "/Effects/PokemonHoloFoil.png";
 
@@ -24,12 +25,14 @@ namespace AuraCardFrameFxLabEditor
             PlayerSettings.productName = "AuraCardFrameFxLab";
             ConfigureSpriteTexture(BackgroundPath);
             ConfigureSpriteTexture(FramePath);
+            ConfigureSpriteTexture(CardArtPath);
             ConfigureEffectTexture(NoisePath);
             ConfigureEffectTexture(FoilPath);
             AssetDatabase.Refresh();
 
             var backgroundSprite = AssetDatabase.LoadAssetAtPath<Sprite>(BackgroundPath);
             var frameSprite = AssetDatabase.LoadAssetAtPath<Sprite>(FramePath);
+            var cardArtSprite = AssetDatabase.LoadAssetAtPath<Sprite>(CardArtPath);
             var noiseTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(NoisePath);
             var foilTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(FoilPath);
             var material = BuildMaterial(noiseTexture, foilTexture);
@@ -37,7 +40,7 @@ namespace AuraCardFrameFxLabEditor
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             var canvas = CreateCanvas();
             CreateStageBackground(canvas.transform);
-            var cardRoot = CreateCardPreview(canvas.transform, backgroundSprite, frameSprite, material, out var backgroundImage, out var baseFrameImage, out var effectFrameImage);
+            var cardRoot = CreateCardPreview(canvas.transform, backgroundSprite, frameSprite, cardArtSprite, material, out var backgroundImage, out var baseFrameImage, out var effectFrameImage);
             CreateCamera();
             CreateController(backgroundImage, baseFrameImage, effectFrameImage, material, noiseTexture, foilTexture);
 
@@ -66,8 +69,12 @@ namespace AuraCardFrameFxLabEditor
 
             RequireObject("CardPreview");
             RequireObject("CardBackground");
+            RequireObject("BlazingCrownCollapseArt");
             RequireObject("SunCardFrame");
             RequireObject("SunCardFrameFoilOverlay");
+            RequireObject("CardCost");
+            RequireObject("CardTitle");
+            RequireObject("CardDescription");
 
             var shader = AssetDatabase.LoadAssetAtPath<Shader>(ShaderPath);
             if (shader == null || shader.name != "SunExp/CardFaceEffect")
@@ -135,6 +142,7 @@ namespace AuraCardFrameFxLabEditor
             Transform parent,
             Sprite backgroundSprite,
             Sprite frameSprite,
+            Sprite cardArtSprite,
             Material material,
             out Image backgroundImage,
             out Image baseFrameImage,
@@ -152,9 +160,23 @@ namespace AuraCardFrameFxLabEditor
             var shadow = CreateImage("PreviewBackdrop", root, null, new Vector2(438f, 500f), Vector2.zero, new Color32(5, 6, 10, 210), null);
             shadow.transform.SetAsFirstSibling();
             backgroundImage = CreateImage("CardBackground", root, backgroundSprite, new Vector2(384f, 384f), Vector2.zero, Color.white, null);
+            var artImage = CreateImage("BlazingCrownCollapseArt", root, cardArtSprite, new Vector2(176f, 176f), new Vector2(0f, 76f), Color.white, null);
+            artImage.preserveAspect = false;
             baseFrameImage = CreateImage("SunCardFrame", root, frameSprite, new Vector2(384f, 384f), Vector2.zero, Color.white, null);
             effectFrameImage = CreateImage("SunCardFrameFoilOverlay", root, frameSprite, new Vector2(384f, 384f), Vector2.zero, Color.white, material);
             effectFrameImage.raycastTarget = false;
+            CreateText("CardCost", root, "3", new Vector2(34f, 26f), new Vector2(-82f, 154f), 29, FontStyle.Bold, TextAnchor.MiddleCenter, new Color32(255, 222, 42, 255));
+            CreateText("CardTitle", root, "炽冕崩落", new Vector2(152f, 28f), new Vector2(10f, 153f), 21, FontStyle.Bold, TextAnchor.MiddleLeft, new Color32(242, 246, 255, 255));
+            CreateText(
+                "CardDescription",
+                root,
+                "对敌方全体造成40（40+星辉*系数）点伤害。若没有圣灵星辉，自身承受等额反噬。随后结束圣灵星辉，消耗全部聚炎，自身获得消耗聚炎层数一半的灼烧。",
+                new Vector2(182f, 86f),
+                new Vector2(0f, -119f),
+                14,
+                FontStyle.Bold,
+                TextAnchor.UpperLeft,
+                new Color32(244, 240, 228, 255));
             return root;
         }
 
@@ -176,6 +198,36 @@ namespace AuraCardFrameFxLabEditor
             image.preserveAspect = true;
             image.raycastTarget = false;
             return image;
+        }
+
+        private static Text CreateText(string name, Transform parent, string text, Vector2 size, Vector2 position, int fontSize, FontStyle style, TextAnchor alignment, Color color)
+        {
+            var textObject = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Text), typeof(Shadow));
+            textObject.transform.SetParent(parent, false);
+            var rect = textObject.GetComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = position;
+            rect.sizeDelta = size;
+
+            var label = textObject.GetComponent<Text>();
+            label.text = text;
+            label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            label.fontSize = fontSize;
+            label.fontStyle = style;
+            label.alignment = alignment;
+            label.color = color;
+            label.horizontalOverflow = HorizontalWrapMode.Wrap;
+            label.verticalOverflow = VerticalWrapMode.Truncate;
+            label.raycastTarget = false;
+            label.supportRichText = true;
+
+            var shadow = textObject.GetComponent<Shadow>();
+            shadow.effectColor = new Color32(24, 28, 44, 190);
+            shadow.effectDistance = new Vector2(1f, -1f);
+            shadow.useGraphicAlpha = true;
+            return label;
         }
 
         private static void CreateCamera()
@@ -236,35 +288,35 @@ namespace AuraCardFrameFxLabEditor
             SetFloat(material, "_SunExpEffectMode", 0f);
             SetFloat(material, "_SunExpOverlayMode", 1f);
             SetFloat(material, "_SunExpFrameOnlyOverlay", 0f);
-            SetFloat(material, "_SunExpFoilMode", 1f);
-            SetFloat(material, "_SunExpFlowSpeed", 0.55f);
-            SetFloat(material, "_SunExpFlowScale", 1.22f);
-            SetFloat(material, "_SunExpNoiseScale", 4f);
-            SetFloat(material, "_SunExpDistortion", 0.009f);
-            SetFloat(material, "_SunExpEffectIntensity", 1.04f);
+            SetFloat(material, "_SunExpFoilMode", 1.603f);
+            SetFloat(material, "_SunExpFlowSpeed", -2f);
+            SetFloat(material, "_SunExpFlowScale", 1.603f);
+            SetFloat(material, "_SunExpNoiseScale", 7.722f);
+            SetFloat(material, "_SunExpDistortion", 0.021f);
+            SetFloat(material, "_SunExpEffectIntensity", 1.093f);
             SetFloat(material, "_SunExpQualityScale", 1f);
-            SetFloat(material, "_SunExpEdgeGlow", 0.28f);
-            SetFloat(material, "_SunExpSweepFrequency", 4.4f);
-            SetFloat(material, "_SunExpSweepWidth", 0.13f);
-            SetFloat(material, "_SunExpSweepIntensity", 1.12f);
-            SetFloat(material, "_SunExpPrismScale", 13.5f);
-            SetFloat(material, "_SunExpPrismStrength", 1f);
-            SetFloat(material, "_SunExpFoilGrain", 0.08f);
-            SetFloat(material, "_SunExpMirrorSweep", 0.58f);
-            SetFloat(material, "_SunExpSwirlStrength", 0.06f);
-            SetFloat(material, "_SunExpFoilShardScale", 18f);
-            SetFloat(material, "_SunExpFoilShardWarp", 0.08f);
-            SetFloat(material, "_SunExpFoilGalaxyDensity", 0.015f);
+            SetFloat(material, "_SunExpEdgeGlow", 0.12f);
+            SetFloat(material, "_SunExpSweepFrequency", 3.716f);
+            SetFloat(material, "_SunExpSweepWidth", 0.18f);
+            SetFloat(material, "_SunExpSweepIntensity", 0.892f);
+            SetFloat(material, "_SunExpPrismScale", 18.19f);
+            SetFloat(material, "_SunExpPrismStrength", 0.759f);
+            SetFloat(material, "_SunExpFoilGrain", 0.453f);
+            SetFloat(material, "_SunExpMirrorSweep", 0.846f);
+            SetFloat(material, "_SunExpSwirlStrength", 0.206f);
+            SetFloat(material, "_SunExpFoilShardScale", 15.367f);
+            SetFloat(material, "_SunExpFoilShardWarp", 0.162f);
+            SetFloat(material, "_SunExpFoilGalaxyDensity", 0.148f);
             SetFloat(material, "_SunExpFoilGlintSpeed", 1.1f);
-            SetFloat(material, "_SunExpFoilTextureStrength", 0.6f);
+            SetFloat(material, "_SunExpFoilTextureStrength", 0.967f);
             SetFloat(material, "_SunExpRainbowStrength", 1.25f);
-            SetFloat(material, "_SunExpRidgeStrength", 0.7f);
-            SetFloat(material, "_SunExpGlareStrength", 0.35f);
-            SetFloat(material, "_SunExpPointerAutoSpeed", 0.78f);
-            SetFloat(material, "_SunExpFoilOverlayAlpha", 1f);
+            SetFloat(material, "_SunExpRidgeStrength", 0.523f);
+            SetFloat(material, "_SunExpGlareStrength", 1.008f);
+            SetFloat(material, "_SunExpPointerAutoSpeed", 0.646f);
+            SetFloat(material, "_SunExpFoilOverlayAlpha", 1.557f);
             SetFloat(material, "_SunExpPointerX", -1f);
             SetFloat(material, "_SunExpPointerY", -1f);
-            SetFloat(material, "_SunExpEdgeSample", 2f);
+            SetFloat(material, "_SunExpEdgeSample", 3.218f);
             SetColor(material, "_SunExpHoloColorA", new Color32(255, 240, 166, 255));
             SetColor(material, "_SunExpHoloColorB", new Color32(166, 242, 255, 255));
             SetColor(material, "_SunExpHoloColorC", new Color32(210, 184, 255, 255));

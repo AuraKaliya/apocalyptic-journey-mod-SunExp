@@ -124,6 +124,17 @@ public static class WunaScripts
 
     private static void UseWhiteSunPrayer(ScriptExecutor self)
     {
+        if (!IsWunaRuntimeActive())
+        {
+            PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u4e4c\u5a1c\u6280\u80fd\u5df2\u88ab\u5f53\u524d\u5316\u8eab\u8986\u76d6\u3002");
+            return;
+        }
+
+        if (PolymorphCooldownService.TryUseSharedSkill(self, "Wuna.WhiteSunPrayer"))
+        {
+            return;
+        }
+
         var cooldown = PlayerApi.GetSkillTime(SunExpIds.WunaWhiteSunPrayerCardId);
         if (cooldown > 0)
         {
@@ -142,11 +153,25 @@ public static class WunaScripts
 
         var handTagRequested = SunExpCardTagService.RequestBurnoutAndWhiteRadianceForFriendlyHands(self, "Wuna.WhiteSunPrayer");
         SunExpLog.Info("Wuna white sun prayer hand tag requested=" + handTagRequested);
-        PlayerApi.SetSkillTime(SunExpIds.WunaWhiteSunPrayerCardId, 5);
+        if (!PolymorphCooldownService.MarkSkillUsed(self, "Wuna.WhiteSunPrayer"))
+        {
+            PlayerApi.SetSkillTime(SunExpIds.WunaWhiteSunPrayerCardId, 5);
+        }
     }
 
     private static void UseGraveSong(ScriptExecutor self)
     {
+        if (!IsWunaRuntimeActive())
+        {
+            PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u4e4c\u5a1c\u6280\u80fd\u5df2\u88ab\u5f53\u524d\u5316\u8eab\u8986\u76d6\u3002");
+            return;
+        }
+
+        if (PolymorphCooldownService.TryUseSharedSkill(self, "Wuna.GraveSong"))
+        {
+            return;
+        }
+
         var cooldown = PlayerApi.GetSkillTime(GraveSongCardId);
         if (cooldown > 0)
         {
@@ -169,7 +194,10 @@ public static class WunaScripts
         self.RemoveBuff(SunExpIds.Ember);
         BuffApi.OnEmberConsumed(self, self.Self, ember);
         SetPersistentEmber(self, 0);
-        PlayerApi.SetSkillTime(GraveSongCardId, 4);
+        if (!PolymorphCooldownService.MarkSkillUsed(self, "Wuna.GraveSong"))
+        {
+            PlayerApi.SetSkillTime(GraveSongCardId, 4);
+        }
         if (burn > 0)
         {
             self.SetStatus("All");
@@ -182,8 +210,16 @@ public static class WunaScripts
 
     private static void StartRound(ScriptExecutor self)
     {
+        if (!IsWunaRuntimeActive())
+        {
+            return;
+        }
+
         AttachOrbitFire(self, "StartRound");
-        TickSkillTimes();
+        if (!PolymorphCooldownService.IsActive(self.Self))
+        {
+            TickSkillTimes();
+        }
         ExecutorApi.SetVar(self, "SunExpWunaRadianceDone", "0");
 
         var emberGain = AllBurnTotal(self) / 2;
@@ -310,6 +346,11 @@ public static class WunaScripts
 
     private static bool TryGainRadianceFromEnemyBurn(ScriptExecutor self)
     {
+        if (!IsWunaRuntimeActive())
+        {
+            return false;
+        }
+
         if (self?.Self == null)
         {
             return false;
@@ -340,6 +381,11 @@ public static class WunaScripts
         var level = Math.Max(0, Math.Min(99, value));
         PlayerApi.SetScopedGameVar(SunExpIds.WunaPersistentEmber, self?.Self, level.ToString());
         return level;
+    }
+
+    private static bool IsWunaRuntimeActive()
+    {
+        return !PolymorphStateStore.IsLocalRoleSuppressed("wuna") && BuffApi.IsWunaActive();
     }
 
     private static void AttachOrbitFire(ScriptExecutor self, string source, string action = "")

@@ -103,6 +103,8 @@ public static class SunExpIds
     public const string PolymorphCardShortId = "polymorph";
     public const string PolymorphRoleTemplateShortId = "polymorph_role_template";
     public const string PolymorphRoleTemplateCardId = "SunExp_sunexp_polymorph_role_template";
+    public const string PolymorphTraitBuffShortId = "polymorph_trait";
+    public const string PolymorphTraitBuffId = "SunExp_sunexp_polymorph_trait";
     public const string PolymorphRoleCardMarker = "SunExpPolymorphRoleCard";
     public const string PolymorphRoleIdKey = "SunExpPolymorphRoleId";
     public const string PolymorphRoleNameKey = "SunExpPolymorphRoleName";
@@ -112,7 +114,8 @@ public static class SunExpIds
     public const string PolymorphCropConfigFile = "polymorph.role-crops.json";
     public const string PolymorphSourceResourceCategory = "polymorph.role-source";
     public const string PolymorphGeneratedFaceCategory = "polymorph.generated-card-face";
-    public const string PolymorphPlaceholderCardIconPath = SunCardIconPathPrefix + "spark";
+    public const string PolymorphBaseCardIconPath = "Mods/SunExp/ModResource/Images/Card/MoreDimension/bai_bian";
+    public const string PolymorphPlaceholderCardIconPath = PolymorphBaseCardIconPath;
 
     public static readonly string[] StellarOvertureCardIds =
     {

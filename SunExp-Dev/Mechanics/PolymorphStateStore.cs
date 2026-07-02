@@ -40,6 +40,7 @@ public static class PolymorphStateStore
 {
     private static readonly object SyncRoot = new();
     private static readonly Dictionary<string, PolymorphState> ActiveStates = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, PolymorphRoleSpec> PendingRoles = new(StringComparer.Ordinal);
     private static int version;
 
     public static PolymorphState? ActiveLocal()
@@ -56,13 +57,56 @@ public static class PolymorphStateStore
         }
     }
 
+    public static bool IsLocalRoleSuppressed(string roleId)
+    {
+        var active = ActiveLocal();
+        return active != null && !RoleMatches(active.RoleId, roleId);
+    }
+
+    public static PolymorphState? ActiveFor(IStatusManager? ownerStatus)
+    {
+        var owner = OwnerKey(ownerStatus);
+        lock (SyncRoot)
+        {
+            return ActiveStates.TryGetValue(owner, out var state) ? state : null;
+        }
+    }
+
+    public static void SetPending(PolymorphRoleSpec role, IStatusManager? ownerStatus = null)
+    {
+        if (role == null)
+        {
+            return;
+        }
+
+        var owner = OwnerKey(ownerStatus);
+        lock (SyncRoot)
+        {
+            PendingRoles[owner] = role;
+        }
+    }
+
+    public static PolymorphRoleSpec? PendingFor(IStatusManager? ownerStatus = null)
+    {
+        var owner = OwnerKey(ownerStatus);
+        lock (SyncRoot)
+        {
+            return PendingRoles.TryGetValue(owner, out var role) ? role : null;
+        }
+    }
+
+    public static void ClearPending(IStatusManager? ownerStatus = null)
+    {
+        var owner = OwnerKey(ownerStatus);
+        lock (SyncRoot)
+        {
+            PendingRoles.Remove(owner);
+        }
+    }
+
     public static PolymorphState SetLocal(PolymorphRoleSpec role, IStatusManager? ownerStatus = null)
     {
-        var owner = ownerStatus?.InstanceId ?? PlayerApi.LocalPlayerStatusId();
-        if (string.IsNullOrWhiteSpace(owner))
-        {
-            owner = "local";
-        }
+        var owner = OwnerKey(ownerStatus);
 
         lock (SyncRoot)
         {
@@ -81,12 +125,35 @@ public static class PolymorphStateStore
         }
     }
 
+    public static void ClearOwner(IStatusManager? ownerStatus, string source)
+    {
+        PolymorphState? state = null;
+        var owner = OwnerKey(ownerStatus);
+        lock (SyncRoot)
+        {
+            PendingRoles.Remove(owner);
+            if (ActiveStates.TryGetValue(owner, out state))
+            {
+                ActiveStates.Remove(owner);
+            }
+        }
+
+        if (state == null)
+        {
+            return;
+        }
+
+        RestoreOriginalCareer(state, source);
+        SunExpLog.Debug("[Polymorph] cleared owner state from " + source + ": " + owner + ".");
+        SunExpPerformanceCounters.Record("Polymorph.StateCleared");
+    }
+
     public static void ClearAll(string source)
     {
         PolymorphState[] states;
         lock (SyncRoot)
         {
-            if (ActiveStates.Count == 0)
+            if (ActiveStates.Count == 0 && PendingRoles.Count == 0)
             {
                 return;
             }
@@ -94,6 +161,7 @@ public static class PolymorphStateStore
             states = new PolymorphState[ActiveStates.Count];
             ActiveStates.Values.CopyTo(states, 0);
             ActiveStates.Clear();
+            PendingRoles.Clear();
         }
 
         foreach (var state in states)
@@ -103,6 +171,12 @@ public static class PolymorphStateStore
 
         SunExpLog.Debug("[Polymorph] cleared battle states from " + source + ".");
         SunExpPerformanceCounters.Record("Polymorph.StateCleared");
+    }
+
+    private static string OwnerKey(IStatusManager? ownerStatus = null)
+    {
+        var owner = ownerStatus?.InstanceId ?? PlayerApi.LocalPlayerStatusId();
+        return string.IsNullOrWhiteSpace(owner) ? "local" : owner;
     }
 
     private static DataConfig? SnapshotOriginalCareer(string owner)
@@ -135,6 +209,7 @@ public static class PolymorphStateStore
 
             RoleTable.Instance.Career = state.OriginalCareer;
             FightPlayer.Instance?.Status?.ResetAnimator(false);
+            RoleSkillApi.RefreshFightSkills("PolymorphStateStore.RestoreOriginalCareer:" + source);
             SunExpLog.Info("[Polymorph] restored career from " + source + ": "
                 + state.RoleId + " -> " + state.OriginalCareerId);
         }
@@ -142,5 +217,32 @@ public static class PolymorphStateStore
         {
             SunExpLog.Warn("[Polymorph] failed to restore career from " + source + ": " + ex.Message);
         }
+    }
+
+    private static bool RoleMatches(string activeRoleId, string roleId)
+    {
+        var active = NormalizeRoleId(activeRoleId);
+        var expected = NormalizeRoleId(roleId);
+        if (string.IsNullOrWhiteSpace(active) || string.IsNullOrWhiteSpace(expected))
+        {
+            return false;
+        }
+
+        return string.Equals(active, expected, StringComparison.OrdinalIgnoreCase)
+            || active.EndsWith("_" + expected, StringComparison.OrdinalIgnoreCase)
+            || expected.EndsWith("_" + active, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeRoleId(string roleId)
+    {
+        var value = (roleId ?? "").Trim().TrimStart('*');
+        const string sunExpPrefix = "SunExp_";
+        if (value.StartsWith(sunExpPrefix, StringComparison.Ordinal))
+        {
+            var parts = value.Split('_');
+            return parts.Length > 0 ? parts[parts.Length - 1] : value;
+        }
+
+        return value;
     }
 }

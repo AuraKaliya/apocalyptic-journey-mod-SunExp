@@ -1,4 +1,3 @@
-using System;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 
@@ -10,7 +9,7 @@ public static class PolymorphActivationService
     {
         if (!PolymorphUiApi.OpenRoleSelection(self))
         {
-            PlayerApi.ShowCaption("百变：角色选择界面暂时不可用。");
+            PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u89d2\u8272\u9009\u62e9\u754c\u9762\u6682\u65f6\u4e0d\u53ef\u7528\u3002");
         }
     }
 
@@ -19,7 +18,7 @@ public static class PolymorphActivationService
         var role = PolymorphRoleRegistry.Find(roleId);
         if (role == null)
         {
-            PlayerApi.ShowCaption("百变：未找到目标角色。");
+            PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u672a\u627e\u5230\u76ee\u6807\u89d2\u8272\u3002");
             return false;
         }
 
@@ -32,11 +31,11 @@ public static class PolymorphActivationService
         var result = CardApi.GrantCardToHand(self, request);
         if (!result.Success)
         {
-            PlayerApi.ShowCaption("百变：化身牌生成失败。");
+            PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u5316\u8eab\u724c\u751f\u6210\u5931\u8d25\u3002");
             return false;
         }
 
-        PlayerApi.ShowCaption("百变：获得【" + role.DisplayName + "】化身牌。");
+        PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u83b7\u5f97\u3010" + role.DisplayName + "\u3011\u5316\u8eab\u724c\u3002");
         return true;
     }
 
@@ -44,7 +43,7 @@ public static class PolymorphActivationService
     {
         if (self == null)
         {
-            PlayerApi.ShowCaption("百变：化身切换失败。");
+            PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u5316\u8eab\u5207\u6362\u5931\u8d25\u3002");
             return false;
         }
 
@@ -52,46 +51,32 @@ public static class PolymorphActivationService
         var role = PolymorphRoleRegistry.Find(roleId);
         if (role == null)
         {
-            PlayerApi.ShowCaption("百变：化身目标已失效。");
+            PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u5316\u8eab\u76ee\u6807\u5df2\u5931\u6548\u3002");
             return false;
         }
 
-        var state = PolymorphStateStore.SetLocal(role, self.Self);
-        try
-        {
-            self.SetStatus("Self");
-            self.ChangeCareer(role.Id);
-        }
-        catch (Exception ex)
-        {
-            PolymorphStateStore.ClearAll("PolymorphActivationService.ApplyFailed");
-            SunExpLog.Warn("百变化身切换失败: " + ex.Message);
-            PlayerApi.ShowCaption("百变：化身切换失败。");
-            return false;
-        }
-
-        PlayerApi.ShowCaption("百变：本场战斗化身为【" + state.DisplayName + "】。");
-        return true;
+        return PolymorphBuffService.GrantForRole(self, role);
     }
 
     public static void ClearBattle(string source)
     {
+        PolymorphRuntimeService.ClearAll(source);
         PolymorphStateStore.ClearAll(source);
+        PolymorphCooldownService.ClearAll();
     }
 
     private static void ConfigureRoleCard(DataConfig config, PolymorphRoleSpec role)
     {
-        DictionaryUtil.Set(config.data, "Icon", role.CardFacePath);
-        DictionaryUtil.Set(config.data, "Name", "百变：" + role.DisplayName);
-        DictionaryUtil.Set(config.data, "Name_zh-Hant", "百變：" + role.DisplayName);
-        DictionaryUtil.Set(config.data, "Name_en", "Polymorph: " + role.DisplayName);
-        DictionaryUtil.Set(config.data, "Name_ja", "百変：" + role.DisplayName);
-        DictionaryUtil.Set(config.data, "Description", "使用后，本场战斗化身为【" + role.DisplayName + "】。");
-        DictionaryUtil.Set(config.data, "Description_zh-Hant", "使用後，本場戰鬥化身為【" + role.DisplayName + "】。");
-        DictionaryUtil.Set(config.data, "Description_en", "Use to polymorph into " + role.DisplayName + " for this combat.");
-        DictionaryUtil.Set(config.data, "Description_ja", "使用すると、この戦闘中【" + role.DisplayName + "】に化身する。");
-        DictionaryUtil.Set(config.data, "Tag", AppendToken(DictionaryUtil.Get(config.data, "Tag"), "Burnout", "Nihility"));
         DictionaryUtil.Set(config.Vars, "Tag", AppendToken(DictionaryUtil.Get(config.Vars, "Tag"), "Burnout", "Nihility"));
+        DictionaryUtil.Set(config.Vars, "Icon", role.CardFacePath);
+        DictionaryUtil.Set(config.Vars, "Name", "\u767e\u53d8\uff1a" + role.DisplayName);
+        DictionaryUtil.Set(config.Vars, "Name_zh-Hant", "\u767e\u8b8a\uff1a" + role.DisplayName);
+        DictionaryUtil.Set(config.Vars, "Name_en", "Polymorph: " + role.DisplayName);
+        DictionaryUtil.Set(config.Vars, "Name_ja", "\u767e\u5909\uff1a" + role.DisplayName);
+        DictionaryUtil.Set(config.Vars, "Description", "\u767e\u53d8\uff1a" + role.DisplayName);
+        DictionaryUtil.Set(config.Vars, "Description_zh-Hant", "\u767e\u8b8a\uff1a" + role.DisplayName);
+        DictionaryUtil.Set(config.Vars, "Description_en", "Polymorph: " + role.DisplayName);
+        DictionaryUtil.Set(config.Vars, "Description_ja", "\u767e\u5909\uff1a" + role.DisplayName);
         DictionaryUtil.Set(config.Vars, SunExpIds.RuntimeMarkersKey,
             AppendToken(DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey), SunExpIds.PolymorphRoleCardMarker));
         DictionaryUtil.Set(config.Vars, SunExpIds.PolymorphRoleIdKey, role.Id);

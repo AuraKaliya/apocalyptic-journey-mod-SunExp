@@ -104,7 +104,9 @@ public static class CardVisualSkinRegistry
             + "\u001f"
             + DictionaryUtil.Get(config.data, "PackBelong")
             + "\u001f"
-            + DictionaryUtil.Get(config.data, "Icon");
+            + DictionaryUtil.Get(config.data, "Icon")
+            + "\u001f"
+            + DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey);
     }
 
     private readonly struct RegisteredRule

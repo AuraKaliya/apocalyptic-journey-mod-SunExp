@@ -111,6 +111,7 @@ function New-StubsSource {
 @'
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 
 namespace Witch.Core
 {
@@ -238,6 +239,8 @@ public sealed class CardItem
 
 public sealed class DataConfig : IDataConfig
 {
+    private IDictionary<string, string> dataValue = new ReadOnlyDictionary<string, string>(new Dictionary<string, string>());
+
     public DataConfig(IDictionary<string, string> data, IDictionary<string, string>? vars = null)
     {
         this.data = data;
@@ -245,7 +248,11 @@ public sealed class DataConfig : IDataConfig
         InstanceID = Guid.NewGuid().ToString("N");
     }
 
-    public IDictionary<string, string> data { get; set; }
+    public IDictionary<string, string> data
+    {
+        get => dataValue;
+        set => dataValue = new ReadOnlyDictionary<string, string>(value);
+    }
 
     public IDictionary<string, string> Vars { get; }
 
@@ -736,10 +743,26 @@ internal static class Program
         Equal("2", result.Config!.data["Expend"], "CardApi grant mutations do not write base data");
         Equal("A,B", result.Config!.Vars["SpecialTag"], "CardApi grant applies deduplicated SpecialTag mutations");
 
+        FightCardManager.Instance.cardList.Clear();
+        var runtimeVarsResult = CardApi.GrantCardToHand(
+            executor,
+            CardGrantRequest.ToHand("runtime_state_card")
+                .Configure("runtime-vars", config =>
+                {
+                    config.Vars["Name"] = "Runtime role card";
+                    config.Vars["RuntimeFlag"] = "1";
+                }));
+        True(runtimeVarsResult.Success, "CardApi grant keeps runtime Vars writable while base data remains read-only");
+        True(runtimeVarsResult.Config!.data is System.Collections.ObjectModel.ReadOnlyDictionary<string, string>, "CardApi grant preserves the game's read-only base data contract");
+        Equal("Runtime role card", runtimeVarsResult.Config!.Vars["Name"], "CardApi grant accepts runtime display state through Vars");
+        Equal("1", runtimeVarsResult.Config!.Vars["RuntimeFlag"], "CardApi grant accepts runtime flags through Vars");
+
+        FightCardManager.Instance.cardList.Clear();
         var failing = new ScriptExecutor { ThrowOnDelivery = true };
         var failed = CardApi.GrantCardToHand(failing, CardGrantRequest.ToHand("spark"));
         False(failed.Success, "CardApi grant returns structured failure on delivery errors");
         Equal("deliver", failed.FailureStep, "CardApi grant identifies the failing step");
+        Equal(0, FightCardManager.Instance.cardList.Count, "CardApi grant cleans up created combat cards when delivery fails");
     }
 
     private static void TestCardMutationService()
@@ -1100,7 +1123,13 @@ function Invoke-SourceAssertions {
     $sunExpFieldId = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpFieldId.cs"))
     $playerApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\PlayerApi.cs"))
     $cardApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\CardApi.cs"))
+    $roleSkillApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\RoleSkillApi.cs"))
     $cardMutationService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardMutationService.cs"))
+    $polymorphActivationService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\PolymorphActivationService.cs"))
+    $polymorphBuffService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\PolymorphBuffService.cs"))
+    $polymorphCooldownService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\PolymorphCooldownService.cs"))
+    $polymorphRuntimeService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\PolymorphRuntimeService.cs"))
+    $polymorphStateStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\PolymorphStateStore.cs"))
     $runtimeCardAttachmentService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\RuntimeCardAttachmentService.cs"))
     $starBlessingCostOverrideStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarBlessingCostOverrideStore.cs"))
     $cardGrantRecipes = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardGrantRecipes.cs"))
@@ -1118,6 +1147,7 @@ function Invoke-SourceAssertions {
     $entry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Entry.cs"))
     $wunaScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\WunaScripts.cs"))
     $runtimeHooks = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\RuntimeHooks.cs"))
+    $polymorphRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\PolymorphRuntime.cs"))
     $duskPartnerRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\DuskPartnerRuntime.cs"))
     $starClayDollRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\StarClayDollRuntime.cs"))
     $loneerRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\LoneerRuntime.cs"))
@@ -1415,6 +1445,36 @@ function Invoke-SourceAssertions {
     Assert-True (-not $wunaScripts.Contains("EnsureHandTags")) "Wuna must not hand-roll temporary tag propagation."
     Assert-True $cardMutationService.Contains("public static void SetTemporaryCost") "CardMutationService must own temporary card-cost mutation."
     Assert-True (-not $cardMutationService.Contains('config.data["Expend')) "Temporary card-cost mutation must not write base data."
+    Assert-True (-not $polymorphActivationService.Contains("DictionaryUtil.Set(config.data")) "Polymorph role-card runtime state must be written to Vars, not read-only base data."
+    Assert-True $polymorphActivationService.Contains("PolymorphBuffService.GrantForRole(self, role);") "Polymorph role cards must grant the trait buff instead of changing career directly."
+    Assert-True (-not $polymorphActivationService.Contains("self.ChangeCareer(role.Id);")) "Polymorph card use must not be hard-bound to direct career changes."
+    Assert-True $polymorphBuffService.Contains("self.ChangeCareer(role.Id);") "Polymorph trait buff apply must own the career change."
+    Assert-True $polymorphBuffService.Contains("PolymorphRuntimeService.Enter(self, role, state);") "Polymorph trait buff apply must enter a runtime overlay after ChangeCareer."
+    Assert-True $polymorphBuffService.Contains("PolymorphStateStore.ClearOwner(owner") "Polymorph trait buff clear must restore the owner career through state cleanup."
+    Assert-True $polymorphBuffService.Contains('ExecutorApi.TryAddTokenedEvent(self, "StartRound"') "Polymorph trait buff must own shared cooldown round ticking."
+    Assert-True $polymorphCooldownService.Contains("public const int SkillCooldownRounds = 1;") "Polymorph shared skill cooldown must stay fixed at 1 round."
+    Assert-True $polymorphCooldownService.Contains("RoleSkillApi.SetCurrentCareerSkillTimes(cooldown);") "Polymorph shared cooldown must apply one value to every current role skill."
+    Assert-True $wunaScripts.Contains("PolymorphCooldownService.MarkSkillUsed(self, ""Wuna.WhiteSunPrayer"")") "Wuna polymorph skill use must commit the shared cooldown."
+    Assert-True $wunaScripts.Contains("PolymorphCooldownService.MarkSkillUsed(self, ""Wuna.GraveSong"")") "Wuna second polymorph skill must share the same cooldown record."
+    Assert-True $loneerService.Contains("PolymorphCooldownService.MarkSkillUsed(self, ""Loneer.MorningStarPrayer"")") "Loneer polymorph skill use must commit the shared cooldown."
+    Assert-True $buffScripts.Contains("[SunExpIds.PolymorphTraitBuffShortId] = ApplyPolymorphTrait") "BuffScripts must route polymorph trait apply behavior."
+    Assert-True $buffScripts.Contains("[SunExpIds.PolymorphTraitBuffShortId] = ClearPolymorphTrait") "BuffScripts must route polymorph trait clear behavior."
+    Assert-True (-not $polymorphRuntime.Contains('HideTraitBuffFromContext')) "Polymorph trait buff must remain visible in battle."
+    Assert-True $polymorphRuntime.Contains('RegisterBefore(modConfig, "SkillItem.TrueUse", CaptureSkillUseBefore);') "Polymorph runtime must capture official skill use before TrueUse."
+    Assert-True $polymorphRuntime.Contains('RegisterAfter(modConfig, "SkillItem.TrueUse", MarkSkillUseAfter);') "Polymorph runtime must commit shared cooldown after official skill use."
+    Assert-True $buffData.Contains('"polymorph_trait"') "Polymorph trait buff data row is missing."
+    Assert-True ([regex]::IsMatch($buffData, '"polymorph_trait"[\s\S]*?"Icon/Buff/')) "Polymorph trait buff must reuse the Heroic Blessing icon path family."
+    Assert-True $polymorphActivationService.Contains("PolymorphRuntimeService.ClearAll(source);") "Polymorph cleanup must clear runtime overlays before restoring career state."
+    Assert-True $polymorphRuntimeService.Contains("TryRunCurrentCareerScript") "Polymorph runtime must run the current target-role career script."
+    Assert-True $polymorphRuntimeService.Contains("RoleSkillApi.RefreshFightSkills") "Polymorph runtime must rebuild combat skill buttons after changing career."
+    Assert-True $polymorphRuntimeService.Contains("executor?.Clear();") "Polymorph runtime cleanup must clear the attached career executor."
+    Assert-True $roleSkillApi.Contains("fightUi.InitSkill();") "RoleSkillApi must reuse the native FightUI skill creation path."
+    Assert-True $roleSkillApi.Contains("EnsureCurrentCareerSkillTimes") "RoleSkillApi must ensure target skill cooldown keys exist before the rebuilt buttons are used."
+    Assert-True $roleSkillApi.Contains('value.Replace("*", "")') "RoleSkillApi must normalize starred official skill ids before cooldown sync."
+    Assert-True $roleSkillApi.Contains("SetCurrentCareerSkillTimes") "RoleSkillApi must expose unified current-role skill cooldown writes for polymorph."
+    Assert-True $polymorphStateStore.Contains("public static bool IsLocalRoleSuppressed") "Polymorph state must expose role suppression for old passive guards."
+    Assert-True $loneerService.Contains("PolymorphStateStore.IsLocalRoleSuppressed") "Loneer passive and skill entries must respect active polymorph suppression."
+    Assert-True $wunaScripts.Contains("IsWunaRuntimeActive") "Wuna passive and skill entries must respect active polymorph suppression."
     Assert-True (-not $cardApi.Contains("previousCount")) "Generated-card success must not depend on draw-pile net count."
     Assert-True (-not $cardApi.Contains("could not verify added card")) "The inverted draw-pile count verifier must remain removed."
     Assert-True $loneerService.Contains("SetMorningPrayerCooldown(self, state, PrayerCooldownRounds);") "Morning Star Prayer must commit its cooldown after a successful copy."

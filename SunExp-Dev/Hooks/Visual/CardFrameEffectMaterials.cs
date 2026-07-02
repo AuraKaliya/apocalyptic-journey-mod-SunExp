@@ -12,7 +12,6 @@ internal static class CardFrameEffectShaderIds
     public const string ShaderName = "SunExp/CardFaceEffect";
 
     public static readonly int MainTex = Shader.PropertyToID("_MainTex");
-    public static readonly int OverlayMode = Shader.PropertyToID("_SunExpOverlayMode");
     public static readonly int FrameOnlyOverlay = Shader.PropertyToID("_SunExpFrameOnlyOverlay");
     public static readonly int QualityScale = Shader.PropertyToID("_SunExpQualityScale");
 }
@@ -55,8 +54,6 @@ internal static class CardFrameEffectMaterials
     {
         if (UiOverlayMaterialCache.TryGetValue(spec.Id, out var cached))
         {
-            ApplyOverlayMode(cached, true);
-            ApplyFrameOnlyOverlay(cached, false);
             ApplyQualityScale(cached);
             return cached;
         }
@@ -72,8 +69,6 @@ internal static class CardFrameEffectMaterials
         {
             name = shared.name + "_Overlay"
         };
-        ApplyOverlayMode(material, true);
-        ApplyFrameOnlyOverlay(material, false);
         ApplyQualityScale(material);
         UiOverlayMaterialCache[spec.Id] = material;
         return material;
@@ -91,8 +86,6 @@ internal static class CardFrameEffectMaterials
         {
             name = shared.name + "_OwnedOverlay"
         };
-        ApplyOverlayMode(material, true);
-        ApplyFrameOnlyOverlay(material, false);
         ApplyQualityScale(material);
         return material;
     }
@@ -109,8 +102,6 @@ internal static class CardFrameEffectMaterials
         {
             name = shared.name + "_Owned"
         };
-        ApplyOverlayMode(material, false);
-        ApplyFrameOnlyOverlay(material, false);
         ApplyQualityScale(material);
         return material;
     }
@@ -140,26 +131,7 @@ internal static class CardFrameEffectMaterials
             return;
         }
 
-        material.SetFloat(CardFrameEffectShaderIds.QualityScale, SunExpPerformanceSettings.CardFrameEffectQualityScale);
+        material.SetFloat(CardFrameEffectShaderIds.QualityScale, 1f);
     }
 
-    private static void ApplyOverlayMode(Material? material, bool enabled)
-    {
-        if (material == null || !material.HasProperty(CardFrameEffectShaderIds.OverlayMode))
-        {
-            return;
-        }
-
-        material.SetFloat(CardFrameEffectShaderIds.OverlayMode, enabled ? 1f : 0f);
-    }
-
-    private static void ApplyFrameOnlyOverlay(Material? material, bool enabled)
-    {
-        if (material == null || !material.HasProperty(CardFrameEffectShaderIds.FrameOnlyOverlay))
-        {
-            return;
-        }
-
-        material.SetFloat(CardFrameEffectShaderIds.FrameOnlyOverlay, enabled ? 1f : 0f);
-    }
 }
