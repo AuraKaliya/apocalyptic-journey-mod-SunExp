@@ -24,7 +24,9 @@ public static class CardScripts
         ["scorching_flow_reclaim"] = InitTargetedAttackCard,
         ["eclipse_hex"] = InitTargetedAttackCard,
         ["burning_calamity"] = InitTargetedAttackCard,
-        ["flamewheel_recurrence"] = InitFlamewheelCard
+        ["flamewheel_recurrence"] = InitFlamewheelCard,
+        [SunExpIds.PolymorphCardShortId] = InitCommonCard,
+        [SunExpIds.PolymorphRoleTemplateShortId] = InitCommonCard
     };
 
     private static readonly Dictionary<string, Action<ScriptExecutor>> UseHandlers = new(StringComparer.Ordinal)
@@ -58,7 +60,9 @@ public static class CardScripts
         ["gathered_flame_cycle"] = UseGatheredFlameCycle,
         ["solar_eclipse"] = UseSolarEclipse,
         ["smoke_erosion"] = UseSmokeErosion,
-        ["afterglow_omen_card"] = UseAfterglowOmenCard
+        ["afterglow_omen_card"] = UseAfterglowOmenCard,
+        [SunExpIds.PolymorphCardShortId] = UsePolymorph,
+        [SunExpIds.PolymorphRoleTemplateShortId] = UsePolymorphRoleCard
     };
 
     public static void Init(ScriptExecutor self, string id)
@@ -452,6 +456,16 @@ public static class CardScripts
             ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, removed, "Target");
         }
         RestorePrimaryTargetForAnimation(self, target);
+    }
+
+    private static void UsePolymorph(ScriptExecutor self)
+    {
+        PolymorphActivationService.OpenRoleSelection(self);
+    }
+
+    private static void UsePolymorphRoleCard(ScriptExecutor self)
+    {
+        PolymorphActivationService.ApplyRoleFromCard(self);
     }
 
     private static string NormalizeId(string id)

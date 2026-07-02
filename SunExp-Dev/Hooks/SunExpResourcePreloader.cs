@@ -27,6 +27,9 @@ public static class SunExpResourcePreloader
         {
             SunExpResourceCache.Preload<Texture2D>(CoreTexturePaths(), "visual");
             SunExpResourceCache.Preload<Sprite>(CoreSpritePaths(), "ui");
+            SunExpResourceCache.Preload<Sprite>(
+                PolymorphRoleRegistry.CardFacePaths(12),
+                SunExpIds.PolymorphSourceResourceCategory);
         }
         catch (Exception ex)
         {

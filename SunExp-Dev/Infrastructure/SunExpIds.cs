@@ -100,6 +100,19 @@ public static class SunExpIds
     public const string RestMarkCardId = "SunExp_sunexp_rest_mark";
     public const string MorningStarStageCardId = "SunExp_sunexp_morning_star_stage";
     public const string StarScoreEchoCardId = "SunExp_sunexp_star_score_echo";
+    public const string PolymorphCardShortId = "polymorph";
+    public const string PolymorphRoleTemplateShortId = "polymorph_role_template";
+    public const string PolymorphRoleTemplateCardId = "SunExp_sunexp_polymorph_role_template";
+    public const string PolymorphRoleCardMarker = "SunExpPolymorphRoleCard";
+    public const string PolymorphRoleIdKey = "SunExpPolymorphRoleId";
+    public const string PolymorphRoleNameKey = "SunExpPolymorphRoleName";
+    public const string PolymorphRoleCardFacePathKey = "SunExpPolymorphRoleCardFacePath";
+    public const string PolymorphRoleCropXKey = "SunExpPolymorphRoleCropX";
+    public const string PolymorphRoleCropYKey = "SunExpPolymorphRoleCropY";
+    public const string PolymorphCropConfigFile = "polymorph.role-crops.json";
+    public const string PolymorphSourceResourceCategory = "polymorph.role-source";
+    public const string PolymorphGeneratedFaceCategory = "polymorph.generated-card-face";
+    public const string PolymorphPlaceholderCardIconPath = SunCardIconPathPrefix + "spark";
 
     public static readonly string[] StellarOvertureCardIds =
     {
