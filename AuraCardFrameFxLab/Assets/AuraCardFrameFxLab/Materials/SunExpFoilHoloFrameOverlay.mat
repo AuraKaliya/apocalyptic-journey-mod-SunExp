@@ -1,0 +1,95 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: SunExpFoilHoloFrameOverlay
+  m_Shader: {fileID: 4800000, guid: df46ea624ef24374f8487b7c447fb0d9, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _FoilTex:
+        m_Texture: {fileID: 2800000, guid: 0cb253d71f97fed408963e03bb6f568e, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _MainTex:
+        m_Texture: {fileID: 2800000, guid: 324a383aad4e83345a99f8a03886336d, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _NoiseTex:
+        m_Texture: {fileID: 2800000, guid: 3aadff830d7bc534bb52ee5e2239d480, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _ColorMask: 15
+    - _Stencil: 0
+    - _StencilComp: 8
+    - _StencilOp: 0
+    - _StencilReadMask: 255
+    - _StencilWriteMask: 255
+    - _SunExpDistortion: 0.02070886
+    - _SunExpEdgeGlow: 0.12025317
+    - _SunExpEdgeSample: 3.2183545
+    - _SunExpEffectIntensity: 1.0928162
+    - _SunExpEffectMode: 0.22974634
+    - _SunExpFlowScale: 1.6031001
+    - _SunExpFlowSpeed: -2
+    - _SunExpFoilGalaxyDensity: 0.14791138
+    - _SunExpFoilGlintSpeed: 1.1
+    - _SunExpFoilGrain: 0.45341772
+    - _SunExpFoilMode: 1.603195
+    - _SunExpFoilOverlayAlpha: 1.556962
+    - _SunExpFoilShardScale: 15.367088
+    - _SunExpFoilShardWarp: 0.16227847
+    - _SunExpFoilTextureStrength: 0.96708864
+    - _SunExpFrameOnlyOverlay: 0
+    - _SunExpGlareStrength: 1.0082278
+    - _SunExpMirrorSweep: 0.84582275
+    - _SunExpNoiseScale: 7.721519
+    - _SunExpOverlayMode: 1
+    - _SunExpPointerAutoSpeed: 0.6455697
+    - _SunExpPointerX: -1
+    - _SunExpPointerY: -1
+    - _SunExpPrismScale: 18.189875
+    - _SunExpPrismStrength: 0.7594937
+    - _SunExpQualityScale: 0.30379742
+    - _SunExpRainbowStrength: 1.25
+    - _SunExpRidgeStrength: 0.5227848
+    - _SunExpStardustDensity: 0.38
+    - _SunExpStardustGlowPower: 4
+    - _SunExpStardustGlowRadius: 0.22
+    - _SunExpStardustOrbit: 0.32
+    - _SunExpStardustSweepIntensity: 0.72
+    - _SunExpStardustSweepSpeed: 1
+    - _SunExpStardustSweepWidth: 0.085
+    - _SunExpStardustTwinkle: 1
+    - _SunExpStardustTwinkleSpeed: 1
+    - _SunExpSweepFrequency: 3.716456
+    - _SunExpSweepIntensity: 0.8921519
+    - _SunExpSweepWidth: 0.18012658
+    - _SunExpSwirlStrength: 0.20556961
+    - _UseUIAlphaClip: 0
+    m_Colors:
+    - _SunExpHoloColorA: {r: 1, g: 0.9411765, b: 0.6509804, a: 1}
+    - _SunExpHoloColorB: {r: 0.6509804, g: 0.9490196, b: 1, a: 1}
+    - _SunExpHoloColorC: {r: 0.8235294, g: 0.72156864, b: 1, a: 1}
+    - _SunExpStardustColorA: {r: 0.86, g: 0.94, b: 1, a: 1}
+    - _SunExpStardustColorB: {r: 1, g: 0.85, b: 0.44, a: 1}
+    - _TextureSampleAdd: {r: 0, g: 0, b: 0, a: 0}
+  m_BuildTextureStacks: []

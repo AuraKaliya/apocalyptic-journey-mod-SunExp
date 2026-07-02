@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using SunExp.Dll.Infrastructure;
+using Witch.Core;
 
 namespace SunExp.Dll.GameApi;
 
@@ -19,16 +20,52 @@ public static class CardConfigApi
             return dataConfig;
         }
 
+        if (payload is string cardId)
+        {
+            return FromCardId(cardId);
+        }
+
+        if (payload is IDictionary<string, string> row)
+        {
+            return FromDataRow(row);
+        }
+
         foreach (var name in new[] { "dataConfig", "DataConfig", "Data", "data", "Config", "config", "Source", "source" })
         {
             var value = ReadMember(payload, name);
-            if (value is IDataConfig config)
+            if (ReferenceEquals(value, payload))
+            {
+                continue;
+            }
+
+            var config = FromActionPayload(value);
+            if (config != null)
             {
                 return config;
             }
         }
 
         return null;
+    }
+
+    private static IDataConfig? FromDataRow(IDictionary<string, string> row)
+    {
+        var id = DictionaryUtil.Get(row, "Id");
+        return string.IsNullOrWhiteSpace(id)
+            ? null
+            : new DataConfig(
+                new Dictionary<string, string>(row),
+                new Dictionary<string, string>());
+    }
+
+    private static IDataConfig? FromCardId(string? cardId)
+    {
+        var id = (cardId ?? "").Trim();
+        return id.Length == 0
+            ? null
+            : new DataConfig(
+                new Dictionary<string, string> { ["Id"] = id },
+                new Dictionary<string, string>());
     }
 
     public static string Id(IDataConfig? config)

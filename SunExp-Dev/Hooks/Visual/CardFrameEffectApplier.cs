@@ -37,7 +37,9 @@ internal static class CardFrameEffectApplier
 
     private static bool ApplyImageMaterial(CardVisualSkinMarker marker, CardVisualEffectSpec effect)
     {
-        var material = CardFrameEffectMaterials.SharedUiOverlayMaterial(effect);
+        var material = CardFrameEffectMaterials.SharedUiOverlayMaterial(
+            effect,
+            frameOnlyOverlay: marker.FrameImage == null && marker.BackgroundImage != null);
         if (material == null)
         {
             return Clear(marker);

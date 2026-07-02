@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using AuraShared.Core;
+using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks.Visual;
 using SunExp.Dll.Infrastructure;
 using UnityEngine;
@@ -91,7 +93,8 @@ public static class CardVisualSkinRuntime
     {
         try
         {
-            var config = ConfigFromArgument(context.Arguments, configArgIndex);
+            var config = ConfigFromArgument(context.Arguments, configArgIndex)
+                ?? CardConfigApi.FromActionPayload(context.Target);
             var root = RootFromTarget(context.Target, childPath);
             ApplySafely(root, config, source);
         }
@@ -170,7 +173,7 @@ public static class CardVisualSkinRuntime
             return null;
         }
 
-        return args[index] as IDataConfig;
+        return CardConfigApi.FromActionPayload(args[index]);
     }
 
     private static Transform? RootFromTarget(object? target, string? childPath)
@@ -183,6 +186,53 @@ public static class CardVisualSkinRuntime
         return string.IsNullOrWhiteSpace(childPath)
             ? component.transform
             : component.transform.Find(childPath);
+    }
+
+    private static Transform? FindCardVisualRoot(Transform? root)
+    {
+        if (root == null)
+        {
+            return null;
+        }
+
+        if (HasCardVisualNodes(root))
+        {
+            return root;
+        }
+
+        foreach (var path in new[] { "CardItem", "cardItem", "Card", "card", "ShowCard", "DisplayCard", "Item", "Root" })
+        {
+            var child = root.Find(path);
+            if (HasCardVisualNodes(child))
+            {
+                return child;
+            }
+        }
+
+        var queue = new Queue<Transform>();
+        queue.Enqueue(root);
+        var visited = 0;
+        while (queue.Count > 0 && visited++ < 96)
+        {
+            var current = queue.Dequeue();
+            if (!ReferenceEquals(current, root) && HasCardVisualNodes(current))
+            {
+                return current;
+            }
+
+            for (var i = 0; i < current.childCount; i++)
+            {
+                queue.Enqueue(current.GetChild(i));
+            }
+        }
+
+        return root;
+    }
+
+    private static bool HasCardVisualNodes(Transform? root)
+    {
+        return root != null
+            && (root.Find("Front/background") != null || root.Find("Front/FrontBack") != null);
     }
 
     private static Transform? FindCombatCardRoot(IDataConfig config)
@@ -281,18 +331,25 @@ public static class CardVisualSkinRuntime
         ReapplyActiveCombatCards(count > 1 ? source + ".merged" + count : source + ".merged");
     }
 
-    private static void ApplySafely(Transform? root, IDataConfig? config, string source)
+    private static void ApplySafely(Transform? root, IDataConfig? config, string source, bool scheduleDeferred = true)
     {
         if (config == null)
         {
             return;
         }
 
-        var applied = CardVisualSkinApplier.Apply(root, config);
+        var visualRoot = FindCardVisualRoot(root);
+        var applied = CardVisualSkinApplier.Apply(visualRoot, config);
         if (applied)
         {
             SunExpPerformanceCounters.Record("CardVisualSkin.Apply");
             SunExpLog.Debug("Card visual skin applied from " + source + ": " + DictionaryUtil.Get(config.data, "Id", "unknown"));
+        }
+
+        if (scheduleDeferred && visualRoot != null)
+        {
+            var key = "CardVisualSkinRuntime.Deferred." + source + "." + visualRoot.GetInstanceID();
+            SunExpFrameScheduler.RunOnceNextFrame(key, () => ApplySafely(visualRoot, config, source + ".deferred", scheduleDeferred: false));
         }
     }
 }

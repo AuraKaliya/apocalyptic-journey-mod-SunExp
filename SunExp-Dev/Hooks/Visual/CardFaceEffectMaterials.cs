@@ -13,6 +13,7 @@ internal static class CardFaceEffectShaderIds
 
     public static readonly int MainTex = Shader.PropertyToID("_MainTex");
     public static readonly int OverlayMode = Shader.PropertyToID("_SunExpOverlayMode");
+    public static readonly int FrameOnlyOverlay = Shader.PropertyToID("_SunExpFrameOnlyOverlay");
     public static readonly int QualityScale = Shader.PropertyToID("_SunExpQualityScale");
 }
 
@@ -129,5 +130,9 @@ internal static class CardFaceEffectMaterials
         }
 
         material.SetFloat(CardFaceEffectShaderIds.OverlayMode, enabled ? 1f : 0f);
+        if (material.HasProperty(CardFaceEffectShaderIds.FrameOnlyOverlay))
+        {
+            material.SetFloat(CardFaceEffectShaderIds.FrameOnlyOverlay, 0f);
+        }
     }
 }

@@ -162,6 +162,24 @@ function Wait-ForBundle {
     return $false
 }
 
+function Test-UnityLogBuiltBundle {
+    param(
+        [string]$Path
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return $false
+    }
+
+    try {
+        $tail = Get-Content -LiteralPath $Path -Tail 80 -ErrorAction Stop
+        return ($tail -join "`n").Contains("Built SunExp visual bundle:")
+    }
+    catch {
+        return $false
+    }
+}
+
 function Prepare-UnityProject {
     param(
         [string]$ProjectPath
@@ -273,7 +291,7 @@ if ([string]::IsNullOrWhiteSpace([string]$unityExitCode) -and (Wait-ForBundle $b
 }
 
 if ($unityExitCode -ne 0) {
-    if (Wait-ForBundle $bundlePath) {
+    if ((Wait-ForBundle $bundlePath 30) -or (Test-UnityLogBuiltBundle $logPath -and (Wait-ForBundle $bundlePath 10))) {
         Write-Warning "Unity returned exit code $unityExitCode after producing the visual bundle. See $logPath"
     }
     else {
