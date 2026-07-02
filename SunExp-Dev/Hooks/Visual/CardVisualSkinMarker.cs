@@ -6,11 +6,14 @@ namespace SunExp.Dll.Hooks.Visual;
 internal sealed class CardVisualSkinMarker : MonoBehaviour
 {
     private const string FaceEffectOverlayName = "SunExp_CardFaceEffectOverlay";
+    private const string FrameEffectOverlayName = "SunExp_CardFrameEffectOverlay";
 
     private Transform? frameNode;
     private Transform? backgroundNode;
     private Image? frameImage;
     private Image? backgroundImage;
+    private Image? frameEffectOverlayImage;
+    private RectTransform? frameEffectOverlayRect;
     private Image? faceEffectOverlayImage;
     private RectTransform? faceEffectOverlayRect;
     private MeshRenderer? frameMesh;
@@ -220,6 +223,31 @@ internal sealed class CardVisualSkinMarker : MonoBehaviour
         return changed;
     }
 
+    public bool ApplyFrameImageEffectOverlay(Material material)
+    {
+        var source = FrameImage ?? BackgroundImage;
+        if (source == null)
+        {
+            DestroyFrameEffectOverlay();
+            return false;
+        }
+
+        var overlay = EnsureFrameEffectOverlay(source);
+        if (overlay == null)
+        {
+            return false;
+        }
+
+        CopyImageShape(source, overlay);
+        var changed = !ReferenceEquals(overlay.material, material)
+            || !ReferenceEquals(overlay.sprite, source.sprite)
+            || !overlay.gameObject.activeSelf;
+        overlay.material = material;
+        overlay.sprite = source.sprite;
+        overlay.gameObject.SetActive(true);
+        return changed;
+    }
+
     public bool ApplyFrameMeshEffectMaterial(Material material)
     {
         var mesh = FrameMesh;
@@ -243,6 +271,7 @@ internal sealed class CardVisualSkinMarker : MonoBehaviour
     public bool ClearFrameEffectMaterial()
     {
         var changed = false;
+        changed = DestroyFrameEffectOverlay() || changed;
         if (originalFrameImageMaterialCaptured)
         {
             var image = FrameImage;
@@ -372,6 +401,32 @@ internal sealed class CardVisualSkinMarker : MonoBehaviour
         return faceEffectOverlayImage;
     }
 
+    private Image? EnsureFrameEffectOverlay(Image source)
+    {
+        if (frameEffectOverlayImage != null)
+        {
+            PositionFrameEffectOverlay(source);
+            return frameEffectOverlayImage;
+        }
+
+        var parent = ResolveFaceEffectOverlayParent(source);
+        if (parent == null)
+        {
+            return null;
+        }
+
+        var overlayObject = new GameObject(FrameEffectOverlayName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        overlayObject.layer = source.gameObject.layer;
+        overlayObject.transform.SetParent(parent, false);
+
+        frameEffectOverlayRect = overlayObject.GetComponent<RectTransform>();
+        frameEffectOverlayImage = overlayObject.GetComponent<Image>();
+        frameEffectOverlayImage.raycastTarget = false;
+        frameEffectOverlayImage.maskable = source.maskable;
+        PositionFrameEffectOverlay(source);
+        return frameEffectOverlayImage;
+    }
+
     private Transform? ResolveFaceEffectOverlayParent(Image source)
     {
         var frame = FrameNode;
@@ -422,6 +477,39 @@ internal sealed class CardVisualSkinMarker : MonoBehaviour
         }
     }
 
+    private void PositionFrameEffectOverlay(Image source)
+    {
+        if (frameEffectOverlayImage == null || frameEffectOverlayRect == null)
+        {
+            return;
+        }
+
+        var parent = ResolveFaceEffectOverlayParent(source);
+        if (parent != null && frameEffectOverlayImage.transform.parent != parent)
+        {
+            frameEffectOverlayImage.transform.SetParent(parent, false);
+        }
+
+        var sourceRect = source.transform as RectTransform;
+        if (sourceRect != null)
+        {
+            CopyRectShape(sourceRect, frameEffectOverlayRect);
+        }
+
+        var frame = FrameNode;
+        if (frame != null && frame.parent == frameEffectOverlayImage.transform.parent)
+        {
+            var frameIndex = frame.GetSiblingIndex();
+            var overlayIndex = frameEffectOverlayImage.transform.GetSiblingIndex();
+            var targetIndex = overlayIndex < frameIndex ? frameIndex : frameIndex + 1;
+            frameEffectOverlayImage.transform.SetSiblingIndex(targetIndex);
+        }
+        else
+        {
+            frameEffectOverlayImage.transform.SetAsLastSibling();
+        }
+    }
+
     private static void CopyImageShape(Image source, Image target)
     {
         target.type = source.type;
@@ -462,8 +550,24 @@ internal sealed class CardVisualSkinMarker : MonoBehaviour
         return true;
     }
 
+    private bool DestroyFrameEffectOverlay()
+    {
+        if (frameEffectOverlayImage == null)
+        {
+            frameEffectOverlayRect = null;
+            return false;
+        }
+
+        var overlayObject = frameEffectOverlayImage.gameObject;
+        frameEffectOverlayImage = null;
+        frameEffectOverlayRect = null;
+        Destroy(overlayObject);
+        return true;
+    }
+
     private void OnDestroy()
     {
+        DestroyFrameEffectOverlay();
         DestroyFaceEffectOverlay();
         ClearOwnedFaceEffectMaterial();
         ClearOwnedFrameEffectMaterial();

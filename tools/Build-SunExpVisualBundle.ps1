@@ -70,6 +70,98 @@ function Write-Utf8NoBom {
     [System.IO.File]::WriteAllText($Path, $Text, $encoding)
 }
 
+function Normalize-UnityPathText {
+    param(
+        [string]$Text
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        return ""
+    }
+
+    return $Text.Replace("/", "\")
+}
+
+function Stop-StaleUnityProjectProcesses {
+    param(
+        [string]$ProjectPath
+    )
+
+    $fullProjectPath = [System.IO.Path]::GetFullPath($ProjectPath)
+    $normalizedProjectPath = Normalize-UnityPathText $fullProjectPath
+    $processes = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+        Where-Object {
+            $commandLine = Normalize-UnityPathText $_.CommandLine
+            $_.CommandLine -and
+            $commandLine.Contains($normalizedProjectPath) -and
+            $_.Name -eq "Unity.exe"
+        }
+
+    $batchmodeProcesses = @($processes | Where-Object { $_.CommandLine.Contains("-batchmode") })
+    $interactiveProcesses = @($processes | Where-Object { -not $_.CommandLine.Contains("-batchmode") })
+    if ($interactiveProcesses.Count -gt 0) {
+        $ids = ($interactiveProcesses | ForEach-Object { $_.ProcessId }) -join ", "
+        Write-Warning "Unity project is open in interactive Unity process(es): $ids. Close them before building if Unity reports a project lock."
+    }
+
+    if ($batchmodeProcesses.Count -gt 0) {
+        $idsToStop = New-Object System.Collections.Generic.HashSet[int]
+        foreach ($process in $batchmodeProcesses) {
+            [void]$idsToStop.Add([int]$process.ProcessId)
+            $children = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+                Where-Object {
+                    $_.CommandLine -and
+                    $_.CommandLine.Contains([string]$process.ProcessId) -and
+                    $_.Name -like "Unity*.exe"
+                }
+            foreach ($child in $children) {
+                [void]$idsToStop.Add([int]$child.ProcessId)
+            }
+        }
+
+        Write-Warning "Stopping stale Unity batchmode process(es) for ${fullProjectPath}: $($idsToStop -join ', ')"
+        foreach ($id in $idsToStop) {
+            Stop-Process -Id $id -Force -ErrorAction SilentlyContinue
+        }
+
+        $deadline = (Get-Date).AddSeconds(15)
+        do {
+            Start-Sleep -Milliseconds 500
+            $remaining = @($idsToStop | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue })
+        } while ($remaining.Count -gt 0 -and (Get-Date) -lt $deadline)
+    }
+
+    $liveProjectUnity = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+        Where-Object {
+            $commandLine = Normalize-UnityPathText $_.CommandLine
+            $_.CommandLine -and
+            $commandLine.Contains($normalizedProjectPath) -and
+            $_.Name -eq "Unity.exe"
+        })
+    $lockPath = Join-Path $fullProjectPath "Temp\UnityLockfile"
+    if ($liveProjectUnity.Count -eq 0 -and (Test-Path -LiteralPath $lockPath)) {
+        Remove-Item -LiteralPath $lockPath -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Wait-ForBundle {
+    param(
+        [string]$Path,
+        [int]$TimeoutSeconds = 12
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    do {
+        if (Test-Path -LiteralPath $Path) {
+            return $true
+        }
+
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+
+    return $false
+}
+
 function Prepare-UnityProject {
     param(
         [string]$ProjectPath
@@ -149,8 +241,12 @@ if ([string]::IsNullOrWhiteSpace($UnityProjectPath)) {
     $UnityProjectPath = $defaultUnityProjectPath
 }
 
-Prepare-UnityProject $UnityProjectPath
+if (-not (Test-Path -LiteralPath $UnityProjectPath)) {
+    New-Item -ItemType Directory -Path $UnityProjectPath -Force | Out-Null
+}
 $project = (Resolve-Path -LiteralPath $UnityProjectPath).Path
+Stop-StaleUnityProjectProcesses $project
+Prepare-UnityProject $project
 
 $logPath = Join-Path $repoRoot "SunExp-Dev\VisualAssets\sunexp_visuals.unity-build.log"
 $arguments = @(
@@ -172,12 +268,12 @@ finally {
     $env:SUNEXP_VISUAL_BUNDLE_OUTPUT = $previousBundleOutput
 }
 
-if ([string]::IsNullOrWhiteSpace([string]$unityExitCode) -and (Test-Path -LiteralPath $bundlePath)) {
+if ([string]::IsNullOrWhiteSpace([string]$unityExitCode) -and (Wait-ForBundle $bundlePath 2)) {
     $unityExitCode = 0
 }
 
 if ($unityExitCode -ne 0) {
-    if (Test-Path -LiteralPath $bundlePath) {
+    if (Wait-ForBundle $bundlePath) {
         Write-Warning "Unity returned exit code $unityExitCode after producing the visual bundle. See $logPath"
     }
     else {

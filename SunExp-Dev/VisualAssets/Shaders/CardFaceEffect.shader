@@ -4,9 +4,11 @@ Shader "SunExp/CardFaceEffect"
     {
         [PerRendererData] _MainTex ("Card Face Sprite", 2D) = "white" {}
         _NoiseTex ("Effect Noise", 2D) = "white" {}
+        _FoilTex ("Foil Texture", 2D) = "white" {}
         _TextureSampleAdd ("Texture Sample Add", Vector) = (0, 0, 0, 0)
         _SunExpEffectMode ("Effect Mode", Float) = 0
         _SunExpOverlayMode ("Overlay Mode", Float) = 0
+        _SunExpFoilMode ("Foil Mode", Float) = 2
         _SunExpHoloColorA ("Holo Color A", Color) = (1, 0.94, 0.65, 1)
         _SunExpHoloColorB ("Holo Color B", Color) = (0.65, 0.95, 1, 1)
         _SunExpHoloColorC ("Holo Color C", Color) = (0.82, 0.72, 1, 1)
@@ -16,14 +18,14 @@ Shader "SunExp/CardFaceEffect"
         _SunExpFlowScale ("Flow Scale", Float) = 1.25
         _SunExpNoiseScale ("Noise Scale", Float) = 4.0
         _SunExpDistortion ("Distortion", Float) = 0.012
-        _SunExpEffectIntensity ("Effect Intensity", Range(0, 2)) = 0.92
+        _SunExpEffectIntensity ("Effect Intensity", Range(0, 2)) = 0.74
         _SunExpQualityScale ("Quality Scale", Range(0, 1)) = 1
-        _SunExpEdgeGlow ("Edge Glow", Range(0, 1)) = 0.24
+        _SunExpEdgeGlow ("Edge Glow", Range(0, 1)) = 0.18
         _SunExpSweepFrequency ("Sweep Frequency", Float) = 3.6
         _SunExpSweepWidth ("Sweep Width", Range(0.01, 1)) = 0.18
-        _SunExpSweepIntensity ("Sweep Intensity", Range(0, 2)) = 0.72
+        _SunExpSweepIntensity ("Sweep Intensity", Range(0, 2)) = 0.62
         _SunExpPrismScale ("Prism Scale", Float) = 11
-        _SunExpPrismStrength ("Prism Strength", Range(0, 1)) = 0.78
+        _SunExpPrismStrength ("Prism Strength", Range(0, 1)) = 0.82
         _SunExpFoilGrain ("Foil Grain", Range(0, 1)) = 0.12
         _SunExpMirrorSweep ("Mirror Sweep", Range(0, 2)) = 0.32
         _SunExpSwirlStrength ("Swirl Strength", Range(0, 1)) = 0.08
@@ -31,6 +33,14 @@ Shader "SunExp/CardFaceEffect"
         _SunExpFoilShardWarp ("Foil Shard Warp", Range(0, 1)) = 0.18
         _SunExpFoilGalaxyDensity ("Foil Galaxy Density", Range(0, 1)) = 0.04
         _SunExpFoilGlintSpeed ("Foil Glint Speed", Float) = 0.85
+        _SunExpFoilTextureStrength ("Foil Texture Strength", Range(0, 2)) = 0.92
+        _SunExpRainbowStrength ("Rainbow Strength", Range(0, 2)) = 1.24
+        _SunExpRidgeStrength ("Ridge Strength", Range(0, 2)) = 0.76
+        _SunExpGlareStrength ("Glare Strength", Range(0, 2)) = 0.38
+        _SunExpPointerAutoSpeed ("Pointer Auto Speed", Float) = 0.72
+        _SunExpFoilOverlayAlpha ("Foil Overlay Alpha", Range(0, 2)) = 0.54
+        _SunExpPointerX ("Pointer X", Float) = -1
+        _SunExpPointerY ("Pointer Y", Float) = -1
         _SunExpStardustDensity ("Stardust Density", Range(0, 1)) = 0.38
         _SunExpStardustTwinkle ("Stardust Twinkle", Range(0, 2)) = 1.0
         _SunExpStardustTwinkleSpeed ("Stardust Twinkle Speed", Float) = 1.0
@@ -110,10 +120,12 @@ Shader "SunExp/CardFaceEffect"
             sampler2D _MainTex;
             float4 _MainTex_TexelSize;
             sampler2D _NoiseTex;
+            sampler2D _FoilTex;
             fixed4 _TextureSampleAdd;
             float4 _ClipRect;
             float _SunExpEffectMode;
             float _SunExpOverlayMode;
+            float _SunExpFoilMode;
             fixed4 _SunExpHoloColorA;
             fixed4 _SunExpHoloColorB;
             fixed4 _SunExpHoloColorC;
@@ -138,6 +150,14 @@ Shader "SunExp/CardFaceEffect"
             float _SunExpFoilShardWarp;
             float _SunExpFoilGalaxyDensity;
             float _SunExpFoilGlintSpeed;
+            float _SunExpFoilTextureStrength;
+            float _SunExpRainbowStrength;
+            float _SunExpRidgeStrength;
+            float _SunExpGlareStrength;
+            float _SunExpPointerAutoSpeed;
+            float _SunExpFoilOverlayAlpha;
+            float _SunExpPointerX;
+            float _SunExpPointerY;
             float _SunExpStardustDensity;
             float _SunExpStardustTwinkle;
             float _SunExpStardustTwinkleSpeed;
@@ -297,6 +317,110 @@ Shader "SunExp/CardFaceEffect"
                 return saturate((glint + sparse * 0.55) * frameWeight);
             }
 
+            float2 foilPointer(float time)
+            {
+                if (_SunExpPointerX >= 0.0 && _SunExpPointerX <= 1.0 && _SunExpPointerY >= 0.0 && _SunExpPointerY <= 1.0)
+                {
+                    return float2(_SunExpPointerX, _SunExpPointerY);
+                }
+
+                float speed = max(_SunExpPointerAutoSpeed, 0.01);
+                return float2(
+                    0.5 + sin(time * speed * 1.17) * 0.34,
+                    0.5 + cos(time * speed * 0.83 + 1.2) * 0.34);
+            }
+
+            fixed3 lightenBlend(fixed3 baseColor, fixed3 layer)
+            {
+                return max(baseColor, layer);
+            }
+
+            fixed3 hardLightBlend(fixed3 baseColor, fixed3 layer)
+            {
+                fixed3 low = 2.0 * baseColor * layer;
+                fixed3 high = 1.0 - 2.0 * (1.0 - baseColor) * (1.0 - layer);
+                return saturate(lerp(low, high, step(0.5, layer)));
+            }
+
+            fixed3 colorDodgeBlend(fixed3 baseColor, fixed3 layer, float strength)
+            {
+                fixed3 dodged = baseColor / max(1.0 - layer * saturate(strength), 0.08);
+                return saturate(lerp(baseColor, dodged, saturate(strength)));
+            }
+
+            float foilLuma(fixed3 color)
+            {
+                return dot(color, fixed3(0.299, 0.587, 0.114));
+            }
+
+            fixed3 pokemonMainShine(float2 uv, float time, float3 noise, float2 pointer, float fromCenter)
+            {
+                float2 background = lerp(float2(0.5, 0.5), pointer, 0.86);
+                background += float2(sin(time * 0.31), cos(time * 0.27)) * 0.035;
+
+                float rainbowAxis = uv.x * 0.84 - uv.y * 0.54 + background.x * 1.14 + noise.b * 0.1;
+                fixed3 rainbow = holoRamp(rainbowAxis * 4.2 + time * 0.045) * _SunExpRainbowStrength;
+
+                float stripeAxis = uv.x * 0.56 + uv.y * 1.04 + background.y * 0.72 - time * 0.03;
+                float stripe = abs(frac(stripeAxis * 7.2) - 0.5) * 2.0;
+                float lightStripe = pow(saturate(1.0 - stripe), 3.2);
+                float darkStripe = smoothstep(0.18, 0.86, stripe);
+                fixed3 stripeColor = lerp(fixed3(0.05, 0.08, 0.16), fixed3(0.72, 0.86, 0.82), lightStripe);
+
+                float radial = 1.0 - smoothstep(0.0, 0.82, distance(uv, pointer));
+                fixed3 pointerColor = holoRamp(uv.x * 0.42 + uv.y * 0.58 + radial * 0.42 + time * 0.025);
+                pointerColor *= saturate(0.35 + radial * 0.92 + fromCenter * 0.32);
+
+                fixed3 blended = lerp(rainbow, rainbow * stripeColor, 0.52 + darkStripe * 0.18);
+                blended = lerp(blended, pointerColor, radial * 0.42);
+                return saturate(blended);
+            }
+
+            fixed3 pokemonTextureShine(float2 uv, float time, float3 noise, float2 pointer)
+            {
+                float2 foilUv = uv * float2(1.55, 0.82) + float2(time * 0.035, -time * 0.018);
+                fixed3 foilTex = tex2D(_FoilTex, foilUv + noise.rg * 0.018).rgb;
+                float foilGrain = saturate(foilLuma(foilTex) * 1.45);
+
+                fixed3 pillars = holoRamp(uv.y * 7.5 + pointer.y * 2.0 + time * 0.055);
+                float pillarBand = pow(saturate(1.0 - abs(frac((uv.y + pointer.y * 0.21 + time * 0.035) * 8.0) - 0.5) * 2.0), 1.4);
+
+                float ridgeAxis = uv.x * 0.72 + uv.y * 1.08 + pointer.x * 0.35 - time * 0.04;
+                float ridgeLine = abs(frac(ridgeAxis * 12.0) - 0.5) * 2.0;
+                float ridge = pow(saturate(1.0 - ridgeLine), 4.6) * _SunExpRidgeStrength;
+                fixed3 ridgeColor = lerp(fixed3(0.04, 0.06, 0.13), fixed3(0.72, 0.92, 0.92), ridge);
+
+                fixed3 textureLayer = lightenBlend(pillars * (0.35 + pillarBand * 0.75), ridgeColor);
+                textureLayer = lerp(textureLayer, textureLayer * (0.65 + foilTex * 0.95), saturate(_SunExpFoilTextureStrength));
+                textureLayer += holoRamp(uv.x * 1.1 - uv.y * 0.28 + foilGrain + time * 0.02) * foilGrain * _SunExpFoilTextureStrength * 0.38;
+                return saturate(textureLayer);
+            }
+
+            float pokemonGlare(float2 uv, float2 pointer, float fromCenter)
+            {
+                float radial = 1.0 - smoothstep(0.0, 0.92, distance(uv, pointer));
+                return saturate((radial * 0.3 + pow(radial, 3.2) * 0.24) * _SunExpGlareStrength * (0.22 + fromCenter * 0.5));
+            }
+
+            fixed3 applyPokemonFoil(fixed3 baseColor, float2 uv, float mask, float time, float3 noise, float edge, float intensity)
+            {
+                float2 pointer = foilPointer(time);
+                float fromCenter = saturate(length(pointer - 0.5) * 2.0);
+                float cardWeight = saturate(mask * (0.72 + edge * 0.65));
+                fixed3 mainShine = pokemonMainShine(uv, time, noise, pointer, fromCenter);
+                fixed3 textureShine = pokemonTextureShine(uv, time, noise, pointer);
+                float glare = pokemonGlare(uv, pointer, fromCenter);
+
+                fixed3 shineStack = colorDodgeBlend(baseColor, mainShine, 0.58 * _SunExpPrismStrength);
+                shineStack = lightenBlend(shineStack, textureShine * (0.38 + fromCenter * 0.28));
+                shineStack = hardLightBlend(shineStack, fixed3(glare, glare, glare));
+
+                float effect = saturate((foilLuma(mainShine) * 0.38 + foilLuma(textureShine) * 0.32 + glare * 0.38 + edge * 0.18) * intensity * cardWeight);
+                fixed3 color = lerp(baseColor, shineStack, effect);
+                color += (mainShine * 0.12 + textureShine * 0.1 + fixed3(glare, glare, glare) * 0.1) * intensity * cardWeight;
+                return saturate(color);
+            }
+
             fixed3 applyFoil(fixed3 baseColor, float2 uv, float mask, float time, float3 noise, float edge, float intensity)
             {
                 float2 microFlow = float2(hash21(uv * 17.0), hash21(uv * 23.0)) - 0.5;
@@ -316,7 +440,13 @@ Shader "SunExp/CardFaceEffect"
                 fixed3 foilColor = lerp(baseColor, saturate(baseColor * 0.9 + holo * 0.95), _SunExpPrismStrength);
                 fixed3 color = lerp(baseColor, foilColor, foil * intensity);
                 color += holo * (glint * 0.46 + lines * 0.14 + sweep * 0.18 + edge * 0.18) * intensity;
-                return color;
+                fixed3 result = color;
+                if (_SunExpFoilMode > 1.5)
+                {
+                    result = applyPokemonFoil(baseColor, uv, mask, time, noise, edge, intensity);
+                }
+
+                return result;
             }
 
             fixed3 applyStardust(fixed3 baseColor, float2 uv, float mask, float time, float3 noise, float edge, float intensity)
@@ -353,7 +483,23 @@ Shader "SunExp/CardFaceEffect"
                 float alpha = saturate((sparkle * 0.94 + glint * 0.24 + edge * 0.18) * intensity);
                 fixed3 color = holo * saturate(0.48 + sparkle * 0.82);
                 color += _SunExpHoloColorA.rgb * (glint * 0.18 + edge * 0.16) * intensity;
-                return fixed4(color, alpha * mask);
+                fixed4 result = fixed4(color, alpha * mask);
+                if (_SunExpFoilMode > 1.5)
+                {
+                    float2 pointer = foilPointer(time);
+                    float fromCenter = saturate(length(pointer - 0.5) * 2.0);
+                    fixed3 mainShine = pokemonMainShine(uv, time, noise, pointer, fromCenter);
+                    fixed3 textureShine = pokemonTextureShine(uv, time, noise, pointer);
+                    float glare = pokemonGlare(uv, pointer, fromCenter);
+                    fixed3 shineStack = colorDodgeBlend(mainShine * 0.38, textureShine, 0.52);
+                    shineStack = lightenBlend(shineStack, textureShine * 0.46);
+                    shineStack = hardLightBlend(shineStack, fixed3(glare, glare, glare));
+                    float pokemonSparkle = saturate(foilLuma(mainShine) * 0.34 + foilLuma(textureShine) * 0.36 + glare * 0.38 + edge * 0.16);
+                    float pokemonAlpha = saturate((pokemonSparkle * 0.58 + fromCenter * 0.08 + edge * 0.14) * intensity * _SunExpFoilOverlayAlpha);
+                    result = fixed4(saturate(shineStack * (0.42 + pokemonSparkle * 0.46)), pokemonAlpha * mask);
+                }
+
+                return result;
             }
 
             fixed4 buildStardustOverlay(float2 uv, float mask, float time, float3 noise, float edge, float intensity)

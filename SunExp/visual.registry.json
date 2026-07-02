@@ -208,21 +208,23 @@
       "bundlePath": "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
       "materialPath": "SunExp/Materials/CardFaceEffect",
       "textures": {
-        "_NoiseTex": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
+        "_NoiseTex": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png",
+        "_FoilTex": "Mods/SunExp/ModResource/Images/Effects/CardFoil/pokemon_holo_foil.png"
       },
       "floats": {
         "_SunExpEffectMode": 0.0,
+        "_SunExpFoilMode": 2.0,
         "_SunExpFlowSpeed": 0.42,
         "_SunExpFlowScale": 1.25,
         "_SunExpNoiseScale": 4.0,
         "_SunExpDistortion": 0.012,
-        "_SunExpEffectIntensity": 0.92,
-        "_SunExpEdgeGlow": 0.24,
+        "_SunExpEffectIntensity": 0.74,
+        "_SunExpEdgeGlow": 0.18,
         "_SunExpSweepFrequency": 3.6,
         "_SunExpSweepWidth": 0.18,
-        "_SunExpSweepIntensity": 0.72,
+        "_SunExpSweepIntensity": 0.62,
         "_SunExpPrismScale": 11.0,
-        "_SunExpPrismStrength": 0.78,
+        "_SunExpPrismStrength": 0.82,
         "_SunExpFoilGrain": 0.12,
         "_SunExpMirrorSweep": 0.32,
         "_SunExpSwirlStrength": 0.08,
@@ -230,6 +232,12 @@
         "_SunExpFoilShardWarp": 0.18,
         "_SunExpFoilGalaxyDensity": 0.04,
         "_SunExpFoilGlintSpeed": 0.85,
+        "_SunExpFoilTextureStrength": 0.92,
+        "_SunExpRainbowStrength": 1.24,
+        "_SunExpRidgeStrength": 0.76,
+        "_SunExpGlareStrength": 0.38,
+        "_SunExpPointerAutoSpeed": 0.72,
+        "_SunExpFoilOverlayAlpha": 0.54,
         "_SunExpEdgeSample": 2.0
       },
       "colors": {

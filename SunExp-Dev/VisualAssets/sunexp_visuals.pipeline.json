@@ -11,6 +11,7 @@
     "cardFaceEffectMaterial": "Assets/SunExp/Visuals/Materials/CardFaceEffect.mat",
     "wunaOrbitFireTrailMask": "SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
     "wunaOrbitFireTrailNoise": "SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png",
+    "cardFaceFoilTexture": "SunExp/ModResource/Images/Effects/CardFoil/pokemon_holo_foil.png",
     "wunaOrbitFireFlameAtlas": "SunExp/ModResource/Images/Effects/WunaOrbitFire/Flame02_16x4.png"
   },
   "runtimeAssets": {
@@ -26,6 +27,7 @@
     "cardFaceEffectMaterialPath": "SunExp/Materials/CardFaceEffect",
     "wunaOrbitFireTrailMaskPath": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
     "wunaOrbitFireTrailNoisePath": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png",
+    "cardFaceFoilTexturePath": "Mods/SunExp/ModResource/Images/Effects/CardFoil/pokemon_holo_foil.png",
     "wunaOrbitFireFlameAtlasPath": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/Flame02_16x4.png"
   },
   "defaults": {
@@ -41,14 +43,21 @@
     "_SunExpCardFaceHoloColorA": "#FFF0A6FF",
     "_SunExpCardFaceHoloColorB": "#A6F2FFFF",
     "_SunExpCardFaceHoloColorC": "#D2B8FFFF",
+    "_SunExpCardFaceFoilMode": 2.0,
     "_SunExpCardFaceHoloPrismScale": 11.0,
-    "_SunExpCardFaceHoloPrismStrength": 0.78,
+    "_SunExpCardFaceHoloPrismStrength": 0.82,
     "_SunExpCardFaceFoilGrain": 0.12,
     "_SunExpCardFaceHoloDistortion": 0.012,
     "_SunExpCardFaceFoilShardScale": 12.0,
     "_SunExpCardFaceFoilShardWarp": 0.18,
     "_SunExpCardFaceFoilGalaxyDensity": 0.04,
     "_SunExpCardFaceFoilGlintSpeed": 0.85,
+    "_SunExpCardFaceFoilTextureStrength": 0.92,
+    "_SunExpCardFaceRainbowStrength": 1.24,
+    "_SunExpCardFaceRidgeStrength": 0.76,
+    "_SunExpCardFaceGlareStrength": 0.38,
+    "_SunExpCardFacePointerAutoSpeed": 0.72,
+    "_SunExpCardFaceFoilOverlayAlpha": 0.54,
     "_SunExpCardFaceStardustColorA": "#F3FBFFFF",
     "_SunExpCardFaceStardustColorB": "#FFE6A8FF",
     "_SunExpCardFaceStardustTwinkleSpeed": 2.15,

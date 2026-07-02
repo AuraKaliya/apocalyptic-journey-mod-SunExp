@@ -9,9 +9,10 @@ namespace SunExp.Dll.Hooks.Visual;
 
 internal static class CardFrameEffectShaderIds
 {
-    public const string ShaderName = "SunExp/CardFrameHoloFlow";
+    public const string ShaderName = "SunExp/CardFaceEffect";
 
     public static readonly int MainTex = Shader.PropertyToID("_MainTex");
+    public static readonly int OverlayMode = Shader.PropertyToID("_SunExpOverlayMode");
     public static readonly int QualityScale = Shader.PropertyToID("_SunExpQualityScale");
 }
 
@@ -19,6 +20,7 @@ internal static class CardFrameEffectMaterials
 {
     private const string LogPrefix = "[CardFrameEffect]";
     private static readonly Dictionary<string, Material?> UiMaterialCache = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, Material?> UiOverlayMaterialCache = new(StringComparer.Ordinal);
     private static readonly HashSet<string> LoggedMissingMaterials = new(StringComparer.Ordinal);
 
     public static Material? SharedUiMaterial(CardVisualEffectSpec spec)
@@ -48,6 +50,32 @@ internal static class CardFrameEffectMaterials
         return material;
     }
 
+    public static Material? SharedUiOverlayMaterial(CardVisualEffectSpec spec)
+    {
+        if (UiOverlayMaterialCache.TryGetValue(spec.Id, out var cached))
+        {
+            ApplyOverlayMode(cached, true);
+            ApplyQualityScale(cached);
+            return cached;
+        }
+
+        var shared = SharedUiMaterial(spec);
+        if (shared == null)
+        {
+            UiOverlayMaterialCache[spec.Id] = null;
+            return null;
+        }
+
+        var material = new Material(shared)
+        {
+            name = shared.name + "_Overlay"
+        };
+        ApplyOverlayMode(material, true);
+        ApplyQualityScale(material);
+        UiOverlayMaterialCache[spec.Id] = material;
+        return material;
+    }
+
     public static Material? CreateOwnedMaterial(CardVisualEffectSpec spec)
     {
         var shared = SharedUiMaterial(spec);
@@ -60,6 +88,7 @@ internal static class CardFrameEffectMaterials
         {
             name = shared.name + "_Owned"
         };
+        ApplyOverlayMode(material, false);
         ApplyQualityScale(material);
         return material;
     }
@@ -90,5 +119,15 @@ internal static class CardFrameEffectMaterials
         }
 
         material.SetFloat(CardFrameEffectShaderIds.QualityScale, SunExpPerformanceSettings.CardFrameEffectQualityScale);
+    }
+
+    private static void ApplyOverlayMode(Material? material, bool enabled)
+    {
+        if (material == null || !material.HasProperty(CardFrameEffectShaderIds.OverlayMode))
+        {
+            return;
+        }
+
+        material.SetFloat(CardFrameEffectShaderIds.OverlayMode, enabled ? 1f : 0f);
     }
 }

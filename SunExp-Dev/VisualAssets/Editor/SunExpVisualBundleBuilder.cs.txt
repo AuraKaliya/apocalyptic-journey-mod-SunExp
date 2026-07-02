@@ -202,18 +202,19 @@ public static class SunExpVisualBundleBuilder
 
         var material = EnsureMaterial(CardFaceEffectMaterialAssetPath, shader, "CardFaceEffect");
         material.SetFloat("_SunExpEffectMode", 0f);
+        material.SetFloat("_SunExpFoilMode", 2f);
         material.SetFloat("_SunExpFlowSpeed", 0.42f);
         material.SetFloat("_SunExpFlowScale", 1.25f);
         material.SetFloat("_SunExpNoiseScale", 4f);
         material.SetFloat("_SunExpDistortion", 0.012f);
-        material.SetFloat("_SunExpEffectIntensity", 0.92f);
+        material.SetFloat("_SunExpEffectIntensity", 0.74f);
         material.SetFloat("_SunExpQualityScale", 1f);
-        material.SetFloat("_SunExpEdgeGlow", 0.24f);
+        material.SetFloat("_SunExpEdgeGlow", 0.18f);
         material.SetFloat("_SunExpSweepFrequency", 3.6f);
         material.SetFloat("_SunExpSweepWidth", 0.18f);
-        material.SetFloat("_SunExpSweepIntensity", 0.72f);
+        material.SetFloat("_SunExpSweepIntensity", 0.62f);
         material.SetFloat("_SunExpPrismScale", 11f);
-        material.SetFloat("_SunExpPrismStrength", 0.78f);
+        material.SetFloat("_SunExpPrismStrength", 0.82f);
         material.SetFloat("_SunExpFoilGrain", 0.12f);
         material.SetFloat("_SunExpMirrorSweep", 0.32f);
         material.SetFloat("_SunExpSwirlStrength", 0.08f);
@@ -221,6 +222,12 @@ public static class SunExpVisualBundleBuilder
         material.SetFloat("_SunExpFoilShardWarp", 0.18f);
         material.SetFloat("_SunExpFoilGalaxyDensity", 0.04f);
         material.SetFloat("_SunExpFoilGlintSpeed", 0.85f);
+        material.SetFloat("_SunExpFoilTextureStrength", 0.92f);
+        material.SetFloat("_SunExpRainbowStrength", 1.24f);
+        material.SetFloat("_SunExpRidgeStrength", 0.76f);
+        material.SetFloat("_SunExpGlareStrength", 0.38f);
+        material.SetFloat("_SunExpPointerAutoSpeed", 0.72f);
+        material.SetFloat("_SunExpFoilOverlayAlpha", 0.54f);
         material.SetFloat("_SunExpStardustDensity", 0.46f);
         material.SetFloat("_SunExpStardustTwinkle", 1.25f);
         material.SetFloat("_SunExpStardustTwinkleSpeed", 2.15f);

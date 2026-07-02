@@ -17,7 +17,7 @@ internal static class CardFrameEffectApplier
             return Clear(marker);
         }
 
-        if (marker.FrameImage != null)
+        if (marker.FrameImage != null || marker.BackgroundImage != null)
         {
             return ApplyImageMaterial(marker, effect);
         }
@@ -37,14 +37,14 @@ internal static class CardFrameEffectApplier
 
     private static bool ApplyImageMaterial(CardVisualSkinMarker marker, CardVisualEffectSpec effect)
     {
-        var material = CardFrameEffectMaterials.SharedUiMaterial(effect);
+        var material = CardFrameEffectMaterials.SharedUiOverlayMaterial(effect);
         if (material == null)
         {
             return Clear(marker);
         }
 
         marker.ClearOwnedFrameEffectMaterial();
-        var changed = marker.ApplyFrameImageEffectMaterial(material)
+        var changed = marker.ApplyFrameImageEffectOverlay(material)
             || marker.LastFrameEffectId != effect.Id;
         marker.LastFrameEffectId = effect.Id;
         LogApplied(effect);
@@ -80,4 +80,5 @@ internal static class CardFrameEffectApplier
             SunExpLog.Info(LogPrefix + " applied " + effect.DisplayName + ": " + effect.VisualEffectId);
         }
     }
+
 }

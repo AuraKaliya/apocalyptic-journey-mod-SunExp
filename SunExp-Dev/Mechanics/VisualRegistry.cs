@@ -504,22 +504,24 @@ internal static class VisualRegistryDefaults
                     MaterialPath = "SunExp/Materials/CardFaceEffect",
                     Textures = new Dictionary<string, string>
                     {
-                        ["_NoiseTex"] = "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
+                        ["_NoiseTex"] = "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png",
+                        ["_FoilTex"] = "Mods/SunExp/ModResource/Images/Effects/CardFoil/pokemon_holo_foil.png"
                     },
                     Floats = new Dictionary<string, float>
                     {
                         ["_SunExpEffectMode"] = 0f,
+                        ["_SunExpFoilMode"] = 2f,
                         ["_SunExpFlowSpeed"] = 0.42f,
                         ["_SunExpFlowScale"] = 1.25f,
                         ["_SunExpNoiseScale"] = 4f,
                         ["_SunExpDistortion"] = 0.012f,
-                        ["_SunExpEffectIntensity"] = 0.92f,
-                        ["_SunExpEdgeGlow"] = 0.24f,
+                        ["_SunExpEffectIntensity"] = 0.74f,
+                        ["_SunExpEdgeGlow"] = 0.18f,
                         ["_SunExpSweepFrequency"] = 3.6f,
                         ["_SunExpSweepWidth"] = 0.18f,
-                        ["_SunExpSweepIntensity"] = 0.72f,
+                        ["_SunExpSweepIntensity"] = 0.62f,
                         ["_SunExpPrismScale"] = 11f,
-                        ["_SunExpPrismStrength"] = 0.78f,
+                        ["_SunExpPrismStrength"] = 0.82f,
                         ["_SunExpFoilGrain"] = 0.12f,
                         ["_SunExpMirrorSweep"] = 0.32f,
                         ["_SunExpSwirlStrength"] = 0.08f,
@@ -527,6 +529,12 @@ internal static class VisualRegistryDefaults
                         ["_SunExpFoilShardWarp"] = 0.18f,
                         ["_SunExpFoilGalaxyDensity"] = 0.04f,
                         ["_SunExpFoilGlintSpeed"] = 0.85f,
+                        ["_SunExpFoilTextureStrength"] = 0.92f,
+                        ["_SunExpRainbowStrength"] = 1.24f,
+                        ["_SunExpRidgeStrength"] = 0.76f,
+                        ["_SunExpGlareStrength"] = 0.38f,
+                        ["_SunExpPointerAutoSpeed"] = 0.72f,
+                        ["_SunExpFoilOverlayAlpha"] = 0.54f,
                         ["_SunExpEdgeSample"] = 2f
                     },
                     Colors = new Dictionary<string, string>
