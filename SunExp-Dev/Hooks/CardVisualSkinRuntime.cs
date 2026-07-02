@@ -21,6 +21,9 @@ public static class CardVisualSkinRuntime
     {
         RegisterAfter(modConfig, "ICard.SetCardStyle", ApplyFromSetCardStyle);
 
+        RegisterBefore(modConfig, "CommonCardItem.TrueUse", context => SuppressBurnoutFrameEffect(context, "CommonCardItem.TrueUse"));
+        RegisterBefore(modConfig, "AttackCardItem.TrueUse", context => SuppressBurnoutFrameEffect(context, "AttackCardItem.TrueUse"));
+
         RegisterAfter(modConfig, "CardItem.Init", context => ApplyFromItemRoot(context, "CardItem.Init"));
         RegisterAfter(modConfig, "AttackCardItem.Init", context => ApplyFromItemRoot(context, "AttackCardItem.Init"));
         RegisterAfter(modConfig, "CardItem.DataUpdate", context => ApplyFromItemRoot(context, "CardItem.DataUpdate"));
@@ -44,6 +47,11 @@ public static class CardVisualSkinRuntime
         RegisterAfter(modConfig, "WarehouseItem.Init", context => ApplyFromArgumentRoot(context, 2, "CardItem", "WarehouseItem.Init"));
 
         SunExpLog.Info("Card visual skin runtime initialized");
+    }
+
+    private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
+    {
+        AuraSharedHooks.RegisterBefore(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Card visual skin " + message));
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
@@ -70,6 +78,43 @@ public static class CardVisualSkinRuntime
         {
             SunExpLog.Error("Card visual skin SetCardStyle hook failed", ex);
         }
+    }
+
+    private static void SuppressBurnoutFrameEffect(ModHookContext context, string source)
+    {
+        try
+        {
+            if (context.Target is not Item item)
+            {
+                return;
+            }
+
+            var config = item.dataConfig ?? CardConfigApi.FromActionPayload(context.Target);
+            if (!HasBurnoutTag(context.Target as CardItem, config))
+            {
+                return;
+            }
+
+            var visualRoot = FindCardVisualRoot(item.transform);
+            var marker = visualRoot == null ? null : visualRoot.GetComponent<CardVisualSkinMarker>();
+            if (marker != null && marker.SuppressFrameEffectOverlay(config, source))
+            {
+                SunExpLog.Debug("Card visual skin suppressed burnout frame effect from " + source + ": " + CardConfigApi.Id(config));
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Card visual skin burnout frame-effect suppression failed from " + source, ex);
+        }
+    }
+
+    private static bool HasBurnoutTag(CardItem? card, IDataConfig? config)
+    {
+        return DictionaryUtil.ContainsToken(DictionaryUtil.Get(config?.data, "Tag"), "Burnout")
+            || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config?.Vars, "Tag"), "Burnout")
+            || DictionaryUtil.ContainsToken(DictionaryUtil.Get(card?.data, "Tag"), "Burnout")
+            || DictionaryUtil.ContainsToken(DictionaryUtil.Get(card?.Vars, "Tag"), "Burnout")
+            || card?.Tags.Contains("Burnout") == true;
     }
 
     private static void ApplyFromItemRoot(ModHookContext context, string source)

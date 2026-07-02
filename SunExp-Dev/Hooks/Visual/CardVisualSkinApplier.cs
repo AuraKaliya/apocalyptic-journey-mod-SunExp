@@ -24,8 +24,9 @@ public static class CardVisualSkinApplier
         }
 
         var marker = cardRoot.GetComponent<CardVisualSkinMarker>() ?? cardRoot.gameObject.AddComponent<CardVisualSkinMarker>();
+        var resumedFrameEffect = marker.ResumeFrameEffectOverlayFor(config);
         var visualSignature = VisualSignature(config);
-        if (visualSignature.Length > 0 && marker.LastVisualSignature == visualSignature)
+        if (!resumedFrameEffect && visualSignature.Length > 0 && marker.LastVisualSignature == visualSignature)
         {
             SunExpPerformanceCounters.Record("CardVisualSkin.SignatureSkip");
             return false;

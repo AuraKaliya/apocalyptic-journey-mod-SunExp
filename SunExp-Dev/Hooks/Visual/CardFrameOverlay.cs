@@ -73,6 +73,24 @@ internal sealed class CardFrameOverlay : MonoBehaviour
         return changed;
     }
 
+    public bool SetVisible(bool visible)
+    {
+        var changed = false;
+        if (overlayImage != null && overlayImage.gameObject.activeSelf != visible)
+        {
+            overlayImage.gameObject.SetActive(visible);
+            changed = true;
+        }
+
+        if (overlayMeshRenderer != null && overlayMeshRenderer.gameObject.activeSelf != visible)
+        {
+            overlayMeshRenderer.gameObject.SetActive(visible);
+            changed = true;
+        }
+
+        return changed;
+    }
+
     private Image? EnsureImageOverlay(Image source, Transform? frameNode, Transform? backgroundNode)
     {
         if (overlayImage != null)

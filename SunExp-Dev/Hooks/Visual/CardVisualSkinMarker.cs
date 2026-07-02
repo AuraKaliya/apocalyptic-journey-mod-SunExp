@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using Witch.Core;
 
 namespace SunExp.Dll.Hooks.Visual;
 
@@ -19,10 +20,16 @@ internal sealed class CardVisualSkinMarker : MonoBehaviour
     private Material? backgroundMaterial;
     private Material? originalFaceImageMaterial;
     private Material? originalFaceMeshMaterial;
+    private Material? originalFrameImageMaterial;
+    private Material? originalFrameMeshMaterial;
     private Material? frameEffectOwnedMaterial;
     private Material? faceEffectOwnedMaterial;
     private bool originalFaceImageMaterialCaptured;
     private bool originalFaceMeshMaterialCaptured;
+    private bool originalFrameImageMaterialCaptured;
+    private bool originalFrameMeshMaterialCaptured;
+    private bool frameEffectOverlaySuppressed;
+    private string suppressedFrameEffectConfigInstanceId = "";
     private CardFrameOverlay? frameOverlay;
 
     public Transform? FrameNode => ResolveNode(ref frameNode, "Front/FrontBack");
@@ -229,6 +236,11 @@ internal sealed class CardVisualSkinMarker : MonoBehaviour
 
     public bool ApplyFrameImageEffectOverlay(Material material)
     {
+        if (frameEffectOverlaySuppressed)
+        {
+            return FrameOverlay.SetVisible(false);
+        }
+
         var source = FrameImage;
         if (source == null)
         {
@@ -238,8 +250,38 @@ internal sealed class CardVisualSkinMarker : MonoBehaviour
         return FrameOverlay.ApplyImage(source, material, source.sprite, FrameNode, BackgroundNode, fallbackShape: false);
     }
 
+    public bool ApplyFrameImageEffectMaterial(Material material)
+    {
+        var image = FrameImage;
+        if (image == null)
+        {
+            return false;
+        }
+
+        FrameOverlay.Clear();
+        if (!originalFrameImageMaterialCaptured)
+        {
+            originalFrameImageMaterial = image.material;
+            originalFrameImageMaterialCaptured = true;
+        }
+
+        var changed = !ReferenceEquals(image.material, material);
+        image.material = material;
+        if (LastFrameTexture != null)
+        {
+            CardFrameEffectMaterials.ApplyRuntimeTexture(material, LastFrameTexture);
+        }
+
+        return changed;
+    }
+
     public bool ApplyFallbackFrameImageEffectOverlay(Material material, Sprite frameSprite)
     {
+        if (frameEffectOverlaySuppressed)
+        {
+            return FrameOverlay.SetVisible(false);
+        }
+
         var source = BackgroundImage;
         if (source == null)
         {
@@ -251,6 +293,11 @@ internal sealed class CardVisualSkinMarker : MonoBehaviour
 
     public bool ApplyFrameMeshEffectOverlay(Material material)
     {
+        if (frameEffectOverlaySuppressed)
+        {
+            return FrameOverlay.SetVisible(false);
+        }
+
         var source = FrameMesh;
         if (source == null)
         {
@@ -266,8 +313,35 @@ internal sealed class CardVisualSkinMarker : MonoBehaviour
         return FrameOverlay.ApplyMesh(source, material, texture);
     }
 
+    public bool ApplyFrameMeshEffectMaterial(Material material)
+    {
+        var mesh = FrameMesh;
+        if (mesh == null)
+        {
+            return false;
+        }
+
+        FrameOverlay.Clear();
+        if (!originalFrameMeshMaterialCaptured)
+        {
+            originalFrameMeshMaterial = FrameMaterial;
+            originalFrameMeshMaterialCaptured = true;
+        }
+
+        var changed = !ReferenceEquals(FrameMaterial, material);
+        mesh.material = material;
+        frameMaterial = material;
+        CardFrameEffectMaterials.ApplyRuntimeTexture(material, LastFrameTexture ?? originalFrameMeshMaterial?.mainTexture);
+        return changed;
+    }
+
     public bool ApplyFallbackFrameMeshEffectOverlay(Material material)
     {
+        if (frameEffectOverlaySuppressed)
+        {
+            return FrameOverlay.SetVisible(false);
+        }
+
         var source = BackgroundMesh;
         if (source == null)
         {
@@ -287,6 +361,39 @@ internal sealed class CardVisualSkinMarker : MonoBehaviour
     {
         var changed = false;
         changed = FrameOverlay.Clear() || changed;
+        frameEffectOverlaySuppressed = false;
+        suppressedFrameEffectConfigInstanceId = "";
+        if (originalFrameImageMaterialCaptured)
+        {
+            var image = FrameImage;
+            if (image != null)
+            {
+                changed = changed || !ReferenceEquals(image.material, originalFrameImageMaterial);
+                image.material = originalFrameImageMaterial;
+            }
+
+            originalFrameImageMaterial = null;
+            originalFrameImageMaterialCaptured = false;
+        }
+
+        if (originalFrameMeshMaterialCaptured)
+        {
+            var mesh = FrameMesh;
+            if (mesh != null)
+            {
+                changed = true;
+                mesh.material = originalFrameMeshMaterial;
+                frameMaterial = originalFrameMeshMaterial;
+                if (LastFrameTexture != null && frameMaterial != null)
+                {
+                    frameMaterial.mainTexture = LastFrameTexture;
+                }
+            }
+
+            originalFrameMeshMaterial = null;
+            originalFrameMeshMaterialCaptured = false;
+        }
+
         ClearOwnedFrameEffectMaterial();
         if (LastFrameEffectId.Length > 0)
         {
@@ -295,6 +402,31 @@ internal sealed class CardVisualSkinMarker : MonoBehaviour
 
         LastFrameEffectId = "";
         return changed;
+    }
+
+    public bool SuppressFrameEffectOverlay(IDataConfig? config, string source)
+    {
+        frameEffectOverlaySuppressed = true;
+        suppressedFrameEffectConfigInstanceId = config?.InstanceID ?? "";
+        return FrameOverlay.SetVisible(false);
+    }
+
+    public bool ResumeFrameEffectOverlayFor(IDataConfig? config)
+    {
+        if (!frameEffectOverlaySuppressed)
+        {
+            return false;
+        }
+
+        var configInstanceId = config?.InstanceID ?? "";
+        if (configInstanceId.Length > 0 && configInstanceId == suppressedFrameEffectConfigInstanceId)
+        {
+            return false;
+        }
+
+        frameEffectOverlaySuppressed = false;
+        suppressedFrameEffectConfigInstanceId = "";
+        return true;
     }
 
     public void ReplaceOwnedFrameEffectMaterial(Material? material)

@@ -51,16 +51,28 @@ internal static class CardFrameEffectApplier
 
     private static bool ApplyImageMaterial(CardVisualSkinMarker marker, CardVisualEffectSpec effect, IDataConfig? config)
     {
-        var material = CardFrameEffectMaterials.SharedUiOverlayMaterial(effect);
-        if (material == null)
+        var material = marker.FrameEffectOwnedMaterial;
+        if (material == null || marker.LastFrameEffectId != effect.Id)
         {
-            LogDiagnostic(marker, effect, config, "frame-image-material-missing");
+            material = CardFrameEffectMaterials.CreateOwnedMaterial(effect);
+            if (material == null)
+            {
+                LogDiagnostic(marker, effect, config, "frame-image-integrated-material-missing");
+                return Clear(marker);
+            }
+
+            marker.ReplaceOwnedFrameEffectMaterial(material);
+        }
+
+        if (marker.LastFrameTexture == null)
+        {
+            LogDiagnostic(marker, effect, config, "frame-image-integrated-texture-missing");
             return Clear(marker);
         }
 
-        LogDiagnostic(marker, effect, config, "frame-image");
-        marker.ClearOwnedFrameEffectMaterial();
-        var changed = marker.ApplyFrameImageEffectOverlay(material)
+        LogDiagnostic(marker, effect, config, "frame-image-integrated-material");
+        CardFrameEffectMaterials.ApplyRuntimeTexture(material, marker.LastFrameTexture);
+        var changed = marker.ApplyFrameImageEffectMaterial(material)
             || marker.LastFrameEffectId != effect.Id;
         marker.LastFrameEffectId = effect.Id;
         LogApplied(effect);
@@ -91,10 +103,10 @@ internal static class CardFrameEffectApplier
         var material = marker.FrameEffectOwnedMaterial;
         if (material == null || marker.LastFrameEffectId != effect.Id)
         {
-            material = CardFrameEffectMaterials.CreateOwnedOverlayMaterial(effect);
+            material = CardFrameEffectMaterials.CreateOwnedMaterial(effect);
             if (material == null)
             {
-                LogDiagnostic(marker, effect, config, "frame-mesh-material-missing");
+                LogDiagnostic(marker, effect, config, "frame-mesh-integrated-material-missing");
                 return Clear(marker);
             }
 
@@ -103,13 +115,13 @@ internal static class CardFrameEffectApplier
 
         if (marker.LastFrameTexture == null)
         {
-            LogDiagnostic(marker, effect, config, "frame-mesh-frame-texture-missing");
+            LogDiagnostic(marker, effect, config, "frame-mesh-integrated-texture-missing");
             return Clear(marker);
         }
 
-        LogDiagnostic(marker, effect, config, "frame-mesh-unified-overlay");
+        LogDiagnostic(marker, effect, config, "frame-mesh-integrated-material");
         CardFrameEffectMaterials.ApplyRuntimeTexture(material, marker.LastFrameTexture);
-        var changed = marker.ApplyFrameMeshEffectOverlay(material)
+        var changed = marker.ApplyFrameMeshEffectMaterial(material)
             || marker.LastFrameEffectId != effect.Id;
         marker.LastFrameEffectId = effect.Id;
         LogApplied(effect);

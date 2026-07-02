@@ -32,7 +32,7 @@ manifests change.
    - `references/visual-registry-and-bundle.md`: registry, bundle, shaders,
      cache, and build pipeline.
    - `references/card-visual-skins-and-effects.md`: card skins, frame effects,
-     and runtime attachment.
+     runtime attachment, dynamic frame skins, and card-use animation lifecycle.
    - `references/skill-cg-and-shared-resources.md`: Skill CG manifests,
      AuraCgShared, shared resources, and AuraTools consumption.
    - `references/runtime-visual-ui-and-performance.md`: UI visuals, animated

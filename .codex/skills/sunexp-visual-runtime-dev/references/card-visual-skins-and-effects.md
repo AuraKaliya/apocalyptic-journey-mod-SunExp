@@ -31,9 +31,30 @@ effects, and card-use visual effects.
   to CSV-callable `Scripting`.
 - Keep card art generation in `sunexp-card-art-style`; keep runtime skin/effect
   application here.
+- For dynamic card-frame effects that must survive native card UI lifecycle
+  events, especially card-use or Burnout destruction animations, prefer an
+  integrated dynamic frame-skin material on the real frame node. Independent
+  overlay objects can remain visually detached from native animation and may
+  linger or pop during burn/destroy transitions.
+- Use card-frame overlays only as a fallback when the runtime card UI lacks a
+  real frame `Image` or `MeshRenderer` target and a resolved frame sprite or
+  texture is available. Fallback overlays must stay non-blocking and below text,
+  but should not be the primary battle-card path.
+- Integrated card-frame materials should use the resolved frame texture as
+  `_MainTex`, render in non-overlay shader mode, and disable overlay-only
+  frame masking. Clear paths must restore original frame materials because card
+  UI instances may be pooled and reused.
+- When debugging mismatches between Unity Lab, dictionary cards, and battle
+  cards, first determine whether the card surface is a true frame node or a
+  fallback/background-sized overlay. Tune parameters only after the rendering
+  path and shader mode match the intended surface.
 
 ## Validation
 
 `tools\Test-SunExpCSharp.ps1` contains focused registry behavior tests for card
 visual skin and effect resolution. Update those tests when changing matching,
 priority, or owner-clear semantics.
+
+`tools\Test-SunExpArchitecture.ps1` should guard fragile visual lifecycle
+decisions, including whether card-frame effects use integrated frame materials
+or fallback overlays.

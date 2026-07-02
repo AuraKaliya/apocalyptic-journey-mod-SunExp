@@ -12,6 +12,7 @@ internal static class CardFrameEffectShaderIds
     public const string ShaderName = "SunExp/CardFaceEffect";
 
     public static readonly int MainTex = Shader.PropertyToID("_MainTex");
+    public static readonly int OverlayMode = Shader.PropertyToID("_SunExpOverlayMode");
     public static readonly int FrameOnlyOverlay = Shader.PropertyToID("_SunExpFrameOnlyOverlay");
     public static readonly int QualityScale = Shader.PropertyToID("_SunExpQualityScale");
 }
@@ -69,6 +70,7 @@ internal static class CardFrameEffectMaterials
         {
             name = shared.name + "_Overlay"
         };
+        ApplyIntegratedMode(material, false);
         ApplyQualityScale(material);
         UiOverlayMaterialCache[spec.Id] = material;
         return material;
@@ -86,6 +88,7 @@ internal static class CardFrameEffectMaterials
         {
             name = shared.name + "_OwnedOverlay"
         };
+        ApplyIntegratedMode(material, false);
         ApplyQualityScale(material);
         return material;
     }
@@ -100,8 +103,9 @@ internal static class CardFrameEffectMaterials
 
         var material = new Material(shared)
         {
-            name = shared.name + "_Owned"
+            name = shared.name + "_IntegratedFrame"
         };
+        ApplyIntegratedMode(material, true);
         ApplyQualityScale(material);
         return material;
     }
@@ -132,6 +136,24 @@ internal static class CardFrameEffectMaterials
         }
 
         material.SetFloat(CardFrameEffectShaderIds.QualityScale, 1f);
+    }
+
+    private static void ApplyIntegratedMode(Material? material, bool enabled)
+    {
+        if (material == null)
+        {
+            return;
+        }
+
+        if (material.HasProperty(CardFrameEffectShaderIds.OverlayMode))
+        {
+            material.SetFloat(CardFrameEffectShaderIds.OverlayMode, enabled ? 0f : 1f);
+        }
+
+        if (enabled && material.HasProperty(CardFrameEffectShaderIds.FrameOnlyOverlay))
+        {
+            material.SetFloat(CardFrameEffectShaderIds.FrameOnlyOverlay, 0f);
+        }
     }
 
 }
