@@ -188,6 +188,7 @@ public static class SunExpIds
     public const string StarterDeckScopeKey = "StarterDeck.Scope";
     public const string StarterDeckStateKey = "StarterDeck.State";
     public const string StarterDeckOwnerSolarMemory = "SunExp.SolarMemory";
+    public const string StarterDeckOwnerTongtianTower = "SunExp.TongtianTower";
     public const string StarterDeckStatePending = "pending";
     public const string StarterDeckStateApplied = "applied";
     public const string StarterDeckStateOfficial = "official";
@@ -267,6 +268,25 @@ public static class SunExpIds
     public const string SolarMemoryDescription = "乌娜的专属回忆";
     public const string SolarMemorySubtitle = "Boss连战";
     public const int SolarMemoryMaxLayer = 3;
+
+    public const string TongtianTowerModeKey = "SunExp_TongtianTowerMode";
+    public const string TongtianTowerFloorKey = "SunExp_TongtianTowerFloor";
+    public const string TongtianTowerGeneratedFloorKey = "SunExp_TongtianTowerGeneratedFloor";
+    public const string TongtianTowerSeedKey = "SunExp_TongtianTowerSeed";
+    public const string TongtianTowerIntroSeenKey = "SunExp_TongtianTowerIntroSeen";
+    public const string TongtianTowerStarterDeckAppliedKey = "SunExp_TongtianTowerStarterDeckApplied";
+    public const string TongtianTowerStarterDeckModeKey = "SunExp_TongtianTowerStarterDeckMode";
+    public const string TongtianTowerTitle = "通天之塔";
+    public const string TongtianTowerDescription = "无限爬塔";
+    public const string TongtianTowerSubtitle = "怪物 / 首领 / 建筑";
+    public const int TongtianTowerLayerNodeCount = 6;
+    public const int TongtianTowerSelectableNodeCount = 8;
+    public const int TongtianTowerBossSlotIndex = 5;
+    public const string TongtianTowerNodeFloorKey = "TongtianFloor";
+    public const string TongtianTowerNodeSlotKey = "TongtianSlot";
+    public const string TongtianTowerNodeKindKey = "TongtianKind";
+    public const string TongtianTowerNodeLockedKey = "TongtianLocked";
+    public const string TongtianTowerNodePoolSourceKey = "TongtianPoolSource";
 
     public const string SolarFinaleSavedNamesKey = "SunExp_SolarFinaleSavedNames";
     public const string SolarFinaleBurnedNamesKey = "SunExp_SolarFinaleBurnedNames";

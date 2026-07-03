@@ -1,5 +1,38 @@
 # Errors
 
+## [ERR-20260703-003] sunexp-modhookcontext-using
+
+**Logged**: 2026-07-03T17:12:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: backend
+
+### Summary
+New SunExp runtime hook files that declare `Action<ModHookContext>` need the `Witch.Core` namespace imported.
+
+### Error
+```text
+error CS0246: 未能找到类型或命名空间名“ModHookContext”(是否缺少 using 指令或程序集引用?)
+```
+
+### Context
+- Command attempted: `powershell -ExecutionPolicy Bypass -File tools\Build-SunExpDll.ps1`
+- File: `SunExp-Dev/Hooks/TongtianTowerIntroBoardRuntime.cs`
+- Cause: copied the hook registration pattern but missed the namespace that provides `ModHookContext`.
+
+### Suggested Fix
+When adding runtime hook classes that use `AuraSharedHooks.RegisterAfter/RegisterBefore`, include both `AuraShared.Core` and `Witch.Core`.
+
+### Metadata
+- Reproducible: yes
+- Related Files: SunExp-Dev/Hooks/TongtianTowerIntroBoardRuntime.cs
+
+### Resolution
+- **Resolved**: 2026-07-03T17:12:00+08:00
+- **Notes**: Added `using Witch.Core;` before rerunning the build.
+
+---
+
 ## [ERR-20260622-001] powershell-variable-colon-interpolation
 
 **Logged**: 2026-06-22T10:00:00+08:00
@@ -29,6 +62,35 @@ Use `${required}:` when a variable is immediately followed by a colon in a doubl
 ### Resolution
 - **Resolved**: 2026-06-22T10:00:00+08:00
 - **Notes**: Changed `$required:` to `${required}:`.
+
+---
+
+## [ERR-20260703-002] sunexp-text-card-path-guess
+
+**Logged**: 2026-07-03T16:38:49.7415742+08:00
+**Priority**: low
+**Status**: pending
+**Area**: docs
+
+### Summary
+Guessed a localized card text path as `SunExp/Text/Card/zh-CN.csv`, but this repo stores SunExp card text in feature CSV files such as `SunExp/Text/Card/sunexp.csv`.
+
+### Error
+```text
+Cannot find path 'D:\workfile\project\Mod_1\apocalyptic-journey-mod-SunExp\SunExp\Text\Card\zh-CN.csv' because it does not exist.
+```
+
+### Context
+- Command attempted: inspect localized card text while planning Tongtian Tower starter decks.
+- Environment: Windows PowerShell in the SunExp repository.
+- Cause: assumed a locale-named text CSV instead of listing the actual directory structure first.
+
+### Suggested Fix
+Before reading SunExp text tables, list `SunExp/Text/<DataType>/` or use `rg --files SunExp/Text` to resolve feature CSV names.
+
+### Metadata
+- Reproducible: yes
+- Related Files: SunExp/Text/Card/sunexp.csv
 
 ---
 
@@ -62,6 +124,39 @@ Use explicit directories or a two-step file list, for example `rg --files tools 
 ### Resolution
 - **Resolved**: 2026-06-29T18:00:00+08:00
 - **Notes**: Continued review with explicit paths and directory searches.
+
+---
+
+## [ERR-20260703-001] powershell-literalpath-wildcard
+
+**Logged**: 2026-07-03T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+PowerShell `Get-ChildItem -LiteralPath` treated wildcard paths as literal file names during a review command.
+
+### Error
+```text
+Cannot find path '...\SunExp-Dev\Hooks\TongtianTower*.cs' because it does not exist.
+```
+
+### Context
+- Command attempted: `Get-ChildItem -LiteralPath SunExp-Dev\Hooks\TongtianTower*.cs,SunExp-Dev\Mechanics\TongtianTower*.cs`
+- Environment: PowerShell in the SunExp repository.
+- Cause: `-LiteralPath` disables wildcard expansion.
+
+### Suggested Fix
+Use `-Path` for wildcard expressions, or enumerate exact paths when `-LiteralPath` is required.
+
+### Metadata
+- Reproducible: yes
+- Related Files: none
+
+### Resolution
+- **Resolved**: 2026-07-03T00:00:00+08:00
+- **Notes**: Continued with explicit status and diff checks; future wildcard listing should use `-Path`.
 
 ---
 

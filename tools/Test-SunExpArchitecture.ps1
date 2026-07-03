@@ -97,6 +97,11 @@ $requiredFiles = @(
     "SunExp-Dev\Mechanics\MapNodeTextureFitService.cs",
     "SunExp-Dev\Mechanics\MapNodeSafetyService.cs",
     "SunExp-Dev\Mechanics\SolarMemoryMapNodePoolFactory.cs",
+    "SunExp-Dev\Mechanics\TongtianTowerNodeKind.cs",
+    "SunExp-Dev\Mechanics\TongtianTowerNodePoolService.cs",
+    "SunExp-Dev\Mechanics\TongtianTowerMapBuilder.cs",
+    "SunExp-Dev\Mechanics\TongtianTowerStarterDeckCatalog.cs",
+    "SunExp-Dev\Mechanics\TongtianTowerRichTextSanitizer.cs",
     "SunExp-Dev\Mechanics\ModeChoiceDragRange.cs",
     "SunExp-Dev\Mechanics\SolarFinaleStateService.cs",
     "SunExp-Dev\Mechanics\SolarMemoryStoryGateService.cs",
@@ -125,6 +130,13 @@ $requiredFiles = @(
     "SunExp-Dev\Hooks\BattleRewardAdjustmentRuntime.cs",
     "SunExp-Dev\Hooks\ProjectionRuntime.cs",
     "SunExp-Dev\Hooks\SolarMemoryRewardRuntime.cs",
+    "SunExp-Dev\Hooks\TongtianTowerRewardRuntime.cs",
+    "SunExp-Dev\Hooks\TongtianTowerCardAffixRuntime.cs",
+    "SunExp-Dev\Hooks\TongtianTowerCombatRuntime.cs",
+    "SunExp-Dev\Hooks\TongtianTowerModeRuntime.cs",
+    "SunExp-Dev\Hooks\TongtianTowerModeEntryRuntime.cs",
+    "SunExp-Dev\Hooks\TongtianTowerRunLauncher.cs",
+    "SunExp-Dev\Hooks\TongtianTowerIntroBoardRuntime.cs",
     "SunExp-Dev\Hooks\MapNodeCardArtRuntime.cs",
     "SunExp-Dev\Hooks\CardVisualSkinRuntime.cs",
     "SunExp-Dev\Hooks\SunCardFrameRuntime.cs",
@@ -213,6 +225,10 @@ $mapNodeCardArtRegistry = Read-RepoText "SunExp-Dev\Mechanics\MapNodeCardArtRegi
 $mapNodeTextureFitService = Read-RepoText "SunExp-Dev\Mechanics\MapNodeTextureFitService.cs"
 $mapNodeSafetyService = Read-RepoText "SunExp-Dev\Mechanics\MapNodeSafetyService.cs"
 $solarMemoryMapNodePoolFactory = Read-RepoText "SunExp-Dev\Mechanics\SolarMemoryMapNodePoolFactory.cs"
+$tongtianTowerNodePoolService = Read-RepoText "SunExp-Dev\Mechanics\TongtianTowerNodePoolService.cs"
+$tongtianTowerMapBuilder = Read-RepoText "SunExp-Dev\Mechanics\TongtianTowerMapBuilder.cs"
+$tongtianTowerStarterDeckCatalog = Read-RepoText "SunExp-Dev\Mechanics\TongtianTowerStarterDeckCatalog.cs"
+$tongtianTowerRichTextSanitizer = Read-RepoText "SunExp-Dev\Mechanics\TongtianTowerRichTextSanitizer.cs"
 $sunExpConfigIndex = Read-RepoText "SunExp-Dev\Mechanics\SunExpConfigIndex.cs"
 $modeChoiceDragRange = Read-RepoText "SunExp-Dev\Mechanics\ModeChoiceDragRange.cs"
 $solarFinaleService = Read-RepoText "SunExp-Dev\Mechanics\SolarFinaleStateService.cs"
@@ -234,6 +250,13 @@ $projectionSummonService = Read-RepoText "SunExp-Dev\Mechanics\ProjectionSummonS
 $sunExpResourcePreloader = Read-RepoText "SunExp-Dev\Hooks\SunExpResourcePreloader.cs"
 $battleRewardAdjustmentRuntime = Read-RepoText "SunExp-Dev\Hooks\BattleRewardAdjustmentRuntime.cs"
 $solarMemoryRewardRuntime = Read-RepoText "SunExp-Dev\Hooks\SolarMemoryRewardRuntime.cs"
+$tongtianTowerRewardRuntime = Read-RepoText "SunExp-Dev\Hooks\TongtianTowerRewardRuntime.cs"
+$tongtianTowerCardAffixRuntime = Read-RepoText "SunExp-Dev\Hooks\TongtianTowerCardAffixRuntime.cs"
+$tongtianTowerCombatRuntime = Read-RepoText "SunExp-Dev\Hooks\TongtianTowerCombatRuntime.cs"
+$tongtianTowerModeRuntime = Read-RepoText "SunExp-Dev\Hooks\TongtianTowerModeRuntime.cs"
+$tongtianTowerModeEntryRuntime = Read-RepoText "SunExp-Dev\Hooks\TongtianTowerModeEntryRuntime.cs"
+$tongtianTowerRunLauncher = Read-RepoText "SunExp-Dev\Hooks\TongtianTowerRunLauncher.cs"
+$tongtianTowerIntroBoardRuntime = Read-RepoText "SunExp-Dev\Hooks\TongtianTowerIntroBoardRuntime.cs"
 $mapNodeCardArtRuntime = Read-RepoText "SunExp-Dev\Hooks\MapNodeCardArtRuntime.cs"
 $projectionRuntime = Read-RepoText "SunExp-Dev\Hooks\ProjectionRuntime.cs"
 $runtimeHooks = Read-RepoText "SunExp-Dev\Hooks\RuntimeHooks.cs"
@@ -337,14 +360,26 @@ Assert-Contains $dialogueUiApi "public static bool TryGetDialogueId" "DialogueUi
 Assert-Contains $dialogueUiApi 'GetField(' "DialogueUiApi must centralize DialogueUI private-field reflection."
 Assert-Contains $battleRewardApi "public static bool AppendRandomRelicReward" "BattleRewardApi must own native battle reward UI mutation."
 Assert-Contains $battleRewardApi "rewardUi.RandomSetRelic(candidates)" "BattleRewardApi must reuse the native relic reward item flow."
+Assert-Contains $battleRewardApi "public static bool AppendRandomCardRewards" "BattleRewardApi must own native random card reward mutation."
+Assert-Contains $battleRewardApi "rewardUi.RandomSetCard()" "Random card rewards must reuse the native BattleRewardsUI card flow."
 Assert-Contains $battleRewardAdjustmentService "public static class BattleRewardAdjustmentService" "Reusable battle reward adjustment rules must live in Mechanics."
 Assert-Contains $battleRewardAdjustmentService "ConditionalWeakTable<BattleRewardsUI, AppliedRuleSet>" "Battle reward adjustments must be applied once per reward UI."
 Assert-Contains $battleRewardAdjustmentRuntime '"BattleRewardsUI.ModeSetReward"' "Battle reward adjustment runtime must hook reward generation after native rewards are set."
 Assert-Contains $battleRewardAdjustmentRuntime "BattleRewardAdjustmentService.ApplyAll" "Battle reward hooks must delegate rule application to Mechanics."
 Assert-Contains $solarMemoryRewardRuntime "SolarMemoryModeRuntime.IsSolarMemoryRun()" "Solar memory reward adjustments must be gated to Solar Memory runs."
 Assert-Contains $solarMemoryRewardRuntime "BattleRewardApi.AppendRandomRelicReward" "Solar memory reward runtime must add its relic through BattleRewardApi."
+Assert-Contains $tongtianTowerRewardRuntime "TongtianTowerModeRuntime.IsTongtianTowerRun()" "Tongtian Tower reward adjustments must be gated to Tongtian Tower runs."
+Assert-Contains $tongtianTowerRewardRuntime "BattleRewardApi.AppendRandomCardRewards" "Tongtian Tower battle rewards must append random card rewards."
+Assert-Contains $tongtianTowerCardAffixRuntime '"CardChoiceItem.Initialize"' "Tongtian Tower reward-card affixes must update visible choice cards."
+Assert-Contains $tongtianTowerCardAffixRuntime '"CardChoiceUI.Select"' "Tongtian Tower reward-card affixes must be applied before cards enter the deck."
+Assert-Contains $tongtianTowerCardAffixRuntime "CardMutationService.AddNativeTags" "Tongtian Tower reward-card affixes must use the shared card mutation service."
+Assert-Contains $tongtianTowerCardAffixRuntime '"Burnout"' "Tongtian Tower reward cards must receive the native Burnout limiter."
+Assert-Contains $tongtianTowerCardAffixRuntime "TongtianTowerModeRuntime.IsTongtianTowerRun()" "Tongtian Tower reward-card affixes must be gated to tower runs."
 Assert-Contains $runtimeHooks "BattleRewardAdjustmentRuntime.Initialize(modConfig)" "RuntimeHooks must initialize generic battle reward adjustment hooks."
 Assert-Contains $runtimeHooks "SolarMemoryRewardRuntime.Initialize()" "RuntimeHooks must register Solar Memory reward adjustment rules."
+Assert-Contains $runtimeHooks "TongtianTowerRewardRuntime.Initialize()" "RuntimeHooks must register Tongtian Tower battle reward adjustment rules."
+Assert-Contains $runtimeHooks "TongtianTowerCardAffixRuntime.Initialize(modConfig)" "RuntimeHooks must register Tongtian Tower reward-card affixes."
+Assert-Contains $runtimeHooks "TongtianTowerIntroBoardRuntime.Initialize(modConfig)" "RuntimeHooks must register Tongtian Tower intro board."
 Assert-Contains $runtimeHooks "StarScoreHudRuntime.Initialize(modConfig)" "RuntimeHooks must initialize star score HUD hooks."
 Assert-Contains $runtimeHooks "CardVisualSkinRuntime.Initialize(modConfig)" "RuntimeHooks must initialize card visual skin hooks."
 Assert-Contains $runtimeHooks "ProjectionRuntime.Initialize(modConfig)" "RuntimeHooks must initialize projection combat hooks."
@@ -745,12 +780,64 @@ Assert-Contains $solarMemoryModeEntryRuntime "ModeChoiceEntryRegistry.Register" 
 Assert-Contains $solarMemoryModeEntryRuntime "ModeChoiceLayoutRuntime.Initialize(modConfig)" "SolarMemoryModeEntryRuntime must delegate mode-choice positioning to ModeChoiceLayoutRuntime."
 Assert-Contains $solarMemoryModeEntryRuntime 'VisualRegistry.ModeEntry("solar_memory")' "SolarMemoryModeEntryRuntime must resolve title art from the visual registry."
 Assert-Contains $solarMemoryModeRuntime 'VisualRegistry.TexturePath("solar_memory.event_map_card")' "SolarMemory fixed event cards must resolve their custom background texture from the visual registry."
+Assert-Contains $tongtianTowerModeEntryRuntime "ModeChoiceEntryRegistry.Register" "Tongtian Tower mode entry must register itself through the shared mode-choice entry registry."
+Assert-Contains $tongtianTowerModeEntryRuntime "TongtianTowerRunLauncher.Start" "Tongtian Tower mode entry must delegate run startup to TongtianTowerRunLauncher."
+Assert-Contains $tongtianTowerModeEntryRuntime '"SublimationMode",' "Tongtian Tower mode entry must reuse a native mode-choice template."
+Assert-Contains $tongtianTowerModeEntryRuntime "110," "Tongtian Tower mode entry must be ordered immediately after Solar Memory."
+Assert-Contains $tongtianTowerModeEntryRuntime "ModeChoiceLayoutRuntime.Initialize(modConfig)" "Tongtian Tower mode entry must use the shared mode-choice layout runtime."
+Assert-Contains $tongtianTowerModeRuntime "TongtianTowerModeEntryRuntime.Initialize(modConfig)" "Tongtian Tower runtime must delegate mode-choice entry visuals to TongtianTowerModeEntryRuntime."
+Assert-NotContains $tongtianTowerModeRuntime "ModeChoiceEntryRegistry.Register" "Tongtian Tower runtime must not own mode-choice entry registration."
+Assert-Contains $tongtianTowerRunLauncher "public static SaveInfo CreateSave" "Tongtian Tower run launcher must own save creation."
+Assert-Contains $tongtianTowerRunLauncher "SunExpIds.TongtianTowerModeKey" "Tongtian Tower saves must persist a mode flag."
+Assert-Contains $tongtianTowerRunLauncher "SunExpIds.TongtianTowerIntroSeenKey" "Tongtian Tower saves must initialize the intro-board flag."
+Assert-Contains $tongtianTowerRunLauncher "SunExpIds.TongtianTowerStarterDeckAppliedKey" "Tongtian Tower saves must initialize starter-deck state."
+Assert-Contains $tongtianTowerRunLauncher 'GameVar.ExLockDes.ToString()] = "4"' "Tongtian Tower saves must start with six visible map slots."
+Assert-Contains $tongtianTowerIntroBoardRuntime "SunExpModalHost.CreateFullscreenRoot" "Tongtian Tower intro board must render through the shared modal host."
+Assert-Contains $tongtianTowerIntroBoardRuntime "ScrollRect" "Tongtian Tower intro body must support vertical scrolling."
+Assert-Contains $tongtianTowerIntroBoardRuntime "TongtianTowerRichTextSanitizer.Sanitize" "Tongtian Tower intro board must sanitize rich text before rendering."
+Assert-Contains $tongtianTowerIntroBoardRuntime "StarterDeckArbiterRuntime.ApplyDeck" "Tongtian Tower starter deck choices must use the shared starter-deck arbiter."
+Assert-Contains $tongtianTowerIntroBoardRuntime "sync: true" "Tongtian Tower starter deck choices must persist through the shared role sync path."
+Assert-Contains $tongtianTowerIntroBoardRuntime "SunExpIds.StarterDeckOwnerTongtianTower" "Tongtian Tower starter deck ownership must be mode-specific."
+Assert-Contains $tongtianTowerIntroBoardRuntime '"MapManager.MapUIStart"' "Tongtian Tower intro board must open from map UI startup."
+Assert-Contains $tongtianTowerIntroBoardRuntime '"MapSelectUI.Start"' "Tongtian Tower intro board must retry once map selection UI exists."
+Assert-NotContains $tongtianTowerIntroBoardRuntime '"RoleTable.Init"' "Tongtian Tower intro board must not display during early role initialization."
+Assert-NotContains $tongtianTowerIntroBoardRuntime "WebView" "Tongtian Tower intro board must not embed a WebView."
+Assert-NotContains $tongtianTowerIntroBoardRuntime "Html" "Tongtian Tower intro board must not render arbitrary HTML."
+Assert-NotContains $tongtianTowerIntroBoardRuntime "ExecuteScript" "Tongtian Tower intro board must not execute script content."
+Assert-Contains $tongtianTowerStarterDeckCatalog "public const int DeckSize = 11" "Tongtian Tower starter decks must keep the native starter-deck size."
+Assert-Contains $tongtianTowerStarterDeckCatalog '"steady"' "Tongtian Tower starter deck catalog must provide the steady deck."
+Assert-Contains $tongtianTowerStarterDeckCatalog '"burst"' "Tongtian Tower starter deck catalog must provide the burst deck."
+Assert-Contains $tongtianTowerStarterDeckCatalog '"operate"' "Tongtian Tower starter deck catalog must provide the operation deck."
+Assert-Contains $tongtianTowerStarterDeckCatalog "SunExpConfigIndex.Row(DataType.Card" "Tongtian Tower starter deck validation must resolve card ids through the config index."
+Assert-NotMatches $tongtianTowerStarterDeckCatalog "\r?\n\s+`"\*" "Tongtian Tower hardcoded starter decks must not include hidden/generated cards."
+Assert-Contains $tongtianTowerRichTextSanitizer "AllowedSimpleTags" "Tongtian Tower rich text sanitizer must use an explicit simple-tag allowlist."
+Assert-Contains $tongtianTowerRichTextSanitizer "AllowedScopedTags" "Tongtian Tower rich text sanitizer must use an explicit scoped-tag allowlist."
+Assert-Contains $tongtianTowerRichTextSanitizer "IsAllowedColorTag" "Tongtian Tower rich text sanitizer must validate color tags."
+Assert-NotContains $tongtianTowerRichTextSanitizer "link" "Tongtian Tower rich text sanitizer must not allow link tags."
+Assert-NotContains $tongtianTowerRichTextSanitizer "sprite" "Tongtian Tower rich text sanitizer must not allow sprite tags."
+Assert-NotContains $tongtianTowerRichTextSanitizer "font" "Tongtian Tower rich text sanitizer must not allow font tags."
 Assert-Contains $solarMemoryMapVisualRuntime '"MapSelectUI.DataUpdate"' "SolarMemoryMapVisualRuntime must own the map title hook registration."
 Assert-Contains $solarMemoryMapVisualRuntime '"NormalMapManager.MapItemInit"' "SolarMemoryMapVisualRuntime must own fixed-slot visual hook registration."
 Assert-Contains $solarMemoryMapVisualRuntime '"MapSelectUI.ShowMap"' "SolarMemoryMapVisualRuntime must own map visual reapply hook registration."
 Assert-Contains $solarMemoryMapItemAnimationRuntime "SunExpResourceCache.LoadAll<Texture2D>" "Solar memory map animation preview probes must use the shared LoadAll cache."
 Assert-Contains $solarMemoryMapItemAnimationRuntime "SunExpConfigIndex.Row(type, id)" "Solar memory map animation row lookup must use the shared config index."
 Assert-Contains $solarMemoryMapNodePoolFactory "SunExpConfigIndex.FilteredRows" "Solar memory boss candidate expansion must use a cached filtered config index."
+Assert-Contains $tongtianTowerNodePoolService "SunExpConfigIndex.FilteredRows(DataType.Map" "Tongtian Tower map nodes must draw from cached game map rows."
+Assert-Contains $tongtianTowerNodePoolService "TongtianTowerNodeKind.Boss => IsBoss(row)" "Tongtian Tower boss pool must be resolved separately from monster nodes."
+Assert-Contains $tongtianTowerNodePoolService "TongtianTowerNodeKind.Building => IsBuilding(row)" "Tongtian Tower building pool must be resolved separately from monster nodes."
+Assert-Contains $tongtianTowerNodePoolService 'Type"), "Event"' "Tongtian Tower node pool must exclude event map rows."
+Assert-NotContains $tongtianTowerMapBuilder "TypeGenerate(" "Tongtian Tower map building must not reuse the native world-projection map generator."
+Assert-Contains $tongtianTowerMapBuilder "TongtianTowerNodePoolService.CreateNode" "Tongtian Tower map building must consume the dedicated tower node pool."
+Assert-Contains $tongtianTowerMapBuilder "NativeDefaultOrder" "Tongtian Tower map building must adapt visual slots to native DefaultNode ordering."
+Assert-Contains $tongtianTowerMapBuilder "RepairFixedMapArrays" "Tongtian Tower map building must repair fixed boss/building sync arrays."
+Assert-Contains $tongtianTowerMapBuilder "GameVar.ExLockDes.ToString()" "Tongtian Tower must expand the native map to six visible slots through save vars."
+Assert-Contains $tongtianTowerModeRuntime '"MapSelectUI.ReadyToSelect", EnsureTowerMapBeforeSelect' "Tongtian Tower must prepare SelectNode before native map candidates are created."
+Assert-Contains $tongtianTowerModeRuntime '"NormalMapManager.ReadyToChangeMap", AdvanceTowerFloorBeforeMapChange' "Tongtian Tower must intercept native map changes to advance infinite floors."
+Assert-Contains $tongtianTowerModeRuntime "MapManager.Instance.SetLevel(0)" "Tongtian Tower must reset native level before the base 32-layer cap can apply."
+Assert-Contains $tongtianTowerModeRuntime "RepairTowerMapSelection" "Tongtian Tower must repair fixed boss/building slots during map sync."
+Assert-Contains $tongtianTowerModeRuntime "ApplyTowerSlots(mapSelect, manager, applyAllSlots: true" "Tongtian Tower must repair native map prefabs after MapItemInit."
+Assert-Contains $tongtianTowerModeRuntime "TongtianTowerMapBuilder.BuildingSlotForFloor" "Tongtian Tower runtime must use the map builder's per-floor building slot cycle."
+Assert-Contains $tongtianTowerCombatRuntime "TongtianTowerModeRuntime.IsTongtianTowerRun()" "Tongtian Tower combat tuning must be gated to Tongtian Tower runs."
 Assert-Contains $solarMemoryContentIsolationRuntime "SunExpConfigIndex.Rows(DataType.Map)" "Solar memory isolation replacement candidates must use cached map rows."
 Assert-Contains $mapNodeSafetyService "SunExpConfigIndex.Row(DataType.Map, id)" "Map node safety fallback map lookup must use the shared config index."
 Assert-Contains $solarMemorySettlementPresenter 'ShowUI<GameExitUI>("GameExitUI", true)' "SolarMemorySettlementPresenter must own settlement UI display."
@@ -769,6 +856,8 @@ Assert-Contains $modeChoiceLayoutRuntime "EnsureNativeProxySlot" "ModeChoiceLayo
 Assert-Contains $modeChoiceLayoutRuntime "CustomSlotPrefix" "ModeChoiceLayoutRuntime must create a fifth custom slot through the native LayoutGroup."
 Assert-Contains $modeChoiceLayoutRuntime "ModeChoiceHorizontalDrag" "ModeChoiceLayoutRuntime must own overflow dragging for mode-choice overlays."
 Assert-Contains $modeChoiceLayoutRuntime "ModeChoiceDragRangeService.Calculate" "ModeChoiceLayoutRuntime must delegate overflow bounds to testable mechanics."
+Assert-Contains $modeChoiceLayoutRuntime "PlaceAfterNativeEntries(modeChoice" "ModeChoiceLayoutRuntime fallback placement must receive the ModeChoiceUI drag host."
+Assert-Contains $modeChoiceLayoutRuntime "ConfigureHorizontalDrag(modeChoice, reference" "ModeChoiceLayoutRuntime fallback placement must expand drag bounds for appended entries."
 Assert-Contains $modeChoiceLayoutRuntime "DisableLegacyDragSurface" "ModeChoiceLayoutRuntime must disable stale raycast-blocking drag surfaces."
 Assert-Contains $modeChoiceLayoutRuntime "image.raycastTarget = false" "ModeChoiceLayoutRuntime must make stale drag surfaces non-blocking before hiding them."
 Assert-NotContains $modeChoiceLayoutRuntime "ConfigureDragSurface" "ModeChoiceLayoutRuntime must not create a full-screen raycast-blocking drag surface."

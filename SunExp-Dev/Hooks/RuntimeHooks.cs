@@ -23,6 +23,11 @@ public static class RuntimeHooks
         RunHookStep("solar memory mode", () => SolarMemoryModeRuntime.Initialize(modConfig));
         RunHookStep("solar memory combat", () => SolarMemoryCombatRuntime.Initialize(modConfig));
         RunHookStep("solar memory reward", () => SolarMemoryRewardRuntime.Initialize());
+        RunHookStep("tongtian tower mode", () => TongtianTowerModeRuntime.Initialize(modConfig));
+        RunHookStep("tongtian tower combat", () => TongtianTowerCombatRuntime.Initialize(modConfig));
+        RunHookStep("tongtian tower reward", () => TongtianTowerRewardRuntime.Initialize());
+        RunHookStep("tongtian tower card affix", () => TongtianTowerCardAffixRuntime.Initialize(modConfig));
+        RunHookStep("tongtian tower intro board", () => TongtianTowerIntroBoardRuntime.Initialize(modConfig));
         RunHookStep("battle reward adjustment", () => BattleRewardAdjustmentRuntime.Initialize(modConfig));
         RunHookStep("solar memory content isolation", () => SolarMemoryContentIsolationRuntime.Initialize(modConfig));
         RunHookStep("solar memory starter deck", () => SolarMemoryStarterDeckRuntime.Initialize(modConfig));

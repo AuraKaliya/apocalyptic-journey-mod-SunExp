@@ -1195,6 +1195,10 @@ function Invoke-SourceAssertions {
     $mapNodeTextureFitService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\MapNodeTextureFitService.cs"))
     $sunExpHardTagRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SunExpHardTagRuntime.cs"))
     $solarMemoryStarterDeckRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryStarterDeckRuntime.cs"))
+    $tongtianTowerIntroBoardRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\TongtianTowerIntroBoardRuntime.cs"))
+    $tongtianTowerRunLauncher = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\TongtianTowerRunLauncher.cs"))
+    $tongtianTowerStarterDeckCatalog = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\TongtianTowerStarterDeckCatalog.cs"))
+    $tongtianTowerRichTextSanitizer = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\TongtianTowerRichTextSanitizer.cs"))
     $solarMemorySetupFlowRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemorySetupFlowRuntime.cs"))
     $solarMemoryBlessingPickerRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryBlessingPickerRuntime.cs"))
     $solarMemoryPreparationRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryPreparationRuntime.cs"))
@@ -1616,6 +1620,12 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemorySetupFlowRuntime.Contains("SunExpModalHost.Close(ref activeOriginRoot") "Solar memory origin setup close must route through SunExpModalHost."
     Assert-True $solarMemorySetupFlowRuntime.Contains("SunExpModalHost.Close(ref activeBlessingChrome") "Solar memory blessing setup chrome close must route through SunExpModalHost."
     Assert-True $solarMemoryBlessingPickerRuntime.Contains("SunExpModalHost.Close(ref activePanel") "Solar memory blessing picker close must route through SunExpModalHost."
+    Assert-True $tongtianTowerIntroBoardRuntime.Contains("SunExpUiBuilder.ApplyPanelImage") "Tongtian Tower intro board must reuse shared panel creation."
+    Assert-True $tongtianTowerIntroBoardRuntime.Contains("SunExpModalHost.Close(ref activePanel") "Tongtian Tower intro board close must route through SunExpModalHost."
+    Assert-True $tongtianTowerIntroBoardRuntime.Contains("ScrollRect") "Tongtian Tower intro board body must be scrollable."
+    Assert-True $tongtianTowerIntroBoardRuntime.Contains("supportRichText = true") "Tongtian Tower intro board must enable controlled rich text."
+    Assert-True $tongtianTowerIntroBoardRuntime.Contains("TongtianTowerRichTextSanitizer.Sanitize") "Tongtian Tower intro board must sanitize rich text before display."
+    Assert-True (-not $tongtianTowerIntroBoardRuntime.Contains("WebView")) "Tongtian Tower intro board must not embed web content."
     Assert-True $solarMemoryStarterDeckRuntime.Contains("SunExpUiPool.AcquireComponent") "Solar memory starter deck list rows must reuse pooled UI."
     Assert-True $solarMemoryStarterDeckRuntime.Contains("deckListDirty.ShouldRefresh") "Solar memory starter deck selected list must skip unchanged rebuilds."
     Assert-True $solarMemoryBlessingPickerRuntime.Contains("SunExpUiPool.AcquireComponent") "Solar memory blessing picker list rows must reuse pooled UI."
@@ -1917,6 +1927,15 @@ function Invoke-SourceAssertions {
     Assert-True (-not $solarMemorySetupSources.Contains("StarterDeckArbiterRuntime.SyncRoleTable")) "Solar memory preparation must not use the native RoleTable collector before final setup completion."
     Assert-True ([regex]::IsMatch($solarMemoryStarterDeckRuntime, 'ApplyDeck\([\s\S]*?sync:\s*false\)')) "Solar memory custom starter deck must suppress intermediate role synchronization."
     Assert-True ([regex]::IsMatch($solarMemoryStarterDeckRuntime, 'KeepOfficialDeck\(roleTable,\s*CreateClaim\(mode\),\s*sync:\s*false\)')) "Solar memory official starter deck path must suppress intermediate role synchronization."
+    Assert-True ([regex]::IsMatch($tongtianTowerIntroBoardRuntime, 'ApplyDeck\([\s\S]*?sync:\s*true\)')) "Tongtian Tower starter deck choices must persist through the shared role sync path."
+    Assert-True $tongtianTowerRunLauncher.Contains('saveInfo.GameVars[SunExpIds.TongtianTowerIntroSeenKey] = "0"') "Tongtian Tower saves must initialize the intro board as unseen."
+    Assert-True $tongtianTowerRunLauncher.Contains('saveInfo.GameVars[SunExpIds.TongtianTowerStarterDeckAppliedKey] = "0"') "Tongtian Tower saves must initialize starter-deck selection as unapplied."
+    Assert-True $tongtianTowerStarterDeckCatalog.Contains("public const int DeckSize = 11") "Tongtian Tower hardcoded starter decks must keep native deck size."
+    Assert-True (([regex]::Matches($tongtianTowerStarterDeckCatalog, 'new\(\s*\r?\n\s*"').Count) -eq 3) "Tongtian Tower must expose exactly three hardcoded starter deck profiles."
+    Assert-True $tongtianTowerStarterDeckCatalog.Contains("SunExpConfigIndex.Row(DataType.Card") "Tongtian Tower starter deck catalog must validate card ids through the config index."
+    Assert-True $tongtianTowerRichTextSanitizer.Contains("AllowedSimpleTags") "Tongtian Tower rich text sanitizer must use an explicit simple-tag allowlist."
+    Assert-True $tongtianTowerRichTextSanitizer.Contains("AllowedScopedTags") "Tongtian Tower rich text sanitizer must use an explicit scoped-tag allowlist."
+    Assert-True (-not $tongtianTowerRichTextSanitizer.Contains("link")) "Tongtian Tower rich text sanitizer must not allow link tags."
     Assert-True $solarMemoryPreparationRuntime.Contains('if (!SolarMemoryRoleCommitApi.CommitFinal(RoleTable.Instance, "SunExp.SolarMemory.SetupFinished"))') "Solar memory preparation completion must require a successful final role commit."
     Assert-True ([regex]::IsMatch($solarMemoryPreparationRuntime, 'CommitFinal\(RoleTable\.Instance,\s*"SunExp\.SolarMemory\.SetupFinished"\)[\s\S]*SolarMemoryPlayerSetupState\.SetFlag\(SunExpIds\.SolarMemorySetupFinishedKey,\s*false\)')) "Solar memory preparation must withdraw setup completion when final role commit fails."
     Assert-True $solarMemoryPreparationRuntime.Contains('SolarMemoryPlayerSetupState.SetValue(SunExpIds.SolarMemorySetupCommitTokenKey, "")') "Solar memory preparation must clear failed local commit tokens for retry."

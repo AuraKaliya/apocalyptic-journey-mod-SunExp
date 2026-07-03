@@ -10,6 +10,29 @@ namespace SunExp.Dll.GameApi;
 
 public static class BattleRewardApi
 {
+    public static bool AppendRandomCardRewards(BattleRewardsUI? rewardUi, int count, string source)
+    {
+        if (rewardUi == null || count <= 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            for (var i = 0; i < count; i++)
+            {
+                rewardUi.RandomSetCard();
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[BattleRewardApi] random card reward failed from " + source + ": " + ex.Message);
+            return false;
+        }
+    }
+
     public static bool AppendRandomRelicReward(BattleRewardsUI? rewardUi, string source)
     {
         if (rewardUi == null)

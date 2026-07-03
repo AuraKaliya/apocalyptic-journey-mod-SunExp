@@ -192,7 +192,7 @@ public static class ModeChoiceLayoutRuntime
         HideOldOverlayRoot(modeChoice);
         HideLayoutSlots(modeList);
         DisableLegacyDragSurface(modeChoice);
-        var result = PlaceAfterNativeEntries(modeList, nativeEntries, customEntries);
+        var result = PlaceAfterNativeEntries(modeChoice, modeList, nativeEntries, customEntries);
         if (!result.Success)
         {
             ActivateFallbackButtons(modeChoice, customEntries, result.Reason);
@@ -671,6 +671,7 @@ public static class ModeChoiceLayoutRuntime
     }
 
     private static PlacementResult PlaceAfterNativeEntries(
+        ModeChoiceUI modeChoice,
         Transform modeList,
         IReadOnlyList<RectTransform> nativeEntries,
         IReadOnlyList<RegisteredEntryPlacement> customEntries)
@@ -745,6 +746,8 @@ public static class ModeChoiceLayoutRuntime
             messages.Add(target.name + "=" + placedBounds);
         }
 
+        var dragState = ConfigureHorizontalDrag(modeChoice, reference, blockers.Select(entry => entry.Bounds).ToList());
+        messages.Add(dragState);
         return PlacementResult.Placed(string.Join("; ", messages));
     }
 
