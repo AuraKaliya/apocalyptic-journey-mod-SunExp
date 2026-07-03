@@ -26,7 +26,9 @@ public static class CardScripts
         ["burning_calamity"] = InitTargetedAttackCard,
         ["flamewheel_recurrence"] = InitFlamewheelCard,
         [SunExpIds.PolymorphCardShortId] = InitCommonCard,
-        [SunExpIds.PolymorphRoleTemplateShortId] = InitCommonCard
+        [SunExpIds.PolymorphRoleTemplateShortId] = InitCommonCard,
+        [SunExpIds.ProjectionCardShortId] = InitCommonCard,
+        [SunExpIds.ProjectionRoleTemplateShortId] = InitCommonCard
     };
 
     private static readonly Dictionary<string, Action<ScriptExecutor>> UseHandlers = new(StringComparer.Ordinal)
@@ -62,7 +64,9 @@ public static class CardScripts
         ["smoke_erosion"] = UseSmokeErosion,
         ["afterglow_omen_card"] = UseAfterglowOmenCard,
         [SunExpIds.PolymorphCardShortId] = UsePolymorph,
-        [SunExpIds.PolymorphRoleTemplateShortId] = UsePolymorphRoleCard
+        [SunExpIds.PolymorphRoleTemplateShortId] = UsePolymorphRoleCard,
+        [SunExpIds.ProjectionCardShortId] = UseProjection,
+        [SunExpIds.ProjectionRoleTemplateShortId] = UseProjectionRoleCard
     };
 
     public static void Init(ScriptExecutor self, string id)
@@ -466,6 +470,16 @@ public static class CardScripts
     private static void UsePolymorphRoleCard(ScriptExecutor self)
     {
         PolymorphActivationService.ApplyRoleFromCard(self);
+    }
+
+    private static void UseProjection(ScriptExecutor self)
+    {
+        ProjectionActivationService.OpenRoleSelection(self);
+    }
+
+    private static void UseProjectionRoleCard(ScriptExecutor self)
+    {
+        ProjectionActivationService.SummonFromCard(self);
     }
 
     private static string NormalizeId(string id)

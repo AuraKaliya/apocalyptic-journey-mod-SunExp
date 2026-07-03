@@ -27,9 +27,15 @@ public static class PolymorphRoleSelectionWindow
 
     public static bool Open(ScriptExecutor self)
     {
+        return Open(self, PolymorphRoleSelectionRequest.Polymorph(self));
+    }
+
+    public static bool Open(ScriptExecutor self, PolymorphRoleSelectionRequest request)
+    {
         try
         {
             Close("PolymorphRoleSelection.Open");
+            request ??= PolymorphRoleSelectionRequest.Polymorph(self);
             var parent = SunExpModalHost.ModalParent();
             if (parent == null)
             {
@@ -59,20 +65,20 @@ public static class PolymorphRoleSelectionWindow
             layout.childForceExpandWidth = true;
             layout.childForceExpandHeight = false;
 
-            CreateHeader(window.transform, roles.Count);
+            CreateHeader(window.transform, roles.Count, request);
             roleListContent = CreateRoleScroll(window.transform);
             for (var i = 0; i < roles.Count; i++)
             {
-                CreateRoleCard(roleListContent, self, roles[i], i);
+                CreateRoleCard(roleListContent, self, roles[i], i, request);
             }
 
-            CreateFooter(window.transform);
-            SunExpLog.Info("[PolymorphRoleSelection] opened; roles=" + roles.Count);
+            CreateFooter(window.transform, request);
+            SunExpLog.Info("[" + request.LogPrefix + "] opened; roles=" + roles.Count);
             return true;
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Failed to open polymorph role selection", ex);
+            SunExpLog.Error("Failed to open role selection", ex);
             Close("PolymorphRoleSelection.OpenFailed");
             return false;
         }
@@ -86,7 +92,7 @@ public static class PolymorphRoleSelectionWindow
         hintText = null;
     }
 
-    private static void CreateHeader(Transform parent, int roleCount)
+    private static void CreateHeader(Transform parent, int roleCount, PolymorphRoleSelectionRequest request)
     {
         var header = CreateLayoutObject("Header", parent);
         header.AddComponent<LayoutElement>().preferredHeight = 74f;
@@ -98,8 +104,8 @@ public static class PolymorphRoleSelectionWindow
         layout.childControlHeight = true;
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = false;
-        AddTextBlock(header.transform, "百变", 28, TextAnchor.MiddleCenter, Gold, 32f);
-        AddTextBlock(header.transform, "选择一个已注册角色，获得对应的一次性化身牌。已注册角色：" + roleCount, 15, TextAnchor.MiddleCenter, TextColor, 22f);
+        AddTextBlock(header.transform, request.Title, 28, TextAnchor.MiddleCenter, Gold, 32f);
+        AddTextBlock(header.transform, request.Subtitle + roleCount, 15, TextAnchor.MiddleCenter, TextColor, 22f);
     }
 
     private static Transform CreateRoleScroll(Transform parent)
@@ -137,7 +143,7 @@ public static class PolymorphRoleSelectionWindow
         return content;
     }
 
-    private static void CreateFooter(Transform parent)
+    private static void CreateFooter(Transform parent, PolymorphRoleSelectionRequest request)
     {
         var footer = CreateLayoutObject("Footer", parent);
         footer.AddComponent<LayoutElement>().preferredHeight = 42f;
@@ -149,11 +155,11 @@ public static class PolymorphRoleSelectionWindow
         layout.childControlHeight = true;
         layout.childForceExpandWidth = false;
         layout.childForceExpandHeight = true;
-        hintText = AddTextBlock(footer.transform, "化身只在本场战斗内生效，不会改变冒险角色。", 14, TextAnchor.MiddleLeft, TextColor, 30f, 1f);
+        hintText = AddTextBlock(footer.transform, request.FooterHint, 14, TextAnchor.MiddleLeft, TextColor, 30f, 1f);
         CreateButton(footer.transform, "关闭", new Vector2(102f, 30f), () => Close("PolymorphRoleSelection.CloseButton"));
     }
 
-    private static void CreateRoleCard(Transform parent, ScriptExecutor executor, PolymorphRoleSpec role, int index)
+    private static void CreateRoleCard(Transform parent, ScriptExecutor executor, PolymorphRoleSpec role, int index, PolymorphRoleSelectionRequest request)
     {
         var view = SunExpUiPool.AcquireComponent(
             "PolymorphRoleSelection.RoleCard",
@@ -162,13 +168,13 @@ public static class PolymorphRoleSelectionWindow
             CreateRoleCardTemplate);
         view.Bind(role, index < ImmediateWarmupCount(), () =>
         {
-            if (PolymorphActivationService.GrantRoleCard(executor, role.Id))
+            if (request.Select(executor, role))
             {
                 Close("PolymorphRoleSelection.RoleSelected");
             }
             else if (hintText != null)
             {
-                hintText.text = "化身牌生成失败，请选择其他角色。";
+                hintText.text = request.SelectionFailureText;
             }
         });
 

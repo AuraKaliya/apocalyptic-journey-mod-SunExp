@@ -81,6 +81,7 @@ $requiredFiles = @(
     "SunExp-Dev\GameApi\CardVisualEffectApi.cs",
     "SunExp-Dev\GameApi\BattleRewardApi.cs",
     "SunExp-Dev\GameApi\CardConfigApi.cs",
+    "SunExp-Dev\GameApi\ProjectionUiApi.cs",
     "SunExp-Dev\GameApi\SunExpResourceCache.cs",
     "SunExp-Dev\Infrastructure\SunExpDirtyState.cs",
     "SunExp-Dev\Infrastructure\SunExpPerformanceQuality.cs",
@@ -110,12 +111,19 @@ $requiredFiles = @(
     "SunExp-Dev\Mechanics\CardVisualThemeCatalog.cs",
     "SunExp-Dev\Mechanics\SunCardThemeCatalog.cs",
     "SunExp-Dev\Mechanics\SunExpCardRefreshQueue.cs",
+    "SunExp-Dev\Mechanics\ProjectionActivationService.cs",
+    "SunExp-Dev\Mechanics\ProjectionOtherObj.cs",
+    "SunExp-Dev\Mechanics\ProjectionState.cs",
+    "SunExp-Dev\Mechanics\ProjectionStateStore.cs",
+    "SunExp-Dev\Mechanics\ProjectionStrategyService.cs",
+    "SunExp-Dev\Mechanics\ProjectionSummonService.cs",
     "SunExp-Dev\Mechanics\StarStonePouchService.cs",
     "SunExp-Dev\Hooks\DialogueFlowRuntime.cs",
     "SunExp-Dev\Hooks\SunExpFrameScheduler.cs",
     "SunExp-Dev\Hooks\SunExpActionEventRouter.cs",
     "SunExp-Dev\Hooks\SunExpResourcePreloader.cs",
     "SunExp-Dev\Hooks\BattleRewardAdjustmentRuntime.cs",
+    "SunExp-Dev\Hooks\ProjectionRuntime.cs",
     "SunExp-Dev\Hooks\SolarMemoryRewardRuntime.cs",
     "SunExp-Dev\Hooks\MapNodeCardArtRuntime.cs",
     "SunExp-Dev\Hooks\CardVisualSkinRuntime.cs",
@@ -139,6 +147,8 @@ $requiredFiles = @(
     "SunExp-Dev\Hooks\Ui\SunExpUiLifetimeScope.cs",
     "SunExp-Dev\Hooks\Ui\SunExpUiPool.cs",
     "SunExp-Dev\Hooks\Ui\SunExpUiSprites.cs",
+    "SunExp-Dev\Hooks\Ui\PolymorphRoleSelectionRequest.cs",
+    "SunExp-Dev\Scripting\ProjectionScripts.cs",
     "SunExp-Dev\Hooks\Visual\FrameAnimationAttacher.cs",
     "SunExp-Dev\Hooks\Visual\AssetBundleCache.cs",
     "SunExp-Dev\Hooks\Visual\EffectMaterialFactory.cs",
@@ -198,6 +208,7 @@ $buffScripts = Read-RepoText "SunExp-Dev\Scripting\BuffScripts.cs"
 $relicScripts = Read-RepoText "SunExp-Dev\Scripting\RelicScripts.cs"
 $eventScripts = Read-RepoText "SunExp-Dev\Scripting\EventScripts.cs"
 $bossScripts = Read-RepoText "SunExp-Dev\Scripting\BossScripts.cs"
+$projectionScripts = Read-RepoText "SunExp-Dev\Scripting\ProjectionScripts.cs"
 $mapNodeCardArtRegistry = Read-RepoText "SunExp-Dev\Mechanics\MapNodeCardArtRegistry.cs"
 $mapNodeTextureFitService = Read-RepoText "SunExp-Dev\Mechanics\MapNodeTextureFitService.cs"
 $mapNodeSafetyService = Read-RepoText "SunExp-Dev\Mechanics\MapNodeSafetyService.cs"
@@ -215,10 +226,16 @@ $dialogueFlowRuntime = Read-RepoText "SunExp-Dev\Hooks\DialogueFlowRuntime.cs"
 $sunExpFrameScheduler = Read-RepoText "SunExp-Dev\Hooks\SunExpFrameScheduler.cs"
 $sunExpActionEventRouter = Read-RepoText "SunExp-Dev\Hooks\SunExpActionEventRouter.cs"
 $sunExpCardRefreshQueue = Read-RepoText "SunExp-Dev\Mechanics\SunExpCardRefreshQueue.cs"
+$projectionActivationService = Read-RepoText "SunExp-Dev\Mechanics\ProjectionActivationService.cs"
+$projectionOtherObj = Read-RepoText "SunExp-Dev\Mechanics\ProjectionOtherObj.cs"
+$projectionStateStore = Read-RepoText "SunExp-Dev\Mechanics\ProjectionStateStore.cs"
+$projectionStrategyService = Read-RepoText "SunExp-Dev\Mechanics\ProjectionStrategyService.cs"
+$projectionSummonService = Read-RepoText "SunExp-Dev\Mechanics\ProjectionSummonService.cs"
 $sunExpResourcePreloader = Read-RepoText "SunExp-Dev\Hooks\SunExpResourcePreloader.cs"
 $battleRewardAdjustmentRuntime = Read-RepoText "SunExp-Dev\Hooks\BattleRewardAdjustmentRuntime.cs"
 $solarMemoryRewardRuntime = Read-RepoText "SunExp-Dev\Hooks\SolarMemoryRewardRuntime.cs"
 $mapNodeCardArtRuntime = Read-RepoText "SunExp-Dev\Hooks\MapNodeCardArtRuntime.cs"
+$projectionRuntime = Read-RepoText "SunExp-Dev\Hooks\ProjectionRuntime.cs"
 $runtimeHooks = Read-RepoText "SunExp-Dev\Hooks\RuntimeHooks.cs"
 $cardVisualSkinSpec = Read-RepoText "SunExp-Dev\Mechanics\CardVisualSkinSpec.cs"
 $cardVisualSkinRule = Read-RepoText "SunExp-Dev\Mechanics\CardVisualSkinRule.cs"
@@ -330,6 +347,7 @@ Assert-Contains $runtimeHooks "BattleRewardAdjustmentRuntime.Initialize(modConfi
 Assert-Contains $runtimeHooks "SolarMemoryRewardRuntime.Initialize()" "RuntimeHooks must register Solar Memory reward adjustment rules."
 Assert-Contains $runtimeHooks "StarScoreHudRuntime.Initialize(modConfig)" "RuntimeHooks must initialize star score HUD hooks."
 Assert-Contains $runtimeHooks "CardVisualSkinRuntime.Initialize(modConfig)" "RuntimeHooks must initialize card visual skin hooks."
+Assert-Contains $runtimeHooks "ProjectionRuntime.Initialize(modConfig)" "RuntimeHooks must initialize projection combat hooks."
 Assert-Contains $runtimeHooks "RunHookStep(" "RuntimeHooks must isolate runtime initialization into logged hook steps."
 Assert-Contains $runtimeHooks "AuraSharedHooks.RunStep" "RuntimeHooks must use the shared step guard for hook initialization."
 Assert-Contains $entrySource 'RunStep("performance runtime", () => SunExpFrameScheduler.Initialize(modConfig))' "Entry must initialize the performance scheduler before gameplay hooks."
@@ -348,6 +366,31 @@ Assert-Contains $sunExpFrameScheduler "SunExpPerformanceSettings.FrameSchedulerB
 Assert-Contains $sunExpActionEventRouter 'AddEventListener("Action" + statusId' "SunExp Action listeners must be centralized in SunExpActionEventRouter."
 Assert-Contains $sunExpActionEventRouter 'AddEventListener("ActionAfter" + statusId' "SunExp ActionAfter listeners must be centralized in SunExpActionEventRouter."
 Assert-Contains $sunExpActionEventRouter "CardConfigApi.FromActionPayload(payload)" "The Action router must parse card payloads once before handler fanout."
+Assert-Contains $cardScripts "[SunExpIds.ProjectionCardShortId] = UseProjection" "CardScripts must route the projection selection card."
+Assert-Contains $cardScripts "[SunExpIds.ProjectionRoleTemplateShortId] = UseProjectionRoleCard" "CardScripts must route generated projection role cards."
+Assert-Contains $entrySource "SunExp.Dll.Scripting.ProjectionScripts" "Entry must register ProjectionScripts for generated enemy-card actions."
+Assert-Contains $projectionActivationService "CardGrantRequest" "Projection generated cards must use the shared card grant API."
+Assert-Contains $projectionActivationService "DictionaryUtil.Set(config.Vars" "Projection generated cards must write runtime overrides to Vars."
+Assert-NotContains $projectionActivationService "DictionaryUtil.Set(config.data" "Projection generated cards must not mutate base config data."
+Assert-Contains $projectionSummonService "RealPlayerCount() + ProjectionStateStore.ActiveCount()" "Projection summon must respect the four-unit friendly cap."
+Assert-Contains $projectionSummonService 'SunExpResourceCache.Load<GameObject>("Model/player", true, "projection")' "Projection summon must load the player model through the shared resource cache."
+Assert-Contains $projectionSummonService "SunExpIds.ProjectionActionStaffTapCardId" "Projection summon must attach the shared staff-tap action."
+Assert-Contains $projectionSummonService "SunExpIds.ProjectionActionShieldBlessingCardId" "Projection summon must attach the shared shield action."
+Assert-Contains $projectionOtherObj "public sealed class ProjectionOtherObj : OtherObj" "Projection actors must stay friendly OtherObj objects, not real partners."
+Assert-Contains $projectionOtherObj "EnsureActionIcons" "Projection actors must create action icons because native OtherObj does not."
+Assert-Contains $projectionRuntime 'RegisterAfter(modConfig, "StatusManager.Hit", RetireProjectionAfterDamage);' "Projection runtime must retire dead projections after full damage resolves."
+Assert-Contains $projectionRuntime 'RegisterAfter(modConfig, "StatusManager.set_CurHp", RetireProjectionAfterHpChange);' "Projection runtime must retire dead projections after direct HP changes."
+Assert-Contains $projectionRuntime 'RegisterAfter(modConfig, "StatusManager.set_MaxHp", RetireProjectionAfterHpChange);' "Projection runtime must retire projections whose max HP is reduced to zero."
+Assert-NotContains $projectionRuntime "SetDamageFilter" "Projection runtime must not use temporary damage filters after protection redirects were removed."
+Assert-NotContains $projectionRuntime "RedirectThreatBeforeHit" "Projection runtime must not redirect enemy attacks away from players."
+Assert-NotContains $projectionRuntime "ProjectionThreatService" "Projection runtime must not depend on retired threat redirection."
+Assert-Contains $projectionStateStore "RetireIfDead" "Projection state store must expose a shared death retirement guard."
+Assert-Contains $projectionStateStore "SunExpFrameDispatcher.RunOnceNextFrame" "Projection retirement must delay status-record removal until native queues settle."
+Assert-Contains $projectionStateStore "removeStatusRecords: false" "Projection retirement must leave status records long enough for native hit queues to settle."
+Assert-NotContains $projectionStateStore "ThreatBoost" "Projection state must not keep retired threat-weight state."
+Assert-NotContains $projectionStrategyService "MarkShielded" "Projection shield behavior must not modify retired threat weights."
+Assert-Contains $projectionStrategyService "ProjectionActionShieldBlessing" "Projection strategy must own the shared shield action behavior."
+Assert-Contains $projectionScripts "ProjectionStrategyService.UseAction" "ProjectionScripts must keep CSV actions routed through Mechanics."
 Assert-Contains $specialTagRuntime 'SunExpActionEventRouter.RegisterHandler("SpecialTag.WhiteRadiance"' "SpecialTagRuntime must register through the shared Action router."
 Assert-Contains $starScoreRuntime 'SunExpActionEventRouter.RegisterHandler("StarScore"' "StarScoreRuntime must register through the shared Action router."
 Assert-NotContains $loneerRuntime 'SunExpActionEventRouter.RegisterHandler("Loneer"' "LoneerRuntime must not own Star Stone Pouch action dispatch."
@@ -782,7 +825,7 @@ Assert-NotContains $scriptingSource "using SunExp.Dll.Hooks" "Scripting layer mu
 Assert-NotContains $scriptingSource "SunExpFrameScheduler" "Scripting layer must not use the hook-owned frame scheduler directly."
 Assert-NotMatches $scriptingSource "\.\s*Add(?:Temp)?Event\s*\(" "Scripting layer must register events through ScriptEventApi or ExecutorApi wrappers."
 
-$resourceLoaderBypass = @($sourceFiles | Where-Object { $_.Name -ne "SunExpResourceCache.cs" } | Select-String -Pattern "ResourceLoader\.Load(?:All)?<")
+$resourceLoaderBypass = @($sourceFiles | Where-Object { $_.Name -ne "SunExpResourceCache.cs" } | Select-String -Pattern "ResourceLoader\.Load(?:All)?(?:<|\s*\()")
 Assert-True ($resourceLoaderBypass.Count -eq 0) "ResourceLoader.Load/LoadAll calls must be centralized in SunExpResourceCache."
 
 $configTableBypass = @($sourceFiles | Where-Object {

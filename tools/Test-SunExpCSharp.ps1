@@ -1130,6 +1130,11 @@ function Invoke-SourceAssertions {
     $polymorphCooldownService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\PolymorphCooldownService.cs"))
     $polymorphRuntimeService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\PolymorphRuntimeService.cs"))
     $polymorphStateStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\PolymorphStateStore.cs"))
+    $projectionActivationService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionActivationService.cs"))
+    $projectionOtherObj = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionOtherObj.cs"))
+    $projectionStateStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionStateStore.cs"))
+    $projectionStrategyService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionStrategyService.cs"))
+    $projectionSummonService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionSummonService.cs"))
     $runtimeCardAttachmentService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\RuntimeCardAttachmentService.cs"))
     $starBlessingCostOverrideStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarBlessingCostOverrideStore.cs"))
     $cardGrantRecipes = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardGrantRecipes.cs"))
@@ -1148,6 +1153,7 @@ function Invoke-SourceAssertions {
     $wunaScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\WunaScripts.cs"))
     $runtimeHooks = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\RuntimeHooks.cs"))
     $polymorphRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\PolymorphRuntime.cs"))
+    $projectionRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\ProjectionRuntime.cs"))
     $duskPartnerRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\DuskPartnerRuntime.cs"))
     $starClayDollRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\StarClayDollRuntime.cs"))
     $loneerRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\LoneerRuntime.cs"))
@@ -1164,6 +1170,7 @@ function Invoke-SourceAssertions {
     $starScoreCadenceCatalog = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreCadenceCatalog.cs"))
     $duskPartnerScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\DuskPartnerScripts.cs"))
     $starClayDollScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\StarClayDollScripts.cs"))
+    $projectionScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\ProjectionScripts.cs"))
     $scriptingSource = [string]::Join("`n", (Get-ChildItem -LiteralPath (Join-Path $RepoRoot "SunExp-Dev\Scripting") -File -Filter "*.cs" | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }))
     $solarEventRuntimePath = Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarEventRuntime.cs"
     $battleRewardApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\BattleRewardApi.cs"))
@@ -1235,6 +1242,7 @@ function Invoke-SourceAssertions {
     $blessingData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Blessing\sunexp.csv"))
     $partnerData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Partner\sunexp.csv"))
     $cardDataPath = Join-Path $RepoRoot "SunExp\Data\Card\sunexp.csv"
+    $cardData = [System.IO.File]::ReadAllText($cardDataPath)
     $loneerCareerText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\Career\loneer.csv"))
 
     $addStatusBuff = [regex]::Match($executorApi, "public\s+static\s+bool\s+AddStatusBuff[\s\S]*?public\s+static\s+bool\s+RemoveStatusBuff")
@@ -1475,6 +1483,33 @@ function Invoke-SourceAssertions {
     Assert-True $polymorphStateStore.Contains("public static bool IsLocalRoleSuppressed") "Polymorph state must expose role suppression for old passive guards."
     Assert-True $loneerService.Contains("PolymorphStateStore.IsLocalRoleSuppressed") "Loneer passive and skill entries must respect active polymorph suppression."
     Assert-True $wunaScripts.Contains("IsWunaRuntimeActive") "Wuna passive and skill entries must respect active polymorph suppression."
+    Assert-True $cardScripts.Contains("[SunExpIds.ProjectionCardShortId] = UseProjection") "CardScripts must route the projection selection card."
+    Assert-True $cardScripts.Contains("[SunExpIds.ProjectionRoleTemplateShortId] = UseProjectionRoleCard") "CardScripts must route generated projection role cards."
+    Assert-True $runtimeHooks.Contains("ProjectionRuntime.Initialize(modConfig)") "RuntimeHooks must initialize projection combat hooks."
+    Assert-True $entry.Contains("SunExp.Dll.Scripting.ProjectionScripts") "Entry must register ProjectionScripts for CSV action calls."
+    Assert-True $projectionActivationService.Contains("CardGrantRequest") "Projection generated cards must use the shared card grant API."
+    Assert-True $projectionActivationService.Contains("DictionaryUtil.Set(config.Vars") "Projection generated cards must write runtime overrides to Vars."
+    Assert-True (-not $projectionActivationService.Contains("DictionaryUtil.Set(config.data")) "Projection generated cards must not mutate base config data."
+    Assert-True $projectionSummonService.Contains("RealPlayerCount() + ProjectionStateStore.ActiveCount()") "Projection summon must respect the four-unit friendly cap."
+    Assert-True $projectionSummonService.Contains('SunExpResourceCache.Load<GameObject>("Model/player", true, "projection")') "Projection summon must load the player model through the shared resource cache."
+    Assert-True $projectionSummonService.Contains("SunExpIds.ProjectionActionStaffTapCardId") "Projection summon must attach the shared staff-tap action."
+    Assert-True $projectionSummonService.Contains("SunExpIds.ProjectionActionShieldBlessingCardId") "Projection summon must attach the shared shield action."
+    Assert-True $projectionOtherObj.Contains("public sealed class ProjectionOtherObj : OtherObj") "Projection actors must stay friendly OtherObj objects, not real partners."
+    Assert-True $projectionOtherObj.Contains("EnsureActionIcons") "Projection actors must create action icons because native OtherObj does not."
+    Assert-True $projectionStateStore.Contains("ProjectionStatusIdPrefix") "Projection status ids must use the centralized friendly projection prefix."
+    Assert-True $projectionStateStore.Contains("removeStatusRecords: false") "Projection retirement must leave status records long enough for native hit queues to settle."
+    Assert-True $projectionRuntime.Contains('RegisterAfter(modConfig, "StatusManager.Hit", RetireProjectionAfterDamage);') "Projection runtime must retire dead projections after full damage resolves."
+    Assert-True $projectionRuntime.Contains('RegisterAfter(modConfig, "StatusManager.set_CurHp", RetireProjectionAfterHpChange);') "Projection runtime must retire dead projections after direct HP changes."
+    Assert-True $projectionRuntime.Contains('RegisterAfter(modConfig, "StatusManager.set_MaxHp", RetireProjectionAfterHpChange);') "Projection runtime must retire projections whose max HP is reduced to zero."
+    Assert-True (-not $projectionRuntime.Contains("SetDamageFilter")) "Projection runtime must not use temporary damage filters after protection redirects were removed."
+    Assert-True (-not $projectionRuntime.Contains("RedirectThreatBeforeHit")) "Projection runtime must not redirect enemy attacks away from players."
+    Assert-True (-not $projectionRuntime.Contains("ProjectionThreatService")) "Projection runtime must not depend on retired threat redirection."
+    Assert-True $projectionStateStore.Contains("RetireIfDead") "Projection state store must expose a shared death retirement guard."
+    Assert-True $projectionStateStore.Contains("SunExpFrameDispatcher.RunOnceNextFrame") "Projection retirement must delay status-record removal until native queues settle."
+    Assert-True (-not $projectionStateStore.Contains("ThreatBoost")) "Projection state must not keep retired threat-weight state."
+    Assert-True (-not $projectionStrategyService.Contains("MarkShielded")) "Projection shield behavior must not modify retired threat weights."
+    Assert-True $projectionStrategyService.Contains("ProjectionActionShieldBlessing") "Projection strategy must own the shared shield action behavior."
+    Assert-True $projectionScripts.Contains("ProjectionStrategyService.UseAction") "ProjectionScripts must keep CSV actions routed through Mechanics."
     Assert-True (-not $cardApi.Contains("previousCount")) "Generated-card success must not depend on draw-pile net count."
     Assert-True (-not $cardApi.Contains("could not verify added card")) "The inverted draw-pile count verifier must remain removed."
     Assert-True $loneerService.Contains("SetMorningPrayerCooldown(self, state, PrayerCooldownRounds);") "Morning Star Prayer must commit its cooldown after a successful copy."
@@ -1749,6 +1784,15 @@ function Invoke-SourceAssertions {
     Assert-True $buffData.Contains("boss_trait_white_radiance_saint") "Buff data must define the white-radiance-saint boss trait."
     Assert-True $buffData.Contains("boss_white_radiance_crown") "Buff data must define White Radiance Crown."
     Assert-True $enemyCardData.Contains("enemycard_saint_white_edict") "EnemyCard data must define Wuna's extra White Radiance action."
+    Assert-True $cardData.Contains("witch_projection") "Card data must define the projection selection card."
+    Assert-True $cardData.Contains("*projection_role_template") "Card data must define the generated projection role template."
+    Assert-True $enemyCardData.Contains("enemycard_projection_staff_tap") "EnemyCard data must define the projection staff-tap action."
+    Assert-True $enemyCardData.Contains("enemycard_projection_shield_blessing") "EnemyCard data must define the projection shield action."
+    Assert-True $enemyCardData.Contains("ProjectionScripts.InitAction") "Projection enemy-card rows must route initialization through ProjectionScripts."
+    Assert-True $enemyCardText.Contains("Staff Bonk") "EnemyCard text must localize the projection staff action."
+    Assert-True $enemyCardText.Contains("Shield Blessing") "EnemyCard text must localize the projection shield action."
+    Assert-True (-not $enemyCardText.Contains("threat weight")) "Projection shield text must not promise retired threat-weight behavior."
+    Assert-True (-not $enemyCardText.Contains("威胁权重")) "Projection shield Chinese text must not promise retired threat-weight behavior."
     Assert-True $buffText.Contains("Three Thousand Orbit Mirrors") "Buff text must localize the mirror-array boss trait."
     Assert-True $buffText.Contains("Merciless Daylight") "Buff text must localize the merciless-daylight boss trait."
     Assert-True $buffText.Contains("White Radiance Saint") "Buff text must localize the white-radiance-saint boss trait."
@@ -1886,7 +1930,7 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemoryRoleCommit.Contains("SolarMemorySetupFinishedKey") "Solar memory final role commit must reject unfinished preparation state."
     Assert-True $solarMemoryRoleCommitApi.Contains("SolarMemorySetupCommitTokenKey") "Solar memory final role submission must suppress local re-entry with a per-run token."
     Assert-True $solarMemoryRoleCommit.Contains("CommittedTokens.Add(commitToken)") "Solar memory final role command must suppress duplicate network delivery."
-    Assert-True ($modConfig.ModVersion -eq "0.4.1") "SunExp network protocol change must ship as version 0.4.1."
+    Assert-True ($modConfig.ModVersion -eq "0.4.2") "SunExp network protocol change must ship as version 0.4.2."
     Assert-True ($modConfig.MustSame -eq $true) "SunExp must require an identical multiplayer mod version."
     Assert-True $audioArbiterRuntime.Contains('CurrentBuildId = "audio-arbiter-2026-06-23-v5"') "Audio arbiter must expose the owner-qualified provider runtime build id."
     Assert-True $audioArbiterRuntime.Contains('const string sharedPrefix = "Shared:"') "Audio arbiter must resolve AuraShared resource paths."

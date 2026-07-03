@@ -9,6 +9,11 @@ public static class PolymorphUiApi
         return PolymorphRoleSelectionWindow.Open(self);
     }
 
+    public static bool OpenRoleSelection(ScriptExecutor self, PolymorphRoleSelectionRequest request)
+    {
+        return PolymorphRoleSelectionWindow.Open(self, request);
+    }
+
     public static void CloseRoleSelection(string source)
     {
         PolymorphRoleSelectionWindow.Close(source);

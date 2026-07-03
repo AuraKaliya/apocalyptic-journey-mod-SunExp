@@ -116,6 +116,20 @@ public static class SunExpIds
     public const string PolymorphGeneratedFaceCategory = "polymorph.generated-card-face";
     public const string PolymorphBaseCardIconPath = "Mods/SunExp/ModResource/Images/Card/MoreDimension/bai_bian";
     public const string PolymorphPlaceholderCardIconPath = PolymorphBaseCardIconPath;
+    public const string ProjectionCardShortId = "witch_projection";
+    public const string ProjectionRoleTemplateShortId = "projection_role_template";
+    public const string ProjectionRoleTemplateCardId = "SunExp_sunexp_projection_role_template";
+    public const string ProjectionRoleCardMarker = "SunExpProjectionRoleCard";
+    public const string ProjectionRoleIdKey = "SunExpProjectionRoleId";
+    public const string ProjectionRoleNameKey = "SunExpProjectionRoleName";
+    public const string ProjectionRoleCardFacePathKey = "SunExpProjectionRoleCardFacePath";
+    public const string ProjectionOwnerStatusIdKey = "SunExpProjectionOwnerStatusId";
+    public const string ProjectionStatusIdPrefix = "sp";
+    public const string ProjectionBaseCardIconPath = PolymorphBaseCardIconPath;
+    public const string ProjectionActionStaffTap = "staff_tap";
+    public const string ProjectionActionShieldBlessing = "shield_blessing";
+    public const string ProjectionActionStaffTapCardId = "SunExp_sunexp_enemycard_projection_staff_tap";
+    public const string ProjectionActionShieldBlessingCardId = "SunExp_sunexp_enemycard_projection_shield_blessing";
 
     public static readonly string[] StellarOvertureCardIds =
     {
