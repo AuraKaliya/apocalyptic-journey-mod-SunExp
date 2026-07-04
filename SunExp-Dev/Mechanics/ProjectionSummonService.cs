@@ -10,26 +10,33 @@ namespace SunExp.Dll.Mechanics;
 
 public static class ProjectionSummonService
 {
-    private const int PartyCap = 4;
+    private const int PartyCap = CompanionSlotService.MaxFriendlySlots;
 
     public static bool TrySummon(ScriptExecutor self, PolymorphRoleSpec role)
     {
         if (self?.Self == null || role == null)
         {
-            PlayerApi.ShowCaption("魔女投影：召唤失败。");
+            PlayerApi.ShowCaption("拜托了：召唤失败。");
             return false;
         }
 
         if (FightManager.Instance == null || FightManager.Instance.fightType == FightType.None)
         {
-            PlayerApi.ShowCaption("魔女投影：只能在战斗中召唤。");
+            PlayerApi.ShowCaption("拜托了：只能在战斗中召唤。");
             return false;
         }
 
         var currentCount = RealPlayerCount() + ProjectionStateStore.ActiveCount();
         if (currentCount >= PartyCap)
         {
-            PlayerApi.ShowCaption("魔女投影：场上友方单位已达到4人上限。");
+            PlayerApi.ShowCaption("拜托了：场上友方单位已达到4人上限。");
+            return false;
+        }
+
+        var slotIndex = CompanionSlotService.FindOpenPlayerSlot();
+        if (slotIndex == null)
+        {
+            PlayerApi.ShowCaption("拜托了：没有可用的友方站位。");
             return false;
         }
 
@@ -38,22 +45,23 @@ public static class ProjectionSummonService
             var prefab = SunExpResourceCache.Load<GameObject>("Model/player", true, "projection");
             if (prefab == null)
             {
-                PlayerApi.ShowCaption("魔女投影：投影模型加载失败。");
+                PlayerApi.ShowCaption("拜托了：投影模型加载失败。");
                 return false;
             }
 
             var gameObject = UnityEngine.Object.Instantiate(prefab);
             if (gameObject == null)
             {
-                PlayerApi.ShowCaption("魔女投影：投影模型加载失败。");
+                PlayerApi.ShowCaption("拜托了：投影模型加载失败。");
                 return false;
             }
 
+            var stats = CompanionStatsService.ProjectionStats(role);
             var projection = gameObject.AddComponent<ProjectionOtherObj>();
-            if (!projection.InitProjection(role, self.Self.InstanceId, ProjectionStateStore.ActiveCount()))
+            if (!projection.InitProjection(role, self.Self.InstanceId, slotIndex.Value, stats))
             {
                 UnityEngine.Object.Destroy(gameObject);
-                PlayerApi.ShowCaption("魔女投影：投影初始化失败。");
+                PlayerApi.ShowCaption("拜托了：投影初始化失败。");
                 return false;
             }
 
@@ -62,20 +70,22 @@ public static class ProjectionSummonService
                 self.Self.InstanceId,
                 role.Id,
                 role.DisplayName,
-                projection));
-            PlayerApi.ShowCaption("魔女投影：" + role.DisplayName + "的投影加入战斗。");
+                projection,
+                slotIndex.Value));
+            PlayerApi.ShowCaption("拜托了：" + role.DisplayName + "的投影加入战斗。");
             return true;
         }
         catch (Exception ex)
         {
             SunExpLog.Error("[Projection] summon failed", ex);
-            PlayerApi.ShowCaption("魔女投影：召唤失败。");
+            PlayerApi.ShowCaption("拜托了：召唤失败。");
             return false;
         }
     }
 
-    public static DataConfig CreateProjectionDataConfig(PolymorphRoleSpec role)
+    public static DataConfig CreateProjectionDataConfig(PolymorphRoleSpec role, CompanionStats? stats = null)
     {
+        var activeStats = stats ?? CompanionStatsService.ProjectionStats(role);
         var data = new Dictionary<string, string>(new DataConfig(role.Id, DataType.Career).data);
         var vars = new Dictionary<string, string>();
         var name = role.DisplayName + "的投影";
@@ -84,9 +94,9 @@ public static class ProjectionSummonService
         data["Name_zh-Hant"] = role.DisplayName + "的投影";
         data["Name_en"] = role.DisplayName + " Projection";
         data["Name_ja"] = role.DisplayName + "の投影";
-        data["Attack"] = "0";
-        data["Defend"] = "0";
-        data["Hp"] = ProjectionStrategyService.ProjectionMaxHp(role).ToString();
+        data["Attack"] = activeStats.Attack.ToString();
+        data["Defend"] = activeStats.Armor.ToString();
+        data["Hp"] = activeStats.MaxHp.ToString();
         data["ActionCount"] = "1";
         data["CardList"] = SunExpIds.ProjectionActionStaffTapCardId + "," + SunExpIds.ProjectionActionShieldBlessingCardId;
         return new DataConfig(data, vars);
@@ -141,30 +151,9 @@ public static class ProjectionSummonService
         }
     }
 
-    public static void PositionProjection(ProjectionOtherObj projection, int index)
+    public static void PositionProjection(ProjectionOtherObj projection, int slotIndex)
     {
-        var status = projection.Status;
-        if (status == null)
-        {
-            return;
-        }
-
-        var owner = FightPlayer.Instance?.Status;
-        var ownerX = owner?.transform?.position.x ?? -3.5f;
-        var x = ownerX - 1.15f - Math.Max(0, index) * 0.65f;
-        var groundY = 0f;
-        try
-        {
-            groundY = GameApp.Instance.NowBackground.transform.Find("com").GetComponent<SceneInfo>().ground_y;
-        }
-        catch
-        {
-            groundY = owner?.transform?.position.y ?? 0f;
-        }
-
-        var bottom = projection.gameObject.transform.Find("bottom");
-        var bottomOffset = bottom == null ? 0f : bottom.localPosition.y;
-        status.SetPosition(new Vector3(x, groundY - bottomOffset, 0f));
+        CompanionSlotService.PositionInPlayerSlot(projection, slotIndex);
     }
 
     private static int RealPlayerCount()

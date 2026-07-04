@@ -1,0 +1,49 @@
+{
+  "intents": [
+    {
+      "id": "staff_tap",
+      "enemyCardId": "SunExp_sunexp_enemycard_projection_staff_tap",
+      "type": "Attack",
+      "cost": 1,
+      "cooldown": 0,
+      "basePriority": 20,
+      "effect": "Damage",
+      "flatValue": 2,
+      "attackScale": 1.0,
+      "magicScale": 0.3,
+      "priorityBonus": "execute_low_hp",
+      "threat": {
+        "preview": 8,
+        "onUse": 12,
+        "decay": 4,
+        "targetBias": "self"
+      }
+    },
+    {
+      "id": "shield_blessing",
+      "enemyCardId": "SunExp_sunexp_enemycard_projection_shield_blessing",
+      "type": "Defense",
+      "cost": 1,
+      "cooldown": 0,
+      "basePriority": 16,
+      "effect": "Block",
+      "flatValue": 2,
+      "armorScale": 1.0,
+      "magicScale": 0.35,
+      "priorityBonus": "low_hp_or_no_block",
+      "threat": {
+        "preview": 10,
+        "onUse": 16,
+        "decay": 4,
+        "targetBias": "self"
+      }
+    }
+  ],
+  "profiles": [
+    {
+      "roleId": "*",
+      "attackTendency": [ "staff_tap" ],
+      "defenseTendency": [ "shield_blessing" ]
+    }
+  ]
+}

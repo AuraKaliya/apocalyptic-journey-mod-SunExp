@@ -9,6 +9,7 @@ namespace SunExp.Dll.Mechanics;
 public static class BattleRewardAdjustmentService
 {
     private static readonly List<BattleRewardAdjustmentRule> Rules = new();
+    private static readonly List<BattleRewardExclusiveRule> ExclusiveRules = new();
     private static readonly ConditionalWeakTable<BattleRewardsUI, AppliedRuleSet> AppliedRules = new();
 
     public static void Register(BattleRewardAdjustmentRule rule)
@@ -22,6 +23,17 @@ public static class BattleRewardAdjustmentService
         Rules.Add(rule);
     }
 
+    public static void RegisterExclusive(BattleRewardExclusiveRule rule)
+    {
+        if (rule == null || string.IsNullOrWhiteSpace(rule.Id))
+        {
+            return;
+        }
+
+        ExclusiveRules.RemoveAll(existing => string.Equals(existing.Id, rule.Id, StringComparison.Ordinal));
+        ExclusiveRules.Add(rule);
+    }
+
     public static void ApplyAll(BattleRewardsUI? rewardUi)
     {
         if (rewardUi == null)
@@ -30,10 +42,36 @@ public static class BattleRewardAdjustmentService
         }
 
         var context = new BattleRewardAdjustmentContext(rewardUi);
+        if (IsExclusive(context))
+        {
+            return;
+        }
+
         foreach (var rule in Rules.ToArray())
         {
             ApplyRule(context, rule);
         }
+    }
+
+    private static bool IsExclusive(BattleRewardAdjustmentContext context)
+    {
+        foreach (var rule in ExclusiveRules.ToArray())
+        {
+            try
+            {
+                if (rule.Applies(context))
+                {
+                    SunExpLog.Debug("[BattleRewardAdjustment] skipped by exclusive rule: " + rule.Id);
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                SunExpLog.Warn("[BattleRewardAdjustment] exclusive rule failed: " + rule.Id + " -> " + ex.Message);
+            }
+        }
+
+        return false;
     }
 
     private static void ApplyRule(BattleRewardAdjustmentContext context, BattleRewardAdjustmentRule rule)
@@ -108,4 +146,19 @@ public sealed class BattleRewardAdjustmentRule
     public Func<BattleRewardAdjustmentContext, bool> Applies { get; }
 
     public Action<BattleRewardAdjustmentContext> Apply { get; }
+}
+
+public sealed class BattleRewardExclusiveRule
+{
+    public BattleRewardExclusiveRule(
+        string id,
+        Func<BattleRewardAdjustmentContext, bool> applies)
+    {
+        Id = id;
+        Applies = applies;
+    }
+
+    public string Id { get; }
+
+    public Func<BattleRewardAdjustmentContext, bool> Applies { get; }
 }

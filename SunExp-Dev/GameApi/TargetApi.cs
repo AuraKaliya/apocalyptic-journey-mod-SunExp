@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using SunExp.Dll.Infrastructure;
+using SunExp.Dll.Mechanics;
 
 namespace SunExp.Dll.GameApi;
 
@@ -17,7 +18,9 @@ public static class TargetApi
         executor.SetStatus("AllTarget");
         var selfId = executor.Self?.InstanceId;
         return executor.Object?
-            .Where(target => target != null && target.InstanceId != selfId)
+            .Where(target => target != null
+                && target.InstanceId != selfId
+                && !IsUnavailableControlledEnemyTarget(executor, target))
             .ToList() ?? new List<IStatusManager>();
     }
 
@@ -84,7 +87,9 @@ public static class TargetApi
             return null;
         }
 
-        if (executor.Target != null && !IsSelf(executor, executor.Target))
+        if (executor.Target != null
+            && !IsSelf(executor, executor.Target)
+            && !IsUnavailableControlledEnemyTarget(executor, executor.Target))
         {
             return executor.Target;
         }
@@ -114,7 +119,7 @@ public static class TargetApi
             return null;
         }
 
-        if (executor.Target != null)
+        if (executor.Target != null && !IsUnavailableControlledEnemyTarget(executor, executor.Target))
         {
             return executor.Target;
         }
@@ -162,5 +167,15 @@ public static class TargetApi
 
         executor.SetStatusById(target.InstanceId);
         return true;
+    }
+
+    private static bool IsUnavailableControlledEnemyTarget(ScriptExecutor? executor, IStatusManager? target)
+    {
+        if (!HeartChangeControlService.IsControlled(target))
+        {
+            return false;
+        }
+
+        return executor?.Self?.fatherObject is not Enemy;
     }
 }

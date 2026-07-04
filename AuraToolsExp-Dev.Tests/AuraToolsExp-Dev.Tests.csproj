@@ -24,6 +24,8 @@
              Link="DamageMeter\DamageMeterModels.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Model\DamageLedger.cs"
              Link="DamageMeter\DamageLedger.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Model\DamageRunLedger.cs"
+             Link="DamageMeter\DamageRunLedger.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Model\DamageHistoryStore.cs"
              Link="DamageMeter\DamageHistoryStore.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Model\DamageMeterFormatters.cs"

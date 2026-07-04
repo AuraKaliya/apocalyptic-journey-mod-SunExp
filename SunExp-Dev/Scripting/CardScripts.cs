@@ -28,7 +28,8 @@ public static class CardScripts
         [SunExpIds.PolymorphCardShortId] = InitCommonCard,
         [SunExpIds.PolymorphRoleTemplateShortId] = InitCommonCard,
         [SunExpIds.ProjectionCardShortId] = InitCommonCard,
-        [SunExpIds.ProjectionRoleTemplateShortId] = InitCommonCard
+        [SunExpIds.ProjectionRoleTemplateShortId] = InitCommonCard,
+        [SunExpIds.HeartChangeCardShortId] = InitHeartChange
     };
 
     private static readonly Dictionary<string, Action<ScriptExecutor>> UseHandlers = new(StringComparer.Ordinal)
@@ -66,7 +67,8 @@ public static class CardScripts
         [SunExpIds.PolymorphCardShortId] = UsePolymorph,
         [SunExpIds.PolymorphRoleTemplateShortId] = UsePolymorphRoleCard,
         [SunExpIds.ProjectionCardShortId] = UseProjection,
-        [SunExpIds.ProjectionRoleTemplateShortId] = UseProjectionRoleCard
+        [SunExpIds.ProjectionRoleTemplateShortId] = UseProjectionRoleCard,
+        [SunExpIds.HeartChangeCardShortId] = UseHeartChange
     };
 
     public static void Init(ScriptExecutor self, string id)
@@ -474,12 +476,22 @@ public static class CardScripts
 
     private static void UseProjection(ScriptExecutor self)
     {
-        ProjectionActivationService.OpenRoleSelection(self);
+        ProjectionActivationService.GrantCurrentRoleCard(self);
     }
 
     private static void UseProjectionRoleCard(ScriptExecutor self)
     {
         ProjectionActivationService.SummonFromCard(self);
+    }
+
+    private static void InitHeartChange(ScriptExecutor self)
+    {
+        ExecutorApi.SetBaseScript(self, "AttackCardItem", canSelf: false);
+    }
+
+    private static void UseHeartChange(ScriptExecutor self)
+    {
+        HeartChangeControlService.TryControlFromCard(self);
     }
 
     private static string NormalizeId(string id)

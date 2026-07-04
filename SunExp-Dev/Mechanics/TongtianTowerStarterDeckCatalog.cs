@@ -13,15 +13,19 @@ public sealed class TongtianTowerStarterDeckProfile
         string title,
         string subtitle,
         string description,
-        string preview,
-        IReadOnlyList<string> cardIds)
+        IReadOnlyList<string> themeCardIds,
+        string? requiredPackId = null,
+        string? coverPackId = null)
     {
         Id = id;
         Title = title;
         Subtitle = subtitle;
         Description = description;
-        Preview = preview;
-        CardIds = cardIds;
+        ThemeCardIds = themeCardIds;
+        RequiredPackId = requiredPackId ?? "";
+        CoverPackId = !string.IsNullOrWhiteSpace(coverPackId) ? coverPackId! : RequiredPackId;
+        CardIds = TongtianTowerStarterDeckCatalog.FixedCardIds.Concat(themeCardIds).ToList();
+        Preview = TongtianTowerStarterDeckCatalog.BuildPreview(themeCardIds);
     }
 
     public string Id { get; }
@@ -34,78 +38,130 @@ public sealed class TongtianTowerStarterDeckProfile
 
     public string Preview { get; }
 
+    public string RequiredPackId { get; }
+
+    public string CoverPackId { get; }
+
+    public IReadOnlyList<string> ThemeCardIds { get; }
+
     public IReadOnlyList<string> CardIds { get; }
 }
 
 public static class TongtianTowerStarterDeckCatalog
 {
-    public const int DeckSize = 11;
+    public const int FixedDeckSize = 11;
+    public const int ThemeDeckSize = 4;
+    public const int DeckSize = FixedDeckSize + ThemeDeckSize;
+
+    public static readonly IReadOnlyList<string> FixedCardIds = new[]
+    {
+        "card_1",
+        "card_1",
+        "card_1",
+        "card_2",
+        "card_2",
+        "card_2",
+        "card_2",
+        "card_3",
+        "card_3",
+        "card_4",
+        "burningcard_1"
+    };
 
     private static readonly TongtianTowerStarterDeckProfile[] ProfilesInternal =
     {
         new(
-            "steady",
-            "日轮稳阵",
-            "防守、续航、低费启动",
-            "适合第一次挑战通天之塔。前几层优先保证手牌循环与护盾，容错最高。",
-            "火花 x2 / 晨光壁垒 / 太阳归返 / 污秽净除",
-            new[]
-            {
-                "spark",
-                "spark",
-                "radiant_flame_slash",
-                "ember_cloak_card",
-                "morning_light_bulwark",
-                "solar_prayer",
-                "solar_return",
-                "solar_origin_core",
-                "scorching_canopy_card",
-                "draw_flame",
-                "impurity_purge"
-            }),
+            "academy_required",
+            "学院必修",
+            "默认主题卡包",
+            "稳定的学院基础配置，适合无尽之渊第一层起步。",
+            new[] { "card_14", "healcard_3", "healcard_1", "healcard_1" }),
         new(
-            "burst",
-            "烬冠强袭",
-            "爆发、攻击、快速清场",
-            "用高密度攻击压低战斗回合数。奖励牌会带焚毁限制，爆发套需要更主动补牌。",
-            "火花 / 燃星咒 / 灼流回收 / 烈冠崩坠",
-            new[]
-            {
-                "spark",
-                "radiant_flame_slash",
-                "draw_flame",
-                "burning_star_hex",
-                "burning_calamity",
-                "scorching_flow_reclaim",
-                "solar_ignition",
-                "ember_tower",
-                "burning_crown_oath",
-                "blazing_crown_collapse",
-                "solar_coronation"
-            }),
+            "church_defense_tactics",
+            "教廷防卫技战术",
+            "反击与续航",
+            "围绕蓄势、恢复和低费攻击建立早期节奏。",
+            new[] { "counterattackcard_8", "counterattackcard_2", "counterattackcard_4", "card_14" },
+            "cardpack_3"),
         new(
-            "operate",
-            "星谱调度",
-            "运营、调律、长期成长",
-            "开局节奏稍慢，但更适合处理高层资源压力。保留星谱与百变作为长期运营轴。",
-            "日相调律 / 炎轮复归 / 星图 / 空白星谱 / 百变",
-            new[]
-            {
-                "spark",
-                "ember_cloak_card",
-                "solar_prayer",
-                "solar_phase_tuning",
-                "solar_return",
-                "solar_origin_core",
-                "flamewheel_recurrence",
-                "gathered_flame_shield",
-                "star_map",
-                "blank_star_score",
-                "polymorph"
-            })
+            "chrono_journey",
+            "时空奇旅",
+            "焚毁与时之笼",
+            "通过瞬闪、封装和残响快速处理手牌与防御。",
+            new[] { "timekeeper_1", "timekeeper_12", "timekeeper_13", "luckycard_9" },
+            "cardpack_4"),
+        new(
+            "black_witchcraft",
+            "黑色巫术",
+            "复还与结晶",
+            "保留复还启动件，同时补入基础护盾。",
+            new[] { "ReturnAgain_9", "ReturnAgain_2", "ReturnAgain_2", "card_6" },
+            "cardpack_6"),
+        new(
+            "serpent_from_shadows",
+            "蛇自阴影中袭来",
+            "生命换取爆发",
+            "用绯咏弦奏和瞳映岐影推动重生与复制。",
+            new[] { "Crowdfundingcard_49", "Crowdfundingcard_7", "healcard_1", "healcard_1" },
+            "cardpack_7"),
+        new(
+            "aldrin_oracles",
+            "奥尔德林诸神谕",
+            "唤神与终结",
+            "补入圣裁、屏障和高阶终结件。",
+            new[] { "combo_1", "combo_8", "Crowdfundingcard_16", "card_8" },
+            "cardpack_9"),
+        new(
+            "chaos_ensemble",
+            "混沌乐团",
+            "混沌与幸运",
+            "用终曲、猫猫和雷鸣加护打开高风险运营。",
+            new[] { "Crowdfundingcard_43", "Crowdfundingcard_41", "luckycard_8", "luckycard_8" },
+            "cardpack_12"),
+        new(
+            "bloodfiend_lineage",
+            "血鬼谱系综述",
+            "流血与升华",
+            "通过流血、自损和禁果换取成长空间。",
+            new[] { "blood_9", "blood_11", "healcard_8", "perceivecard_5" },
+            "cardpack_14"),
+        new(
+            "origin_of_elements",
+            "万物元素之始",
+            "元素累积",
+            "围绕元素、防御和多段法术建立中期爆发。",
+            new[] { "elementscard_1", "elementscard_6", "elementscard_13", "card_15" },
+            "cardpack_15"),
+        new(
+            "spell_sequence",
+            "法术序列",
+            "充能与复还",
+            "用冥想、咒闪刃、幻梦和升华维持资源循环。",
+            new[] { "universalcard_1", "SpellCard_8", "universalcard_20", "perceivecard_5" },
+            "cardpack_18"),
+        new(
+            "supreme_rituals",
+            "超位仪式",
+            "仪式启动",
+            "用引思、唤醒仪式和魔能之心寻找超位路线。",
+            new[] { "ritualcard_3", "ritualcard_15", "ritualcard_1", "card_7" },
+            "cardpack_19")
     };
 
     public static IReadOnlyList<TongtianTowerStarterDeckProfile> Profiles => ProfilesInternal;
+
+    public static IReadOnlyList<TongtianTowerStarterDeckProfile> AvailableProfiles()
+    {
+        var enabledPacks = EnabledCardPacks();
+        var result = ProfilesInternal
+            .Where(profile => IsAvailable(profile, enabledPacks))
+            .ToList();
+        SunExpLog.Info("[TongtianStarterDeck] available profiles="
+            + result.Count
+            + "; selectedPacks="
+            + string.Join("|", enabledPacks.OrderBy(id => id, StringComparer.OrdinalIgnoreCase)));
+        return result;
+    }
 
     public static TongtianTowerStarterDeckProfile? ProfileById(string id)
     {
@@ -128,8 +184,15 @@ public static class TongtianTowerStarterDeckCatalog
             return true;
         }
 
-        var row = SunExpConfigIndex.Row(DataType.Card, cardId);
-        return row == null || !string.Equals(DictionaryUtil.Get(row, "Id"), cardId, StringComparison.Ordinal);
+        try
+        {
+            var data = new DataConfig(cardId, DataType.Card).data;
+            return data == null || string.IsNullOrWhiteSpace(DictionaryUtil.Get(data, "Id"));
+        }
+        catch
+        {
+            return true;
+        }
     }
 
     public static string CardDisplayName(string cardId)
@@ -149,6 +212,74 @@ public static class TongtianTowerStarterDeckCatalog
         catch
         {
             return cardId;
+        }
+    }
+
+    public static string BuildPreview(IEnumerable<string> themeCardIds)
+    {
+        return string.Join(" / ", themeCardIds.Select(CardDisplayName));
+    }
+
+    private static bool IsAvailable(TongtianTowerStarterDeckProfile profile, HashSet<string> enabledPacks)
+    {
+        if (profile.CardIds.Count != DeckSize)
+        {
+            SunExpLog.Warn("[TongtianStarterDeck] hidden profile "
+                + profile.Id
+                + ": expected "
+                + DeckSize
+                + " cards but got "
+                + profile.CardIds.Count
+                + ".");
+            return false;
+        }
+
+        var invalidCards = profile.CardIds
+            .Where(IsInvalidCardId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (invalidCards.Count > 0)
+        {
+            SunExpLog.Warn("[TongtianStarterDeck] hidden profile "
+                + profile.Id
+                + ": invalidCards="
+                + string.Join("|", invalidCards));
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(profile.RequiredPackId))
+        {
+            SunExpLog.Info("[TongtianStarterDeck] visible profile "
+                + profile.Id
+                + ": default theme.");
+            return true;
+        }
+
+        var available = enabledPacks.Contains(profile.RequiredPackId);
+        SunExpLog.Info("[TongtianStarterDeck] "
+            + (available ? "visible" : "hidden")
+            + " profile "
+            + profile.Id
+            + ": requiredPack="
+            + profile.RequiredPackId
+            + "; selected="
+            + available);
+        return available;
+    }
+
+    private static HashSet<string> EnabledCardPacks()
+    {
+        try
+        {
+            var packs = Singleton<GameRuntimeData>.Instance.UseCardPack;
+            return new HashSet<string>(
+                packs.Where(pack => !string.IsNullOrWhiteSpace(pack)),
+                StringComparer.OrdinalIgnoreCase);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[TongtianStarterDeck] failed to read selected card packs: " + ex.Message);
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         }
     }
 }

@@ -3,6 +3,7 @@ using AuraShared.Core;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks.Visual;
 using SunExp.Dll.Infrastructure;
+using SunExp.Dll.Mechanics;
 using Witch.Core;
 using Witch.Mod;
 
@@ -18,6 +19,7 @@ public static class RuntimeHooks
             RegisterAfter(modConfig, "StatusManager.AddBuff", OnStatusManagerAddBuffAfter);
         });
         RunHookStep("dialogue flow", () => DialogueFlowRuntime.Initialize(modConfig));
+        RunHookStep("familiar growth", () => FamiliarGrowthRuntime.Initialize(modConfig));
         RunHookStep("dusk partner", () => DuskPartnerRuntime.Initialize(modConfig));
         RunHookStep("star clay doll", () => StarClayDollRuntime.Initialize(modConfig));
         RunHookStep("solar memory mode", () => SolarMemoryModeRuntime.Initialize(modConfig));
@@ -25,7 +27,8 @@ public static class RuntimeHooks
         RunHookStep("solar memory reward", () => SolarMemoryRewardRuntime.Initialize());
         RunHookStep("tongtian tower mode", () => TongtianTowerModeRuntime.Initialize(modConfig));
         RunHookStep("tongtian tower combat", () => TongtianTowerCombatRuntime.Initialize(modConfig));
-        RunHookStep("tongtian tower reward", () => TongtianTowerRewardRuntime.Initialize());
+        RunHookStep("tongtian tower reward", () => TongtianTowerRewardRuntime.Initialize(modConfig));
+        RunHookStep("tongtian tower post battle", () => TongtianTowerRewardRuntime.InitializePostBattleHooks(modConfig));
         RunHookStep("tongtian tower card affix", () => TongtianTowerCardAffixRuntime.Initialize(modConfig));
         RunHookStep("tongtian tower intro board", () => TongtianTowerIntroBoardRuntime.Initialize(modConfig));
         RunHookStep("battle reward adjustment", () => BattleRewardAdjustmentRuntime.Initialize(modConfig));
@@ -41,6 +44,9 @@ public static class RuntimeHooks
         RunHookStep("map node card art", () => MapNodeCardArtRuntime.Initialize(modConfig));
         RunHookStep("card visual skin", () => CardVisualSkinRuntime.Initialize(modConfig));
         RunHookStep("polymorph runtime", () => PolymorphRuntime.Initialize(modConfig));
+        RunHookStep("companion intent registry", () => CompanionIntentRegistry.Load(modConfig));
+        RunHookStep("companion threat runtime", () => CompanionThreatRuntime.Initialize(modConfig));
+        RunHookStep("heart change control", () => HeartChangeControlRuntime.Initialize(modConfig));
         RunHookStep("projection runtime", () => ProjectionRuntime.Initialize(modConfig));
         RunHookStep("wuna action animation", () => WunaActionAnimationRuntime.Initialize(modConfig));
         RunHookStep("wuna orbit fire", () => WunaOrbitFireRuntime.Initialize(modConfig));

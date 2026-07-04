@@ -13,6 +13,7 @@ TestShieldViewRecalculation();
 TestSnapshotRecovery();
 TestSequenceAndSessionGuards();
 TestLongRunningTotals();
+TestRunAggregateSurvivesHistoryRetention();
 TestFilteringAndGrandTotal();
 TestDetailLimit();
 TestAdventureHistory();
@@ -129,6 +130,78 @@ void TestLongRunningTotals()
 
     Assert(ledger.Combatants.Single().TotalHpDamage == 3_000_000_000L,
         "long fights cannot overflow aggregate damage");
+}
+
+void TestRunAggregateSurvivesHistoryRetention()
+{
+    var history = new DamageHistoryStore();
+    var run = new DamageRunLedger();
+    run.BeginAdventure("endless", "start");
+    long expectedTotal = 0;
+    var expectedRounds = DamageMeterProtocol.MaxFightHistory + 5;
+
+    for (var index = 1; index <= expectedRounds; index++)
+    {
+        var ledger = new DamageLedger();
+        ledger.StartFight("endless-fight-" + index, true);
+        ledger.StartRound(1);
+        var damage = Event(ledger, 1, "alpha", index, 0, DamageTeam.Friendly, "card_" + index);
+        Assert(ledger.Apply(damage), "endless fight event accepted " + index);
+        Assert(run.Apply(damage), "run aggregate event accepted " + index);
+        ledger.EndFight();
+        var snapshot = ledger.CreateSnapshot();
+        Assert(run.RecordEncounter(snapshot), "run aggregate records encounter " + index);
+        Assert(!run.RecordEncounter(snapshot), "run aggregate rejects duplicate encounter " + index);
+        Assert(history.Archive(snapshot, "Win", index.ToString()), "bounded fight history archives " + index);
+        expectedTotal += index;
+    }
+
+    Assert(history.Records.Count == DamageMeterProtocol.MaxFightHistory,
+        "bounded fight history still trims old fights");
+
+    var historyRecord = OutOfRunDamageHistoryBuilder.Build(
+        history.Records,
+        new OutOfRunDamageHistoryBuildRequest
+        {
+            AdventureId = "endless",
+            TeamMembers = new[]
+            {
+                new OutOfRunTeamMemberSnapshot { InstanceId = "alpha", PlayerId = "alpha" }
+            }
+        });
+    Assert(historyRecord.TeamTotalDamage < expectedTotal,
+        "bounded history no longer represents endless totals");
+
+    var aggregate = run.CreateSnapshot();
+    var runRecord = OutOfRunDamageHistoryBuilder.Build(
+        aggregate,
+        new OutOfRunDamageHistoryBuildRequest
+        {
+            AdventureId = "endless",
+            TeamMembers = new[]
+            {
+                new OutOfRunTeamMemberSnapshot { InstanceId = "alpha", PlayerId = "alpha" }
+            }
+        });
+    Assert(aggregate.EncounterCount == expectedRounds
+           && aggregate.TotalRounds == expectedRounds
+           && aggregate.ConfirmedEventCount == expectedRounds,
+        "run aggregate keeps unbounded encounter metadata");
+    Assert(runRecord.TeamTotalDamage == expectedTotal
+           && runRecord.TotalRounds == expectedRounds
+           && runRecord.TeamMembers[0].TotalDamage == expectedTotal,
+        "run aggregate powers endless out-of-run totals");
+
+    var restored = new DamageRunLedger();
+    Assert(restored.ApplySnapshot(aggregate), "run aggregate snapshot restores");
+    var stale = restored.CreateSnapshot();
+    var extraLedger = new DamageLedger();
+    extraLedger.StartFight("endless-extra", true);
+    extraLedger.StartRound(1);
+    var extraDamage = Event(extraLedger, 1, "alpha", 10, 0, DamageTeam.Friendly, "extra");
+    Assert(extraLedger.Apply(extraDamage), "extra event accepted");
+    Assert(restored.Apply(extraDamage), "restored aggregate advances");
+    Assert(!restored.ApplySnapshot(stale), "stale run aggregate snapshot cannot roll totals back");
 }
 
 void TestFilteringAndGrandTotal()

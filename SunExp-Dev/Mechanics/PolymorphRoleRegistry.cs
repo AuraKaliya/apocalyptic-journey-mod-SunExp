@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using Witch.Core;
 
@@ -28,13 +29,37 @@ public static class PolymorphRoleRegistry
 
     public static PolymorphRoleSpec? Find(string roleId)
     {
-        var id = (roleId ?? "").Trim();
+        var id = NormalizeRoleId(roleId);
         if (id.Length == 0)
         {
             return null;
         }
 
-        return AllRoles().FirstOrDefault(role => string.Equals(role.Id, id, StringComparison.Ordinal));
+        return AllRoles().FirstOrDefault(role =>
+        {
+            var roleIdValue = NormalizeRoleId(role.Id);
+            return string.Equals(roleIdValue, id, StringComparison.OrdinalIgnoreCase)
+                || roleIdValue.EndsWith("_" + id, StringComparison.OrdinalIgnoreCase)
+                || id.EndsWith("_" + roleIdValue, StringComparison.OrdinalIgnoreCase);
+        });
+    }
+
+    public static PolymorphRoleSpec? CurrentRole()
+    {
+        try
+        {
+            var data = RoleTable.Instance?.Career?.data;
+            if (data != null)
+            {
+                return ToSpec(new Dictionary<string, string>(data));
+            }
+        }
+        catch
+        {
+            // Fall through to current career id lookup.
+        }
+
+        return Find(PlayerApi.GetCurrentCareerId());
     }
 
     public static IEnumerable<string> CardFacePaths(int limit)
@@ -138,5 +163,18 @@ public static class PolymorphRoleRegistry
     private static PolymorphRoleSpec EmptySpec()
     {
         return new PolymorphRoleSpec("", "", "", "", "", "", false, 0, 0, PolymorphRoleCropRegistry.DefaultCropSize);
+    }
+
+    private static string NormalizeRoleId(string roleId)
+    {
+        var value = (roleId ?? "").Trim().TrimStart('*');
+        const string sunExpPrefix = "SunExp_";
+        if (value.StartsWith(sunExpPrefix, StringComparison.Ordinal))
+        {
+            var parts = value.Split('_');
+            return parts.Length > 0 ? parts[parts.Length - 1] : value;
+        }
+
+        return value;
     }
 }

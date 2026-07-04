@@ -11,7 +11,7 @@ public sealed class StarBlessingCostOverrideStore
     private readonly Dictionary<IDataConfig, Entry> entries =
         new(ReferenceComparer<IDataConfig>.Instance);
 
-    public bool BeginPreview(IDataConfig? config)
+    public bool BeginPreview(IDataConfig? config, int targetCost)
     {
         if (config == null || entries.ContainsKey(config))
         {
@@ -19,10 +19,18 @@ public sealed class StarBlessingCostOverrideStore
         }
 
         var currentCost = CardConfigApi.CurrentCost(config);
+        var nextCost = Math.Max(0, Math.Min(currentCost, targetCost));
         var originalOnceCost = DictionaryUtil.GetInt(config.Vars, "OnceExCost");
-        entries[config] = new Entry(originalOnceCost);
-        DictionaryUtil.Set(config.Vars, "OnceExCost", (originalOnceCost - currentCost).ToString());
+        entries[config] = new Entry(originalOnceCost, nextCost);
+        DictionaryUtil.Set(config.Vars, "OnceExCost", (originalOnceCost + nextCost - currentCost).ToString());
         return true;
+    }
+
+    public int? TargetCost(IDataConfig? config)
+    {
+        return config != null && entries.TryGetValue(config, out var entry)
+            ? entry.TargetCost
+            : null;
     }
 
     public bool Contains(IDataConfig? config)
@@ -91,12 +99,15 @@ public sealed class StarBlessingCostOverrideStore
 
     private sealed class Entry
     {
-        public Entry(int originalOnceCost)
+        public Entry(int originalOnceCost, int targetCost)
         {
             OriginalOnceCost = originalOnceCost;
+            TargetCost = targetCost;
         }
 
         public int OriginalOnceCost { get; }
+
+        public int TargetCost { get; }
 
         public bool BlessingConsumed { get; set; }
 

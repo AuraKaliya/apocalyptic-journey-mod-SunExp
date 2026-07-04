@@ -37,17 +37,17 @@ public static class TongtianTowerMapBuilder
     public static IReadOnlyList<MapTree.Node> VisualDefaultNodes(MapTree? tree)
     {
         var result = new List<MapTree.Node>(SunExpIds.TongtianTowerLayerNodeCount);
-        if (tree?.DefaultNode == null)
+        var plan = TongtianTowerFloorPlanStore.Load();
+        if (tree == null || plan == null)
         {
             return result;
         }
 
         for (var slot = 0; slot < SunExpIds.TongtianTowerLayerNodeCount; slot++)
         {
-            var index = NativeDefaultIndexForVisualSlot(slot);
-            if (index >= 0 && index < tree.DefaultNode.Count)
+            if (plan.TryGetSlot(slot, out var slotPlan))
             {
-                result.Add(tree.DefaultNode[index]);
+                result.Add(slotPlan.ToNode(tree));
             }
         }
 
@@ -57,24 +57,14 @@ public static class TongtianTowerMapBuilder
     public static bool TryGetVisualDefaultNode(MapTree? tree, int visualSlot, out MapTree.Node node)
     {
         node = null!;
-        if (tree?.DefaultNode == null)
+        var plan = TongtianTowerFloorPlanStore.Load();
+        if (tree == null || plan == null || !plan.TryGetSlot(visualSlot, out var slot))
         {
             return false;
         }
 
-        var index = NativeDefaultIndexForVisualSlot(visualSlot);
-        if (index < 0 || index >= tree.DefaultNode.Count || tree.DefaultNode[index] == null)
-        {
-            return false;
-        }
-
-        node = tree.DefaultNode[index];
+        node = slot.ToNode(tree);
         return true;
-    }
-
-    public static int BuildingSlotForFloor(int floor)
-    {
-        return 1 + ((Math.Max(1, floor) - 1) % 4);
     }
 
     public static bool RepairFixedMapArrays(MapTree? tree, int floor, string[] maps, string[] mapData)
@@ -85,29 +75,36 @@ public static class TongtianTowerMapBuilder
         }
 
         var changed = false;
+        changed = RepairMapArraySlot(tree, SunExpIds.TongtianTowerStartSlotIndex, maps, mapData) || changed;
         changed = RepairMapArraySlot(tree, SunExpIds.TongtianTowerBossSlotIndex, maps, mapData) || changed;
-        changed = RepairMapArraySlot(tree, BuildingSlotForFloor(floor), maps, mapData) || changed;
+
         return changed;
     }
 
     private static void BuildFloor(MapTree tree, int floor, string source)
     {
-        var visualNodes = CreateVisualNodes(tree, floor);
+        var plan = TongtianTowerFloorPlanner.Create(tree, floor);
+        TongtianTowerFloorPlanStore.Save(plan);
         tree.DefaultNode.Clear();
-        foreach (var node in NativeDefaultOrder(visualNodes))
+        var nativeDefaults = new List<MapTree.Node>(NativeDefaultOrder(tree, plan));
+        foreach (var node in nativeDefaults)
         {
             MapNodeSafetyService.EnsureNodeDice(tree, node, "TongtianTowerMapBuilder.Default");
             tree.DefaultNode.Add(node);
         }
 
         tree.SelectNode.Clear();
-        for (var i = 0; i < SunExpIds.TongtianTowerSelectableNodeCount; i++)
+        var selectableKinds = TongtianTowerSelectableNodeDeckPlanner.CreateKinds(
+            tree,
+            floor,
+            SunExpIds.TongtianTowerSelectableNodeCount);
+        for (var i = 0; i < selectableKinds.Count; i++)
         {
             var selectNode = TongtianTowerNodePoolService.CreateNode(
                 tree,
                 floor,
                 i,
-                TongtianTowerNodeKind.Monster);
+                selectableKinds[i]);
             tree.SelectNode.Add(selectNode);
         }
 
@@ -124,66 +121,36 @@ public static class TongtianTowerMapBuilder
             + source
             + "; floor="
             + floor
-            + "; buildingSlot="
-            + BuildingSlotForFloor(floor)
-            + "; defaults="
-            + string.Join("|", NodeSummaries(visualNodes)));
+            + "; fixedSlots="
+            + string.Join("|", plan.FixedSlots())
+            + "; select="
+            + string.Join("|", selectableKinds)
+            + "; visualFixed="
+            + string.Join("|", plan.Summaries())
+            + "; nativeDefaults="
+            + string.Join("|", NativeSummaries(nativeDefaults)));
     }
 
-    private static List<MapTree.Node> CreateVisualNodes(MapTree tree, int floor)
+    private static IEnumerable<MapTree.Node> NativeDefaultOrder(MapTree tree, TongtianTowerFloorPlan plan)
     {
-        var buildingSlot = BuildingSlotForFloor(floor);
-        var nodes = new List<MapTree.Node>(SunExpIds.TongtianTowerLayerNodeCount);
-        for (var slot = 0; slot < SunExpIds.TongtianTowerLayerNodeCount; slot++)
-        {
-            var kind = slot == SunExpIds.TongtianTowerBossSlotIndex
-                ? TongtianTowerNodeKind.Boss
-                : slot == buildingSlot
-                    ? TongtianTowerNodeKind.Building
-                    : TongtianTowerNodeKind.Monster;
-            nodes.Add(TongtianTowerNodePoolService.CreateNode(tree, floor, slot, kind));
-        }
-
-        return nodes;
-    }
-
-    private static IEnumerable<MapTree.Node> NativeDefaultOrder(IReadOnlyList<MapTree.Node> visualNodes)
-    {
-        yield return visualNodes[0];
-        yield return visualNodes[SunExpIds.TongtianTowerBossSlotIndex];
-        yield return visualNodes[4];
-        yield return visualNodes[3];
-        yield return visualNodes[2];
-        yield return visualNodes[1];
+        return TongtianTowerMapProjectionService.NativeDefaultOrder(tree, plan);
     }
 
     private static bool IsCurrentFloorReady(MapTree tree, int floor)
     {
-        if (tree.DefaultNode.Count < SunExpIds.TongtianTowerLayerNodeCount
+        if (!TongtianTowerFloorPlanStore.TryLoad(floor, out var plan))
+        {
+            return false;
+        }
+
+        if (tree.DefaultNode.Count < SunExpIds.TongtianTowerNativeDefaultNodeCount
             || tree.SelectNode.Count < SunExpIds.TongtianTowerSelectableNodeCount
             || GameSaveManager.GetValue<int>(SunExpIds.TongtianTowerGeneratedFloorKey) != floor)
         {
             return false;
         }
 
-        return TryGetVisualDefaultNode(tree, SunExpIds.TongtianTowerBossSlotIndex, out var boss)
-            && string.Equals(NodeKind(boss), TongtianTowerNodeKind.Boss.ToString(), StringComparison.Ordinal)
-            && TryGetVisualDefaultNode(tree, BuildingSlotForFloor(floor), out var building)
-            && string.Equals(NodeKind(building), TongtianTowerNodeKind.Building.ToString(), StringComparison.Ordinal);
-    }
-
-    private static int NativeDefaultIndexForVisualSlot(int slot)
-    {
-        return slot switch
-        {
-            0 => 0,
-            5 => 1,
-            4 => 2,
-            3 => 3,
-            2 => 4,
-            1 => 5,
-            _ => -1
-        };
+        return TongtianTowerMapProjectionService.IsNativeBootstrapReady(tree, plan);
     }
 
     private static bool RepairMapArraySlot(MapTree? tree, int visualSlot, string[] maps, string[] mapData)
@@ -215,9 +182,27 @@ public static class TongtianTowerMapBuilder
         return changed;
     }
 
+    private static IEnumerable<string> NativeSummaries(IEnumerable<MapTree.Node> nodes)
+    {
+        foreach (var node in nodes)
+        {
+            if (node?.data == null)
+            {
+                yield return "<empty>";
+                continue;
+            }
+
+            var id = DictionaryUtil.Get(node.data, "Id");
+            var nodeId = DictionaryUtil.Get(node.data, "NodeId", id);
+            var type = DictionaryUtil.Get(node.data, "Type");
+            var kind = DictionaryUtil.Get(node.data, SunExpIds.TongtianTowerNodeKindKey, type);
+            yield return id + "/" + nodeId + ":" + kind;
+        }
+    }
+
     private static void EnsureTowerSaveDefaults()
     {
-        SetSaveValue(GameVar.ExLockDes.ToString(), "4");
+        SetSaveValue(GameVar.ExLockDes.ToString(), "0");
         SetSaveValue(GameVar.ExDeleteDes.ToString(), "0");
     }
 
@@ -242,22 +227,4 @@ public static class TongtianTowerMapBuilder
         }
     }
 
-    private static IEnumerable<string> NodeSummaries(IEnumerable<MapTree.Node> nodes)
-    {
-        foreach (var node in nodes)
-        {
-            yield return DictionaryUtil.Get(node.data, "Id")
-                + "/"
-                + DictionaryUtil.Get(node.data, "NodeId")
-                + ":"
-                + NodeKind(node);
-        }
-    }
-
-    private static string NodeKind(MapTree.Node node)
-    {
-        return node.data != null
-            ? DictionaryUtil.Get(node.data, SunExpIds.TongtianTowerNodeKindKey)
-            : "";
-    }
 }

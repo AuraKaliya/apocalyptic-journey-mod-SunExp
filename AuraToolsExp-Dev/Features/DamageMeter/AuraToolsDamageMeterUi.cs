@@ -97,6 +97,7 @@ internal static class AuraToolsDamageMeterUi
 
     public static void Refresh(
         DamageLedger ledger,
+        DamageRunLedger runAggregate,
         DamageHistoryStore history,
         DamageMeterSettings settings,
         string networkStatus)
@@ -146,6 +147,17 @@ internal static class AuraToolsDamageMeterUi
             emptyText.text = history.Records.Count > 0
                 ? "当前没有进行中的战斗。\n可通过“查看历史”回顾本轮冒险的输出记录。"
                 : "等待下一场战斗开始。\n悬浮球会在世界推演的备战、地图和战斗界面保持可用。";
+            var idleRunTotal = runAggregate.DisplayGrandTotal(
+                settings.CountShieldLoss,
+                settings.FriendlyOnly,
+                settings.IncludeUnknownTeam);
+            if (runAggregate.HasDamage)
+            {
+                emptyText.text = "Run total " + idleRunTotal
+                                 + " / Encounters " + runAggregate.EncounterCount
+                                 + " / Rounds " + runAggregate.TotalRounds;
+            }
+
             footer.text = networkStatus + "  /  拖动悬浮球可调整位置";
             return;
         }
@@ -177,6 +189,10 @@ internal static class AuraToolsDamageMeterUi
         }
 
         footer.text = "本场合计 " + grandTotal
+                      + "  /  Run total " + runAggregate.DisplayGrandTotal(
+                          settings.CountShieldLoss,
+                          settings.FriendlyOnly,
+                          settings.IncludeUnknownTeam)
                       + "  /  已完成 " + ledger.CompletedRoundCount + " 回合"
                       + "  /  " + networkStatus
                       + "  /  拖动悬浮球可调整位置";

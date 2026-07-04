@@ -11,12 +11,13 @@ public static class SunExpUiSprites
 {
     public const string ButtonSpritePath = "Mods/SunExp/ModResource/Images/UI/button-\u4e5d\u5bab\u683c.png";
     public const string PanelSpritePath = "Mods/SunExp/ModResource/Images/UI/background-\u4e5d\u5bab\u683c.png";
+    public const string LabelSpritePath = "Mods/SunExp/ModResource/Images/UI/Label-\u4e5d\u5bab\u683c.png";
 
     private static readonly Dictionary<string, Sprite?> Cache = new(StringComparer.OrdinalIgnoreCase);
 
     public static Sprite? Button(string logPrefix)
     {
-        return NineSlice(ButtonSpritePath, new Vector4(24f, 12f, 24f, 12f), logPrefix);
+        return NineSlice(ButtonSpritePath, new Vector4(14f, 14f, 14f, 14f), logPrefix, new Rect(17f, 16f, 135f, 49f));
     }
 
     public static Sprite? Panel(string logPrefix)
@@ -24,7 +25,12 @@ public static class SunExpUiSprites
         return NineSlice(PanelSpritePath, new Vector4(4f, 4f, 4f, 4f), logPrefix);
     }
 
-    public static Sprite? NineSlice(string path, Vector4 border, string logPrefix)
+    public static Sprite? Label(string logPrefix)
+    {
+        return NineSlice(LabelSpritePath, new Vector4(24f, 12f, 24f, 12f), logPrefix);
+    }
+
+    public static Sprite? NineSlice(string path, Vector4 border, string logPrefix, Rect? sourceCrop = null)
     {
         var key = path
                   + "|"
@@ -34,7 +40,9 @@ public static class SunExpUiSprites
                   + ","
                   + border.z.ToString("0.###", CultureInfo.InvariantCulture)
                   + ","
-                  + border.w.ToString("0.###", CultureInfo.InvariantCulture);
+                  + border.w.ToString("0.###", CultureInfo.InvariantCulture)
+                  + "|"
+                  + CropKey(sourceCrop);
         if (Cache.TryGetValue(key, out var cached))
         {
             return cached;
@@ -53,9 +61,10 @@ public static class SunExpUiSprites
                 var texture = source.texture;
                 texture.filterMode = FilterMode.Point;
                 texture.wrapMode = TextureWrapMode.Clamp;
+                var rect = ResolveSpriteRect(source, sourceCrop);
                 sprite = Sprite.Create(
                     texture,
-                    source.rect,
+                    rect,
                     new Vector2(0.5f, 0.5f),
                     100f,
                     0,
@@ -70,5 +79,37 @@ public static class SunExpUiSprites
 
         Cache[key] = sprite;
         return sprite;
+    }
+
+    private static string CropKey(Rect? sourceCrop)
+    {
+        if (sourceCrop == null)
+        {
+            return "full";
+        }
+
+        var crop = sourceCrop.Value;
+        return crop.x.ToString("0.###", CultureInfo.InvariantCulture)
+               + ","
+               + crop.y.ToString("0.###", CultureInfo.InvariantCulture)
+               + ","
+               + crop.width.ToString("0.###", CultureInfo.InvariantCulture)
+               + ","
+               + crop.height.ToString("0.###", CultureInfo.InvariantCulture);
+    }
+
+    private static Rect ResolveSpriteRect(Sprite source, Rect? sourceCrop)
+    {
+        if (sourceCrop == null)
+        {
+            return source.rect;
+        }
+
+        var crop = sourceCrop.Value;
+        var x = Mathf.Clamp(source.rect.x + crop.x, source.rect.x, source.rect.xMax);
+        var y = Mathf.Clamp(source.rect.y + crop.y, source.rect.y, source.rect.yMax);
+        var width = Mathf.Clamp(crop.width, 1f, source.rect.xMax - x);
+        var height = Mathf.Clamp(crop.height, 1f, source.rect.yMax - y);
+        return new Rect(x, y, width, height);
     }
 }

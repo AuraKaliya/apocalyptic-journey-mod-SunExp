@@ -1,199 +1,133 @@
-# 通天之塔：玩法介绍、机制与数值文档
+# 无尽之渊：玩法介绍、机制与数值文档
 
-本文档用于审阅当前已实现的“通天之塔”模式。它描述实际落地机制、关键数值、可调整参数与后续设计空位。
+本文档用于审阅当前已实现的【无尽之渊】玩法。历史开发名为【通天之塔】，因此内部仍保留 `TongtianTower*` 类名、存档键与部分 Hook 名称，用于兼容旧存档、旧测试和既有架构断言；玩家可见文本统一使用【无尽之渊】。
 
 ## 玩法定位
 
-通天之塔是一个基于普通模式流程接入的无限爬塔模式。玩家从模式选择页进入后，会创建带有专属标记的普通模式存档；运行期间通过独立地图生成器持续生成下一层，并在到达本层终点后推进塔层。
+【无尽之渊】是一个基于普通模式流程接入的无限下潜玩法。玩家从模式选择页进入后，会创建带有专属标记的普通模式存档；运行期间通过独立地图生成器持续生成下一层，并在到达本层终点后推进层数。
 
 设计目标：
 
 - 提供无上限推进的地图循环。
-- 移除“世界推演”地图层数与布局写死限制。
-- 只提供怪物、首领、建筑三类节点，不生成事件节点。
-- 每层固定一个首领节点，固定一个建筑节点，其余为怪物节点。
-- 通过敌人 HP 成长、奖励卡增量和奖励卡默认焚毁，维持长期推进压力与卡组供给。
+- 复用原生 `NormalMapManager` 的稳定启动链路，同时用专属 GameVars 标记玩法身份。
+- 每层固定第一个怪物节点和最后一个首领节点，中间 4 个节点由可选节点牌配置。
+- 通过敌人 HP 成长、节点类型区分、专属战斗奖励、默认卡牌限制、【注视等级】和【深渊震荡】维持长期压力。
+- 从第 2 层开始提供【无尽之渊】专属里程碑奖励选择。
 
 非目标：
 
 - 当前不提供事件节点。
-- 当前不提供通天塔专属剧情结算。
-- 当前不改造原生卡牌奖励候选池，只在奖励选择阶段追加模式限制词条。
-- 当前不接入官方“限制使用次数”型诅咒炼金词条；已落地策略为原生 `Burnout`。
+- 当前不提供专属剧情结算。
+- 当前不与使魔成长系统联动。
+- 当前不改造原生卡牌奖励候选池；玩法内通过奖励、商店、角色技能等渠道获得或生成的卡牌由运行期统一追加模式限制词条。
+
+## 命名约定
+
+玩家可见命名：
+
+- 玩法名：【无尽之渊】。
+- 第 1-6 层阶段：【潜行模式】。
+- 第 7 层起阶段：【无尽模式】。
+- 压力等级：【注视等级】，初始值为 1。
+- 统一惩罚事件：【深渊震荡】。
+
+内部兼容命名：
+
+- `TongtianTower*`：历史代码命名，表示无尽之渊主玩法运行时。
+- `SunExp_TongtianTowerMode` 等 GameVars：历史存档键，不随玩家可见命名变更。
+- `SunExpTongtianTower`：旧版 modeType 兼容迁移标记。
 
 ## 入口与存档
 
-入口位于模式选择界面中“日耀回忆”之后，排序值为 `110`。入口复用原生 `SublimationMode` 模板，并通过共享的模式入口布局系统追加到现有入口之后。
+入口位于模式选择界面中【日耀回忆】之后，排序值为 `110`。入口复用原生 `SublimationMode` 模板，并通过共享的模式入口布局系统追加到现有入口之后。
 
-进入模式时创建普通模式存档：
+进入玩法时创建普通模式存档：
 
-- `modeType = "Normal"`。
-- `SunExp_TongtianTowerMode = "1"`：标记当前存档为通天之塔。
-- `SunExp_TongtianTowerFloor = "1"`：当前塔层从第 1 层开始。
-- `SunExp_TongtianTowerGeneratedFloor = "0"`：记录已生成地图的塔层。
+- `SaveInfo.modeType = "Normal"`：必须保持官方普通模式承载类型，确保 `GameServer.StartRole` 能通过 `GameSaveManager.GetSaveType()` 正确选择 `NormalMapManager`。
+- `LobbyManager.SetLobbyModeType("Normal")`：运行时仍复用官方 `NormalMapManager`，避免原生地图启动链路拿到自定义模式类型。
+- `SunExp_TongtianTowerMode = "1"`：标记当前存档为无尽之渊。
+- `SunExp_TongtianTowerFloor = "1"`：当前层数从第 1 层开始。
+- `SunExp_TongtianTowerGeneratedFloor = "0"`：记录已生成地图的层数。
 - `SunExp_TongtianTowerSeed = seed`：保存本次运行种子。
-- `ExLockDes = "4"`：打开六个可视地图槽位。
+- `SunExp_EndlessAbyssGazeLevel = "1"`：注视等级初始值为 1。
+- `SunExp_EndlessAbyssLedger`：记录深渊震荡与里程碑奖励结算。
+- `SunExp_EndlessAbyssPendingShock`：记录待处理的深渊震荡，防止重复触发。
+- `ExLockDes = "0"`：不额外增加原生锁定槽位；无尽之渊运行时只锁定首节点和尾节点。
 - `ExDeleteDes = "0"`：不删除额外地图槽位。
 - 保留当前难度词条选择：`HardTags = SunExpHardTagRuntime.SelectedRuntimeHardTags()`。
 
 多人边界：
 
-- 只有房主可以开始通天之塔运行。
-- 客户端只做本地展示和同步修复，不推进共享塔层。
+- 只有房主可以开始无尽之渊运行。
+- 客户端只做本地展示和同步修复，不推进共享层数。
 
 ## 地图结构
 
-每层通天之塔使用 6 个可视槽位：
+每层无尽之渊使用 6 个可视槽位：
 
 | 可视槽位 | UI 位置 | 节点类型 |
 | --- | --- | --- |
-| 0 | `Start` | 怪物 |
-| 1 | `Node1` | 建筑或怪物 |
-| 2 | `Node2` | 建筑或怪物 |
-| 3 | `Node3` | 建筑或怪物 |
-| 4 | `Node4` | 建筑或怪物 |
-| 5 | `End` | 首领 |
+| 0 | `Start` | 固定为当前层普通怪 |
+| 1 | `Node1` | 初始为空，由玩家拖入节点牌 |
+| 2 | `Node2` | 初始为空，由玩家拖入节点牌 |
+| 3 | `Node3` | 初始为空，由玩家拖入节点牌 |
+| 4 | `Node4` | 初始为空，由玩家拖入节点牌 |
+| 5 | `End` | 首领或无尽首领 |
 
-建筑槽位按塔层循环：
+固定槽位为 `Start` 怪物和 `End` 首领。`Node1-4` 在地图初始状态下保持空槽，由玩家从手上的可选节点牌中拖入。建筑和休息处不再写入可视固定槽，而是进入可选节点牌：
 
 ```text
-buildingSlot = 1 + ((floor - 1) % 4)
+selectableNodes = 1 Rest + 1 Building + dynamic Fight nodes
 ```
 
-因此建筑位置循环为：
+每层生成 8 个可选节点，用于原生地图选择流程消费；玩家从中选择 4 张填入中间槽位。配比由 `TongtianTowerSelectableNodeDeckPlanner` 生成，并用地图骰子做确定性洗牌。
 
-| 塔层 | 建筑槽位 |
-| --- | --- |
-| 1 | 1 |
-| 2 | 2 |
-| 3 | 3 |
-| 4 | 4 |
-| 5 | 1 |
-| 6 | 2 |
+### 节点类型
 
-每层还生成 8 个可选节点，全部为怪物节点，用于原生地图选择流程消费。
+当前需要区分 4 类战斗节点：
+
+- 普通怪：基础战斗节点。
+- 精英：更高强度的战斗节点。
+- 首领：潜行模式和普通层终点节点。
+- 无尽首领：进入无尽模式后的终点节点，用于承接更高强度和后续扩展奖励。
+
+`TongtianTowerNodeKind` 保存节点分类。奖励、额外敌人、深渊震荡触发和后续 UI 展示都应优先读取节点分类，而不是只依赖层数。
 
 ### 独立地图生成
 
-通天之塔不调用原生世界推演地图生成器，也不调用 `TypeGenerate`。当前实现由 `TongtianTowerMapBuilder` 直接生成当前层所需的 `MapTree.DefaultNode` 和 `MapTree.SelectNode`。
-
-地图构建流程：
+无尽之渊不调用原生世界推演地图生成器，也不调用 `TypeGenerate`。当前实现由 `TongtianTowerMapBuilder` 直接生成当前层所需的 `MapTree.DefaultNode` 和 `MapTree.SelectNode`。
 
 ```mermaid
 flowchart TD
-    A["进入通天之塔存档"] --> B["设置塔模式 GameVars"]
+    A["进入无尽之渊存档"] --> B["设置玩法 GameVars"]
     B --> C["NormalMapManager.MapItemInit 前确保地图"]
     C --> D["TongtianTowerMapBuilder.BuildFloor"]
-    D --> E["生成 6 个可视默认节点"]
-    D --> F["生成 8 个怪物可选节点"]
+    D --> E["生成首节点怪物与尾节点首领"]
+    D --> F["生成 8 个可选节点牌"]
     E --> G["写入 MapTree.DefaultNode"]
     F --> H["写入 MapTree.SelectNode"]
     G --> I["MapSelectUI 显示并修正固定槽位"]
 ```
 
-为了适配原生 `DefaultNode` 的内部顺序，通天之塔维护一层视觉槽位到原生顺序的映射：
+为了适配原生 `DefaultNode` 的内部顺序，无尽之渊维护一层视觉槽位到原生顺序的映射。原生初始化阶段的 `DefaultNode[0]` 会先使用安全的休息处占位，避免官方 `Start` 节点初始化用怪物节点触发空引用；`NormalMapManager.MapItemInit` 完成后，再把可视 `Start` 槽修正为楼层计划中的固定怪物。
 
-| 原生 `DefaultNode` index | 对应可视槽位 |
-| --- | --- |
-| 0 | 0 |
-| 1 | 5 |
-| 2 | 4 |
-| 3 | 3 |
-| 4 | 2 |
-| 5 | 1 |
+| 原生 `DefaultNode` index | 原生初始化用途 | 无尽之渊最终可视槽位 |
+| --- | --- | --- |
+| 0 | `Start` 安全占位 | `Start`，随后替换为固定怪物 |
+| 1 | `End` 首领 | `End` |
 
-运行时读取和修复地图时都通过该映射还原可视槽位，避免 UI 位置与节点数据错位。
+每次构建或确认地图时，无尽之渊会：
 
-### 原生生成器抑制
-
-每次构建或确认地图时，通天之塔会：
-
-- 强制保存 `ExLockDes = 4` 和 `ExDeleteDes = 0`。
+- 强制保存 `ExLockDes = 0` 和 `ExDeleteDes = 0`。
 - 确保 `MapTree.hasUsed` 包含 `0`，使原生生成器不再把第 0 段当作未使用层段重新生成。
-- 在原生 `NormalMapManager.GeneratrMap` 后再次修复通天塔地图状态。
+- 在原生 `NormalMapManager.GeneratrMap` 后再次修复无尽之渊地图状态。
+- 地图标题显示为：`无尽之渊 第X层`。
 
-这不是跳过原生流程，而是在安全 Hook 点把原生结果修正为通天塔目标结构。
+## 层数推进
 
-### 固定槽位修复
+无尽之渊层数和原生地图层数分离：
 
-首领槽位和建筑槽位是每层的固定槽位。地图 UI 和网络同步过程中，这两个槽位会被反复校验：
-
-- 如果 UI 中节点数据与通天塔默认节点不一致，替换为通天塔节点。
-- 如果 `maps` / `mapData` 同步数组中固定槽位被随机候选覆盖，改回通天塔首领或建筑节点。
-- 建筑节点使用建筑卡背景贴图。
-- 地图标题显示为：`通天之塔 第X层`。
-
-## 节点池
-
-通天之塔节点池独立封装在 `TongtianTowerNodePoolService`。节点池本身不自带静态数据，而是从游戏主体的 `DataType.Map` 表筛选数据，便于后续接入自定义节点池。
-
-### 通用过滤
-
-所有节点类型都会先经过通用可用性过滤：
-
-- `Id` 和 `NodeId` 必须存在。
-- 排除 `Id` 或 `NodeId` 以 `*` 开头的隐藏行。
-- 排除 `Id` 或 `NodeId` 包含 `Breaks` 的断点行。
-- 排除 `Rarity = 7` 的特殊行。
-- 排除 `Type = Event` 的事件行。
-- 排除 `Note = 普通事件` 的事件行。
-- 排除当前游戏运行时仍处于锁定状态的行。
-
-### 楼层解锁
-
-地图行的 `Level` 字段会按塔层分段解锁：
-
-```text
-unlockedTier = min(4, max(0, (floor - 1) / 3))
-```
-
-| 塔层 | 解锁 tier |
-| --- | --- |
-| 1-3 | 0 |
-| 4-6 | 1 |
-| 7-9 | 2 |
-| 10-12 | 3 |
-| 13+ | 4 |
-
-当地图行 `Level < 0` 时视为无楼层限制。
-
-### 类型筛选
-
-怪物节点：
-
-- `Type = Fight`。
-- 不是首领。
-- `Note` 为空、`普通` 或 `精英`。
-
-首领节点：
-
-- `Type = Fight`。
-- `Note = 首领`；或
-- 对应 `Level` 表的 `Note` 包含 `boss` / `首领`；或
-- `NodeId` 包含 `boss`。
-
-建筑节点：
-
-- `Type = Build`；或
-- `Note = 建筑`。
-
-### 抽取规则
-
-怪物与首领节点使用 `RandomPool` 和当前 `MapTree.treedice` 抽取。若抽取失败，则按 `Id` 排序取第一个候选。
-
-建筑节点不随机抽取，而是按 `Id`、`NodeId` 排序后按楼层循环：
-
-```text
-buildingRowIndex = (floor - 1) % buildingCandidates.Count
-```
-
-如果某类节点没有候选，会回退到 `map_0` 兜底节点，并在节点元数据中标记来源为 `fallback`。
-
-## 无限层推进
-
-通天塔层数和原生地图层数分离：
-
-- 通天塔层数：`SunExp_TongtianTowerFloor`。
+- 无尽之渊层数：`SunExp_TongtianTowerFloor`。
 - 原生地图层数：`MapManager.Instance.Level` / `NormalMapManager.Level`。
 
 当原生层数达到 6 时，运行时在 `NormalMapManager.ReadyToChangeMap` 前执行推进：
@@ -201,18 +135,77 @@ buildingRowIndex = (floor - 1) % buildingCandidates.Count
 1. 房主将 `SunExp_TongtianTowerFloor` 加 1。
 2. 将 `SunExp_TongtianTowerGeneratedFloor` 重置为 `0`。
 3. 将原生 `MapManager` 层数重置为 `0`。
-4. 强制生成下一层通天塔地图。
+4. 强制生成下一层无尽之渊地图。
 
 这样可以规避原生普通模式地图的层数上限，并持续复用 6 槽位地图结构。
 
+## 潜行模式与无尽模式
+
+阶段由层数决定：
+
+| 层数 | 阶段 | 说明 |
+| --- | --- | --- |
+| 1-6 | 潜行模式 | 基础下潜阶段，每层地图场景触发一次【深渊震荡】 |
+| 7+ | 无尽模式 | 无固定终点，每场战斗触发一次【深渊震荡】 |
+
+`endless_abyss.config.json` 负责配置关键参数：
+
+- `stealthMaxFloor`：潜行模式最高层，当前为 6。
+- `endlessMinLevel`：无尽模式起始层，当前为 7。
+- `initialGazeLevel`：注视等级初始值，当前为 1。
+- `maxRequiredShockChoices`：深渊震荡单次最高必选数量，当前为 3。
+
+## 注视等级
+
+【注视等级】是无尽之渊的长期压力量表，初始值为 1。它的语义是“深渊对玩家的凝视与干涉程度”，不等同于普通数值等级。
+
+注视等级影响【深渊震荡】必须选择的惩罚数量：
+
+```text
+requiredChoices = clamp(1 + floor((gazeLevel - 1) / 2), 1, 3)
+```
+
+当前节奏：
+
+- 注视等级 1-2：必须选择 1 项。
+- 注视等级 3-4：必须选择 2 项。
+- 注视等级 5+：必须选择 3 项。
+
+该公式保证进入无尽模式后，如果玩家用【注视加深】回避其它损耗，会较快达到 3 项必选上限。
+
+## 深渊震荡
+
+【深渊震荡】统一承载潜行模式和无尽模式的惩罚结算。
+
+触发频率：
+
+- 潜行模式：每层触发一次，发生在地图节点场景。
+- 无尽模式：每场战斗触发一次。
+
+触发后会弹出地图节点场景专属 UI。玩家必须根据当前注视等级选择指定数量的互斥策略，结算后才能继续。
+
+当前策略：
+
+| 策略 | 结算 |
+| --- | --- |
+| 遗物坠落 | 随机销毁 1 件已装备遗物 |
+| 湮灭浸染 | 给当前卡组内随机 3 张卡添加【湮灭】 |
+| 注视加深 | 注视等级 +1 |
+
+运行状态防重：
+
+- 已触发、已结算的震荡写入 `EndlessAbyssRunLedger`。
+- 待处理震荡写入 `SunExp_EndlessAbyssPendingShock`。
+- UI 重开、Hook 重入或地图刷新不会重复生成同一个震荡结算。
+
 ## 战斗成长
 
-当前通天塔只调整敌方 HP，不改敌方伤害、行动、奖励或玩家属性。
+当前无尽之渊会调整敌方 HP，并根据节点类型追加额外敌人压力；未来仍可扩展敌方伤害、行动和奖励参数。
 
 触发时机：
 
 - `Enemy.Init` 后。
-- 仅在通天塔存档中生效。
+- 仅在无尽之渊存档中生效。
 - 每个敌人每层只缩放一次，通过动态变量 `SunExpTongtianTowerHpScaledFloor` 防止重复缩放。
 
 HP 倍率公式：
@@ -229,7 +222,7 @@ hpMultiplier(floor) =
 
 示例：
 
-| 塔层 | HP 倍率 |
+| 层数 | HP 倍率 |
 | --- | --- |
 | 1 | 1.00 |
 | 2 | 1.12 |
@@ -240,119 +233,98 @@ hpMultiplier(floor) =
 | 100 | 15.58 |
 | 130+ | 20.00 |
 
-缩放方式：
-
-- `MaxHp` 和 `CurHp` 同步缩放。
-- 使用 `Math.Round` 四舍五入。
-- 当前 HP 不超过缩放后的最大 HP。
-- 同步刷新 `FightManager.statusData` 中的 `StatusDataTransfer`。
-
 ## 战斗奖励与卡组运营
 
-通天塔战斗奖励会在原生奖励生成后额外追加随机卡牌奖励。追加逻辑通过通用 `BattleRewardAdjustmentService` 注册规则，避免同一个奖励 UI 重复追加。
+无尽之渊战斗奖励会在原生奖励生成后清理本体默认奖励 UI，再按 `TongtianTowerRewardPlan` 生成专属奖励。该逻辑由 `TongtianTowerRewardRuntime` 注册到 `BattleRewardsUI.ModeSetReward` 后执行。
 
-额外卡牌奖励数量：
+当前奖励类型由层数和节点类型共同决定：
 
-```text
-extraCardCount = min(4, 1 + ((floor - 1) / 8))
-```
-
-| 塔层 | 额外卡牌奖励 |
-| --- | --- |
-| 1-8 | +1 |
-| 9-16 | +2 |
-| 17-24 | +3 |
-| 25+ | +4 |
-
-追加方式：
-
-- 调用原生 `BattleRewardsUI.RandomSetCard()`。
-- 仅在当前奖励确认为战斗奖励时生效。
-- 遗物、建筑、非战斗奖励不受该规则影响。
+| 阶段 | 普通战斗 | 首领 / 无尽首领 |
+| --- | --- | --- |
+| 1-2 层 | 2 次卡牌选择、1 次祝福、1 个 1 阶遗物 | 同普通战斗 |
+| 3-4 层 | 2 次卡牌选择、1 次祝福、1 个 2 阶遗物 | 同普通战斗 |
+| 5-6 层 | 3 次卡牌选择、1 次祝福、1 个 1-3 阶遗物 | 5 次卡牌选择、1 次祝福、1 个 3-4 阶遗物 |
+| 7+ 层 | 5 次卡牌选择、1 个遗物奖励 | 5 次卡牌选择、1 次祝福、1 个 3-4 阶遗物 |
 
 ### 默认限制词条
 
-为了防止无限卡组运营失控，通天塔模式下的奖励卡选择会默认添加原生 `Burnout` 标签。
+为了防止无限卡组运营失控，无尽之渊中通过任意渠道获得或生成的卡牌会默认添加原生 `Burnout` 标签。
 
 处理点：
 
 1. `CardChoiceItem.Initialize` 后：读取候选卡的 `DataConfig`，添加 `Burnout`，并刷新候选卡展示。
 2. `CardChoiceUI.Select` 前：在卡牌进入玩家未装备牌列表之前再次添加 `Burnout` 兜底。
+3. `PlayerInfo` 加卡、商店/仓库/卡包展示、战斗卡牌生成与抽牌相关 Hook：统一调用 `TongtianTowerCardAffixService`，扫描 `RoleTable.cardList`、`RoleTable.UnCardList` 与战斗 UI 卡牌列表，补齐通过非奖励路径进入本玩法的卡牌限制。
 
-这意味着：
+## 里程碑奖励
 
-- 通天塔中通过奖励选择进入卡组的卡牌默认具有焚毁限制。
-- 普通模式、日耀回忆和其他非通天塔模式不受影响。
-- 当前所有奖励选牌都会被处理，包括原生奖励卡和通天塔追加的额外奖励卡。
+从第 2 层开始，每层可以展开一次奖励选择 UI。里程碑结算写入 `EndlessAbyssRunLedger`，防止重复领取。
 
-后续可选方案：
+当前奖励选项卡：
 
-- 保持全量 `Burnout`，让每场战斗奖励更多卡牌来补充消耗。
-- 改为概率性 `Burnout`，降低运营压力。
-- 引入官方“限制使用次数”型词条，与 `Burnout` 按权重随机。
-- 按楼层提高限制强度，例如高层强制 `Burnout`，低层仅部分卡牌限制。
+- 任意挑选 1 件 1/2/3 阶遗物。
+- 随机获得 1 张异次元卡。
+- 选择 1 张卡牌清除【焚毁】。
+- 选择 1 张卡牌添加【绝灭】。
 
 ## 数值总表
 
 | 参数 | 当前值 | 说明 |
 | --- | --- | --- |
-| 模式入口排序 | `110` | 位于日耀回忆之后 |
-| 存档模式类型 | `Normal` | 复用普通模式流程 |
+| 玩法入口排序 | `110` | 位于日耀回忆之后 |
+| 存档承载类型 | `Normal` | 交给原生 `NormalMapManager` 启动；无尽之渊身份由 `SunExp_TongtianTowerMode` 标记 |
 | 每层可视节点数 | `6` | `Start` + `Node1-4` + `End` |
-| 每层可选节点数 | `8` | 全部为怪物节点 |
-| 首领槽位 | `5` | 固定为 `End` |
-| 建筑槽位 | `1 + ((floor - 1) % 4)` | 在 `Node1-4` 循环 |
-| 楼层解锁跨度 | 每 3 层提升 1 tier | 最高 tier 4 |
+| 每层可选节点数 | `8` | 1 休息处 + 1 建筑 + 动态战斗节点 |
+| 潜行模式层数 | `1-6` | 每层触发一次深渊震荡 |
+| 无尽模式层数 | `7+` | 每场战斗触发一次深渊震荡 |
+| 注视等级初始值 | `1` | 存档初始化时写入 |
+| 深渊震荡最高必选 | `3` | 由注视等级公式控制 |
 | 敌方 HP 早期成长 | `+12% / 层` | 从第 2 层开始 |
-| 敌方 HP 额外后期成长 | 第 11 层起 `+3% / 层` | 与早期成长叠加 |
+| 敌方 HP 后期成长 | 第 11 层起 `+3% / 层` | 与早期成长叠加 |
 | 敌方 HP 倍率上限 | `20x` | 约第 130 层达到 |
-| 额外卡牌奖励 | `+1` 到 `+4` | 每 8 层提升 1，25 层后封顶 |
-| 奖励卡限制 | `Burnout` | 奖励选牌默认焚毁 |
-| 事件节点 | `0` | 节点池主动排除事件 |
-
-## 审阅重点
-
-建议优先审阅这些问题：
-
-1. HP 成长是否太平滑：当前第 10 层约 2.08 倍，第 50 层约 8.08 倍。
-2. 额外奖励卡是否足够支撑全量 `Burnout`：当前第 1 层起即 +1，25 层后 +4。
-3. 建筑节点是否应该固定不可点，还是仅固定出现但允许玩家选择。
-4. 建筑循环是否按位置循环即可，还是需要按建筑种类池强制轮换。
-5. 楼层解锁是否应该每 3 层提升，还是更快进入高等级怪物池。
-6. 是否需要额外缩放首领强度，而不是只按普通敌人 HP 统一缩放。
-7. 是否要加入通天塔专属掉落、遗物或阶段性里程碑奖励。
-8. 是否要把 `Burnout` 改为“焚毁 / 限制使用次数”混合词条池。
+| 战斗奖励 | `TongtianTowerRewardPlan` | 替换本体默认战斗奖励 |
+| 获得卡限制 | `Burnout` | 无尽之渊内任意渠道获得的卡牌默认焚毁 |
+| 里程碑奖励 | 第 2 层起 | 每层一次，写入 ledger 防重 |
 
 ## 主要实现文件
 
 | 文件 | 职责 |
 | --- | --- |
-| `SunExp-Dev/Infrastructure/SunExpIds.cs` | 通天塔模式标记、标题、常量、节点元数据键 |
+| `SunExp/endless_abyss.config.json` | 无尽之渊配置 |
+| `SunExp-Dev/Infrastructure/SunExpIds.cs` | 玩法标记、标题、常量、节点元数据键 |
 | `SunExp-Dev/Hooks/TongtianTowerModeEntryRuntime.cs` | 模式选择入口注册与展示 |
-| `SunExp-Dev/Hooks/TongtianTowerRunLauncher.cs` | 通天塔存档创建与启动 |
+| `SunExp-Dev/Hooks/TongtianTowerRunLauncher.cs` | 无尽之渊存档创建与启动 |
+| `SunExp-Dev/Hooks/TongtianTowerSaveCacheRuntime.cs` | 玩法存档与官方 Normal 缓存 / 新开局清理的隔离 |
+| `SunExp-Dev/GameApi/ModeChoiceSaveCacheApi.cs` | 官方 `ModeChoiceUI.beforeSave` 与 `GameEntryUI.selectedSave` 的安全访问封装 |
 | `SunExp-Dev/Hooks/TongtianTowerModeRuntime.cs` | 地图 Hook、层推进、UI 修复、同步修复 |
 | `SunExp-Dev/Mechanics/TongtianTowerMapBuilder.cs` | 独立地图构建与默认节点映射 |
-| `SunExp-Dev/Mechanics/TongtianTowerNodePoolService.cs` | 怪物、首领、建筑节点池筛选与抽取 |
-| `SunExp-Dev/Hooks/TongtianTowerCombatRuntime.cs` | 敌方 HP 成长 |
-| `SunExp-Dev/Hooks/TongtianTowerRewardRuntime.cs` | 额外卡牌奖励 |
-| `SunExp-Dev/Hooks/TongtianTowerCardAffixRuntime.cs` | 奖励卡默认焚毁限制 |
-| `SunExp-Dev/GameApi/BattleRewardApi.cs` | 原生奖励 UI 的安全追加封装 |
-| `SunExp-Dev/Hooks/ModeChoiceLayoutRuntime.cs` | 模式入口追加与横向拖拽区域扩展 |
+| `SunExp-Dev/Mechanics/TongtianTowerNodePoolService.cs` | 怪物、精英、首领、无尽首领、建筑、休息处节点池筛选与抽取 |
+| `SunExp-Dev/Mechanics/TongtianTowerSelectableNodeDeckPlanner.cs` | 可选节点牌配比与确定性洗牌 |
+| `SunExp-Dev/Hooks/TongtianTowerCombatRuntime.cs` | 敌方 HP 成长与额外敌人压力 |
+| `SunExp-Dev/Hooks/TongtianTowerRewardRuntime.cs` | 专属战斗奖励替换与战后流程 |
+| `SunExp-Dev/Hooks/TongtianTowerCardAffixRuntime.cs` | 卡牌限制 Hook |
+| `SunExp-Dev/Mechanics/TongtianTowerCardAffixService.cs` | 获得卡牌默认焚毁服务 |
+| `SunExp-Dev/Mechanics/EndlessAbyssConfig.cs` | 配置加载与默认值 |
+| `SunExp-Dev/Mechanics/EndlessAbyssShockService.cs` | 深渊震荡触发、选择和结算 |
+| `SunExp-Dev/Mechanics/EndlessAbyssRunLedger.cs` | 震荡与里程碑防重记录 |
+| `SunExp-Dev/Mechanics/EndlessAbyssMilestoneRewardService.cs` | 里程碑奖励发放 |
+| `SunExp-Dev/Hooks/Ui/EndlessAbyssShockPanel.cs` | 深渊震荡选择 UI |
+| `SunExp-Dev/Hooks/Ui/EndlessAbyssMilestoneRewardPanel.cs` | 里程碑奖励选择 UI |
+
+## 存档兼容说明
+
+- 无尽之渊存档的 `SaveInfo.modeType` 必须保持为 `Normal`。官方 `GameServer.StartRole` 会使用 `GameSaveManager.GetSaveType()` 选择地图管理器；如果这里写入 `SunExpTongtianTower`，原生 `MapManager.SetMap` 无法拿到 `NormalMapManager`，随后 `SetLevel` 会空引用。
+- 玩法身份由 `GameVars["SunExp_TongtianTowerMode"] = "1"` 标记，不再依赖 `SaveInfo.modeType`。
+- `TongtianTowerRunStateStore.RepairSave` 会把旧版 `SunExpTongtianTower` 存档迁移回 `Normal`，同时保留玩法专属 GameVars。
+- `TongtianTowerSaveCacheRuntime` 负责隔离官方普通模式缓存：清理 `ModeChoiceUI.beforeSave["Normal"]` 中误缓存的无尽之渊档，并在官方普通模式新开局清理 Normal 存档时临时保护无尽之渊档，避免误删。
 
 ## 验证方式
 
 推荐验证链：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools\Build-SunExpDll.ps1
-powershell -ExecutionPolicy Bypass -File tools\Test-SunExpArchitecture.ps1
-powershell -ExecutionPolicy Bypass -File tools\Test-SunExpCSharp.ps1
-powershell -ExecutionPolicy Bypass -File .codex\skills\sunexp-mod-dev\scripts\validate-sunexp.ps1
+tools\Build-SunExpDll.ps1
+tools\Test-SunExpArchitecture.ps1
+tools\Test-SunExpCSharp.ps1
+.codex\skills\sunexp-mod-dev\scripts\validate-sunexp.ps1
 ```
-
-本轮实现已通过：
-
-- C# DLL 构建：0 warnings / 0 errors。
-- 架构断言：通过。
-- C# source assertions：183 项通过。
-- SunExp 数据/资源校验：`cards=51, relics=13, buffs=27, packs=5, enemies=3, warnings=0`。

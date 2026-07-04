@@ -27,6 +27,7 @@ public static class Entry
         RunStep("shared resource package", () => RegisterSharedResourcePackage(modConfig));
         RunStep("shared registry", () => AuraSharedRegistry.RegisterManifest(modConfig, "SunExp"));
         RunStep("visual registry", () => VisualRegistry.Load(modConfig));
+        RunStep("endless abyss config", () => EndlessAbyssConfigStore.Load(modConfig));
         RunStep("card visual skin registry", CardVisualSkinApi.RegisterSunExpDefaults);
         RunStep("card visual effect registry", CardVisualEffectApi.RegisterSunExpDefaults);
         RunStep("CG registry", () => AuraCgRegistryRuntime.RegisterManifest(modConfig, "SunExp"));
@@ -118,6 +119,7 @@ public static class Entry
                 + "assert(xlua.import_type('SunExp.Dll.Scripting.ProjectionScripts'), 'SunExp ProjectionScripts unavailable');"
                 + "assert(xlua.import_type('SunExp.Dll.Scripting.BuffScripts'), 'SunExp BuffScripts unavailable');"
                 + "assert(xlua.import_type('SunExp.Dll.Scripting.RelicScripts'), 'SunExp RelicScripts unavailable');"
+                + "assert(xlua.import_type('SunExp.Dll.Scripting.FamiliarGrowthScripts'), 'SunExp FamiliarGrowthScripts unavailable');"
                 + "assert(xlua.import_type('SunExp.Dll.Scripting.DuskPartnerScripts'), 'SunExp DuskPartnerScripts unavailable');"
                 + "assert(xlua.import_type('SunExp.Dll.Scripting.StarClayDollScripts'), 'SunExp StarClayDollScripts unavailable');",
                 "SunExp.RegisterLuaVisibleAssembly");

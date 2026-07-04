@@ -11,13 +11,16 @@ namespace SunExp.Dll.Mechanics;
 
 public sealed class ProjectionOtherObj : OtherObj
 {
+    private CompanionBattleState? battleState;
+    private CompanionIntentDefinition? selectedIntent;
+
     public string RoleId { get; private set; } = "";
 
     public string OwnerStatusId { get; private set; } = "";
 
     public override string Type => "Projection";
 
-    public bool InitProjection(PolymorphRoleSpec role, string ownerStatusId, int index)
+    public bool InitProjection(PolymorphRoleSpec role, string ownerStatusId, int slotIndex, CompanionStats stats)
     {
         if (role == null)
         {
@@ -26,18 +29,19 @@ public sealed class ProjectionOtherObj : OtherObj
 
         RoleId = role.Id;
         OwnerStatusId = ownerStatusId ?? "";
-        dataConfig = ProjectionSummonService.CreateProjectionDataConfig(role);
+        dataConfig = ProjectionSummonService.CreateProjectionDataConfig(role, stats);
         data = dataConfig.data;
         FightAction = new ObjectAction(this);
         ApplyEnemyMaterial();
 
-        Attack = 0;
-        Defend = 0;
-        MaxHp = ProjectionStrategyService.ProjectionMaxHp(role);
+        Attack = stats.Attack;
+        Defend = stats.Armor;
+        MaxHp = stats.MaxHp;
         CurHp = MaxHp;
         MaxActionCount = 1;
         ActionCount = MaxActionCount;
         InstanceId = ProjectionStateStore.NextStatusId();
+        battleState = CompanionBattleStateStore.Create(InstanceId, role.Id, OwnerStatusId, slotIndex, stats);
         gameObject.name = data.Localize("Name") + InstanceId;
         var status = transform.gameObject.AddComponent<StatusManager>().Init(this) as StatusManager;
         if (status == null)
@@ -52,6 +56,7 @@ public sealed class ProjectionOtherObj : OtherObj
         dataConfig.scriptExecutor.SetStatus("Self");
         AddCardList();
         status.UpdateStatus(true);
+        RefreshProjectionIntent("InitProjection");
         status.animatedState = IStatusManager.AnimatedState.Idle;
         if (GameApp.Instance.NowBackground != null && GameApp.Instance.NowBackground.name == "BalancedHolySee")
         {
@@ -59,30 +64,183 @@ public sealed class ProjectionOtherObj : OtherObj
         }
 
         InitBound(null, true);
-        ProjectionSummonService.PositionProjection(this, index);
+        ProjectionSummonService.PositionProjection(this, slotIndex);
         return true;
     }
 
     public override IEnumerator DoAction()
     {
         FightManager.Instance?.ChangeUnit(FightType.Partner);
-        return base.DoAction();
+        if (Status.state == IStatusManager.State.Dead)
+        {
+            yield break;
+        }
+
+        TriggerProjectionStartRound();
+        yield return new WaitForSeconds(0.5f);
+        if (Status.state == IStatusManager.State.Dead)
+        {
+            yield break;
+        }
+
+        if (Status.state == IStatusManager.State.NoAction)
+        {
+            Status.ChangeState(IStatusManager.State.Default);
+            yield break;
+        }
+
+        EnsureProjectionIntentForTurn();
+        for (var index = 0; ActionCards != null && index < ActionCards.Count; index++)
+        {
+            if (!ExecuteProjectionAction(index))
+            {
+                yield break;
+            }
+
+            if (Status.state == IStatusManager.State.NoAction || Status.state == IStatusManager.State.Dead)
+            {
+                yield break;
+            }
+
+            yield return new WaitForSeconds(1f);
+        }
+
+        if (Status.CurHp > 0
+            && Status.state != IStatusManager.State.Dead
+            && FightManager.Instance != null
+            && FightManager.Instance.fightType != FightType.Loss)
+        {
+            battleState?.TickCooldowns();
+            battleState?.Stats.RecoverMagic(1);
+            RefreshProjectionIntent("DoAction.CardUpdate");
+        }
     }
 
     public override void AddCardList()
     {
-        AddProjectionAction(SunExpIds.ProjectionActionStaffTapCardId);
-        AddProjectionAction(SunExpIds.ProjectionActionShieldBlessingCardId);
+        RebuildProjectionAction(SunExpIds.ProjectionActionStaffTapCardId, 1);
     }
 
-    private void AddProjectionAction(string cardId)
+    private void RebuildProjectionAction(string cardId, int priority)
     {
+        FightAction = new ObjectAction(this);
         var objectCard = new ObjectCard
         {
             status = Status as StatusManager
         };
         objectCard.Init(new DataConfig(cardId, DataType.EnemyCard));
+        DictionaryUtil.Set(objectCard.dataConfig.Vars, "priority", priority.ToString());
         FightAction.AddCard(objectCard);
+    }
+
+    private bool ExecuteProjectionAction(int index)
+    {
+        if (!CanProjectionAct())
+        {
+            return false;
+        }
+
+        try
+        {
+            var action = ActionCards != null && index < ActionCards.Count ? ActionCards[index] : null;
+            if (action == null)
+            {
+                RefreshProjectionIntent("DoAction.MissingAction");
+            }
+
+            HideAction();
+            FightAction.ActionExecute();
+            if (battleState != null && selectedIntent != null)
+            {
+                CompanionIntentSelector.MarkUsed(battleState, selectedIntent);
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("[Projection] action execution failed: status=" + InstanceId + ", index=" + index, ex);
+            return false;
+        }
+    }
+
+    private void RefreshProjectionIntent(string source)
+    {
+        try
+        {
+            if (FightAction == null || Status == null || Status.state == IStatusManager.State.Dead)
+            {
+                return;
+            }
+
+            var state = battleState ?? CompanionBattleStateStore.Find(InstanceId);
+            if (state != null)
+            {
+                var choice = CompanionIntentSelector.Select(this, state);
+                if (choice != null)
+                {
+                    selectedIntent = choice.Value.Intent;
+                    state.CurrentIntentId = selectedIntent.Id;
+                    CompanionThreatService.SetPreview(state, selectedIntent);
+                    RebuildProjectionAction(selectedIntent.EnemyCardId, choice.Value.Priority);
+                }
+            }
+
+            ActionCount = Math.Max(1, MaxActionCount);
+            SetAction();
+            ShowAction();
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[Projection] intent refresh failed from " + source + ": " + ex.Message);
+        }
+    }
+
+    private void EnsureProjectionIntentForTurn()
+    {
+        if (ActionCards == null)
+        {
+            RefreshProjectionIntent("DoAction.MissingIntent");
+            return;
+        }
+
+        try
+        {
+            ShowAction();
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[Projection] intent show failed at turn start: " + ex.Message);
+        }
+    }
+
+    private void TriggerProjectionStartRound()
+    {
+        try
+        {
+            if (PlayerManager.Instance == null || !PlayerManager.Instance.isServer)
+            {
+                return;
+            }
+
+            CompanionThreatService.DecayForTurn(battleState);
+            EventCenter.Instance.EventTrigger("StartRound" + Status.InstanceId, false);
+            EventCenter.Instance.EventTrigger("StartRoundEnd" + Status.InstanceId, false);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[Projection] start-round trigger failed: " + ex.Message);
+        }
+    }
+
+    private bool CanProjectionAct()
+    {
+        return Status != null
+            && Status.state != IStatusManager.State.NoAction
+            && Status.state != IStatusManager.State.Dead
+            && Status.CurHp > 0
+            && FightManager.Instance != null
+            && FightManager.Instance.fightType != FightType.Loss;
     }
 
     private void ApplyEnemyMaterial()

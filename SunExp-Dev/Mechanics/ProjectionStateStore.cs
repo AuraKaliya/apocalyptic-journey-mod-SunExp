@@ -110,6 +110,7 @@ public static class ProjectionStateStore
         try
         {
             var statusId = status.InstanceId;
+            CompanionBattleStateStore.Remove(statusId);
             status.state = IStatusManager.State.Dead;
             RemoveFromFightState(statusId, removeStatusRecords: false);
             ScheduleStatusRecordCleanup(statusId, source);
@@ -137,11 +138,13 @@ public static class ProjectionStateStore
         {
             if (Projections.Count == 0)
             {
+                CompanionBattleStateStore.Clear();
                 return;
             }
 
             states = Projections.Values.ToArray();
             Projections.Clear();
+            CompanionBattleStateStore.Clear();
         }
 
         foreach (var state in states)

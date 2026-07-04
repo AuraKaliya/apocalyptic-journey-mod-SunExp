@@ -119,9 +119,9 @@ because these blessings are intended to be reusable by any familiar species.
 
 | Tier | ID | Name | Icon | Tags | Effect Draft |
 |---:|---|---|---|---|---|
-| 1 | `*familiar_guard_paw` | 护主小爪 | `Icon/Blessing/守卫` | defense, shield | At combat start, gain 3 Shield. |
-| 1 | `*familiar_first_aid` | 轻柔照护 | `Icon/Blessing/牧师` | survival, heal | At combat start, restore 2 HP. |
-| 1 | `*familiar_coin_nose` | 钱袋嗅觉 | `Icon/Blessing/国王` | economy, gold | After combat victory, gain 5 extra Gold. |
+| 1 | `*familiar_guard_paw` | 防护 | `Icon/Blessing/守卫` | defense, shield | At combat start, gain 10 Shield. |
+| 1 | `*familiar_first_aid` | 治疗 | `Icon/Blessing/牧师` | survival, heal | At combat start, restore 5 HP. |
+| 1 | `*familiar_coin_nose` | 黄金 | `Icon/Blessing/国王` | economy, gold | After combat victory, gain 10 extra Gold. |
 | 1 | `*familiar_quick_peek` | 探头探脑 | `Icon/Blessing/工匠` | draw, opening | At combat start, draw 1 extra card. |
 | 2 | `*familiar_evergreen_down` | 自愈绒羽 | `Icon/Blessing/天使` | survival, regeneration | At combat start, gain 1 stack of `{buff_evergreen}`. |
 | 2 | `*familiar_resilient_shell` | 强韧外壳 | `Icon/Blessing/盾卫` | defense, mitigation | At combat start, gain 1 stack of `{buff_resilient}`. |
@@ -135,10 +135,10 @@ because these blessings are intended to be reusable by any familiar species.
 | 4 | `*familiar_impregnable_guard` | 坚毅护卫 | `Icon/Blessing/统合城邦` | defense, percent-mitigation | At combat start, gain 1 stack of `{buff_impregnable}`. |
 | 4 | `*familiar_combo_signal` | 连携信号 | `Icon/Blessing/月亮` | offense, draw-trigger | At combat start, gain 1 stack of `{buff_contagion}`. |
 | 4 | `*familiar_chrysalis_cover` | 庇护轮廓 | `Icon/Blessing/太阳` | survival, damage-cap | At combat start, gain 1 stack of `{buff_chrysalis}`. |
-| 5 | `*familiar_rebirth_oath` | 再起约定 | `Icon/Blessing/重生保险` | survival, rebirth | At combat start, gain 30 stacks of `{buff_rebirth}`. Intended to be once per run or heavily gated. |
-| 5 | `*familiar_law_of_luck` | 偏移之骰 | `Icon/Blessing/规训律法` | dice, check | During the run, value dice and check dice receive a small bonus. Exact value TBD. |
-| 5 | `*familiar_reward_omen` | 奖赏预感 | `Icon/Blessing/统治手谕` | reward, economy | Combat rewards gain 1 extra choice. Needs a per-run cap. |
-| 5 | `*familiar_extraordinary_bond` | 超凡羁绊 | `Icon/Blessing/虚无之心` | offense, extraordinary | At combat start, gain 50 stacks of `{buff_extraordinary}`. |
+| 5 | `*familiar_rebirth_oath` | 活下来 | `Icon/Blessing/重生保险` | survival, rebirth | At combat start, gain 30 stacks of `{buff_rebirth}`. Intended to be once per run or heavily gated. |
+| 5 | `*familiar_law_of_luck` | 幸运之骰 | `Icon/Blessing/规训律法` | dice, check | During the run, value dice and check dice receive a small bonus. Exact value TBD. |
+| 5 | `*familiar_reward_omen` | 奖赏预感 | `Icon/Blessing/统治手谕` | reward, economy | Combat rewards gain 1 extra choice. |
+| 5 | `*familiar_extraordinary_bond` | 超凡羁绊 | `Icon/Blessing/虚无之心` | offense, extraordinary | At combat start, gain 200 stacks of `{buff_extraordinary}`. |
 
 ## Common Pool Balance Notes
 
@@ -169,11 +169,11 @@ Current Partner identity:
 
 | Tier | ID | Name | Icon | Tags | Effect Draft |
 |---:|---|---|---|---|---|
-| 1 | `*familiar_dusk_warm_fur` | 暖绒余火 | `Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_1` | dusk, burn | At combat start, a random enemy gains 2 stacks of `{buff_burn}`. |
-| 2 | `*familiar_dusk_ash_nose` | 灰金嗅觉 | `Icon/Blessing/萨满` | dusk, ember | Once per turn, after an enemy's Burn triggers, gain a small amount of Embers. |
-| 3 | `*familiar_dusk_afterheat_store` | 熄前回收 | `Icon/Blessing/审判` | dusk, afterheat | When enemy Burn triggers, convert part of the triggered stacks into Embers or Gathered Flame. |
-| 4 | `*familiar_dusk_sunset_seal` | 残阳封存 | `Icon/Blessing/太阳` | dusk, burn-transfer | When Embers offset Burn, transfer part of the offset stacks to a random enemy as Burn. |
-| 5 | `*familiar_dusk_manifest` | 黄昏现形 | `Mods/SunExp/ModResource/Images/Partner/SunExp/dusk_choice` | dusk, manifest | Unlock Dusk Manifest. Manifested Dusk periodically triggers enemy Burn and recovers Embers. |
+| 1 | `*familiar_dusk_warm_fur` | 灼灼 | `Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_1` | dusk, burn | At combat start, a random enemy gains 2 stacks of `{buff_burn}`. |
+| 2 | `*familiar_dusk_ash_nose` | 拾灰 | `Icon/Blessing/萨满` | dusk, ember | Once per turn, after an enemy's Burn triggers, gain a small amount of Embers. |
+| 3 | `*familiar_dusk_afterheat_store` | 集炎 | `Icon/Blessing/审判` | dusk, afterheat | When enemy Burn triggers, convert part of the triggered stacks into Embers or Gathered Flame. |
+| 4 | `*familiar_dusk_sunset_seal` | 残阳 | `Icon/Blessing/太阳` | dusk, burn-transfer | When Embers offset Burn, transfer part of the offset stacks to a random enemy as Burn. |
+| 5 | `*familiar_dusk_manifest` | 黄昏之主 | `Mods/SunExp/ModResource/Images/Partner/SunExp/dusk_choice` | dusk, manifest | Unlock Dusk Manifest. Manifested Dusk periodically triggers enemy Burn and recovers Embers. |
 
 Recommended exclusive group:
 
@@ -194,11 +194,11 @@ Current Partner identity:
 
 | Tier | ID | Name | Icon | Tags | Effect Draft |
 |---:|---|---|---|---|---|
-| 1 | `*familiar_star_clay_memory_step` | 星泥记路 | `Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_1` | star-clay, starlight | At combat start, gain a small amount of Starlight. |
-| 2 | `*familiar_star_clay_handed_light` | 笨拙递光 | `Icon/Blessing/星星` | star-clay, starlight | Once per turn after your first action, gain a small amount of Starlight. |
+| 1 | `*familiar_star_clay_memory_step` | 星之辉 | `Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_1` | star-clay, starlight | At combat start, gain a small amount of Starlight. |
+| 2 | `*familiar_star_clay_handed_light` | 摘星 | `Icon/Blessing/星星` | star-clay, starlight | Once per turn after your first action, gain a small amount of Starlight. |
 | 3 | `*familiar_star_clay_half_phrase` | 半句星谱 | `Icon/Blessing/月亮` | star-clay, star-score | The first time each run you form a Star Score phrase, gain an extra Star Blessing. |
 | 4 | `*familiar_star_clay_shell` | 替身泥壳 | `Icon/Blessing/重生保险` | star-clay, survival | Once per run, before lethal damage, if you do not have Star-Clay Body, gain 1 stack of Star-Clay Body. |
-| 5 | `*familiar_star_clay_manifest` | 星泥现形 | `Mods/SunExp/ModResource/Images/Partner/SunExp/RenKui_choice` | star-clay, manifest | Unlock Star-Clay Doll Manifest. Manifested Star-Clay Doll helps accumulate Starlight and provides survival pacing. |
+| 5 | `*familiar_star_clay_manifest` | 塑身 | `Mods/SunExp/ModResource/Images/Partner/SunExp/RenKui_choice` | star-clay, manifest | Unlock Star-Clay Doll Manifest. Manifested Star-Clay Doll helps accumulate Starlight and provides survival pacing. |
 
 Recommended exclusive group:
 

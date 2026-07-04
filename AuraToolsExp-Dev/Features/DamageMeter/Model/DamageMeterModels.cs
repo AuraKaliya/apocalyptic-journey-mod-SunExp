@@ -258,6 +258,8 @@ public sealed class DamageMeterSnapshot
 
     public List<CombatantDamageStat> Combatants { get; set; } = new();
 
+    public DamageRunAggregateSnapshot? RunAggregate { get; set; }
+
     public List<DamageFightRecord> History { get; set; } = new();
 }
 

@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "gaze": {
+    "initialLevel": 1,
+    "choiceStep": 3,
+    "maxRequiredChoices": 3,
+    "endlessMinLevel": 5,
+    "endlessPassiveIncreasePerShock": 1,
+    "hpGrowthPerGaze": 0.08
+  },
+  "shock": {
+    "stealthMinFloor": 1,
+    "annihilationCardCount": 3
+  },
+  "milestones": {
+    "minFloor": 2
+  },
+  "rewardPools": [
+    {
+      "id": "milestone.other_dimension.cards",
+      "kind": "card",
+      "sources": [
+        {
+          "type": "cardPack",
+          "id": "SunExp_sunexp_cardpack_more_dimensions"
+        }
+      ],
+      "includeCardIds": [],
+      "excludeCardIds": [],
+      "respectEnabledCardPacks": false
+    }
+  ],
+  "rewards": {
+    "otherDimensionCardPoolId": "milestone.other_dimension.cards",
+    "otherDimensionCardIds": [
+      "polymorph",
+      "witch_projection",
+      "heart_change"
+    ]
+  }
+}

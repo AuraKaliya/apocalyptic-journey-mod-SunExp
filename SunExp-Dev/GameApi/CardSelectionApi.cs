@@ -46,6 +46,51 @@ public static class CardSelectionApi
         }
     }
 
+    public static bool SelectCardsFromCards(
+        ScriptExecutor self,
+        IReadOnlyList<IDataConfig> source,
+        int count,
+        Func<IDataConfig, bool> predicate,
+        Action<IReadOnlyList<IDataConfig>> onSelected,
+        string caption,
+        Action? onCancelled = null)
+    {
+        var cards = source?
+            .Where(card => card != null && (predicate == null || predicate(card)))
+            .ToList() ?? new List<IDataConfig>();
+        var selectionCount = Math.Min(cards.Count, Math.Max(0, count));
+        if (self == null || selectionCount <= 0 || onSelected == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            PlayerApi.ShowCaption(caption);
+            self.OutFightSelectCardToAction(selectionCount.ToString(), cards, selected =>
+            {
+                var picked = (selected ?? new List<IDataConfig>())
+                    .Where(card => card != null)
+                    .Distinct()
+                    .Take(selectionCount)
+                    .ToList();
+                if (picked.Count == 0)
+                {
+                    onCancelled?.Invoke();
+                    return;
+                }
+
+                onSelected(picked);
+            });
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("Card multi-selection UI failed: " + ex.Message);
+            return false;
+        }
+    }
+
     public static bool SelectOneFromRoleDeck(
         ScriptExecutor self,
         Func<IDataConfig, bool> predicate,

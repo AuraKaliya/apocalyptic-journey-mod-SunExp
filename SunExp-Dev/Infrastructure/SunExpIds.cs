@@ -5,6 +5,9 @@ public static class SunExpIds
     public const string ModId = "SunExp";
 
     public const string ModLogTag = "SunExp.DLL";
+    public const string FamiliarBlessingRegistryFile = "familiar.blessing.registry.json";
+    public const string FamiliarProfileDirectory = "FamiliarGrowthProfiles";
+    public const string FamiliarRunSelectedInstanceKey = "SunExp_FamiliarRunSelectedInstance";
 
     public const string SunCardVisualSkinId = "sunexp.card_visual.sun";
     public const string MorningStarCardVisualSkinId = "sunexp.card_visual.morning_star";
@@ -52,6 +55,7 @@ public static class SunExpIds
     public const string OriginCoreRadiance = "SunExp_sunexp_origin_core_radiance";
     public const string CycleGatheredFlame = "SunExp_sunexp_cycle_gathered_flame";
     public const string AfterglowOmen = "SunExp_sunexp_afterglow_omen";
+    public const string Rebirth = "buff_rebirth";
     public const string DuskAfterheatRecoveryTrait = "SunExp_sunexp_dusk_afterheat_recovery_trait";
     public const string BossTraitMirrorArray = "SunExp_sunexp_boss_trait_mirror_array";
     public const string BossTraitMercilessDaylight = "SunExp_sunexp_boss_trait_merciless_daylight";
@@ -125,7 +129,12 @@ public static class SunExpIds
     public const string ProjectionRoleCardFacePathKey = "SunExpProjectionRoleCardFacePath";
     public const string ProjectionOwnerStatusIdKey = "SunExpProjectionOwnerStatusId";
     public const string ProjectionStatusIdPrefix = "sp";
-    public const string ProjectionBaseCardIconPath = PolymorphBaseCardIconPath;
+    public const string ProjectionBaseCardIconPath = "Mods/SunExp/ModResource/Images/Card/MoreDimension/help_me";
+    public const string MoreDimensionsCardPackId = "SunExp_sunexp_cardpack_more_dimensions";
+    public const string HeartChangeCardShortId = "heart_change";
+    public const string HeartChangeBuffShortId = "heart_change_control";
+    public const string HeartChangeBuffId = "SunExp_sunexp_heart_change_control";
+    public const string HeartChangeCardIconPath = "Mods/SunExp/ModResource/Images/Card/MoreDimension/xin_bian";
     public const string ProjectionActionStaffTap = "staff_tap";
     public const string ProjectionActionShieldBlessing = "shield_blessing";
     public const string ProjectionActionStaffTapCardId = "SunExp_sunexp_enemycard_projection_staff_tap";
@@ -270,17 +279,39 @@ public static class SunExpIds
     public const int SolarMemoryMaxLayer = 3;
 
     public const string TongtianTowerModeKey = "SunExp_TongtianTowerMode";
+    public const string NativeNormalModeType = "Normal";
     public const string TongtianTowerFloorKey = "SunExp_TongtianTowerFloor";
     public const string TongtianTowerGeneratedFloorKey = "SunExp_TongtianTowerGeneratedFloor";
     public const string TongtianTowerSeedKey = "SunExp_TongtianTowerSeed";
+    public const string TongtianTowerFloorPlanKey = "SunExp_TongtianTowerFloorPlan";
     public const string TongtianTowerIntroSeenKey = "SunExp_TongtianTowerIntroSeen";
     public const string TongtianTowerStarterDeckAppliedKey = "SunExp_TongtianTowerStarterDeckApplied";
     public const string TongtianTowerStarterDeckModeKey = "SunExp_TongtianTowerStarterDeckMode";
-    public const string TongtianTowerTitle = "通天之塔";
-    public const string TongtianTowerDescription = "无限爬塔";
-    public const string TongtianTowerSubtitle = "怪物 / 首领 / 建筑";
+    public const string TongtianTowerModeType = "SunExpTongtianTower";
+    public const string TongtianTowerRunIdKey = "SunExp_TongtianTowerRunId";
+    public const string TongtianTowerRunVersionKey = "SunExp_TongtianTowerRunVersion";
+    public const string TongtianTowerRunPhaseKey = "SunExp_TongtianTowerRunPhase";
+    public const string TongtianTowerRunEndedKey = "SunExp_TongtianTowerRunEnded";
+    public const string TongtianTowerRunUpdatedAtKey = "SunExp_TongtianTowerRunUpdatedAt";
+    public const string TongtianTowerStarterDeckBaselineMarker = "SunExpTongtianStarterDeckBaseline";
+    public const string TongtianTowerAutoBurnoutMarker = "SunExpTongtianAutoBurnout";
+    public const string EndlessAbyssConfigFile = "endless_abyss.config.json";
+    public const string EndlessAbyssGazeLevelKey = "SunExp_EndlessAbyssGazeLevel";
+    public const string EndlessAbyssLedgerKey = "SunExp_EndlessAbyssLedger";
+    public const string EndlessAbyssPendingShockKey = "SunExp_EndlessAbyssPendingShock";
+    public const string EndlessAbyssTitle = "\u65e0\u5c3d\u4e4b\u6e0a";
+    public const string EndlessAbyssStealthModeName = "\u6f5c\u884c\u6a21\u5f0f";
+    public const string EndlessAbyssEndlessModeName = "\u65e0\u5c3d\u6a21\u5f0f";
+    public const string EndlessAbyssGazeName = "\u6ce8\u89c6\u7b49\u7ea7";
+    public const string EndlessAbyssShockName = "\u6df1\u6e0a\u9707\u8361";
+    public const string EndlessAbyssOtherDimensionCardPoolId = "milestone.other_dimension.cards";
+    public const string TongtianTowerTitle = EndlessAbyssTitle;
+    public const string TongtianTowerDescription = "\u65e0\u5c3d\u6df1\u6e0a\u4e0b\u6f5c";
+    public const string TongtianTowerSubtitle = "\u666e\u901a\u602a / \u7cbe\u82f1 / \u9996\u9886 / \u65e0\u5c3d\u9996\u9886";
     public const int TongtianTowerLayerNodeCount = 6;
+    public const int TongtianTowerNativeDefaultNodeCount = 2;
     public const int TongtianTowerSelectableNodeCount = 8;
+    public const int TongtianTowerStartSlotIndex = 0;
     public const int TongtianTowerBossSlotIndex = 5;
     public const string TongtianTowerNodeFloorKey = "TongtianFloor";
     public const string TongtianTowerNodeSlotKey = "TongtianSlot";

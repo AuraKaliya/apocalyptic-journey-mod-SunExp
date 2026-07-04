@@ -12,8 +12,8 @@ namespace SunExp.Dll.Hooks;
 
 public static class StarScoreRuntime
 {
-    private const string PendingPreludeCostVar = "SunExpStarBlessingPreludeCost";
-    private const string PendingFreeVar = "SunExpStarBlessingFreePending";
+    private const string PendingBlessingOvertureVar = "SunExpStarBlessingOverturePending";
+    private const string PendingBlessingCostVar = "SunExpStarBlessingHalfCostPending";
     private const string PendingSealBlessingVar = "SunExpMorningStarSealBlessingGain";
     private static readonly Stack<PendingCard> Pending = new();
     private static readonly StarBlessingCostOverrideStore CostOverrides = new();
@@ -92,12 +92,12 @@ public static class StarScoreRuntime
                 return;
             }
 
-            if (DictionaryUtil.Get(config.Vars, PendingFreeVar, "0") == "1")
+            if (DictionaryUtil.Get(config.Vars, PendingBlessingCostVar, "0") == "1")
             {
                 return;
             }
 
-            DictionaryUtil.Set(config.Vars, PendingPreludeCostVar, "");
+            DictionaryUtil.Set(config.Vars, PendingBlessingOvertureVar, "");
             DictionaryUtil.Set(config.Vars, PendingSealBlessingVar, "");
             var player = FightPlayer.Instance?.Status;
             var hasBlessing = player != null && BuffApi.Level(player, SunExpIds.StarBlessing) > 0;
@@ -106,19 +106,24 @@ public static class StarScoreRuntime
                 CancelBlessingPreview(context.Target as CardItem);
             }
 
-            var actualPaidCost = CardConfigApi.CurrentCost(config);
+            var actualPaidCost = CostOverrides.TargetCost(config) ?? CardConfigApi.CurrentCost(config);
             var sealBlessingGain = HasMorningStarSeal(config) ? actualPaidCost : 0;
             if (hasBlessing && player != null)
             {
-                CostOverrides.BeginPreview(config);
+                if (!CostOverrides.TargetCost(config).HasValue)
+                {
+                    var halfCost = StarBlessingHalfCost(CardConfigApi.CurrentCost(config));
+                    CostOverrides.BeginPreview(config, halfCost);
+                    actualPaidCost = CostOverrides.TargetCost(config) ?? halfCost;
+                }
+
                 RefreshCard(context.Target as CardItem);
-                var baseCost = CardConfigApi.BaseCost(config);
-                DictionaryUtil.Set(config.Vars, PendingPreludeCostVar, baseCost.ToString());
-                DictionaryUtil.Set(config.Vars, PendingFreeVar, "1");
+                DictionaryUtil.Set(config.Vars, PendingBlessingOvertureVar, "1");
+                DictionaryUtil.Set(config.Vars, PendingBlessingCostVar, "1");
                 ConsumeBuff(player, SunExpIds.StarBlessing, 1);
                 CostOverrides.MarkBlessingConsumed(config);
-                sealBlessingGain = 0;
-                PlayerApi.ShowCaption("\u661f\u8fb0\u795d\u798f\uff1a\u672c\u6b21\u51fa\u724c\u65e0\u6d88\u8017\u3002");
+                sealBlessingGain = HasMorningStarSeal(config) ? actualPaidCost : 0;
+                PlayerApi.ShowCaption("\u661f\u8fb0\u795d\u798f\uff1a\u672c\u6b21\u51fa\u724c\u8017\u8d39\u51cf\u534a\u3002");
             }
             else if (player != null && actualPaidCost > 0)
             {
@@ -216,15 +221,12 @@ public static class StarScoreRuntime
             CostOverrides.MarkActionObserved(config);
             MorningStarOvertureService.OnAction(config);
             var executor = config.scriptExecutor as ScriptExecutor;
-            var pendingPreludeCost = DictionaryUtil.Get(config.Vars, PendingPreludeCostVar);
-            var preludeCost = string.IsNullOrWhiteSpace(pendingPreludeCost)
-                ? -1
-                : Math.Max(0, DictionaryUtil.ParseInt(pendingPreludeCost));
+            var pendingBlessingOverture = DictionaryUtil.Get(config.Vars, PendingBlessingOvertureVar, "0") == "1";
             var pendingSealBlessing = DictionaryUtil.Get(config.Vars, PendingSealBlessingVar);
             var sealBlessingGain = string.IsNullOrWhiteSpace(pendingSealBlessing)
                 ? 0
                 : Math.Max(0, DictionaryUtil.ParseInt(pendingSealBlessing));
-            Pending.Push(new PendingCard(config, executor, preludeCost, sealBlessingGain));
+            Pending.Push(new PendingCard(config, executor, pendingBlessingOverture, sealBlessingGain));
             ExecutorApi.CombatIntAdd("SunExpStarScorePlayerActionPending", 1);
         }
         catch (Exception ex)
@@ -243,10 +245,10 @@ public static class StarScoreRuntime
             }
 
             var pending = Pending.Pop();
-            if (pending.Executor != null && pending.PreludeCost >= 0)
+            if (pending.Executor != null && pending.BlessingOverturePending)
             {
-                CardApi.AddCardToHand(pending.Executor, StarScoreService.PreludeCardForCost(pending.PreludeCost));
-                PlayerApi.ShowCaption("\u83b7\u5f97" + StarScoreService.PreludeDisplayNameForCost(pending.PreludeCost));
+                CardApi.AddCardToHand(pending.Executor, StarScoreService.RandomBlessingOvertureCardId());
+                PlayerApi.ShowCaption("\u661f\u8fb0\u795d\u798f\uff1a\u83b7\u5f97\u968f\u673a\u661f\u8fb0\u5e8f\u66f2\u3002");
             }
 
             if (pending.Executor != null && pending.SealBlessingGain > 0)
@@ -258,9 +260,9 @@ public static class StarScoreRuntime
 
             MorningStarOvertureService.OnActionAfter(pending.Executor);
 
-            DictionaryUtil.Set(pending.Config.Vars, PendingPreludeCostVar, "");
+            DictionaryUtil.Set(pending.Config.Vars, PendingBlessingOvertureVar, "");
             DictionaryUtil.Set(pending.Config.Vars, PendingSealBlessingVar, "");
-            DictionaryUtil.Set(pending.Config.Vars, PendingFreeVar, "0");
+            DictionaryUtil.Set(pending.Config.Vars, PendingBlessingCostVar, "0");
         }
         catch (Exception ex)
         {
@@ -286,7 +288,7 @@ public static class StarScoreRuntime
                 return;
             }
 
-            if (CostOverrides.BeginPreview(config))
+            if (CostOverrides.BeginPreview(config, StarBlessingHalfCost(CardConfigApi.CurrentCost(config))))
             {
                 RefreshCard(card);
             }
@@ -324,9 +326,9 @@ public static class StarScoreRuntime
 
     private static void ClearPendingUse(IDataConfig config)
     {
-        DictionaryUtil.Set(config.Vars, PendingPreludeCostVar, "");
+        DictionaryUtil.Set(config.Vars, PendingBlessingOvertureVar, "");
         DictionaryUtil.Set(config.Vars, PendingSealBlessingVar, "");
-        DictionaryUtil.Set(config.Vars, PendingFreeVar, "0");
+        DictionaryUtil.Set(config.Vars, PendingBlessingCostVar, "0");
     }
 
     private static void RefundBlessing()
@@ -344,6 +346,12 @@ public static class StarScoreRuntime
     private static void RefreshCard(CardItem? card)
     {
         SunExpCardRefreshQueue.RequestDataUpdate(card, "StarScore");
+    }
+
+    private static int StarBlessingHalfCost(int currentCost)
+    {
+        var cost = Math.Max(0, currentCost);
+        return (cost + 1) / 2;
     }
 
     private static int ConsumeResonanceAsCost(IStatusManager status, IDataConfig config, int currentCost)
@@ -382,11 +390,11 @@ public static class StarScoreRuntime
 
     private readonly struct PendingCard
     {
-        public PendingCard(IDataConfig config, ScriptExecutor? executor, int preludeCost, int sealBlessingGain)
+        public PendingCard(IDataConfig config, ScriptExecutor? executor, bool blessingOverturePending, int sealBlessingGain)
         {
             Config = config;
             Executor = executor;
-            PreludeCost = preludeCost;
+            BlessingOverturePending = blessingOverturePending;
             SealBlessingGain = sealBlessingGain;
         }
 
@@ -394,7 +402,7 @@ public static class StarScoreRuntime
 
         public ScriptExecutor? Executor { get; }
 
-        public int PreludeCost { get; }
+        public bool BlessingOverturePending { get; }
 
         public int SealBlessingGain { get; }
     }

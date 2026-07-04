@@ -16,6 +16,7 @@ internal static class DamageMeterNetworkRuntime
     private const int NetworkCombatantsSoftLimit = 16;
     private const int NetworkMinimalCombatantsLimit = 8;
     private static readonly DamageLedger LedgerInstance = new();
+    private static readonly DamageRunLedger RunAggregateInstance = new();
     private static readonly DamageHistoryStore HistoryInstance = new();
     private static readonly OutOfRunDamageHistoryStore OutOfRunHistoryInstance = new();
     private static readonly Dictionary<string, long> LastReporterSequence =
@@ -28,6 +29,8 @@ internal static class DamageMeterNetworkRuntime
     private static string currentAdventureId = "";
 
     public static DamageLedger Ledger => LedgerInstance;
+
+    public static DamageRunLedger RunAggregate => RunAggregateInstance;
 
     public static DamageHistoryStore History => HistoryInstance;
 
@@ -53,6 +56,7 @@ internal static class DamageMeterNetworkRuntime
     public static void StartFight(bool sharedEnabled)
     {
         ResetTransient();
+        EnsureRunAggregateStarted();
         if (!IsMultiplayer)
         {
             LedgerInstance.StartFight(Guid.NewGuid().ToString("N"), sharedEnabled);
@@ -82,6 +86,7 @@ internal static class DamageMeterNetworkRuntime
         currentAdventureId = Guid.NewGuid().ToString("N");
         HistoryInstance.Clear();
         LedgerInstance.ApplySnapshot(new DamageMeterSnapshot());
+        RunAggregateInstance.BeginAdventure(currentAdventureId, DateTime.UtcNow.ToString("O"));
         if (IsHost)
         {
             DamageMeterPersistence.Clear();
@@ -176,6 +181,7 @@ internal static class DamageMeterNetworkRuntime
             damage.ServerSequence = LedgerInstance.NextServerSequence();
             if (LedgerInstance.Apply(damage))
             {
+                RunAggregateInstance.Apply(damage);
                 NotifyChanged();
             }
 
@@ -234,6 +240,7 @@ internal static class DamageMeterNetworkRuntime
             return false;
         }
 
+        RunAggregateInstance.Apply(confirmed);
         LastReporterSequence[confirmed.ReporterPlayerId] = confirmed.ReporterSequence;
         NotifyChanged();
         return true;
@@ -255,6 +262,11 @@ internal static class DamageMeterNetworkRuntime
 
         if (LedgerInstance.Apply(confirmed))
         {
+            if (!RunAggregateInstance.Apply(confirmed))
+            {
+                RequestSnapshot();
+            }
+
             NotifyChanged();
         }
     }
@@ -337,6 +349,8 @@ internal static class DamageMeterNetworkRuntime
         }
 
         var ledgerChanged = LedgerInstance.ApplySnapshot(snapshot);
+        var aggregateChanged = snapshot.RunAggregate != null
+                               && RunAggregateInstance.ApplySnapshot(snapshot.RunAggregate);
         if (snapshot.ProtocolVersion == DamageMeterProtocol.Version
             && snapshot.History != null
             && snapshot.History.Count > 0)
@@ -344,7 +358,7 @@ internal static class DamageMeterNetworkRuntime
             HistoryInstance.ApplySnapshot(snapshot.History);
         }
 
-        if (ledgerChanged)
+        if (ledgerChanged || aggregateChanged)
         {
             NotifyChanged();
         }
@@ -354,6 +368,7 @@ internal static class DamageMeterNetworkRuntime
     {
         var snapshot = LedgerInstance.CreateSnapshot();
         snapshot.History = HistoryInstance.CreateSnapshot();
+        snapshot.RunAggregate = RunAggregateInstance.CreateSnapshot();
         return snapshot;
     }
 
@@ -361,6 +376,7 @@ internal static class DamageMeterNetworkRuntime
     {
         var snapshot = LedgerInstance.CreateSnapshot();
         snapshot.History = new List<DamageFightRecord>();
+        snapshot.RunAggregate = RunAggregateInstance.CreateSnapshot();
         CompactNetworkSnapshot(snapshot, source);
         return snapshot;
     }
@@ -416,8 +432,26 @@ internal static class DamageMeterNetworkRuntime
             CurrentRoundIndex = source?.CurrentRoundIndex ?? LedgerInstance.CurrentRoundIndex,
             CompletedRoundCount = source?.CompletedRoundCount ?? LedgerInstance.CompletedRoundCount,
             ServerSequence = source?.ServerSequence ?? LedgerInstance.ServerSequence,
+            RunAggregate = CreateStatusOnlyAggregate(source?.RunAggregate),
             Combatants = new List<CombatantDamageStat>(),
             History = new List<DamageFightRecord>()
+        };
+    }
+
+    private static DamageRunAggregateSnapshot CreateStatusOnlyAggregate(DamageRunAggregateSnapshot? source)
+    {
+        return new DamageRunAggregateSnapshot
+        {
+            AdventureId = source?.AdventureId ?? RunAggregateInstance.AdventureId,
+            StartedUtc = source?.StartedUtc ?? RunAggregateInstance.StartedUtc,
+            UpdatedUtc = source?.UpdatedUtc ?? RunAggregateInstance.UpdatedUtc,
+            EncounterCount = source?.EncounterCount ?? RunAggregateInstance.EncounterCount,
+            TotalRounds = source?.TotalRounds ?? RunAggregateInstance.TotalRounds,
+            ConfirmedEventCount = source?.ConfirmedEventCount ?? RunAggregateInstance.ConfirmedEventCount,
+            LastSessionId = source?.LastSessionId ?? RunAggregateInstance.LastSessionId,
+            LastServerSequence = source?.LastServerSequence ?? RunAggregateInstance.LastServerSequence,
+            BestHit = source?.BestHit?.Copy(),
+            Combatants = new List<CombatantDamageStat>()
         };
     }
 
@@ -459,6 +493,35 @@ internal static class DamageMeterNetworkRuntime
                     .Skip(Math.Max(0, (stat.Rounds?.Count ?? 0) - maxRounds))
                     .ToList();
 
+            stat.Details = maxDetails <= 0
+                ? new Dictionary<string, DamageDetailStat>(StringComparer.OrdinalIgnoreCase)
+                : (stat.Details ?? new Dictionary<string, DamageDetailStat>(StringComparer.OrdinalIgnoreCase))
+                    .OrderByDescending(pair => (pair.Value?.HpDamage ?? 0) + (pair.Value?.ShieldDamage ?? 0))
+                    .ThenBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+                    .Take(maxDetails)
+                    .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
+        }
+
+        TrimAggregateDetails(snapshot.RunAggregate, maxDetails);
+    }
+
+    private static void TrimAggregateDetails(DamageRunAggregateSnapshot? aggregate, int maxDetails)
+    {
+        if (aggregate == null)
+        {
+            return;
+        }
+
+        foreach (var stat in aggregate.Combatants ?? new List<CombatantDamageStat>())
+        {
+            if (stat == null)
+            {
+                continue;
+            }
+
+            stat.Rounds = new List<DamageRoundStat>();
+            stat.CurrentRoundHpDamage = 0;
+            stat.CurrentRoundShieldDamage = 0;
             stat.Details = maxDetails <= 0
                 ? new Dictionary<string, DamageDetailStat>(StringComparer.OrdinalIgnoreCase)
                 : (stat.Details ?? new Dictionary<string, DamageDetailStat>(StringComparer.OrdinalIgnoreCase))
@@ -694,8 +757,24 @@ internal static class DamageMeterNetworkRuntime
         return currentAdventureId;
     }
 
+    private static void EnsureRunAggregateStarted()
+    {
+        var adventureId = EnsureAdventureId();
+        if (!string.IsNullOrWhiteSpace(RunAggregateInstance.AdventureId))
+        {
+            return;
+        }
+
+        RunAggregateInstance.BeginAdventure(adventureId, DateTime.UtcNow.ToString("O"));
+    }
+
     private static bool ArchiveSnapshot(DamageMeterSnapshot snapshot, string result)
     {
+        if (IsHost)
+        {
+            RunAggregateInstance.RecordEncounter(snapshot);
+        }
+
         if (!HistoryInstance.Archive(
                 snapshot,
                 result,

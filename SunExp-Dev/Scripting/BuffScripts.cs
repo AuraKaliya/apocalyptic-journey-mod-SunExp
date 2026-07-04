@@ -23,7 +23,8 @@ public static class BuffScripts
         ["star_stone_pouch"] = ApplyStarStonePouch,
         ["star_score"] = ApplyStarScore,
         ["star_stage"] = ApplyStarStage,
-        [SunExpIds.PolymorphTraitBuffShortId] = ApplyPolymorphTrait
+        [SunExpIds.PolymorphTraitBuffShortId] = ApplyPolymorphTrait,
+        [SunExpIds.HeartChangeBuffShortId] = ApplyHeartChange
     };
 
     private static readonly Dictionary<string, Action<ScriptExecutor>> ClearHandlers = new(StringComparer.Ordinal)
@@ -41,7 +42,8 @@ public static class BuffScripts
         ["star_stone_pouch"] = ClearStarStonePouch,
         ["star_score"] = ClearStarScore,
         ["star_stage"] = ClearStarStage,
-        [SunExpIds.PolymorphTraitBuffShortId] = ClearPolymorphTrait
+        [SunExpIds.PolymorphTraitBuffShortId] = ClearPolymorphTrait,
+        [SunExpIds.HeartChangeBuffShortId] = ClearHeartChange
     };
 
     private static readonly HashSet<string> BossTraitIds = new(StringComparer.Ordinal)
@@ -160,6 +162,16 @@ public static class BuffScripts
     private static void ClearPolymorphTrait(ScriptExecutor self)
     {
         PolymorphBuffService.Clear(self);
+    }
+
+    private static void ApplyHeartChange(ScriptExecutor self)
+    {
+        HeartChangeControlService.Apply(self);
+    }
+
+    private static void ClearHeartChange(ScriptExecutor self)
+    {
+        HeartChangeControlService.Clear(self, "BuffScripts.Clear");
     }
 
     private static void ApplySolarRadiance(ScriptExecutor self)

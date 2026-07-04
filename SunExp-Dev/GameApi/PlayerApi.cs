@@ -1,6 +1,9 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
+using Data.Save;
 using SunExp.Dll.Infrastructure;
 
 namespace SunExp.Dll.GameApi;
@@ -144,6 +147,50 @@ public static class PlayerApi
         InvokeStaticPlayerInfo("AddCard", cardId);
     }
 
+    public static bool TryAddCardToDeck(string cardId, out string grantedCardId, out string message)
+    {
+        grantedCardId = "";
+        message = "";
+        var resolved = CardApi.ResolveCardId(cardId);
+        if (string.IsNullOrWhiteSpace(resolved))
+        {
+            message = "unknown cardId=" + cardId;
+            return false;
+        }
+
+        var candidates = new[]
+            {
+                resolved,
+                (cardId ?? "").Trim()
+            }
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        foreach (var candidate in candidates)
+        {
+            var before = OwnedCardSnapshot();
+            if (!TryInvokeStaticPlayerInfo("AddCard", out var error, candidate))
+            {
+                message = error;
+                continue;
+            }
+
+            var after = OwnedCardSnapshot();
+            if (after.Count > before.Count || after.Any(id => !before.Contains(id)))
+            {
+                grantedCardId = candidate;
+                message = "";
+                return true;
+            }
+
+            message = "deck did not change after AddCard(" + candidate + ")";
+        }
+
+        SunExpLog.Warn("PlayerInfo.AddCard verification failed: " + message);
+        return false;
+    }
+
     public static void AddRelic(string relicId)
     {
         InvokeStaticPlayerInfo("AddRelic", relicId);
@@ -226,6 +273,76 @@ public static class PlayerApi
         catch
         {
             return false;
+        }
+    }
+
+    private static bool TryInvokeStaticPlayerInfo(string methodName, out string error, params object[] args)
+    {
+        error = "";
+        var playerInfo = PlayerInfo as Type;
+        if (playerInfo == null)
+        {
+            error = "PlayerInfo unavailable";
+            return false;
+        }
+
+        try
+        {
+            var method = playerInfo.GetMethod(methodName, BindingFlags.Public | BindingFlags.Static);
+            if (method == null)
+            {
+                error = "PlayerInfo." + methodName + " unavailable";
+                return false;
+            }
+
+            method.Invoke(null, args);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = "PlayerInfo." + methodName + " failed: " + ex.Message;
+            SunExpLog.Warn(error);
+            return false;
+        }
+    }
+
+    private static HashSet<string> OwnedCardSnapshot()
+    {
+        var snapshot = new HashSet<string>(StringComparer.Ordinal);
+        try
+        {
+            AddOwnedCards(snapshot, RoleTable.Instance?.cardList);
+            AddOwnedCards(snapshot, RoleTable.Instance?.UnCardList);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Debug("Owned card snapshot failed: " + ex.Message);
+        }
+
+        return snapshot;
+    }
+
+    private static void AddOwnedCards(HashSet<string> snapshot, IEnumerable? cards)
+    {
+        if (cards == null)
+        {
+            return;
+        }
+
+        foreach (var card in cards)
+        {
+            if (card == null)
+            {
+                continue;
+            }
+
+            var id = card is IDataConfig dataConfig
+                ? dataConfig.InstanceID
+                : Convert.ToString(GetInstanceMember(card, "InstanceID"));
+            if (!string.IsNullOrWhiteSpace(id))
+            {
+                snapshot.Add(id);
+            }
         }
     }
 

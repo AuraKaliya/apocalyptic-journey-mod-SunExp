@@ -40,19 +40,19 @@ public static class StarScoreCadenceCatalog
     private static readonly Dictionary<string, StarScoreCadenceInfo> NamedCadences = new()
     {
         [StarScoreNoteCodes.Opening + StarScoreNoteCodes.Opening + StarScoreNoteCodes.Opening] =
-            Create("SSS", "\u6025\u677f", "\u62bd1\u5f20\u724c\uff1b\u53cb\u65b9\u5168\u4f53\u4f59\u97f3+1"),
+            Create("SSS", "\u6025\u677f", "\u53cb\u65b9\u5168\u4f53\u4f59\u97f3+1\uff1b\u53cb\u65b9\u5168\u4f53\u62bd2\u5f20\u724c"),
         [StarScoreNoteCodes.Sustain + StarScoreNoteCodes.Sustain + StarScoreNoteCodes.Sustain] =
-            Create("UUU", "\u957f\u97f3", "\u53cb\u65b9\u5168\u4f53\u62a4\u76fe+8\uff1b\u968f\u673a\u6b63\u9762Buff+2"),
+            Create("UUU", "\u957f\u97f3", "\u53cb\u65b9\u5168\u4f53\u62a4\u76fe\u7ffb\u500d\uff1b\u53cb\u65b9\u5168\u4f53\u6b63\u9762Buff\u5c42\u6570+2"),
         [StarScoreNoteCodes.Turn + StarScoreNoteCodes.Turn + StarScoreNoteCodes.Turn] =
-            Create("TTT", "\u5931\u8c03", "\u654c\u65b9\u5168\u4f53\u8d1f\u9762Buff\u5c42\u6570+2"),
+            Create("TTT", "\u5931\u8c03", "\u654c\u65b9\u5168\u4f53\u6240\u6709\u8d1f\u9762Buff\u5c42\u6570\u7ffb\u500d"),
         [StarScoreNoteCodes.Close + StarScoreNoteCodes.Close + StarScoreNoteCodes.Close] =
-            Create("CCC", "\u7ec8\u6b62\u5f0f", "\u7ed9\u654c\u65b9\u5168\u4f538+\u53cc\u65b9Buff\u79cd\u7c7b\u603b\u6570\u4f24\u5bb3"),
+            Create("CCC", "\u7ec8\u6b62\u5f0f", "\u5bf9\u654c\u65b9\u5168\u4f53\u9020\u62101+\u53cb\u65b9\u5168\u4f53Buff\u79cd\u7c7b\u603b\u6570*\u654c\u65b9\u5168\u4f53Buff\u79cd\u7c7b\u603b\u6570\u4f24\u5bb3"),
         [StarScoreNoteCodes.Opening + StarScoreNoteCodes.Sustain + StarScoreNoteCodes.Turn] =
-            Create("SUT", "\u8c03\u5f8b", "\u9b54\u80fd+1\uff1b\u53cb\u65b9\u5168\u4f53\u4f59\u97f3+1"),
+            Create("SUT", "\u8c03\u5f8b", "\u81ea\u8eab\u4f59\u97f3+1\uff1b\u53cb\u65b9\u5168\u4f53\u4f59\u97f3+1"),
         [StarScoreNoteCodes.Sustain + StarScoreNoteCodes.Turn + StarScoreNoteCodes.Close] =
-            Create("UTC", "\u5408\u594f", "\u7ed9\u654c\u65b9\u5168\u4f53\u9020\u621010\u4f24\u5bb3\uff1b\u83b7\u5f9710*\u654c\u4eba\u6570\u91cf\u62a4\u76fe"),
+            Create("UTC", "\u5408\u594f", "\u81ea\u8eab\u83b7\u5f97\u53cb\u65b9\u5168\u4f53Buff\u79cd\u7c7b\u603b\u6570\u5c42\u8d85\u51e1"),
         [StarScoreNoteCodes.Turn + StarScoreNoteCodes.Sustain + StarScoreNoteCodes.Opening] =
-            Create("TUS", "\u56de\u65f6", "\u6e05\u9664\u53cb\u65b9\u5168\u4f53\u8d1f\u9762\u6548\u679c\uff1b\u81ea\u8eab\u6bcf\u6e05\u9664\u4e00\u4e2a\u62bd1\u5f20\u724c")
+            Create("TUS", "\u56de\u65f6", "\u53cb\u65b9\u5168\u4f53\u83b7\u5f9730\u5c42\u91cd\u751f")
     };
 
     public static IReadOnlyList<StarScoreCadenceInfo> CandidatesForPrefix(IReadOnlyList<StarScoreNote> notes)
@@ -131,7 +131,7 @@ public static class StarScoreCadenceCatalog
             pattern,
             string.IsNullOrWhiteSpace(pattern) ? "\u5176\u5b83" : CombinationForPattern(pattern),
             "\u4e09\u58f0\u548c\u5f26",
-            "\u4f59\u97f3+1\uff1b\u62bd1\u5f20\u724c",
+            "\u53cb\u65b9\u5168\u4f53\u62bd1\u5f20\u724c",
             isDefault: true);
     }
 
@@ -145,7 +145,7 @@ public static class StarScoreCadenceCatalog
             pattern,
             combination,
             "\u4e09\u58f0\u548c\u5f26",
-            "\u4f59\u97f3+1\uff1b\u62bd1\u5f20\u724c",
+            "\u53cb\u65b9\u5168\u4f53\u62bd1\u5f20\u724c",
             isDefault: true);
     }
 

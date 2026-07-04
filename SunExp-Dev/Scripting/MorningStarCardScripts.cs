@@ -60,7 +60,7 @@ public static class MorningStarCardScripts
         var existing = CurrentHandConfigs(self);
         self.DrawCount("3");
         AttachMorningStarSealToNewHandCards(self, existing);
-        CardApi.BurnHandCards(self, 3);
+        CardApi.SelectAndBurnHandCards(self, 3);
     }
 
     private static void UseBlankStarScore(ScriptExecutor self)

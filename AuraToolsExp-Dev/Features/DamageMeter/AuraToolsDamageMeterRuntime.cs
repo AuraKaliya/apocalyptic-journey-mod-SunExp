@@ -51,6 +51,8 @@ public static class AuraToolsDamageMeterRuntime
 
     internal static DamageLedger Ledger => DamageMeterNetworkRuntime.Ledger;
 
+    internal static DamageRunLedger RunAggregate => DamageMeterNetworkRuntime.RunAggregate;
+
     internal static DamageHistoryStore History => DamageMeterNetworkRuntime.History;
 
     internal static OutOfRunDamageHistoryStore OutOfRunHistory => DamageMeterNetworkRuntime.OutOfRunHistory;
@@ -228,6 +230,7 @@ public static class AuraToolsDamageMeterRuntime
             uiDirty = false;
             AuraToolsDamageMeterUi.Refresh(
                 Ledger,
+                RunAggregate,
                 History,
                 AuraToolsConfigService.MatchExperience.DamageMeter,
                 NetworkStatus);
@@ -510,7 +513,8 @@ public static class AuraToolsDamageMeterRuntime
             }
 
             ArchiveActiveFightForSettlement();
-            if (History.Records.Count == 0)
+            var aggregate = RunAggregate.CreateSnapshot();
+            if (!RunAggregate.HasDamage && History.Records.Count == 0)
             {
                 AuraToolsLog.Info("[DamageMeter] out-of-run history skipped: no fight history. source=" + source + ".");
                 return;
@@ -518,20 +522,20 @@ public static class AuraToolsDamageMeterRuntime
 
             adventureSettlementRecorded = true;
             var mode = ResolvePlayMode();
-            var record = OutOfRunDamageHistoryBuilder.Build(
-                History.Records,
-                new OutOfRunDamageHistoryBuildRequest
-                {
-                    AdventureId = DamageMeterNetworkRuntime.CurrentAdventureId,
-                    ModeId = mode.Id,
-                    ModeDisplayName = mode.DisplayName,
-                    Status = IsCurrentAdventureCompleted()
-                        ? OutOfRunDamageHistoryStatus.Completed
-                        : OutOfRunDamageHistoryStatus.Failed,
-                    EndedUtc = DateTime.UtcNow.ToString("O"),
-                    TeamMembers = CollectTeamMembers()
-                },
-                countShield: true);
+            var request = new OutOfRunDamageHistoryBuildRequest
+            {
+                AdventureId = DamageMeterNetworkRuntime.CurrentAdventureId,
+                ModeId = mode.Id,
+                ModeDisplayName = mode.DisplayName,
+                Status = IsCurrentAdventureCompleted()
+                    ? OutOfRunDamageHistoryStatus.Completed
+                    : OutOfRunDamageHistoryStatus.Failed,
+                EndedUtc = DateTime.UtcNow.ToString("O"),
+                TeamMembers = CollectTeamMembers()
+            };
+            var record = RunAggregate.HasDamage
+                ? OutOfRunDamageHistoryBuilder.Build(aggregate, request, countShield: true)
+                : OutOfRunDamageHistoryBuilder.Build(History.Records, request, countShield: true);
             DamageSettlementCgRuntime.TryPlay(record);
 
             if (OutOfRunHistory.Add(record))

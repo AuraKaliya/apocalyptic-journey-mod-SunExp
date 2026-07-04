@@ -1,13 +1,9 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using AuraShared.Core;
 using Data.Save;
-using SunExp.Dll.GameApi;
+using SunExp.Dll.Hooks.Ui;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
-using UnityEngine;
-using UnityEngine.UI;
 using Witch;
 using Witch.Core;
 using Witch.Mod;
@@ -17,16 +13,17 @@ namespace SunExp.Dll.Hooks;
 
 public static class TongtianTowerModeRuntime
 {
-    private const string BuildCardTemplatePath = "Icon/CardTemplate/\u5efa\u7b51\u724c";
-
     public static void Initialize(ModConfig modConfig)
     {
         TongtianTowerModeEntryRuntime.Initialize(modConfig);
+        TongtianTowerSaveCacheRuntime.Initialize(modConfig);
         RegisterBefore(modConfig, "NormalMapManager.MapItemInit", EnsureTowerMapBeforeMapItems);
         RegisterAfter(modConfig, "NormalMapManager.MapItemInit", ApplyTowerSlotsAfterMapItems);
         RegisterBefore(modConfig, "MapSelectUI.ReadyToSelect", EnsureTowerMapBeforeSelect);
         RegisterAfter(modConfig, "MapSelectUI.ShowMap", ReapplyTowerFixedSlotLocks);
+        RegisterAfter(modConfig, "MapSelectUI.ShowMap", ScheduleAbyssMapPanels);
         RegisterAfter(modConfig, "MapSelectUI.DataUpdate", ApplyTowerLayerTitle);
+        RegisterAfter(modConfig, "MapSelectUI.DataUpdate", ScheduleAbyssMapPanels);
         RegisterBefore(modConfig, "NormalMapManager.ReadyToChangeMap", AdvanceTowerFloorBeforeMapChange);
         RegisterAfter(modConfig, "NormalMapManager.GeneratrMap", RepairTowerMapAfterNativeGeneration);
         RegisterBefore(modConfig, "MapManager.UserCode_CmdSelectMap__String[]__String[]__NetworkConnectionToClient", RepairTowerMapSelection);
@@ -68,6 +65,9 @@ public static class TongtianTowerModeRuntime
                 return;
             }
 
+            TongtianTowerRunStateStore.RepairCurrentRun("NormalMapManager.MapItemInit:before");
+            TongtianTowerRunStateStore.MarkPhase(TongtianTowerRunPhase.MapPlanning, "NormalMapManager.MapItemInit:before");
+            TongtianTowerOriginService.EnsureOriginCaps("NormalMapManager.MapItemInit:before");
             TongtianTowerMapBuilder.EnsureFloorMapState(manager, CurrentFloor(), "NormalMapManager.MapItemInit:before");
         }
         catch (Exception ex)
@@ -90,8 +90,9 @@ public static class TongtianTowerModeRuntime
             }
 
             TongtianTowerMapBuilder.EnsureFloorMapState(manager, CurrentFloor(), "NormalMapManager.MapItemInit:after");
-            ApplyTowerSlots(mapSelect, manager, applyAllSlots: true, sync: true, "NormalMapManager.MapItemInit");
-            SetTowerLayerTitle(mapSelect);
+            TongtianTowerMapViewPresenter.ApplySlots(mapSelect, manager, CurrentFloor(), applyAllSlots: true, sync: true, "NormalMapManager.MapItemInit");
+            TongtianTowerMapViewPresenter.SetLayerTitle(mapSelect, CurrentFloor());
+            ScheduleAbyssMapPanels("NormalMapManager.MapItemInit:after");
         }
         catch (Exception ex)
         {
@@ -108,6 +109,7 @@ public static class TongtianTowerModeRuntime
                 return;
             }
 
+            TongtianTowerOriginService.EnsureOriginCaps("MapSelectUI.ReadyToSelect");
             if (MapManager.Instance?.ModeMapManager is NormalMapManager manager)
             {
                 TongtianTowerMapBuilder.EnsureFloorMapState(manager, CurrentFloor(), "MapSelectUI.ReadyToSelect");
@@ -129,8 +131,8 @@ public static class TongtianTowerModeRuntime
             }
 
             var manager = MapManager.Instance?.ModeMapManager as NormalMapManager;
-            ApplyTowerSlots(mapSelect, manager, applyAllSlots: false, sync: false, "MapSelectUI.ShowMap");
-            SetTowerLayerTitle(mapSelect);
+            TongtianTowerMapViewPresenter.ApplySlots(mapSelect, manager, CurrentFloor(), applyAllSlots: false, sync: false, "MapSelectUI.ShowMap");
+            TongtianTowerMapViewPresenter.SetLayerTitle(mapSelect, CurrentFloor());
         }
         catch (Exception ex)
         {
@@ -144,7 +146,7 @@ public static class TongtianTowerModeRuntime
         {
             if (IsTongtianTowerRun() && context.Target is MapSelectUI mapSelect)
             {
-                SetTowerLayerTitle(mapSelect);
+                TongtianTowerMapViewPresenter.SetLayerTitle(mapSelect, CurrentFloor());
             }
         }
         catch (Exception ex)
@@ -170,8 +172,15 @@ public static class TongtianTowerModeRuntime
             }
 
             var nextFloor = CurrentFloor() + 1;
+            TongtianTowerRunStateStore.MarkPhase(TongtianTowerRunPhase.BetweenFloors, "NormalMapManager.ReadyToChangeMap");
             SetSaveValue(SunExpIds.TongtianTowerFloorKey, nextFloor.ToString());
             SetSaveValue(SunExpIds.TongtianTowerGeneratedFloorKey, "0");
+            if (TongtianTowerRewardPlan.IsEndless(nextFloor))
+            {
+                EndlessAbyssGazeService.EnsureAtLeast(
+                    EndlessAbyssConfigStore.Current.Gaze.EndlessMinLevel,
+                    "NormalMapManager.ReadyToChangeMap:endless-entry");
+            }
             if (MapManager.Instance != null)
             {
                 MapManager.Instance.SetLevel(0);
@@ -183,12 +192,70 @@ public static class TongtianTowerModeRuntime
             }
 
             TongtianTowerMapBuilder.EnsureFloorMapState(manager, nextFloor, "NormalMapManager.ReadyToChangeMap", forceRebuild: true);
+            TongtianTowerRunStateStore.MarkPhase(TongtianTowerRunPhase.MapPlanning, "NormalMapManager.ReadyToChangeMap");
             SunExpLog.Info("[TongtianTowerMode] advanced to floor " + nextFloor + ".");
         }
         catch (Exception ex)
         {
             SunExpLog.Error("Tongtian tower floor advance failed", ex);
         }
+    }
+
+    public static void TryOpenAbyssMapPanels(string source)
+    {
+        try
+        {
+            if (!IsTongtianTowerRun()
+                || IsClientOnlyPlayer()
+                || GameSaveManager.GetValue<string>(SunExpIds.TongtianTowerStarterDeckAppliedKey) != "1")
+            {
+                return;
+            }
+
+            TongtianTowerRunStateStore.RepairCurrentRun(source);
+            EndlessAbyssGazeService.EnsureInitialized(source);
+            var floor = CurrentFloor();
+            if (TongtianTowerRewardPlan.IsEndless(floor))
+            {
+                EndlessAbyssGazeService.EnsureAtLeast(
+                    EndlessAbyssConfigStore.Current.Gaze.EndlessMinLevel,
+                    source + ":endless-entry");
+            }
+            else
+            {
+                EndlessAbyssShockService.TryEnqueueStealthFloorShock(floor, source);
+            }
+
+            if (EndlessAbyssShockPanel.TryOpenPending(
+                    () => EndlessAbyssMilestoneRewardPanel.TryOpenForCurrentFloor(source + ":after-shock"),
+                    source))
+            {
+                return;
+            }
+
+            EndlessAbyssMilestoneRewardPanel.TryOpenForCurrentFloor(source);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Endless abyss map panels failed", ex);
+        }
+    }
+
+    private static void ScheduleAbyssMapPanels(ModHookContext context)
+    {
+        ScheduleAbyssMapPanels(context.Target?.GetType().Name ?? "MapSelectUI");
+    }
+
+    private static void ScheduleAbyssMapPanels(string source)
+    {
+        if (!IsTongtianTowerRun())
+        {
+            return;
+        }
+
+        SunExpFrameDispatcher.RunOnceNextFrame(
+            "EndlessAbyss.MapPanels",
+            () => TryOpenAbyssMapPanels(source));
     }
 
     private static void RepairTowerMapAfterNativeGeneration(ModHookContext context)
@@ -279,252 +346,6 @@ public static class TongtianTowerModeRuntime
         }
     }
 
-    private static void ApplyTowerSlots(
-        MapSelectUI mapSelect,
-        NormalMapManager? manager,
-        bool applyAllSlots,
-        bool sync,
-        string source)
-    {
-        if (manager == null)
-        {
-            return;
-        }
-
-        var nodes = TryGetMapSelectNodes(mapSelect, source);
-        if (nodes == null || nodes.Length == 0)
-        {
-            return;
-        }
-
-        var floor = CurrentFloor();
-        var fixedSlots = FixedSlots(floor);
-        var slots = applyAllSlots
-            ? Enumerable.Range(0, Math.Min(SunExpIds.TongtianTowerLayerNodeCount, nodes.Length)).ToArray()
-            : fixedSlots;
-        var changed = false;
-        foreach (var slot in slots)
-        {
-            if (slot < 0
-                || slot >= nodes.Length
-                || !TongtianTowerMapBuilder.TryGetVisualDefaultNode(manager.MapTree, slot, out var defaultNode)
-                || defaultNode.data == null
-                || nodes[slot] == null)
-            {
-                continue;
-            }
-
-            var node = nodes[slot];
-            if (!EquivalentNode(node, defaultNode))
-            {
-                node.data = defaultNode.data;
-                node.NodeDice = defaultNode.NodeDice;
-                changed = true;
-            }
-
-            MapNodeSafetyService.EnsureNodeDice(manager.MapTree, node, "TongtianTowerModeRuntime.ApplyTowerSlots");
-            EnsureTowerSlotVisual(mapSelect, slot, node, node.data, fixedSlots.Contains(slot));
-        }
-
-        if (sync && changed)
-        {
-            mapSelect.SendNode();
-            SunExpLog.Info("[TongtianTowerMap] slots applied from " + source + "; floor=" + floor + ".");
-        }
-    }
-
-    private static MapTree.Node[]? TryGetMapSelectNodes(MapSelectUI mapSelect, string source)
-    {
-        try
-        {
-            return mapSelect.GetNodes();
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Warn("[TongtianTowerMap] skipped slot apply from "
-                + source
-                + ": map nodes unavailable ("
-                + ex.GetType().Name
-                + ": "
-                + ex.Message
-                + ").");
-            return null;
-        }
-    }
-
-    private static int[] FixedSlots(int floor)
-    {
-        return new[]
-        {
-            TongtianTowerMapBuilder.BuildingSlotForFloor(floor),
-            SunExpIds.TongtianTowerBossSlotIndex
-        };
-    }
-
-    private static void EnsureTowerSlotVisual(
-        MapSelectUI mapSelect,
-        int slotIndex,
-        MapTree.Node node,
-        IDictionary<string, string> data,
-        bool locked)
-    {
-        var slot = MapSlotTransform(mapSelect, slotIndex);
-        var content = slot?.Find("Content");
-        if (slot == null || content == null)
-        {
-            return;
-        }
-
-        var nullSlot = content.Find("Null");
-        if (nullSlot != null)
-        {
-            nullSlot.gameObject.SetActive(false);
-        }
-
-        var prefabName = Field(data, "Type") + "Prefab";
-        var slotItem = FindReusableTowerSlotItem(content, prefabName, nullSlot);
-        foreach (var existing in content.GetComponentsInChildren<MapItem>(true))
-        {
-            if (existing == null
-                || existing.gameObject == slotItem
-                || nullSlot != null && (existing.transform == nullSlot || existing.transform.IsChildOf(nullSlot)))
-            {
-                continue;
-            }
-
-            UnityEngine.Object.Destroy(existing.gameObject);
-        }
-
-        if (slotItem == null)
-        {
-            var template = mapSelect.transform.Find("MapSelect/" + prefabName);
-            if (template == null)
-            {
-                SunExpLog.Warn("[TongtianTowerMap] missing map prefab: " + prefabName);
-                return;
-            }
-
-            slotItem = UnityEngine.Object.Instantiate(template.gameObject, content);
-            slotItem.name = prefabName;
-        }
-
-        slotItem.transform.SetParent(content, false);
-        slotItem.transform.localScale = Vector3.one;
-        slotItem.SetActive(true);
-
-        var item = slotItem.GetComponent<MapItem>() ?? slotItem.AddComponent<MapItem>();
-        var visualState = slotItem.GetComponent<TowerSlotVisualState>() ?? slotItem.AddComponent<TowerSlotVisualState>();
-        var mapId = Field(data, "Id");
-        var nodeId = Field(data, "NodeId");
-        if (!visualState.Matches(mapId, nodeId))
-        {
-            item.Init(node);
-            visualState.Set(mapId, nodeId);
-        }
-
-        ApplyMapCardTexture(item, data);
-        if (slotItem.TryGetComponent<ObjectGroup>(out var objectGroup))
-        {
-            objectGroup.blocksRaycasts = !locked;
-        }
-
-        var frame = slot.Find("Frame");
-        if (frame != null && !HasChain(frame))
-        {
-            var chain = mapSelect.transform.Find("Chain");
-            if (chain != null)
-            {
-                UnityEngine.Object.Instantiate(chain.gameObject, frame).SetActive(true);
-            }
-        }
-    }
-
-    private static GameObject? FindReusableTowerSlotItem(Transform content, string prefabName, Transform? nullSlot)
-    {
-        foreach (var existing in content.GetComponentsInChildren<MapItem>(true))
-        {
-            if (existing == null
-                || nullSlot != null && (existing.transform == nullSlot || existing.transform.IsChildOf(nullSlot)))
-            {
-                continue;
-            }
-
-            if (existing.gameObject.name.StartsWith(prefabName, StringComparison.Ordinal))
-            {
-                return existing.gameObject;
-            }
-        }
-
-        return null;
-    }
-
-    private static Transform? MapSlotTransform(MapSelectUI mapSelect, int slotIndex)
-    {
-        var root = mapSelect.transform.Find("Map/NodeContent");
-        if (root == null)
-        {
-            return null;
-        }
-
-        if (slotIndex == 0)
-        {
-            return root.Find("Start");
-        }
-
-        if (slotIndex == SunExpIds.TongtianTowerBossSlotIndex)
-        {
-            return root.Find("End");
-        }
-
-        return root.Find("Node" + slotIndex);
-    }
-
-    private static bool HasChain(Transform frame)
-    {
-        foreach (Transform child in frame)
-        {
-            if (child.name.StartsWith("Chain", StringComparison.Ordinal))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static void ApplyMapCardTexture(MapItem item, IDictionary<string, string> data)
-    {
-        if (item == null || Field(data, "Type") != "Build")
-        {
-            return;
-        }
-
-        var texture = SunExpResourceCache.Load<Texture>(BuildCardTemplatePath, true);
-        if (texture != null && !MapItemApi.ApplyCardBackgroundTexture(item, texture, hideIcon: false, out _))
-        {
-            SunExpLog.Warn("[TongtianTowerMap] build card texture skipped, renderer missing.");
-        }
-    }
-
-    private static bool EquivalentNode(MapTree.Node? left, MapTree.Node? right)
-    {
-        return string.Equals(NodeField(left, "Id"), NodeField(right, "Id"), StringComparison.Ordinal)
-            && string.Equals(NodeField(left, "NodeId"), NodeField(right, "NodeId"), StringComparison.Ordinal)
-            && string.Equals(NodeField(left, "Type"), NodeField(right, "Type"), StringComparison.Ordinal);
-    }
-
-    private static void SetTowerLayerTitle(MapSelectUI mapSelect)
-    {
-        var title = SunExpIds.TongtianTowerTitle + " 第" + CurrentFloor() + "层";
-        SetTmpText(mapSelect.transform.Find("Title/Text/text"), title);
-
-        var text = mapSelect.transform.Find("Title/Text/text")?.GetComponent<Text>();
-        if (text != null)
-        {
-            text.text = title;
-        }
-    }
-
     private static void SetSaveValue(string key, string value)
     {
         try
@@ -537,33 +358,6 @@ public static class TongtianTowerModeRuntime
         }
     }
 
-    private static void SetTmpText(Transform? target, string value)
-    {
-        if (target == null)
-        {
-            return;
-        }
-
-        var component = target.GetComponent("TMPro.TMP_Text");
-        if (component == null)
-        {
-            return;
-        }
-
-        var property = component.GetType().GetProperty("text");
-        property?.SetValue(component, value);
-    }
-
-    private static string NodeField(MapTree.Node? node, string key)
-    {
-        return node?.data != null && node.data.TryGetValue(key, out var value) ? value : "";
-    }
-
-    private static string Field(IDictionary<string, string> data, string key)
-    {
-        return data.TryGetValue(key, out var value) ? value : "";
-    }
-
     private static bool IsClientOnlyPlayer()
     {
         try
@@ -574,24 +368,6 @@ public static class TongtianTowerModeRuntime
         catch
         {
             return false;
-        }
-    }
-
-    private sealed class TowerSlotVisualState : MonoBehaviour
-    {
-        private string mapId = "";
-        private string nodeId = "";
-
-        public bool Matches(string nextMapId, string nextNodeId)
-        {
-            return string.Equals(mapId, nextMapId, StringComparison.Ordinal)
-                && string.Equals(nodeId, nextNodeId, StringComparison.Ordinal);
-        }
-
-        public void Set(string nextMapId, string nextNodeId)
-        {
-            mapId = nextMapId;
-            nodeId = nextNodeId;
         }
     }
 }

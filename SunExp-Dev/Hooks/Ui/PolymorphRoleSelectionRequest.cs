@@ -52,7 +52,7 @@ public sealed class PolymorphRoleSelectionRequest
     public static PolymorphRoleSelectionRequest Projection(ScriptExecutor executor)
     {
         return new PolymorphRoleSelectionRequest(
-            "魔女投影",
+            "拜托了",
             "选择一个已注册角色，获得对应的一次性投影牌。已注册角色：",
             "投影会作为友方行动单位加入战斗，并计入4人上限。",
             "投影牌生成失败，请选择其他角色。",

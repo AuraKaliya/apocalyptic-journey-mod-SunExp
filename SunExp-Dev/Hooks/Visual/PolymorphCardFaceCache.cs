@@ -41,10 +41,13 @@ public static class PolymorphCardFaceCache
             return null;
         }
 
-        var roleId = DictionaryUtil.Get(config?.Vars, SunExpIds.PolymorphRoleIdKey);
+        var roleId = FirstNonEmpty(
+            DictionaryUtil.Get(config?.Vars, SunExpIds.PolymorphRoleIdKey),
+            DictionaryUtil.Get(config?.Vars, SunExpIds.ProjectionRoleIdKey));
         var role = PolymorphRoleRegistry.Find(roleId);
         var path = FirstNonEmpty(
             DictionaryUtil.Get(config?.Vars, SunExpIds.PolymorphRoleCardFacePathKey),
+            DictionaryUtil.Get(config?.Vars, SunExpIds.ProjectionRoleCardFacePathKey),
             role?.CardFacePath ?? "",
             DictionaryUtil.Get(config?.data, "Icon"),
             SunExpIds.PolymorphPlaceholderCardIconPath);
@@ -64,7 +67,10 @@ public static class PolymorphCardFaceCache
 
         return string.Equals(DictionaryUtil.Get(config.data, "Id"), SunExpIds.PolymorphRoleTemplateCardId, StringComparison.Ordinal)
             || string.Equals(DictionaryUtil.Get(config.data, "Id"), SunExpIds.PolymorphRoleTemplateShortId, StringComparison.Ordinal)
-            || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey), SunExpIds.PolymorphRoleCardMarker);
+            || string.Equals(DictionaryUtil.Get(config.data, "Id"), SunExpIds.ProjectionRoleTemplateCardId, StringComparison.Ordinal)
+            || string.Equals(DictionaryUtil.Get(config.data, "Id"), SunExpIds.ProjectionRoleTemplateShortId, StringComparison.Ordinal)
+            || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey), SunExpIds.PolymorphRoleCardMarker)
+            || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey), SunExpIds.ProjectionRoleCardMarker);
     }
 
     public static void Warmup(IEnumerable<PolymorphRoleSpec> roles, int immediateCount, int batchSize)

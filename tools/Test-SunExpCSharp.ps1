@@ -112,6 +112,7 @@ function New-StubsSource {
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 
 namespace Witch.Core
 {
@@ -313,6 +314,31 @@ namespace SunExp.Dll.GameApi
         public static int CombatIntAdd(string key, int amount)
         {
             return CombatIntSet(key, CombatIntGet(key) + amount);
+        }
+    }
+
+    public static class CardSelectionApi
+    {
+        public static bool SelectCardsFromCards(
+            ScriptExecutor self,
+            IReadOnlyList<IDataConfig> source,
+            int count,
+            Func<IDataConfig, bool> predicate,
+            Action<IReadOnlyList<IDataConfig>> onSelected,
+            string caption,
+            Action? onCancelled = null)
+        {
+            var cards = (source ?? Array.Empty<IDataConfig>())
+                .Where(card => card != null && (predicate == null || predicate(card)))
+                .Take(Math.Max(0, count))
+                .ToList();
+            if (self == null || cards.Count == 0 || onSelected == null)
+            {
+                return false;
+            }
+
+            onSelected(cards);
+            return true;
         }
     }
 }
@@ -702,14 +728,14 @@ internal static class Program
             });
 
         Equal(3, CardConfigApi.CurrentCost(config), "Star blessing test card starts at its normal modified cost");
-        True(store.BeginPreview(config), "Star blessing begins one preview transaction");
-        Equal(0, CardConfigApi.CurrentCost(config), "Star blessing preview displays zero cost");
-        False(store.BeginPreview(config), "Star blessing preview is idempotent for the same card instance");
+        True(store.BeginPreview(config, 2), "Star blessing begins one preview transaction");
+        Equal(2, CardConfigApi.CurrentCost(config), "Star blessing preview displays halved rounded-up cost");
+        False(store.BeginPreview(config, 2), "Star blessing preview is idempotent for the same card instance");
         store.Cancel(config);
         Equal("-1", config.Vars["OnceExCost"], "Cancelling star blessing restores the original one-use modifier");
         Equal(3, CardConfigApi.CurrentCost(config), "Cancelling star blessing restores the normal displayed cost");
 
-        True(store.BeginPreview(config), "Star blessing preview can begin again after cancellation");
+        True(store.BeginPreview(config, 2), "Star blessing preview can begin again after cancellation");
         store.MarkBlessingConsumed(config);
         store.MarkActionObserved(config);
         True(store.ActionObserved(config), "Confirmed card action marks the preview transaction committed");
@@ -718,7 +744,7 @@ internal static class Program
         Equal("0", config.Vars["OnceExCost"], "Successful play consumes all one-use cost modifiers");
         Equal(4, CardConfigApi.CurrentCost(config), "The card returns to its normal non-once cost after successful play");
 
-        True(store.BeginPreview(config), "A later blessing can preview the same card again");
+        True(store.BeginPreview(config, 2), "A later blessing can preview the same card again");
         store.CancelAll();
         Equal("0", config.Vars["OnceExCost"], "Fight cleanup restores every active preview");
         False(store.Contains(config), "Fight cleanup removes active preview state");
@@ -1015,12 +1041,12 @@ internal static class Program
         True(ReferenceEquals(score, StarScoreCombatStateStore.GetOrCreate(owner)), "Star score is shared across card executors for the same owner");
 
         var openingCadence = StarScoreCadenceCatalog.Resolve(new[] { StarScoreNote.Opening, StarScoreNote.Opening, StarScoreNote.Opening });
-        Equal("\u542f\u542f\u542f\uff1a\u6025\u677f\u3002\u62bd1\u5f20\u724c\uff1b\u53cb\u65b9\u5168\u4f53\u4f59\u97f3+1", openingCadence.DisplayText, "Opening cadence tooltip text matches the design copy");
+        Equal("\u542f\u542f\u542f\uff1a\u6025\u677f\u3002\u53cb\u65b9\u5168\u4f53\u4f59\u97f3+1\uff1b\u53cb\u65b9\u5168\u4f53\u62bd2\u5f20\u724c", openingCadence.DisplayText, "Opening cadence tooltip text matches the design copy");
         var defaultCadence = StarScoreCadenceCatalog.Resolve(new[] { StarScoreNote.Opening, StarScoreNote.Sustain, StarScoreNote.Opening });
-        Equal("\u542f\u627f\u542f\uff1a\u4e09\u58f0\u548c\u5f26\u3002\u4f59\u97f3+1\uff1b\u62bd1\u5f20\u724c", defaultCadence.DisplayText, "Default cadence tooltip text matches the design copy");
+        Equal("\u542f\u627f\u542f\uff1a\u4e09\u58f0\u548c\u5f26\u3002\u53cb\u65b9\u5168\u4f53\u62bd1\u5f20\u724c", defaultCadence.DisplayText, "Default cadence tooltip text matches the design copy");
         var candidates = StarScoreCadenceCatalog.CandidatesForPrefix(new[] { StarScoreNote.Opening, StarScoreNote.Sustain });
         Equal(4, candidates.Count, "Two-note star score prefixes enumerate four possible third notes");
-        True(candidates.Any(row => row.DisplayText == "\u542f\u627f\u8f6c\uff1a\u8c03\u5f8b\u3002\u9b54\u80fd+1\uff1b\u53cb\u65b9\u5168\u4f53\u4f59\u97f3+1"), "Candidate list includes the named tuning cadence");
+        True(candidates.Any(row => row.DisplayText == "\u542f\u627f\u8f6c\uff1a\u8c03\u5f8b\u3002\u81ea\u8eab\u4f59\u97f3+1\uff1b\u53cb\u65b9\u5168\u4f53\u4f59\u97f3+1"), "Candidate list includes the named tuning cadence");
     }
 
     private static FakeDataConfig NewConfig(
@@ -1135,13 +1161,23 @@ function Invoke-SourceAssertions {
     $projectionStateStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionStateStore.cs"))
     $projectionStrategyService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionStrategyService.cs"))
     $projectionSummonService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionSummonService.cs"))
+    $companionBattleModels = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionBattleModels.cs"))
+    $companionBattleStateStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionBattleStateStore.cs"))
+    $companionIntentRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionIntentRegistry.cs"))
+    $companionIntentSelector = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionIntentSelector.cs"))
+    $companionSlotService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionSlotService.cs"))
+    $companionStatsService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionStatsService.cs"))
+    $companionThreatService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionThreatService.cs"))
+    $companionIntentRegistryJson = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\companion.intent.registry.json"))
     $runtimeCardAttachmentService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\RuntimeCardAttachmentService.cs"))
     $starBlessingCostOverrideStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarBlessingCostOverrideStore.cs"))
     $cardGrantRecipes = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardGrantRecipes.cs"))
     $specialTagRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SpecialTagRuntime.cs"))
+    $companionThreatRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\CompanionThreatRuntime.cs"))
     $cardConfigApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\CardConfigApi.cs"))
     $gameCompatibilityApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\GameCompatibilityApi.cs"))
     $cardScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\CardScripts.cs"))
+    $morningStarCardScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\MorningStarCardScripts.cs"))
     $buffScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\BuffScripts.cs"))
     $buffApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\BuffApi.cs"))
     $scriptEventApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\ScriptEventApi.cs"))
@@ -1197,8 +1233,26 @@ function Invoke-SourceAssertions {
     $solarMemoryStarterDeckRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryStarterDeckRuntime.cs"))
     $tongtianTowerIntroBoardRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\TongtianTowerIntroBoardRuntime.cs"))
     $tongtianTowerRunLauncher = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\TongtianTowerRunLauncher.cs"))
+    $tongtianTowerSaveCacheRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\TongtianTowerSaveCacheRuntime.cs"))
+    $tongtianTowerModeRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\TongtianTowerModeRuntime.cs"))
+    $tongtianTowerMapViewPresenter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\TongtianTowerMapViewPresenter.cs"))
+    $tongtianTowerFloorPlanner = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\TongtianTowerFloorPlanner.cs"))
+    $tongtianTowerMapBuilder = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\TongtianTowerMapBuilder.cs"))
+    $tongtianTowerMapProjectionService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\TongtianTowerMapProjectionService.cs"))
+    $tongtianTowerSelectableNodeDeckPlanner = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\TongtianTowerSelectableNodeDeckPlanner.cs"))
     $tongtianTowerStarterDeckCatalog = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\TongtianTowerStarterDeckCatalog.cs"))
     $tongtianTowerRichTextSanitizer = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\TongtianTowerRichTextSanitizer.cs"))
+    $tongtianTowerOriginService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\TongtianTowerOriginService.cs"))
+    $tongtianTowerCardAffixRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\TongtianTowerCardAffixRuntime.cs"))
+    $tongtianTowerCardAffixService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\TongtianTowerCardAffixService.cs"))
+    $endlessAbyssConfig = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssConfig.cs"))
+    $endlessAbyssConfigJson = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\endless_abyss.config.json"))
+    $endlessAbyssRewardPoolService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssRewardPoolService.cs"))
+    $endlessAbyssMilestoneRewardService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssMilestoneRewardService.cs"))
+    $endlessAbyssMilestoneRewardPanel = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\EndlessAbyssMilestoneRewardPanel.cs"))
+    $endlessAbyssShockPanel = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\EndlessAbyssShockPanel.cs"))
+    $tongtianTowerRunStateStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\TongtianTowerRunStateStore.cs"))
+    $modeChoiceSaveCacheApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\ModeChoiceSaveCacheApi.cs"))
     $solarMemorySetupFlowRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemorySetupFlowRuntime.cs"))
     $solarMemoryBlessingPickerRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryBlessingPickerRuntime.cs"))
     $solarMemoryPreparationRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryPreparationRuntime.cs"))
@@ -1247,6 +1301,8 @@ function Invoke-SourceAssertions {
     $partnerData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Partner\sunexp.csv"))
     $cardDataPath = Join-Path $RepoRoot "SunExp\Data\Card\sunexp.csv"
     $cardData = [System.IO.File]::ReadAllText($cardDataPath)
+    $cardTextPath = Join-Path $RepoRoot "SunExp\Text\Card\sunexp.csv"
+    $cardText = [System.IO.File]::ReadAllText($cardTextPath)
     $loneerCareerText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\Career\loneer.csv"))
 
     $addStatusBuff = [regex]::Match($executorApi, "public\s+static\s+bool\s+AddStatusBuff[\s\S]*?public\s+static\s+bool\s+RemoveStatusBuff")
@@ -1490,6 +1546,8 @@ function Invoke-SourceAssertions {
     Assert-True $cardScripts.Contains("[SunExpIds.ProjectionCardShortId] = UseProjection") "CardScripts must route the projection selection card."
     Assert-True $cardScripts.Contains("[SunExpIds.ProjectionRoleTemplateShortId] = UseProjectionRoleCard") "CardScripts must route generated projection role cards."
     Assert-True $runtimeHooks.Contains("ProjectionRuntime.Initialize(modConfig)") "RuntimeHooks must initialize projection combat hooks."
+    Assert-True $runtimeHooks.Contains("CompanionIntentRegistry.Load(modConfig)") "RuntimeHooks must load companion intent registry before projection combat hooks."
+    Assert-True $runtimeHooks.Contains("CompanionThreatRuntime.Initialize(modConfig)") "RuntimeHooks must initialize companion threat targeting."
     Assert-True $entry.Contains("SunExp.Dll.Scripting.ProjectionScripts") "Entry must register ProjectionScripts for CSV action calls."
     Assert-True $projectionActivationService.Contains("CardGrantRequest") "Projection generated cards must use the shared card grant API."
     Assert-True $projectionActivationService.Contains("DictionaryUtil.Set(config.Vars") "Projection generated cards must write runtime overrides to Vars."
@@ -1498,8 +1556,16 @@ function Invoke-SourceAssertions {
     Assert-True $projectionSummonService.Contains('SunExpResourceCache.Load<GameObject>("Model/player", true, "projection")') "Projection summon must load the player model through the shared resource cache."
     Assert-True $projectionSummonService.Contains("SunExpIds.ProjectionActionStaffTapCardId") "Projection summon must attach the shared staff-tap action."
     Assert-True $projectionSummonService.Contains("SunExpIds.ProjectionActionShieldBlessingCardId") "Projection summon must attach the shared shield action."
+    Assert-True $projectionSummonService.Contains("CompanionSlotService.FindOpenPlayerSlot") "Projection summon must occupy an open player-side slot."
+    Assert-True $projectionSummonService.Contains("CompanionStatsService.ProjectionStats") "Projection summon must derive independent companion stats."
     Assert-True $projectionOtherObj.Contains("public sealed class ProjectionOtherObj : OtherObj") "Projection actors must stay friendly OtherObj objects, not real partners."
     Assert-True $projectionOtherObj.Contains("EnsureActionIcons") "Projection actors must create action icons because native OtherObj does not."
+    Assert-True $projectionOtherObj.Contains("CompanionBattleStateStore.Create") "Projection actors must create companion runtime state."
+    Assert-True $projectionOtherObj.Contains("CompanionIntentSelector.Select") "Projection actors must select intents through the companion selector."
+    Assert-True $projectionOtherObj.Contains("CompanionThreatService.SetPreview") "Projection actors must publish selected-intent preview threat."
+    Assert-True $projectionOtherObj.Contains('RefreshProjectionIntent("InitProjection")') "Projection actors must reveal intent immediately after summon."
+    Assert-True $projectionOtherObj.Contains("FightAction.ActionExecute()") "Projection turns must execute queued actions without native head/Msg announcement UI."
+    Assert-True (-not $projectionOtherObj.Contains("return base.DoAction();")) "Projection turns must not use native OtherObj.DoAction because the player model lacks head/Msg."
     Assert-True $projectionStateStore.Contains("ProjectionStatusIdPrefix") "Projection status ids must use the centralized friendly projection prefix."
     Assert-True $projectionStateStore.Contains("removeStatusRecords: false") "Projection retirement must leave status records long enough for native hit queues to settle."
     Assert-True $projectionRuntime.Contains('RegisterAfter(modConfig, "StatusManager.Hit", RetireProjectionAfterDamage);') "Projection runtime must retire dead projections after full damage resolves."
@@ -1510,10 +1576,32 @@ function Invoke-SourceAssertions {
     Assert-True (-not $projectionRuntime.Contains("ProjectionThreatService")) "Projection runtime must not depend on retired threat redirection."
     Assert-True $projectionStateStore.Contains("RetireIfDead") "Projection state store must expose a shared death retirement guard."
     Assert-True $projectionStateStore.Contains("SunExpFrameDispatcher.RunOnceNextFrame") "Projection retirement must delay status-record removal until native queues settle."
+    Assert-True $projectionStateStore.Contains("CompanionBattleStateStore.Remove") "Projection retirement must clear companion runtime state."
     Assert-True (-not $projectionStateStore.Contains("ThreatBoost")) "Projection state must not keep retired threat-weight state."
     Assert-True (-not $projectionStrategyService.Contains("MarkShielded")) "Projection shield behavior must not modify retired threat weights."
-    Assert-True $projectionStrategyService.Contains("ProjectionActionShieldBlessing") "Projection strategy must own the shared shield action behavior."
+    Assert-True $projectionStrategyService.Contains("CompanionIntentExecutor.UseAction") "Projection strategy must delegate shared action behavior to companion intents."
     Assert-True $projectionScripts.Contains("ProjectionStrategyService.UseAction") "ProjectionScripts must keep CSV actions routed through Mechanics."
+    Assert-True $companionBattleModels.Contains("CompanionIntentTendency") "Companion models must define attack/defense tendencies."
+    Assert-True $companionBattleModels.Contains("CompanionIntentType") "Companion models must define companion intent types."
+    Assert-True $companionIntentSelector.Contains("Take(3)") "Companion intent selection must sample from top three priority candidates."
+    Assert-True $companionIntentSelector.Contains("PickWeighted") "Companion intent selection must use weighted random selection."
+    Assert-True $companionIntentSelector.Contains("CompanionThreatService.ThreatPercent") "Companion intent priority must react to current companion threat."
+    Assert-True $companionBattleStateStore.Contains("CompanionThreatService.Register") "Companion battle state creation must register threat state."
+    Assert-True $companionBattleStateStore.Contains("CompanionThreatService.Remove") "Companion battle state removal must clear threat state."
+    Assert-True $companionIntentRegistry.Contains("companion.intent.registry.json") "Companion intent pools must be data-driven through the registry."
+    Assert-True $companionIntentRegistryJson.Contains('"staff_tap"') "Companion intent registry must define the common staff-tap intent."
+    Assert-True $companionIntentRegistryJson.Contains('"shield_blessing"') "Companion intent registry must define the common magic-shield intent."
+    Assert-True $companionIntentRegistryJson.Contains('"threat"') "Companion intent registry must declare intent threat."
+    Assert-True $companionSlotService.Contains("MaxFriendlySlots = 4") "Companion slots must use the four friendly player-side slots."
+    Assert-True $companionThreatService.Contains("TryRedirectEnemySingleTarget") "Companion threat must expose weighted enemy single-target redirection."
+    Assert-True $companionThreatService.Contains("AddActiveCompanionsToAllTargets") "Companion threat must expose all-target companion expansion."
+    Assert-True (-not $companionThreatService.Contains("roleQueue.Add")) "Companion threat must not add projections to the native player role queue."
+    Assert-True $companionThreatRuntime.Contains('RegisterAfter(modConfig, "ScriptExecutor.SetStatus", ExtendEnemyTargetsAfterSetStatus);') "Companion threat runtime must hook enemy SetStatus after native target construction."
+    Assert-True $companionThreatRuntime.Contains("executor.Self?.fatherObject is not Enemy") "Companion threat runtime must only extend enemy target selection."
+    Assert-True $companionStatsService.Contains('"Strength"') "Companion stats must derive magic from the Strength origin key."
+    Assert-True $companionStatsService.Contains('"Lucky"') "Companion stats must derive spirit from the Lucky origin key."
+    Assert-True $companionStatsService.Contains('"Wisdom"') "Companion stats must derive luck from the Wisdom origin key."
+    Assert-True $companionStatsService.Contains('"Perceive"') "Companion stats must derive perception from the Perceive origin key."
     Assert-True (-not $cardApi.Contains("previousCount")) "Generated-card success must not depend on draw-pile net count."
     Assert-True (-not $cardApi.Contains("could not verify added card")) "The inverted draw-pile count verifier must remain removed."
     Assert-True $loneerService.Contains("SetMorningPrayerCooldown(self, state, PrayerCooldownRounds);") "Morning Star Prayer must commit its cooldown after a successful copy."
@@ -1547,6 +1635,15 @@ function Invoke-SourceAssertions {
     Assert-True ([regex]::IsMatch($buffData, '(?m)^"star_stone_pouch".*"TRUE"\r?$')) "Star Stone Pouch buff data must allow a zero-layer pouch while the white stone remains."
     Assert-True $buffData.Contains('BuffScripts.Apply(self, ""star_stone_pouch"")') "Star Stone Pouch buff data must call its apply script."
     Assert-True $buffData.Contains('BuffScripts.Clear(self, ""star_stone_pouch"")') "Star Stone Pouch buff data must call its clear script."
+    $buffRows = Import-Csv -LiteralPath (Join-Path $RepoRoot "SunExp\Data\Buff\sunexp.csv")
+    $starStonePouchRow = $buffRows | Where-Object { $_.Id -eq "star_stone_pouch" } | Select-Object -First 1
+    $miracleClockRow = $buffRows | Where-Object { $_.Id -eq "miracle_clock" } | Select-Object -First 1
+    $traitType = [string]([char]0x7279) + [string]([char]0x6027)
+    Assert-True ($starStonePouchRow.Type -eq $traitType) "Star Stone Pouch must be a trait buff, not a positive ability buff."
+    Assert-True ($miracleClockRow.Type -eq $traitType) "Miracle Clock must be a trait buff, not a positive ability buff."
+    $positiveBuffsBlock = [regex]::Match($buffApi, "private\s+static\s+IEnumerable<IBuffItem>\s+PositiveBuffs[\s\S]*?private\s+static\s+bool\s+IsNegativeType")
+    Assert-True $positiveBuffsBlock.Success "Could not locate BuffApi.PositiveBuffs for source assertion."
+    Assert-True $positiveBuffsBlock.Value.Contains("if (IsPositiveExcluded(buff.buffConfig.BuffId))") "Positive buff enumeration must skip excluded trait-like technical buffs."
     Assert-True $buffData.Contains('BuffScripts.Apply(self, ""star_score"")') "Star Score buff data must bind its UI lifecycle to the buff apply script."
     Assert-True $buffData.Contains('BuffScripts.Clear(self, ""star_score"")') "Star Score buff data must bind its UI lifecycle to the buff clear script."
     Assert-True ([regex]::IsMatch($enchTagData, '(?m)^"morning_star_seal",.*,"3",')) "Morning Star Seal must be rarity tier 3."
@@ -1568,13 +1665,29 @@ function Invoke-SourceAssertions {
         $useId = $Matches[1].Replace("*", "").Trim()
         Assert-True $starScoreNote.Contains('case "' + $useId + '":') ("Normalized Use id is not dispatched: " + $row.Id)
     }
+    $cardRows = Import-Csv -LiteralPath $cardDataPath
+    $starMapRow = $cardRows | Where-Object { $_.Id -eq "star_map" } | Select-Object -First 1
+    $starStageRow = $cardRows | Where-Object { $_.Id -eq "morning_star_stage" } | Select-Object -First 1
+    Assert-True ($starMapRow.Rarity -eq "3") "Star Map must be promoted to rarity tier 3."
+    Assert-True ([regex]::IsMatch($starMapRow.Tag, '(^|,)Burnout(,|$)')) "Star Map must have Burnout."
+    Assert-True ([regex]::IsMatch($starStageRow.Tag, '(^|,)Burnout(,|$)')) "Morning Star: Star Stage must have Burnout."
+    Assert-True $morningStarCardScripts.Contains("CardApi.SelectAndBurnHandCards(self, 3);") "Star Map must let the player choose three cards to burn."
+    Assert-True $cardApi.Contains("public static bool SelectAndBurnHandCards") "CardApi must expose selected hand-card burning."
+    Assert-True $cardSelectionApi.Contains("public static bool SelectCardsFromCards") "CardSelectionApi must support multi-card selection for Star Map."
+    $cardTextRows = Import-Csv -LiteralPath $cardTextPath
+    $starMapTextRow = $cardTextRows | Where-Object { $_.Id -eq "star_map" } | Select-Object -First 1
+    $stellarCloseTextRow = $cardTextRows | Where-Object { $_.Id -eq "*stellar_overture_close" } | Select-Object -First 1
+    $stellarSustainTextRow = $cardTextRows | Where-Object { $_.Id -eq "*stellar_overture_sustain" } | Select-Object -First 1
+    Assert-True $starMapTextRow.Description_en.Contains("choose 3 cards to burn") "Star Map text must describe selected burning."
+    Assert-True $stellarCloseTextRow.Description_en.Contains("Deal {0} damage") "Stellar Overture: Close must use the first dynamic damage placeholder."
+    Assert-True $stellarSustainTextRow.Description_en.Contains("Gain {0} Block") "Stellar Overture: Sustain must use the first dynamic block placeholder."
     Assert-True (-not $loneerService.Contains("SunExpIds.LoneerGuidanceCardId")) "Loneer guidance must not be stored in per-executor Vars."
     Assert-True $starScoreService.Contains("StarScoreCombatStateStore.GetOrCreate(self.Self)") "Star score notes must be owner-scoped across card executors."
     Assert-True $starScoreState.Contains("while (notes.Count > Math.Max(1, windowSize))") "Star score must maintain a bounded sliding window."
     Assert-True $starScoreState.Contains("RetainLastNoteAsCadenceStart") "Star score must retain the last overture after a completed cadence."
     Assert-True $starScoreService.Contains("state.RetainLastNoteAsCadenceStart();") "Star score cadence resolution must seed the next cadence with the final overture."
-    Assert-True $starScoreService.Contains("DrawCards(self, 1);") "Start-Start-Start cadence must draw exactly one card."
-    Assert-True $starScoreService.Contains('self.ChangePower("1");') "Start-Sustain-Turn cadence must restore exactly one power."
+    Assert-True $starScoreService.Contains("DrawCardsForFriendlyParty(self, 2);") "Start-Start-Start cadence must make the friendly party draw two cards."
+    Assert-True ([regex]::IsMatch($starScoreService, 'case NoteStart \+ NoteSustain \+ NoteTurn:[\s\S]*self\.AddBuff\(SunExpIds\.Resonance, "1"\);[\s\S]*AddBuffToFriendlyParty\(self, SunExpIds\.Resonance, 1\);')) "Start-Sustain-Turn cadence must grant self resonance and friendly-party resonance."
     Assert-True $duskPartnerScripts.Contains("SunExpDuskAfterheatHook") "Dusk trait scripts must remain in the Dusk module."
     Assert-True $starClayDollScripts.Contains("SunExpStarClayDollHook") "Star Clay Doll trait scripts must remain in the Star Clay module."
     Assert-True $starClayDollScripts.Contains('ExecutorApi.TryAddTokenedEvent(self, "ActionAfter"') "Star Clay Doll must grant starlight after an action resolves through the shared tokened event wrapper."
@@ -1800,7 +1913,7 @@ function Invoke-SourceAssertions {
     Assert-True $enemyCardData.Contains("enemycard_projection_shield_blessing") "EnemyCard data must define the projection shield action."
     Assert-True $enemyCardData.Contains("ProjectionScripts.InitAction") "Projection enemy-card rows must route initialization through ProjectionScripts."
     Assert-True $enemyCardText.Contains("Staff Bonk") "EnemyCard text must localize the projection staff action."
-    Assert-True $enemyCardText.Contains("Shield Blessing") "EnemyCard text must localize the projection shield action."
+    Assert-True $enemyCardText.Contains("Magic Shield") "EnemyCard text must localize the projection magic-shield action."
     Assert-True (-not $enemyCardText.Contains("threat weight")) "Projection shield text must not promise retired threat-weight behavior."
     Assert-True (-not $enemyCardText.Contains("威胁权重")) "Projection shield Chinese text must not promise retired threat-weight behavior."
     Assert-True $buffText.Contains("Three Thousand Orbit Mirrors") "Buff text must localize the mirror-array boss trait."
@@ -1928,14 +2041,94 @@ function Invoke-SourceAssertions {
     Assert-True ([regex]::IsMatch($solarMemoryStarterDeckRuntime, 'ApplyDeck\([\s\S]*?sync:\s*false\)')) "Solar memory custom starter deck must suppress intermediate role synchronization."
     Assert-True ([regex]::IsMatch($solarMemoryStarterDeckRuntime, 'KeepOfficialDeck\(roleTable,\s*CreateClaim\(mode\),\s*sync:\s*false\)')) "Solar memory official starter deck path must suppress intermediate role synchronization."
     Assert-True ([regex]::IsMatch($tongtianTowerIntroBoardRuntime, 'ApplyDeck\([\s\S]*?sync:\s*true\)')) "Tongtian Tower starter deck choices must persist through the shared role sync path."
-    Assert-True $tongtianTowerRunLauncher.Contains('saveInfo.GameVars[SunExpIds.TongtianTowerIntroSeenKey] = "0"') "Tongtian Tower saves must initialize the intro board as unseen."
-    Assert-True $tongtianTowerRunLauncher.Contains('saveInfo.GameVars[SunExpIds.TongtianTowerStarterDeckAppliedKey] = "0"') "Tongtian Tower saves must initialize starter-deck selection as unapplied."
-    Assert-True $tongtianTowerStarterDeckCatalog.Contains("public const int DeckSize = 11") "Tongtian Tower hardcoded starter decks must keep native deck size."
-    Assert-True (([regex]::Matches($tongtianTowerStarterDeckCatalog, 'new\(\s*\r?\n\s*"').Count) -eq 3) "Tongtian Tower must expose exactly three hardcoded starter deck profiles."
-    Assert-True $tongtianTowerStarterDeckCatalog.Contains("SunExpConfigIndex.Row(DataType.Card") "Tongtian Tower starter deck catalog must validate card ids through the config index."
+    Assert-True $tongtianTowerRunLauncher.Contains("TongtianTowerRunStateStore.FindLatestUnfinishedRun") "Tongtian Tower launcher must resume unfinished tower saves before creating a new run."
+    Assert-True $tongtianTowerRunLauncher.Contains("ShowContinuePrompt") "Tongtian Tower launcher must prompt before continuing or replacing an unfinished tower run."
+    Assert-True $tongtianTowerRunLauncher.Contains("buttonLayout.childControlWidth = true") "Tongtian Tower continue prompt buttons must be laid out horizontally with controlled widths."
+    Assert-True $tongtianTowerRunLauncher.Contains("element.minHeight = 50f") "Tongtian Tower continue prompt buttons must keep a readable minimum height."
+    Assert-True $tongtianTowerRunLauncher.Contains("TongtianTowerRunStateStore.DeleteUnfinishedRuns") "Tongtian Tower launcher must delete unfinished tower saves only after the player chooses a new run."
+    Assert-True $tongtianTowerRunLauncher.Contains("modeType = NativeMapModeType") "Tongtian Tower saves must use native Normal mode so the official map manager can start."
+    Assert-True $tongtianTowerRunLauncher.Contains("private const string NativeMapModeType = SunExpIds.NativeNormalModeType") "Tongtian Tower must keep native map startup on the official Normal mode manager."
+    Assert-True $tongtianTowerRunLauncher.Contains("SetLobbyModeType(NativeMapModeType)") "Tongtian Tower lobby launch must reuse the native Normal mode manager."
+    Assert-True (-not $tongtianTowerRunLauncher.Contains("SetLobbyModeType(SunExpIds.TongtianTowerModeType)")) "Tongtian Tower must not pass its custom save mode type into the native lobby map startup."
+    Assert-True (-not $tongtianTowerRunLauncher.Contains("modeType = SunExpIds.TongtianTowerModeType")) "Tongtian Tower saves must not store custom modeType values that break native map startup."
+    Assert-True $tongtianTowerRunLauncher.Contains("TongtianTowerRunStateStore.InitializeNewRun") "Tongtian Tower launcher must delegate save initialization to the run-state store."
+    Assert-True $tongtianTowerRunStateStore.Contains("saveInfo.modeType = SunExpIds.NativeNormalModeType") "Tongtian Tower run-state repair must migrate tower saves back to native Normal mode."
+    Assert-True $tongtianTowerModeRuntime.Contains("TongtianTowerSaveCacheRuntime.Initialize(modConfig)") "Tongtian Tower runtime must isolate tower saves from the official Normal continue cache."
+    Assert-True $tongtianTowerSaveCacheRuntime.Contains('"ModeChoiceUI.NormalMode"') "Tongtian Tower save cache isolation must run before native Normal mode uses its cached save."
+    Assert-True $tongtianTowerSaveCacheRuntime.Contains('"ModeChoiceUI.DeleteExistingSavesForMode"') "Tongtian Tower save cache isolation must protect tower saves from native Normal cleanup."
+    Assert-True $tongtianTowerSaveCacheRuntime.Contains("TemporarilyProtectedSaves") "Tongtian Tower save cache isolation must restore tower saves after native cleanup."
+    Assert-True $tongtianTowerSaveCacheRuntime.Contains("ModeChoiceSaveCacheApi.ClearCachedSaveIf") "Tongtian Tower save cache isolation must route official cache mutation through GameApi."
+    Assert-True $modeChoiceSaveCacheApi.Contains("ModeChoiceUI.beforeSave") "Mode choice save cache GameApi must own official beforeSave access."
+    Assert-True $tongtianTowerRunStateStore.Contains("DeleteUnfinishedRuns") "Tongtian Tower run-state store must own unfinished-run deletion."
+    Assert-True $tongtianTowerRunStateStore.Contains('Set(saveInfo, SunExpIds.TongtianTowerIntroSeenKey, "0")') "Tongtian Tower saves must initialize the intro board as unseen."
+    Assert-True $tongtianTowerRunStateStore.Contains('Set(saveInfo, SunExpIds.TongtianTowerStarterDeckAppliedKey, "0")') "Tongtian Tower saves must initialize starter-deck selection as unapplied."
+    Assert-True $tongtianTowerRunStateStore.Contains('Set(saveInfo, SunExpIds.TongtianTowerFloorPlanKey, "")') "Tongtian Tower saves must initialize the persisted floor plan slot."
+    Assert-True $tongtianTowerRunStateStore.Contains("TongtianTowerRunIdKey") "Tongtian Tower saves must persist a run id."
+    Assert-True $tongtianTowerRunStateStore.Contains("TongtianTowerRunPhaseKey") "Tongtian Tower saves must persist a phase."
+    Assert-True $tongtianTowerRunLauncher.Contains('saveInfo.GameVars[GameVar.ExLockDes.ToString()] = "0"') "Tongtian Tower saves must not pre-lock editable map slots."
+    Assert-True $tongtianTowerFloorPlanner.Contains("TongtianTowerNodeKind.Monster") "Tongtian Tower floor planner must fix the native start slot as a monster."
+    Assert-True $tongtianTowerFloorPlanner.Contains("TongtianTowerNodeKind.Boss") "Tongtian Tower floor planner must fix the final boss slot."
+    Assert-True $tongtianTowerFloorPlanner.Contains("new List<TongtianTowerSlotPlan>(SunExpIds.TongtianTowerNativeDefaultNodeCount)") "Tongtian Tower floor planner must prefill only native fixed slots."
+    Assert-True $tongtianTowerMapBuilder.Contains("TongtianTowerFloorPlanStore.Save(plan)") "Tongtian Tower map builder must persist the visual floor plan."
+    Assert-True $tongtianTowerMapBuilder.Contains("TongtianTowerMapProjectionService.NativeDefaultOrder") "Tongtian Tower map builder must route native bootstrap ordering through projection."
+    Assert-True $tongtianTowerMapBuilder.Contains('SetSaveValue(GameVar.ExLockDes.ToString(), "0")') "Tongtian Tower map builder must leave editable native map slots unlocked."
+    Assert-True $tongtianTowerMapBuilder.Contains("TongtianTowerSelectableNodeDeckPlanner.CreateKinds") "Tongtian Tower map builder must route selectable node composition through a planner."
+    Assert-True $tongtianTowerSelectableNodeDeckPlanner.Contains("TongtianTowerNodeKind.Rest") "Tongtian Tower selectable node planner must include one rest node card."
+    Assert-True $tongtianTowerSelectableNodeDeckPlanner.Contains("TongtianTowerNodeKind.Building") "Tongtian Tower selectable node planner must include one building node card."
+    Assert-True $tongtianTowerMapProjectionService.Contains("TongtianTowerNativeDefaultNodeCount") "Tongtian Tower native bootstrap must keep only the native start placeholder and boss defaults."
+    Assert-True $tongtianTowerMapProjectionService.Contains("TongtianTowerNodeKind.Rest") "Tongtian Tower native bootstrap must feed the native Start slot a safe non-fight placeholder."
+    Assert-True $tongtianTowerMapProjectionService.Contains('NodeType(tree.DefaultNode[0]) != "Fight"') "Tongtian Tower native bootstrap must keep DefaultNode[0] safe for native Start initialization."
+    Assert-True $tongtianTowerMapProjectionService.Contains('NodeType(tree.DefaultNode[1]) == "Fight"') "Tongtian Tower native bootstrap must keep DefaultNode[1] as the boss fight."
+    Assert-True $tongtianTowerMapViewPresenter.Contains("ClearEditableSlots") "Tongtian Tower map presenter must clear middle slots for player node-card placement."
+    Assert-True $tongtianTowerMapViewPresenter.Contains("nodes[slot].data = null") "Tongtian Tower editable map slots must start empty."
+    Assert-True $tongtianTowerMapViewPresenter.Contains('return string.Equals(type, "Fight"') "Tongtian Tower map presenter must route non-fight nodes away from FightPrefab."
+    Assert-True $tongtianTowerMapViewPresenter.Contains('"EventPrefab"') "Tongtian Tower map presenter must render building slots with a native EventPrefab."
+    Assert-True (-not $tongtianTowerMapViewPresenter.Contains('"BuildPrefab"')) "Tongtian Tower map presenter must not request a non-native BuildPrefab."
+    Assert-True $tongtianTowerModeRuntime.Contains("TongtianTowerMapViewPresenter.ApplySlots") "Tongtian Tower runtime must delegate visible slot repair to the map presenter."
+    Assert-True $tongtianTowerIntroBoardRuntime.Contains("AddTextFill(header.transform") "Tongtian Tower intro board must render a header subtitle."
+    Assert-True $tongtianTowerIntroBoardRuntime.Contains("SetDeckButtonsInteractable(false)") "Tongtian Tower deck application must disable buttons while applying."
+    Assert-True $tongtianTowerIntroBoardRuntime.Contains("SetDeckButtonsInteractable(true)") "Tongtian Tower deck application must restore buttons on retryable failure."
+    Assert-True $tongtianTowerStarterDeckCatalog.Contains("public const int FixedDeckSize = 11") "Tongtian Tower hardcoded starter decks must keep an 11-card fixed package."
+    Assert-True $tongtianTowerStarterDeckCatalog.Contains("public const int ThemeDeckSize = 4") "Tongtian Tower hardcoded starter decks must add a 4-card theme package."
+    Assert-True $tongtianTowerStarterDeckCatalog.Contains("public const int DeckSize = FixedDeckSize + ThemeDeckSize") "Tongtian Tower hardcoded starter decks must total fixed plus theme cards."
+    Assert-True (([regex]::Matches($tongtianTowerStarterDeckCatalog, 'new\(\s*\r?\n\s*"').Count) -ge 11) "Tongtian Tower must expose the default theme plus configured official pack themes."
+    Assert-True $tongtianTowerStarterDeckCatalog.Contains("AvailableProfiles()") "Tongtian Tower must filter starter deck themes by available official card packs."
+    Assert-True $tongtianTowerStarterDeckCatalog.Contains('"academy_required"') "Tongtian Tower must expose the Academy Required starter deck id."
+    Assert-True $tongtianTowerStarterDeckCatalog.Contains('"church_defense_tactics"') "Tongtian Tower must expose the Church Defense Tactics theme deck id."
+    Assert-True $tongtianTowerStarterDeckCatalog.Contains('"origin_of_elements"') "Tongtian Tower must expose the Origin of Elements theme deck id."
+    Assert-True $tongtianTowerStarterDeckCatalog.Contains('"card_3"') "Tongtian Tower starter decks must use official default cards."
+    Assert-True $tongtianTowerStarterDeckCatalog.Contains('"burningcard_1"') "Tongtian Tower starter decks must use official default cards."
+    Assert-True (-not $tongtianTowerStarterDeckCatalog.Contains('"spark"')) "Tongtian Tower starter decks must not use unresolved SunExp short card ids."
+    Assert-True (-not $tongtianTowerStarterDeckCatalog.Contains('"solar_prayer"')) "Tongtian Tower starter decks must not use unresolved SunExp short card ids."
+    Assert-True $tongtianTowerStarterDeckCatalog.Contains("new DataConfig(cardId, DataType.Card)") "Tongtian Tower starter deck catalog must validate card ids through DataConfig."
     Assert-True $tongtianTowerRichTextSanitizer.Contains("AllowedSimpleTags") "Tongtian Tower rich text sanitizer must use an explicit simple-tag allowlist."
     Assert-True $tongtianTowerRichTextSanitizer.Contains("AllowedScopedTags") "Tongtian Tower rich text sanitizer must use an explicit scoped-tag allowlist."
     Assert-True (-not $tongtianTowerRichTextSanitizer.Contains("link")) "Tongtian Tower rich text sanitizer must not allow link tags."
+    Assert-True $tongtianTowerOriginService.Contains('role.enchasedDict[card.InstanceID] = new DataConfig("enchtag_2", DataType.EnchTag);') "Tongtian Tower Magic 50 unstable thoughts must attach the Extinction enchant tag."
+    Assert-True $tongtianTowerOriginService.Contains("FortuneExtraTriggerThreshold = 150") "Tongtian Tower Fortune 50 must define the 150-point extra trigger threshold."
+    Assert-True $tongtianTowerOriginService.Contains("bonus += FortuneExtraTriggers") "Tongtian Tower Fortune 50 must add two extra triggers after reaching 150."
+    Assert-True $tongtianTowerCardAffixRuntime.Contains("TongtianTowerCardAffixService.ApplyBurnout") "Tongtian Tower card affix runtime must delegate Burnout application to the service."
+    Assert-True $tongtianTowerCardAffixRuntime.Contains("TongtianTowerCardAffixService.NormalizeOwnedCards") "Tongtian Tower card affix runtime must normalize owned cards from non-reward gain paths."
+    Assert-True $tongtianTowerCardAffixService.Contains("CardAttachmentService.AttachToConfig") "Tongtian Tower card affix service must use the shared card attachment service."
+    Assert-True $tongtianTowerCardAffixService.Contains("TongtianTowerStarterDeckBaselineMarker") "Tongtian Tower card affix service must protect starter deck baseline cards."
+    Assert-True $tongtianTowerCardAffixService.Contains("RunWithStarterDeckSuppressed") "Tongtian Tower starter deck writes must suppress automatic Burnout attachment."
+    Assert-True $tongtianTowerCardAffixService.Contains("role.cardList") "Tongtian Tower card affix service must normalize equipped deck cards."
+    Assert-True $tongtianTowerCardAffixService.Contains("role.UnCardList") "Tongtian Tower card affix service must normalize reserve cards."
+    Assert-True $endlessAbyssConfig.Contains("RewardPools") "Endless Abyss config must expose independent reward pool definitions."
+    Assert-True $endlessAbyssConfig.Contains("OtherDimensionCardPoolId") "Endless Abyss milestone rewards must address a configured reward pool instead of a hard-coded card pack."
+    Assert-True $endlessAbyssConfigJson.Contains('"rewardPools"') "Endless Abyss shipped config must define reward pools."
+    Assert-True $endlessAbyssConfigJson.Contains('"milestone.other_dimension.cards"') "Endless Abyss shipped config must bind the other-dimension milestone reward to its independent pool."
+    Assert-True $endlessAbyssConfigJson.Contains('"SunExp_sunexp_cardpack_more_dimensions"') "Endless Abyss default other-dimension pool must be initialized from the More Dimensions card pack."
+    Assert-True $endlessAbyssConfigJson.Contains('"heart_change"') "Endless Abyss legacy other-dimension fallback must include Heart Change."
+    Assert-True $endlessAbyssRewardPoolService.Contains("CardPackMatches") "Endless Abyss reward pools must expand card pack sources generically."
+    Assert-True $endlessAbyssRewardPoolService.Contains("IncludeCardIds") "Endless Abyss reward pools must support explicit card inclusions."
+    Assert-True $endlessAbyssRewardPoolService.Contains("ExcludeCardIds") "Endless Abyss reward pools must support explicit card exclusions."
+    Assert-True $endlessAbyssMilestoneRewardService.Contains("EndlessAbyssRewardPoolService.CardIds") "Endless Abyss milestone other-dimension rewards must draw from the reward pool service."
+    Assert-True $endlessAbyssMilestoneRewardService.Contains("PlayerApi.TryAddCardToDeck") "Endless Abyss milestone card rewards must verify deck grants before claiming."
+    Assert-True $playerApi.Contains("public static bool TryAddCardToDeck") "PlayerApi must expose a verified out-of-combat deck grant helper."
+    Assert-True $playerApi.Contains("OwnedCardSnapshot") "Verified deck grants must compare owned card snapshots."
+    Assert-True $endlessAbyssMilestoneRewardPanel.Contains("EndlessAbyssFramedTextCard.Create") "Endless Abyss milestone options must render title/body inside a framed content inset."
+    Assert-True $endlessAbyssShockPanel.Contains("EndlessAbyssFramedTextCard.Create") "Endless Abyss shock options must share the framed content inset layout."
     Assert-True $solarMemoryPreparationRuntime.Contains('if (!SolarMemoryRoleCommitApi.CommitFinal(RoleTable.Instance, "SunExp.SolarMemory.SetupFinished"))') "Solar memory preparation completion must require a successful final role commit."
     Assert-True ([regex]::IsMatch($solarMemoryPreparationRuntime, 'CommitFinal\(RoleTable\.Instance,\s*"SunExp\.SolarMemory\.SetupFinished"\)[\s\S]*SolarMemoryPlayerSetupState\.SetFlag\(SunExpIds\.SolarMemorySetupFinishedKey,\s*false\)')) "Solar memory preparation must withdraw setup completion when final role commit fails."
     Assert-True $solarMemoryPreparationRuntime.Contains('SolarMemoryPlayerSetupState.SetValue(SunExpIds.SolarMemorySetupCommitTokenKey, "")') "Solar memory preparation must clear failed local commit tokens for retry."

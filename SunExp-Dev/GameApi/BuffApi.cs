@@ -244,6 +244,45 @@ public static class BuffApi
         return increased;
     }
 
+    public static int IncreaseAllPositiveBuffs(IStatusManager? status, int amount)
+    {
+        if (amount <= 0)
+        {
+            return 0;
+        }
+
+        var increased = 0;
+        foreach (var buff in PositiveBuffs(status).ToList())
+        {
+            if (buff?.buffConfig == null)
+            {
+                continue;
+            }
+
+            buff.buffConfig.Level += amount;
+            increased++;
+        }
+
+        return increased;
+    }
+
+    public static int DoubleAllNegativeBuffs(IStatusManager? status)
+    {
+        var doubled = 0;
+        foreach (var buff in NegativeBuffs(status).ToList())
+        {
+            if (buff?.buffConfig == null || buff.buffConfig.Level <= 0)
+            {
+                continue;
+            }
+
+            buff.buffConfig.Level *= 2;
+            doubled++;
+        }
+
+        return doubled;
+    }
+
     public static bool IsPositiveBuffId(string buffId)
     {
         return IsBuffType(buffId, IsPositiveType);
@@ -520,6 +559,11 @@ public static class BuffApi
         foreach (var buff in buffs)
         {
             if (buff?.buffConfig == null)
+            {
+                continue;
+            }
+
+            if (IsPositiveExcluded(buff.buffConfig.BuffId))
             {
                 continue;
             }

@@ -4,6 +4,7 @@ using System.Linq;
 using AuraShared.Core;
 using Data.Save;
 using StarterDeckArbiter.Shared;
+using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks.Ui;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
@@ -18,16 +19,35 @@ namespace SunExp.Dll.Hooks;
 
 public static class TongtianTowerIntroBoardRuntime
 {
-    private const float ButtonHeight = 38f;
-    private static readonly Color Gold = new(0.86f, 0.73f, 0.38f);
-    private static readonly Color PaleGold = new(0.96f, 0.89f, 0.64f);
-    private static readonly Color SoftText = new(0.86f, 0.89f, 0.95f);
-    private static readonly Color DeepBlue = new(0.02f, 0.025f, 0.13f, 0.98f);
-    private static readonly Color AreaTint = new(0.018f, 0.02f, 0.105f, 0.96f);
-    private static readonly Color DeckTint = new(0.055f, 0.065f, 0.16f, 0.97f);
-    private static readonly Color DeckHoverTint = new(0.1f, 0.09f, 0.19f, 0.98f);
+    private const float FooterHeight = 46f;
+    private const float CoverMaxWidth = 150f;
+    private const float CoverMaxHeight = 225f;
+    private const float ThemeCellWidth = 166f;
+    private const float ThemeCellHeight = 284f;
+    private const float TooltipWidth = 360f;
+    private const float TooltipHeight = 224f;
+    private const string DefaultCoverPackId = "cardpack_1";
+    private const string DefaultStarterDeckHint = "请选择一个主题。开局卡组 = 固定 11 张官方基础卡 + 当前主题 4 张。";
+    private const string DefaultOnlyStarterDeckHint = "未检测到可用扩展主题；请确认已开启对应官方卡包。当前可选择默认主题。";
+
+    private static readonly Color Gold = new(0.92f, 0.74f, 0.34f);
+    private static readonly Color PaleGold = new(1f, 0.91f, 0.62f);
+    private static readonly Color SoftText = new(0.87f, 0.91f, 0.97f);
+    private static readonly Color MutedText = new(0.62f, 0.7f, 0.84f);
+    private static readonly Color PanelTint = new(0.035f, 0.04f, 0.13f, 0.98f);
+    private static readonly Color SectionTint = new(0.018f, 0.024f, 0.09f, 0.92f);
+    private static readonly Color DeckTint = new(0.052f, 0.064f, 0.16f, 0.94f);
+    private static readonly Color DeckHoverTint = new(0.16f, 0.16f, 0.27f, 1f);
+    private static readonly Color DeckPressedTint = new(0.22f, 0.16f, 0.07f, 1f);
+    private static readonly Dictionary<string, Sprite?> cardIconCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, Sprite?> packCoverCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly List<Button> deckButtons = new();
+    private static readonly List<GameObject> deckSelectedFrames = new();
     private static GameObject? activePanel;
+    private static RectTransform? activeTooltipLayer;
+    private static GameObject? activeTooltip;
     private static Text? hintText;
+    private static string starterDeckHint = DefaultStarterDeckHint;
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -97,7 +117,10 @@ public static class TongtianTowerIntroBoardRuntime
         activePanel = SunExpModalHost.CreateFullscreenRoot(
             "SunExpTongtianTowerIntroBoard",
             parent,
-            new Color(0f, 0f, 0f, 0.78f));
+            new Color(0f, 0f, 0f, 0.68f));
+        deckButtons.Clear();
+        deckSelectedFrames.Clear();
+        HideTooltip();
 
         var windowSize = ResolveWindowSize(parent);
         var windowRect = SunExpUiBuilder.CreateRect(
@@ -108,11 +131,12 @@ public static class TongtianTowerIntroBoardRuntime
             new Vector2(0.5f, 0.5f),
             windowSize);
         var window = windowRect.gameObject;
-        SunExpUiBuilder.ApplyPanelImage(window, SunExpUiSprites.Panel("[TongtianTowerIntro]"), DeepBlue, true);
+        SunExpUiBuilder.ApplyPanelImage(window, SunExpUiSprites.Panel("[TongtianTowerIntro]"), PanelTint, true);
+        starterDeckHint = DefaultStarterDeckHint;
 
         var layout = window.AddComponent<VerticalLayoutGroup>();
-        layout.padding = new RectOffset(28, 28, 24, 22);
-        layout.spacing = 14f;
+        layout.padding = new RectOffset(28, 28, 18, 18);
+        layout.spacing = 10f;
         layout.childControlWidth = true;
         layout.childControlHeight = true;
         layout.childForceExpandWidth = true;
@@ -120,9 +144,9 @@ public static class TongtianTowerIntroBoardRuntime
 
         CreateHeader(window.transform);
         CreateDivider(window.transform);
-        CreateBodyScroll(window.transform);
-        CreateDeckChoiceArea(window.transform, roleTable);
+        CreateMainContent(window.transform, roleTable);
         CreateFooter(window.transform);
+        activeTooltipLayer = CreateTooltipLayer(window.transform);
         Canvas.ForceUpdateCanvases();
     }
 
@@ -130,16 +154,18 @@ public static class TongtianTowerIntroBoardRuntime
     {
         var header = CreateLayoutObject("Header", parent);
         var element = header.AddComponent<LayoutElement>();
-        element.preferredHeight = 66f;
-        element.minHeight = 66f;
+        element.preferredHeight = 68f;
+        element.minHeight = 68f;
 
-        var title = AddTextFill(header.transform, SunExpIds.TongtianTowerTitle, 30, TextAnchor.UpperCenter, Gold);
+        var title = AddTextFill(header.transform, SunExpIds.TongtianTowerTitle, 32, TextAnchor.UpperCenter, Gold);
         title.fontStyle = FontStyle.Bold;
+        AddTextShadow(title, new Color(0f, 0f, 0f, 0.72f), new Vector2(1.5f, -1.5f));
 
-        var subtitle = AddTextFill(header.transform, "无限爬塔模式  第1层作战简报", 16, TextAnchor.LowerCenter, SoftText);
+        var subtitle = AddTextFill(header.transform, "玩法说明 · 主题卡包", 17, TextAnchor.LowerCenter, PaleGold);
+        subtitle.fontStyle = FontStyle.Bold;
         var subtitleRect = subtitle.GetComponent<RectTransform>();
-        subtitleRect.offsetMin = new Vector2(0f, 2f);
-        subtitleRect.offsetMax = new Vector2(0f, -34f);
+        subtitleRect.offsetMin = new Vector2(0f, 3f);
+        subtitleRect.offsetMax = new Vector2(0f, -39f);
     }
 
     private static void CreateDivider(Transform parent)
@@ -151,136 +177,487 @@ public static class TongtianTowerIntroBoardRuntime
         SunExpUiBuilder.ApplyPanelImage(divider, null, new Color(Gold.r, Gold.g, Gold.b, 0.85f));
     }
 
-    private static void CreateBodyScroll(Transform parent)
+    private static void CreateMainContent(Transform parent, RoleTable roleTable)
     {
-        var root = CreateLayoutObject("BodyScroll", parent);
+        var root = CreateLayoutObject("MainContent", parent);
         var element = root.AddComponent<LayoutElement>();
-        element.minHeight = 220f;
+        element.minHeight = 470f;
         element.flexibleHeight = 1f;
-        SunExpUiBuilder.ApplyPanelImage(root, null, AreaTint, true);
 
-        var viewportRect = SunExpUiBuilder.CreateRect(
-            "Viewport",
-            root.transform,
-            Vector2.zero,
-            Vector2.one,
-            new Vector2(0.5f, 0.5f),
-            Vector2.zero);
-        viewportRect.offsetMin = new Vector2(14f, 12f);
-        viewportRect.offsetMax = new Vector2(-14f, -12f);
-        var viewportImage = viewportRect.gameObject.AddComponent<Image>();
-        viewportImage.color = new Color(0f, 0f, 0f, 0.05f);
-        viewportImage.raycastTarget = true;
-        viewportRect.gameObject.AddComponent<Mask>().showMaskGraphic = false;
-
-        var contentRect = SunExpUiBuilder.CreateRect(
-            "Content",
-            viewportRect,
-            new Vector2(0f, 1f),
-            new Vector2(1f, 1f),
-            new Vector2(0.5f, 1f),
-            new Vector2(0f, 0f));
-        contentRect.offsetMin = new Vector2(8f, 0f);
-        contentRect.offsetMax = new Vector2(-8f, 0f);
-
-        var contentLayout = contentRect.gameObject.AddComponent<VerticalLayoutGroup>();
-        contentLayout.padding = new RectOffset(6, 12, 4, 4);
-        contentLayout.spacing = 10f;
-        contentLayout.childControlWidth = true;
-        contentLayout.childControlHeight = true;
-        contentLayout.childForceExpandWidth = true;
-        contentLayout.childForceExpandHeight = false;
-        contentRect.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-        var bodyText = AddTextBlock(
-            contentRect,
-            TongtianTowerRichTextSanitizer.Sanitize(IntroBody()),
-            17,
-            TextAnchor.UpperLeft,
-            SoftText,
-            420f,
-            1f);
-        bodyText.supportRichText = true;
-        bodyText.verticalOverflow = VerticalWrapMode.Overflow;
-        bodyText.lineSpacing = 1.05f;
-        bodyText.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-        var scroll = root.AddComponent<ScrollRect>();
-        scroll.viewport = viewportRect;
-        scroll.content = contentRect;
-        scroll.horizontal = false;
-        scroll.vertical = true;
-        scroll.movementType = ScrollRect.MovementType.Clamped;
-        scroll.scrollSensitivity = 30f;
-        scroll.verticalNormalizedPosition = 1f;
-    }
-
-    private static void CreateDeckChoiceArea(Transform parent, RoleTable roleTable)
-    {
-        var area = CreateLayoutObject("StarterDeckChoices", parent);
-        var element = area.AddComponent<LayoutElement>();
-        element.minHeight = 178f;
-        element.preferredHeight = 178f;
-
-        var layout = area.AddComponent<HorizontalLayoutGroup>();
-        layout.spacing = 14f;
+        var layout = root.AddComponent<HorizontalLayoutGroup>();
+        layout.spacing = 16f;
         layout.childControlWidth = true;
         layout.childControlHeight = true;
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = true;
 
-        foreach (var profile in TongtianTowerStarterDeckCatalog.Profiles)
+        CreateRulesPane(root.transform);
+        CreateThemePane(root.transform, roleTable);
+    }
+
+    private static void CreateRulesPane(Transform parent)
+    {
+        var pane = CreateLayoutObject("RulesPane", parent);
+        var element = pane.AddComponent<LayoutElement>();
+        element.minWidth = 320f;
+        element.preferredWidth = 410f;
+        element.flexibleWidth = 0.9f;
+
+        var layout = pane.AddComponent<VerticalLayoutGroup>();
+        layout.padding = new RectOffset(10, 16, 4, 6);
+        layout.spacing = 8f;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = false;
+
+        var label = AddTextBlock(pane.transform, "玩法说明", 19, TextAnchor.MiddleLeft, PaleGold, 28f);
+        label.fontStyle = FontStyle.Bold;
+        AddTextShadow(label, new Color(0f, 0f, 0f, 0.55f), new Vector2(1f, -1f));
+
+        var scrollRoot = CreateLayoutObject("RulesScroll", pane.transform);
+        var scrollElement = scrollRoot.AddComponent<LayoutElement>();
+        scrollElement.flexibleHeight = 1f;
+        scrollElement.minHeight = 380f;
+
+        var viewport = SunExpUiBuilder.CreateRect(
+            "Viewport",
+            scrollRoot.transform,
+            Vector2.zero,
+            Vector2.one,
+            new Vector2(0.5f, 0.5f),
+            Vector2.zero);
+        viewport.offsetMin = new Vector2(0f, 0f);
+        viewport.offsetMax = new Vector2(0f, 0f);
+        var viewportImage = viewport.gameObject.AddComponent<Image>();
+        viewportImage.color = new Color(0f, 0f, 0f, 0.04f);
+        viewportImage.raycastTarget = true;
+        viewport.gameObject.AddComponent<Mask>().showMaskGraphic = false;
+
+        var content = SunExpUiBuilder.CreateRect(
+            "Content",
+            viewport,
+            new Vector2(0f, 1f),
+            new Vector2(1f, 1f),
+            new Vector2(0.5f, 1f),
+            Vector2.zero);
+        content.offsetMin = new Vector2(0f, 0f);
+        content.offsetMax = new Vector2(-8f, 0f);
+
+        var contentLayout = content.gameObject.AddComponent<VerticalLayoutGroup>();
+        contentLayout.spacing = 8f;
+        contentLayout.childControlWidth = true;
+        contentLayout.childControlHeight = true;
+        contentLayout.childForceExpandWidth = true;
+        contentLayout.childForceExpandHeight = false;
+        content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        CreateRuleSection(content, "一、开局卡组", "1. 开局时需要选择一个主题卡包。\n2. 开局卡组由两部分组成：\n   固定 11 张基础卡 + 当前主题 4 张主题卡。\n3. 【学院必修】为默认主题，始终可选。\n4. 其它主题会根据当前已启用的卡包动态显示。\n5. 鼠标悬停主题卡包时，可以查看该主题包含的 4 张主题卡牌。");
+        CreateRuleSection(content, "二、地图节点", "1. 无尽之渊以“层”为单位推进，每层包含 6 个地图节点。\n2. 每层第一个节点固定为当前层怪物，最后一个节点固定为【首领】或【无尽首领】。\n3. 中间 4 个节点初始为空，需要从手牌中的节点牌拖入配置。\n4. 每轮可选节点牌的配比为：\n   1 张【休息处】 + 1 张【建筑牌】 + 若干【普通怪/精英】节点牌。\n5. 战斗节点会根据当前层数、当前模式和节点类型进行抽取。");
+        CreateRuleSection(content, "三、战斗奖励与卡牌规则", "1. 无尽之渊使用本玩法专属奖励规则。\n2. 战斗结束后会根据当前层数和节点类型提供不同奖励。\n3. 本模式内通过任意渠道获得的卡牌，都会默认附着【焚毁】。\n4. 从第 2 层开始，每层可展开一次专属里程碑奖励选择。");
+        CreateRuleSection(content, "四、潜行模式", "1. 第 1 至第 6 层为【潜行模式】。\n2. 随着层数提升，敌人强度和战斗奖励都会逐步提高。\n3. 潜行模式下，每层会在地图节点场景触发一次【深渊震荡】。");
+        CreateRuleSection(content, "五、无尽模式", "1. 第 7 层起进入【无尽模式】。\n2. 无尽模式没有固定终点。\n3. 无尽模式下，每场战斗会触发一次【深渊震荡】。\n4. 【注视等级】越高，深渊震荡中必须选择的策略数量越多，最高为 3。");
+        CreateRuleSection(content, "六、深渊震荡", "1. 深渊震荡会提供 3 个互斥策略：\n   【遗物坠落】：随机销毁 1 件已装备遗物。\n   【湮灭浸染】：给当前卡组内随机 3 张卡添加【湮灭】。\n   【注视加深】：【注视等级】+1。\n2. 必须选满当前要求数量并结算后，才能继续推进。");
+        CreateRuleSection(content, "七、本源上限", "1. 无尽之渊中，魔力、精神、幸运、感知的上限提高到 50。\n2. 任一本源达到 50 后，会解锁对应的额外收益。\n\n<color=#FFD36A>魔力达到 50：</color>\n1. 每场战斗开始时，获得 2 张附着【绝灭】火漆的【不稳定思绪】。\n\n<color=#FFD36A>精神达到 50：</color>\n1. 每场战斗开始时，魔能上限提高 3 点。\n\n<color=#FFD36A>幸运达到 50：</color>\n1. 每场战斗中，检定骰与数值骰获得额外50点加成，达到150点数时效果可再额外触发2次。\n\n<color=#FFD36A>感知达到 50：</color>\n1. 每场战斗结束后，生命值恢复至上限。");
+        CreateRuleSection(content, "八、玩法目标", "1. 在有限资源与持续损耗中完成更高层数的挑战。\n2. 合理选择主题卡组、节点路线、奖励类型和深渊震荡策略。\n3. 通过休息处、建筑节点和里程碑奖励调整状态，通过战斗奖励维持卡组强度。\n4. 在无尽模式中，尽可能延缓牌库湮灭、遗物损耗、注视等级和战斗压力的累积。");
+
+        var scroll = scrollRoot.AddComponent<ScrollRect>();
+        scroll.viewport = viewport;
+        scroll.content = content;
+        scroll.horizontal = false;
+        scroll.vertical = true;
+        scroll.movementType = ScrollRect.MovementType.Clamped;
+        scroll.scrollSensitivity = 26f;
+        scroll.verticalNormalizedPosition = 1f;
+    }
+
+    private static void CreateRuleSection(Transform parent, string title, string body)
+    {
+        var section = CreateLayoutObject("Rule_" + title, parent);
+
+        var layout = section.AddComponent<VerticalLayoutGroup>();
+        layout.padding = new RectOffset(0, 8, 5, 7);
+        layout.spacing = 4f;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = false;
+
+        var titleText = AddAutoTextBlock(section.transform, title, 16, TextAnchor.UpperLeft, Gold);
+        titleText.fontStyle = FontStyle.Bold;
+        var bodyText = AddAutoTextBlock(section.transform, TongtianTowerRichTextSanitizer.Sanitize(body), 14, TextAnchor.UpperLeft, SoftText);
+        bodyText.supportRichText = true;
+        bodyText.lineSpacing = 1.12f;
+    }
+
+    private static void CreateThemePane(Transform parent, RoleTable roleTable)
+    {
+        var pane = CreateLayoutObject("ThemePane", parent);
+        var element = pane.AddComponent<LayoutElement>();
+        element.minWidth = 380f;
+        element.preferredWidth = 560f;
+        element.flexibleWidth = 1.2f;
+        SunExpUiBuilder.ApplyPanelImage(pane, SunExpUiSprites.Panel("[TongtianTowerIntro]"), SectionTint, true);
+
+        var layout = pane.AddComponent<VerticalLayoutGroup>();
+        layout.padding = new RectOffset(16, 16, 12, 14);
+        layout.spacing = 8f;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = false;
+
+        var titleRow = CreateLayoutObject("ThemeHeader", pane.transform);
+        titleRow.AddComponent<LayoutElement>().preferredHeight = 32f;
+        var titleLayout = titleRow.AddComponent<HorizontalLayoutGroup>();
+        titleLayout.childControlWidth = true;
+        titleLayout.childControlHeight = true;
+        titleLayout.childForceExpandWidth = false;
+        titleLayout.childForceExpandHeight = true;
+
+        var label = AddTextBlock(titleRow.transform, "选择开局主题", 19, TextAnchor.MiddleLeft, PaleGold, 30f, 1f);
+        label.fontStyle = FontStyle.Bold;
+        AddTextBlock(titleRow.transform, "悬停查看 4 张主题卡", 13, TextAnchor.MiddleRight, MutedText, 30f, 0f, 170f);
+
+        var profiles = TongtianTowerStarterDeckCatalog.AvailableProfiles();
+        starterDeckHint = profiles.Any(profile => !string.IsNullOrWhiteSpace(profile.RequiredPackId))
+            ? DefaultStarterDeckHint
+            : DefaultOnlyStarterDeckHint;
+
+        var scrollRoot = CreateLayoutObject("ThemeScroll", pane.transform);
+        var scrollElement = scrollRoot.AddComponent<LayoutElement>();
+        scrollElement.minHeight = 410f;
+        scrollElement.flexibleHeight = 1f;
+        SunExpUiBuilder.ApplyPanelImage(scrollRoot, SunExpUiSprites.Label("[TongtianTowerIntro]"), new Color(0.01f, 0.014f, 0.045f, 0.56f), true);
+
+        var viewport = SunExpUiBuilder.CreateRect(
+            "Viewport",
+            scrollRoot.transform,
+            Vector2.zero,
+            Vector2.one,
+            new Vector2(0.5f, 0.5f),
+            Vector2.zero);
+        viewport.offsetMin = new Vector2(8f, 8f);
+        viewport.offsetMax = new Vector2(-8f, -8f);
+        var viewportImage = viewport.gameObject.AddComponent<Image>();
+        viewportImage.color = new Color(0f, 0f, 0f, 0.04f);
+        viewportImage.raycastTarget = true;
+        viewport.gameObject.AddComponent<Mask>().showMaskGraphic = false;
+
+        var gridContent = SunExpUiBuilder.CreateRect(
+            "ThemeGrid",
+            viewport,
+            new Vector2(0f, 1f),
+            new Vector2(1f, 1f),
+            new Vector2(0.5f, 1f),
+            Vector2.zero);
+        gridContent.offsetMin = Vector2.zero;
+        gridContent.offsetMax = Vector2.zero;
+
+        var contentWidth = ResolveThemeGridContentWidth(parent);
+        var columns = contentWidth >= 530f ? 3 : 2;
+        var grid = gridContent.gameObject.AddComponent<GridLayoutGroup>();
+        grid.padding = new RectOffset(6, 6, 6, 6);
+        grid.spacing = new Vector2(14f, 14f);
+        grid.cellSize = new Vector2(ThemeCellWidth, ThemeCellHeight);
+        grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+        grid.constraintCount = columns;
+        gridContent.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        var scroll = scrollRoot.AddComponent<ScrollRect>();
+        scroll.viewport = viewport;
+        scroll.content = gridContent;
+        scroll.horizontal = false;
+        scroll.vertical = true;
+        scroll.movementType = ScrollRect.MovementType.Clamped;
+        scroll.scrollSensitivity = 28f;
+
+        foreach (var profile in profiles)
         {
-            CreateDeckButton(area.transform, roleTable, profile);
+            CreateThemePackButton(gridContent, roleTable, profile);
         }
     }
 
-    private static void CreateDeckButton(Transform parent, RoleTable roleTable, TongtianTowerStarterDeckProfile profile)
+    private static void CreateThemePackButton(Transform parent, RoleTable roleTable, TongtianTowerStarterDeckProfile profile)
     {
-        var panel = CreateLayoutObject("Deck_" + profile.Id, parent);
-        var element = panel.AddComponent<LayoutElement>();
-        element.minWidth = 210f;
-        element.flexibleWidth = 1f;
-
-        var image = SunExpUiBuilder.ApplyPanelImage(panel, SunExpUiSprites.Button("[TongtianTowerIntro]"), DeckTint, true);
+        var panel = CreateLayoutObject("Theme_" + profile.Id, parent);
+        var image = SunExpUiBuilder.ApplyPanelImage(panel, SunExpUiSprites.Label("[TongtianTowerIntro]"), DeckTint, true);
         var button = panel.AddComponent<Button>();
         button.targetGraphic = image;
         button.colors = new ColorBlock
         {
             normalColor = Color.white,
             highlightedColor = DeckHoverTint,
-            pressedColor = new Color(0.78f, 0.74f, 0.64f, 1f),
-            selectedColor = Color.white,
+            pressedColor = DeckPressedTint,
+            selectedColor = DeckHoverTint,
             disabledColor = new Color(0.45f, 0.45f, 0.45f, 0.7f),
             colorMultiplier = 1f,
-            fadeDuration = 0.08f
+            fadeDuration = 0.1f
         };
-        button.onClick.AddListener(() => ApplyStarterDeck(roleTable, profile));
+        button.onClick.AddListener(() =>
+        {
+            MarkSelectedTheme(panel);
+            ApplyStarterDeck(roleTable, profile);
+        });
+        deckButtons.Add(button);
+
+        var selectedFrame = CreateSelectedFrame(panel.transform);
+        deckSelectedFrames.Add(selectedFrame);
+
+        var probe = panel.AddComponent<TongtianTowerThemePackHoverProbe>();
+        probe.Configure(source => ShowThemeTooltip(profile, source), HideTooltip);
 
         var layout = panel.AddComponent<VerticalLayoutGroup>();
-        layout.padding = new RectOffset(16, 16, 12, 12);
-        layout.spacing = 7f;
+        layout.padding = new RectOffset(8, 8, 8, 8);
+        layout.spacing = 5f;
+        layout.childAlignment = TextAnchor.UpperCenter;
         layout.childControlWidth = true;
         layout.childControlHeight = true;
-        layout.childForceExpandWidth = true;
+        layout.childForceExpandWidth = false;
         layout.childForceExpandHeight = false;
 
-        var title = AddTextBlock(panel.transform, profile.Title, 20, TextAnchor.MiddleCenter, Gold, 27f, 0f);
+        CreatePackCover(panel.transform, profile);
+        var title = AddTextBlock(panel.transform, profile.Title, 16, TextAnchor.MiddleCenter, Gold, 25f);
         title.fontStyle = FontStyle.Bold;
-        AddTextBlock(panel.transform, profile.Subtitle, 14, TextAnchor.MiddleCenter, PaleGold, 22f, 0f);
-        AddTextBlock(panel.transform, profile.Description, 13, TextAnchor.UpperLeft, SoftText, 43f, 0f);
-        var preview = AddTextBlock(panel.transform, profile.Preview, 12, TextAnchor.MiddleLeft, new Color(0.77f, 0.83f, 0.96f), 32f, 0f);
-        preview.supportRichText = false;
+        title.resizeTextForBestFit = true;
+        title.resizeTextMinSize = 11;
+        title.resizeTextMaxSize = 16;
+        AddTextShadow(title, new Color(0f, 0f, 0f, 0.55f), new Vector2(1f, -1f));
+
+        var subtitle = AddTextBlock(panel.transform, profile.Subtitle, 12, TextAnchor.MiddleCenter, MutedText, 18f);
+        subtitle.resizeTextForBestFit = true;
+        subtitle.resizeTextMinSize = 10;
+        subtitle.resizeTextMaxSize = 12;
+        selectedFrame.transform.SetAsLastSibling();
+    }
+
+    private static GameObject CreateSelectedFrame(Transform parent)
+    {
+        var frameRect = SunExpUiBuilder.CreateRect(
+            "SelectedFrame",
+            parent,
+            Vector2.zero,
+            Vector2.one,
+            new Vector2(0.5f, 0.5f),
+            Vector2.zero);
+        frameRect.offsetMin = new Vector2(-2f, -2f);
+        frameRect.offsetMax = new Vector2(2f, 2f);
+
+        var layout = frameRect.gameObject.AddComponent<LayoutElement>();
+        layout.ignoreLayout = true;
+
+        var frame = frameRect.gameObject.AddComponent<Image>();
+        frame.sprite = SunExpUiSprites.Button("[TongtianTowerIntro]");
+        frame.type = frame.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
+        frame.fillCenter = false;
+        frame.color = new Color(Gold.r, Gold.g, Gold.b, 0.95f);
+        frame.raycastTarget = false;
+        frameRect.gameObject.SetActive(false);
+        return frameRect.gameObject;
+    }
+
+    private static void CreatePackCover(Transform parent, TongtianTowerStarterDeckProfile profile)
+    {
+        var host = CreateLayoutObject("Cover", parent);
+        var element = host.AddComponent<LayoutElement>();
+        element.minWidth = CoverMaxWidth;
+        element.preferredWidth = CoverMaxWidth;
+        element.minHeight = CoverMaxHeight;
+        element.preferredHeight = CoverMaxHeight;
+        SunExpUiBuilder.ApplyPanelImage(host, SunExpUiSprites.Panel("[TongtianTowerIntro]"), new Color(0.012f, 0.016f, 0.052f, 0.92f));
+
+        var sprite = TryLoadPackCover(profile);
+        if (sprite == null)
+        {
+            var fallback = AddTextFill(host.transform, profile.Title, 18, TextAnchor.MiddleCenter, PaleGold);
+            fallback.fontStyle = FontStyle.Bold;
+            fallback.resizeTextForBestFit = true;
+            fallback.resizeTextMinSize = 11;
+            fallback.resizeTextMaxSize = 18;
+            return;
+        }
+
+        var coverRect = SunExpUiBuilder.CreateRect(
+            "Image",
+            host.transform,
+            new Vector2(0.5f, 0.5f),
+            new Vector2(0.5f, 0.5f),
+            new Vector2(0.5f, 0.5f),
+            new Vector2(CoverMaxWidth, CoverMaxHeight));
+        var cover = coverRect.gameObject.AddComponent<Image>();
+        cover.sprite = sprite;
+        cover.color = Color.white;
+        cover.preserveAspect = true;
+        cover.raycastTarget = false;
+    }
+
+    private static void MarkSelectedTheme(GameObject selected)
+    {
+        foreach (var frame in deckSelectedFrames)
+        {
+            if (frame != null)
+            {
+                frame.SetActive(frame.transform.parent == selected.transform);
+            }
+        }
     }
 
     private static void CreateFooter(Transform parent)
     {
         var footer = CreateLayoutObject("Footer", parent);
         var element = footer.AddComponent<LayoutElement>();
-        element.preferredHeight = ButtonHeight;
-        element.minHeight = ButtonHeight;
+        element.preferredHeight = FooterHeight;
+        element.minHeight = FooterHeight;
 
-        hintText = AddTextFill(footer.transform, "选择一套开局卡组后开始第一层。奖励牌会获得焚毁限制，请持续补充卡组。", 15, TextAnchor.MiddleCenter, PaleGold);
+        hintText = AddTextFill(footer.transform, starterDeckHint, 15, TextAnchor.MiddleCenter, PaleGold);
+        hintText.resizeTextForBestFit = true;
+        hintText.resizeTextMinSize = 11;
+        hintText.resizeTextMaxSize = 15;
+    }
+
+    private static void ShowThemeTooltip(TongtianTowerStarterDeckProfile profile, RectTransform source)
+    {
+        if (activeTooltipLayer == null)
+        {
+            return;
+        }
+
+        HideTooltip();
+        var tooltipRect = SunExpUiBuilder.CreateRect(
+            "ThemeCardsTooltip",
+            activeTooltipLayer,
+            new Vector2(0.5f, 0.5f),
+            new Vector2(0.5f, 0.5f),
+            new Vector2(0f, 1f),
+            new Vector2(TooltipWidth, TooltipHeight));
+        activeTooltip = tooltipRect.gameObject;
+        activeTooltip.transform.SetAsLastSibling();
+        var background = SunExpUiBuilder.ApplyPanelImage(activeTooltip, SunExpUiSprites.Label("[TongtianTowerIntro]"), new Color(0.015f, 0.018f, 0.055f, 0.88f));
+        if (background != null)
+        {
+            background.raycastTarget = false;
+        }
+
+        var layout = activeTooltip.AddComponent<VerticalLayoutGroup>();
+        layout.padding = new RectOffset(14, 14, 10, 12);
+        layout.spacing = 8f;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = false;
+
+        var title = AddTextBlock(activeTooltip.transform, profile.Title + " · 主题卡", 16, TextAnchor.MiddleLeft, PaleGold, 24f);
+        title.fontStyle = FontStyle.Bold;
+
+        var gridRoot = CreateLayoutObject("Cards", activeTooltip.transform);
+        gridRoot.AddComponent<LayoutElement>().preferredHeight = 160f;
+        var grid = gridRoot.AddComponent<GridLayoutGroup>();
+        grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+        grid.constraintCount = 2;
+        grid.cellSize = new Vector2(160f, 74f);
+        grid.spacing = new Vector2(10f, 10f);
+
+        foreach (var cardId in profile.ThemeCardIds.Take(TongtianTowerStarterDeckCatalog.ThemeDeckSize))
+        {
+            CreateTooltipCard(gridRoot.transform, cardId);
+        }
+
+        PositionTooltip(tooltipRect, source);
+    }
+
+    private static RectTransform CreateTooltipLayer(Transform parent)
+    {
+        var layer = SunExpUiBuilder.CreateRect(
+            "TooltipLayer",
+            parent,
+            Vector2.zero,
+            Vector2.one,
+            new Vector2(0.5f, 0.5f),
+            Vector2.zero);
+        layer.offsetMin = Vector2.zero;
+        layer.offsetMax = Vector2.zero;
+        var layout = layer.gameObject.AddComponent<LayoutElement>();
+        layout.ignoreLayout = true;
+        layer.SetAsLastSibling();
+        return layer;
+    }
+
+    private static void CreateTooltipCard(Transform parent, string cardId)
+    {
+        var card = CreateLayoutObject("Card_" + cardId, parent);
+        var layout = card.AddComponent<HorizontalLayoutGroup>();
+        layout.spacing = 8f;
+        layout.childAlignment = TextAnchor.MiddleLeft;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
+
+        var iconHost = CreateLayoutObject("Icon", card.transform);
+        var iconElement = iconHost.AddComponent<LayoutElement>();
+        iconElement.minWidth = 64f;
+        iconElement.preferredWidth = 64f;
+        iconElement.minHeight = 64f;
+        iconElement.preferredHeight = 64f;
+        SunExpUiBuilder.ApplyPanelImage(iconHost, SunExpUiSprites.Panel("[TongtianTowerIntro]"), new Color(0.02f, 0.025f, 0.08f, 0.82f));
+
+        var sprite = TryLoadCardIcon(cardId);
+        if (sprite != null)
+        {
+            var iconRect = SunExpUiBuilder.CreateRect(
+                "Image",
+                iconHost.transform,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(64f, 64f));
+            var image = iconRect.gameObject.AddComponent<Image>();
+            image.sprite = sprite;
+            image.color = Color.white;
+            image.preserveAspect = true;
+            image.raycastTarget = false;
+        }
+
+        var name = AddTextBlock(card.transform, TongtianTowerStarterDeckCatalog.CardDisplayName(cardId), 13, TextAnchor.MiddleLeft, SoftText, 64f, 1f);
+        name.resizeTextForBestFit = true;
+        name.resizeTextMinSize = 10;
+        name.resizeTextMaxSize = 13;
+    }
+
+    private static void PositionTooltip(RectTransform tooltip, RectTransform source)
+    {
+        if (activeTooltipLayer == null)
+        {
+            return;
+        }
+
+        var parent = activeTooltipLayer;
+        var corners = new Vector3[4];
+        source.GetWorldCorners(corners);
+        var topLeftScreen = RectTransformUtility.WorldToScreenPoint(null, corners[1]);
+        var topRightScreen = RectTransformUtility.WorldToScreenPoint(null, corners[2]);
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, topRightScreen, null, out var topRight);
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, topLeftScreen, null, out var topLeft);
+
+        var pos = topRight + new Vector2(16f, -4f);
+        var bounds = parent.rect;
+        if (pos.x + TooltipWidth > bounds.xMax - 12f)
+        {
+            pos = topLeft + new Vector2(-TooltipWidth - 16f, -4f);
+        }
+
+        pos.x = Mathf.Clamp(pos.x, bounds.xMin + 12f, bounds.xMax - TooltipWidth - 12f);
+        pos.y = Mathf.Clamp(pos.y, bounds.yMin + TooltipHeight + 12f, bounds.yMax - 12f);
+        tooltip.anchoredPosition = pos;
+    }
+
+    private static void HideTooltip()
+    {
+        if (activeTooltip != null)
+        {
+            UnityEngine.Object.Destroy(activeTooltip);
+            activeTooltip = null;
+        }
     }
 
     private static void ApplyStarterDeck(RoleTable roleTable, TongtianTowerStarterDeckProfile profile)
@@ -293,9 +670,13 @@ public static class TongtianTowerIntroBoardRuntime
                 return;
             }
 
+            HideTooltip();
+            UpdateHint("正在应用：" + profile.Title + "...");
+            SetDeckButtonsInteractable(false);
             if (profile.CardIds.Count != TongtianTowerStarterDeckCatalog.DeckSize)
             {
                 UpdateHint("开局卡组配置数量异常，请检查硬编码卡组。");
+                SetDeckButtonsInteractable(true);
                 return;
             }
 
@@ -306,26 +687,38 @@ public static class TongtianTowerIntroBoardRuntime
             if (invalidCards.Count > 0)
             {
                 UpdateHint("开局卡组存在无效卡牌：" + string.Join(" / ", invalidCards));
+                SunExpLog.Warn("[TongtianTowerIntro] rejected invalid starter deck "
+                    + profile.Id
+                    + ": "
+                    + string.Join("|", invalidCards));
+                SetDeckButtonsInteractable(true);
                 return;
             }
 
-            if (!StarterDeckArbiterRuntime.ApplyDeck(
-                    roleTable,
-                    profile.CardIds,
-                    CreateClaim(profile),
-                    TongtianTowerStarterDeckCatalog.IsInvalidCardId,
-                    sync: true))
+            if (!TongtianTowerCardAffixService.RunWithStarterDeckSuppressed(() =>
+                    StarterDeckArbiterRuntime.ApplyDeck(
+                        roleTable,
+                        profile.CardIds,
+                        CreateClaim(profile),
+                        TongtianTowerStarterDeckCatalog.IsInvalidCardId,
+                        sync: true)))
             {
                 UpdateHint("卡组写入失败，请重新选择。");
+                SetDeckButtonsInteractable(true);
                 return;
             }
 
             MarkApplied(roleTable, profile.Id);
+            TongtianTowerCardAffixService.MarkStarterDeckBaseline(roleTable, "TongtianTowerIntroBoard.ApplyStarterDeck");
             SetSaveValue(SunExpIds.TongtianTowerIntroSeenKey, "1");
             SetSaveValue(SunExpIds.TongtianTowerStarterDeckAppliedKey, "1");
             SetSaveValue(SunExpIds.TongtianTowerStarterDeckModeKey, profile.Id);
+            TongtianTowerRunStateStore.MarkPhase(TongtianTowerRunPhase.MapPlanning, "TongtianTowerIntroBoard.ApplyStarterDeck");
             ClosePanel();
-            UIManager.Instance?.ShowTip("通天之塔开局卡组：" + profile.Title);
+            SunExpFrameDispatcher.RunOnceNextFrame(
+                "EndlessAbyss.MapPanels.AfterStarterDeck",
+                () => TongtianTowerModeRuntime.TryOpenAbyssMapPanels("TongtianTowerIntroBoard.ApplyStarterDeck"));
+            UIManager.Instance?.ShowTip(SunExpIds.EndlessAbyssTitle + "\u5f00\u5c40\u5361\u7ec4\uff1a" + profile.Title);
             SunExpLog.Info("[TongtianTowerIntro] applied starter deck "
                 + profile.Id
                 + "; cards="
@@ -335,6 +728,7 @@ public static class TongtianTowerIntroBoardRuntime
         {
             SunExpLog.Error("Tongtian tower starter deck apply failed", ex);
             UpdateHint("卡组写入异常，请查看日志。");
+            SetDeckButtonsInteractable(true);
         }
     }
 
@@ -378,6 +772,85 @@ public static class TongtianTowerIntroBoardRuntime
         roleTable.SpecialVarMap[SunExpIds.StarterDeckStateKey] = SunExpIds.StarterDeckStateApplied;
     }
 
+    private static Sprite? TryLoadPackCover(TongtianTowerStarterDeckProfile profile)
+    {
+        var key = profile.Id + "|" + profile.CoverPackId + "|" + profile.RequiredPackId;
+        if (packCoverCache.TryGetValue(key, out var cached))
+        {
+            return cached;
+        }
+
+        Sprite? sprite = null;
+        foreach (var packId in CoverCandidates(profile))
+        {
+            sprite = TryLoadPackCoverByPackId(packId);
+            if (sprite != null)
+            {
+                break;
+            }
+        }
+
+        packCoverCache[key] = sprite;
+        return sprite;
+    }
+
+    private static IEnumerable<string> CoverCandidates(TongtianTowerStarterDeckProfile profile)
+    {
+        if (!string.IsNullOrWhiteSpace(profile.CoverPackId))
+        {
+            yield return profile.CoverPackId;
+        }
+
+        if (!string.IsNullOrWhiteSpace(profile.RequiredPackId)
+            && !string.Equals(profile.RequiredPackId, profile.CoverPackId, StringComparison.OrdinalIgnoreCase))
+        {
+            yield return profile.RequiredPackId;
+        }
+
+        yield return DefaultCoverPackId;
+    }
+
+    private static Sprite? TryLoadPackCoverByPackId(string packId)
+    {
+        try
+        {
+            var data = new DataConfig(packId, DataType.CardPack).data;
+            var iconPath = DictionaryUtil.Get(data, "Icon");
+            return string.IsNullOrWhiteSpace(iconPath) ? null : SunExpResourceCache.Load<Sprite>(iconPath, true);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Debug("[TongtianTowerIntro] failed to load pack cover for " + packId + ": " + ex.Message);
+            return null;
+        }
+    }
+
+    private static Sprite? TryLoadCardIcon(string cardId)
+    {
+        if (cardIconCache.TryGetValue(cardId, out var cached))
+        {
+            return cached;
+        }
+
+        Sprite? sprite = null;
+        try
+        {
+            var data = new DataConfig(cardId, DataType.Card).data;
+            var iconPath = DictionaryUtil.Get(data, "Icon");
+            if (!string.IsNullOrWhiteSpace(iconPath))
+            {
+                sprite = SunExpResourceCache.Load<Sprite>(iconPath, true);
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[TongtianTowerIntro] failed to load card icon for " + cardId + ": " + ex.Message);
+        }
+
+        cardIconCache[cardId] = sprite;
+        return sprite;
+    }
+
     private static void UpdateHint(string message)
     {
         if (hintText != null)
@@ -386,22 +859,25 @@ public static class TongtianTowerIntroBoardRuntime
         }
     }
 
-    private static void ClosePanel()
+    private static void SetDeckButtonsInteractable(bool interactable)
     {
-        SunExpModalHost.Close(ref activePanel, "TongtianTowerIntro.ClosePanel", "[TongtianTowerIntro]");
-        hintText = null;
+        foreach (var button in deckButtons)
+        {
+            if (button != null)
+            {
+                button.interactable = interactable;
+            }
+        }
     }
 
-    private static string IntroBody()
+    private static void ClosePanel()
     {
-        return "<b>玩法目标</b>\n"
-            + "通天之塔是无限爬塔模式。每一层会生成一组全解锁地图节点，你可以自由选择路线，最后一个节点固定为<color=#FFD36A>首领</color>。\n\n"
-            + "<b>地图规则</b>\n"
-            + "本模式不提供事件节点，只会出现<color=#FFD36A>怪物</color>、<color=#FFD36A>首领</color>、<color=#FFD36A>建筑</color>。每层最多只有一个建筑节点，并按层数循环建筑槽位。\n\n"
-            + "<b>成长压力</b>\n"
-            + "进入更高层后，战斗基础数据会自动提升。奖励牌数量更多，但通天之塔奖励牌会附带焚毁限制，防止无限资源滚雪球。\n\n"
-            + "<b>卡组运营</b>\n"
-            + "请把奖励牌视为消耗品。不要只追求单次爆发，持续补牌、保留低费启动、控制高费密度，会让高层更稳定。";
+        HideTooltip();
+        SunExpModalHost.Close(ref activePanel, "TongtianTowerIntro.ClosePanel", "[TongtianTowerIntro]");
+        activeTooltipLayer = null;
+        hintText = null;
+        deckButtons.Clear();
+        deckSelectedFrames.Clear();
     }
 
     private static Text AddTextFill(Transform parent, string value, int fontSize, TextAnchor anchor, Color color)
@@ -419,23 +895,39 @@ public static class TongtianTowerIntroBoardRuntime
         TextAnchor anchor,
         Color color,
         float preferredHeight,
-        float flexibleHeight,
+        float flexibleWidth = 0f,
         float preferredWidth = 0f)
     {
         var go = CreateLayoutObject("Text", parent);
         var element = go.AddComponent<LayoutElement>();
         element.minHeight = preferredHeight;
         element.preferredHeight = preferredHeight;
-        element.flexibleHeight = flexibleHeight;
+        if (flexibleWidth > 0f)
+        {
+            element.flexibleWidth = flexibleWidth;
+        }
+
         if (preferredWidth > 0f)
         {
             element.minWidth = preferredWidth;
             element.preferredWidth = preferredWidth;
         }
 
-        var fitter = go.AddComponent<ContentSizeFitter>();
-        fitter.verticalFit = ContentSizeFitter.FitMode.Unconstrained;
         return ConfigureText(go, value, fontSize, anchor, color);
+    }
+
+    private static Text AddAutoTextBlock(
+        Transform parent,
+        string value,
+        int fontSize,
+        TextAnchor anchor,
+        Color color)
+    {
+        var go = CreateLayoutObject("Text", parent);
+        var text = ConfigureText(go, value, fontSize, anchor, color);
+        text.verticalOverflow = VerticalWrapMode.Overflow;
+        go.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        return text;
     }
 
     private static Text ConfigureText(GameObject go, string value, int fontSize, TextAnchor anchor, Color color)
@@ -449,7 +941,16 @@ public static class TongtianTowerIntroBoardRuntime
         text.horizontalOverflow = HorizontalWrapMode.Wrap;
         text.verticalOverflow = VerticalWrapMode.Truncate;
         text.raycastTarget = false;
+        text.supportRichText = true;
         return text;
+    }
+
+    private static Shadow AddTextShadow(Text text, Color color, Vector2 distance)
+    {
+        var shadow = text.gameObject.AddComponent<Shadow>();
+        shadow.effectColor = color;
+        shadow.effectDistance = distance;
+        return shadow;
     }
 
     private static GameObject CreateLayoutObject(string name, Transform parent)
@@ -473,9 +974,20 @@ public static class TongtianTowerIntroBoardRuntime
             available = rect.rect.size;
         }
 
-        var width = Mathf.Min(1120f, Mathf.Max(760f, available.x - 64f));
-        var height = Mathf.Min(800f, Mathf.Max(660f, available.y - 40f));
+        var width = Mathf.Min(1080f, Mathf.Max(820f, available.x - 80f));
+        var height = Mathf.Min(740f, Mathf.Max(640f, available.y - 64f));
         return new Vector2(width, height);
+    }
+
+    private static float ResolveThemeGridContentWidth(Transform parent)
+    {
+        var width = 540f;
+        if (parent is RectTransform rect && rect.rect.width > 0f)
+        {
+            width = rect.rect.width - 48f;
+        }
+
+        return Mathf.Max(360f, width);
     }
 
     private static void SetSaveValue(string key, string value)

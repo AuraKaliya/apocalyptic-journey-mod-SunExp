@@ -165,6 +165,63 @@ public static class CardMutationService
         return true;
     }
 
+    public static bool RemoveNativeTags(IDataConfig? config, params string[] tags)
+    {
+        if (config == null)
+        {
+            return false;
+        }
+
+        var removed = new HashSet<string>(NormalizeTags(tags), StringComparer.Ordinal);
+        if (removed.Count == 0)
+        {
+            return false;
+        }
+
+        var existing = CurrentNativeTagText(config);
+        var next = string.Join(",", SplitTags(existing).Where(tag => !removed.Contains(tag)));
+        if (string.Equals(existing, next, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        DictionaryUtil.Set(config.Vars, "Tag", next);
+        RefreshDataConfigTags(config);
+        return true;
+    }
+
+    public static bool RemoveNativeTags(CardItem? card, params string[] tags)
+    {
+        if (card == null)
+        {
+            return false;
+        }
+
+        var removed = new HashSet<string>(NormalizeTags(tags), StringComparer.Ordinal);
+        if (removed.Count == 0)
+        {
+            return false;
+        }
+
+        var changed = RemoveNativeTags(card.dataConfig, removed.ToArray());
+        var existing = CurrentNativeTagText(card.dataConfig);
+        DictionaryUtil.Set(card.Vars, "Tag", existing);
+        if (card.Tags != null)
+        {
+            foreach (var tag in removed)
+            {
+                changed = card.Tags.Remove(tag) || changed;
+            }
+        }
+
+        if (changed)
+        {
+            RefreshCardItem(card);
+        }
+
+        return changed;
+    }
+
     public static bool HasSpecialTag(IDataConfig? config, string tag)
     {
         return DictionaryUtil.ContainsToken(DictionaryUtil.Get(config?.Vars, "SpecialTag"), tag)
@@ -271,6 +328,14 @@ public static class CardMutationService
         return string.IsNullOrWhiteSpace(existing)
             ? DictionaryUtil.Get(config?.data, "Tag")
             : existing;
+    }
+
+    private static IEnumerable<string> SplitTags(string value)
+    {
+        return (value ?? "")
+            .Split(new[] { ',', '|', ';', ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(tag => tag.Trim())
+            .Where(tag => tag.Length > 0);
     }
 
     private static void RefreshDataConfigTags(IDataConfig config)

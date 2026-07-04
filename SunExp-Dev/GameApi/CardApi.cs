@@ -178,6 +178,33 @@ public static class CardApi
         return BurnHandCards(self, int.MaxValue);
     }
 
+    public static bool SelectAndBurnHandCards(ScriptExecutor? self, int count)
+    {
+        var cards = HandCardConfigs(self);
+        var burnCount = Math.Min(cards.Count, Math.Max(0, count));
+        if (self == null || burnCount <= 0)
+        {
+            return false;
+        }
+
+        var caption = "\u9009\u62e9" + burnCount + "\u5f20\u5361\u724c\u711a\u6bc1";
+        var opened = CardSelectionApi.SelectCardsFromCards(
+            self,
+            cards,
+            burnCount,
+            _ => true,
+            selected => BurnSpecificHandCards(self, selected),
+            caption,
+            () => BurnHandCards(self, burnCount));
+        if (opened)
+        {
+            return true;
+        }
+
+        BurnHandCards(self, burnCount);
+        return false;
+    }
+
     public static int BurnHandCards(ScriptExecutor? self, int count)
     {
         if (self == null)
@@ -185,11 +212,28 @@ public static class CardApi
             return 0;
         }
 
-        var cards = (self.HandCard ?? Enumerable.Empty<CardItem>())
-            .Select(card => card?.dataConfig)
-            .Where(card => card != null)
+        var cards = HandCardConfigs(self)
             .Take(Math.Max(0, count))
             .ToList();
+        return BurnSpecificHandCards(self, cards);
+    }
+
+    private static List<IDataConfig> HandCardConfigs(ScriptExecutor? self)
+    {
+        return (self?.HandCard ?? Enumerable.Empty<CardItem>())
+            .Select(card => card?.dataConfig)
+            .Where(card => card != null)
+            .Cast<IDataConfig>()
+            .ToList();
+    }
+
+    private static int BurnSpecificHandCards(ScriptExecutor? self, IReadOnlyList<IDataConfig> cards)
+    {
+        if (self == null || cards == null || cards.Count == 0)
+        {
+            return 0;
+        }
+
         var method = self.GetType().GetMethod("BurnCardByData", new[] { typeof(IDataConfig) });
         if (method == null)
         {

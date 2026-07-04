@@ -11,7 +11,6 @@ namespace SunExp.Dll.Hooks;
 
 public static class TongtianTowerCardAffixRuntime
 {
-    private const string BurnoutTag = "Burnout";
     private static readonly FieldInfo? CardChoiceItemDataConfigField = typeof(CardChoiceItem).GetField(
         "dataConfig",
         BindingFlags.Instance | BindingFlags.NonPublic);
@@ -20,6 +19,20 @@ public static class TongtianTowerCardAffixRuntime
     {
         RegisterAfter(modConfig, "CardChoiceItem.Initialize", ApplyToChoiceItem);
         RegisterBefore(modConfig, "CardChoiceUI.Select", ApplyToSelectedCard);
+        RegisterAfter(modConfig, "CardItem.Init", ApplyToCardItem);
+        RegisterAfter(modConfig, "AttackCardItem.Init", ApplyToCardItem);
+        RegisterAfter(modConfig, "CardItem.DataUpdate", ApplyToCardItem);
+        RegisterAfter(modConfig, "AttackCardItem.DataUpdate", ApplyToCardItem);
+        RegisterAfter(modConfig, "FightUI.CreateCardItem", NormalizeCombatCards);
+        RegisterAfter(modConfig, "FightUI.CreateCardItemInternal", NormalizeCombatCards);
+        RegisterAfter(modConfig, "ScriptExecutor.GetCardFromDeck", NormalizeScriptExecutorCards);
+        RegisterAfter(modConfig, "PlayerInfo.AddCard", NormalizeOwnedCards);
+        RegisterAfter(modConfig, "PlayerInfo.AddCardById", NormalizeOwnedCards);
+        RegisterAfter(modConfig, "PlayerInfo.RandomAddCard", NormalizeOwnedCards);
+        RegisterAfter(modConfig, "ShopItem.Init", ApplyToFirstDataConfigArgument);
+        RegisterAfter(modConfig, "PackShowItem.Init", ApplyToFirstDataConfigArgument);
+        RegisterAfter(modConfig, "WarehouseItem.Init", ApplyToFirstDataConfigArgument);
+        RegisterAfter(modConfig, "SafeBoxItem.Init", ApplyToFirstDataConfigArgument);
         SunExpLog.Info("Tongtian Tower card affix runtime initialized");
     }
 
@@ -34,7 +47,7 @@ public static class TongtianTowerCardAffixRuntime
                 return;
             }
 
-            if (!ApplyBurnout(config, "CardChoiceItem.Initialize"))
+            if (!TongtianTowerCardAffixService.ApplyBurnout(config, "CardChoiceItem.Initialize"))
             {
                 return;
             }
@@ -62,7 +75,8 @@ public static class TongtianTowerCardAffixRuntime
                 return;
             }
 
-            ApplyBurnout(config, "CardChoiceUI.Select");
+            TongtianTowerCardAffixService.ApplyBurnout(config, "CardChoiceUI.Select");
+            TongtianTowerCardAffixService.NormalizeOwnedCards("CardChoiceUI.Select");
         }
         catch (Exception ex)
         {
@@ -70,15 +84,101 @@ public static class TongtianTowerCardAffixRuntime
         }
     }
 
-    private static bool ApplyBurnout(IDataConfig config, string source)
+    private static void ApplyToCardItem(ModHookContext context)
     {
-        var changed = CardMutationService.AddNativeTags(config, BurnoutTag);
-        if (changed)
+        try
         {
-            SunExpLog.Debug("[TongtianTowerCardAffix] applied Burnout from " + source);
+            if (TongtianTowerModeRuntime.IsTongtianTowerRun())
+            {
+                TongtianTowerCardAffixService.ApplyBurnout(context.Target as CardItem, "CardItem");
+            }
         }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("[TongtianTowerCardAffix] card item hook failed", ex);
+        }
+    }
 
-        return changed;
+    private static void NormalizeCombatCards(ModHookContext context)
+    {
+        try
+        {
+            if (TongtianTowerModeRuntime.IsTongtianTowerRun())
+            {
+                TongtianTowerCardAffixService.NormalizeCombatCards(null, "FightUI.CreateCardItem");
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("[TongtianTowerCardAffix] combat card normalization failed", ex);
+        }
+    }
+
+    private static void NormalizeScriptExecutorCards(ModHookContext context)
+    {
+        try
+        {
+            if (!TongtianTowerModeRuntime.IsTongtianTowerRun())
+            {
+                return;
+            }
+
+            if (context.Arguments != null && context.Arguments.Length > 0 && context.Arguments[0] is IDataConfig config)
+            {
+                TongtianTowerCardAffixService.ApplyBurnout(config, "ScriptExecutor.GetCardFromDeck");
+            }
+
+            TongtianTowerCardAffixService.NormalizeCombatCards(context.Target as ScriptExecutor, "ScriptExecutor.GetCardFromDeck");
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("[TongtianTowerCardAffix] script executor card normalization failed", ex);
+        }
+    }
+
+    private static void NormalizeOwnedCards(ModHookContext context)
+    {
+        try
+        {
+            if (TongtianTowerModeRuntime.IsTongtianTowerRun())
+            {
+                TongtianTowerCardAffixService.NormalizeOwnedCards("PlayerInfo.AddCard");
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("[TongtianTowerCardAffix] owned card normalization failed", ex);
+        }
+    }
+
+    private static void ApplyToFirstDataConfigArgument(ModHookContext context)
+    {
+        try
+        {
+            if (!TongtianTowerModeRuntime.IsTongtianTowerRun())
+            {
+                return;
+            }
+
+            var args = context.Arguments;
+            if (args == null)
+            {
+                return;
+            }
+
+            foreach (var arg in args)
+            {
+                if (arg is IDataConfig config)
+                {
+                    TongtianTowerCardAffixService.ApplyBurnout(config, "CardDisplay.Init");
+                    return;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("[TongtianTowerCardAffix] display card hook failed", ex);
+        }
     }
 
     private static void RefreshChoiceItem(CardChoiceItem item, DataConfig config)

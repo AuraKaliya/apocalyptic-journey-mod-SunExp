@@ -3,6 +3,9 @@ namespace SunExp.Dll.Mechanics;
 public enum TongtianTowerNodeKind
 {
     Monster,
+    Elite,
+    Rest,
     Building,
-    Boss
+    Boss,
+    EndlessBoss
 }

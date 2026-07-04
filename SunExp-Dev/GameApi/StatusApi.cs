@@ -26,6 +26,11 @@ public static class StatusApi
         return Math.Max(0, status?.MaxHp ?? ReadInt(status, "MaxHp"));
     }
 
+    public static int Defence(IStatusManager? status)
+    {
+        return Math.Max(0, status?.Defend ?? ReadInt(status, "Defend"));
+    }
+
     public static bool TryStarClayResurrection(IStatusManager? status, int nextMaxHp)
     {
         if (status == null)

@@ -76,13 +76,37 @@ public static class OutOfRunDamageHistoryBuilder
             }
         }
 
+        return Build(
+            new DamageRunAggregateSnapshot
+            {
+                AdventureId = request.AdventureId ?? "",
+                TotalRounds = totalRounds,
+                BestHit = bestHit?.Copy(),
+                Combatants = totals.Values.ToList()
+            },
+            request,
+            mvpEvaluator,
+            countShield);
+    }
+
+    public static OutOfRunDamageHistoryRecord Build(
+        DamageRunAggregateSnapshot aggregate,
+        OutOfRunDamageHistoryBuildRequest request,
+        IDamageMeterMvpEvaluator? mvpEvaluator = null,
+        bool countShield = true)
+    {
+        request ??= new OutOfRunDamageHistoryBuildRequest();
+        aggregate ??= new DamageRunAggregateSnapshot();
+        var totalRounds = Math.Max(0, aggregate.TotalRounds);
         var aggregateSnapshot = new DamageMeterSnapshot
         {
             ProtocolVersion = DamageMeterProtocol.Version,
-            SessionId = request.AdventureId ?? "",
+            SessionId = string.IsNullOrWhiteSpace(aggregate.AdventureId)
+                ? request.AdventureId ?? ""
+                : aggregate.AdventureId,
             CompletedRoundCount = totalRounds,
-            BestHit = bestHit?.Copy(),
-            Combatants = totals.Values.ToList()
+            BestHit = aggregate.BestHit?.Copy(),
+            Combatants = aggregate.Combatants ?? new List<CombatantDamageStat>()
         };
         var mvp = (mvpEvaluator ?? DefaultMvpEvaluator).Evaluate(aggregateSnapshot, countShield);
         var teamTotal = aggregateSnapshot.Combatants
@@ -103,7 +127,7 @@ public static class OutOfRunDamageHistoryBuilder
                 : request.Status.Trim(),
             EndedUtc = request.EndedUtc ?? "",
             TeamMembers = members,
-            BestHit = bestHit?.Copy(),
+            BestHit = aggregateSnapshot.BestHit?.Copy(),
             TeamTotalDamage = teamTotal,
             TotalRounds = totalRounds,
             TeamDps = teamTotal / (double)rounds,
