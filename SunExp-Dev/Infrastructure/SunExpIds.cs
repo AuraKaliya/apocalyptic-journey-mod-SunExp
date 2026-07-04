@@ -135,6 +135,8 @@ public static class SunExpIds
     public const string HeartChangeBuffShortId = "heart_change_control";
     public const string HeartChangeBuffId = "SunExp_sunexp_heart_change_control";
     public const string HeartChangeCardIconPath = "Mods/SunExp/ModResource/Images/Card/MoreDimension/xin_bian";
+    public const string HeartChangeActionStrike = "heart_change_strike";
+    public const string HeartChangeActionStrikeCardId = "SunExp_sunexp_enemycard_heart_change_strike";
     public const string ProjectionActionStaffTap = "staff_tap";
     public const string ProjectionActionShieldBlessing = "shield_blessing";
     public const string ProjectionActionStaffTapCardId = "SunExp_sunexp_enemycard_projection_staff_tap";

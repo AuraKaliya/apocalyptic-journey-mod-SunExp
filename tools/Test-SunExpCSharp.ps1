@@ -1158,6 +1158,9 @@ function Invoke-SourceAssertions {
     $polymorphStateStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\PolymorphStateStore.cs"))
     $projectionActivationService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionActivationService.cs"))
     $projectionOtherObj = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionOtherObj.cs"))
+    $heartChangeControlService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\HeartChangeControlService.cs"))
+    $heartChangeActionProxyObj = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\HeartChangeActionProxyObj.cs"))
+    $heartChangeIntentService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\HeartChangeIntentService.cs"))
     $projectionStateStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionStateStore.cs"))
     $projectionStrategyService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionStrategyService.cs"))
     $projectionSummonService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionSummonService.cs"))
@@ -1207,6 +1210,7 @@ function Invoke-SourceAssertions {
     $duskPartnerScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\DuskPartnerScripts.cs"))
     $starClayDollScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\StarClayDollScripts.cs"))
     $projectionScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\ProjectionScripts.cs"))
+    $heartChangeScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\HeartChangeScripts.cs"))
     $scriptingSource = [string]::Join("`n", (Get-ChildItem -LiteralPath (Join-Path $RepoRoot "SunExp-Dev\Scripting") -File -Filter "*.cs" | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }))
     $solarEventRuntimePath = Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarEventRuntime.cs"
     $battleRewardApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\BattleRewardApi.cs"))
@@ -1549,6 +1553,7 @@ function Invoke-SourceAssertions {
     Assert-True $runtimeHooks.Contains("CompanionIntentRegistry.Load(modConfig)") "RuntimeHooks must load companion intent registry before projection combat hooks."
     Assert-True $runtimeHooks.Contains("CompanionThreatRuntime.Initialize(modConfig)") "RuntimeHooks must initialize companion threat targeting."
     Assert-True $entry.Contains("SunExp.Dll.Scripting.ProjectionScripts") "Entry must register ProjectionScripts for CSV action calls."
+    Assert-True $entry.Contains("SunExp.Dll.Scripting.HeartChangeScripts") "Entry must register HeartChangeScripts for temporary controlled intent action calls."
     Assert-True $projectionActivationService.Contains("CardGrantRequest") "Projection generated cards must use the shared card grant API."
     Assert-True $projectionActivationService.Contains("DictionaryUtil.Set(config.Vars") "Projection generated cards must write runtime overrides to Vars."
     Assert-True (-not $projectionActivationService.Contains("DictionaryUtil.Set(config.data")) "Projection generated cards must not mutate base config data."
@@ -1602,6 +1607,40 @@ function Invoke-SourceAssertions {
     Assert-True $companionStatsService.Contains('"Lucky"') "Companion stats must derive spirit from the Lucky origin key."
     Assert-True $companionStatsService.Contains('"Wisdom"') "Companion stats must derive luck from the Wisdom origin key."
     Assert-True $companionStatsService.Contains('"Perceive"') "Companion stats must derive perception from the Perceive origin key."
+    Assert-True $sunExpIds.Contains("HeartChangeActionStrikeCardId") "Heart Change must centralize its temporary EnemyCard id."
+    Assert-True $heartChangeControlService.Contains('QueueProxyAction(state, "Apply")') "Heart Change must queue a proxy action as soon as control is applied."
+    Assert-True $heartChangeControlService.Contains("manager.ActionQueue.Add(proxy)") "Heart Change must place the proxy actor in the action queue."
+    Assert-True $heartChangeControlService.Contains("CompleteProxyAction") "Heart Change must expose a proxy completion path that ends control immediately after the proxy action."
+    Assert-True $heartChangeControlService.Contains("MarkNativeActionConsumed(state, source)") "Heart Change cleanup must mark the native enemy action as consumed for the current action loop."
+    Assert-True $heartChangeControlService.Contains("consumeNativeAction") "Heart Change cleanup must distinguish proxy completion from plain control cancellation."
+    Assert-True $heartChangeControlService.Contains("RestoreNativeQueue(state, source)") "Heart Change cleanup must remove the proxy and return the native enemy to the queue."
+    Assert-True $heartChangeControlService.Contains("state.Status.ChangeState(IStatusManager.State.NoAction)") "Heart Change must prevent the restored native enemy from immediately executing its original intent."
+    Assert-True $heartChangeControlService.Contains("manager.ActionQueue.Add(state.Enemy)") "Heart Change must keep the native enemy in the queue so the game can restore it from NoAction to Default."
+    Assert-True $heartChangeControlService.Contains("ControlledOpponentStatuses") "Heart Change temporary intents must be able to select uncontrolled enemy opponents."
+    Assert-True $heartChangeControlService.Contains("ResolveProxyBeforeNativeFallback") "Heart Change must resolve the proxy action if a controlled native enemy action leaks through."
+    Assert-True $heartChangeControlService.Contains("HeartChange.ProxyNativeFallbackResolved") "Heart Change must log native-fallback proxy resolution for battle log diagnosis."
+    Assert-True (-not $heartChangeControlService.Contains("state.Enemy.FightAction =")) "Heart Change must not swap the native enemy FightAction after native ActionCards have already been shown."
+    Assert-True (-not $heartChangeControlService.Contains("PrepareProjectedAction")) "Heart Change must not prepare native enemy actions through the retired projection path."
+    Assert-True (-not $heartChangeControlService.Contains("OriginalFightAction")) "Heart Change must not depend on temporarily storing and restoring the enemy's native FightAction."
+    Assert-True (-not $heartChangeControlService.Contains("IsLastAction")) "Heart Change must not wait for native multi-action lists before ending control."
+    Assert-True (-not $heartChangeControlService.Contains("projected controlled intent")) "Heart Change must not execute the old native projected-intent path."
+    Assert-True $heartChangeActionProxyObj.Contains("ResolveIntentCount(source)") "Heart Change proxy must preserve the controlled enemy's displayed intent count."
+    Assert-True $heartChangeActionProxyObj.Contains("MaxActionCount = proxyIntentCount") "Heart Change proxy must advertise the preserved temporary intent count."
+    Assert-True $heartChangeActionProxyObj.Contains("ActionCount = proxyIntentCount") "Heart Change proxy must execute the preserved temporary intent count."
+    Assert-True $heartChangeActionProxyObj.Contains("FightAction.AddCard(CreateProxyActionCard") "Heart Change proxy must build one temporary EnemyCard per preserved intent."
+    Assert-True $heartChangeActionProxyObj.Contains("SunExpIds.HeartChangeActionStrikeCardId") "Heart Change proxy must build its preview from the dedicated temporary EnemyCard."
+    Assert-True $heartChangeActionProxyObj.Contains("RefreshIntent(""Configure"")") "Heart Change proxy must reveal its temporary intent immediately when queued."
+    Assert-True $heartChangeActionProxyObj.Contains("card.UseCard(targetStatus)") "Heart Change proxy must execute each temporary intent against a selected enemy target."
+    Assert-True $heartChangeActionProxyObj.Contains("CallActionAnimation(card)") "Heart Change proxy must explicitly play action animation after direct ObjectCard execution."
+    Assert-True (-not $heartChangeActionProxyObj.Contains("ActionExecute()")) "Heart Change proxy must not depend on ObjectAction.ActionExecute's native actor assumptions."
+    Assert-True $heartChangeActionProxyObj.Contains('CompleteProxyAction(Status, "ProxyAction.Complete")') "Heart Change proxy must end control immediately after executing its action."
+    Assert-True $heartChangeIntentService.Contains("ControlledOpponentStatuses") "Heart Change temporary intent must choose from uncontrolled enemy opponents."
+    Assert-True $heartChangeIntentService.Contains("OrderBy(target => target.CurHp)") "Heart Change temporary intent must use deterministic lowest-HP targeting."
+    Assert-True $heartChangeIntentService.Contains("ExecutorApi.DealDamageToTarget") "Heart Change temporary intent must execute through the shared damage API."
+    Assert-True $heartChangeIntentService.Contains("proxy strike: status=") "Heart Change temporary intent must log actual target and damage for battle-log diagnosis."
+    Assert-True $heartChangeScripts.Contains("HeartChangeIntentService.InitAction") "HeartChangeScripts must route temporary EnemyCard init through Mechanics."
+    Assert-True $heartChangeScripts.Contains("HeartChangeIntentService.Target") "HeartChangeScripts must route temporary EnemyCard targeting through Mechanics."
+    Assert-True $heartChangeScripts.Contains("HeartChangeIntentService.UseAction") "HeartChangeScripts must route temporary EnemyCard use through Mechanics."
     Assert-True (-not $cardApi.Contains("previousCount")) "Generated-card success must not depend on draw-pile net count."
     Assert-True (-not $cardApi.Contains("could not verify added card")) "The inverted draw-pile count verifier must remain removed."
     Assert-True $loneerService.Contains("SetMorningPrayerCooldown(self, state, PrayerCooldownRounds);") "Morning Star Prayer must commit its cooldown after a successful copy."
@@ -1909,9 +1948,13 @@ function Invoke-SourceAssertions {
     Assert-True $enemyCardData.Contains("enemycard_saint_white_edict") "EnemyCard data must define Wuna's extra White Radiance action."
     Assert-True $cardData.Contains("witch_projection") "Card data must define the projection selection card."
     Assert-True $cardData.Contains("*projection_role_template") "Card data must define the generated projection role template."
+    Assert-True $enemyCardData.Contains("enemycard_heart_change_strike") "EnemyCard data must define Heart Change's temporary strike intent."
+    Assert-True $enemyCardData.Contains("HeartChangeScripts.InitAction") "Heart Change EnemyCard row must route initialization through HeartChangeScripts."
+    Assert-True $enemyCardData.Contains("HeartChangeScripts.UseAction") "Heart Change EnemyCard row must route execution through HeartChangeScripts."
     Assert-True $enemyCardData.Contains("enemycard_projection_staff_tap") "EnemyCard data must define the projection staff-tap action."
     Assert-True $enemyCardData.Contains("enemycard_projection_shield_blessing") "EnemyCard data must define the projection shield action."
     Assert-True $enemyCardData.Contains("ProjectionScripts.InitAction") "Projection enemy-card rows must route initialization through ProjectionScripts."
+    Assert-True $enemyCardText.Contains("Turncoat Strike") "EnemyCard text must localize Heart Change's temporary strike intent."
     Assert-True $enemyCardText.Contains("Staff Bonk") "EnemyCard text must localize the projection staff action."
     Assert-True $enemyCardText.Contains("Magic Shield") "EnemyCard text must localize the projection magic-shield action."
     Assert-True (-not $enemyCardText.Contains("threat weight")) "Projection shield text must not promise retired threat-weight behavior."

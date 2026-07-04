@@ -328,7 +328,7 @@ public static class TongtianTowerIntroBoardRuntime
         var scrollElement = scrollRoot.AddComponent<LayoutElement>();
         scrollElement.minHeight = 410f;
         scrollElement.flexibleHeight = 1f;
-        SunExpUiBuilder.ApplyPanelImage(scrollRoot, SunExpUiSprites.Label("[TongtianTowerIntro]"), new Color(0.01f, 0.014f, 0.045f, 0.56f), true);
+        SunExpUiBuilder.ApplyLabelImage(scrollRoot, SunExpUiSprites.Label("[TongtianTowerIntro]"), new Color(0.01f, 0.014f, 0.045f, 0.56f), true);
 
         var viewport = SunExpUiBuilder.CreateRect(
             "Viewport",
@@ -381,7 +381,7 @@ public static class TongtianTowerIntroBoardRuntime
     private static void CreateThemePackButton(Transform parent, RoleTable roleTable, TongtianTowerStarterDeckProfile profile)
     {
         var panel = CreateLayoutObject("Theme_" + profile.Id, parent);
-        var image = SunExpUiBuilder.ApplyPanelImage(panel, SunExpUiSprites.Label("[TongtianTowerIntro]"), DeckTint, true);
+        var image = SunExpUiBuilder.ApplyLabelImage(panel, SunExpUiSprites.Label("[TongtianTowerIntro]"), DeckTint, true);
         var button = panel.AddComponent<Button>();
         button.targetGraphic = image;
         button.colors = new ColorBlock
@@ -532,7 +532,7 @@ public static class TongtianTowerIntroBoardRuntime
             new Vector2(TooltipWidth, TooltipHeight));
         activeTooltip = tooltipRect.gameObject;
         activeTooltip.transform.SetAsLastSibling();
-        var background = SunExpUiBuilder.ApplyPanelImage(activeTooltip, SunExpUiSprites.Label("[TongtianTowerIntro]"), new Color(0.015f, 0.018f, 0.055f, 0.88f));
+        var background = SunExpUiBuilder.ApplyLabelImage(activeTooltip, SunExpUiSprites.Label("[TongtianTowerIntro]"), new Color(0.015f, 0.018f, 0.055f, 0.88f));
         if (background != null)
         {
             background.raycastTarget = false;

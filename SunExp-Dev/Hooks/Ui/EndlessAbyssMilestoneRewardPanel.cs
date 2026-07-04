@@ -334,7 +334,7 @@ public static class EndlessAbyssMilestoneRewardPanel
         var element = row.AddComponent<LayoutElement>();
         element.minHeight = RowHeight;
         element.preferredHeight = RowHeight;
-        SunExpUiBuilder.ApplyPanelImage(row, SunExpUiSprites.Label("[EndlessAbyssMilestone]"), CardTint, true);
+        SunExpUiBuilder.ApplyLabelImage(row, SunExpUiSprites.Label("[EndlessAbyssMilestone]"), CardTint, true);
         var layout = row.AddComponent<HorizontalLayoutGroup>();
         layout.padding = new RectOffset(12, 12, 5, 5);
         layout.spacing = 10f;

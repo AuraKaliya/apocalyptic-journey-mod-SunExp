@@ -117,6 +117,7 @@ public static class Entry
                 + "assert(xlua.import_type('SunExp.Dll.Scripting.EventScripts'), 'SunExp EventScripts unavailable');"
                 + "assert(xlua.import_type('SunExp.Dll.Scripting.BossScripts'), 'SunExp BossScripts unavailable');"
                 + "assert(xlua.import_type('SunExp.Dll.Scripting.ProjectionScripts'), 'SunExp ProjectionScripts unavailable');"
+                + "assert(xlua.import_type('SunExp.Dll.Scripting.HeartChangeScripts'), 'SunExp HeartChangeScripts unavailable');"
                 + "assert(xlua.import_type('SunExp.Dll.Scripting.BuffScripts'), 'SunExp BuffScripts unavailable');"
                 + "assert(xlua.import_type('SunExp.Dll.Scripting.RelicScripts'), 'SunExp RelicScripts unavailable');"
                 + "assert(xlua.import_type('SunExp.Dll.Scripting.FamiliarGrowthScripts'), 'SunExp FamiliarGrowthScripts unavailable');"

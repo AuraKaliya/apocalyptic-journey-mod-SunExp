@@ -61,20 +61,19 @@ public static class HeartChangeControlService
         {
             CompanionSlotService.PositionStatusInPlayerSlot(state.Status, state.SlotIndex);
             state.Status.UpdateStatus(true);
-            RefreshControlledIntent(state, "Apply");
-            MoveControlledActionToProjectionPhase(state, "Apply");
+            QueueProxyAction(state, "Apply");
             SunExpPerformanceCounters.Record("HeartChange.Controlled");
         }
         catch (Exception ex)
         {
             SunExpLog.Warn("[HeartChange] positioning failed: " + ex.Message);
-            EndControl(state.Status, "ApplyPositionFailed", removeBuff: true);
+            EndControl(state.Status, "ApplyPositionFailed", removeBuff: true, consumeNativeAction: false);
         }
     }
 
     public static void Clear(ScriptExecutor? executor, string source)
     {
-        EndControl(executor?.Self, source, removeBuff: false);
+        EndControl(executor?.Self, source, removeBuff: false, consumeNativeAction: false);
     }
 
     public static void ClearBattle(string source)
@@ -87,7 +86,7 @@ public static class HeartChangeControlService
 
         foreach (var state in snapshot)
         {
-            EndControl(state.Status, source, removeBuff: true);
+            EndControl(state.Status, source, removeBuff: true, consumeNativeAction: false);
         }
     }
 
@@ -102,12 +101,19 @@ public static class HeartChangeControlService
 
         if (!IsAlive(status))
         {
-            EndControl(status, "BeginEnemyAction.Dead", removeBuff: true);
+            EndControl(status, "BeginEnemyAction.Dead", removeBuff: true, consumeNativeAction: false);
             return;
         }
 
         state.IsActing = true;
-        PrepareProjectedAction(state, actionIndex, isSingle);
+        ResolveProxyBeforeNativeFallback(state, "UnexpectedNativeAction");
+        if (!IsAlive(status))
+        {
+            EndControl(status, "BeginEnemyAction.DeadAfterProxy", removeBuff: true, consumeNativeAction: false);
+            return;
+        }
+
+        SuppressNativeAction(state, "UnexpectedNativeAction");
         SunExpPerformanceCounters.Record("HeartChange.ActionBegin");
     }
 
@@ -121,20 +127,22 @@ public static class HeartChangeControlService
         }
 
         state.IsActing = false;
-        RestoreProjectedAction(state, "EndEnemyAction");
-        if (state.ShouldEndAfterAction || IsLastAction(state.Enemy, actionIndex))
-        {
-            EndControl(status, "EndEnemyAction", removeBuff: true);
-        }
+        RestoreSuppressedNativeState(state, "EndEnemyAction");
+        EndControl(status, "EndEnemyAction.NativeFallback", removeBuff: true, consumeNativeAction: true);
 
         SunExpPerformanceCounters.Record("HeartChange.ActionEnd");
+    }
+
+    public static void CompleteProxyAction(IStatusManager? status, string source)
+    {
+        EndControl(status, source, removeBuff: true, consumeNativeAction: true);
     }
 
     public static void CleanupIfDead(IStatusManager? status, string source)
     {
         if (IsControlled(status) && !IsAlive(status))
         {
-            EndControl(status, source + ".Dead", removeBuff: true);
+            EndControl(status, source + ".Dead", removeBuff: true, consumeNativeAction: false);
         }
     }
 
@@ -205,6 +213,11 @@ public static class HeartChangeControlService
                 .Where(status => IsAlive(status))
                 .ToArray();
         }
+    }
+
+    public static IEnumerable<IStatusManager> ControlledOpponentStatuses(IStatusManager? self)
+    {
+        return ControlledOpponents(self).ToArray();
     }
 
     private static bool CanControlFromCard(ScriptExecutor? executor, IStatusManager? target, out string reason)
@@ -301,7 +314,7 @@ public static class HeartChangeControlService
         return true;
     }
 
-    private static void EndControl(IStatusManager? status, string source, bool removeBuff)
+    private static void EndControl(IStatusManager? status, string source, bool removeBuff, bool consumeNativeAction)
     {
         var state = TakeState(status);
         if (state == null)
@@ -317,8 +330,14 @@ public static class HeartChangeControlService
         try
         {
             state.IsActing = false;
-            RestoreProjectedAction(state, source);
+            RestoreSuppressedNativeState(state, source);
             RestorePosition(state);
+            if (consumeNativeAction)
+            {
+                MarkNativeActionConsumed(state, source);
+            }
+
+            RestoreNativeQueue(state, source);
             state.Status.UpdateStatus(true);
         }
         catch (Exception ex)
@@ -345,26 +364,7 @@ public static class HeartChangeControlService
         state.Status.SetPosition(state.OriginalPosition);
     }
 
-    private static void RefreshControlledIntent(HeartChangeState state, string source)
-    {
-        try
-        {
-            if (state.Enemy == null || !IsAlive(state.Status))
-            {
-                return;
-            }
-
-            state.Enemy.SetAction();
-            state.Enemy.ShowAction();
-            SunExpPerformanceCounters.Record("HeartChange.IntentRefreshed");
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Warn("[HeartChange] intent refresh failed from " + source + ": " + ex.Message);
-        }
-    }
-
-    private static void MoveControlledActionToProjectionPhase(HeartChangeState state, string source)
+    private static void QueueProxyAction(HeartChangeState state, string source)
     {
         try
         {
@@ -374,13 +374,19 @@ public static class HeartChangeControlService
                 return;
             }
 
-            var removed = manager.ActionQueue.RemoveAll(obj =>
-                ReferenceEquals(obj, state.Enemy)
-                || (obj is Enemy && string.Equals(obj.InstanceId, state.StatusId, StringComparison.Ordinal)));
-            manager.ActionQueue.Add(state.Enemy);
+            var proxy = state.Enemy.GetComponent<HeartChangeActionProxyObj>()
+                ?? state.Enemy.gameObject.AddComponent<HeartChangeActionProxyObj>();
+            state.Proxy = proxy;
+            proxy.Configure(state.Enemy);
+
+            var removed = manager.ActionQueue.RemoveAll(obj => IsNativeOrProxyAction(state, obj));
+            manager.ActionQueue.Add(proxy);
             if (removed > 0)
             {
-                SunExpLog.Info("[HeartChange] moved controlled enemy to projection phase: status=" + state.StatusId);
+                SunExpLog.Info("[HeartChange] queued controlled enemy proxy action: status="
+                    + state.StatusId
+                    + ", intentCount="
+                    + proxy.IntentCount);
                 SunExpPerformanceCounters.Record("HeartChange.QueueMoved");
             }
         }
@@ -390,61 +396,43 @@ public static class HeartChangeControlService
         }
     }
 
-    private static void PrepareProjectedAction(HeartChangeState state, int actionIndex, bool isSingle)
+    private static void ResolveProxyBeforeNativeFallback(HeartChangeState state, string source)
     {
-        RestoreProjectedAction(state, "PrepareProjectedAction");
-        state.ShouldEndAfterAction = true;
-
         try
         {
-            FightManager.Instance?.ChangeUnit(FightType.Partner);
-        }
-        catch
-        {
-            // Unit display is cosmetic; action safety matters more.
-        }
-
-        if (!IsAlive(state.Status))
-        {
-            SuppressNativeAction(state, "Dead");
-            return;
-        }
-
-        if (!ControlledOpponents(state.Status).Any())
-        {
-            SuppressNativeAction(state, "NoOpponents");
-            return;
-        }
-
-        try
-        {
-            var actionCard = CurrentActionCard(state.Enemy, actionIndex);
-            if (actionCard == null)
+            var proxy = state.Proxy;
+            if (proxy == null && state.Enemy != null)
             {
-                SuppressNativeAction(state, "MissingActionCard");
+                proxy = state.Enemy.GetComponent<HeartChangeActionProxyObj>()
+                    ?? state.Enemy.gameObject.AddComponent<HeartChangeActionProxyObj>();
+                proxy.Configure(state.Enemy);
+                state.Proxy = proxy;
+            }
+
+            if (proxy == null)
+            {
+                SunExpLog.Warn("[HeartChange] native fallback has no proxy: status=" + state.StatusId);
                 return;
             }
 
-            var proxy = state.Enemy.GetComponent<HeartChangeActionProxyObj>()
-                ?? state.Enemy.gameObject.AddComponent<HeartChangeActionProxyObj>();
-            var originalAction = state.Enemy.FightAction;
-            var projectedAction = proxy.BuildProjectedAction(state.Enemy, actionCard);
-            state.OriginalFightAction = originalAction;
-            state.Enemy.FightAction = projectedAction;
-            state.ShouldEndAfterAction = IsLastAction(state.Enemy, actionIndex);
-            SunExpLog.Info("[HeartChange] projected controlled intent: status="
-                + state.StatusId
-                + ", actionIndex="
-                + actionIndex
-                + ", card="
-                + (actionCard.dataConfig?.data?.GetValueOrDefault("Id", "") ?? ""));
-            SunExpPerformanceCounters.Record(isSingle ? "HeartChange.SingleActionProjected" : "HeartChange.ActionProjected");
+            if (proxy.ResolveNow("NativeFallback." + source))
+            {
+                SunExpPerformanceCounters.Record("HeartChange.ProxyNativeFallbackResolved");
+            }
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[HeartChange] projected action setup failed: " + ex.Message);
-            SuppressNativeAction(state, "ProjectionSetupFailed");
+            SunExpLog.Warn("[HeartChange] native fallback proxy resolve failed from " + source + ": " + ex.Message);
         }
+    }
+
+    private static bool IsNativeOrProxyAction(HeartChangeState state, FightObject? obj)
+    {
+        return obj == null
+            || ReferenceEquals(obj, state.Enemy)
+            || ReferenceEquals(obj, state.Proxy)
+            || (obj is Enemy && string.Equals(obj.InstanceId, state.StatusId, StringComparison.Ordinal))
+            || (obj is HeartChangeActionProxyObj && string.Equals(obj.InstanceId, state.StatusId, StringComparison.Ordinal));
     }
 
     private static void SuppressNativeAction(HeartChangeState state, string reason)
@@ -466,15 +454,10 @@ public static class HeartChangeControlService
         }
     }
 
-    private static void RestoreProjectedAction(HeartChangeState state, string source)
+    private static void RestoreSuppressedNativeState(HeartChangeState state, string source)
     {
         try
         {
-            if (state.OriginalFightAction != null && state.Enemy != null)
-            {
-                state.Enemy.FightAction = state.OriginalFightAction;
-            }
-
             if (state.NativeActionSuppressed && IsAlive(state.Status))
             {
                 state.Status.ChangeState(state.SuppressedState == IStatusManager.State.NoAction
@@ -484,37 +467,70 @@ public static class HeartChangeControlService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[HeartChange] projected action restore failed from " + source + ": " + ex.Message);
+            SunExpLog.Warn("[HeartChange] native action state restore failed from " + source + ": " + ex.Message);
         }
         finally
         {
-            state.OriginalFightAction = null;
             state.NativeActionSuppressed = false;
             state.SuppressedState = IStatusManager.State.Default;
         }
     }
 
-    private static ObjectCard? CurrentActionCard(Enemy enemy, int actionIndex)
+    private static void MarkNativeActionConsumed(HeartChangeState state, string source)
     {
-        var actions = enemy.ActionCards;
-        if (actions == null || actions.Count == 0)
+        try
         {
-            return null;
+            if (IsAlive(state.Status))
+            {
+                state.Status.ChangeState(IStatusManager.State.NoAction);
+            }
         }
-
-        var index = Math.Max(0, actionIndex);
-        return index < actions.Count ? actions[index] : null;
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[HeartChange] native action consume mark failed from " + source + ": " + ex.Message);
+        }
     }
 
-    private static bool IsLastAction(Enemy enemy, int actionIndex)
+    private static void RestoreNativeQueue(HeartChangeState state, string source)
     {
-        var actions = enemy.ActionCards;
-        if (actions == null || actions.Count == 0)
+        try
         {
-            return true;
-        }
+            var manager = FightManager.Instance;
+            if (manager?.ActionQueue == null)
+            {
+                return;
+            }
 
-        return actionIndex < 0 || actionIndex >= actions.Count - 1;
+            manager.ActionQueue.RemoveAll(obj =>
+                obj == null
+                || ReferenceEquals(obj, state.Proxy)
+                || (obj is HeartChangeActionProxyObj && string.Equals(obj.InstanceId, state.StatusId, StringComparison.Ordinal)));
+
+            if (!IsAlive(state.Status) || state.Enemy == null || !CanRestoreQueue(manager))
+            {
+                return;
+            }
+
+            var alreadyQueued = manager.ActionQueue.Any(obj =>
+                ReferenceEquals(obj, state.Enemy)
+                || (obj is Enemy && string.Equals(obj.InstanceId, state.StatusId, StringComparison.Ordinal)));
+            if (!alreadyQueued)
+            {
+                manager.ActionQueue.Add(state.Enemy);
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[HeartChange] native queue restore failed from " + source + ": " + ex.Message);
+        }
+    }
+
+    private static bool CanRestoreQueue(FightManager manager)
+    {
+        return manager.fightType != FightType.None
+            && manager.fightType != FightType.Win
+            && manager.fightType != FightType.Loss
+            && manager.fightType != FightType.Escape;
     }
 
     private static void RetargetControlledActor(ScriptExecutor executor, string rawFilter, string clean)
@@ -917,12 +933,10 @@ public static class HeartChangeControlService
 
         public bool IsActing { get; set; }
 
-        public ObjectAction? OriginalFightAction { get; set; }
+        public HeartChangeActionProxyObj? Proxy { get; set; }
 
         public bool NativeActionSuppressed { get; set; }
 
         public IStatusManager.State SuppressedState { get; set; } = IStatusManager.State.Default;
-
-        public bool ShouldEndAfterAction { get; set; } = true;
     }
 }

@@ -23,6 +23,17 @@ public static class SunExpUiBuilder
         return image;
     }
 
+    public static Image ApplyLabelImage(GameObject go, Sprite? sprite, Color fallbackOrTint, bool raycastTarget = false)
+    {
+        var image = go.AddComponent<Image>();
+        image.sprite = sprite;
+        image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
+        image.fillCenter = true;
+        image.color = fallbackOrTint;
+        image.raycastTarget = raycastTarget;
+        return image;
+    }
+
     public static Image AddPanelTint(GameObject target, Color color, bool raycastTarget = false)
     {
         var tint = new GameObject("PanelTint", typeof(RectTransform));

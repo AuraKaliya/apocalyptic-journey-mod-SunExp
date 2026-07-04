@@ -29,8 +29,8 @@ internal static class EndlessAbyssFramedTextCard
         Color titleColor,
         Color bodyColor)
     {
-        var image = SunExpUiBuilder.ApplyPanelImage(frame, SunExpUiSprites.Label(logScope), frameTint, true);
-        var tint = frame.transform.Find("PanelTint")?.GetComponent<Image>() ?? image;
+        var image = SunExpUiBuilder.ApplyLabelImage(frame, SunExpUiSprites.Label(logScope), frameTint, true);
+        var tint = image;
 
         var content = SunExpUiBuilder.CreateRect(
             "Content",
