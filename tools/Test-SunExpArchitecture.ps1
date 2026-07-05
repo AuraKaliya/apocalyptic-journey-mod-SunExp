@@ -1095,7 +1095,8 @@ Assert-Contains $wunaOrbitFireController "SunExpPerformanceSettings.WunaOrbitFir
 Assert-Contains $wunaOrbitFireController "SunExpPerformanceSettings.WunaGeometryInterval" "Wuna orbit fire geometry rebuilds must be throttled by performance quality."
 Assert-Contains $wunaOrbitFireController "SunExpPerformanceSettings.WunaCoreSections" "Wuna orbit fire geometry density must be quality-controlled."
 Assert-Contains $wunaOrbitFireController "WunaOrbitFire.BuildGeometry" "Wuna orbit fire geometry rebuilds must be measured by performance counters."
-Assert-Contains $sunExpHardTagRuntime "WhiteRadiance.ScanFightZones" "White radiance fight-zone scans must be measurable by performance counters."
+Assert-NotContains $sunExpHardTagRuntime "WhiteRadiance.ScanFightZones" "White Radiance Court must not retain the retired fight-zone scan performance counter."
+Assert-NotContains $sunExpHardTagRuntime "ApplyWhiteRadianceToFightZones" "White Radiance Court must not mutate combat card zones."
 
 Assert-NotContains $scriptingSource "using SunExp.Dll.Hooks" "Scripting layer must not import Hooks."
 Assert-NotContains $scriptingSource "SunExpFrameScheduler" "Scripting layer must not use the hook-owned frame scheduler directly."
