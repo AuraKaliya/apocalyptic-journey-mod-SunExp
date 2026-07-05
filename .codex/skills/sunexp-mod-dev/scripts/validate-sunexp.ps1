@@ -176,6 +176,28 @@ function Test-PackRefs {
     }
 }
 
+function Test-DisplayRarityValues {
+    param(
+        [string]$ModRootPath
+    )
+
+    $displayKinds = @("Card", "Relic", "Buff", "Blessing", "EnchTag")
+    foreach ($kind in $displayKinds) {
+        $files = Get-KindCsvFiles $ModRootPath "Data" $kind
+        foreach ($file in $files) {
+            foreach ($row in (Read-Rows $file.FullName)) {
+                if (-not ($row.PSObject.Properties.Name -contains "Rarity")) {
+                    continue
+                }
+
+                if ($row.Rarity -eq "7") {
+                    Add-Failure "$kind '$($row.Id)' in $($file.Name) must not use Rarity 7 as a hidden flag; use a leading * id when the row should leave random pools."
+                }
+            }
+        }
+    }
+}
+
 function Test-ResourcePaths {
     param(
         [string]$Kind,
@@ -478,6 +500,7 @@ foreach ($packFile in $packFiles) {
 }
 Test-PackRefs "Card" $cards $packIds
 Test-PackRefs "Relic" $relics $packIds
+Test-DisplayRarityValues $modRootPath
 
 foreach ($file in $cardFiles) {
     $rows = Read-Rows $file.FullName

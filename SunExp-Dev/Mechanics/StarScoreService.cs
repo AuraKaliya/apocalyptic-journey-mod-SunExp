@@ -481,7 +481,7 @@ public static class StarScoreService
 
         if (before < 30 && after >= 30)
         {
-            gain += 2;
+            gain += 1;
         }
 
         if (gain > 0)

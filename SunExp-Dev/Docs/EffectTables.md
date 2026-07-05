@@ -76,7 +76,7 @@ Source: `SunExp/Data/Relic/sunexp.csv`, `SunExp/Text/Relic/sunexp.csv`
 | Full ID | Name | Name_en | Rarity | Tag | PackBelong | Description |
 | --- | --- | --- | ---: | --- | --- | --- |
 | SunExp_sunexp_morning_shard | 晨辉碎片 | Morning Shard | 1 |  | SunExp_sunexp_cardpack_radiant_spark | 战斗开始时，获得2层{SunExp_sunexp_solar_radiance}。 |
-| SunExp_sunexp_ember_cloak_lining | 烬衣衬布 | Ember Cloak Lining | 1 |  | SunExp_sunexp_cardpack_ember_crown | 回合开始时，移除1层{buff_burn}，获得2层{SunExp_sunexp_gathered_flame}。 |
+| SunExp_sunexp_*ember_cloak_lining | 烬衣衬布 | Ember Cloak Lining | 1 |  | SunExp_sunexp_cardpack_ember_crown | 回合开始时，移除1层{buff_burn}，获得2层{SunExp_sunexp_gathered_flame}。 |
 | SunExp_sunexp_sun_orbit_mirror | 环日镜 | Sun-Orbit Mirror | 2 |  | SunExp_sunexp_cardpack_radiant_spark | 每行动3次，若你拥有{SunExp_sunexp_solar_radiance}，对随机敌人施加2层{buff_burn}；否则获得2层{SunExp_sunexp_solar_radiance}。 |
 | SunExp_sunexp_sun_bottle | 太阳瓶 | Sun Bottle | 2 |  | SunExp_sunexp_cardpack_solar_canopy | 回合开始时，随机一名带有{buff_burn}的敌人，其{buff_burn}立刻生效一次。 |
 | SunExp_sunexp_solar_phase_dial | 日相刻盘 | Solar Phase Dial | 3 |  | SunExp_sunexp_cardpack_radiant_spark | 回合开始时，根据{SunExp_sunexp_solar_radiance}层数最多触发三种效果：4+抽1张牌，8+获得1点魔能，12+全体{buff_burn}立刻生效一次。 |

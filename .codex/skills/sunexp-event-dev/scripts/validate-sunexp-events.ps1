@@ -205,9 +205,6 @@ function Test-MapEventRows {
         if ($row.Type -eq "Event" -and $row.NodeId -match "^SunExp_sunexp_Sub_") {
             Add-Warning "Map event '$id' points directly at story event '$($row.NodeId)'; verify runtime selection still controls the intended row."
         }
-        if ($id.StartsWith("solar_memory_") -and $row.Rarity -ne "7") {
-            Add-Failure "Mode-exclusive Map row '$id' must use Rarity 7 so every RandomPool excludes it."
-        }
     }
 }
 

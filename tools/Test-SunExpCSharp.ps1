@@ -1180,6 +1180,7 @@ function Invoke-SourceAssertions {
     $cardConfigApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\CardConfigApi.cs"))
     $gameCompatibilityApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\GameCompatibilityApi.cs"))
     $cardScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\CardScripts.cs"))
+    $relicScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\RelicScripts.cs"))
     $morningStarCardScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\MorningStarCardScripts.cs"))
     $buffScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\BuffScripts.cs"))
     $buffApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\BuffApi.cs"))
@@ -1388,6 +1389,53 @@ function Invoke-SourceAssertions {
     Assert-True $battleRewardApi.Contains("rewardUi.RandomSetRelic(candidates)") "Random relic rewards must reuse the native BattleRewardsUI relic flow."
     Assert-True $battleRewardApi.Contains('DictionaryUtil.Get(row, "Rarity") != "4"') "Solar Memory extra random relics must not draw special rarity-4 relics by default."
     Assert-True $battleRewardApi.Contains("manager.CardPackCheck(candidates)") "Extra random relic candidates must respect active card-pack filtering."
+    Assert-True $sunExpIds.Contains('public const string EmberCloakLiningRelicId = "*ember_cloak_lining";') "Retired Ember Cloak Lining relic id must use the pool-hidden star prefix."
+    Assert-True $sunExpIds.Contains('public const string LegacyEmberCloakLiningRelicId = "ember_cloak_lining";') "Retired Ember Cloak Lining legacy id must remain recognized."
+    Assert-True $sunExpIds.Contains("public static bool IsHiddenRelicId") "SunExpIds must expose hidden relic filtering."
+    Assert-True $battleRewardApi.Contains('!SunExpIds.IsHiddenRelicId(DictionaryUtil.Get(row, "Id"))') "Random relic reward candidates must exclude hidden relics."
+    Assert-True $endlessAbyssMilestoneRewardService.Contains("!SunExpIds.IsHiddenRelicId(id)") "Endless Abyss relic options must exclude hidden relics."
+    $relicRows = Import-Csv -LiteralPath (Join-Path $RepoRoot "SunExp\Data\Relic\sunexp.csv")
+    $emberCloakLiningRelicRow = $relicRows | Where-Object { $_.Id -eq "*ember_cloak_lining" } | Select-Object -First 1
+    $ashCharmRelicRow = $relicRows | Where-Object { $_.Id -eq "ash_charm" } | Select-Object -First 1
+    Assert-True ($null -ne $emberCloakLiningRelicRow) "Ember Cloak Lining must remain as a hidden star-prefixed relic row."
+    Assert-True ($emberCloakLiningRelicRow.Rarity -eq "1") "Hidden relic rows must keep a UI-valid rarity instead of using Rarity 7."
+    Assert-True ($ashCharmRelicRow.Rarity -eq "3") "Ash Charm must be promoted to rarity tier 3."
+    $displayRarityKinds = @("Card", "Relic", "Buff", "Blessing", "EnchTag")
+    foreach ($kind in $displayRarityKinds) {
+        $kindRoot = Join-Path $RepoRoot "SunExp\Data\$kind"
+        if (-not (Test-Path -LiteralPath $kindRoot)) {
+            continue
+        }
+
+        foreach ($file in (Get-ChildItem -LiteralPath $kindRoot -Filter *.csv)) {
+            foreach ($row in ((Import-Csv -LiteralPath $file.FullName) | Select-Object -Skip 1)) {
+                if (($row.PSObject.Properties.Name -contains "Rarity") -and $row.Rarity -eq "7") {
+                    Assert-True $false "$kind '$($row.Id)' in $($file.Name) must not use Rarity 7 as a hidden flag; use a leading * id when the row must leave random pools."
+                }
+            }
+        }
+    }
+    $relicTextRows = Import-Csv -LiteralPath (Join-Path $RepoRoot "SunExp\Text\Relic\sunexp.csv")
+    $emberCloakLiningTextRow = $relicTextRows | Where-Object { $_.Id -eq "*ember_cloak_lining" } | Select-Object -First 1
+    $sunOrbitMirrorTextRow = $relicTextRows | Where-Object { $_.Id -eq "sun_orbit_mirror" } | Select-Object -First 1
+    $miniatureSunwheelTextRow = $relicTextRows | Where-Object { $_.Id -eq "miniature_sunwheel" } | Select-Object -First 1
+    $blazingCrownHeartTextRow = $relicTextRows | Where-Object { $_.Id -eq "blazing_crown_heart" } | Select-Object -First 1
+    $ashCharmTextRow = $relicTextRows | Where-Object { $_.Id -eq "ash_charm" } | Select-Object -First 1
+    Assert-True ($null -ne $emberCloakLiningTextRow) "Hidden Ember Cloak Lining relic text row must keep the same star-prefixed id."
+    Assert-True $sunOrbitMirrorTextRow.Description_en.Contains("Every 3 actions, gain 1 stack") "Sun-Orbit Mirror text must describe Gathered Flame gain."
+    Assert-True $miniatureSunwheelTextRow.Description_en.Contains("All enemies gain {buff_burn} equal to your {SunExp_sunexp_solar_radiance} stacks.") "Miniature Sunwheel text must describe party-wide Burn."
+    Assert-True $blazingCrownHeartTextRow.Description_en.Contains("gain 8 stacks of {SunExp_sunexp_solar_radiance}") "Blazing Crown Heart text must describe 8 Solar Radiance at combat start."
+    Assert-True $ashCharmTextRow.Description_en.Contains("At round end") "Ash Charm text must trigger at round end."
+    $sunOrbitMirrorBlock = [regex]::Match($relicScripts, "private\s+static\s+void\s+RegisterSunOrbitMirror[\s\S]*?private\s+static\s+void\s+RegisterSolarPhaseDial")
+    $miniatureSunwheelBlock = [regex]::Match($relicScripts, "private\s+static\s+void\s+RegisterMiniatureSunwheel[\s\S]*?private\s+static\s+void\s+RegisterSunOrbitMirror")
+    $blazingCrownHeartBlock = [regex]::Match($relicScripts, "private\s+static\s+void\s+RegisterBlazingCrownHeart[\s\S]*?private\s+static\s+void\s+RegisterSolarPrism")
+    $ashCharmBlock = [regex]::Match($relicScripts, "private\s+static\s+void\s+RegisterAshCharm[\s\S]*?private\s+static\s+void\s+RegisterBlazingSundial")
+    Assert-True ($sunOrbitMirrorBlock.Success -and $sunOrbitMirrorBlock.Value.Contains('self.AddBuff(SunExpIds.GatheredFlame, "1");') -and $sunOrbitMirrorBlock.Value.Contains("ExecutorApi.AddBurnToRandomEnemy(self, 3);")) "Sun-Orbit Mirror must gain Gathered Flame and apply 3 Burn every third action."
+    Assert-True ($miniatureSunwheelBlock.Success -and $miniatureSunwheelBlock.Value.Contains("BuffApi.NegativeTotal(self.Self)") -and $miniatureSunwheelBlock.Value.Contains("ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, burn);")) "Miniature Sunwheel must convert negative stacks into Gathered Flame and add Solar Radiance as Burn to all enemies."
+    Assert-True ($miniatureSunwheelBlock.Success -and -not $miniatureSunwheelBlock.Value.Contains("ScorchingCanopy")) "Miniature Sunwheel must not require Scorching Canopy."
+    Assert-True ([regex]::IsMatch($blazingCrownHeartBlock.Value, 'AddBuff\(SunExpIds\.SolarRadiance, "8"\);[\s\S]*ApplyFieldBuff\(self, "scorching_canopy", 2\);[\s\S]*AddBuff\(SunExpIds\.SolarCrown, "1"\);')) "Blazing Crown Heart must grant Radiance, Canopy, then Crown in order."
+    Assert-True (-not $blazingCrownHeartBlock.Value.Contains('TryAddEvent(self, "StartRound"')) "Blazing Crown Heart must not keep the old round-start Burn aura."
+    Assert-True ($ashCharmBlock.Success -and $ashCharmBlock.Value.Contains('TryAddEvent(self, "EndRound"') -and $ashCharmBlock.Value.Contains("self.AddBuff(SunExpIds.Ember, burn.ToString());") -and $ashCharmBlock.Value.Contains("self.ChangeDefence(burn.ToString());")) "Ash Charm must grant Ember and Block equal to self Burn at round end."
     Assert-True $solarMemoryCombatRuntime.Contains('RegisterAfter(modConfig, "Enemy.Init", ScaleEnemyHpAfterInit)') "Solar Memory combat tuning must scale enemies after native Enemy.Init."
     Assert-True $solarMemoryCombatRuntime.Contains("EnemyHpMultiplier = 3") "Solar Memory enemies must use the configured 3x HP multiplier."
     Assert-True $solarMemoryCombatRuntime.Contains("SolarMemoryModeRuntime.IsSolarMemoryRun()") "Solar Memory enemy HP scaling must be gated to Solar Memory runs."
@@ -1685,9 +1733,21 @@ function Invoke-SourceAssertions {
     $buffRows = Import-Csv -LiteralPath (Join-Path $RepoRoot "SunExp\Data\Buff\sunexp.csv")
     $starStonePouchRow = $buffRows | Where-Object { $_.Id -eq "star_stone_pouch" } | Select-Object -First 1
     $miracleClockRow = $buffRows | Where-Object { $_.Id -eq "miracle_clock" } | Select-Object -First 1
+    $solarRadianceRow = $buffRows | Where-Object { $_.Id -eq "solar_radiance" } | Select-Object -First 1
+    $gatheredFlameRow = $buffRows | Where-Object { $_.Id -eq "gathered_flame" } | Select-Object -First 1
     $traitType = [string]([char]0x7279) + [string]([char]0x6027)
+    $positiveType = [string]([char]0x6b63) + [string]([char]0x9762)
     Assert-True ($starStonePouchRow.Type -eq $traitType) "Star Stone Pouch must be a trait buff, not a positive ability buff."
     Assert-True ($miracleClockRow.Type -eq $traitType) "Miracle Clock must be a trait buff, not a positive ability buff."
+    Assert-True ($solarRadianceRow.Type -eq $positiveType) "Solar Radiance must be a positive buff."
+    Assert-True ($gatheredFlameRow.Type -eq $positiveType) "Gathered Flame must be a positive buff."
+    Assert-True $buffText.Contains("gain 1/1/1 stacks of {SunExp_sunexp_star_blessing}") "Starlight text must grant one Star Blessing at each threshold."
+    $positiveExcludeIdsBlock = [regex]::Match($buffApi, "PositiveExcludeIds[\s\S]*?\};")
+    Assert-True $positiveExcludeIdsBlock.Success "Could not locate BuffApi.PositiveExcludeIds for source assertion."
+    Assert-True (-not $positiveExcludeIdsBlock.Value.Contains("SunExpIds.SolarRadiance")) "Solar Radiance must enter global positive buff logic."
+    Assert-True (-not $positiveExcludeIdsBlock.Value.Contains("SunExpIds.GatheredFlame")) "Gathered Flame must enter global positive buff logic."
+    Assert-True $starScoreService.Contains("gain += 1;") "Starlight threshold rewards must grant one Star Blessing per threshold."
+    Assert-True (-not $starScoreService.Contains("gain += 2;")) "Starlight reaching 30 must no longer grant two Star Blessing stacks."
     $positiveBuffsBlock = [regex]::Match($buffApi, "private\s+static\s+IEnumerable<IBuffItem>\s+PositiveBuffs[\s\S]*?private\s+static\s+bool\s+IsNegativeType")
     Assert-True $positiveBuffsBlock.Success "Could not locate BuffApi.PositiveBuffs for source assertion."
     Assert-True $positiveBuffsBlock.Value.Contains("if (IsPositiveExcluded(buff.buffConfig.BuffId))") "Positive buff enumeration must skip excluded trait-like technical buffs."
@@ -2004,12 +2064,21 @@ function Invoke-SourceAssertions {
     Assert-True $gameCompatibilityApi.Contains("GetItemsByPackFallback") "Card-pack compatibility lookup must retain a table-scan fallback."
     Assert-True (-not $solarMemoryStarterDeckRuntime.Contains(".GetPackItems(")) "Solar memory starter deck must not bind directly to the unstable GetPackItems signature."
     Assert-True (-not $solarMemoryModeRuntime.Contains(".GetPackItems(")) "Solar memory setup UI must not bind directly to the unstable GetPackItems signature."
-    $sunsetExpedition = [regex]::Match($sunExpHardTagRuntime, "private\s+static\s+void\s+ApplySunsetExpedition\(\)[\s\S]*?private\s+static\s+void\s+ApplyWhiteRadianceCourtCards")
+    $sunsetExpedition = [regex]::Match($sunExpHardTagRuntime, "private\s+static\s+void\s+ApplySunsetExpedition\(\)[\s\S]*?private\s+static\s+int\s+ApplyMorningStarDimmedToCombatCards")
     Assert-True $sunsetExpedition.Success "Could not locate ApplySunsetExpedition for source assertion."
     Assert-True (-not $sunsetExpedition.Value.Contains("MirrorSc")) "Sunset Expedition must not borrow the player's generic MirrorSc executor."
     Assert-True (-not $sunsetExpedition.Value.Contains("ChangeHp")) "Sunset Expedition must not call ChangeHp without a dataConfig Id."
     Assert-True $sunsetExpedition.Value.Contains("status.CurHp = nextHp") "Sunset Expedition must apply HP loss through the synchronized status property."
     Assert-True $sunsetExpedition.Value.Contains("if (IsServerAuthority())") "Only the host may advance the shared Sunset Expedition fight count."
+    Assert-True (-not $sunExpHardTagRuntime.Contains("ApplyWhiteRadianceCourtCards")) "White Radiance Court must not attach White Radiance to player cards."
+    Assert-True (-not $sunExpHardTagRuntime.Contains("ApplyWhiteRadianceToRunDeck")) "White Radiance Court must not mutate the run deck."
+    Assert-True (-not $sunExpHardTagRuntime.Contains("ApplyWhiteRadianceToFightZones")) "White Radiance Court must not mutate combat card zones."
+    Assert-True $sunExpHardTagRuntime.Contains("CombatVarApi.AddInt(AbyssalShockHpStacksKey, 1)") "Abyssal Shock HP option must add one stack every time it triggers."
+    Assert-True $sunExpHardTagRuntime.Contains("while (applied < stacks)") "Abyssal Shock enemy HP scaling must catch enemies up to every triggered HP stack."
+    Assert-True $sunExpHardTagRuntime.Contains("Math.Ceiling(Math.Max(1, value) * 1.3)") "Abyssal Shock HP scaling must multiply MaxHp/CurHp by 1.3 each stack."
+    Assert-True $sunExpHardTagRuntime.Contains("MorningStarDimmedCostMarker") "Morning Star Dimmed must mark cards after applying the combat cost increase."
+    Assert-True $sunExpHardTagRuntime.Contains('RegisterBefore(modConfig, "SkillItem.TrueUse", OnSkillUseBefore)') "Stagnant Water must hook skill use before native cooldown is set."
+    Assert-True $sunExpHardTagRuntime.Contains('RegisterAfter(modConfig, "SkillItem.TrueUse", OnSkillUseAfter)') "Stagnant Water must hook skill use after native cooldown is set."
     Assert-True $sunExpHardTagRuntime.Contains('RunFightStartStep("BlackSunListener"') "A Sunset Expedition failure must not prevent Black Sun listener registration."
     Assert-True $solarMemoryModeRuntime.Contains("SunExpIds.SolarMemoryMapIds[eventIndex]") "Solar memory sync repair must use the fixed story map id array."
     Assert-True $solarMemoryModeRuntime.Contains("SunExpIds.SolarMemoryFullEventIds[eventIndex]") "Solar memory sync repair must use the fixed story event id array."
@@ -2245,7 +2314,6 @@ function Invoke-SourceAssertions {
     Assert-True (-not $eventData.Contains("Sub_solar_finale_")) "Retired solar finale event rows must be removed from EventList data."
     $exclusiveMapRows = @($mapData -split "`r?`n" | Where-Object { $_ -match '^solar_memory_' })
     Assert-True ($exclusiveMapRows.Count -eq 9) "Solar Memory isolation assertions must cover every shipped exclusive map row."
-    Assert-True (@($exclusiveMapRows | Where-Object { $_ -notmatch ',7$' }).Count -eq 0) "Every Solar Memory map, event, and boss row must use Rarity 7."
     Assert-True (-not $mapText.Contains("solar_event,")) "Retired legacy solar event map text must be removed."
 
     Write-Host "C# source assertions passed."

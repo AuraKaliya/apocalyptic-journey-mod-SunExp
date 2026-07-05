@@ -48,8 +48,9 @@ content isolation, and multiplayer role commit path.
 ## Hard Rules
 
 - Keep Solar Memory-exclusive EventList rows as `Sub_` rows.
-- Keep every Solar Memory-exclusive Map row, setup event, and boss hidden from
-  global random pools; use `Rarity=7` plus runtime guards and sanitizers.
+- Keep Solar Memory-exclusive Map rows, setup events, and bosses out of global
+  pools through mode-owned factories, runtime guards, and sanitizers; do not
+  assume `Rarity=7` is a safe or sufficient isolation mechanism.
 - Centralize exclusive id detection in `SunExpIds`.
 - Do not mutate global map rows for fallback behavior. Clone dictionaries or
   restore temporary native row changes immediately after use.

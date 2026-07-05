@@ -5,10 +5,10 @@ selection arrays, map item animation fallback, or node safety.
 
 ## Isolation
 
-Solar Memory-exclusive content must not leak into base map generation. Hide
-exclusive Map rows with `Rarity=7`, retain mode guards, and sanitize generated
-nodes in non-Solar-Memory modes. `Breaks_` or unreachable `Level` values are not
-enough isolation.
+Solar Memory-exclusive content must not leak into base map generation. Do not
+rely on `Rarity=7`, `Breaks_`, or unreachable `Level` values as the isolation
+contract. Retain mode guards, build fixed nodes through the owning mode's
+factory, and sanitize generated nodes in non-Solar-Memory modes.
 
 Centralize exclusive checks in `SunExpIds.IsSolarMemoryExclusiveMapId` and
 `SunExpIds.IsSolarMemoryExclusiveEventId`.

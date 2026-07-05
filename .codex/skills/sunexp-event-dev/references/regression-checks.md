@@ -35,9 +35,10 @@ Add or update tests for these risks when the touched event surface requires them
 
 ## Mode Isolation
 
-- Every exclusive Map row, including setup events and bosses, has `Rarity=7`.
 - Full and short Map IDs are recognized by one centralized predicate.
 - Story EventList IDs remain `Sub_` rows.
+- Exclusive Map rows are admitted only by the owning mode's guarded factory or
+  repair path, not by ordinary global pool generation.
 - The owning mode bypasses the non-owner sanitizer.
 - World Simulation, Sublimation, tutorial, and slot-style modes cannot draw exclusive rows.
 - Existing polluted map lists are repaired before map UI creation.

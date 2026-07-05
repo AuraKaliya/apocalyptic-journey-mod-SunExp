@@ -12,6 +12,8 @@ public static class SunExpUiSprites
     public const string ButtonSpritePath = "Mods/SunExp/ModResource/Images/UI/button-\u4e5d\u5bab\u683c.png";
     public const string PanelSpritePath = "Mods/SunExp/ModResource/Images/UI/background-\u4e5d\u5bab\u683c.png";
     public const string LabelSpritePath = "Mods/SunExp/ModResource/Images/UI/Label-\u5c0f-\u4e5d\u5bab\u683c.png";
+    public const string SubMenuSpritePath = "Mods/SunExp/ModResource/Images/UI/\u5b50\u83dc\u5355/\u5b50\u83dc\u5355\u6563\u4ef6.png";
+    public const string SubMenuNormalButtonPath = "Mods/SunExp/ModResource/Images/UI/\u5b50\u83dc\u5355/button-normal.png";
 
     private static readonly Dictionary<string, Sprite?> Cache = new(StringComparer.OrdinalIgnoreCase);
 
@@ -28,6 +30,16 @@ public static class SunExpUiSprites
     public static Sprite? Label(string logPrefix)
     {
         return NineSlice(LabelSpritePath, new Vector4(8f, 8f, 8f, 8f), logPrefix);
+    }
+
+    public static Sprite? LibrarySubMenuButton(string logPrefix)
+    {
+        return NineSlice(SubMenuNormalButtonPath, Vector4.zero, logPrefix);
+    }
+
+    public static Sprite? LibrarySubMenuButtonHighlighted(string logPrefix)
+    {
+        return LibrarySubMenuButton(logPrefix);
     }
 
     public static Sprite? NineSlice(string path, Vector4 border, string logPrefix, Rect? sourceCrop = null)

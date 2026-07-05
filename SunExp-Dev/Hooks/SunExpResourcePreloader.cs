@@ -85,17 +85,20 @@ public static class SunExpResourcePreloader
 
     private static IEnumerable<string> CoreSpritePaths()
     {
-        var modeEntry = VisualRegistry.ModeEntry("solar_memory");
-        var normalTitleSprite = modeEntry?.NormalTitleSprite ?? "";
-        if (!string.IsNullOrWhiteSpace(normalTitleSprite))
+        foreach (var modeEntryId in new[] { "solar_memory", "endless_abyss" })
         {
-            yield return normalTitleSprite;
-        }
+            var modeEntry = VisualRegistry.ModeEntry(modeEntryId);
+            var normalTitleSprite = modeEntry?.NormalTitleSprite ?? "";
+            if (!string.IsNullOrWhiteSpace(normalTitleSprite))
+            {
+                yield return normalTitleSprite;
+            }
 
-        var highlightedTitleSprite = modeEntry?.HighlightedTitleSprite ?? "";
-        if (!string.IsNullOrWhiteSpace(highlightedTitleSprite))
-        {
-            yield return highlightedTitleSprite;
+            var highlightedTitleSprite = modeEntry?.HighlightedTitleSprite ?? "";
+            if (!string.IsNullOrWhiteSpace(highlightedTitleSprite))
+            {
+                yield return highlightedTitleSprite;
+            }
         }
     }
 }

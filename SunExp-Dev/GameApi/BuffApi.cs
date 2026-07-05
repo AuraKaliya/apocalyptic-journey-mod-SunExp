@@ -9,8 +9,6 @@ public static class BuffApi
 {
     private static readonly HashSet<string> PositiveExcludeIds = new(StringComparer.Ordinal)
     {
-        "solar_radiance",
-        "gathered_flame",
         "scorching_canopy",
         "ember_cloak",
         "solar_crown",
@@ -18,8 +16,6 @@ public static class BuffApi
         "origin_core_radiance",
         "cycle_gathered_flame",
         "afterglow_omen",
-        SunExpIds.SolarRadiance,
-        SunExpIds.GatheredFlame,
         SunExpIds.SolarCrown,
         SunExpIds.SolarCrownTier,
         SunExpIds.StarStonePouch,

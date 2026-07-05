@@ -82,20 +82,29 @@ public static class RelicScripts
     {
         ExecutorApi.TryAddEvent(self, "StartRound", new Action(() =>
         {
-            if (ExecutorApi.SelfBuffLevel(self, SunExpIds.ScorchingCanopy) <= 0)
-            {
-                return;
-            }
-
+            var changed = false;
             var total = BuffApi.NegativeTotal(self.Self);
-            if (total <= 0)
+            if (total > 0)
             {
-                return;
+                self.SetStatus("Self");
+                self.AddBuff(SunExpIds.GatheredFlame, total.ToString());
+                changed = true;
             }
 
-            self.SetStatus("Self");
-            self.AddBuff(SunExpIds.GatheredFlame, total.ToString());
-            UpdateRelicShow(self);
+            var burn = ExecutorApi.SelfBuffLevel(self, SunExpIds.SolarRadiance);
+            if (burn > 0)
+            {
+                foreach (var target in ExecutorApi.EnemyTargets(self))
+                {
+                    ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, burn);
+                    changed = true;
+                }
+            }
+
+            if (changed)
+            {
+                UpdateRelicShow(self);
+            }
         }), "miniature_sunwheel");
     }
 
@@ -116,15 +125,10 @@ public static class RelicScripts
                 return;
             }
 
-            if (ExecutorApi.SelfBuffLevel(self, SunExpIds.SolarRadiance) > 0)
-            {
-                ExecutorApi.AddBurnToRandomEnemy(self, 2);
-            }
-            else
-            {
-                self.SetStatus("Self");
-                self.AddBuff(SunExpIds.SolarRadiance, "2");
-            }
+            self.SetStatus("Self");
+            self.AddBuff(SunExpIds.GatheredFlame, "1");
+            ExecutorApi.AddBurnToRandomEnemy(self, 3);
+            UpdateRelicShow(self);
         }), "sun_orbit_mirror");
     }
 
@@ -159,24 +163,10 @@ public static class RelicScripts
         ExecutorApi.TryAddEvent(self, "FightStart", new Action(() =>
         {
             self.SetStatus("Self");
-            self.AddBuff(SunExpIds.SolarRadiance, "4");
-            self.AddBuff(SunExpIds.SolarCrown, "1");
+            self.AddBuff(SunExpIds.SolarRadiance, "8");
             ExecutorApi.ApplyFieldBuff(self, "scorching_canopy", 2);
-        }), "blazing_crown_heart");
-        ExecutorApi.TryAddEvent(self, "StartRound", new Action(() =>
-        {
-            var burn = ExecutorApi.SelfBuffLevel(self, SunExpIds.SolarRadiance);
-            if (burn <= 0)
-            {
-                return;
-            }
-
-            foreach (var target in ExecutorApi.EnemyTargets(self))
-            {
-                ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, burn);
-            }
-
-            UpdateRelicShow(self);
+            self.SetStatus("Self");
+            self.AddBuff(SunExpIds.SolarCrown, "1");
         }), "blazing_crown_heart");
     }
 
@@ -278,7 +268,7 @@ public static class RelicScripts
 
     private static void RegisterAshCharm(ScriptExecutor self)
     {
-        ExecutorApi.TryAddEvent(self, "StartRound", new Action(() =>
+        ExecutorApi.TryAddEvent(self, "EndRound", new Action(() =>
         {
             var burn = ExecutorApi.SelfBuffLevel(self, SunExpIds.Burn);
             if (burn <= 0)
@@ -286,11 +276,9 @@ public static class RelicScripts
                 return;
             }
 
-            var removed = (burn + 1) / 2;
-            ExecutorApi.RemoveBuffStacks(self, self.Self, SunExpIds.Burn, removed);
             self.SetStatus("Self");
-            self.AddBuff(SunExpIds.GatheredFlame, removed.ToString());
-            self.ChangeDefence(removed.ToString());
+            self.AddBuff(SunExpIds.Ember, burn.ToString());
+            self.ChangeDefence(burn.ToString());
             UpdateRelicShow(self);
         }), "ash_charm");
     }

@@ -29,8 +29,9 @@ hook.
   normal combat. Ordinary-event rows ignore `Level`.
 - `NormalMapManager.RandomGenerate` has a `Breaks` filter, but fixed map slots
   also call `TypeGenerate`, so `Breaks_` alone cannot isolate a map row.
-- Every `RandomPool` constructor removes rows whose `Rarity` is `7`. Use this as
-  the internal/fixed-row marker; direct `GameConfigManager.GetOne` still works.
+- `RandomPool` behavior can differ by game mode and selection path. Do not rely
+  on `Rarity=7` as a general Map-row isolation marker; direct
+  `GameConfigManager.GetOne` still works for guarded fixed-node factories.
 - Keep `Text/Map.Note` on a native supported value. Unknown notes can enter
   weighted draws and then fail when native weight dictionaries index the key.
 
@@ -38,15 +39,14 @@ hook.
 
 For content owned by one mode, apply all layers:
 
-1. Give every exclusive event, setup, and boss Map row `Rarity=7`.
-2. Keep `Sub_` on story EventList rows so the ordinary event pool cannot draw them.
-3. Create fixed nodes through a mode-guarded factory using direct row lookup.
-4. Centralize full and short exclusive IDs in `Infrastructure/`.
-5. Outside the owning mode, sanitize generated map lists before UI creation.
-6. Repair only exclusive entries in multiplayer `maps`/`mapData` arrays.
-7. Preserve an already assigned non-exclusive official event `NodeId` when only
+1. Keep `Sub_` on story EventList rows so the ordinary event pool cannot draw them.
+2. Create fixed nodes through a mode-guarded factory using direct row lookup.
+3. Centralize full and short exclusive IDs in `Infrastructure/`.
+4. Outside the owning mode, sanitize generated map lists before UI creation.
+5. Repair only exclusive entries in multiplayer `maps`/`mapData` arrays.
+6. Preserve an already assigned non-exclusive official event `NodeId` when only
    the visual Map template was polluted.
-8. Assign deterministic `NodeDice` to every replacement or fixed node.
+7. Assign deterministic `NodeDice` to every replacement or fixed node.
 
 Use a deterministic native fallback row for old saves. Do not mutate global map
 rows and do not generate a replacement independently from unsynchronized random

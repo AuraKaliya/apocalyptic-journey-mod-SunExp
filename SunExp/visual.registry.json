@@ -15,6 +15,13 @@
       "highlightedTitleSprite": "Mods/SunExp/ModResource/Images/UI/solar_memory_title_c_h.png",
       "titleArtHeightRatio": 0.735,
       "enabled": true
+    },
+    {
+      "id": "endless_abyss",
+      "normalTitleSprite": "Mods/SunExp/ModResource/Images/UI/endless_sea_title_c.png",
+      "highlightedTitleSprite": "Mods/SunExp/ModResource/Images/UI/endless_sea_title_h.png",
+      "titleArtHeightRatio": 0.735,
+      "enabled": true
     }
   ],
   "frameAnimations": [

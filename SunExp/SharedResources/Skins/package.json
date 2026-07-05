@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "packageId": "SunExp.BundledSkins",
-  "packageVersion": 1,
+  "packageVersion": 2,
   "resources": [
     {
       "source": "SunExp_wuna_wuna/summer_cool"

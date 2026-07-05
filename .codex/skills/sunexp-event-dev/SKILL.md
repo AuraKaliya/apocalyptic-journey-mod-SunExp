@@ -43,7 +43,7 @@ Use this skill inside the SunExp repository for event work. Pair it with
 - Do not use hard-coded English captions in event reward/progress helpers.
 - Do not rely on UI creation alone for map-visible events; keep runtime selection behavior aligned.
 - Do not globally rewrite ordinary event `mapdata`; repair only entries whose map id is your special event id.
-- Do not treat `Breaks_` or an unreachable `Level` as complete mode isolation. Use `Rarity=7` for internal fixed Map rows, retain a mode guard, and sanitize old generated nodes/sync arrays outside the owning mode.
+- Do not treat `Breaks_`, an unreachable `Level`, or `Rarity=7` as complete mode isolation. Use a mode-owned guarded factory and sanitize old generated nodes/sync arrays outside the owning mode.
 - Do not invent a custom `Text/Map.Note` merely to isolate content. Native map weighting expects known Note keys and may select unknown keys before crashing.
 - Keep `Data/EventList` option scripts aligned with `Text/EventList` option descriptions.
 - Do not expand Solar Memory preparation, finale, fixed-boss, or role-commit logic here; route to `sunexp-solar-memory-dev`.

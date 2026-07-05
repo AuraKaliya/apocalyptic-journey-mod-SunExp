@@ -371,6 +371,13 @@ internal static class VisualRegistryDefaults
                     NormalTitleSprite = "Mods/SunExp/ModResource/Images/UI/solar_memory_title_c.png",
                     HighlightedTitleSprite = "Mods/SunExp/ModResource/Images/UI/solar_memory_title_c_h.png",
                     TitleArtHeightRatio = 0.735f
+                },
+                new()
+                {
+                    Id = "endless_abyss",
+                    NormalTitleSprite = "Mods/SunExp/ModResource/Images/UI/endless_sea_title_c.png",
+                    HighlightedTitleSprite = "Mods/SunExp/ModResource/Images/UI/endless_sea_title_h.png",
+                    TitleArtHeightRatio = 0.735f
                 }
             },
             FrameAnimations = new List<FrameAnimationVisualSpec>

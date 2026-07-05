@@ -57,6 +57,7 @@ public static class EndlessAbyssMilestoneRewardService
                     var tier = DictionaryUtil.ParseInt(DictionaryUtil.Get(row, "Rarity"), -1);
                     return !string.IsNullOrWhiteSpace(id)
                         && !id.StartsWith("*", StringComparison.Ordinal)
+                        && !SunExpIds.IsHiddenRelicId(id)
                         && tier >= 1
                         && tier <= 3
                         && seen.Add(id)

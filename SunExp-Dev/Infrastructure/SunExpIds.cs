@@ -27,6 +27,8 @@ public static class SunExpIds
     public const string EmberCrownCardPackId = "SunExp_sunexp_cardpack_ember_crown";
     public const string SolarCanopyCardPackId = "SunExp_sunexp_cardpack_solar_canopy";
     public const string MorningStarOvertureCardPackId = "SunExp_sunexp_cardpack_morning_star_overture";
+    public const string EmberCloakLiningRelicId = "*ember_cloak_lining";
+    public const string LegacyEmberCloakLiningRelicId = "ember_cloak_lining";
 
     public static readonly string[] SunThemeCardPackIds =
     {
@@ -39,6 +41,20 @@ public static class SunExpIds
     {
         MorningStarOvertureCardPackId
     };
+
+    public static bool IsHiddenRelicId(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return false;
+        }
+
+        var localId = id.StartsWith("SunExp_sunexp_", System.StringComparison.Ordinal)
+            ? id.Substring("SunExp_sunexp_".Length)
+            : id;
+        return localId.StartsWith("*", System.StringComparison.Ordinal)
+            || string.Equals(localId, LegacyEmberCloakLiningRelicId, System.StringComparison.Ordinal);
+    }
 
     public const string WhiteRadianceTag = "白曜";
     public const string MorningStarSealTag = "启明星";
@@ -308,8 +324,8 @@ public static class SunExpIds
     public const string EndlessAbyssShockName = "\u6df1\u6e0a\u9707\u8361";
     public const string EndlessAbyssOtherDimensionCardPoolId = "milestone.other_dimension.cards";
     public const string TongtianTowerTitle = EndlessAbyssTitle;
-    public const string TongtianTowerDescription = "\u65e0\u5c3d\u6df1\u6e0a\u4e0b\u6f5c";
-    public const string TongtianTowerSubtitle = "\u666e\u901a\u602a / \u7cbe\u82f1 / \u9996\u9886 / \u65e0\u5c3d\u9996\u9886";
+    public const string TongtianTowerDescription = "\u65e0\u5c3d\u4e4b\u6218";
+    public const string TongtianTowerSubtitle = "";
     public const int TongtianTowerLayerNodeCount = 6;
     public const int TongtianTowerNativeDefaultNodeCount = 2;
     public const int TongtianTowerSelectableNodeCount = 8;

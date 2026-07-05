@@ -276,6 +276,7 @@ public static class BattleRewardApi
         var candidates = all
             .Where(row => row != null
                 && RarityAllowed(row)
+                && !SunExpIds.IsHiddenRelicId(DictionaryUtil.Get(row, "Id"))
                 && !role.relicGets.ContainsKey(DictionaryUtil.Get(row, "Id"))
                 && !Singleton<GameRuntimeData>.Instance.IsLocked(DictionaryUtil.Get(row, "Id")))
             .ToList();
@@ -292,7 +293,9 @@ public static class BattleRewardApi
         }
 
         return all
-            .Where(row => row != null && RarityAllowed(row))
+            .Where(row => row != null
+                && RarityAllowed(row)
+                && !SunExpIds.IsHiddenRelicId(DictionaryUtil.Get(row, "Id")))
             .ToList();
     }
 

@@ -9,6 +9,9 @@ public static class SunExpHardTagIds
     public const string WhiteRadianceCourt = "sunexp_white_radiance_court";
     public const string SunsetExpedition = "sunexp_sunset_expedition";
     public const string Rebirth = "sunexp_rebirth";
+    public const string AbyssalShock = "sunexp_abyssal_shock";
+    public const string MorningStarDimmed = "sunexp_morning_star_dimmed";
+    public const string OtherDimensionStagnantWater = "sunexp_other_dimension_stagnant_water";
 
     public const string RebirthBuff = "buff_rebirth";
 

@@ -2,9 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AuraShared.Core;
+using Data.Save;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
+using Witch;
 using Witch.Core;
 using Witch.Mod;
 using Witch.UI.Window;
@@ -13,10 +15,16 @@ namespace SunExp.Dll.Hooks;
 
 public static class SunExpHardTagRuntime
 {
+    private const string AbyssalShockAppliedBoundariesKey = "SunExp_Hard_AbyssalShock_AppliedBoundaries";
+    private const string AbyssalShockHpStacksKey = "SunExpHard_AbyssalShockHpStacks";
+    private const string AbyssalShockHpStacksAppliedKey = "SunExpHardAbyssalShockHpStacksApplied";
+    private const string FragmentedTag = "Fragmented";
+    private const string MorningStarDimmedCostMarker = "SunExpHard_MorningStarDimmedCostApplied";
+
     private static readonly object EventOwner = new();
+    private static readonly Dictionary<string, int> SkillCooldownBeforeUse = new(StringComparer.Ordinal);
     private static string? registeredPlayerStatusId;
-    private static bool whiteRadianceRunDeckApplied;
-    private static int whiteRadianceLastFightZoneSignature = -1;
+    private static int stagnantWaterRefreshSequence;
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -24,8 +32,19 @@ public static class SunExpHardTagRuntime
         RegisterAfter(modConfig, "Fight_PlayerTurn.Init", OnPlayerTurn);
         RegisterAfter(modConfig, "Enemy.Init", OnEnemyInit);
         RegisterBefore(modConfig, "OtherObj.DoOneAction", OnEnemyDoOneAction);
-        RegisterBefore(modConfig, "CommonCardItem.TrueUse", OnCardUse);
-        RegisterBefore(modConfig, "AttackCardItem.TrueUse", OnCardUse);
+        RegisterAfter(modConfig, "CardItem.Init", OnCardItemChanged);
+        RegisterAfter(modConfig, "AttackCardItem.Init", OnCardItemChanged);
+        RegisterAfter(modConfig, "CardItem.DataUpdate", OnCardItemChanged);
+        RegisterAfter(modConfig, "AttackCardItem.DataUpdate", OnCardItemChanged);
+        RegisterAfter(modConfig, "FightUI.CreateCardItem", OnFightUiCreateCard);
+        RegisterAfter(modConfig, "FightUI.CreateCardItemInternal", OnFightUiCreateCard);
+        RegisterAfter(modConfig, "ScriptExecutor.GetCardFromDeck", OnScriptExecutorGetCardFromDeck);
+        RegisterBefore(modConfig, "CommonCardItem.TrueUse", OnCardUseBefore);
+        RegisterBefore(modConfig, "AttackCardItem.TrueUse", OnCardUseBefore);
+        RegisterAfter(modConfig, "CommonCardItem.TrueUse", OnCardUseAfter);
+        RegisterAfter(modConfig, "AttackCardItem.TrueUse", OnCardUseAfter);
+        RegisterBefore(modConfig, "SkillItem.TrueUse", OnSkillUseBefore);
+        RegisterAfter(modConfig, "SkillItem.TrueUse", OnSkillUseAfter);
         SunExpLog.Info("SunExp hard tag runtime initialized");
     }
 
@@ -82,7 +101,7 @@ public static class SunExpHardTagRuntime
         try
         {
             registeredPlayerStatusId = null;
-            ResetWhiteRadianceScanState();
+            SkillCooldownBeforeUse.Clear();
             EventCenter.Instance.Clear(EventOwner);
 
             if (!HasAnySunExpHardTag())
@@ -90,9 +109,9 @@ public static class SunExpHardTagRuntime
                 return;
             }
 
-            RunFightStartStep("WhiteRadianceCourt", () => ApplyWhiteRadianceCourtCards(force: true));
             RunFightStartStep("ScorchedWorld", ApplyScorchedWorld);
             RunFightStartStep("SunsetExpedition", ApplySunsetExpedition);
+            RunFightStartStep("MorningStarDimmed", () => ApplyMorningStarDimmedToCombatCards(CurrentPlayerExecutor(), "Fight_Start.Init"));
             RunFightStartStep("BlackSunListener", () => RegisterPlayerRoundListener("Fight_Start.Init"));
         }
         catch (Exception ex)
@@ -122,7 +141,7 @@ public static class SunExpHardTagRuntime
                 return;
             }
 
-            ApplyWhiteRadianceCourtCards();
+            ApplyMorningStarDimmedToCombatCards(CurrentPlayerExecutor(), "Fight_PlayerTurn.Init");
             RegisterPlayerRoundListener("Fight_PlayerTurn.Init");
         }
         catch (Exception ex)
@@ -135,13 +154,15 @@ public static class SunExpHardTagRuntime
     {
         try
         {
-            if (!HasAnySunExpHardTag() || !IsServerAuthority())
+            if (!HasAnySunExpHardTag() || !IsServerAuthority() || context.Target is not Enemy enemy)
             {
                 return;
             }
 
-            var enemy = context.Target as Enemy;
-            var status = enemy?.Status;
+            TryTriggerAbyssalShock("Enemy.Init");
+            ApplyAbyssalShockHpToEnemy(enemy, "Enemy.Init");
+
+            var status = enemy.Status;
             if (status == null)
             {
                 return;
@@ -180,18 +201,124 @@ public static class SunExpHardTagRuntime
         }
     }
 
-    private static void OnCardUse(ModHookContext context)
+    private static void OnCardUseBefore(ModHookContext context)
     {
         try
         {
-            if (SunExpHardTagState.Active(SunExpHardTagIds.WhiteRadianceCourt))
+            if (!SunExpHardTagState.Active(SunExpHardTagIds.MorningStarDimmed))
             {
-                ApplyWhiteRadianceCourtCards(includeRunDeck: false);
+                return;
+            }
+
+            ApplyMorningStarDimmedToCard(context.Target as CardItem, "CardUseBefore");
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("SunExp hard tag card-use before failed", ex);
+        }
+    }
+
+    private static void OnCardUseAfter(ModHookContext context)
+    {
+        try
+        {
+            if (SunExpHardTagState.Active(SunExpHardTagIds.MorningStarDimmed))
+            {
+                ApplyMorningStarDimmedToCombatCards(CurrentPlayerExecutor(), "CardUseAfter");
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("SunExp white court card use scan failed", ex);
+            SunExpLog.Error("SunExp hard tag card-use after failed", ex);
+        }
+    }
+
+    private static void OnCardItemChanged(ModHookContext context)
+    {
+        try
+        {
+            if (SunExpHardTagState.Active(SunExpHardTagIds.MorningStarDimmed))
+            {
+                ApplyMorningStarDimmedToCard(context.Target as CardItem, "CardItem");
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("SunExp hard tag card item hook failed", ex);
+        }
+    }
+
+    private static void OnFightUiCreateCard(ModHookContext context)
+    {
+        try
+        {
+            if (SunExpHardTagState.Active(SunExpHardTagIds.MorningStarDimmed))
+            {
+                ApplyMorningStarDimmedToCombatCards(CurrentPlayerExecutor(), "FightUI.CreateCardItem");
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("SunExp hard tag combat card scan failed", ex);
+        }
+    }
+
+    private static void OnScriptExecutorGetCardFromDeck(ModHookContext context)
+    {
+        try
+        {
+            if (!SunExpHardTagState.Active(SunExpHardTagIds.MorningStarDimmed))
+            {
+                return;
+            }
+
+            var args = context.Arguments;
+            if (args != null && args.Length > 0 && args[0] is IDataConfig config)
+            {
+                ApplyMorningStarDimmedToConfig(config, "ScriptExecutor.GetCardFromDeck:arg");
+            }
+
+            ApplyMorningStarDimmedToCombatCards(context.Target as ScriptExecutor, "ScriptExecutor.GetCardFromDeck");
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("SunExp hard tag deck draw hook failed", ex);
+        }
+    }
+
+    private static void OnSkillUseBefore(ModHookContext context)
+    {
+        try
+        {
+            if (!SunExpHardTagState.Active(SunExpHardTagIds.OtherDimensionStagnantWater)
+                || context.Target is not SkillItem skillItem)
+            {
+                return;
+            }
+
+            CaptureStagnantWaterSkillCooldown(skillItem);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("SunExp hard tag skill-use before failed", ex);
+        }
+    }
+
+    private static void OnSkillUseAfter(ModHookContext context)
+    {
+        try
+        {
+            if (!SunExpHardTagState.Active(SunExpHardTagIds.OtherDimensionStagnantWater)
+                || context.Target is not SkillItem skillItem)
+            {
+                return;
+            }
+
+            ScheduleStagnantWaterCooldownDouble(skillItem);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("SunExp hard tag skill-use after failed", ex);
         }
     }
 
@@ -218,12 +345,16 @@ public static class SunExpHardTagRuntime
 
     private static void OnLocalPlayerStartRound(ScriptExecutor executor)
     {
+        if (SunExpHardTagState.Active(SunExpHardTagIds.MorningStarDimmed))
+        {
+            ApplyMorningStarDimmedToCombatCards(executor, "StartRound");
+        }
+
         if (!SunExpHardTagState.Active(SunExpHardTagIds.BlackSunCalamity))
         {
             return;
         }
 
-        ApplyWhiteRadianceCourtCards(executor);
         var statusId = PlayerApi.LocalPlayerStatusId();
         var key = string.IsNullOrWhiteSpace(statusId)
             ? "SunExpHard_BlackSun_LocalTurnCount"
@@ -291,50 +422,444 @@ public static class SunExpHardTagRuntime
         }
     }
 
-    private static void ApplyWhiteRadianceCourtCards(ScriptExecutor? executor = null, bool force = false, bool includeRunDeck = true)
+    private static int ApplyMorningStarDimmedToCombatCards(ScriptExecutor? executor, string source)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
-        if (!SunExpHardTagState.Active(SunExpHardTagIds.WhiteRadianceCourt))
+        if (!SunExpHardTagState.Active(SunExpHardTagIds.MorningStarDimmed))
+        {
+            return 0;
+        }
+
+        var changed = 0;
+        changed += ApplyMorningStarDimmedToCardItems(FightUI.cardItemList, source + ":fight-ui");
+        changed += ApplyMorningStarDimmedToCardItems(FightUI.WaitCard, source + ":wait-ui");
+
+        var manager = FightCardManager.Instance;
+        if (manager != null)
+        {
+            changed += ApplyMorningStarDimmedToConfigs(manager.cardList, source + ":draw");
+            changed += ApplyMorningStarDimmedToConfigs(manager.usedCardList, source + ":discard");
+        }
+
+        if (executor != null)
+        {
+            changed += ApplyMorningStarDimmedToCardItems(executor.HandCard, source + ":hand");
+            changed += ApplyMorningStarDimmedToCardItems(executor.WaitCard, source + ":wait");
+            changed += ApplyMorningStarDimmedToConfigs(executor.DeckCard, source + ":deck");
+            changed += ApplyMorningStarDimmedToConfigs(executor.UsedCard, source + ":used");
+        }
+
+        if (changed > 0)
+        {
+            SunExpLog.Debug("[MorningStarDimmed] applied cost +1 to " + changed + " cards from " + source + ".");
+        }
+
+        return changed;
+    }
+
+    private static int ApplyMorningStarDimmedToCardItems(IEnumerable<CardItem>? cards, string source)
+    {
+        if (cards == null)
+        {
+            return 0;
+        }
+
+        var changed = 0;
+        foreach (var card in cards)
+        {
+            if (ApplyMorningStarDimmedToCard(card, source))
+            {
+                changed++;
+            }
+        }
+
+        return changed;
+    }
+
+    private static int ApplyMorningStarDimmedToConfigs(IEnumerable<IDataConfig>? cards, string source)
+    {
+        if (cards == null)
+        {
+            return 0;
+        }
+
+        var changed = 0;
+        foreach (var card in cards)
+        {
+            if (ApplyMorningStarDimmedToConfig(card, source))
+            {
+                changed++;
+            }
+        }
+
+        return changed;
+    }
+
+    private static bool ApplyMorningStarDimmedToCard(CardItem? card, string source)
+    {
+        if (card?.dataConfig == null || !ApplyMorningStarDimmedToConfig(card.dataConfig, source))
+        {
+            return false;
+        }
+
+        SunExpCardRefreshQueue.RequestDataUpdate(card, "MorningStarDimmed:" + source);
+        return true;
+    }
+
+    private static bool ApplyMorningStarDimmedToConfig(IDataConfig? config, string source)
+    {
+        if (config == null || DictionaryUtil.Get(config.Vars, MorningStarDimmedCostMarker, "0") == "1")
+        {
+            return false;
+        }
+
+        var current = DictionaryUtil.GetInt(config.Vars, "TotalExCost");
+        DictionaryUtil.Set(config.Vars, "TotalExCost", (current + 1).ToString());
+        DictionaryUtil.Set(config.Vars, MorningStarDimmedCostMarker, "1");
+        SunExpLog.Debug("[MorningStarDimmed] cost +1 card="
+            + CardConfigApi.Id(config)
+            + " from "
+            + source
+            + ".");
+        return true;
+    }
+
+    private static void CaptureStagnantWaterSkillCooldown(SkillItem skillItem)
+    {
+        var config = skillItem.dataConfig;
+        if (!RoleSkillApi.IsCurrentCareerSkill(config))
         {
             return;
         }
 
-        if (includeRunDeck && (force || !whiteRadianceRunDeckApplied))
-        {
-            SunExpCardTagService.ApplyWhiteRadianceToRunDeck();
-            whiteRadianceRunDeckApplied = true;
-        }
-
-        var signature = WhiteRadianceFightZoneSignature(executor);
-        if (!force && signature == whiteRadianceLastFightZoneSignature)
+        var skillId = RoleSkillApi.NormalizeSkillId(CardConfigApi.Id(config));
+        if (string.IsNullOrWhiteSpace(skillId))
         {
             return;
         }
 
-        SunExpCardTagService.ApplyWhiteRadianceToFightZones(executor);
-        whiteRadianceLastFightZoneSignature = signature;
-        SunExpPerformanceCounters.RecordDuration("WhiteRadiance.ScanFightZones", start);
+        SkillCooldownBeforeUse[skillId] = PlayerApi.GetSkillTime(skillId);
     }
 
-    private static void ResetWhiteRadianceScanState()
+    private static void ScheduleStagnantWaterCooldownDouble(SkillItem skillItem)
     {
-        whiteRadianceRunDeckApplied = false;
-        whiteRadianceLastFightZoneSignature = -1;
-    }
-
-    private static int WhiteRadianceFightZoneSignature(ScriptExecutor? executor)
-    {
-        unchecked
+        var config = skillItem.dataConfig;
+        if (!RoleSkillApi.IsCurrentCareerSkill(config))
         {
-            var hash = 17;
-            hash = hash * 31 + (FightUI.cardItemList?.Count ?? 0);
-            hash = hash * 31 + (FightCardManager.Instance?.cardList?.Count ?? 0);
-            hash = hash * 31 + (FightCardManager.Instance?.usedCardList?.Count ?? 0);
-            hash = hash * 31 + (executor?.HandCard?.Count ?? 0);
-            hash = hash * 31 + (executor?.DeckCard?.Count ?? 0);
-            hash = hash * 31 + (executor?.UsedCard?.Count ?? 0);
-            return hash;
+            return;
         }
+
+        var skillId = RoleSkillApi.NormalizeSkillId(CardConfigApi.Id(config));
+        if (string.IsNullOrWhiteSpace(skillId) || !SkillCooldownBeforeUse.TryGetValue(skillId, out var before))
+        {
+            return;
+        }
+
+        SkillCooldownBeforeUse.Remove(skillId);
+        var executor = skillItem.scriptExecutor as ScriptExecutor;
+        var token = ++stagnantWaterRefreshSequence;
+        SunExpFrameDispatcher.RunOnceNextFrame(
+            "SunExpHard.StagnantWaterCooldown." + token,
+            () => DoubleStagnantWaterCooldown(skillId, before, executor, "SkillItem.TrueUse"));
+    }
+
+    private static void DoubleStagnantWaterCooldown(string skillId, int before, ScriptExecutor? executor, string source)
+    {
+        try
+        {
+            var current = PlayerApi.GetSkillTime(skillId);
+            if (current <= 0 || current <= before)
+            {
+                return;
+            }
+
+            var doubled = current > int.MaxValue / 2 ? int.MaxValue : current * 2;
+            PlayerApi.SetSkillTime(skillId, doubled);
+            try
+            {
+                executor?.UpdateSkillTime();
+            }
+            catch (Exception ex)
+            {
+                SunExpLog.Debug("[StagnantWater] skill UI refresh skipped: " + ex.Message);
+            }
+
+            PlayerApi.ShowCaption("迟滞之水：技能冷却翻倍。");
+            SunExpLog.Info("[StagnantWater] doubled skill cooldown from "
+                + source
+                + ": "
+                + skillId
+                + "="
+                + current
+                + "->"
+                + doubled
+                + ".");
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[StagnantWater] cooldown double failed from " + source + ": " + ex.Message);
+        }
+    }
+
+    private static void TryTriggerAbyssalShock(string source)
+    {
+        if (!SunExpHardTagState.Active(SunExpHardTagIds.AbyssalShock))
+        {
+            return;
+        }
+
+        var boundary = CurrentAbyssalShockBoundary();
+        if (boundary <= 0 || HasTriggeredAbyssalShockBoundary(boundary))
+        {
+            return;
+        }
+
+        MarkTriggeredAbyssalShockBoundary(boundary);
+        var option = PickIndex(3);
+        switch (option)
+        {
+            case 0:
+                var changed = AddFragmentedToRandomDeckCards(2, source + ":boundary:" + boundary);
+                PlayerApi.ShowCaption(changed > 0
+                    ? "深渊震荡：" + changed + "张卡牌获得【碎裂】。"
+                    : "深渊震荡：没有可添加【碎裂】的卡牌。");
+                break;
+            case 1:
+                var stacks = CombatVarApi.AddInt(AbyssalShockHpStacksKey, 1);
+                PlayerApi.ShowCaption("深渊震荡：敌方全体生命值提高30%。");
+                SunExpLog.Info("[AbyssalShock] HP stack increased to "
+                    + stacks
+                    + " at boundary "
+                    + boundary
+                    + " from "
+                    + source
+                    + ".");
+                break;
+            default:
+                var destroyed = DestroyRandomEquippedRelic(source + ":boundary:" + boundary);
+                PlayerApi.ShowCaption(destroyed
+                    ? "深渊震荡：随机已装备遗物被销毁。"
+                    : "深渊震荡：没有可销毁的已装备遗物。");
+                break;
+        }
+    }
+
+    private static int CurrentAbyssalShockBoundary()
+    {
+        var level = Math.Max(0, MapManager.Instance?.Level ?? 0);
+        return level > 0 && level % 6 == 0 ? level / 6 : 0;
+    }
+
+    private static bool HasTriggeredAbyssalShockBoundary(int boundary)
+    {
+        var token = boundary.ToString();
+        var applied = PlayerApi.GetGameVar(AbyssalShockAppliedBoundariesKey, "");
+        return DictionaryUtil.ContainsToken(applied, token);
+    }
+
+    private static void MarkTriggeredAbyssalShockBoundary(int boundary)
+    {
+        var token = boundary.ToString();
+        var applied = PlayerApi.GetGameVar(AbyssalShockAppliedBoundariesKey, "");
+        if (DictionaryUtil.ContainsToken(applied, token))
+        {
+            return;
+        }
+
+        PlayerApi.SetGameVar(AbyssalShockAppliedBoundariesKey, string.IsNullOrWhiteSpace(applied) ? token : applied + "," + token);
+    }
+
+    private static int AddFragmentedToRandomDeckCards(int count, string source)
+    {
+        try
+        {
+            var role = RoleTable.Instance;
+            if (role?.cardList == null || count <= 0)
+            {
+                return 0;
+            }
+
+            var candidates = role.cardList
+                .Where(card => card != null && !HasNativeTag(card, FragmentedTag))
+                .ToList();
+            var changed = 0;
+            while (changed < count && candidates.Count > 0)
+            {
+                var index = PickIndex(candidates.Count);
+                var card = candidates[index];
+                candidates.RemoveAt(index);
+                if (CardMutationService.AddNativeTags(card, FragmentedTag))
+                {
+                    changed++;
+                }
+            }
+
+            if (changed > 0)
+            {
+                GameSaveManager.UpdateRoles(role);
+                SunExpLog.Info("[AbyssalShock] added Fragmented to "
+                    + changed
+                    + " deck cards from "
+                    + source
+                    + ".");
+            }
+
+            return changed;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[AbyssalShock] add Fragmented failed from " + source + ": " + ex.Message);
+            return 0;
+        }
+    }
+
+    private static bool DestroyRandomEquippedRelic(string source)
+    {
+        try
+        {
+            var role = RoleTable.Instance;
+            if (role?.relicList == null || role.relicList.Count == 0)
+            {
+                return false;
+            }
+
+            var index = PickIndex(role.relicList.Count);
+            var relic = role.relicList[index];
+            role.relicList.RemoveAt(index);
+            GameSaveManager.UpdateRoles(role);
+            SunExpLog.Info("[AbyssalShock] destroyed equipped relic from "
+                + source
+                + ": "
+                + DictionaryUtil.Get(relic?.data, "Id"));
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[AbyssalShock] destroy relic failed from " + source + ": " + ex.Message);
+            return false;
+        }
+    }
+
+    private static void ApplyAbyssalShockHpToEnemy(Enemy enemy, string source)
+    {
+        var stacks = CombatVarApi.GetInt(AbyssalShockHpStacksKey);
+        if (stacks <= 0
+            || enemy.Status is not StatusManager status
+            || status.state != IStatusManager.State.Default
+            || status.CurHp <= 0)
+        {
+            return;
+        }
+
+        var applied = AppliedAbyssalShockHpStacks(status);
+        if (applied >= stacks)
+        {
+            return;
+        }
+
+        var oldMaxHp = Math.Max(1, enemy.MaxHp);
+        var oldCurHp = Math.Max(1, enemy.CurHp);
+        var nextMaxHp = oldMaxHp;
+        var nextCurHp = oldCurHp;
+        while (applied < stacks)
+        {
+            nextMaxHp = ScaleAbyssalShockHp(nextMaxHp);
+            nextCurHp = Math.Min(nextMaxHp, ScaleAbyssalShockHp(nextCurHp));
+            applied++;
+        }
+
+        enemy.MaxHp = nextMaxHp;
+        enemy.CurHp = nextCurHp;
+        status.MaxHp = nextMaxHp;
+        status.CurHp = nextCurHp;
+        MarkAbyssalShockHpStacks(status, applied);
+        RefreshStatusTransfer(enemy, status);
+
+        SunExpLog.Info("[AbyssalShock] scaled enemy HP from "
+            + source
+            + ": stacks="
+            + stacks
+            + "; id="
+            + DictionaryUtil.Get(enemy.data, "Id")
+            + "; instance="
+            + enemy.InstanceId
+            + "; max="
+            + oldMaxHp
+            + "->"
+            + nextMaxHp
+            + "; cur="
+            + oldCurHp
+            + "->"
+            + nextCurHp
+            + ".");
+    }
+
+    private static int ScaleAbyssalShockHp(int value)
+    {
+        var scaled = Math.Ceiling(Math.Max(1, value) * 1.3);
+        return (int)Math.Max(1, Math.Min(int.MaxValue, scaled));
+    }
+
+    private static int AppliedAbyssalShockHpStacks(StatusManager status)
+    {
+        return status.dynamicVariables != null
+            && status.dynamicVariables.TryGetValue(AbyssalShockHpStacksAppliedKey, out var value)
+            ? Math.Max(0, (int)value)
+            : 0;
+    }
+
+    private static void MarkAbyssalShockHpStacks(StatusManager status, int stacks)
+    {
+        status.dynamicVariables ??= new Dictionary<string, float>();
+        status.dynamicVariables[AbyssalShockHpStacksAppliedKey] = stacks;
+    }
+
+    private static bool HasNativeTag(IDataConfig config, string tag)
+    {
+        return DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, "Tag"), tag)
+            || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.data, "Tag"), tag);
+    }
+
+    private static int PickIndex(int count)
+    {
+        if (count <= 1)
+        {
+            return 0;
+        }
+
+        try
+        {
+            var value = Math.Abs((MapManager.Instance?.NowDice ?? Dice.Default).Roll().Value);
+            return value % count;
+        }
+        catch
+        {
+            return Math.Abs(Environment.TickCount) % count;
+        }
+    }
+
+    private static void RefreshStatusTransfer(Enemy enemy, StatusManager status)
+    {
+        try
+        {
+            var manager = FightManager.Instance;
+            if (manager == null
+                || string.IsNullOrWhiteSpace(enemy.InstanceId)
+                || !manager.statusData.ContainsKey(enemy.InstanceId))
+            {
+                return;
+            }
+
+            manager.statusData[enemy.InstanceId] = new StatusDataTransfer(status);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[AbyssalShock] enemy HP status transfer refresh failed: " + ex.Message);
+        }
+    }
+
+    private static ScriptExecutor? CurrentPlayerExecutor()
+    {
+        return FightPlayer.Instance?.Status?.MirrorSc as ScriptExecutor;
     }
 
     private static void AnnihilateRandomLocalCard(ScriptExecutor executor)
@@ -376,6 +901,9 @@ public static class SunExpHardTagRuntime
             || SunExpHardTagState.Active(SunExpHardTagIds.BlackSunCalamity)
             || SunExpHardTagState.Active(SunExpHardTagIds.WhiteRadianceCourt)
             || SunExpHardTagState.Active(SunExpHardTagIds.SunsetExpedition)
-            || SunExpHardTagState.Active(SunExpHardTagIds.Rebirth);
+            || SunExpHardTagState.Active(SunExpHardTagIds.Rebirth)
+            || SunExpHardTagState.Active(SunExpHardTagIds.AbyssalShock)
+            || SunExpHardTagState.Active(SunExpHardTagIds.MorningStarDimmed)
+            || SunExpHardTagState.Active(SunExpHardTagIds.OtherDimensionStagnantWater);
     }
 }
