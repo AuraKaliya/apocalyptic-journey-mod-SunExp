@@ -60,6 +60,7 @@ public static class HeartChangeControlService
         try
         {
             CompanionSlotService.PositionStatusInPlayerSlot(state.Status, state.SlotIndex);
+            ApplyFriendlyFacing(state);
             state.Status.UpdateStatus(true);
             QueueProxyAction(state, "Apply");
             SunExpPerformanceCounters.Record("HeartChange.Controlled");
@@ -332,12 +333,8 @@ public static class HeartChangeControlService
             state.IsActing = false;
             RestoreSuppressedNativeState(state, source);
             RestorePosition(state);
-            if (consumeNativeAction)
-            {
-                MarkNativeActionConsumed(state, source);
-            }
+            RestoreNativeQueueNow(state, source, consumeNativeAction);
 
-            RestoreNativeQueue(state, source);
             state.Status.UpdateStatus(true);
         }
         catch (Exception ex)
@@ -362,6 +359,30 @@ public static class HeartChangeControlService
 
         state.Status.transform.localScale = state.OriginalScale;
         state.Status.SetPosition(state.OriginalPosition);
+    }
+
+    private static void ApplyFriendlyFacing(HeartChangeState state)
+    {
+        try
+        {
+            var transform = state.Status?.transform;
+            if (transform == null)
+            {
+                return;
+            }
+
+            var scale = transform.localScale;
+            var originalX = Math.Abs(state.OriginalScale.x) < 0.001f
+                ? (Math.Abs(scale.x) < 0.001f ? 1f : scale.x)
+                : state.OriginalScale.x;
+            scale.x = -originalX;
+            transform.localScale = scale;
+            SunExpPerformanceCounters.Record("HeartChange.FacingMirrored");
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[HeartChange] facing mirror failed: " + ex.Message);
+        }
     }
 
     private static void QueueProxyAction(HeartChangeState state, string source)
@@ -476,22 +497,7 @@ public static class HeartChangeControlService
         }
     }
 
-    private static void MarkNativeActionConsumed(HeartChangeState state, string source)
-    {
-        try
-        {
-            if (IsAlive(state.Status))
-            {
-                state.Status.ChangeState(IStatusManager.State.NoAction);
-            }
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Warn("[HeartChange] native action consume mark failed from " + source + ": " + ex.Message);
-        }
-    }
-
-    private static void RestoreNativeQueue(HeartChangeState state, string source)
+    private static void RestoreNativeQueueNow(HeartChangeState state, string source, bool afterConsumedAction)
     {
         try
         {
@@ -501,15 +507,14 @@ public static class HeartChangeControlService
                 return;
             }
 
-            manager.ActionQueue.RemoveAll(obj =>
-                obj == null
-                || ReferenceEquals(obj, state.Proxy)
-                || (obj is HeartChangeActionProxyObj && string.Equals(obj.InstanceId, state.StatusId, StringComparison.Ordinal)));
+            RemoveControlledQueueEntries(state, source);
 
             if (!IsAlive(state.Status) || state.Enemy == null || !CanRestoreQueue(manager))
             {
                 return;
             }
+
+            RestoreNativeVisibleState(state, source);
 
             var alreadyQueued = manager.ActionQueue.Any(obj =>
                 ReferenceEquals(obj, state.Enemy)
@@ -517,11 +522,69 @@ public static class HeartChangeControlService
             if (!alreadyQueued)
             {
                 manager.ActionQueue.Add(state.Enemy);
+                SunExpLog.Info("[HeartChange] restored native enemy to action queue: status="
+                    + state.StatusId
+                    + ", source="
+                    + source
+                    + ", afterConsumedAction="
+                    + afterConsumedAction);
+                SunExpPerformanceCounters.Record("HeartChange.NativeRestoreApplied");
             }
         }
         catch (Exception ex)
         {
             SunExpLog.Warn("[HeartChange] native queue restore failed from " + source + ": " + ex.Message);
+        }
+    }
+
+    private static void RestoreNativeVisibleState(HeartChangeState state, string source)
+    {
+        try
+        {
+            if (IsAlive(state.Status) && state.Status.state == IStatusManager.State.NoAction)
+            {
+                state.Status.ChangeState(IStatusManager.State.Default);
+                SunExpLog.Info("[HeartChange] restored native visible state from NoAction: status="
+                    + state.StatusId
+                    + ", source="
+                    + source);
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[HeartChange] native visible state restore failed from " + source + ": " + ex.Message);
+        }
+    }
+
+    private static void RemoveControlledQueueEntries(HeartChangeState state, string source)
+    {
+        try
+        {
+            var manager = FightManager.Instance;
+            if (manager?.ActionQueue == null)
+            {
+                return;
+            }
+
+            var removed = manager.ActionQueue.RemoveAll(obj =>
+                obj == null
+                || ReferenceEquals(obj, state.Proxy)
+                || ReferenceEquals(obj, state.Enemy)
+                || (obj is HeartChangeActionProxyObj && string.Equals(obj.InstanceId, state.StatusId, StringComparison.Ordinal))
+                || (obj is Enemy && string.Equals(obj.InstanceId, state.StatusId, StringComparison.Ordinal)));
+            if (removed > 0)
+            {
+                SunExpLog.Info("[HeartChange] removed controlled queue entries: status="
+                    + state.StatusId
+                    + ", count="
+                    + removed
+                    + ", source="
+                    + source);
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[HeartChange] controlled queue removal failed from " + source + ": " + ex.Message);
         }
     }
 

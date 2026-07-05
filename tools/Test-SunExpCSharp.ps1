@@ -1193,6 +1193,7 @@ function Invoke-SourceAssertions {
     $runtimeHooks = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\RuntimeHooks.cs"))
     $polymorphRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\PolymorphRuntime.cs"))
     $projectionRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\ProjectionRuntime.cs"))
+    $heartChangeControlRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\HeartChangeControlRuntime.cs"))
     $duskPartnerRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\DuskPartnerRuntime.cs"))
     $starClayDollRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\StarClayDollRuntime.cs"))
     $loneerRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\LoneerRuntime.cs"))
@@ -1611,11 +1612,18 @@ function Invoke-SourceAssertions {
     Assert-True $heartChangeControlService.Contains('QueueProxyAction(state, "Apply")') "Heart Change must queue a proxy action as soon as control is applied."
     Assert-True $heartChangeControlService.Contains("manager.ActionQueue.Add(proxy)") "Heart Change must place the proxy actor in the action queue."
     Assert-True $heartChangeControlService.Contains("CompleteProxyAction") "Heart Change must expose a proxy completion path that ends control immediately after the proxy action."
-    Assert-True $heartChangeControlService.Contains("MarkNativeActionConsumed(state, source)") "Heart Change cleanup must mark the native enemy action as consumed for the current action loop."
     Assert-True $heartChangeControlService.Contains("consumeNativeAction") "Heart Change cleanup must distinguish proxy completion from plain control cancellation."
-    Assert-True $heartChangeControlService.Contains("RestoreNativeQueue(state, source)") "Heart Change cleanup must remove the proxy and return the native enemy to the queue."
-    Assert-True $heartChangeControlService.Contains("state.Status.ChangeState(IStatusManager.State.NoAction)") "Heart Change must prevent the restored native enemy from immediately executing its original intent."
-    Assert-True $heartChangeControlService.Contains("manager.ActionQueue.Add(state.Enemy)") "Heart Change must keep the native enemy in the queue so the game can restore it from NoAction to Default."
+    Assert-True $heartChangeControlService.Contains("ApplyFriendlyFacing(state)") "Heart Change must mirror the controlled enemy while it occupies a friendly slot."
+    Assert-True $heartChangeControlService.Contains("scale.x = -originalX") "Heart Change friendly-slot mirroring must reverse the original X-facing sign."
+    Assert-True $heartChangeControlService.Contains("RestoreNativeQueueNow(state, source, consumeNativeAction)") "Heart Change cleanup must restore the native enemy queue immediately after proxy cleanup."
+    Assert-True $heartChangeControlService.Contains("RestoreNativeVisibleState(state, source)") "Heart Change queue restoration must also repair accidental NoAction visible state."
+    Assert-True $heartChangeControlService.Contains("state.Status.state == IStatusManager.State.NoAction") "Heart Change visible-state repair must detect stale native NoAction placeholders."
+    Assert-True $heartChangeControlService.Contains("state.Status.ChangeState(IStatusManager.State.Default)") "Heart Change visible-state repair must return living enemies to Default before requeue."
+    Assert-True (-not $heartChangeControlService.Contains("QueueNativeRestore")) "Heart Change must not defer native enemy queue restoration through a temporary queue."
+    Assert-True (-not $heartChangeControlService.Contains("PendingNativeRestores")) "Heart Change must not depend on a delayed pending native restore pool."
+    Assert-True (-not $heartChangeControlService.Contains("RestorePendingNativeActions")) "Heart Change must not expose delayed native queue restoration hooks."
+    Assert-True (-not $heartChangeControlRuntime.Contains("FightManager.DOAllAction")) "Heart Change must not rely on DOAllAction coroutine hooks for queue restoration."
+    Assert-True (-not $heartChangeControlService.Contains("MarkNativeActionConsumed")) "Heart Change must not consume proxy completion by leaving the native enemy in NoAction."
     Assert-True $heartChangeControlService.Contains("ControlledOpponentStatuses") "Heart Change temporary intents must be able to select uncontrolled enemy opponents."
     Assert-True $heartChangeControlService.Contains("ResolveProxyBeforeNativeFallback") "Heart Change must resolve the proxy action if a controlled native enemy action leaks through."
     Assert-True $heartChangeControlService.Contains("HeartChange.ProxyNativeFallbackResolved") "Heart Change must log native-fallback proxy resolution for battle log diagnosis."
