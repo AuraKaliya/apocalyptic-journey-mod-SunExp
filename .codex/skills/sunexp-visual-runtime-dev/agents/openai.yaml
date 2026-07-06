@@ -1,4 +1,0 @@
-interface:
-  display_name: "SunExp Visual Runtime Dev"
-  short_description: "SunExp visual runtime and bundle guardrails"
-  default_prompt: "Use $sunexp-visual-runtime-dev to update SunExp visual registry, bundle, shader, or Skill CG runtime behavior."

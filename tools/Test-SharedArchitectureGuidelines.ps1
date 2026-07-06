@@ -89,6 +89,20 @@ if ($auraCgRuntime -match "manager\?\.(upperCanvasTf|canvasTf)|GameUIManager|Gra
     throw "AuraCgShared overlay must not attach to game UI canvases or add a GraphicRaycaster."
 }
 
+$uiTransitionGuardRuntime = Read-RepoText "UiTransitionGuardShared\UiTransitionGuardRuntime.cs"
+Require-Text $uiTransitionGuardRuntime "ui-transition-guard-2026-07-06-v2" "UiTransitionGuard must bump BuildId for scoped raycaster lease semantics."
+Require-Text $uiTransitionGuardRuntime "LeaseRaycasters" "UiTransitionGuard must use scoped raycaster leases."
+Require-Text $uiTransitionGuardRuntime "OnDisable\(\)[\s\S]*RestoreRaycasters" "UiTransitionGuard must restore raycaster leases when disabled."
+Require-Text $uiTransitionGuardRuntime "UiTransitionGuardOptions[\s\S]*MaxGuardFrames[\s\S]*RegistryScrubFrames[\s\S]*ScrubEveryFrames" "UiTransitionGuard options must bound guard and scrub windows."
+if ($uiTransitionGuardRuntime -match "FindObjectsOfTypeAll<GraphicRaycaster>|SuspendRaycasters") {
+    throw "UiTransitionGuard must not globally enumerate or suspend all GraphicRaycasters."
+}
+
+$uiRaycastSafetyRuntime = Read-RepoText "UiRaycastSafetyShared\UiRaycastSafeDestroyRuntime.cs"
+if ($uiRaycastSafetyRuntime -match "raycast-target-false|inactive-or-disabled") {
+    throw "UiRaycastSafety scrub must not unregister healthy non-raycast or inactive graphics."
+}
+
 $journeyRuntime = Read-RepoText "AuraJourneyShared\AuraJourneyRuntime.cs"
 Require-Text $journeyRuntime "QualifyJourneyId" "AuraJourneyRuntime must expose QualifyJourneyId."
 Require-Text $journeyRuntime "IsQualifiedJourneyId" "AuraJourneyRuntime must expose IsQualifiedJourneyId."

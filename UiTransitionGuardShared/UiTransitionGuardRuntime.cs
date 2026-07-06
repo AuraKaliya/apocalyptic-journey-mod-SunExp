@@ -21,14 +21,20 @@ public enum UiTransitionGuardLogLevel
 public sealed class UiTransitionGuardOptions
 {
     public UiTransitionGuardLogLevel LogLevel { get; set; } = UiTransitionGuardLogLevel.Normal;
+
+    public int MaxGuardFrames { get; set; } = 24;
+
+    public int RegistryScrubFrames { get; set; } = 8;
+
+    public int ScrubEveryFrames { get; set; } = 2;
 }
 
 public static class UiTransitionGuardRuntime
 {
     private const string GlobalObjectName = "UiTransitionGuard.Global";
     private const string ComponentFullName = "UiTransitionGuardShared.UiTransitionGuardRuntime+UiTransitionGuardComponent";
-    public const string CurrentBuildId = "ui-transition-guard-2026-06-21-v1";
-    public const int CurrentProtocolVersion = 1;
+    public const string CurrentBuildId = "ui-transition-guard-2026-07-06-v2";
+    public const int CurrentProtocolVersion = 2;
     public const int MinimumSupportedProtocolVersion = 1;
 
     private static readonly HashSet<string> ReuseLogOwners = new(StringComparer.OrdinalIgnoreCase);
@@ -273,7 +279,10 @@ public static class UiTransitionGuardRuntime
     public sealed class UiTransitionGuardComponent : MonoBehaviour
     {
         private const int DefaultGuardFrames = 8;
-        private const int RegistryScrubFrames = 36;
+        private const int DefaultMaxGuardFrames = 24;
+        private const int DefaultRegistryScrubFrames = 8;
+        private const int DefaultScrubEveryFrames = 2;
+        private const int MaxAllowedGuardFrames = 120;
         private const int MaxRaycasterDetailsPerPass = 12;
 
         private readonly Dictionary<int, SuspendedRaycaster> suspendedRaycasters = new();
@@ -281,11 +290,13 @@ public static class UiTransitionGuardRuntime
         private readonly HashSet<string> owners = new(StringComparer.OrdinalIgnoreCase);
         private int guardUntilFrame = -1;
         private int lastScrubFrame = -1;
-        private int lastSuspendFrame = -1;
         private string guardSource = "";
         private string primaryOwner = "";
         private bool hooksRegistered;
         private UiTransitionGuardLogLevel logLevel = UiTransitionGuardLogLevel.Normal;
+        private int maxGuardFrames = DefaultMaxGuardFrames;
+        private int registryScrubFrames = DefaultRegistryScrubFrames;
+        private int scrubEveryFrames = DefaultScrubEveryFrames;
 
         public int ProtocolVersion => CurrentProtocolVersion;
 
@@ -308,6 +319,8 @@ public static class UiTransitionGuardRuntime
             {
                 logLevel = requestedLogLevel;
             }
+
+            ApplyOptions(options);
 
             if (hooksRegistered)
             {
@@ -344,20 +357,21 @@ public static class UiTransitionGuardRuntime
 
         public void BeginTransition(string ownerModId, string source, int frames = DefaultGuardFrames)
         {
-            var effectiveFrames = Math.Max(1, frames);
+            var effectiveFrames = ClampGuardFrames(frames);
             guardSource = ownerModId + ":" + source;
             guardUntilFrame = Math.Max(guardUntilFrame, Time.frameCount + effectiveFrames);
             lastScrubFrame = -1;
-            lastSuspendFrame = -1;
             Info("Guard armed. source=" + guardSource
                  + ", frame=" + Time.frameCount
                  + ", untilFrame=" + guardUntilFrame);
             ScrubNow(ownerModId, source + ":guard-arm");
-            SuspendRaycasters(guardSource + ":guard-arm");
-            UiRaycastSafeDestroyRuntime.ScrubGraphicRegistryForFrames(
-                RegistryScrubFrames,
-                guardSource + ":registry",
-                Trace);
+            if (registryScrubFrames > 0)
+            {
+                UiRaycastSafeDestroyRuntime.ScrubGraphicRegistryForFrames(
+                    Math.Min(registryScrubFrames, effectiveFrames),
+                    guardSource + ":registry",
+                    Trace);
+            }
         }
 
         public int DisableRaycasts(string ownerModId, GameObject? root, string source)
@@ -392,6 +406,7 @@ public static class UiTransitionGuardRuntime
             if (root != null)
             {
                 DisableRaycasts(primaryOwner, root, "UIManager.CloseUI.before:" + EmptyAsUnknown(uiName));
+                LeaseRaycasters(root, "UIManager.CloseUI.before:" + EmptyAsUnknown(uiName));
             }
         }
 
@@ -411,6 +426,7 @@ public static class UiTransitionGuardRuntime
 
             BeginTransition(primaryOwner, "UIBase.Close.before:" + SafeObjectName(root), DefaultGuardFrames);
             DisableRaycasts(primaryOwner, root, "UIBase.Close.before:" + SafeObjectName(root));
+            LeaseRaycasters(root, "UIBase.Close.before:" + SafeObjectName(root));
         }
 
         private void BeforeDialogueTransition(ModHookContext context)
@@ -425,7 +441,6 @@ public static class UiTransitionGuardRuntime
                 return;
             }
 
-            SuspendRaycasters(TargetName(context) + ":before-ui-lifecycle");
             ScrubNow(primaryOwner, TargetName(context) + ":before-ui-lifecycle");
         }
 
@@ -436,7 +451,6 @@ public static class UiTransitionGuardRuntime
                 return;
             }
 
-            SuspendRaycasters(TargetName(context) + ":after-ui-lifecycle");
             var removed = ScrubNow(primaryOwner, TargetName(context) + ":after-ui-lifecycle");
             Verbose("Lifecycle scrub. target=" + TargetName(context)
                     + ", removed=" + removed
@@ -450,7 +464,7 @@ public static class UiTransitionGuardRuntime
                 return;
             }
 
-            SuspendRaycasters(TargetName(context) + ":after-upper-canvas");
+            LeaseUpperCanvasRaycasters(TargetName(context) + ":after-upper-canvas");
             var removed = ScrubNow(primaryOwner, TargetName(context) + ":after-upper-canvas");
             Verbose("Upper canvas raycaster state scrubbed. target=" + TargetName(context)
                     + ", removed=" + removed
@@ -465,9 +479,9 @@ public static class UiTransitionGuardRuntime
 
         private void LateUpdate()
         {
-            if (IsActive())
+            if (!IsActive())
             {
-                SuspendRaycasters(guardSource + ":runner-late-update");
+                RestoreRaycasters("late-update-expired");
             }
         }
 
@@ -475,8 +489,7 @@ public static class UiTransitionGuardRuntime
         {
             if (IsActive())
             {
-                SuspendRaycasters(guardSource + ":runner-update");
-                if (lastScrubFrame != Time.frameCount)
+                if (lastScrubFrame < 0 || Time.frameCount - lastScrubFrame >= scrubEveryFrames)
                 {
                     lastScrubFrame = Time.frameCount;
                     ScrubNow(primaryOwner, guardSource + ":runner-update:frame" + Time.frameCount);
@@ -488,86 +501,129 @@ public static class UiTransitionGuardRuntime
             RestoreRaycasters("guard-expired");
         }
 
-        private void SuspendRaycasters(string source)
+        private void OnDisable()
         {
-            if (lastSuspendFrame == Time.frameCount && source.EndsWith(":runner-update", StringComparison.Ordinal))
-            {
-                return;
-            }
+            RestoreRaycasters("component-disabled");
+        }
 
-            lastSuspendFrame = Time.frameCount;
-            GraphicRaycaster[] raycasters;
+        private void OnDestroy()
+        {
+            RestoreRaycasters("component-destroyed");
+            deferredActions.Clear();
+        }
+
+        private int LeaseUpperCanvasRaycasters(string source)
+        {
             try
             {
-                raycasters = Resources.FindObjectsOfTypeAll<GraphicRaycaster>();
+                var manager = UIManager.Instance;
+                var root = manager?.upperCanvasTf == null ? null : manager.upperCanvasTf.gameObject;
+                return LeaseRaycasters(root, source);
             }
             catch (Exception ex)
             {
-                Warn("Failed to enumerate raycasters: " + ex.Message);
-                return;
+                Warn("Failed to lease upper canvas raycasters. source=" + source + " -> " + ex.Message);
+                return 0;
+            }
+        }
+
+        private int LeaseRaycasters(GameObject? root, string source)
+        {
+            if (root == null)
+            {
+                return 0;
+            }
+
+            if (!IsRuntimeSceneObject(root.transform))
+            {
+                return 0;
+            }
+
+            GraphicRaycaster[] raycasters;
+            try
+            {
+                raycasters = root.GetComponentsInChildren<GraphicRaycaster>(true);
+            }
+            catch (Exception ex)
+            {
+                Warn("Failed to enumerate raycasters under root. source=" + source
+                     + ", root=" + SafeObjectName(root)
+                     + " -> " + ex.Message);
+                return 0;
             }
 
             var suspended = 0;
             var details = 0;
             foreach (var raycaster in raycasters)
             {
-                if (raycaster == null || !IsRuntimeSceneObject(raycaster))
-                {
-                    continue;
-                }
-
-                int id;
-                try
-                {
-                    id = raycaster.GetInstanceID();
-                }
-                catch
-                {
-                    continue;
-                }
-
-                if (!suspendedRaycasters.ContainsKey(id))
-                {
-                    suspendedRaycasters[id] = new SuspendedRaycaster(
-                        raycaster,
-                        raycaster.enabled,
-                        RaycasterName(raycaster),
-                        TransformPath(raycaster.transform));
-                }
-
-                if (!raycaster.enabled)
-                {
-                    continue;
-                }
-
-                try
-                {
-                    raycaster.enabled = false;
-                    suspended++;
-                    if (logLevel >= UiTransitionGuardLogLevel.Verbose && details < MaxRaycasterDetailsPerPass)
-                    {
-                        details++;
-                        Verbose("Suspended raycaster. source=" + source
-                                + ", frame=" + Time.frameCount
-                                + ", raycaster=" + RaycasterName(raycaster)
-                                + ", path=" + TransformPath(raycaster.transform));
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Warn("Failed to suspend raycaster. source=" + source
-                         + ", raycaster=" + RaycasterName(raycaster)
-                         + " -> " + ex.Message);
-                }
+                suspended += LeaseRaycaster(raycaster, source, ref details);
             }
 
             if (suspended > 0)
             {
-                Info("Suspended raycasters. source=" + source
+                Info("Leased raycasters. source=" + source
                      + ", frame=" + Time.frameCount
                      + ", count=" + suspended
                      + ", tracked=" + suspendedRaycasters.Count
                      + ", untilFrame=" + guardUntilFrame);
+            }
+
+            return suspended;
+        }
+
+        private int LeaseRaycaster(GraphicRaycaster? raycaster, string source, ref int details)
+        {
+            if (raycaster == null || !IsRuntimeSceneObject(raycaster))
+            {
+                return 0;
+            }
+
+            int id;
+            try
+            {
+                id = raycaster.GetInstanceID();
+            }
+            catch
+            {
+                return 0;
+            }
+
+            if (!suspendedRaycasters.ContainsKey(id))
+            {
+                suspendedRaycasters[id] = new SuspendedRaycaster(
+                    raycaster,
+                    raycaster.enabled,
+                    RaycasterName(raycaster),
+                    TransformPath(raycaster.transform),
+                    source,
+                    Time.frameCount);
+            }
+
+            if (!raycaster.enabled)
+            {
+                return 0;
+            }
+
+            try
+            {
+                raycaster.enabled = false;
+                if (logLevel >= UiTransitionGuardLogLevel.Verbose && details < MaxRaycasterDetailsPerPass)
+                {
+                    details++;
+                    Verbose("Leased raycaster. source=" + source
+                            + ", frame=" + Time.frameCount
+                            + ", raycaster=" + RaycasterName(raycaster)
+                            + ", path=" + TransformPath(raycaster.transform));
+                }
+
+                return 1;
+            }
+            catch (Exception ex)
+            {
+                Warn("Failed to lease raycaster. source=" + source
+                     + ", raycaster=" + RaycasterName(raycaster)
+                     + " -> " + ex.Message);
+                return 0;
             }
         }
 
@@ -908,6 +964,77 @@ public static class UiTransitionGuardRuntime
             Debug.LogWarning("[UiTransitionGuard] " + message);
         }
 
+        private void ApplyOptions(object? options)
+        {
+            maxGuardFrames = ReadIntOption(
+                options,
+                nameof(UiTransitionGuardOptions.MaxGuardFrames),
+                DefaultMaxGuardFrames,
+                1,
+                MaxAllowedGuardFrames);
+            registryScrubFrames = ReadIntOption(
+                options,
+                nameof(UiTransitionGuardOptions.RegistryScrubFrames),
+                DefaultRegistryScrubFrames,
+                0,
+                MaxAllowedGuardFrames);
+            scrubEveryFrames = ReadIntOption(
+                options,
+                nameof(UiTransitionGuardOptions.ScrubEveryFrames),
+                DefaultScrubEveryFrames,
+                1,
+                Math.Max(1, maxGuardFrames));
+        }
+
+        private int ClampGuardFrames(int frames)
+        {
+            return Math.Max(1, Math.Min(maxGuardFrames, frames));
+        }
+
+        private static int ReadIntOption(object? options, string propertyName, int fallback, int min, int max)
+        {
+            if (options == null)
+            {
+                return fallback;
+            }
+
+            try
+            {
+                object? value;
+                if (options is UiTransitionGuardOptions typed)
+                {
+                    value = propertyName switch
+                    {
+                        nameof(UiTransitionGuardOptions.MaxGuardFrames) => typed.MaxGuardFrames,
+                        nameof(UiTransitionGuardOptions.RegistryScrubFrames) => typed.RegistryScrubFrames,
+                        nameof(UiTransitionGuardOptions.ScrubEveryFrames) => typed.ScrubEveryFrames,
+                        _ => fallback
+                    };
+                }
+                else
+                {
+                    value = options.GetType()
+                        .GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public)
+                        ?.GetValue(options);
+                }
+
+                var number = value switch
+                {
+                    int intValue => intValue,
+                    long longValue => longValue > int.MaxValue ? int.MaxValue : (int)longValue,
+                    short shortValue => shortValue,
+                    byte byteValue => byteValue,
+                    string stringValue when int.TryParse(stringValue, out var parsed) => parsed,
+                    _ => fallback
+                };
+                return Math.Max(min, Math.Min(max, number));
+            }
+            catch
+            {
+                return fallback;
+            }
+        }
+
         private static UiTransitionGuardLogLevel ReadLogLevel(object? options)
         {
             if (options == null)
@@ -943,12 +1070,14 @@ public static class UiTransitionGuardRuntime
 
     private sealed class SuspendedRaycaster
     {
-        public SuspendedRaycaster(GraphicRaycaster raycaster, bool originalEnabled, string name, string path)
+        public SuspendedRaycaster(GraphicRaycaster raycaster, bool originalEnabled, string name, string path, string source, int frame)
         {
             Raycaster = raycaster;
             OriginalEnabled = originalEnabled;
             Name = name;
             Path = path;
+            Source = source;
+            Frame = frame;
         }
 
         public GraphicRaycaster Raycaster { get; }
@@ -958,6 +1087,10 @@ public static class UiTransitionGuardRuntime
         public string Name { get; }
 
         public string Path { get; }
+
+        public string Source { get; }
+
+        public int Frame { get; }
     }
 
     private sealed class DeferredAction

@@ -1,4 +1,0 @@
-interface:
-  display_name: "SunExp Shared Runtime Dev"
-  short_description: "Maintain Aura shared runtime integrations."
-  default_prompt: "Use $sunexp-shared-runtime-dev for SunExp work touching Aura shared runtimes, shared DLL packaging, shared resources, Journey, Skin, Audio, CG, Online, RPC authority, or shared release gates."

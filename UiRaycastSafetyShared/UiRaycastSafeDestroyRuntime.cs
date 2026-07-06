@@ -379,24 +379,12 @@ public static class UiRaycastSafeDestroyRuntime
 
             if (!graphic.raycastTarget)
             {
-                if (!allowInactiveCleanup)
-                {
-                    return false;
-                }
-
-                reason = "raycast-target-false";
-                return true;
+                return false;
             }
 
             if (!graphic.isActiveAndEnabled)
             {
-                if (!allowInactiveCleanup)
-                {
-                    return false;
-                }
-
-                reason = "inactive-or-disabled";
-                return true;
+                return false;
             }
 
             var renderer = graphic.canvasRenderer;

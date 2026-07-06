@@ -510,6 +510,9 @@ public sealed class FeastRoleSettings
 public sealed class DamageMeterSettings
 {
     private const int FixedMaxRows = 6;
+    private const int DefaultMaxHistoryEnvelopeBytes = 1048576;
+    private const int DefaultMaxAvatarEncodePixels = 262144;
+    private const int DefaultMaxAvatarPngBytes = 262144;
 
     [JsonProperty("enabled")]
     public bool Enabled { get; set; }
@@ -538,6 +541,21 @@ public sealed class DamageMeterSettings
     [JsonProperty("showTeamShare")]
     public bool ShowTeamShare { get; set; } = true;
 
+    [JsonProperty("loadHistoryOnStartup")]
+    public bool LoadHistoryOnStartup { get; set; }
+
+    [JsonProperty("captureTeamAvatars")]
+    public bool CaptureTeamAvatars { get; set; }
+
+    [JsonProperty("maxHistoryEnvelopeBytes")]
+    public int MaxHistoryEnvelopeBytes { get; set; } = DefaultMaxHistoryEnvelopeBytes;
+
+    [JsonProperty("maxAvatarEncodePixels")]
+    public int MaxAvatarEncodePixels { get; set; } = DefaultMaxAvatarEncodePixels;
+
+    [JsonProperty("maxAvatarPngBytes")]
+    public int MaxAvatarPngBytes { get; set; } = DefaultMaxAvatarPngBytes;
+
     [JsonProperty("settlementCg")]
     public DamageSettlementCgSettings SettlementCg { get; set; } = new();
 
@@ -550,6 +568,15 @@ public sealed class DamageMeterSettings
         MaxRows = FixedMaxRows;
         ShowAverageDpt = true;
         ShowTeamShare = true;
+        MaxHistoryEnvelopeBytes = Math.Max(65536, Math.Min(8388608, MaxHistoryEnvelopeBytes <= 0
+            ? DefaultMaxHistoryEnvelopeBytes
+            : MaxHistoryEnvelopeBytes));
+        MaxAvatarEncodePixels = Math.Max(4096, Math.Min(1048576, MaxAvatarEncodePixels <= 0
+            ? DefaultMaxAvatarEncodePixels
+            : MaxAvatarEncodePixels));
+        MaxAvatarPngBytes = Math.Max(16384, Math.Min(1048576, MaxAvatarPngBytes <= 0
+            ? DefaultMaxAvatarPngBytes
+            : MaxAvatarPngBytes));
         SettlementCg ??= new DamageSettlementCgSettings();
         SettlementCg.Normalize();
     }
@@ -621,6 +648,15 @@ public sealed class AuraToolsSkillCgSettings
     [JsonProperty("duplicateWindowSeconds")]
     public float DuplicateWindowSeconds { get; set; } = 0.2f;
 
+    [JsonProperty("preloadOnFightStart")]
+    public bool PreloadOnFightStart { get; set; }
+
+    [JsonProperty("disableAfterFailures")]
+    public bool DisableAfterFailures { get; set; } = true;
+
+    [JsonProperty("maxHookFailures")]
+    public int MaxHookFailures { get; set; } = 3;
+
     [JsonProperty("defaultPresentation")]
     public SkillCgPresentationSettings DefaultPresentation { get; set; } = SkillCgPresentationSettings.CreateDefault();
 
@@ -635,6 +671,7 @@ public sealed class AuraToolsSkillCgSettings
         MaxQueueLength = Math.Max(1, Math.Min(30, MaxQueueLength));
         MaxRequestAgeSeconds = Math.Max(0.5f, Math.Min(30f, MaxRequestAgeSeconds));
         DuplicateWindowSeconds = Math.Max(0.02f, Math.Min(2f, DuplicateWindowSeconds));
+        MaxHookFailures = Math.Max(1, Math.Min(20, MaxHookFailures));
         DefaultPresentation = (DefaultPresentation ?? SkillCgPresentationSettings.CreateDefault())
             .Resolve(SkillCgPresentationSettings.CreateDefault());
         Roles ??= new Dictionary<string, SkillCgRoleSettings>(StringComparer.OrdinalIgnoreCase);

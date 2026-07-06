@@ -24,6 +24,8 @@ public static class AuraToolsSkillCgRuntime
     private static readonly HashSet<string> DiagnosticKeys = new(StringComparer.OrdinalIgnoreCase);
     private static ModConfig? modConfig;
     private static bool hooksRegistered;
+    private static int hookFailureCount;
+    private static bool safeModeDisabled;
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -42,6 +44,8 @@ public static class AuraToolsSkillCgRuntime
 
     private static void Reconfigure()
     {
+        hookFailureCount = 0;
+        safeModeDisabled = false;
         SkillCgArbiterRuntime.Initialize(null, AuraToolsIds.ModId, new SkillCgArbiterOptions
         {
             MaxQueueLength = AuraToolsConfigService.SkillCg.MaxQueueLength,
@@ -52,6 +56,7 @@ public static class AuraToolsSkillCgRuntime
     }
 
     private static bool HooksEnabled => AuraToolsConfigService.Root.SkillCg.Enabled
+                                        && !safeModeDisabled
                                         && (AuraToolsConfigService.SkillCg.Enabled
                                             || AuraToolsConfigService.SkillCg.CardUseCg.Enabled);
 
@@ -113,7 +118,7 @@ public static class AuraToolsSkillCgRuntime
 
     private static void BeforeCallActionAnimation(ModHookContext context)
     {
-        try
+        RunHook("card action", () =>
         {
             if (!AuraToolsConfigService.Root.SkillCg.Enabled
                 || (!AuraToolsConfigService.SkillCg.Enabled && !AuraToolsConfigService.SkillCg.CardUseCg.Enabled))
@@ -131,11 +136,7 @@ public static class AuraToolsSkillCgRuntime
             }
 
             SkillCgArbiterRuntime.Trigger(AuraToolsConfigService.SkillCg, AuraToolsIds.ModId, trigger);
-        }
-        catch (Exception ex)
-        {
-            AuraToolsLog.Warn("[SkillCG] trigger failed: " + ex.Message);
-        }
+        });
     }
 
     private static SkillCgTriggerContext? BuildTriggerContext(IScriptExecutor? scriptExecutor)
@@ -234,25 +235,35 @@ public static class AuraToolsSkillCgRuntime
 
     private static void OnFightStart(ModHookContext context)
     {
-        actionSequence = 0;
-        AuraToolsSkillCgProvider.ClearOwnerRoles();
-        SkillCgArbiterRuntime.Clear(AuraToolsIds.ModId, "fight start");
-        if (AuraToolsConfigService.SkillCg.CardUseCg.Enabled)
+        RunHook("fight start", () =>
         {
-            SkillCgArbiterRuntime.PreloadRegisteredCardUseCg(AuraToolsIds.ModId);
-        }
+            actionSequence = 0;
+            AuraToolsSkillCgProvider.ClearOwnerRoles();
+            SkillCgArbiterRuntime.Clear(AuraToolsIds.ModId, "fight start");
+            if (AuraToolsConfigService.SkillCg.CardUseCg.Enabled
+                && AuraToolsConfigService.SkillCg.PreloadOnFightStart)
+            {
+                SkillCgArbiterRuntime.PreloadRegisteredCardUseCg(AuraToolsIds.ModId);
+            }
+        });
     }
 
     private static void OnFightEnded(ModHookContext context)
     {
-        SkillCgArbiterRuntime.Clear(AuraToolsIds.ModId, "fight ended");
-        AuraToolsSkillCgProvider.ClearOwnerRoles();
+        RunHook("fight ended", () =>
+        {
+            SkillCgArbiterRuntime.Clear(AuraToolsIds.ModId, "fight ended");
+            AuraToolsSkillCgProvider.ClearOwnerRoles();
+        });
     }
 
     private static void OnFightEnding(ModHookContext context)
     {
-        SkillCgArbiterRuntime.Clear(AuraToolsIds.ModId, "fight ending");
-        AuraToolsSkillCgProvider.ClearOwnerRoles();
+        RunHook("fight ending", () =>
+        {
+            SkillCgArbiterRuntime.Clear(AuraToolsIds.ModId, "fight ending");
+            AuraToolsSkillCgProvider.ClearOwnerRoles();
+        });
     }
 
     private static void RegisterBefore(string target, Action<ModHookContext> action)
@@ -262,7 +273,12 @@ public static class AuraToolsSkillCgRuntime
             return;
         }
 
-        HookRegistrations.Add(AuraSharedHooks.RegisterBeforeRouted(modConfig, target, action, warn: AuraToolsLog.Warn));
+        HookRegistrations.Add(AuraSharedHooks.RegisterBeforeRouted(
+            modConfig,
+            target,
+            action,
+            warn: AuraToolsLog.Warn,
+            safeInvoke: true));
     }
 
     private static void RegisterAfter(string target, Action<ModHookContext> action)
@@ -272,7 +288,44 @@ public static class AuraToolsSkillCgRuntime
             return;
         }
 
-        HookRegistrations.Add(AuraSharedHooks.RegisterAfterRouted(modConfig, target, action, warn: AuraToolsLog.Warn));
+        HookRegistrations.Add(AuraSharedHooks.RegisterAfterRouted(
+            modConfig,
+            target,
+            action,
+            warn: AuraToolsLog.Warn,
+            safeInvoke: true));
+    }
+
+    private static void RunHook(string source, Action action)
+    {
+        if (safeModeDisabled)
+        {
+            return;
+        }
+
+        try
+        {
+            action();
+            hookFailureCount = 0;
+        }
+        catch (Exception ex)
+        {
+            hookFailureCount++;
+            var maxFailures = AuraToolsConfigService.SkillCg.MaxHookFailures;
+            AuraToolsLog.Warn("[SkillCG] hook failed. source=" + source
+                              + ", failures=" + hookFailureCount + "/" + maxFailures
+                              + ", error=" + ex.Message);
+            if (!AuraToolsConfigService.SkillCg.DisableAfterFailures || hookFailureCount < maxFailures)
+            {
+                return;
+            }
+
+            safeModeDisabled = true;
+            SkillCgArbiterRuntime.Clear(AuraToolsIds.ModId, "safe-mode-disabled");
+            AuraToolsSkillCgProvider.ClearOwnerRoles();
+            AuraToolsLog.Warn("[SkillCG] safe mode disabled hooks after repeated failures. source="
+                              + source + ", failures=" + hookFailureCount + ".");
+        }
     }
 
     internal static void LogDiagnostic(string key, string message)

@@ -1,4 +1,0 @@
-interface:
-  display_name: "SunExp Solar Memory Dev"
-  short_description: "Build and debug Solar Memory mode flows."
-  default_prompt: "Use $sunexp-solar-memory-dev for SunExp Solar Memory mode work: preparation, map nodes, finale routing, multiplayer role commit, UI cleanup, and sync repair."

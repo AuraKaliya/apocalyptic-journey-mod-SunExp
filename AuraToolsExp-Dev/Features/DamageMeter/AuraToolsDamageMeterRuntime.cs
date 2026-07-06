@@ -25,7 +25,9 @@ public static class AuraToolsDamageMeterRuntime
     private static readonly List<PureHpFrame> PureHpFrames = new();
     private static readonly List<HpSetterFrame> HpSetterFrames = new();
     private static readonly List<BuffApplicationFrame> BuffFrames = new();
+    private static readonly Dictionary<string, byte[]> AvatarPngCache = new(StringComparer.OrdinalIgnoreCase);
     private static readonly BuffDamageAttributionTracker BuffAttribution = new();
+    private const int MaxAvatarCacheEntries = 32;
     private static ModConfig? modConfig;
     private static bool initialized;
     private static bool hooksRegistered;
@@ -86,7 +88,11 @@ public static class AuraToolsDamageMeterRuntime
         AuraToolsDamageMeterRuntime.modConfig = modConfig;
         AuraToolsConfigService.Changed += OnConfigChanged;
         EnsureHooksMatchConfig();
-        EnsureOutOfRunHistoryLoaded();
+        if (AuraToolsConfigService.MatchExperience.DamageMeter.LoadHistoryOnStartup)
+        {
+            EnsureOutOfRunHistoryLoaded("startup");
+        }
+
         AuraToolsLog.Info("[DamageMeter] DPT runtime initialized. Network protocol v"
                           + DamageMeterProtocol.Version + ".");
     }
@@ -470,7 +476,6 @@ public static class AuraToolsDamageMeterRuntime
 
             preparationUiActive = false;
             DamageMeterNetworkRuntime.RestoreAdventureHistory();
-            EnsureOutOfRunHistoryLoaded();
             SetAvailable(true, GetHookName(context));
             PrepareSettlementCgAssets(GetHookName(context));
         });
@@ -478,7 +483,7 @@ public static class AuraToolsDamageMeterRuntime
 
     private static void PrepareSettlementCgAssets(string source)
     {
-        var members = CollectTeamMembers();
+        var members = CollectTeamMembers(captureAvatars: false);
         if (members.Count == 0)
         {
             AuraToolsLog.Warn("[SettlementCG] preload skipped: no team members. source=" + source + ".");
@@ -493,7 +498,7 @@ public static class AuraToolsDamageMeterRuntime
         RunHook("adventure settlement", () =>
         {
             var source = GetHookName(context);
-            EnsureOutOfRunHistoryLoaded();
+            EnsureOutOfRunHistoryLoaded("adventure settlement:" + source);
             if (adventureSettlementRecorded)
             {
                 AuraToolsLog.Info("[DamageMeter] out-of-run history skipped: already archived. source=" + source + ".");
@@ -531,7 +536,7 @@ public static class AuraToolsDamageMeterRuntime
                     ? OutOfRunDamageHistoryStatus.Completed
                     : OutOfRunDamageHistoryStatus.Failed,
                 EndedUtc = DateTime.UtcNow.ToString("O"),
-                TeamMembers = CollectTeamMembers()
+                TeamMembers = CollectTeamMembers(AuraToolsConfigService.MatchExperience.DamageMeter.CaptureTeamAvatars)
             };
             var record = RunAggregate.HasDamage
                 ? OutOfRunDamageHistoryBuilder.Build(aggregate, request, countShield: true)
@@ -540,7 +545,9 @@ public static class AuraToolsDamageMeterRuntime
 
             if (OutOfRunHistory.Add(record))
             {
-                OutOfRunDamageHistoryPersistence.Save(OutOfRunHistory);
+                OutOfRunDamageHistoryPersistence.Save(
+                    OutOfRunHistory,
+                    AuraToolsConfigService.MatchExperience.DamageMeter.MaxHistoryEnvelopeBytes);
                 uiDirty = true;
                 AuraToolsLog.Info("[DamageMeter] out-of-run history archived. mode="
                                   + mode.Id + ", status=" + record.Status + ", source=" + source + ".");
@@ -556,25 +563,27 @@ public static class AuraToolsDamageMeterRuntime
     {
         get
         {
-            EnsureOutOfRunHistoryLoaded();
+            EnsureOutOfRunHistoryLoaded("history count");
             return OutOfRunHistory.Records.Count;
         }
     }
 
     public static void OpenOutOfRunHistory()
     {
-        EnsureOutOfRunHistoryLoaded();
+        EnsureOutOfRunHistoryLoaded("open history");
         AuraToolsDamageMeterUi.ShowOutOfRunHistory(OutOfRunHistory);
     }
 
     public static void ClearOutOfRunHistory()
     {
-        EnsureOutOfRunHistoryLoaded();
-        OutOfRunDamageHistoryPersistence.Clear(OutOfRunHistory);
+        EnsureOutOfRunHistoryLoaded("clear history");
+        OutOfRunDamageHistoryPersistence.Clear(
+            OutOfRunHistory,
+            AuraToolsConfigService.MatchExperience.DamageMeter.MaxHistoryEnvelopeBytes);
         uiDirty = true;
     }
 
-    private static void EnsureOutOfRunHistoryLoaded()
+    private static void EnsureOutOfRunHistoryLoaded(string source)
     {
         if (outOfRunHistoryLoaded)
         {
@@ -582,7 +591,16 @@ public static class AuraToolsDamageMeterRuntime
         }
 
         outOfRunHistoryLoaded = true;
-        OutOfRunDamageHistoryPersistence.LoadInto(OutOfRunHistory);
+        var started = DateTime.UtcNow;
+        OutOfRunDamageHistoryPersistence.LoadInto(
+            OutOfRunHistory,
+            AuraToolsConfigService.MatchExperience.DamageMeter.MaxHistoryEnvelopeBytes);
+        var elapsed = (DateTime.UtcNow - started).TotalMilliseconds;
+        if (elapsed >= 50d)
+        {
+            AuraToolsLog.Warn("[DamageMeter] out-of-run history load was slow. source="
+                              + source + ", elapsedMs=" + elapsed.ToString("F0", CultureInfo.InvariantCulture) + ".");
+        }
     }
 
     private static void ArchiveActiveFightForSettlement()
@@ -671,7 +689,7 @@ public static class AuraToolsDamageMeterRuntime
         }
     }
 
-    private static IReadOnlyList<OutOfRunTeamMemberSnapshot> CollectTeamMembers()
+    private static IReadOnlyList<OutOfRunTeamMemberSnapshot> CollectTeamMembers(bool captureAvatars)
     {
         var result = new List<OutOfRunTeamMemberSnapshot>();
         try
@@ -681,7 +699,7 @@ public static class AuraToolsDamageMeterRuntime
             {
                 foreach (var role in roleTables.Values)
                 {
-                    AddTeamMember(result, role);
+                    AddTeamMember(result, role, captureAvatars);
                     if (result.Count >= DamageMeterProtocol.MaxTeamMembers)
                     {
                         break;
@@ -690,7 +708,7 @@ public static class AuraToolsDamageMeterRuntime
             }
             else
             {
-                AddTeamMember(result, RoleTable.Instance);
+                AddTeamMember(result, RoleTable.Instance, captureAvatars);
             }
         }
         catch (Exception ex)
@@ -701,7 +719,7 @@ public static class AuraToolsDamageMeterRuntime
         return result;
     }
 
-    private static void AddTeamMember(List<OutOfRunTeamMemberSnapshot> result, RoleTable? role)
+    private static void AddTeamMember(List<OutOfRunTeamMemberSnapshot> result, RoleTable? role, bool captureAvatars)
     {
         if (role == null || result.Count >= DamageMeterProtocol.MaxTeamMembers)
         {
@@ -729,7 +747,9 @@ public static class AuraToolsDamageMeterRuntime
             avatarPath = SafeDataField(career, "DollIcon");
         }
 
-        var avatarBytes = TryEncodeSprite(avatarPath, playerId, roleId);
+        var avatarBytes = captureAvatars
+            ? TryEncodeSprite(avatarPath, playerId, roleId)
+            : Array.Empty<byte>();
         result.Add(new OutOfRunTeamMemberSnapshot
         {
             InstanceId = playerId,
@@ -829,6 +849,12 @@ public static class AuraToolsDamageMeterRuntime
             return Array.Empty<byte>();
         }
 
+        var cacheKey = resourcePath.Trim();
+        if (AvatarPngCache.TryGetValue(cacheKey, out var cached))
+        {
+            return cached;
+        }
+
         try
         {
             var sprite = ResourceLoader.Load<Sprite>(resourcePath, true);
@@ -839,10 +865,38 @@ public static class AuraToolsDamageMeterRuntime
                 return Array.Empty<byte>();
             }
 
+            var settings = AuraToolsConfigService.MatchExperience.DamageMeter;
+            var rect = sprite.textureRect;
+            var pixelCount = Math.Max(1L, (long)Mathf.Max(1, (int)rect.width)
+                                      * Mathf.Max(1, (int)rect.height));
+            if (pixelCount > settings.MaxAvatarEncodePixels)
+            {
+                AuraToolsLog.Warn("[DamageMeter] team avatar skipped: sprite too large. player="
+                                  + playerId + ", role=" + roleId + ", path=" + resourcePath
+                                  + ", pixels=" + pixelCount
+                                  + ", maxPixels=" + settings.MaxAvatarEncodePixels + ".");
+                return Array.Empty<byte>();
+            }
+
             var texture = CopySpriteTexture(sprite);
             var bytes = texture.EncodeToPNG();
             UnityEngine.Object.Destroy(texture);
-            return bytes ?? Array.Empty<byte>();
+            if (bytes == null || bytes.Length == 0)
+            {
+                return Array.Empty<byte>();
+            }
+
+            if (bytes.Length > settings.MaxAvatarPngBytes)
+            {
+                AuraToolsLog.Warn("[DamageMeter] team avatar skipped: PNG too large. player="
+                                  + playerId + ", role=" + roleId + ", path=" + resourcePath
+                                  + ", bytes=" + bytes.Length
+                                  + ", maxBytes=" + settings.MaxAvatarPngBytes + ".");
+                return Array.Empty<byte>();
+            }
+
+            CacheAvatarPng(cacheKey, bytes);
+            return bytes;
         }
         catch (Exception ex)
         {
@@ -851,6 +905,21 @@ public static class AuraToolsDamageMeterRuntime
                               + ", error=" + ex.Message);
             return Array.Empty<byte>();
         }
+    }
+
+    private static void CacheAvatarPng(string key, byte[] bytes)
+    {
+        if (string.IsNullOrWhiteSpace(key) || bytes.Length == 0)
+        {
+            return;
+        }
+
+        if (AvatarPngCache.Count >= MaxAvatarCacheEntries)
+        {
+            AvatarPngCache.Clear();
+        }
+
+        AvatarPngCache[key] = bytes;
     }
 
     private static Texture2D CopySpriteTexture(Sprite sprite)

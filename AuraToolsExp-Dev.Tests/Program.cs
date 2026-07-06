@@ -30,6 +30,7 @@ TestSkillCgPresentationNormalization();
 TestSafeBoxDataCompatibility();
 TestRpcPayloadBudgetUsesUtf8Bytes();
 TestDamageMeterAuthorityPolicy();
+TestRuntimeArchitectureGuards();
 
 Console.WriteLine($"AuraToolsExp damage meter tests passed: {assertions} assertions.");
 return;
@@ -460,6 +461,44 @@ void TestDamageMeterAuthorityPolicy()
         "non-lobby sender rejected");
 }
 
+void TestRuntimeArchitectureGuards()
+{
+    var damageMeterRuntime = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/AuraToolsDamageMeterRuntime.cs");
+    Assert(!damageMeterRuntime.Contains("EnsureOutOfRunHistoryLoaded();", StringComparison.Ordinal),
+        "damage history load must be source-tagged and lazy");
+    Assert(damageMeterRuntime.Contains("LoadHistoryOnStartup", StringComparison.Ordinal),
+        "damage history startup load is guarded by config");
+    Assert(damageMeterRuntime.Contains("CaptureTeamAvatars", StringComparison.Ordinal),
+        "team avatar capture is explicitly configurable");
+    Assert(damageMeterRuntime.Contains("MaxAvatarEncodePixels", StringComparison.Ordinal)
+           && damageMeterRuntime.Contains("MaxAvatarPngBytes", StringComparison.Ordinal),
+        "team avatar capture has pixel and byte budgets");
+
+    var historyPersistence = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/Network/OutOfRunDamageHistoryPersistence.cs");
+    Assert(historyPersistence.Contains("NormalizeMaxEnvelopeBytes", StringComparison.Ordinal)
+           && historyPersistence.Contains("encrypted envelope too large", StringComparison.Ordinal),
+        "out-of-run history persistence enforces envelope budgets");
+
+    var skillCgRuntime = ReadRepoText("AuraToolsExp-Dev/Features/SkillCg/AuraToolsSkillCgRuntime.cs");
+    Assert(skillCgRuntime.Contains("safeInvoke: true", StringComparison.Ordinal),
+        "SkillCG hooks must be isolated at shared hook dispatch");
+    Assert(skillCgRuntime.Contains("safeModeDisabled", StringComparison.Ordinal)
+           && skillCgRuntime.Contains("RunHook(", StringComparison.Ordinal),
+        "SkillCG hooks must have runtime failure isolation");
+    Assert(skillCgRuntime.Contains("PreloadOnFightStart", StringComparison.Ordinal),
+        "SkillCG fight-start preload must be configurable");
+
+    var matchSettings = ReadRepoText("AuraToolsExp/Config/MatchExperienceSettings.json");
+    Assert(matchSettings.Contains("\"loadHistoryOnStartup\": false", StringComparison.Ordinal)
+           && matchSettings.Contains("\"captureTeamAvatars\": false", StringComparison.Ordinal),
+        "packaged damage meter config defaults to lazy history and no hot-path avatar capture");
+
+    var skillCgSettings = ReadRepoText("AuraToolsExp/Config/SkillCgSettings.json");
+    Assert(skillCgSettings.Contains("\"preloadOnFightStart\": false", StringComparison.Ordinal)
+           && skillCgSettings.Contains("\"disableAfterFailures\": true", StringComparison.Ordinal),
+        "packaged SkillCG config defaults to no fight-start preload and failure fuse enabled");
+}
+
 void TestDetailLimit()
 {
     var ledger = NewLedger();
@@ -761,6 +800,18 @@ DamageEvent Event(
         FinalDamage = hp + shield,
         AttributionConfidence = DamageAttributionConfidence.Exact
     };
+}
+
+string ReadRepoText(string relativePath)
+{
+    var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+    var path = Path.Combine(repoRoot, relativePath.Replace('/', Path.DirectorySeparatorChar));
+    if (!File.Exists(path))
+    {
+        throw new FileNotFoundException("Required repo file is missing.", path);
+    }
+
+    return File.ReadAllText(path);
 }
 
 void Assert(bool condition, string name)
