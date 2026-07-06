@@ -46,6 +46,7 @@ public static class AuraToolsSkillCgRuntime
     {
         hookFailureCount = 0;
         safeModeDisabled = false;
+        AuraToolsSkillCgProvider.ClearPathCache();
         SkillCgArbiterRuntime.Initialize(null, AuraToolsIds.ModId, new SkillCgArbiterOptions
         {
             MaxQueueLength = AuraToolsConfigService.SkillCg.MaxQueueLength,
@@ -339,7 +340,9 @@ public static class AuraToolsSkillCgRuntime
 
 public sealed class AuraToolsSkillCgProvider
 {
+    private const float ImagePathCacheSeconds = 2f;
     private static readonly Dictionary<string, string> OwnerRoleIds = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, CachedImagePath> ImagePathCache = new(StringComparer.OrdinalIgnoreCase);
 
     public string ProviderId => AuraToolsIds.ModId + ".SkillCG.Provider";
 
@@ -364,6 +367,11 @@ public sealed class AuraToolsSkillCgProvider
     public static void ClearOwnerRoles()
     {
         OwnerRoleIds.Clear();
+    }
+
+    public static void ClearPathCache()
+    {
+        ImagePathCache.Clear();
     }
 
     public IEnumerable<SkillCgRequest> BuildRequests(object context)
@@ -422,7 +430,7 @@ public sealed class AuraToolsSkillCgProvider
                 }
 
                 var imagePath = AuraToolsConfigService.ResolveConfiguredPath(rule.Image);
-                if (!File.Exists(imagePath))
+                if (!ImageExists(rule.Image, imagePath))
                 {
                     AuraToolsLog.Warn("[SkillCG] image missing: " + rule.Image);
                     continue;
@@ -531,6 +539,48 @@ public sealed class AuraToolsSkillCgProvider
                || string.Equals(normalizedPattern.TrimStart('*'), normalizedValue.TrimStart('*'), StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool ImageExists(string resource, string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        var key = (resource ?? "") + "|" + path;
+        var now = Time.unscaledTime;
+        if (ImagePathCache.TryGetValue(key, out var cached) && now <= cached.ExpiresAt)
+        {
+            return cached.Exists;
+        }
+
+        var exists = File.Exists(path);
+        ImagePathCache[key] = new CachedImagePath(exists, now + ImagePathCacheSeconds);
+        if (ImagePathCache.Count > 256)
+        {
+            foreach (var staleKey in ImagePathCache
+                         .Where(pair => now > pair.Value.ExpiresAt)
+                         .Select(pair => pair.Key)
+                         .ToList())
+            {
+                ImagePathCache.Remove(staleKey);
+            }
+        }
+
+        return exists;
+    }
+
+    private readonly struct CachedImagePath
+    {
+        public CachedImagePath(bool exists, float expiresAt)
+        {
+            Exists = exists;
+            ExpiresAt = expiresAt;
+        }
+
+        public bool Exists { get; }
+
+        public float ExpiresAt { get; }
+    }
 }
 
 public static class AuraToolsSkillCgEditor

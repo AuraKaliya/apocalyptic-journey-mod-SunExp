@@ -22,6 +22,7 @@ public static class AuraToolsFeastRuntime
     public const string FeastKind = "feast";
     private const string DriverObjectName = "AuraTools.Feast.Driver";
     private const string FeastCardId = "AuraTools.Feast";
+    private const int FoodsPerFrame = 8;
     private static AuraToolsFeastDriver? driver;
     private static MethodInfo? eatFoodMethod;
     private static bool batchQueued;
@@ -223,6 +224,11 @@ public static class AuraToolsFeastRuntime
                     if (eaten >= maxBatch)
                     {
                         break;
+                    }
+
+                    if (eaten % FoodsPerFrame == 0)
+                    {
+                        yield return null;
                     }
                 }
             }

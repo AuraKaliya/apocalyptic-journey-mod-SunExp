@@ -45,12 +45,14 @@ internal static class DamageSettlementCgAssetCache
     private static readonly Dictionary<string, DamageSettlementCgPreparedClip> PreparedByKey =
         new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> AttemptedKeys = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly HashSet<string> PendingKeys = new(StringComparer.OrdinalIgnoreCase);
 
     public static void BeginAdventure()
     {
         ReleaseLoadedFrames();
         PreparedByKey.Clear();
         AttemptedKeys.Clear();
+        PendingKeys.Clear();
         AuraToolsLog.Info("[SettlementCG] idle cache reset for adventure.");
     }
 
@@ -59,7 +61,7 @@ internal static class DamageSettlementCgAssetCache
         foreach (var member in (teamMembers ?? Array.Empty<OutOfRunTeamMemberSnapshot>())
                  .Where(member => member != null))
         {
-            Prepare(member.RoleId, member.PlayerId, member.InstanceId);
+            QueuePrepare(member.RoleId, member.PlayerId, member.InstanceId);
         }
     }
 
@@ -97,6 +99,28 @@ internal static class DamageSettlementCgAssetCache
                 Loop = prepared.Loop,
                 Frames = prepared.LoadedFrames
             };
+    }
+
+    private static void QueuePrepare(string roleId, string playerId, string instanceId)
+    {
+        var normalizedRoleId = RoleCatalog.NormalizeRoleId(roleId);
+        if (string.IsNullOrWhiteSpace(normalizedRoleId))
+        {
+            return;
+        }
+
+        var key = ExactKey(normalizedRoleId, playerId, instanceId);
+        if (PreparedByKey.ContainsKey(key) || AttemptedKeys.Contains(key) || PendingKeys.Contains(key))
+        {
+            return;
+        }
+
+        PendingKeys.Add(key);
+        AuraSharedFrameScheduler.Enqueue("SettlementCG.Prepare:" + normalizedRoleId, () =>
+        {
+            PendingKeys.Remove(key);
+            Prepare(normalizedRoleId, playerId, instanceId);
+        });
     }
 
     private static void Prepare(string roleId, string playerId, string instanceId)
@@ -297,6 +321,7 @@ internal static class DamageSettlementCgAssetCache
 
     private static DamageSettlementCgPreparedClip? CopySourceToSharedCache(string roleId, IdleFileSource source)
     {
+        using var telemetry = AuraToolsOperationTelemetry.Track("SettlementCG.CachePrepare:" + roleId, 40d);
         var frameFiles = Directory.EnumerateFiles(source.Directory, "*.png", SearchOption.TopDirectoryOnly)
             .ToList();
         if (frameFiles.Count == 0)
@@ -327,33 +352,55 @@ internal static class DamageSettlementCgAssetCache
             "Idle",
             AuraSharedPaths.SafeSegment(roleId, "unknown-role"),
             hash);
+        var copiedFiles = orderedFiles
+            .Select(file => Path.Combine(cacheDirectory, Path.GetFileName(file)))
+            .ToList();
+        if (IsCacheComplete(orderedFiles, copiedFiles)
+            && File.Exists(Path.Combine(cacheDirectory, "manifest.json")))
+        {
+            return CreatePreparedClip(roleId, source, hash, cacheDirectory, copiedFiles, spec);
+        }
+
         using var storage = new AuraSharedStorageCoordinator(AuraSharedPaths.RootDirectory);
         return storage.ExecuteWrite("Cache/" + CacheSystem + "/Idle/" + roleId + "/" + hash, () =>
         {
             Directory.CreateDirectory(cacheDirectory);
-
-            var copiedFiles = new List<string>();
-            foreach (var file in orderedFiles)
+            if (IsCacheComplete(orderedFiles, copiedFiles)
+                && File.Exists(Path.Combine(cacheDirectory, "manifest.json")))
             {
-                var destination = Path.Combine(cacheDirectory, Path.GetFileName(file));
-                File.Copy(file, destination, true);
-                copiedFiles.Add(destination);
+                return CreatePreparedClip(roleId, source, hash, cacheDirectory, copiedFiles, spec);
             }
 
-            storage.WriteTextAtomic(Path.Combine(cacheDirectory, "config.json"), configJson, createBackup: false);
+            for (var i = 0; i < orderedFiles.Count; i++)
+            {
+                CopyIfChanged(orderedFiles[i], copiedFiles[i]);
+            }
+
+            WriteTextIfChanged(storage, Path.Combine(cacheDirectory, "config.json"), configJson);
             WriteManifest(storage, cacheDirectory, roleId, source, hash, copiedFiles, spec);
 
-            return new DamageSettlementCgPreparedClip
-            {
-                Key = RoleKey(roleId) + ":" + hash,
-                RoleId = roleId,
-                Source = source.ResourcePath,
-                CacheDirectory = cacheDirectory,
-                FrameSeconds = spec.FrameSeconds,
-                Loop = spec.Loop,
-                FrameFiles = copiedFiles
-            };
+            return CreatePreparedClip(roleId, source, hash, cacheDirectory, copiedFiles, spec);
         });
+    }
+
+    private static DamageSettlementCgPreparedClip CreatePreparedClip(
+        string roleId,
+        IdleFileSource source,
+        string hash,
+        string cacheDirectory,
+        List<string> copiedFiles,
+        DamageSettlementCgAnimationSpec spec)
+    {
+        return new DamageSettlementCgPreparedClip
+        {
+            Key = RoleKey(roleId) + ":" + hash,
+            RoleId = roleId,
+            Source = source.ResourcePath,
+            CacheDirectory = cacheDirectory,
+            FrameSeconds = spec.FrameSeconds,
+            Loop = spec.Loop,
+            FrameFiles = copiedFiles
+        };
     }
 
     private static void WriteManifest(
@@ -379,22 +426,87 @@ internal static class DamageSettlementCgAssetCache
             ["direction"] = spec.Direction,
             ["frames"] = new JArray(copiedFiles.Select(Path.GetFileName))
         };
-        storage.WriteTextAtomic(Path.Combine(cacheDirectory, "manifest.json"), manifest.ToString(), createBackup: false);
+        WriteTextIfChanged(storage, Path.Combine(cacheDirectory, "manifest.json"), manifest.ToString());
     }
 
     private static string HashSource(string configJson, IEnumerable<string> orderedFiles)
     {
         var builder = new StringBuilder();
+        builder.AppendLine("metadata-v1");
         builder.AppendLine(configJson ?? "");
         foreach (var file in orderedFiles)
         {
+            var info = new FileInfo(file);
             builder.AppendLine(Path.GetFileName(file));
-            builder.AppendLine(Convert.ToBase64String(File.ReadAllBytes(file)));
+            builder.AppendLine(info.Length.ToString());
+            builder.AppendLine(info.LastWriteTimeUtc.Ticks.ToString());
         }
 
         using var sha = SHA256.Create();
         var hash = sha.ComputeHash(Encoding.UTF8.GetBytes(builder.ToString()));
         return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant().Substring(0, 16);
+    }
+
+    private static bool IsCacheComplete(IReadOnlyList<string> sourceFiles, IReadOnlyList<string> cachedFiles)
+    {
+        if (sourceFiles.Count == 0 || sourceFiles.Count != cachedFiles.Count)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < sourceFiles.Count; i++)
+        {
+            try
+            {
+                var source = new FileInfo(sourceFiles[i]);
+                var cached = new FileInfo(cachedFiles[i]);
+                if (!source.Exists || !cached.Exists || source.Length != cached.Length)
+                {
+                    return false;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static void CopyIfChanged(string source, string destination)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(destination) ?? ".");
+        try
+        {
+            var sourceInfo = new FileInfo(source);
+            var destinationInfo = new FileInfo(destination);
+            if (sourceInfo.Exists && destinationInfo.Exists && sourceInfo.Length == destinationInfo.Length)
+            {
+                return;
+            }
+        }
+        catch
+        {
+        }
+
+        File.Copy(source, destination, true);
+    }
+
+    private static void WriteTextIfChanged(AuraSharedStorageCoordinator storage, string path, string text)
+    {
+        try
+        {
+            if (File.Exists(path) && string.Equals(File.ReadAllText(path), text ?? "", StringComparison.Ordinal))
+            {
+                return;
+            }
+        }
+        catch
+        {
+        }
+
+        storage.WriteTextAtomic(path, text ?? "", createBackup: false);
     }
 
     private static bool TryFindPrepared(DamageSettlementCgEntry entry, out DamageSettlementCgPreparedClip prepared)

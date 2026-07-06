@@ -39,7 +39,8 @@ public static class AuraToolsRpcTransport
         PlayerManager? manager,
         RpcCommandBase command,
         string source,
-        bool excludeOwner = false)
+        bool excludeOwner = false,
+        bool measurePayload = true)
     {
         if (manager == null || command == null)
         {
@@ -47,11 +48,12 @@ public static class AuraToolsRpcTransport
             return false;
         }
 
-        if (!AuraToolsRpcPayloadGuard.TryMeasureUtf8Json(command, out var bytes, out var error))
+        var bytes = 0;
+        if (measurePayload && !AuraToolsRpcPayloadGuard.TryMeasureUtf8Json(command, out bytes, out var error))
         {
             Log("measure-failed", source, command, 0, error);
         }
-        else
+        else if (measurePayload)
         {
             if (bytes > SoftLimitBytes)
             {
@@ -85,6 +87,24 @@ public static class AuraToolsRpcTransport
         }
     }
 
+    public static bool SendDeferred(
+        PlayerManager? manager,
+        RpcCommandBase command,
+        string source,
+        bool excludeOwner = false,
+        bool measurePayload = true)
+    {
+        if (manager == null || command == null)
+        {
+            Log("skipped", source, command, 0, "manager or command missing");
+            return false;
+        }
+
+        return AuraSharedFrameScheduler.Enqueue(
+            "RpcTransport.Send:" + source,
+            () => Send(manager, command, source, excludeOwner, measurePayload));
+    }
+
     public static bool SendJsonChunksAsync(
         PlayerManager? manager,
         string source,
@@ -99,7 +119,7 @@ public static class AuraToolsRpcTransport
             return false;
         }
 
-        EnsureDispatcher();
+        AuraSharedFrameScheduler.Enqueue("RpcTransport.Warmup:" + source, () => { });
         ThreadPool.QueueUserWorkItem(_ =>
         {
             try
@@ -125,7 +145,14 @@ public static class AuraToolsRpcTransport
                         PayloadBase64 = Convert.ToBase64String(chunkBytes)
                     };
 
-                    MainThreadActions.Enqueue(() => Send(manager, createCommand(chunk), source + ".chunk", excludeOwner));
+                    AuraSharedFrameScheduler.Enqueue(
+                        "RpcTransport.Chunk:" + source,
+                        () => Send(
+                            manager,
+                            createCommand(chunk),
+                            source + ".chunk",
+                            excludeOwner,
+                            measurePayload: false));
                 }
             }
             catch (Exception ex)

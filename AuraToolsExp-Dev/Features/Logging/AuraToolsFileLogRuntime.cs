@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -13,6 +14,8 @@ namespace AuraToolsExp.Dll.Features.Logging;
 public static class AuraToolsFileLogRuntime
 {
     private static readonly object Gate = new();
+    private static readonly Dictionary<string, MirrorWindow> MirrorWindows = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, DateTime> LastMirrorByKey = new(StringComparer.OrdinalIgnoreCase);
     private static AuraLogFileWriter? writer;
     private static bool unityLogHooked;
     private static bool quittingHooked;
@@ -33,7 +36,15 @@ public static class AuraToolsFileLogRuntime
             return;
         }
 
-        Enqueue(new AuraLogRecord(DateTime.Now, "Command", NormalizeCommandLevel(level), Normalize(tag), Normalize(message), null));
+        var normalizedLevel = NormalizeCommandLevel(level);
+        var normalizedTag = Normalize(tag);
+        var normalizedMessage = Normalize(message);
+        if (!AllowMirroredRecord("Command", normalizedLevel, normalizedTag, normalizedMessage))
+        {
+            return;
+        }
+
+        Enqueue(new AuraLogRecord(DateTime.Now, "Command", normalizedLevel, normalizedTag, normalizedMessage, null));
     }
 
     private static void ApplyConfig()
@@ -86,12 +97,18 @@ public static class AuraToolsFileLogRuntime
             return;
         }
 
+        var normalizedCondition = Normalize(condition);
+        if (!AllowMirroredRecord("Unity", level, type.ToString(), normalizedCondition))
+        {
+            return;
+        }
+
         Enqueue(new AuraLogRecord(
             DateTime.Now,
             "Unity",
             level,
             type.ToString(),
-            Normalize(condition),
+            normalizedCondition,
             ShouldIncludeStackTrace(level) ? Normalize(stackTrace) : null));
     }
 
@@ -127,6 +144,8 @@ public static class AuraToolsFileLogRuntime
 
         var current = writer;
         writer = null;
+        MirrorWindows.Clear();
+        LastMirrorByKey.Clear();
         try
         {
             if (current != null && ShouldWrite("AuraTools", "Info", null))
@@ -307,5 +326,99 @@ public static class AuraToolsFileLogRuntime
         }
 
         return string.Equals(normalized, LoggingLevelNames.Error, StringComparison.OrdinalIgnoreCase) ? 3 : 1;
+    }
+
+    private static bool AllowMirroredRecord(string source, string level, string? tag, string message)
+    {
+        var now = DateTime.UtcNow;
+        lock (Gate)
+        {
+            var sourceKey = (source ?? "").Trim();
+            if (!MirrorWindows.TryGetValue(sourceKey, out var window))
+            {
+                window = new MirrorWindow(now);
+                MirrorWindows[sourceKey] = window;
+            }
+
+            if ((now - window.StartedUtc).TotalMilliseconds >= 1000d)
+            {
+                window.StartedUtc = now;
+                window.Count = 0;
+            }
+
+            if (window.Count >= MirrorLimitPerSecond(level))
+            {
+                return false;
+            }
+
+            var duplicateKey = sourceKey
+                               + "|"
+                               + LoggingLevelNames.Normalize(level)
+                               + "|"
+                               + (tag ?? "")
+                               + "|"
+                               + StableMessageKey(message);
+            if (LastMirrorByKey.TryGetValue(duplicateKey, out var previous)
+                && (now - previous).TotalMilliseconds < DuplicateWindowMs(level))
+            {
+                return false;
+            }
+
+            LastMirrorByKey[duplicateKey] = now;
+            if (LastMirrorByKey.Count > 1024)
+            {
+                PruneDuplicateKeys(now);
+            }
+
+            window.Count++;
+            return true;
+        }
+    }
+
+    private static int MirrorLimitPerSecond(string level)
+    {
+        return LevelRank(level) >= LevelRank(LoggingLevelNames.Error)
+            ? 500
+            : LevelRank(level) >= LevelRank(LoggingLevelNames.Warning)
+                ? 300
+                : 160;
+    }
+
+    private static double DuplicateWindowMs(string level)
+    {
+        return LevelRank(level) >= LevelRank(LoggingLevelNames.Error) ? 150d : 500d;
+    }
+
+    private static string StableMessageKey(string message)
+    {
+        if (string.IsNullOrEmpty(message))
+        {
+            return "";
+        }
+
+        return message.Length <= 256 ? message : message.Substring(0, 256);
+    }
+
+    private static void PruneDuplicateKeys(DateTime now)
+    {
+        foreach (var key in LastMirrorByKey
+                     .Where(pair => (now - pair.Value).TotalSeconds > 10d)
+                     .Select(pair => pair.Key)
+                     .ToList())
+        {
+            LastMirrorByKey.Remove(key);
+        }
+    }
+
+    private sealed class MirrorWindow
+    {
+        public MirrorWindow(DateTime startedUtc)
+        {
+            StartedUtc = startedUtc;
+        }
+
+        public DateTime StartedUtc { get; set; }
+
+        public int Count { get; set; }
     }
 }

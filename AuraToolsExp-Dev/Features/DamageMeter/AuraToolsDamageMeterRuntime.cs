@@ -545,7 +545,7 @@ public static class AuraToolsDamageMeterRuntime
 
             if (OutOfRunHistory.Add(record))
             {
-                OutOfRunDamageHistoryPersistence.Save(
+                OutOfRunDamageHistoryPersistence.SaveDeferred(
                     OutOfRunHistory,
                     AuraToolsConfigService.MatchExperience.DamageMeter.MaxHistoryEnvelopeBytes);
                 uiDirty = true;

@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using AuraShared.Core;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -10,6 +11,7 @@ public static class UiRaycastSafeDestroyRuntime
 {
     private const string RunnerName = "UiRaycastSafety.GlobalRunner";
     private const int MaxDetailsPerScrub = 12;
+    private const int DefaultCanvasesPerFrame = 8;
     private static ScrubRunner? runner;
 
     public static int DisableRaycasts(GameObject? root, string source, Action<string>? log = null)
@@ -204,8 +206,59 @@ public static class UiRaycastSafeDestroyRuntime
         return removed;
     }
 
+    public static int ScrubGraphicRegistryForRoot(GameObject? root, string source, Action<string>? log = null)
+    {
+        if (root == null)
+        {
+            return 0;
+        }
+
+        Canvas[] canvases;
+        try
+        {
+            canvases = root.GetComponentsInChildren<Canvas>(true);
+        }
+        catch
+        {
+            return 0;
+        }
+
+        var scanned = 0;
+        var removed = 0;
+        var details = new List<string>();
+        foreach (var canvas in canvases)
+        {
+            if (canvas == null)
+            {
+                continue;
+            }
+
+            removed += ScrubCanvas(canvas, source, ref scanned, details);
+        }
+
+        if (removed > 0)
+        {
+            log?.Invoke(
+                "UI raycast registry scrubbed for root. source=" + source
+                + ", root=" + SafeName(root)
+                + ", removed=" + removed
+                + ", scanned=" + scanned);
+            LogDetails(details, log);
+        }
+
+        return removed;
+    }
+
     public static void ScrubGraphicRegistryForFrames(int frameCount, string source, Action<string>? log = null)
     {
+        var frames = Math.Max(1, frameCount);
+        if (AuraSharedFrameScheduler.StartCoroutine(
+                "UiRaycastSafety.Scrub:" + source,
+                ScrubForFramesBudgeted(frames, DefaultCanvasesPerFrame, source, log)))
+        {
+            return;
+        }
+
         var owner = EnsureRunner();
         if (owner == null)
         {
@@ -213,7 +266,7 @@ public static class UiRaycastSafeDestroyRuntime
             return;
         }
 
-        owner.StartCoroutine(ScrubForFrames(Math.Max(1, frameCount), source, log));
+        owner.StartCoroutine(ScrubForFramesBudgeted(frames, DefaultCanvasesPerFrame, source, log));
     }
 
     private static IEnumerator DestroyAfterFrame(GameObject root, string source, Action<string>? log)
@@ -519,11 +572,58 @@ public static class UiRaycastSafeDestroyRuntime
         }
     }
 
-    private static IEnumerator ScrubForFrames(int frameCount, string source, Action<string>? log)
+    private static IEnumerator ScrubForFramesBudgeted(
+        int frameCount,
+        int canvasesPerFrame,
+        string source,
+        Action<string>? log)
     {
+        var perFrame = Math.Max(1, canvasesPerFrame);
         for (var i = 0; i < frameCount; i++)
         {
-            ScrubGraphicRegistry(source + ":frame" + i, log);
+            Canvas[] canvases;
+            try
+            {
+                canvases = Resources.FindObjectsOfTypeAll<Canvas>();
+            }
+            catch
+            {
+                yield break;
+            }
+
+            var scanned = 0;
+            var removed = 0;
+            var processedThisFrame = 0;
+            var details = new List<string>();
+            foreach (var canvas in canvases)
+            {
+                if (canvas == null)
+                {
+                    continue;
+                }
+
+                removed += ScrubCanvas(canvas, source + ":frame" + i, ref scanned, details);
+                processedThisFrame++;
+                if (processedThisFrame < perFrame)
+                {
+                    continue;
+                }
+
+                processedThisFrame = 0;
+                yield return null;
+            }
+
+            if (removed > 0)
+            {
+                log?.Invoke(
+                    "UI raycast registry scrubbed. source=" + source
+                    + ":frame" + i
+                    + ", removed=" + removed
+                    + ", scanned=" + scanned
+                    + ", canvases=" + canvases.Length);
+                LogDetails(details, log);
+            }
+
             yield return null;
         }
     }

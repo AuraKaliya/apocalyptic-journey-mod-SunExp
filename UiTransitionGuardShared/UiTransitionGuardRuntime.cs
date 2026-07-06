@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using AuraShared.Core;
 using UiRaycastSafetyShared;
 using UnityEngine;
 using UnityEngine.UI;
@@ -364,7 +365,7 @@ public static class UiTransitionGuardRuntime
             Info("Guard armed. source=" + guardSource
                  + ", frame=" + Time.frameCount
                  + ", untilFrame=" + guardUntilFrame);
-            ScrubNow(ownerModId, source + ":guard-arm");
+            QueueGlobalScrub(ownerModId, source + ":guard-arm", 1);
             if (registryScrubFrames > 0)
             {
                 UiRaycastSafeDestroyRuntime.ScrubGraphicRegistryForFrames(
@@ -407,6 +408,7 @@ public static class UiTransitionGuardRuntime
             {
                 DisableRaycasts(primaryOwner, root, "UIManager.CloseUI.before:" + EmptyAsUnknown(uiName));
                 LeaseRaycasters(root, "UIManager.CloseUI.before:" + EmptyAsUnknown(uiName));
+                ScrubRoot(root, "UIManager.CloseUI.before:" + EmptyAsUnknown(uiName));
             }
         }
 
@@ -427,6 +429,7 @@ public static class UiTransitionGuardRuntime
             BeginTransition(primaryOwner, "UIBase.Close.before:" + SafeObjectName(root), DefaultGuardFrames);
             DisableRaycasts(primaryOwner, root, "UIBase.Close.before:" + SafeObjectName(root));
             LeaseRaycasters(root, "UIBase.Close.before:" + SafeObjectName(root));
+            ScrubRoot(root, "UIBase.Close.before:" + SafeObjectName(root));
         }
 
         private void BeforeDialogueTransition(ModHookContext context)
@@ -441,7 +444,7 @@ public static class UiTransitionGuardRuntime
                 return;
             }
 
-            ScrubNow(primaryOwner, TargetName(context) + ":before-ui-lifecycle");
+            QueueGlobalScrub(primaryOwner, TargetName(context) + ":before-ui-lifecycle", 1);
         }
 
         private void AfterUiLifecycle(ModHookContext context)
@@ -451,9 +454,8 @@ public static class UiTransitionGuardRuntime
                 return;
             }
 
-            var removed = ScrubNow(primaryOwner, TargetName(context) + ":after-ui-lifecycle");
-            Verbose("Lifecycle scrub. target=" + TargetName(context)
-                    + ", removed=" + removed
+            QueueGlobalScrub(primaryOwner, TargetName(context) + ":after-ui-lifecycle", 1);
+            Verbose("Lifecycle scrub queued. target=" + TargetName(context)
                     + ", frame=" + Time.frameCount);
         }
 
@@ -464,8 +466,9 @@ public static class UiTransitionGuardRuntime
                 return;
             }
 
-            LeaseUpperCanvasRaycasters(TargetName(context) + ":after-upper-canvas");
-            var removed = ScrubNow(primaryOwner, TargetName(context) + ":after-upper-canvas");
+            var root = UpperCanvasRoot();
+            LeaseRaycasters(root, TargetName(context) + ":after-upper-canvas");
+            var removed = ScrubRoot(root, TargetName(context) + ":after-upper-canvas");
             Verbose("Upper canvas raycaster state scrubbed. target=" + TargetName(context)
                     + ", removed=" + removed
                     + ", frame=" + Time.frameCount);
@@ -492,7 +495,7 @@ public static class UiTransitionGuardRuntime
                 if (lastScrubFrame < 0 || Time.frameCount - lastScrubFrame >= scrubEveryFrames)
                 {
                     lastScrubFrame = Time.frameCount;
-                    ScrubNow(primaryOwner, guardSource + ":runner-update:frame" + Time.frameCount);
+                    QueueGlobalScrub(primaryOwner, guardSource + ":runner-update:frame" + Time.frameCount, 1);
                 }
 
                 return;
@@ -516,14 +519,25 @@ public static class UiTransitionGuardRuntime
         {
             try
             {
-                var manager = UIManager.Instance;
-                var root = manager?.upperCanvasTf == null ? null : manager.upperCanvasTf.gameObject;
-                return LeaseRaycasters(root, source);
+                return LeaseRaycasters(UpperCanvasRoot(), source);
             }
             catch (Exception ex)
             {
                 Warn("Failed to lease upper canvas raycasters. source=" + source + " -> " + ex.Message);
                 return 0;
+            }
+        }
+
+        private GameObject? UpperCanvasRoot()
+        {
+            try
+            {
+                var manager = UIManager.Instance;
+                return manager?.upperCanvasTf == null ? null : manager.upperCanvasTf.gameObject;
+            }
+            catch
+            {
+                return null;
             }
         }
 
@@ -665,7 +679,26 @@ public static class UiTransitionGuardRuntime
                  + ", skipped=" + skipped
                  + ", tracked=" + suspendedRaycasters.Count);
             suspendedRaycasters.Clear();
-            ScrubNow(primaryOwner, source + ":after-restore");
+            QueueGlobalScrub(primaryOwner, source + ":after-restore", 1);
+        }
+
+        private void QueueGlobalScrub(string ownerModId, string source, int frames)
+        {
+            AuraSharedFrameScheduler.Enqueue("UiTransitionGuard.Scrub:" + source, () =>
+            {
+                UiRaycastSafeDestroyRuntime.ScrubGraphicRegistryForFrames(
+                    Math.Max(1, frames),
+                    ownerModId + ":" + source,
+                    Trace);
+            });
+        }
+
+        private int ScrubRoot(GameObject? root, string source)
+        {
+            return UiRaycastSafeDestroyRuntime.ScrubGraphicRegistryForRoot(
+                root,
+                primaryOwner + ":" + source,
+                Trace);
         }
 
         private void RunDueDeferredActions()

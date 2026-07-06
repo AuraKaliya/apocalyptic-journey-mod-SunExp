@@ -72,39 +72,22 @@ internal static class OutOfRunDamageHistoryPersistence
             return;
         }
 
-        try
-        {
-            var envelopeJson = AuraSharedSecureEnvelope.EncryptJson(
-                EnvelopeFormat,
-                DamageMeterHistoryCryptoKeys.KeyId,
-                AuraSharedJson.Serialize(store.CreateFile()),
-                DamageMeterHistoryCryptoKeys.EncryptionPublicKeyXml,
-                DamageMeterHistoryCryptoKeys.SignaturePrivateKeyXml);
-            var maxBytes = NormalizeMaxEnvelopeBytes(maxEnvelopeBytes);
-            if (Utf8ByteCount(envelopeJson) > maxBytes)
-            {
-                AuraToolsLog.Warn("[DamageMeter] out-of-run history save skipped: encrypted envelope too large. bytes="
-                                  + Utf8ByteCount(envelopeJson) + ", maxBytes=" + maxBytes + ".");
-                return;
-            }
+        ReportSaveResult(SaveFile(store.CreateFile(), maxEnvelopeBytes));
+    }
 
-            var envelope = AuraSharedJson.Deserialize<AuraSharedEncryptedEnvelope>(envelopeJson)
-                           ?? new AuraSharedEncryptedEnvelope();
-            var result = AuraSharedConfigStore.WriteShared(
-                AuraToolsIds.ModId,
-                SystemName,
-                FileName,
-                envelope,
-                schemaVersion: 1);
-            if (!result.Success)
-            {
-                AuraToolsLog.Warn("[DamageMeter] out-of-run history save failed: " + result.Message);
-            }
-        }
-        catch (Exception ex)
+    public static void SaveDeferred(OutOfRunDamageHistoryStore store, int maxEnvelopeBytes = DefaultMaxEnvelopeBytes)
+    {
+        if (store == null)
         {
-            AuraToolsLog.Warn("[DamageMeter] out-of-run history save failed: " + ex.Message);
+            return;
         }
+
+        var file = store.CreateFile();
+        AuraSharedFrameScheduler.RunBackground(
+            "DamageMeter.HistorySave",
+            () => SaveFile(file, maxEnvelopeBytes),
+            ReportSaveResult,
+            ex => AuraToolsLog.Warn("[DamageMeter] out-of-run history deferred save failed: " + ex.Message));
     }
 
     public static void Clear(OutOfRunDamageHistoryStore store, int maxEnvelopeBytes = DefaultMaxEnvelopeBytes)
@@ -124,5 +107,88 @@ internal static class OutOfRunDamageHistoryPersistence
     private static int Utf8ByteCount(string value)
     {
         return string.IsNullOrEmpty(value) ? 0 : Encoding.UTF8.GetByteCount(value);
+    }
+
+    private static SaveResult SaveFile(OutOfRunDamageHistoryFile file, int maxEnvelopeBytes)
+    {
+        try
+        {
+            var envelopeJson = AuraSharedSecureEnvelope.EncryptJson(
+                EnvelopeFormat,
+                DamageMeterHistoryCryptoKeys.KeyId,
+                AuraSharedJson.Serialize(file),
+                DamageMeterHistoryCryptoKeys.EncryptionPublicKeyXml,
+                DamageMeterHistoryCryptoKeys.SignaturePrivateKeyXml);
+            var maxBytes = NormalizeMaxEnvelopeBytes(maxEnvelopeBytes);
+            var envelopeBytes = Utf8ByteCount(envelopeJson);
+            if (envelopeBytes > maxBytes)
+            {
+                return SaveResult.SkippedResult("encrypted envelope too large. bytes="
+                                                + envelopeBytes + ", maxBytes=" + maxBytes + ".");
+            }
+
+            var envelope = AuraSharedJson.Deserialize<AuraSharedEncryptedEnvelope>(envelopeJson)
+                           ?? new AuraSharedEncryptedEnvelope();
+            var result = AuraSharedConfigStore.WriteShared(
+                AuraToolsIds.ModId,
+                SystemName,
+                FileName,
+                envelope,
+                schemaVersion: 1);
+            return result.Success
+                ? SaveResult.Ok(envelopeBytes)
+                : SaveResult.Failed(result.Message);
+        }
+        catch (Exception ex)
+        {
+            return SaveResult.Failed(ex.Message);
+        }
+    }
+
+    private static void ReportSaveResult(SaveResult result)
+    {
+        if (result.Success)
+        {
+            return;
+        }
+
+        var prefix = result.Skipped
+            ? "[DamageMeter] out-of-run history save skipped: "
+            : "[DamageMeter] out-of-run history save failed: ";
+        AuraToolsLog.Warn(prefix + result.Message);
+    }
+
+    private sealed class SaveResult
+    {
+        private SaveResult(bool success, bool skipped, string message, int bytes)
+        {
+            Success = success;
+            Skipped = skipped;
+            Message = message ?? "";
+            Bytes = bytes;
+        }
+
+        public bool Success { get; }
+
+        public bool Skipped { get; }
+
+        public string Message { get; }
+
+        public int Bytes { get; }
+
+        public static SaveResult Ok(int bytes)
+        {
+            return new SaveResult(true, false, "", bytes);
+        }
+
+        public static SaveResult SkippedResult(string message)
+        {
+            return new SaveResult(false, true, message, 0);
+        }
+
+        public static SaveResult Failed(string message)
+        {
+            return new SaveResult(false, false, message, 0);
+        }
     }
 }

@@ -803,10 +803,11 @@ internal static class DamageMeterNetworkRuntime
 
     private static void Send(RpcCommandBase command)
     {
-        if (!AuraToolsRpcTransport.Send(
-                PlayerManager.Instance,
-                command,
-                "DamageMeter." + command.GetType().Name))
+        var source = "DamageMeter." + command.GetType().Name;
+        var sent = command is DamageMeterSubmitCommand
+            ? AuraToolsRpcTransport.SendDeferred(PlayerManager.Instance, command, source)
+            : AuraToolsRpcTransport.Send(PlayerManager.Instance, command, source);
+        if (!sent)
         {
             snapshotRequestPending = false;
         }
