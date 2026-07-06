@@ -1,0 +1,60 @@
+Use case: ads-marketing
+Asset type: vertical MOD introduction poster, gameplay topic key visual
+
+Primary request:
+Create a polished vertical anime fantasy promotional poster for a game MOD topic: gameplay modes and journeys. Use the attached images only as visual identity, scene, and atmosphere references. Preserve the recognizable SunExp mood of white-gold solar memory, blue-black abyss, sacred boss trial, and elegant game-poster typography, but redraw a new cinematic key visual rather than copying any original UI layout.
+
+Input images:
+Image 1: Solar Memory title art reference. Use it for the white-gold saintly atmosphere, Una/White Radiance visual identity, thorned halo, pale sacred light, and memory-mode mood. Do not copy the UI panel layout.
+Image 2: Endless Abyss title art reference. Use it for the deep blue abyss vortex, infinite descent, heavy dark pressure, and endless-mode mood. Do not copy the exact title placement.
+Image 3: Solar Memory event node reference. Use it as a symbolic story-scroll motif for fixed character story events.
+Image 4: Merciless Second Sun / boss node reference. Use it as the sacred wheel, second sun, and boss-chain symbol.
+Image 5: White Radiance Saint Una boss node reference. Use it as the hidden boss / saint trial symbol.
+Image 6: Una white-radiance prayer CG reference. Use it for refined character lighting, golden crown relic, sacred ritual mood, and elegant anime key-art quality.
+
+Poster concept:
+This is a reusable gameplay-topic poster for SunExp. It introduces the MOD's playable modes and challenge structures, not a single character and not a card pack. The visual should feel like choosing a route through the MOD: one path opens into Solar Memory and character-specific story, one path falls into the Endless Abyss, and one path rises toward a chain of sacred bosses.
+
+Scene/backdrop:
+A vertical fantasy route altar under a dark sky after the Black Sun. At the upper center, a pale-gold solar crown and second-sun ring form a sacred gate. The left side carries white-gold memory fragments, story scrolls, and Una's faint saintly silhouette. The right side descends into a blue-black abyss vortex with layered floors and distant map-node lights. The lower center shows a glowing path or circular map board splitting into three directions.
+
+Subject and composition:
+Vertical 9:16 composition. Put the large title at the top with strong negative space. Under the title, place the subtitle clearly. The central image should be a cinematic journey-selection composition, not a UI screenshot. Avoid showing a full playable UI, buttons, panels, or card grids. The three mode labels should sit near the bottom as clean readable labels, each aligned to a corresponding visual route:
+- 角色专属剧情: white-gold story scroll / Una memory route
+- 无尽模式: blue abyss vortex / descending route
+- BOSS连战: second sun and saint boss gate / trial route
+No main slogan or paragraph copy.
+
+Style/medium:
+High-end anime game promotional illustration, painterly fantasy key art, refined brushwork, luminous but restrained magical effects, premium MOD poster design, elegant composition, not a collage, not a UI screenshot. Use cinematic depth, clean hierarchy, and enough quiet space for typography.
+
+Lighting/mood:
+Split lighting between sacred white-gold memory light and cold abyssal blue. The mood should feel solemn, challenging, and inviting, like a ritual map leading to story, endless descent, and boss trials.
+
+Color palette:
+Dominant charcoal black and midnight blue background, with white-gold solar light, pale ivory, restrained violet abyss accents, and small ember highlights. Avoid a one-note blue poster; keep the gold/white and abyss blue in visible tension.
+
+Text to include exactly, with clean readable Chinese typography:
+Top title, large:
+旅程档案
+
+Small subtitle below title:
+玩法专题 / Journey Archive
+
+Bottom label 1:
+角色专属剧情
+
+Bottom label 2:
+无尽模式
+
+Bottom label 3:
+BOSS连战
+
+Typography requirements:
+All Chinese text must be accurate, legible, and exactly as written. Use elegant Chinese title typography and clean readable body labels. Do not invent extra slogans, do not add extra paragraphs, do not add random English beyond the subtitle, do not add unreadable decorative glyphs, and do not replace Chinese characters with symbols.
+
+Constraints:
+Keep the poster vertical and usable as a social-media MOD introduction poster. Do not add extra characters beyond a subtle Una/saintly visual reference. Do not add card frames, UI panels, screenshots, watermarks, logos, QR codes, platform badges, or fake Steam/banner UI. Do not make it look like a gacha banner or shop page. Avoid dense tiny details around text. Avoid copying existing title-card layouts directly.
+
+Output goal:
+A finished 2160x3840 vertical gameplay-topic key visual poster with the exact title, subtitle, and three bottom labels integrated into the artwork.
