@@ -423,12 +423,7 @@ public static class BuffApi
 
     public static int SyncEmberDamageBonus(ScriptExecutor? executor, IStatusManager? status)
     {
-        if (executor == null)
-        {
-            return 0;
-        }
-
-        status ??= executor.Self;
+        status ??= executor?.Self;
         if (status == null)
         {
             return 0;
@@ -440,8 +435,16 @@ public static class BuffApi
         var delta = level - applied;
         if (delta != 0)
         {
-            ExecutorApi.SetStatusForTarget(executor, status, "Self");
-            executor.ChangeDynamicVarPercent("PercentDamage", delta.ToString());
+            if (executor != null)
+            {
+                ExecutorApi.SetStatusForTarget(executor, status, "Self");
+                executor.ChangeDynamicVarPercent("PercentDamage", delta.ToString());
+            }
+            else
+            {
+                StatusApi.AddDynamicPercent(status, "PercentDamage", delta);
+            }
+
             ExecutorApi.CombatIntSet(key, level);
         }
 
@@ -451,12 +454,7 @@ public static class BuffApi
 
     public static int ClearEmberDamageBonus(ScriptExecutor? executor, IStatusManager? status)
     {
-        if (executor == null)
-        {
-            return 0;
-        }
-
-        status ??= executor.Self;
+        status ??= executor?.Self;
         if (status == null)
         {
             return 0;
@@ -466,8 +464,16 @@ public static class BuffApi
         var applied = ExecutorApi.CombatIntGet(key);
         if (applied != 0)
         {
-            ExecutorApi.SetStatusForTarget(executor, status, "Self");
-            executor.ChangeDynamicVarPercent("PercentDamage", (-applied).ToString());
+            if (executor != null)
+            {
+                ExecutorApi.SetStatusForTarget(executor, status, "Self");
+                executor.ChangeDynamicVarPercent("PercentDamage", (-applied).ToString());
+            }
+            else
+            {
+                StatusApi.AddDynamicPercent(status, "PercentDamage", -applied);
+            }
+
             ExecutorApi.CombatIntSet(key, 0);
         }
 
@@ -481,7 +487,13 @@ public static class BuffApi
             return 0;
         }
 
-        if (!ExecutorApi.IsSelf(executor, status) || !IsWunaActive())
+        if (!ExecutorApi.IsSelf(executor, status))
+        {
+            return consumed;
+        }
+
+        SavePersistentEmber(executor, status);
+        if (!IsWunaActive())
         {
             return consumed;
         }
@@ -491,19 +503,23 @@ public static class BuffApi
         executor.SetStatus("Self");
         executor.ChangeHp(heal.ToString());
         executor.ChangeMaxHp(consumed.ToString());
-        SavePersistentEmber(executor, status);
         return consumed;
     }
 
     public static int SavePersistentEmber(ScriptExecutor? executor, IStatusManager? status)
     {
-        if (executor?.Self == null || status == null || !ExecutorApi.IsSelf(executor, status) || !IsWunaActive())
+        if (status == null)
+        {
+            return 0;
+        }
+
+        if (executor?.Self != null && !ExecutorApi.IsSelf(executor, status))
         {
             return 0;
         }
 
         var level = Math.Max(0, Math.Min(99, Level(status, SunExpIds.Ember)));
-        WunaEmberSyncService.CommitLocal(status, level, "BuffApi.SavePersistentEmber");
+        EmberAdventureStateService.CommitLocal(status, level, "BuffApi.SavePersistentEmber");
         return level;
     }
 

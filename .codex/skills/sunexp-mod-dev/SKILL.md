@@ -1,6 +1,6 @@
 ---
 name: sunexp-mod-dev
-description: Project-local routing and general-development skill for SunExp mod work in Witch's Apocalyptic Journey. Use when editing or reviewing SunExp shipped mod content, C# DLL scripts, CSV data and localization, cards, buffs, relics, card packs, roles, dialogue, assets, validation, or when deciding which specialized SunExp skill to load for architecture, Solar Memory, events, shared runtime, visual runtime, card art, or skill evolution.
+description: Project-local routing and general-development skill for SunExp mod work in Witch's Apocalyptic Journey. Use when editing or reviewing SunExp shipped mod content, C# DLL scripts, CSV data and localization, cards, buffs, relics, card packs, roles, dialogue, assets, validation, shared initialization registration, tool configuration overrides, multiplayer sync, multi-mod sync, timing and duplicate suppression, or when deciding which specialized SunExp skill to load for architecture, Solar Memory, events, shared runtime, visual runtime, card art, or skill evolution.
 ---
 
 # SunExp Mod Dev
@@ -23,8 +23,9 @@ Use the smallest specialist set that covers the task:
 - `sunexp-event-dev`: non-Solar-Memory EventList/Map rows, story chains,
   reward helpers, and ordinary map-visible events.
 - `sunexp-shared-runtime-dev`: Aura shared runtimes, shared resources, Journey,
-  Skin, Audio, BGM, StarterDeck, CG, UI safety, RPC authority, shared DLL
-  packaging, or shared release gates.
+  Skin, Audio, BGM, StarterDeck, CG, UI safety, initialization registration,
+  tool-local configuration overrides, cross-mod sync models, RPC authority,
+  shared DLL packaging, or shared release gates.
 - `sunexp-visual-runtime-dev`: `visual.registry.json`, VisualBundles, shaders,
   card visual skins/effects, Skill CG, animated icons, map-node visuals, Star
   Score HUD, Wuna orbit fire, or visual runtime validation.
@@ -52,7 +53,9 @@ Use the smallest specialist set that covers the task:
    - Validation expectations: `references/validation-rules.md`
    - For C# architecture refactors, also use `sunexp-architecture-dev`.
    - For Solar Memory work, also use `sunexp-solar-memory-dev`.
-   - For shared runtime work, also use `sunexp-shared-runtime-dev`.
+   - For shared runtime work, initialization registration, AuraToolsExp local
+     config overrides, cross-mod sync, payload guard, timing, or duplicate
+     suppression, also use `sunexp-shared-runtime-dev`.
    - For runtime visual work, also use `sunexp-visual-runtime-dev`.
    - For EventList, Text/EventList, map-visible event, and event helper work, also use the project-local `sunexp-event-dev` skill.
 3. Keep behavior in C# by default:

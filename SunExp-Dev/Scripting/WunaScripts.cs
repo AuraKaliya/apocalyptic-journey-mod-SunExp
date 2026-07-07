@@ -30,7 +30,6 @@ public static class WunaScripts
                     return;
                 }
 
-                RestorePersistentEmber(self);
                 ExecutorApi.SetVar(self, "SunExpWunaRadianceDone", "0");
                 ExecutorApi.SetVar(self, "SunExpWunaPrevEnemyBurn", EnemyBurnTotal(self));
                 WunaRoundRadianceState.ResetFight(self.Self);
@@ -194,7 +193,6 @@ public static class WunaScripts
         BuffApi.ClearEmberDamageBonus(self, self.Self);
         self.RemoveBuff(SunExpIds.Ember);
         BuffApi.OnEmberConsumed(self, self.Self, ember);
-        SetPersistentEmber(self, 0);
         if (!PolymorphCooldownService.MarkSkillUsed(self, "Wuna.GraveSong"))
         {
             PlayerApi.SetSkillTime(GraveSongCardId, 4);
@@ -318,34 +316,6 @@ public static class WunaScripts
         return level;
     }
 
-    private static int RestorePersistentEmber(ScriptExecutor self)
-    {
-        if (self?.Self == null)
-        {
-            return 0;
-        }
-
-        var stored = GetPersistentEmber(self);
-        self.SetStatus("Self");
-        if (ExecutorApi.SelfBuffLevel(self, SunExpIds.Ember) > 0)
-        {
-            BuffApi.ClearEmberDamageBonus(self, self.Self);
-            self.RemoveBuff(SunExpIds.Ember);
-        }
-
-        if (stored > 0)
-        {
-            self.AddBuff(SunExpIds.Ember, stored.ToString());
-            BuffApi.SyncEmberDamageBonus(self, self.Self);
-        }
-        else
-        {
-            BuffApi.ClearEmberDamageBonus(self, self.Self);
-        }
-
-        return stored;
-    }
-
     private static bool TryGainRadianceFromEnemyBurn(ScriptExecutor self)
     {
         if (!IsWunaRuntimeActive())
@@ -373,15 +343,10 @@ public static class WunaScripts
         return true;
     }
 
-    private static int GetPersistentEmber(ScriptExecutor self)
-    {
-        return WunaEmberSyncService.GetStored(self?.Self);
-    }
-
     private static int SetPersistentEmber(ScriptExecutor self, int value)
     {
         var level = Math.Max(0, Math.Min(99, value));
-        WunaEmberSyncService.CommitLocal(self?.Self, level, "WunaScripts.SetPersistentEmber");
+        EmberAdventureStateService.CommitLocal(self?.Self, level, "WunaScripts.SetPersistentEmber");
         return level;
     }
 

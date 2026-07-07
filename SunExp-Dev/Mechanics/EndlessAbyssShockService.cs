@@ -50,6 +50,10 @@ public static class EndlessAbyssShockService
 {
     private const string StealthTrigger = "stealth-floor";
     private const string EndlessBattleTrigger = "endless-battle";
+    private const int ProcessedResolutionTokenLimit = 128;
+    private static readonly object ResolutionTokenSync = new();
+    private static readonly HashSet<string> ProcessedResolutionTokens = new(StringComparer.Ordinal);
+    private static readonly Queue<string> ProcessedResolutionTokenOrder = new();
 
     public static bool TryEnqueueStealthFloorShock(int floor, string source)
     {
@@ -154,6 +158,15 @@ public static class EndlessAbyssShockService
             {
                 Success = false,
                 Message = "\u6df1\u6e0a\u9707\u8361\u7f51\u7edc\u7ed3\u7b97\u7f3a\u5c11\u8bf7\u6c42\u3002"
+            };
+        }
+
+        if (!TryClaimResolutionToken(resolution.Token, source))
+        {
+            return new EndlessAbyssShockResult
+            {
+                Success = true,
+                Message = "\u672c\u6b21\u6df1\u6e0a\u9707\u8361\u5df2\u7ed3\u7b97\u3002"
             };
         }
 
@@ -309,6 +322,35 @@ public static class EndlessAbyssShockService
         return string.Equals(option, EndlessAbyssShockOptionIds.DestroyRelic, StringComparison.Ordinal)
             || string.Equals(option, EndlessAbyssShockOptionIds.AnnihilateCards, StringComparison.Ordinal)
             || string.Equals(option, EndlessAbyssShockOptionIds.IncreaseGaze, StringComparison.Ordinal);
+    }
+
+    private static bool TryClaimResolutionToken(string? token, string source)
+    {
+        var safeToken = (token ?? "").Trim();
+        if (safeToken.Length == 0)
+        {
+            return true;
+        }
+
+        lock (ResolutionTokenSync)
+        {
+            if (!ProcessedResolutionTokens.Add(safeToken))
+            {
+                SunExpLog.Debug("[EndlessAbyssShock] duplicate resolution ignored from "
+                    + source
+                    + "; token="
+                    + safeToken);
+                return false;
+            }
+
+            ProcessedResolutionTokenOrder.Enqueue(safeToken);
+            while (ProcessedResolutionTokenOrder.Count > ProcessedResolutionTokenLimit)
+            {
+                ProcessedResolutionTokens.Remove(ProcessedResolutionTokenOrder.Dequeue());
+            }
+        }
+
+        return true;
     }
 
     private static void SetPending(EndlessAbyssShockRequest request)

@@ -6,23 +6,23 @@ using SunExp.Dll.Mechanics;
 namespace SunExp.Dll.Network;
 
 [Serializable]
-public sealed class RpcWunaEmberCommit : RpcCommandBase, ISunExpServerBoundRpcCommand
+public sealed class RpcEmberAdventureStateCommit : RpcCommandBase, ISunExpServerBoundRpcCommand
 {
     private SunExpRpcSender serverSender = SunExpRpcSender.Unbound;
 
-    public WunaEmberSnapshot Snapshot { get; set; } = new();
+    public EmberAdventureStateSnapshot Snapshot { get; set; } = new();
 
     public bool Accepted { get; set; }
 
     public string RejectionReason { get; set; } = "";
 
-    public RpcWunaEmberCommit()
+    public RpcEmberAdventureStateCommit()
     {
     }
 
-    public RpcWunaEmberCommit(WunaEmberSnapshot snapshot)
+    public RpcEmberAdventureStateCommit(EmberAdventureStateSnapshot snapshot)
     {
-        Snapshot = snapshot ?? new WunaEmberSnapshot();
+        Snapshot = snapshot ?? new EmberAdventureStateSnapshot();
     }
 
     public void BindServerSender(SunExpRpcSender sender)
@@ -42,22 +42,22 @@ public sealed class RpcWunaEmberCommit : RpcCommandBase, ISunExpServerBoundRpcCo
         {
             if (!string.IsNullOrWhiteSpace(RejectionReason))
             {
-                SunExpLog.Warn("[WunaEmberSync] commit rejected: " + RejectionReason);
+                SunExpLog.Warn("[EmberAdventureState] commit rejected: " + RejectionReason);
             }
 
             return;
         }
 
-        WunaEmberSyncService.ApplySnapshot(Snapshot, "RpcWunaEmberCommit");
+        EmberAdventureStateService.ApplySnapshot(Snapshot, "RpcEmberAdventureStateCommit");
     }
 
-    internal static bool ApplyOnServer(WunaEmberSnapshot? snapshot, SunExpRpcSender sender, bool remoteRpc)
+    internal static bool ApplyOnServer(EmberAdventureStateSnapshot? snapshot, SunExpRpcSender sender, bool remoteRpc)
     {
         return ApplyOnServer(snapshot, sender, remoteRpc, out _);
     }
 
     private static bool ApplyOnServer(
-        WunaEmberSnapshot? snapshot,
+        EmberAdventureStateSnapshot? snapshot,
         SunExpRpcSender sender,
         bool remoteRpc,
         out string rejection)
@@ -94,7 +94,7 @@ public sealed class RpcWunaEmberCommit : RpcCommandBase, ISunExpServerBoundRpcCo
             }
         }
 
-        WunaEmberSyncService.ApplySnapshot(snapshot, "server:" + (snapshot.Source ?? ""));
+        EmberAdventureStateService.ApplySnapshot(snapshot, "server:" + (snapshot.Source ?? ""));
         return true;
     }
 }

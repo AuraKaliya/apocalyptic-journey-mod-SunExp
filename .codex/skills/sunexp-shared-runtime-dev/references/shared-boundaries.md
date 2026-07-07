@@ -23,23 +23,51 @@ edited as if they belonged to the current mod.
 Conflict policy must be explicit. Do not treat two applicable artifacts as a
 technical error unless the domain contract says so.
 
-## Content Mods And Tool Mods
+## Initialization Registration And Tool Overrides
 
-Use a strict content/tool split for cross-mod shared features.
+Use a strict owner/tool split for cross-mod shared features.
 
-- Content mods own content. They install their resources into AuraShared,
-  register domain manifests, and provide the machine-readable semantics needed
-  by consumers: target roles, trigger/card ids, resource paths, presentation or
-  playback options, priority, enabled state, and display labels.
-- Tool mods consume shared declarations. They read shared registries, parse
-  entries by the domain protocol, display/manage them, and may import entries as
-  local editable configuration or overrides.
-- Tool mods must not guess a content mod's folder layout, hard-code content mod
-  resources, scan private content folders as a substitute for registration, or
-  re-own foreign resources by copying them under the tool mod unless the user
-  explicitly creates a local override.
-- Domain shared layers own manifest schemas, normalization, conflict policy,
-  and compatibility. AuraSharedCore remains semantic-free.
+Initialization registration is the startup phase where a mod declares the
+resources, rules, providers, or extension metadata that it owns. This is not
+content-mod-exclusive:
+
+- SunExp registers SunExp-owned roles, resources, manifests, and MOD-unique
+  content extensions.
+- AuraToolsExp may register official-content extensions or tool-owned providers
+  and declarations.
+- Other mods may register their own resources and extension metadata.
+
+Every registered artifact still needs a stable `ownerModId` and a stable
+domain id. A tool mod may register what it owns, but it must not re-own a
+foreign mod's resources.
+
+Content mods own content. They install their resources into AuraShared, register
+domain manifests, and provide the machine-readable semantics needed by
+consumers: target roles, trigger/card ids, resource paths, presentation or
+playback options, priority, enabled state, and display labels.
+
+Tool mods consume shared declarations. They read shared registries, parse
+entries by the domain protocol, display/manage them, register tool-owned
+extensions, and may import entries as local editable configuration or
+overrides.
+
+Tool mods must not guess a content mod's folder layout, hard-code content mod
+resources, scan private content folders as a substitute for registration, or
+re-own foreign resources by copying them under the tool mod unless the user
+explicitly creates a local override.
+
+Keep registered defaults separate from tool-local effective configuration.
+Content-owned declarations are usually enabled by default. AuraToolsExp may
+read local persistent configuration and force the effective tool state, using
+this precedence:
+
+`registered default -> tool shipped default -> local persistent override`
+
+The local override changes tool-side effective behavior; it must not mutate the
+foreign registry source or claim ownership of another mod's artifact.
+
+Domain shared layers own manifest schemas, normalization, conflict policy, and
+compatibility. AuraSharedCore remains semantic-free.
 
 Keep display semantics separated:
 

@@ -81,6 +81,7 @@ $requiredFiles = @(
     "SunExp-Dev\GameApi\CardVisualEffectApi.cs",
     "SunExp-Dev\GameApi\BattleRewardApi.cs",
     "SunExp-Dev\GameApi\CardConfigApi.cs",
+    "SunExp-Dev\GameApi\EnemyApi.cs",
     "SunExp-Dev\GameApi\ModeChoiceSaveCacheApi.cs",
     "SunExp-Dev\GameApi\ProjectionUiApi.cs",
     "SunExp-Dev\GameApi\FamiliarGrowthApi.cs",
@@ -103,6 +104,8 @@ $requiredFiles = @(
     "SunExp-Dev\Mechanics\TongtianTowerNodePoolService.cs",
     "SunExp-Dev\Mechanics\TongtianTowerEnemyPool.cs",
     "SunExp-Dev\Mechanics\TongtianTowerRewardPlan.cs",
+    "SunExp-Dev\Mechanics\EndlessAbyssEnemyInjectionService.cs",
+    "SunExp-Dev\Mechanics\EmberAdventureStateService.cs",
     "SunExp-Dev\Mechanics\TongtianTowerPressureService.cs",
     "SunExp-Dev\Mechanics\TongtianTowerOriginService.cs",
     "SunExp-Dev\Mechanics\CardAttachmentSpec.cs",
@@ -160,6 +163,7 @@ $requiredFiles = @(
     "SunExp-Dev\Hooks\CompanionThreatRuntime.cs",
     "SunExp-Dev\Hooks\ProjectionRuntime.cs",
     "SunExp-Dev\Hooks\SolarMemoryRewardRuntime.cs",
+    "SunExp-Dev\Hooks\EmberAdventureStateRuntime.cs",
     "SunExp-Dev\Hooks\TongtianTowerRewardRuntime.cs",
     "SunExp-Dev\Hooks\TongtianTowerCardAffixRuntime.cs",
     "SunExp-Dev\Hooks\TongtianTowerCombatRuntime.cs",
@@ -225,6 +229,7 @@ $requiredFiles = @(
     "SunExp-Dev\Mechanics\StarScoreCadenceCatalog.cs",
     "SunExp-Dev\Mechanics\StarScoreDisplaySnapshot.cs",
     "SunExp-Dev\Mechanics\StarScoreNote.cs",
+    "SunExp-Dev\Network\RpcEmberAdventureStateCommit.cs",
     "SunExp\visual.registry.json",
     "SunExp\familiar.blessing.registry.json"
 )
@@ -242,6 +247,7 @@ $cardVisualEffectApi = Read-RepoText "SunExp-Dev\GameApi\CardVisualEffectApi.cs"
 $dialogueApi = Read-RepoText "SunExp-Dev\GameApi\DialogueApi.cs"
 $dialogueUiApi = Read-RepoText "SunExp-Dev\GameApi\DialogueUiApi.cs"
 $battleRewardApi = Read-RepoText "SunExp-Dev\GameApi\BattleRewardApi.cs"
+$enemyApi = Read-RepoText "SunExp-Dev\GameApi\EnemyApi.cs"
 $cardConfigApi = Read-RepoText "SunExp-Dev\GameApi\CardConfigApi.cs"
 $familiarGrowthApi = Read-RepoText "SunExp-Dev\GameApi\FamiliarGrowthApi.cs"
 $sunExpResourceCache = Read-RepoText "SunExp-Dev\GameApi\SunExpResourceCache.cs"
@@ -264,6 +270,8 @@ $solarMemoryMapNodePoolFactory = Read-RepoText "SunExp-Dev\Mechanics\SolarMemory
 $tongtianTowerNodePoolService = Read-RepoText "SunExp-Dev\Mechanics\TongtianTowerNodePoolService.cs"
 $tongtianTowerEnemyPool = Read-RepoText "SunExp-Dev\Mechanics\TongtianTowerEnemyPool.cs"
 $tongtianTowerRewardPlan = Read-RepoText "SunExp-Dev\Mechanics\TongtianTowerRewardPlan.cs"
+$endlessAbyssEnemyInjectionService = Read-RepoText "SunExp-Dev\Mechanics\EndlessAbyssEnemyInjectionService.cs"
+$emberAdventureStateService = Read-RepoText "SunExp-Dev\Mechanics\EmberAdventureStateService.cs"
 $tongtianTowerPressureService = Read-RepoText "SunExp-Dev\Mechanics\TongtianTowerPressureService.cs"
 $tongtianTowerOriginService = Read-RepoText "SunExp-Dev\Mechanics\TongtianTowerOriginService.cs"
 $tongtianTowerCardAffixService = Read-RepoText "SunExp-Dev\Mechanics\TongtianTowerCardAffixService.cs"
@@ -330,6 +338,7 @@ $sunExpNetworkRuntime = Read-RepoText "SunExp-Dev\Network\SunExpNetworkRuntime.c
 $mapNodeCardArtRuntime = Read-RepoText "SunExp-Dev\Hooks\MapNodeCardArtRuntime.cs"
 $projectionRuntime = Read-RepoText "SunExp-Dev\Hooks\ProjectionRuntime.cs"
 $runtimeHooks = Read-RepoText "SunExp-Dev\Hooks\RuntimeHooks.cs"
+$emberAdventureStateRuntime = Read-RepoText "SunExp-Dev\Hooks\EmberAdventureStateRuntime.cs"
 $cardVisualSkinSpec = Read-RepoText "SunExp-Dev\Mechanics\CardVisualSkinSpec.cs"
 $cardVisualSkinRule = Read-RepoText "SunExp-Dev\Mechanics\CardVisualSkinRule.cs"
 $cardVisualSkinRegistry = Read-RepoText "SunExp-Dev\Mechanics\CardVisualSkinRegistry.cs"
@@ -1033,6 +1042,17 @@ Assert-Contains $tongtianTowerNetworkSync "SnapshotRequestThrottleSeconds" "Tong
 Assert-Contains $tongtianTowerNetworkSync "SunExpNetworkRuntime.HasRemotePlayers()" "Tongtian Tower snapshots must only run for real multiplayer sessions."
 Assert-Contains $sunExpNetworkRuntime "public static bool HasRemotePlayers()" "SunExp network runtime must expose an actual remote-player guard."
 Assert-Contains $tongtianTowerCombatRuntime "TongtianTowerModeRuntime.IsTongtianTowerRun()" "Tongtian Tower combat tuning must be gated to Tongtian Tower runs."
+Assert-Contains $tongtianTowerCombatRuntime "EndlessAbyssEnemyInjectionService.TryInjectAfterFightInit" "Endless Abyss extra enemy injection must delegate to the dedicated service."
+Assert-NotContains $tongtianTowerCombatRuntime "CmdAddEnemy" "Tongtian Tower combat hooks must not directly issue native enemy-add commands."
+Assert-Contains $endlessAbyssEnemyInjectionService "EnemyApi.IsClientOnlyDynamicEnemyObserver()" "Endless Abyss enemy injection must skip client-only observers before planning enemies."
+Assert-Contains $endlessAbyssEnemyInjectionService "EnemyApi.AddDynamicEnemyAuthoritative" "Endless Abyss enemy injection must enter the native add path through SunExp's EnemyApi wrapper."
+Assert-Contains $enemyApi "EnemyManager.Instance" "EnemyApi must resolve the native enemy manager from an authoritative path."
+Assert-Contains $enemyApi "manager.AddEnemy(enemyId)" "EnemyApi must use the native dynamic enemy-add entrypoint from an authoritative path."
+Assert-NotContains $enemyApi "CmdAddEnemy" "EnemyApi must not bypass native dynamic-add flow by issuing CmdAddEnemy directly."
+Assert-Contains $runtimeHooks "EmberAdventureStateRuntime.Initialize(modConfig)" "Generic Ember adventure state restore must be registered outside Wuna career scripts."
+Assert-Contains $emberAdventureStateRuntime "Fight_Start.Init" "Generic Ember adventure state restore must run at battle start."
+Assert-Contains $emberAdventureStateService "RpcEmberAdventureStateCommit" "Ember adventure state commits must use the renamed generic RPC."
+Assert-Contains $emberAdventureStateService "SunExpIds.WunaPersistentEmber" "Ember adventure state must keep the old Wuna persistent key as a compatibility fallback."
 Assert-Contains $solarMemoryContentIsolationRuntime "SunExpConfigIndex.Rows(DataType.Map)" "Solar memory isolation replacement candidates must use cached map rows."
 Assert-Contains $mapNodeSafetyService "SunExpConfigIndex.Row(DataType.Map, id)" "Map node safety fallback map lookup must use the shared config index."
 Assert-Contains $solarMemorySettlementPresenter 'ShowUI<GameExitUI>("GameExitUI", true)' "SolarMemorySettlementPresenter must own settlement UI display."

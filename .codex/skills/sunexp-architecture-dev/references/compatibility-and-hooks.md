@@ -55,6 +55,30 @@ server-side validation.
 Host-local direct paths should create a local server sender and use the same
 validation flow as remote RPC paths.
 
+## RPC Shape Checklist
+
+Before adding or changing `SunExp-Dev/Network/*`, classify the RPC shape:
+
+- `command`: one requested action. Require a token or other idempotency key and
+  validate the bound sender before applying.
+- `snapshot`: authoritative state repair or replacement. Require state scope
+  and sequence/version semantics; ignore stale state and request repair on gaps
+  when possible.
+- `presentation-event`: CG, visual, audio, projection, or temporary UI relay.
+  Require an event/playback id, owner status, max age or duplicate window, and
+  lifecycle cleanup. Do not let it advance progression.
+- `bulk-transfer`: payload too large for normal RPC. Require payload budget,
+  chunk metadata, checksum, expiration, and active-buffer caps.
+
+Pick the field family deliberately: use `token` for idempotent commands,
+`sequence` for ordered per-owner streams, `version` for state generations,
+`hash` for payload/content consistency, and TTL/max-age fields for transient
+events.
+
+Remote observation hooks must not generate new authoritative event ids. If the
+local owner/status cannot be resolved in multiplayer, skip the request and log a
+diagnostic instead of broadcasting an ambiguous event.
+
 ## Build Output
 
 The project builds as internal assembly `SunExp.Aura` and copies the result to

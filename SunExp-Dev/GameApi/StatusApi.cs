@@ -31,6 +31,40 @@ public static class StatusApi
         return Math.Max(0, status?.Defend ?? ReadInt(status, "Defend"));
     }
 
+    public static bool AddDynamicPercent(IStatusManager? status, string key, int percent)
+    {
+        return AddDynamicFloat(status, key, percent / 100f, enqueue: true);
+    }
+
+    public static bool AddDynamicFloat(IStatusManager? status, string key, float delta, bool enqueue = true)
+    {
+        if (status == null || string.IsNullOrWhiteSpace(key) || Math.Abs(delta) <= float.Epsilon)
+        {
+            return false;
+        }
+
+        try
+        {
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+            var method = status.GetType().GetMethod("AddDynamicVariable", flags, null, new[] { typeof(string), typeof(float), typeof(bool) }, null);
+            if (method != null)
+            {
+                method.Invoke(status, new object[] { key, delta, enqueue });
+                return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Debug("Status AddDynamicVariable fallback used: " + ex.Message);
+        }
+
+        status.dynamicVariables ??= new Dictionary<string, float>();
+        status.dynamicVariables[key] = status.dynamicVariables.TryGetValue(key, out var current)
+            ? current + delta
+            : delta;
+        return true;
+    }
+
     public static bool TryStarClayResurrection(IStatusManager? status, int nextMaxHp)
     {
         if (status == null)

@@ -97,6 +97,7 @@ public static class SunExpIds
     public const string SolarTriggerCost = "SunExpSolarTriggerCost";
 
     public const string WunaActive = "SunExpWunaActive";
+    public const string PersistentEmber = "SunExpPersistentEmber";
     public const string WunaPersistentEmber = "SunExpWunaPersistentEmber";
     public const string WunaWhiteSunPrayerCardId = "SunExp_wuna_wuna_white_sun_prayer";
     public const string WunaCoronationTokenCardId = "SunExp_wuna_wuna_coronation_token";

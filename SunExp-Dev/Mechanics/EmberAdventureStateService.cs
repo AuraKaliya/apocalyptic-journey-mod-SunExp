@@ -3,10 +3,11 @@ using System.Collections.Generic;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Network;
+using Witch;
 
 namespace SunExp.Dll.Mechanics;
 
-public sealed class WunaEmberSnapshot
+public sealed class EmberAdventureStateSnapshot
 {
     public string OwnerPlayerId { get; set; } = "";
 
@@ -19,7 +20,7 @@ public sealed class WunaEmberSnapshot
     public string Source { get; set; } = "";
 }
 
-public static class WunaEmberSyncService
+public static class EmberAdventureStateService
 {
     private static readonly object SyncRoot = new();
     private static readonly Dictionary<string, int> LastSequences = new(StringComparer.Ordinal);
@@ -29,16 +30,38 @@ public static class WunaEmberSyncService
     {
         var ownerPlayerId = ResolveOwnerPlayerId(status);
         var ownerStatusId = ResolveOwnerStatusId(status);
-        var ownerValue = ReadOwnerValue(ownerPlayerId);
+        var ownerValue = ReadOwnerValue(SunExpIds.PersistentEmber, ownerPlayerId);
         if (ownerValue >= 0)
         {
             return Clamp(ownerValue);
         }
 
-        ownerValue = ReadOwnerValue(ownerStatusId);
+        ownerValue = ReadOwnerValue(SunExpIds.PersistentEmber, ownerStatusId);
         if (ownerValue >= 0)
         {
             return Clamp(ownerValue);
+        }
+
+        ownerValue = ReadOwnerValue(SunExpIds.WunaPersistentEmber, ownerPlayerId);
+        if (ownerValue >= 0)
+        {
+            return Clamp(ownerValue);
+        }
+
+        ownerValue = ReadOwnerValue(SunExpIds.WunaPersistentEmber, ownerStatusId);
+        if (ownerValue >= 0)
+        {
+            return Clamp(ownerValue);
+        }
+
+        var scopedValue = PlayerApi.GetScopedGameVar(
+            SunExpIds.PersistentEmber,
+            status,
+            "",
+            migrateLegacyWhenSolo: false);
+        if (!string.IsNullOrWhiteSpace(scopedValue))
+        {
+            return Clamp(DictionaryUtil.ParseInt(scopedValue));
         }
 
         return Clamp(DictionaryUtil.ParseInt(
@@ -52,7 +75,7 @@ public static class WunaEmberSyncService
     public static int CommitLocal(IStatusManager? status, int level, string source)
     {
         var safeSource = source ?? "";
-        var snapshot = new WunaEmberSnapshot
+        var snapshot = new EmberAdventureStateSnapshot
         {
             OwnerPlayerId = ResolveOwnerPlayerId(status),
             OwnerStatusId = ResolveOwnerStatusId(status),
@@ -69,19 +92,22 @@ public static class WunaEmberSyncService
 
         if (SunExpNetworkRuntime.IsClientOnly())
         {
-            SunExpNetworkRuntime.Send(new RpcWunaEmberCommit(snapshot), safeSource);
+            SunExpNetworkRuntime.Send(new RpcEmberAdventureStateCommit(snapshot), safeSource);
             return snapshot.Level;
         }
 
-        RpcWunaEmberCommit.ApplyOnServer(snapshot, SunExpRpcAuthorityRuntime.CreateLocalServerSender(safeSource), false);
-        SunExpNetworkRuntime.Send(new RpcWunaEmberCommit(snapshot)
+        RpcEmberAdventureStateCommit.ApplyOnServer(
+            snapshot,
+            SunExpRpcAuthorityRuntime.CreateLocalServerSender(safeSource),
+            false);
+        SunExpNetworkRuntime.Send(new RpcEmberAdventureStateCommit(snapshot)
         {
             Accepted = true
         }, safeSource);
         return snapshot.Level;
     }
 
-    public static bool ApplySnapshot(WunaEmberSnapshot? snapshot, string source)
+    public static bool ApplySnapshot(EmberAdventureStateSnapshot? snapshot, string source)
     {
         if (snapshot == null)
         {
@@ -101,9 +127,9 @@ public static class WunaEmberSyncService
         {
             if (snapshot.Sequence > 0
                 && LastSequences.TryGetValue(ownerKey, out var previous)
-                && snapshot.Sequence < previous)
+                && snapshot.Sequence <= previous)
             {
-                SunExpLog.Debug("[WunaEmberSync] stale snapshot ignored from "
+                SunExpLog.Debug("[EmberAdventureState] stale or duplicate snapshot ignored from "
                     + source
                     + "; owner="
                     + ownerKey
@@ -123,20 +149,20 @@ public static class WunaEmberSyncService
 
         if (!string.IsNullOrWhiteSpace(snapshot.OwnerPlayerId))
         {
-            PlayerApi.SetGameVar(OwnerGameVarKey(snapshot.OwnerPlayerId), snapshot.Level.ToString());
+            PlayerApi.SetGameVar(OwnerGameVarKey(SunExpIds.PersistentEmber, snapshot.OwnerPlayerId), snapshot.Level.ToString());
         }
 
         if (!string.IsNullOrWhiteSpace(snapshot.OwnerStatusId))
         {
-            PlayerApi.SetGameVar(OwnerGameVarKey(snapshot.OwnerStatusId), snapshot.Level.ToString());
+            PlayerApi.SetGameVar(OwnerGameVarKey(SunExpIds.PersistentEmber, snapshot.OwnerStatusId), snapshot.Level.ToString());
         }
 
         if (IsLocalOwner(snapshot))
         {
-            PlayerApi.SetScopedGameVar(SunExpIds.WunaPersistentEmber, FightPlayer.Instance?.Status, snapshot.Level.ToString());
+            PlayerApi.SetScopedGameVar(SunExpIds.PersistentEmber, FightPlayer.Instance?.Status, snapshot.Level.ToString());
         }
 
-        SunExpLog.Info("[WunaEmberSync] saved owner="
+        SunExpLog.Info("[EmberAdventureState] saved owner="
             + ownerKey
             + "; level="
             + snapshot.Level
@@ -148,7 +174,49 @@ public static class WunaEmberSyncService
         return true;
     }
 
-    private static bool IsLocalOwner(WunaEmberSnapshot snapshot)
+    public static int RestoreForLocalPlayer(string source)
+    {
+        var status = FightPlayer.Instance?.Status;
+        if (status == null)
+        {
+            return 0;
+        }
+
+        var stored = GetStored(status);
+        ApplyToStatus(status.MirrorSc as ScriptExecutor, status, stored, source);
+        return stored;
+    }
+
+    public static void ApplyToStatus(ScriptExecutor? executor, IStatusManager? status, int level, string source)
+    {
+        if (status == null)
+        {
+            return;
+        }
+
+        var safeLevel = Clamp(level);
+        if (BuffApi.Level(status, SunExpIds.Ember) > 0 && safeLevel <= 0)
+        {
+            BuffApi.ClearEmberDamageBonus(executor, status);
+            status.RemoveBuff(SunExpIds.Ember);
+        }
+        else if (safeLevel > 0)
+        {
+            BuffApi.SetExactLevel(status, SunExpIds.Ember, safeLevel);
+            BuffApi.SyncEmberDamageBonus(executor, status);
+        }
+        else
+        {
+            BuffApi.ClearEmberDamageBonus(executor, status);
+        }
+
+        if (safeLevel <= 0)
+        {
+            CommitLocal(status, safeLevel, "EmberAdventureStateService.ApplyToStatus:" + source);
+        }
+    }
+
+    private static bool IsLocalOwner(EmberAdventureStateSnapshot snapshot)
     {
         return SunExpNetworkRuntime.IsLocalPlayer(snapshot.OwnerPlayerId)
             || string.Equals(snapshot.OwnerStatusId, PlayerApi.LocalPlayerStatusId(), StringComparison.Ordinal);
@@ -185,27 +253,27 @@ public static class WunaEmberSyncService
         }
     }
 
-    private static string OwnerKey(WunaEmberSnapshot snapshot)
+    private static string OwnerKey(EmberAdventureStateSnapshot snapshot)
     {
         return !string.IsNullOrWhiteSpace(snapshot.OwnerPlayerId)
             ? snapshot.OwnerPlayerId
             : snapshot.OwnerStatusId;
     }
 
-    private static int ReadOwnerValue(string ownerId)
+    private static int ReadOwnerValue(string key, string ownerId)
     {
-        if (string.IsNullOrWhiteSpace(ownerId))
+        if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(ownerId))
         {
             return -1;
         }
 
-        var value = PlayerApi.GetGameVar(OwnerGameVarKey(ownerId), "");
+        var value = PlayerApi.GetGameVar(OwnerGameVarKey(key, ownerId), "");
         return string.IsNullOrWhiteSpace(value) ? -1 : DictionaryUtil.ParseInt(value, -1);
     }
 
-    private static string OwnerGameVarKey(string ownerId)
+    private static string OwnerGameVarKey(string key, string ownerId)
     {
-        return SunExpIds.WunaPersistentEmber + "_Owner_" + Sanitize(ownerId);
+        return key + "_Owner_" + Sanitize(ownerId);
     }
 
     private static int Clamp(int level)

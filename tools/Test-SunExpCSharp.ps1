@@ -1191,7 +1191,11 @@ function Invoke-SourceAssertions {
     $bossScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\BossScripts.cs"))
     $entry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Entry.cs"))
     $wunaScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\WunaScripts.cs"))
-    $wunaEmberSyncService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\WunaEmberSyncService.cs"))
+    $emberAdventureStateService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EmberAdventureStateService.cs"))
+    $emberAdventureStateRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\EmberAdventureStateRuntime.cs"))
+    $rpcEmberAdventureStateCommit = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Network\RpcEmberAdventureStateCommit.cs"))
+    $enemyApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\EnemyApi.cs"))
+    $endlessAbyssEnemyInjectionService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssEnemyInjectionService.cs"))
     $runtimeHooks = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\RuntimeHooks.cs"))
     $polymorphRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\PolymorphRuntime.cs"))
     $projectionRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\ProjectionRuntime.cs"))
@@ -1256,6 +1260,7 @@ function Invoke-SourceAssertions {
     $tongtianTowerOriginService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\TongtianTowerOriginService.cs"))
     $tongtianTowerCardAffixRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\TongtianTowerCardAffixRuntime.cs"))
     $tongtianTowerCardAffixService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\TongtianTowerCardAffixService.cs"))
+    $tongtianTowerCombatRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\TongtianTowerCombatRuntime.cs"))
     $endlessAbyssConfig = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssConfig.cs"))
     $endlessAbyssConfigJson = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\endless_abyss.config.json"))
     $endlessAbyssRewardPoolService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssRewardPoolService.cs"))
@@ -1356,7 +1361,9 @@ function Invoke-SourceAssertions {
     Assert-True $executorApi.Contains('DictionaryUtil.Set(executor?.Vars, "CanSelf", canSelf ? "True" : "False");') "SetBaseScript must explicitly write CanSelf for self-targetable attack cards."
     Assert-True $executorApi.Contains("public static IStatusManager? PrimaryTargetIncludingSelf") "ExecutorApi.PrimaryTargetIncludingSelf is missing."
     Assert-True $playerApi.Contains("public static string ScopedGameVarKey") "PlayerApi.ScopedGameVarKey is missing."
-    Assert-True $wunaScripts.Contains("WunaEmberSyncService.GetStored(self?.Self)") "Wuna persistent ember must read through the multiplayer sync service."
+    Assert-True $runtimeHooks.Contains("EmberAdventureStateRuntime.Initialize(modConfig)") "Persistent Ember restore must be registered as a generic runtime hook, not Wuna-only career setup."
+    Assert-True $emberAdventureStateRuntime.Contains("EmberAdventureStateService.RestoreForLocalPlayer") "Persistent Ember must restore through the generic adventure-state service."
+    Assert-True (-not $wunaScripts.Contains("RestorePersistentEmber")) "Wuna career setup must not own generic Persistent Ember restoration."
     Assert-True $auraCgRuntime.Contains("TryPrepareLocalPlaybackBatch") "Shared Skill CG must generate playback ids only after confirming the local owner."
     Assert-True $auraCgRuntime.Contains("RpcSkillCgPlaybackRequest") "Shared Skill CG clients must submit playback requests to the host instead of broadcasting directly."
     Assert-True $auraCgRuntime.Contains("RpcSkillCgPlayback") "Shared Skill CG host must relay authorized playback to all clients."
@@ -1374,10 +1381,16 @@ function Invoke-SourceAssertions {
     Assert-True $specialTagRuntime.Contains('RuntimeCardAttachmentService.ClearTemporaryAttachments("Fight_Start.Init")') "Fight start must clear temporary runtime card attachments before the next battle can reuse cards."
     Assert-True $cardGrantRecipes.Contains("RuntimeCardAttachmentService.WunaCoronationTokenAttachment()") "Wuna coronation token grants must use the reusable temporary attachment service."
     Assert-True $cardGrantRecipes.Contains('.WithRuntimeTags("Burnout", "Froze")') "Wuna coronation token grants must carry Burnout and Froze runtime tags."
-    Assert-True $wunaScripts.Contains("WunaEmberSyncService.CommitLocal(self?.Self") "Wuna persistent ember writes must submit through the multiplayer sync service."
-    Assert-True $buffApi.Contains("WunaEmberSyncService.CommitLocal(status") "BuffApi.SavePersistentEmber must submit through the multiplayer sync service."
-    Assert-True $wunaEmberSyncService.Contains("PlayerApi.GetScopedGameVar(") "Wuna ember sync must keep the old scoped GameVar as a compatibility fallback."
-    Assert-True $wunaEmberSyncService.Contains("OwnerGameVarKey") "Wuna ember sync must persist by stable player/status owner key."
+    Assert-True $wunaScripts.Contains("EmberAdventureStateService.CommitLocal(self?.Self") "Wuna scripts must write Persistent Ember through the generic adventure-state service."
+    Assert-True $buffApi.Contains("EmberAdventureStateService.CommitLocal(status") "BuffApi.SavePersistentEmber must submit through the generic adventure-state service."
+    Assert-True $emberAdventureStateService.Contains("PlayerApi.GetScopedGameVar(") "Persistent Ember sync must keep scoped GameVar compatibility fallback."
+    Assert-True $emberAdventureStateService.Contains("SunExpIds.WunaPersistentEmber") "Persistent Ember sync must read the old Wuna key as a legacy fallback."
+    Assert-True $emberAdventureStateService.Contains("OwnerGameVarKey") "Persistent Ember sync must persist by stable player/status owner key."
+    Assert-True $rpcEmberAdventureStateCommit.Contains("ISunExpServerBoundRpcCommand") "Persistent Ember RPC must bind server sender authority."
+    Assert-True $rpcEmberAdventureStateCommit.Contains("owner mismatch") "Persistent Ember RPC must reject payload owner ids that do not match the bound sender."
+    $savePersistentEmberBlock = [regex]::Match($buffApi, "public\s+static\s+int\s+SavePersistentEmber[\s\S]*?private\s+static\s+IEnumerable")
+    Assert-True ($savePersistentEmberBlock.Success -and -not $savePersistentEmberBlock.Value.Contains("IsWunaActive()")) "BuffApi.SavePersistentEmber must not be gated by Wuna activation."
+    Assert-True ([regex]::IsMatch($buffApi, "SavePersistentEmber\(executor,\s*status\);\s*if\s*\(!IsWunaActive\(\)\)")) "Ember consumption must persist generic state before applying Wuna-only passive rewards."
     Assert-True $buffApi.Contains("return string.IsNullOrWhiteSpace(careerId)") "Wuna active fallback must not override an explicit non-Wuna career."
     Assert-True (-not [regex]::IsMatch($buffApi + $wunaScripts, "SetGameVar\s*\(\s*SunExpIds\.WunaPersistentEmber")) "Persistent Ember must not write to the legacy unscoped GameVar."
     Assert-True $cardScripts.Contains('["draw_flame"] = InitDrawFlame') "draw_flame must be registered for initialization."
@@ -2256,6 +2269,14 @@ function Invoke-SourceAssertions {
     Assert-True $tongtianTowerCardAffixService.Contains("RunWithStarterDeckSuppressed") "Tongtian Tower starter deck writes must suppress automatic Burnout attachment."
     Assert-True $tongtianTowerCardAffixService.Contains("role.cardList") "Tongtian Tower card affix service must normalize equipped deck cards."
     Assert-True $tongtianTowerCardAffixService.Contains("role.UnCardList") "Tongtian Tower card affix service must normalize reserve cards."
+    Assert-True $tongtianTowerCombatRuntime.Contains("EndlessAbyssEnemyInjectionService.TryInjectAfterFightInit") "Tongtian Tower combat runtime must delegate extra enemy injection to a SunExp-owned service."
+    Assert-True (-not $tongtianTowerCombatRuntime.Contains("CmdAddEnemy")) "Tongtian Tower combat runtime must not directly issue native enemy-add commands."
+    Assert-True $endlessAbyssEnemyInjectionService.Contains("EnemyApi.IsClientOnlyDynamicEnemyObserver()") "Endless Abyss extra enemy planning must be skipped on client-only observers."
+    Assert-True $endlessAbyssEnemyInjectionService.Contains("EnemyApi.AddDynamicEnemyAuthoritative") "Endless Abyss extra enemies must use the SunExp-owned EnemyApi wrapper."
+    Assert-True $enemyApi.Contains("PlayerManager.Instance") "EnemyApi must own the multiplayer authority check for dynamic enemy adds."
+    Assert-True $enemyApi.Contains("EnemyManager.Instance") "EnemyApi must resolve the native enemy manager before adding a dynamic enemy."
+    Assert-True $enemyApi.Contains("manager.AddEnemy(enemyId)") "EnemyApi must follow the game's native dynamic enemy-add entry point."
+    Assert-True (-not $enemyApi.Contains("CmdAddEnemy")) "EnemyApi must not call CmdAddEnemy directly."
     Assert-True $endlessAbyssConfig.Contains("RewardPools") "Endless Abyss config must expose independent reward pool definitions."
     Assert-True $endlessAbyssConfig.Contains("OtherDimensionCardPoolId") "Endless Abyss milestone rewards must address a configured reward pool instead of a hard-coded card pack."
     Assert-True $endlessAbyssConfigJson.Contains('"rewardPools"') "Endless Abyss shipped config must define reward pools."

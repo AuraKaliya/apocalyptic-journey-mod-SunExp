@@ -1,0 +1,117 @@
+using System;
+using System.Collections.Generic;
+using SunExp.Dll.GameApi;
+using SunExp.Dll.Infrastructure;
+using Witch;
+
+namespace SunExp.Dll.Mechanics;
+
+public static class EndlessAbyssEnemyInjectionService
+{
+    private const string ExtraEnemyAppliedKey = "SunExpEndlessAbyssExtraEnemiesApplied";
+
+    public static int TryInjectAfterFightInit(int floor, TongtianTowerNodeKind nodeKind, string source)
+    {
+        floor = Math.Max(1, floor);
+        if (!TongtianTowerRewardPlan.IsEndless(floor))
+        {
+            return 0;
+        }
+
+        if (EnemyApi.IsClientOnlyDynamicEnemyObserver())
+        {
+            SunExpLog.Debug("[EndlessAbyssEnemyInjection] client observer skipped injection; floor="
+                + floor
+                + "; kind="
+                + nodeKind
+                + "; source="
+                + source);
+            return 0;
+        }
+
+        var manager = FightManager.Instance;
+        if (manager == null)
+        {
+            return 0;
+        }
+
+        if (AlreadyInjected(manager, floor))
+        {
+            return 0;
+        }
+
+        var injected = 0;
+        foreach (var request in Plan(nodeKind))
+        {
+            if (EnemyApi.AddDynamicEnemyAuthoritative(request.EnemyId, source + ":" + request.Source))
+            {
+                injected++;
+            }
+        }
+
+        if (injected > 0)
+        {
+            MarkInjected(manager, floor);
+            SunExpLog.Info("[EndlessAbyssEnemyInjection] injected "
+                + injected
+                + " extra enemies; floor="
+                + floor
+                + "; kind="
+                + nodeKind
+                + "; source="
+                + source);
+        }
+
+        return injected;
+    }
+
+    private static IEnumerable<EnemyInjectionRequest> Plan(TongtianTowerNodeKind nodeKind)
+    {
+        if (nodeKind == TongtianTowerNodeKind.EndlessBoss)
+        {
+            yield return new EnemyInjectionRequest(TongtianTowerEnemyPool.PickSpecialBossEnemy(), "endless-boss-special");
+            yield return new EnemyInjectionRequest(TongtianTowerEnemyPool.PickNormalBossEnemy(), "endless-boss-normal");
+            yield break;
+        }
+
+        if (nodeKind == TongtianTowerNodeKind.Boss)
+        {
+            yield return new EnemyInjectionRequest(TongtianTowerEnemyPool.PickSpecialBossEnemy(), "endless-floor-boss");
+            yield break;
+        }
+
+        if (nodeKind == TongtianTowerNodeKind.Elite)
+        {
+            yield return new EnemyInjectionRequest(TongtianTowerEnemyPool.PickNormalBossEnemy(), "endless-elite");
+            yield break;
+        }
+
+        yield return new EnemyInjectionRequest(TongtianTowerEnemyPool.PickNormalBossEnemy(), "endless-normal");
+    }
+
+    private static bool AlreadyInjected(FightManager manager, int floor)
+    {
+        return manager.TempVarsMap != null
+            && manager.TempVarsMap.TryGetValue(ExtraEnemyAppliedKey, out var appliedFloor)
+            && appliedFloor == floor;
+    }
+
+    private static void MarkInjected(FightManager manager, int floor)
+    {
+        manager.TempVarsMap ??= new Dictionary<string, int>();
+        manager.TempVarsMap[ExtraEnemyAppliedKey] = floor;
+    }
+
+    private readonly struct EnemyInjectionRequest
+    {
+        public EnemyInjectionRequest(string? enemyId, string source)
+        {
+            EnemyId = enemyId ?? "";
+            Source = source ?? "";
+        }
+
+        public string EnemyId { get; }
+
+        public string Source { get; }
+    }
+}

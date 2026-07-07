@@ -1,12 +1,15 @@
 ---
 name: sunexp-shared-runtime-dev
-description: Project-local skill for editing or reviewing SunExp integration with Aura shared runtimes and cross-mod components, including AuraSharedCore, shared resources, AuraJourneyShared, AuraSkinShared, AuraAudioShared, BattleBgmArbiterShared, StarterDeckArbiterShared, AuraCgShared, AuraOnlineShared, AuraLogShared, UI safety runtimes, shared DLL packaging, shared release gates, owner ids, compatibility protocols, RPC sender authority, and multiplayer authority.
+description: Project-local skill for editing or reviewing SunExp integration with Aura shared runtimes and cross-mod components, including AuraSharedCore, shared resources, AuraJourneyShared, AuraSkinShared, AuraAudioShared, BattleBgmArbiterShared, StarterDeckArbiterShared, AuraCgShared, AuraOnlineShared, AuraLogShared, UI safety runtimes, shared DLL packaging, shared release gates, owner ids, initialization registration, tool-local persistent overrides, sync scenario modeling, timing and duplicate suppression, compatibility protocols, RPC sender authority, and multiplayer authority.
 ---
 
 # SunExp Shared Runtime Dev
 
 Use this skill when SunExp touches Aura.Shared components, shared resource
 manifests, packaged `Aura.Shared.dll`, or cross-mod runtime contracts.
+Use it when aligning initialization registration, tool-local configuration
+overrides, multi-mod sync, network timing, duplicate suppression, payload
+guards, or chunked transfers.
 Pair it with `sunexp-mod-dev`; pair it with `sunexp-solar-memory-dev` for
 Journey, starter deck, or Solar Memory role setup work.
 Pair it with `sunexp-visual-runtime-dev` for Skill CG, CG overlays, or shared
@@ -25,7 +28,11 @@ visual resources.
    - `StarterDeckArbiterShared`.
    - `UiRaycastSafetyShared` or `UiTransitionGuardShared`.
    - Shared DLL packaging or consumer project references.
+   - Initialization registration, registered defaults, or effective tool
+     configuration overrides.
    - Cross-mod RPC sender authority, payload guards, or chunked transports.
+   - Multiplayer timing, replay/idempotency, sequence/version/hash semantics,
+     duplicate suppression, or lifecycle cleanup.
 2. Inspect the current integration:
    - `SunExp-Dev/SunExp.Dll.csproj`
    - `SunExp-Dev/Entry.cs`
@@ -39,8 +46,11 @@ visual resources.
    content/tool ownership, shared presentation protocols, and multiplayer
    authority classification. Load
    `references/sunexp-shared-integration.md` for SunExp-specific integration
-   points. Load `references/shared-dll-and-release-gates.md` when shared DLL
-   packaging, release gates, or consumer compatibility are involved.
+   points. Load `references/sync-scenario-model.md` when the task involves
+   initialization registration, tool-local overrides, multi-mod sync, timing,
+   duplicate suppression, or payload/chunk transfer semantics. Load
+   `references/shared-dll-and-release-gates.md` when shared DLL packaging,
+   release gates, or consumer compatibility are involved.
 4. Add or adjust shared release checks when a new cross-mod boundary must stay
    stable.
 
@@ -57,13 +67,23 @@ visual resources.
   and delegate; domain arbiters validate and resolve.
 - Keep the shared runtime DLL compatible with all consumers listed in shared
   release checks, not only SunExp.
+- Initialization registration is not content-mod-exclusive. SunExp and
+  AuraToolsExp may both register extension declarations they own; identity must
+  still be `ownerModId` plus stable domain id.
 - Preserve the content/tool split: content mods own, install, and register
   resources plus manifest semantics; tool mods only read shared registries,
-  parse them by protocol, and manage local overrides.
+  parse them by protocol, register tool-owned extensions, and manage local
+  overrides.
+- Keep registered defaults separate from tool-local effective configuration.
+  AuraToolsExp local persistence may override or force tool behavior, but must
+  not rewrite or re-own a foreign mod's registration source.
 - Put cross-mod presentation protocols, such as Skill CG playback, in the
   shared domain component. Content mods declare resources and trigger requests;
   tool mods configure or override; neither owns private multiplayer relay or
   de-duplication for the shared feature.
+- Classify every synchronized shared event as `command`, `snapshot`,
+  `presentation-event`, or `bulk-transfer` before choosing fields, authority,
+  timing, and duplicate suppression.
 - Do not authorize cross-mod server-bound RPC from payload-provided identity.
   Bind sender context at the server receive boundary and validate it centrally.
 - Keep all packaged `Aura.Shared.dll` copies hash-identical after shared runtime
