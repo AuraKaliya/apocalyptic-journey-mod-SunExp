@@ -14,6 +14,11 @@ public static class TongtianTowerPressureService
 
     public static bool DestroyRandomEquippedRelic(string source)
     {
+        return DestroyRandomEquippedRelic(source, "");
+    }
+
+    public static bool DestroyRandomEquippedRelic(string source, string seed)
+    {
         try
         {
             var role = RoleTable.Instance;
@@ -22,7 +27,7 @@ public static class TongtianTowerPressureService
                 return false;
             }
 
-            var index = PickIndex(role.relicList.Count);
+            var index = PickIndex(role.relicList.Count, seed);
             var relic = role.relicList[index];
             role.relicList.RemoveAt(index);
             GameSaveManager.UpdateRoles(role);
@@ -41,6 +46,11 @@ public static class TongtianTowerPressureService
 
     public static int AddAnnihilationToRandomDeckCards(int count, string source)
     {
+        return AddAnnihilationToRandomDeckCards(count, source, "");
+    }
+
+    public static int AddAnnihilationToRandomDeckCards(int count, string source, string seed)
+    {
         try
         {
             var role = RoleTable.Instance;
@@ -55,7 +65,7 @@ public static class TongtianTowerPressureService
             var changed = 0;
             while (changed < count && candidates.Count > 0)
             {
-                var index = PickIndex(candidates.Count);
+                var index = PickIndex(candidates.Count, seed + ":" + changed);
                 var card = candidates[index];
                 candidates.RemoveAt(index);
                 if (CardMutationService.AddNativeTags(card, AnnihilationTag))
@@ -97,11 +107,16 @@ public static class TongtianTowerPressureService
             || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.data, "Tag"), tag);
     }
 
-    private static int PickIndex(int count)
+    private static int PickIndex(int count, string seed = "")
     {
         if (count <= 1)
         {
             return 0;
+        }
+
+        if (!string.IsNullOrWhiteSpace(seed))
+        {
+            return StableHash(seed) % count;
         }
 
         try
@@ -112,6 +127,20 @@ public static class TongtianTowerPressureService
         catch
         {
             return Math.Abs(Environment.TickCount) % count;
+        }
+    }
+
+    private static int StableHash(string value)
+    {
+        unchecked
+        {
+            var hash = 23;
+            foreach (var ch in value ?? "")
+            {
+                hash = hash * 31 + ch;
+            }
+
+            return Math.Abs(hash == int.MinValue ? int.MaxValue : hash);
         }
     }
 }

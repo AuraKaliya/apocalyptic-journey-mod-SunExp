@@ -33,6 +33,7 @@ public static class WunaScripts
                 RestorePersistentEmber(self);
                 ExecutorApi.SetVar(self, "SunExpWunaRadianceDone", "0");
                 ExecutorApi.SetVar(self, "SunExpWunaPrevEnemyBurn", EnemyBurnTotal(self));
+                WunaRoundRadianceState.ResetFight(self.Self);
                 AttachOrbitFire(self, "FightStart");
             }), "wuna_career");
             var startRoundRegistered = ExecutorApi.TryAddEvent(self, "StartRound", new Action(() =>
@@ -216,6 +217,7 @@ public static class WunaScripts
         }
 
         AttachOrbitFire(self, "StartRound");
+        WunaRoundRadianceState.AdvanceLocalRound(self.Self);
         if (!PolymorphCooldownService.IsActive(self.Self))
         {
             TickSkillTimes();
@@ -359,7 +361,8 @@ public static class WunaScripts
         var current = EnemyBurnTotal(self);
         var previous = DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "SunExpWunaPrevEnemyBurn", current.ToString()));
         ExecutorApi.SetVar(self, "SunExpWunaPrevEnemyBurn", current);
-        if (current <= previous || ExecutorApi.GetVar(self, "SunExpWunaRadianceDone", "0") == "1")
+        if (current <= previous
+            || !WunaRoundRadianceState.TryMarkTriggered(self.Self, "WunaScripts.TryGainRadianceFromEnemyBurn"))
         {
             return false;
         }
@@ -372,14 +375,13 @@ public static class WunaScripts
 
     private static int GetPersistentEmber(ScriptExecutor self)
     {
-        return Math.Max(0, Math.Min(99, DictionaryUtil.ParseInt(
-            PlayerApi.GetScopedGameVar(SunExpIds.WunaPersistentEmber, self?.Self, "0", migrateLegacyWhenSolo: true))));
+        return WunaEmberSyncService.GetStored(self?.Self);
     }
 
     private static int SetPersistentEmber(ScriptExecutor self, int value)
     {
         var level = Math.Max(0, Math.Min(99, value));
-        PlayerApi.SetScopedGameVar(SunExpIds.WunaPersistentEmber, self?.Self, level.ToString());
+        WunaEmberSyncService.CommitLocal(self?.Self, level, "WunaScripts.SetPersistentEmber");
         return level;
     }
 

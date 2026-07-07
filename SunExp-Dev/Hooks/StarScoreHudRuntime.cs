@@ -33,7 +33,7 @@ public static class StarScoreHudRuntime
 
     private static void OnFightBoundary(ModHookContext context)
     {
-        Close();
+        Close(context.Target?.GetType().Name ?? "fight-boundary");
     }
 
     private static void OnStarScoreChanged(StarScoreDisplaySnapshot snapshot)
@@ -47,7 +47,7 @@ public static class StarScoreHudRuntime
 
             if (!snapshot.HasNotes)
             {
-                Close();
+                Close("StarScoreHudRuntime.EmptySnapshot");
                 return;
             }
 
@@ -93,17 +93,28 @@ public static class StarScoreHudRuntime
         }
 
         activeView = StarScoreHudView.Create(parent);
+        SunExpTransientUiRegistry.Register("StarScoreHud", Close);
         return activeView;
     }
 
-    private static void Close()
+    public static void Close(string source)
     {
         if (activeView == null)
         {
+            SunExpTransientUiRegistry.Unregister("StarScoreHud");
             return;
         }
 
-        activeView.Close("StarScoreHudRuntime.Close");
+        if (string.IsNullOrWhiteSpace(source) || string.Equals(source, "StarScoreHudRuntime.Close", StringComparison.Ordinal))
+        {
+            activeView.Close("StarScoreHudRuntime.Close");
+        }
+        else
+        {
+            activeView.Close(source);
+        }
+
         activeView = null;
+        SunExpTransientUiRegistry.Unregister("StarScoreHud");
     }
 }

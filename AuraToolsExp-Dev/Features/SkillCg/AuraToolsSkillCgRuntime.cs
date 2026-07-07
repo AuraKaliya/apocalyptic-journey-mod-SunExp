@@ -136,6 +136,11 @@ public static class AuraToolsSkillCgRuntime
                 return;
             }
 
+            if (!ShouldEmitLocalRequest(trigger))
+            {
+                return;
+            }
+
             SkillCgArbiterRuntime.Trigger(AuraToolsConfigService.SkillCg, AuraToolsIds.ModId, trigger);
         });
     }
@@ -164,16 +169,52 @@ public static class AuraToolsSkillCgRuntime
         var ownerInstanceId = owner?.InstanceId ?? "";
         var ownerRoleId = ReadStatusRoleId(owner);
         AuraToolsSkillCgProvider.RememberOwnerRole(ownerInstanceId, ownerRoleId);
+        var sequence = ++actionSequence;
 
         return new SkillCgTriggerContext
         {
-            ActionSequence = ++actionSequence,
+            ActionSequence = sequence,
+            EventToken = BuildEventToken(ownerInstanceId, cardId, sequence),
             Action = action,
             CardId = cardId,
             OwnerInstanceId = ownerInstanceId,
             OwnerRoleId = ownerRoleId,
             CreatedAt = Time.unscaledTime
         };
+    }
+
+    private static bool ShouldEmitLocalRequest(SkillCgTriggerContext trigger)
+    {
+        if (PlayerManager.Instance == null)
+        {
+            return true;
+        }
+
+        var localStatusId = FightPlayer.Instance?.Status?.InstanceId ?? "";
+        if (string.IsNullOrWhiteSpace(trigger.OwnerInstanceId)
+            || string.IsNullOrWhiteSpace(localStatusId)
+            || string.Equals(trigger.OwnerInstanceId, localStatusId, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        LogDiagnostic("remote-owner:" + trigger.OwnerInstanceId + ":" + trigger.CardId,
+            "[SkillCG] local request skipped for remote owner: owner="
+            + trigger.OwnerInstanceId
+            + ", local="
+            + localStatusId
+            + ", card="
+            + trigger.CardId);
+        return false;
+    }
+
+    private static string BuildEventToken(string ownerInstanceId, string cardId, long sequence)
+    {
+        return (string.IsNullOrWhiteSpace(ownerInstanceId) ? "local" : ownerInstanceId.Trim())
+               + ":"
+               + (string.IsNullOrWhiteSpace(cardId) ? "*" : cardId.Trim())
+               + ":"
+               + sequence.ToString();
     }
 
     private static string ReadData(IDataConfig dataConfig, string key)
@@ -467,6 +508,7 @@ public sealed class AuraToolsSkillCgProvider
                     SafeScale = presentation.SafeScale,
                     CreatedAt = Time.unscaledTime,
                     ActionSequence = trigger.ActionSequence,
+                    EventToken = trigger.EventToken,
                     DisableSync = !AuraToolsConfigService.SkillCg.SyncRemote
                 };
             }

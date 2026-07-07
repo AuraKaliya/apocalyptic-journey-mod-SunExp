@@ -37,7 +37,7 @@ public static class AuraToolsFeastRuntime
         {
             MaxQueueLength = 4,
             MaxRequestAgeSeconds = 8f,
-            DuplicateWindowSeconds = 0.05f
+            DuplicateWindowSeconds = 1.25f
         });
 
         driver = EnsureDriver();
@@ -164,7 +164,7 @@ public static class AuraToolsFeastRuntime
         {
             MaxQueueLength = 4,
             MaxRequestAgeSeconds = 8f,
-            DuplicateWindowSeconds = 0.05f
+            DuplicateWindowSeconds = 1.25f
         });
     }
 
@@ -432,9 +432,11 @@ public static class AuraToolsFeastRuntime
             var selected = AuraSharedIdentity.SelectRoleId(
                 ExtractRoleId(context.Arguments),
                 ExtractRoleId(context.Target),
+                ExtractRoleId(RoleTable.Instance),
                 ReadDataId(RoleTable.Instance?.Career),
                 ReadDataId(GameEntryUI.career),
                 cachedRoleId);
+            selected = PreferRegisteredFeastRole(selected, cachedRoleId);
             if (!string.IsNullOrWhiteSpace(selected))
             {
                 cachedRoleId = selected;
@@ -448,15 +450,41 @@ public static class AuraToolsFeastRuntime
     private static string ResolveCurrentRoleId()
     {
         var selected = AuraSharedIdentity.SelectRoleId(
+            ExtractRoleId(RoleTable.Instance),
             ReadDataId(RoleTable.Instance?.Career),
             ReadDataId(GameEntryUI.career),
             cachedRoleId);
+        selected = PreferRegisteredFeastRole(selected, cachedRoleId);
         if (!string.IsNullOrWhiteSpace(selected))
         {
             cachedRoleId = selected;
         }
 
         return selected;
+    }
+
+    private static string PreferRegisteredFeastRole(string selected, string fallback)
+    {
+        var normalized = RoleCatalog.NormalizeRoleId(selected);
+        if (!string.IsNullOrWhiteSpace(normalized) && BuildCandidateCgsForRole(normalized).Count > 0)
+        {
+            return normalized;
+        }
+
+        var fallbackRole = RoleCatalog.NormalizeRoleId(fallback);
+        if (!string.IsNullOrWhiteSpace(fallbackRole) && BuildCandidateCgsForRole(fallbackRole).Count > 0)
+        {
+            LogDiagnostic(
+                "role-fallback:" + normalized + ":" + fallbackRole,
+                "[Feast] preferred cached registered role over unresolved/default role: selected="
+                + normalized
+                + ", cached="
+                + fallbackRole
+                + ".");
+            return fallbackRole;
+        }
+
+        return normalized;
     }
 
     private static string ExtractRoleId(object? value)

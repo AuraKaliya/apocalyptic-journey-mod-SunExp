@@ -20,7 +20,7 @@ public sealed class ProjectionOtherObj : OtherObj
 
     public override string Type => "Projection";
 
-    public bool InitProjection(PolymorphRoleSpec role, string ownerStatusId, int slotIndex, CompanionStats stats)
+    public bool InitProjection(PolymorphRoleSpec role, string ownerStatusId, int slotIndex, CompanionStats stats, string statusId = "")
     {
         if (role == null)
         {
@@ -40,7 +40,7 @@ public sealed class ProjectionOtherObj : OtherObj
         CurHp = MaxHp;
         MaxActionCount = 1;
         ActionCount = MaxActionCount;
-        InstanceId = ProjectionStateStore.NextStatusId();
+        InstanceId = string.IsNullOrWhiteSpace(statusId) ? ProjectionStateStore.NextStatusId() : statusId.Trim();
         battleState = CompanionBattleStateStore.Create(InstanceId, role.Id, OwnerStatusId, slotIndex, stats);
         gameObject.name = data.Localize("Name") + InstanceId;
         var status = transform.gameObject.AddComponent<StatusManager>().Init(this) as StatusManager;

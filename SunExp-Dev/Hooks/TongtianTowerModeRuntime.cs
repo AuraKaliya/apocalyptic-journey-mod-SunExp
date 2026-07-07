@@ -4,6 +4,7 @@ using Data.Save;
 using SunExp.Dll.Hooks.Ui;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
+using SunExp.Dll.Network;
 using Witch;
 using Witch.Core;
 using Witch.Mod;
@@ -23,7 +24,6 @@ public static class TongtianTowerModeRuntime
         RegisterAfter(modConfig, "MapSelectUI.ShowMap", ReapplyTowerFixedSlotLocks);
         RegisterAfter(modConfig, "MapSelectUI.ShowMap", ScheduleAbyssMapPanels);
         RegisterAfter(modConfig, "MapSelectUI.DataUpdate", ApplyTowerLayerTitle);
-        RegisterAfter(modConfig, "MapSelectUI.DataUpdate", ScheduleAbyssMapPanels);
         RegisterBefore(modConfig, "NormalMapManager.ReadyToChangeMap", AdvanceTowerFloorBeforeMapChange);
         RegisterAfter(modConfig, "NormalMapManager.GeneratrMap", RepairTowerMapAfterNativeGeneration);
         RegisterBefore(modConfig, "MapManager.UserCode_CmdSelectMap__String[]__String[]__NetworkConnectionToClient", RepairTowerMapSelection);
@@ -34,6 +34,7 @@ public static class TongtianTowerModeRuntime
         RegisterBefore(modConfig, "MapManager.RpcUpdateMap", RepairTowerMapSelection);
         RegisterBefore(modConfig, "MapManager.RpcNextMap", EnsureTowerCurrentNodeBeforeNextMap);
         RegisterAfter(modConfig, "MapManager.RpcNextMap", SyncTowerClientLastNodeAfterNextMap);
+        RegisterAfter(modConfig, "Fight_Start.Init", context => EndlessAbyssMilestonePromptService.Reset("Fight_Start.Init"));
     }
 
     public static bool IsTongtianTowerRun()
@@ -194,6 +195,7 @@ public static class TongtianTowerModeRuntime
             TongtianTowerMapBuilder.EnsureFloorMapState(manager, nextFloor, "NormalMapManager.ReadyToChangeMap", forceRebuild: true);
             TongtianTowerRunStateStore.MarkPhase(TongtianTowerRunPhase.MapPlanning, "NormalMapManager.ReadyToChangeMap");
             SunExpLog.Info("[TongtianTowerMode] advanced to floor " + nextFloor + ".");
+            TongtianTowerNetworkSync.BroadcastSnapshot("NormalMapManager.ReadyToChangeMap");
         }
         catch (Exception ex)
         {
@@ -206,9 +208,14 @@ public static class TongtianTowerModeRuntime
         try
         {
             if (!IsTongtianTowerRun()
-                || IsClientOnlyPlayer()
                 || GameSaveManager.GetValue<string>(SunExpIds.TongtianTowerStarterDeckAppliedKey) != "1")
             {
+                return;
+            }
+
+            if (IsClientOnlyPlayer())
+            {
+                TongtianTowerNetworkSync.RequestSnapshot(source + ":client-map-panels");
                 return;
             }
 
@@ -226,14 +233,16 @@ public static class TongtianTowerModeRuntime
                 EndlessAbyssShockService.TryEnqueueStealthFloorShock(floor, source);
             }
 
+            TongtianTowerNetworkSync.BroadcastSnapshot(source + ":abyss-panels");
+
             if (EndlessAbyssShockPanel.TryOpenPending(
-                    () => EndlessAbyssMilestoneRewardPanel.TryOpenForCurrentFloor(source + ":after-shock"),
+                    () => EndlessAbyssMilestonePromptService.TryOpen(source + ":after-shock"),
                     source))
             {
                 return;
             }
 
-            EndlessAbyssMilestoneRewardPanel.TryOpenForCurrentFloor(source);
+            EndlessAbyssMilestonePromptService.TryOpen(source);
         }
         catch (Exception ex)
         {
@@ -339,6 +348,8 @@ public static class TongtianTowerModeRuntime
                 GameSaveManager.UpdateNode(node);
                 SunExpLog.Debug("[TongtianTowerMapSync] synced client save node after RpcNextMap.");
             }
+
+            TongtianTowerNetworkSync.RequestSnapshot("TongtianTower.MapManager.RpcNextMap:after");
         }
         catch (Exception ex)
         {

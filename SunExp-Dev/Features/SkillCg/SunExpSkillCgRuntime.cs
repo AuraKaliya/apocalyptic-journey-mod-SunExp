@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using AuraCg.Shared;
 using AuraShared.Core;
+using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using UnityEngine;
 using Witch;
@@ -20,7 +21,10 @@ public static class SunExpSkillCgRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
-        SkillCgArbiterRuntime.Initialize(modConfig, SunExpIds.ModId);
+        SkillCgArbiterRuntime.Initialize(modConfig, SunExpIds.ModId, new SkillCgArbiterOptions
+        {
+            DuplicateWindowSeconds = 1.25f
+        });
         RegisterBefore(modConfig, "FightUI.CallActionAnimation", BeforeCallActionAnimation);
         RegisterAfter(modConfig, "Fight_Start.Init", OnFightStart);
         RegisterAfter(modConfig, "FightInit.Init", OnFightStart);
@@ -39,19 +43,25 @@ public static class SunExpSkillCgRuntime
             var trigger = BuildTriggerContext(context.Arguments != null && context.Arguments.Length > 0
                 ? context.Arguments[0] as IScriptExecutor
                 : null);
-            if (trigger == null)
+            if (trigger == null || !ShouldEmitLocalRequest(trigger))
             {
                 return;
             }
 
+            PrepareTriggerPlayback(trigger);
             foreach (var request in BuildRequests(trigger))
             {
-                SkillCgArbiterRuntime.RequestCg(SunExpIds.ModId, request);
+                SkillCgArbiterRuntime.RequestCg(SunExpIds.ModId, request, syncRemote: true);
             }
 
-            foreach (var request in SkillCgArbiterRuntime.BuildRegisteredCardUseRequests(SunExpIds.ModId, trigger, SunExpIds.ModId))
+            foreach (var request in SkillCgArbiterRuntime.BuildRegisteredCardUseRequests(
+                         SunExpIds.ModId,
+                         trigger,
+                         SunExpIds.ModId,
+                         disableSync: false))
             {
-                SkillCgArbiterRuntime.RequestCg(SunExpIds.ModId, request);
+                PrepareRequestForPlayback(request, trigger);
+                SkillCgArbiterRuntime.RequestCg(SunExpIds.ModId, request, syncRemote: true);
             }
         }
         catch (Exception ex)
@@ -82,13 +92,28 @@ public static class SunExpSkillCgRuntime
         var owner = scriptExecutor?.Self as StatusManager;
         return new SkillCgTriggerContext
         {
-            ActionSequence = ++actionSequence,
             Action = ReadData(dataConfig, "Action"),
             CardId = cardId,
             OwnerInstanceId = owner?.InstanceId ?? "",
             OwnerRoleId = ReadStatusRoleId(owner),
             CreatedAt = Time.unscaledTime
         };
+    }
+
+    private static void PrepareTriggerPlayback(SkillCgTriggerContext trigger)
+    {
+        var sequence = ++actionSequence;
+        trigger.ActionSequence = sequence;
+        trigger.EventToken = BuildEventToken(trigger.OwnerInstanceId, trigger.CardId, sequence);
+    }
+
+    private static string BuildEventToken(string ownerInstanceId, string cardId, long sequence)
+    {
+        return (string.IsNullOrWhiteSpace(ownerInstanceId) ? "local" : ownerInstanceId.Trim())
+               + ":"
+               + (string.IsNullOrWhiteSpace(cardId) ? "*" : cardId.Trim())
+               + ":"
+               + sequence.ToString();
     }
 
     private static IEnumerable<SkillCgRequest> BuildRequests(SkillCgTriggerContext trigger)
@@ -132,13 +157,61 @@ public static class SunExpSkillCgRuntime
         }
     }
 
+    private static bool ShouldEmitLocalRequest(SkillCgTriggerContext trigger)
+    {
+        var multiplayer = IsMultiplayerSession();
+        if (multiplayer && string.IsNullOrWhiteSpace(trigger.OwnerInstanceId))
+        {
+            LogDiagnostic("missing-owner:" + trigger.CardId,
+                "[SkillCG] local request skipped: owner instance id is empty in multiplayer. card="
+                + trigger.CardId);
+            return false;
+        }
+
+        if (PlayerManager.Instance == null)
+        {
+            return true;
+        }
+
+        var localStatusId = PlayerApi.LocalPlayerStatusId();
+        if (string.IsNullOrWhiteSpace(localStatusId))
+        {
+            if (!multiplayer)
+            {
+                return true;
+            }
+
+            LogDiagnostic("missing-local-status:" + trigger.OwnerInstanceId + ":" + trigger.CardId,
+                "[SkillCG] local request skipped: local status id is empty. owner="
+                + trigger.OwnerInstanceId
+                + ", card="
+                + trigger.CardId);
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(trigger.OwnerInstanceId)
+            || string.Equals(trigger.OwnerInstanceId, localStatusId, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        LogDiagnostic("remote-owner:" + trigger.OwnerInstanceId + ":" + trigger.CardId,
+            "[SkillCG] local request skipped for remote owner: owner="
+            + trigger.OwnerInstanceId
+            + ", local="
+            + localStatusId
+            + ", card="
+            + trigger.CardId);
+        return false;
+    }
+
     private static SkillCgRequest BuildRequest(
         AuraCgRegistryEntry entry,
         string imageResource,
         string imagePath,
         SkillCgTriggerContext trigger)
     {
-        return new SkillCgRequest
+        return PrepareRequestForPlayback(new SkillCgRequest
         {
             ProviderId = SunExpIds.ModId + ".SkillCG." + entry.CgId,
             OwnerModId = SunExpIds.ModId,
@@ -169,9 +242,18 @@ public static class SunExpSkillCgRuntime
             FocusX = entry.DefaultPresentation.FocusX,
             FocusY = entry.DefaultPresentation.FocusY,
             SafeScale = entry.DefaultPresentation.SafeScale,
-            CreatedAt = Time.unscaledTime,
-            ActionSequence = trigger.ActionSequence
-        };
+            CreatedAt = Time.unscaledTime
+        }, trigger);
+    }
+
+    private static SkillCgRequest PrepareRequestForPlayback(SkillCgRequest request, SkillCgTriggerContext trigger)
+    {
+        request.ActionSequence = trigger.ActionSequence;
+        request.EventToken = trigger.EventToken;
+        request.OwnerInstanceId = trigger.OwnerInstanceId;
+        request.CardId = string.IsNullOrWhiteSpace(request.CardId) ? trigger.CardId : request.CardId;
+        request.DisableSync = false;
+        return request;
     }
 
     private static string EntrySkipReason(AuraCgRegistryEntry entry, SkillCgTriggerContext trigger)
@@ -245,7 +327,7 @@ public static class SunExpSkillCgRuntime
     private static bool IsSupportedMediaType(string type)
     {
         return string.Equals(type, SkillCgMediaTypes.Image, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(type, SkillCgMediaTypes.Sequence, StringComparison.OrdinalIgnoreCase);
+               || string.Equals(type, SkillCgMediaTypes.Sequence, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string ResolveImageResource(AuraCgRegistryEntry entry)
@@ -260,7 +342,7 @@ public static class SunExpSkillCgRuntime
         if (string.Equals(mediaType, SkillCgMediaTypes.Sequence, StringComparison.OrdinalIgnoreCase))
         {
             return Directory.Exists(path)
-                || File.Exists(path);
+                   || File.Exists(path);
         }
 
         return File.Exists(path);
@@ -329,6 +411,24 @@ public static class SunExpSkillCgRuntime
         return (value ?? "").Trim();
     }
 
+    private static bool IsMultiplayerSession()
+    {
+        var manager = PlayerManager.Instance;
+        if (manager != null && (manager.isClient || manager.isServer))
+        {
+            return true;
+        }
+
+        try
+        {
+            return (GameServer.Instance?.LobbyInfo?.AddedPlayers?.Count ?? 0) > 1;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private static void LogDiagnostic(string key, string message)
     {
         if (DiagnosticKeys.Add(key))
@@ -359,34 +459,6 @@ public static class SunExpSkillCgRuntime
     private static void OnFightEnding(ModHookContext context)
     {
         SkillCgArbiterRuntime.Clear(SunExpIds.ModId, "fight ending");
-    }
-
-    private static IEnumerable<SkillCgRequest> BuildWarmupRequests()
-    {
-        foreach (var entry in AuraCgRegistryRuntime.GetRegisteredEntries(SunExpIds.ModId))
-        {
-            if (!entry.Enabled
-                || !string.Equals(entry.Kind, "skill", StringComparison.OrdinalIgnoreCase)
-                || !IsSupportedMediaType(entry.Media.Type)
-                || !AuraCgActivationRuntime.CanConsumerPlay(entry, SunExpIds.ModId))
-            {
-                continue;
-            }
-
-            var imageResource = ResolveImageResource(entry);
-            var imagePath = SkillCgArbiterRuntime.ResolveImagePath(SunExpIds.ModId, imageResource);
-            if (!MediaExists(entry.Media.Type, imagePath)
-                && string.IsNullOrWhiteSpace(entry.Media.BundlePath))
-            {
-                continue;
-            }
-
-            yield return BuildRequest(entry, imageResource, imagePath, new SkillCgTriggerContext
-            {
-                CardId = entry.CardIds.FirstOrDefault() ?? "",
-                CreatedAt = Time.unscaledTime
-            });
-        }
     }
 
     private static void RegisterBefore(ModConfig modConfig, string target, Action<ModHookContext> action)

@@ -69,6 +69,7 @@ public static class EndlessAbyssMilestoneRewardPanel
         }
 
         activePanel = SunExpModalHost.CreateFullscreenRoot(PanelName, parent, new Color(0f, 0f, 0f, 0.68f));
+        SunExpTransientUiRegistry.Register("EndlessAbyssMilestone", Close);
         var window = CreateRect("Window", activePanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), ResolveWindowSize(parent));
         SunExpUiBuilder.ApplyPanelImage(window, SunExpUiSprites.Panel("[EndlessAbyssMilestone]"), WindowTint, true);
         var layout = window.AddComponent<VerticalLayoutGroup>();
@@ -374,13 +375,14 @@ public static class EndlessAbyssMilestoneRewardPanel
         layout.childForceExpandHeight = expandHeight;
     }
 
-    private static void Close(string source)
+    public static void Close(string source)
     {
         ClearContent();
         contentRoot = null;
         hintText = null;
         activeFloor = 0;
         SunExpModalHost.Close(ref activePanel, source, "[EndlessAbyssMilestone]");
+        SunExpTransientUiRegistry.Unregister("EndlessAbyssMilestone");
     }
 
     private static void SetHint(string value)

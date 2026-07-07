@@ -1191,6 +1191,7 @@ function Invoke-SourceAssertions {
     $bossScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\BossScripts.cs"))
     $entry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Entry.cs"))
     $wunaScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\WunaScripts.cs"))
+    $wunaEmberSyncService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\WunaEmberSyncService.cs"))
     $runtimeHooks = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\RuntimeHooks.cs"))
     $polymorphRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\PolymorphRuntime.cs"))
     $projectionRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\ProjectionRuntime.cs"))
@@ -1242,10 +1243,14 @@ function Invoke-SourceAssertions {
     $tongtianTowerSaveCacheRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\TongtianTowerSaveCacheRuntime.cs"))
     $tongtianTowerModeRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\TongtianTowerModeRuntime.cs"))
     $tongtianTowerMapViewPresenter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\TongtianTowerMapViewPresenter.cs"))
+    $tongtianTowerNetworkSync = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Network\TongtianTowerNetworkSync.cs"))
+    $sunExpNetworkRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Network\SunExpNetworkRuntime.cs"))
     $tongtianTowerFloorPlanner = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\TongtianTowerFloorPlanner.cs"))
     $tongtianTowerMapBuilder = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\TongtianTowerMapBuilder.cs"))
     $tongtianTowerMapProjectionService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\TongtianTowerMapProjectionService.cs"))
     $tongtianTowerSelectableNodeDeckPlanner = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\TongtianTowerSelectableNodeDeckPlanner.cs"))
+    $sunExpSkillCgRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Features\SkillCg\SunExpSkillCgRuntime.cs"))
+    $auraCgRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "AuraCgShared\AuraCgRuntime.cs"))
     $tongtianTowerStarterDeckCatalog = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\TongtianTowerStarterDeckCatalog.cs"))
     $tongtianTowerRichTextSanitizer = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\TongtianTowerRichTextSanitizer.cs"))
     $tongtianTowerOriginService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\TongtianTowerOriginService.cs"))
@@ -1255,6 +1260,7 @@ function Invoke-SourceAssertions {
     $endlessAbyssConfigJson = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\endless_abyss.config.json"))
     $endlessAbyssRewardPoolService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssRewardPoolService.cs"))
     $endlessAbyssMilestoneRewardService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssMilestoneRewardService.cs"))
+    $endlessAbyssRunLedger = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssRunLedger.cs"))
     $endlessAbyssMilestoneRewardPanel = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\EndlessAbyssMilestoneRewardPanel.cs"))
     $endlessAbyssShockPanel = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\EndlessAbyssShockPanel.cs"))
     $tongtianTowerRunStateStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\TongtianTowerRunStateStore.cs"))
@@ -1350,7 +1356,15 @@ function Invoke-SourceAssertions {
     Assert-True $executorApi.Contains('DictionaryUtil.Set(executor?.Vars, "CanSelf", canSelf ? "True" : "False");') "SetBaseScript must explicitly write CanSelf for self-targetable attack cards."
     Assert-True $executorApi.Contains("public static IStatusManager? PrimaryTargetIncludingSelf") "ExecutorApi.PrimaryTargetIncludingSelf is missing."
     Assert-True $playerApi.Contains("public static string ScopedGameVarKey") "PlayerApi.ScopedGameVarKey is missing."
-    Assert-True $wunaScripts.Contains("PlayerApi.GetScopedGameVar(SunExpIds.WunaPersistentEmber") "Wuna persistent ember must read from a player-scoped GameVar."
+    Assert-True $wunaScripts.Contains("WunaEmberSyncService.GetStored(self?.Self)") "Wuna persistent ember must read through the multiplayer sync service."
+    Assert-True $auraCgRuntime.Contains("TryPrepareLocalPlaybackBatch") "Shared Skill CG must generate playback ids only after confirming the local owner."
+    Assert-True $auraCgRuntime.Contains("RpcSkillCgPlaybackRequest") "Shared Skill CG clients must submit playback requests to the host instead of broadcasting directly."
+    Assert-True $auraCgRuntime.Contains("RpcSkillCgPlayback") "Shared Skill CG host must relay authorized playback to all clients."
+    Assert-True $auraCgRuntime.Contains("TryClaimPlayback") "Shared Skill CG must keep a global playback pool for duplicate suppression."
+    Assert-True $sunExpSkillCgRuntime.Contains("owner instance id is empty in multiplayer") "SunExp Skill CG must diagnose and skip empty owner ids in multiplayer."
+    Assert-True $sunExpSkillCgRuntime.Contains("BuildRegisteredCardUseRequests(") "SunExp Skill CG must still include registered card-use CG requests."
+    Assert-True $sunExpSkillCgRuntime.Contains("syncRemote: true") "SunExp Skill CG must request synchronized playback through the shared Skill CG runtime."
+    Assert-True (-not $sunExpSkillCgRuntime.Contains("RpcSkillCgPlaybackRequest")) "SunExp Skill CG must not own private playback RPCs."
     Assert-True $wunaScripts.Contains("SunExpCardTagService.RequestBurnoutAndWhiteRadianceForFriendlyHands(self") "White Sun Prayer must schedule friendly hand Burnout and White Radiance tagging."
     Assert-True $runtimeCardAttachmentService.Contains("WunaWhiteSunPrayerHandAttachment") "Runtime card attachment service must expose Wuna hand attachment recipe."
     Assert-True $runtimeCardAttachmentService.Contains("WunaCoronationTokenAttachment") "Runtime card attachment service must expose Wuna coronation token attachment recipe."
@@ -1360,8 +1374,10 @@ function Invoke-SourceAssertions {
     Assert-True $specialTagRuntime.Contains('RuntimeCardAttachmentService.ClearTemporaryAttachments("Fight_Start.Init")') "Fight start must clear temporary runtime card attachments before the next battle can reuse cards."
     Assert-True $cardGrantRecipes.Contains("RuntimeCardAttachmentService.WunaCoronationTokenAttachment()") "Wuna coronation token grants must use the reusable temporary attachment service."
     Assert-True $cardGrantRecipes.Contains('.WithRuntimeTags("Burnout", "Froze")') "Wuna coronation token grants must carry Burnout and Froze runtime tags."
-    Assert-True $wunaScripts.Contains("PlayerApi.SetScopedGameVar(SunExpIds.WunaPersistentEmber") "Wuna persistent ember must write to a player-scoped GameVar."
-    Assert-True $buffApi.Contains("PlayerApi.SetScopedGameVar(SunExpIds.WunaPersistentEmber, status") "BuffApi.SavePersistentEmber must write to a player-scoped GameVar."
+    Assert-True $wunaScripts.Contains("WunaEmberSyncService.CommitLocal(self?.Self") "Wuna persistent ember writes must submit through the multiplayer sync service."
+    Assert-True $buffApi.Contains("WunaEmberSyncService.CommitLocal(status") "BuffApi.SavePersistentEmber must submit through the multiplayer sync service."
+    Assert-True $wunaEmberSyncService.Contains("PlayerApi.GetScopedGameVar(") "Wuna ember sync must keep the old scoped GameVar as a compatibility fallback."
+    Assert-True $wunaEmberSyncService.Contains("OwnerGameVarKey") "Wuna ember sync must persist by stable player/status owner key."
     Assert-True $buffApi.Contains("return string.IsNullOrWhiteSpace(careerId)") "Wuna active fallback must not override an explicit non-Wuna career."
     Assert-True (-not [regex]::IsMatch($buffApi + $wunaScripts, "SetGameVar\s*\(\s*SunExpIds\.WunaPersistentEmber")) "Persistent Ember must not write to the legacy unscoped GameVar."
     Assert-True $cardScripts.Contains('["draw_flame"] = InitDrawFlame') "draw_flame must be registered for initialization."
@@ -2205,6 +2221,12 @@ function Invoke-SourceAssertions {
     Assert-True $tongtianTowerMapViewPresenter.Contains('"EventPrefab"') "Tongtian Tower map presenter must render building slots with a native EventPrefab."
     Assert-True (-not $tongtianTowerMapViewPresenter.Contains('"BuildPrefab"')) "Tongtian Tower map presenter must not request a non-native BuildPrefab."
     Assert-True $tongtianTowerModeRuntime.Contains("TongtianTowerMapViewPresenter.ApplySlots") "Tongtian Tower runtime must delegate visible slot repair to the map presenter."
+    Assert-True (-not $tongtianTowerModeRuntime.Contains('"MapSelectUI.DataUpdate", ScheduleAbyssMapPanels')) "Tongtian Tower must not request abyss panels from repeated MapSelectUI.DataUpdate ticks."
+    Assert-True $tongtianTowerNetworkSync.Contains("applyAllSlots: false") "Tongtian Tower snapshot UI refresh must be fixed-slot only."
+    Assert-True (-not $tongtianTowerNetworkSync.Contains("applyAllSlots: true")) "Tongtian Tower snapshots must not clear editable map slots during interaction."
+    Assert-True $tongtianTowerNetworkSync.Contains("SnapshotRequestThrottleSeconds") "Tongtian Tower client snapshot requests must be throttled."
+    Assert-True $tongtianTowerNetworkSync.Contains("SunExpNetworkRuntime.HasRemotePlayers()") "Tongtian Tower snapshots must only run for real multiplayer sessions."
+    Assert-True $sunExpNetworkRuntime.Contains("public static bool HasRemotePlayers()") "SunExp network runtime must expose an actual remote-player guard."
     Assert-True $tongtianTowerIntroBoardRuntime.Contains("AddTextFill(header.transform") "Tongtian Tower intro board must render a header subtitle."
     Assert-True $tongtianTowerIntroBoardRuntime.Contains("SetDeckButtonsInteractable(false)") "Tongtian Tower deck application must disable buttons while applying."
     Assert-True $tongtianTowerIntroBoardRuntime.Contains("SetDeckButtonsInteractable(true)") "Tongtian Tower deck application must restore buttons on retryable failure."
@@ -2245,6 +2267,10 @@ function Invoke-SourceAssertions {
     Assert-True $endlessAbyssRewardPoolService.Contains("ExcludeCardIds") "Endless Abyss reward pools must support explicit card exclusions."
     Assert-True $endlessAbyssMilestoneRewardService.Contains("EndlessAbyssRewardPoolService.CardIds") "Endless Abyss milestone other-dimension rewards must draw from the reward pool service."
     Assert-True $endlessAbyssMilestoneRewardService.Contains("PlayerApi.TryAddCardToDeck") "Endless Abyss milestone card rewards must verify deck grants before claiming."
+    Assert-True $endlessAbyssMilestoneRewardService.Contains("ResultKey") "Endless Abyss milestone rewards must record each player's selected result."
+    Assert-True $endlessAbyssMilestoneRewardService.Contains("TryPersistCurrentRole") "Endless Abyss milestone rewards must treat role persistence as best-effort after local reward application."
+    Assert-True (-not $endlessAbyssMilestoneRewardService.Contains("GameSaveManager.UpdateRoles(RoleTable.Instance)")) "Endless Abyss milestone reward settlement must not fail non-host clients through direct role persistence."
+    Assert-True $endlessAbyssRunLedger.Contains("ContainsPrefix") "Endless Abyss ledger must be able to detect player-scoped milestone result records."
     Assert-True $playerApi.Contains("public static bool TryAddCardToDeck") "PlayerApi must expose a verified out-of-combat deck grant helper."
     Assert-True $playerApi.Contains("OwnedCardSnapshot") "Verified deck grants must compare owned card snapshots."
     Assert-True $endlessAbyssMilestoneRewardPanel.Contains("EndlessAbyssFramedTextCard.Create") "Endless Abyss milestone options must render title/body inside a framed content inset."

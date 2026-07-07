@@ -170,21 +170,23 @@ public static class PlayerApi
         foreach (var candidate in candidates)
         {
             var before = OwnedCardSnapshot();
-            if (!TryInvokeStaticPlayerInfo("AddCard", out var error, candidate))
-            {
-                message = error;
-                continue;
-            }
-
+            var invoked = TryInvokeStaticPlayerInfo("AddCard", out var error, candidate);
             var after = OwnedCardSnapshot();
             if (after.Count > before.Count || after.Any(id => !before.Contains(id)))
             {
                 grantedCardId = candidate;
                 message = "";
+                if (!invoked)
+                {
+                    SunExpLog.Warn("PlayerInfo.AddCard changed deck but returned failure: " + error);
+                }
+
                 return true;
             }
 
-            message = "deck did not change after AddCard(" + candidate + ")";
+            message = invoked
+                ? "deck did not change after AddCard(" + candidate + ")"
+                : error;
         }
 
         SunExpLog.Warn("PlayerInfo.AddCard verification failed: " + message);

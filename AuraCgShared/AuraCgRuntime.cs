@@ -34,9 +34,10 @@ public static class SkillCgArbiterRuntime
     private const string MaskedInvertShaderName = "AuraCg/MaskedInvertFlash";
     private const string LumaKeyShaderName = "AuraCg/LumaKeyUI";
     private const string ScreenBwFlashShaderName = "AuraCg/ScreenBwFlash";
-    public const string CurrentBuildId = "aura-cg-shared-2026-06-30-v7";
-    public const int CurrentProtocolVersion = 5;
+    public const string CurrentBuildId = "aura-cg-shared-2026-07-07-v9";
+    public const int CurrentProtocolVersion = 7;
     public const int MinimumSupportedProtocolVersion = 1;
+    private const string DefaultNetworkOwner = "AuraCgShared";
     private static readonly HashSet<string> ReuseLogOwners = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> CompatibilityErrorsShown = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, string> DataDirectories = new(StringComparer.OrdinalIgnoreCase);
@@ -49,6 +50,7 @@ public static class SkillCgArbiterRuntime
         {
             AuraSharedRuntime.Initialize(modConfig, ownerModId);
             DataDirectories[ownerModId] = AuraSharedPaths.RootDirectory;
+            AuraCgRpcAuthorityRuntime.Initialize(modConfig);
         }
 
         var arbiter = EnsureArbiter(ownerModId);
@@ -69,13 +71,18 @@ public static class SkillCgArbiterRuntime
 
     public static void RequestCg(string ownerModId, SkillCgRequest request)
     {
+        RequestCg(ownerModId, request, syncRemote: false);
+    }
+
+    public static void RequestCg(string ownerModId, SkillCgRequest request, bool syncRemote)
+    {
         if (string.IsNullOrWhiteSpace(request.OwnerModId))
         {
             request.OwnerModId = ownerModId;
         }
 
         var arbiter = EnsureArbiter(ownerModId);
-        Invoke(arbiter, "RequestCg", request);
+        Invoke(arbiter, syncRemote ? "RequestCgAndSync" : "RequestCg", request);
     }
 
     public static void RegisterMaterial(string materialId, Material? material)
@@ -361,6 +368,7 @@ public static class SkillCgArbiterRuntime
             SafeScale = entry.DefaultPresentation.SafeScale,
             CreatedAt = Time.unscaledTime,
             ActionSequence = context.ActionSequence,
+            EventToken = context.EventToken,
             DisableSync = disableSync
         };
     }
@@ -527,6 +535,27 @@ public static class SkillCgArbiterRuntime
         Invoke(existing, "ClearQueue", reason);
     }
 
+    internal static void ApplyServerPlaybackRequest(SkillCgPlaybackSnapshot playback, AuraCgRpcSender sender)
+    {
+        var ownerModId = FirstOwnerModId(playback) ?? DefaultNetworkOwner;
+        var arbiter = EnsureArbiter(ownerModId);
+        Invoke(arbiter, "ApplyServerPlaybackRequest", new SkillCgServerPlaybackEnvelope(playback, sender));
+    }
+
+    internal static void ApplyNetworkPlayback(SkillCgPlaybackSnapshot playback, string source)
+    {
+        var ownerModId = FirstOwnerModId(playback) ?? DefaultNetworkOwner;
+        var arbiter = EnsureArbiter(ownerModId);
+        Invoke(arbiter, "ApplyNetworkPlayback", new SkillCgNetworkPlaybackEnvelope(playback, source));
+    }
+
+    private static string? FirstOwnerModId(SkillCgPlaybackSnapshot? playback)
+    {
+        return playback?.Events?
+            .Select(item => item?.OwnerModId ?? "")
+            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+    }
+
     private static object EnsureArbiter(string ownerModId)
     {
         var gameObject = GameObject.Find(GlobalObjectName);
@@ -655,9 +684,15 @@ public static class SkillCgArbiterRuntime
 
     public sealed class SkillCgArbiterComponent : MonoBehaviour
     {
+        private const int MaxPlaybackPoolEntries = 512;
+        private const float LocalActionReuseSeconds = 0.35f;
         private readonly List<ProviderHandle> providers = new();
         private readonly List<QueuedRequest> queue = new();
         private readonly Dictionary<string, float> recentKeys = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, string> recentLocalPlayIds = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, float> recentLocalPlayTimes = new(StringComparer.Ordinal);
+        private readonly HashSet<string> playbackKeys = new(StringComparer.Ordinal);
+        private readonly Queue<string> playbackOrder = new();
         private readonly Dictionary<string, Sprite> spriteCache = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, List<Sprite>> sequenceCache = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, AssetBundle?> assetBundleCache = new(StringComparer.OrdinalIgnoreCase);
@@ -680,6 +715,8 @@ public static class SkillCgArbiterRuntime
         private Material? screenBwFlashMaterial;
         private bool screenBwFlashMaterialResolved;
         private int playGeneration;
+        private long localPlaybackCounter;
+        private string fightToken = "";
 
         public int ProtocolVersion => CurrentProtocolVersion;
 
@@ -772,19 +809,9 @@ public static class SkillCgArbiterRuntime
                     : string.Compare(a.QualifiedProviderId, b.QualifiedProviderId, StringComparison.OrdinalIgnoreCase);
             });
 
-            var accepted = 0;
-            foreach (var request in batch)
+            if (!QueueLocalRequests(batch))
             {
-                if (TryEnqueue(request))
-                {
-                    accepted++;
-                    SyncRemote(request);
-                }
-            }
-
-            if (accepted > 0 && !playing)
-            {
-                StartCoroutine(PlayQueue(playGeneration));
+                return;
             }
         }
 
@@ -798,6 +825,19 @@ public static class SkillCgArbiterRuntime
             if (TryEnqueue(request) && !playing)
             {
                 StartCoroutine(PlayQueue(playGeneration));
+            }
+        }
+
+        public void RequestCgAndSync(object? value)
+        {
+            if (value is not SkillCgRequest request)
+            {
+                return;
+            }
+
+            if (!QueueLocalRequests(new[] { request }))
+            {
+                return;
             }
         }
 
@@ -854,6 +894,11 @@ public static class SkillCgArbiterRuntime
             playGeneration++;
             queue.Clear();
             recentKeys.Clear();
+            recentLocalPlayIds.Clear();
+            recentLocalPlayTimes.Clear();
+            playbackKeys.Clear();
+            playbackOrder.Clear();
+            fightToken = "";
             StopAllCoroutines();
             HideOverlay();
             playing = false;
@@ -921,6 +966,580 @@ public static class SkillCgArbiterRuntime
             DestroyRuntimeMaterial();
         }
 
+        private bool QueueLocalRequests(IReadOnlyList<SkillCgRequest> requests)
+        {
+            var batch = (requests ?? Array.Empty<SkillCgRequest>())
+                .Where(request => request != null)
+                .ToList();
+            if (batch.Count == 0)
+            {
+                return false;
+            }
+
+            SkillCgPlaybackSnapshot? playback = null;
+            var syncBatch = batch
+                .Where(request => !request.DisableSync && !request.IsRemote)
+                .ToList();
+            if (syncBatch.Count > 0
+                && !TryPrepareLocalPlaybackBatch(syncBatch, out playback))
+            {
+                return false;
+            }
+
+            var accepted = EnqueueBatch(batch);
+            if (accepted <= 0)
+            {
+                return false;
+            }
+
+            if (playback != null)
+            {
+                RelayPlayback(playback);
+            }
+
+            if (!playing)
+            {
+                StartCoroutine(PlayQueue(playGeneration));
+            }
+
+            return true;
+        }
+
+        private int EnqueueBatch(IEnumerable<SkillCgRequest> requests)
+        {
+            var accepted = 0;
+            foreach (var request in requests ?? Array.Empty<SkillCgRequest>())
+            {
+                if (request != null && TryEnqueue(request))
+                {
+                    accepted++;
+                }
+            }
+
+            return accepted;
+        }
+
+        private bool TryPrepareLocalPlaybackBatch(IReadOnlyList<SkillCgRequest> requests, out SkillCgPlaybackSnapshot playback)
+        {
+            playback = new SkillCgPlaybackSnapshot();
+            var batch = (requests ?? Array.Empty<SkillCgRequest>())
+                .Where(request => request != null)
+                .ToList();
+            if (batch.Count == 0)
+            {
+                return false;
+            }
+
+            foreach (var request in batch)
+            {
+                request.Normalize();
+            }
+
+            var first = batch[0];
+            if (!TryValidateLocalPlaybackOwner(first, out var issuerPlayerId, out var rejection))
+            {
+                AuraCgLog.DebugLog("[SkillCG] local playback skipped: " + rejection);
+                return false;
+            }
+
+            var playId = ReuseOrCreateLocalPlayId(issuerPlayerId, first.OwnerInstanceId, first.CardId);
+            if (!TryClaimPlayback(issuerPlayerId, playId, "local"))
+            {
+                return false;
+            }
+
+            foreach (var request in batch)
+            {
+                request.IssuerPlayerId = issuerPlayerId;
+                request.SkillCgPlayId = playId;
+                request.EventToken = playId;
+            }
+
+            playback = CreatePlaybackSnapshot(issuerPlayerId, playId, first, batch);
+            return true;
+        }
+
+        private bool TryValidateLocalPlaybackOwner(SkillCgRequest request, out string issuerPlayerId, out string rejection)
+        {
+            issuerPlayerId = ResolveLocalPlayerId();
+            rejection = "";
+
+            var playerManager = PlayerManager.Instance;
+            if (playerManager == null || (!playerManager.isClient && !playerManager.isServer))
+            {
+                issuerPlayerId = string.IsNullOrWhiteSpace(issuerPlayerId) ? "solo" : issuerPlayerId;
+                return true;
+            }
+
+            if (string.IsNullOrWhiteSpace(request.OwnerInstanceId))
+            {
+                rejection = "owner instance id is empty in multiplayer. card=" + request.CardId;
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(issuerPlayerId))
+            {
+                rejection = "issuer player id is empty. owner=" + request.OwnerInstanceId + ", card=" + request.CardId;
+                return false;
+            }
+
+            var localStatusId = ResolveLocalStatusId();
+            if (string.IsNullOrWhiteSpace(localStatusId))
+            {
+                rejection = "local status id is empty. owner=" + request.OwnerInstanceId + ", card=" + request.CardId;
+                return false;
+            }
+
+            if (!string.Equals(request.OwnerInstanceId, localStatusId, StringComparison.Ordinal))
+            {
+                rejection = "remote owner observed. owner=" + request.OwnerInstanceId + ", local=" + localStatusId + ", card=" + request.CardId;
+                return false;
+            }
+
+            return true;
+        }
+
+        private string ReuseOrCreateLocalPlayId(string issuerPlayerId, string ownerInstanceId, string cardId)
+        {
+            PruneRecentLocalPlayIds();
+            var key = LocalActionKey(ownerInstanceId, cardId);
+            if (recentLocalPlayIds.TryGetValue(key, out var existing)
+                && recentLocalPlayTimes.TryGetValue(key, out var lastTime)
+                && Time.unscaledTime - lastTime <= LocalActionReuseSeconds)
+            {
+                recentLocalPlayTimes[key] = Time.unscaledTime;
+                return existing;
+            }
+
+            var playId = SanitizeTokenPart(issuerPlayerId)
+                         + ":"
+                         + SanitizeTokenPart(ownerInstanceId)
+                         + ":"
+                         + SanitizeTokenPart(cardId)
+                         + ":"
+                         + (++localPlaybackCounter).ToString()
+                         + ":"
+                         + CurrentFightToken();
+            recentLocalPlayIds[key] = playId;
+            recentLocalPlayTimes[key] = Time.unscaledTime;
+            return playId;
+        }
+
+        private void PruneRecentLocalPlayIds()
+        {
+            if (recentLocalPlayTimes.Count == 0)
+            {
+                return;
+            }
+
+            var now = Time.unscaledTime;
+            foreach (var key in recentLocalPlayTimes
+                         .Where(pair => now - pair.Value > LocalActionReuseSeconds)
+                         .Select(pair => pair.Key)
+                         .ToList())
+            {
+                recentLocalPlayTimes.Remove(key);
+                recentLocalPlayIds.Remove(key);
+            }
+        }
+
+        private static string LocalActionKey(string ownerInstanceId, string cardId)
+        {
+            return (ownerInstanceId ?? "").Trim() + "|" + (cardId ?? "").Trim();
+        }
+
+        private SkillCgPlaybackSnapshot CreatePlaybackSnapshot(
+            string issuerPlayerId,
+            string playId,
+            SkillCgRequest first,
+            IReadOnlyList<SkillCgRequest> requests)
+        {
+            return new SkillCgPlaybackSnapshot
+            {
+                IssuerPlayerId = issuerPlayerId ?? "",
+                SkillCgPlayId = playId ?? "",
+                OwnerStatusId = first.OwnerInstanceId,
+                CardId = first.CardId,
+                ActionSequence = first.ActionSequence,
+                FightToken = CurrentFightToken(),
+                Events = requests.Select(ToNetworkEvent).ToList()
+            };
+        }
+
+        private void RelayPlayback(SkillCgPlaybackSnapshot playback)
+        {
+            if (playback == null || playback.Events == null || playback.Events.Count == 0)
+            {
+                return;
+            }
+
+            var playerManager = PlayerManager.Instance;
+            if (playerManager == null || (!playerManager.isClient && !playerManager.isServer))
+            {
+                return;
+            }
+
+            try
+            {
+                if (playerManager.isServer)
+                {
+                    playerManager.SendRpcCommand(new RpcSkillCgPlayback(playback));
+                    return;
+                }
+
+                playerManager.SendRpcCommand(new RpcSkillCgPlaybackRequest(playback));
+            }
+            catch (Exception ex)
+            {
+                AuraCgLog.WarnOnce("playback-relay-failed", "Skill CG playback relay failed once; later errors are suppressed. error=" + ex.Message);
+                AuraCgLog.DebugLog("Skill CG playback relay exception: " + ex);
+            }
+        }
+
+        public void ApplyServerPlaybackRequest(object? value)
+        {
+            if (value is not SkillCgServerPlaybackEnvelope envelope)
+            {
+                return;
+            }
+
+            var playback = envelope.Playback ?? new SkillCgPlaybackSnapshot();
+            var sender = envelope.Sender ?? AuraCgRpcSender.Unbound;
+            var rejection = ValidateServerPlaybackRequest(playback, sender);
+            if (!string.IsNullOrWhiteSpace(rejection))
+            {
+                AuraCgLog.WarnOnce("server-playback-rejected:" + rejection, "Skill CG server playback rejected: " + rejection);
+                return;
+            }
+
+            playback.IssuerPlayerId = sender.PlayerId;
+            NormalizePlaybackSnapshot(playback);
+            if (!ApplyPlaybackSnapshot(playback, "server"))
+            {
+                return;
+            }
+
+            try
+            {
+                PlayerManager.Instance?.SendRpcCommand(new RpcSkillCgPlayback(playback));
+            }
+            catch (Exception ex)
+            {
+                AuraCgLog.WarnOnce("server-playback-broadcast-failed", "Skill CG server broadcast failed once; later errors are suppressed. error=" + ex.Message);
+                AuraCgLog.DebugLog("Skill CG server broadcast exception: " + ex);
+            }
+        }
+
+        public void ApplyNetworkPlayback(object? value)
+        {
+            if (value is not SkillCgNetworkPlaybackEnvelope envelope)
+            {
+                return;
+            }
+
+            ApplyPlaybackSnapshot(envelope.Playback, envelope.Source);
+        }
+
+        private bool ApplyPlaybackSnapshot(SkillCgPlaybackSnapshot? playback, string source)
+        {
+            if (playback == null
+                || string.IsNullOrWhiteSpace(playback.IssuerPlayerId)
+                || string.IsNullOrWhiteSpace(playback.SkillCgPlayId)
+                || playback.Events == null
+                || playback.Events.Count == 0)
+            {
+                AuraCgLog.WarnOnce("network-playback-invalid:" + source, "Skill CG network playback skipped: invalid payload. source=" + source);
+                return false;
+            }
+
+            NormalizePlaybackSnapshot(playback);
+            if (!TryClaimPlayback(playback.IssuerPlayerId, playback.SkillCgPlayId, source))
+            {
+                return false;
+            }
+
+            var requests = playback.Events
+                .Select(FromNetworkEvent)
+                .Where(request => request != null)
+                .Cast<SkillCgRequest>()
+                .ToList();
+            EnqueueBatch(requests);
+            if (!playing && queue.Count > 0)
+            {
+                StartCoroutine(PlayQueue(playGeneration));
+            }
+
+            return true;
+        }
+
+        private string ValidateServerPlaybackRequest(SkillCgPlaybackSnapshot? playback, AuraCgRpcSender sender)
+        {
+            if (playback == null)
+            {
+                return "missing payload";
+            }
+
+            if (!sender.IsAvailable)
+            {
+                return IsMultiplayerSession() ? "missing sender" : "";
+            }
+
+            if (!sender.IsLobbyMember)
+            {
+                return "sender outside lobby: " + sender.PlayerId;
+            }
+
+            if (!string.IsNullOrWhiteSpace(playback.IssuerPlayerId)
+                && !string.Equals(playback.IssuerPlayerId, sender.PlayerId, StringComparison.Ordinal))
+            {
+                return "issuer mismatch: issuer=" + playback.IssuerPlayerId + ", sender=" + sender.PlayerId;
+            }
+
+            if (string.IsNullOrWhiteSpace(playback.OwnerStatusId))
+            {
+                return "missing owner status";
+            }
+
+            if (!SenderOwnsStatus(sender.PlayerId, playback.OwnerStatusId))
+            {
+                return "owner mismatch: owner=" + playback.OwnerStatusId + ", sender=" + sender.PlayerId;
+            }
+
+            if (string.IsNullOrWhiteSpace(playback.SkillCgPlayId))
+            {
+                return "missing play id";
+            }
+
+            if (playback.Events == null || playback.Events.Count == 0)
+            {
+                return "missing events";
+            }
+
+            return "";
+        }
+
+        private static bool SenderOwnsStatus(string playerId, string ownerStatusId)
+        {
+            if (string.IsNullOrWhiteSpace(playerId) || string.IsNullOrWhiteSpace(ownerStatusId))
+            {
+                return false;
+            }
+
+            if (string.Equals(playerId, ownerStatusId, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            try
+            {
+                var map = Singleton<TempDataManager>.Instance?.RoleStatusMap;
+                return map != null
+                       && map.TryGetValue(playerId, out var statuses)
+                       && statuses != null
+                       && statuses.Contains(ownerStatusId);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private void NormalizePlaybackSnapshot(SkillCgPlaybackSnapshot playback)
+        {
+            playback.IssuerPlayerId = (playback.IssuerPlayerId ?? "").Trim();
+            playback.SkillCgPlayId = (playback.SkillCgPlayId ?? "").Trim();
+            playback.OwnerStatusId = (playback.OwnerStatusId ?? "").Trim();
+            playback.CardId = (playback.CardId ?? "").Trim();
+            playback.FightToken = string.IsNullOrWhiteSpace(playback.FightToken) ? CurrentFightToken() : playback.FightToken.Trim();
+
+            foreach (var item in playback.Events ?? new List<SkillCgNetworkEvent>())
+            {
+                item.IssuerPlayerId = playback.IssuerPlayerId;
+                item.SkillCgPlayId = playback.SkillCgPlayId;
+                item.OwnerInstanceId = playback.OwnerStatusId;
+                item.CardId = string.IsNullOrWhiteSpace(item.CardId) ? playback.CardId : item.CardId;
+                item.EventToken = playback.SkillCgPlayId;
+                item.ActionSequence = playback.ActionSequence;
+            }
+        }
+
+        private static SkillCgNetworkEvent ToNetworkEvent(SkillCgRequest request)
+        {
+            request.Normalize();
+            return new SkillCgNetworkEvent
+            {
+                ProviderId = request.ProviderId,
+                OwnerModId = request.OwnerModId,
+                CardId = request.CardId,
+                OwnerInstanceId = request.OwnerInstanceId,
+                ImageResource = string.IsNullOrWhiteSpace(request.ImageResource) ? Path.GetFileName(request.ImagePath) : request.ImageResource,
+                BundlePath = request.BundlePath,
+                BundleAssetPrefix = request.BundleAssetPrefix,
+                MediaType = request.MediaType,
+                FrameSeconds = request.FrameSeconds,
+                AlphaMode = request.AlphaMode,
+                KeyThreshold = request.KeyThreshold,
+                KeySoftness = request.KeySoftness,
+                FlashAtSeconds = request.FlashAtSeconds,
+                FlashDuration = request.FlashDuration,
+                FlashMode = request.FlashMode,
+                FlashStartFrame = request.FlashStartFrame,
+                FlashEndFrame = request.FlashEndFrame,
+                FlashPulseEveryFrames = request.FlashPulseEveryFrames,
+                FlashStrength = request.FlashStrength,
+                Priority = request.Priority,
+                FadeIn = request.FadeIn,
+                Hold = request.Hold,
+                FadeOut = request.FadeOut,
+                PresentationMode = request.PresentationMode,
+                FitMode = request.FitMode,
+                FocusX = request.FocusX,
+                FocusY = request.FocusY,
+                SafeScale = request.SafeScale,
+                ActionSequence = request.ActionSequence,
+                EventToken = request.EventToken,
+                IssuerPlayerId = request.IssuerPlayerId,
+                SkillCgPlayId = request.SkillCgPlayId
+            };
+        }
+
+        private static SkillCgRequest FromNetworkEvent(SkillCgNetworkEvent item)
+        {
+            var ownerModId = string.IsNullOrWhiteSpace(item.OwnerModId) ? DefaultNetworkOwner : item.OwnerModId;
+            return new SkillCgRequest
+            {
+                ProviderId = item.ProviderId,
+                OwnerModId = ownerModId,
+                CardId = item.CardId,
+                OwnerInstanceId = item.OwnerInstanceId,
+                ImageResource = item.ImageResource,
+                ImagePath = ResolveImagePath(ownerModId, item.ImageResource),
+                BundlePath = item.BundlePath,
+                BundleAssetPrefix = item.BundleAssetPrefix,
+                MediaType = item.MediaType,
+                FrameSeconds = item.FrameSeconds,
+                AlphaMode = item.AlphaMode,
+                KeyThreshold = item.KeyThreshold,
+                KeySoftness = item.KeySoftness,
+                FlashAtSeconds = item.FlashAtSeconds,
+                FlashDuration = item.FlashDuration,
+                FlashMode = item.FlashMode,
+                FlashStartFrame = item.FlashStartFrame,
+                FlashEndFrame = item.FlashEndFrame,
+                FlashPulseEveryFrames = item.FlashPulseEveryFrames,
+                FlashStrength = item.FlashStrength,
+                Priority = item.Priority,
+                FadeIn = item.FadeIn,
+                Hold = item.Hold,
+                FadeOut = item.FadeOut,
+                PresentationMode = item.PresentationMode,
+                FitMode = item.FitMode,
+                FocusX = item.FocusX,
+                FocusY = item.FocusY,
+                SafeScale = item.SafeScale,
+                CreatedAt = Time.unscaledTime,
+                ActionSequence = item.ActionSequence,
+                EventToken = item.EventToken,
+                IssuerPlayerId = item.IssuerPlayerId,
+                SkillCgPlayId = item.SkillCgPlayId,
+                IsRemote = true,
+                DisableSync = true
+            };
+        }
+
+        private bool TryClaimPlayback(string issuerPlayerId, string playId, string source)
+        {
+            var key = PlaybackKey(issuerPlayerId, playId);
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                return false;
+            }
+
+            if (!playbackKeys.Add(key))
+            {
+                AuraCgLog.DebugLog("Duplicate Skill CG playback ignored from " + source + ": " + key);
+                return false;
+            }
+
+            playbackOrder.Enqueue(key);
+            while (playbackOrder.Count > MaxPlaybackPoolEntries)
+            {
+                playbackKeys.Remove(playbackOrder.Dequeue());
+            }
+
+            return true;
+        }
+
+        private static string PlaybackKey(string issuerPlayerId, string playId)
+        {
+            issuerPlayerId = (issuerPlayerId ?? "").Trim();
+            playId = (playId ?? "").Trim();
+            return string.IsNullOrWhiteSpace(issuerPlayerId) || string.IsNullOrWhiteSpace(playId)
+                ? ""
+                : issuerPlayerId + "|" + playId;
+        }
+
+        private string CurrentFightToken()
+        {
+            if (string.IsNullOrWhiteSpace(fightToken))
+            {
+                fightToken = SanitizeTokenPart(ResolveLocalPlayerId()) + "-" + DateTime.UtcNow.Ticks.ToString("x");
+            }
+
+            return fightToken;
+        }
+
+        private static string ResolveLocalPlayerId()
+        {
+            try
+            {
+                return (PlayerManager.Instance?.PlayerId ?? "").Trim();
+            }
+            catch
+            {
+                return "";
+            }
+        }
+
+        private static string ResolveLocalStatusId()
+        {
+            try
+            {
+                return (FightPlayer.Instance?.Status?.InstanceId ?? "").Trim();
+            }
+            catch
+            {
+                return "";
+            }
+        }
+
+        private static bool IsMultiplayerSession()
+        {
+            var manager = PlayerManager.Instance;
+            if (manager != null && (manager.isClient || manager.isServer))
+            {
+                return true;
+            }
+
+            try
+            {
+                return (GameServer.Instance?.LobbyInfo?.AddedPlayers?.Count ?? 0) > 1;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static string SanitizeTokenPart(string value)
+        {
+            var clean = new string((value ?? "")
+                .Trim()
+                .Select(ch => char.IsLetterOrDigit(ch) || ch == '_' || ch == '-' || ch == '*' ? ch : '_')
+                .ToArray());
+            return string.IsNullOrWhiteSpace(clean) ? "none" : clean;
+        }
+
         private bool TryEnqueue(SkillCgRequest request)
         {
             request.Normalize();
@@ -952,30 +1571,6 @@ public static class SkillCgArbiterRuntime
             queue.Sort(QueuedRequest.CompareForQueue);
             AuraCgLog.DebugLog("CG queued: provider=" + request.ProviderId + ", card=" + request.CardId + ", queue=" + queue.Count);
             return true;
-        }
-
-        private void SyncRemote(SkillCgRequest request)
-        {
-            if (request.DisableSync || request.IsRemote)
-            {
-                return;
-            }
-
-            var playerManager = PlayerManager.Instance;
-            if (playerManager == null)
-            {
-                return;
-            }
-
-            try
-            {
-                playerManager.SendRpcCommandExcludeOwner(new RpcSkillCgEvent(request));
-            }
-            catch (Exception ex)
-            {
-                AuraCgLog.WarnOnce("remote-sync-failed", "Remote CG sync failed once; later errors are suppressed. error=" + ex.Message);
-                AuraCgLog.DebugLog("Remote CG sync exception: " + ex);
-            }
         }
 
         private IEnumerator PlayQueue(int generation)
@@ -2442,6 +3037,8 @@ public sealed class SkillCgTriggerContext
 {
     public long ActionSequence { get; set; }
 
+    public string EventToken { get; set; } = "";
+
     public string Action { get; set; } = "";
 
     public string CardId { get; set; } = "";
@@ -2518,11 +3115,17 @@ public sealed class SkillCgRequest
 
     public long ActionSequence { get; set; }
 
+    public string EventToken { get; set; } = "";
+
+    public string IssuerPlayerId { get; set; } = "";
+
+    public string SkillCgPlayId { get; set; } = "";
+
     public bool IsRemote { get; set; }
 
     public bool DisableSync { get; set; }
 
-    public string DuplicateKey => ProviderId + "|" + OwnerInstanceId + "|" + CardId + "|" + (string.IsNullOrWhiteSpace(ImageResource) ? ImagePath : ImageResource) + "|" + BundlePath + "|" + BundleAssetPrefix + "|" + MediaType + "|" + FrameSeconds.ToString("0.###") + "|" + AlphaMode + "|" + FlashMode + "|" + FlashAtSeconds.ToString("0.###") + "|" + FlashStartFrame + "|" + FlashEndFrame + "|" + FlashPulseEveryFrames + "|" + PresentationMode + "|" + FitMode + "|" + FocusX.ToString("0.###") + "|" + FocusY.ToString("0.###") + "|" + SafeScale.ToString("0.###");
+    public string DuplicateKey => ProviderId + "|" + OwnerInstanceId + "|" + CardId + "|" + EventToken + "|" + SkillCgPlayId + "|" + (string.IsNullOrWhiteSpace(ImageResource) ? ImagePath : ImageResource) + "|" + BundlePath + "|" + BundleAssetPrefix + "|" + MediaType + "|" + FrameSeconds.ToString("0.###") + "|" + AlphaMode + "|" + FlashMode + "|" + FlashAtSeconds.ToString("0.###") + "|" + FlashStartFrame + "|" + FlashEndFrame + "|" + FlashPulseEveryFrames + "|" + PresentationMode + "|" + FitMode + "|" + FocusX.ToString("0.###") + "|" + FocusY.ToString("0.###") + "|" + SafeScale.ToString("0.###");
 
     public string QualifiedProviderId => QualifyProviderId(OwnerModId, ProviderId);
 
@@ -2566,6 +3169,11 @@ public sealed class SkillCgRequest
         FocusX = Mathf.Clamp01(FocusX);
         FocusY = Mathf.Clamp01(FocusY);
         SafeScale = Mathf.Clamp(SafeScale <= 0f ? 1f : SafeScale, 1f, 3f);
+        EventToken = string.IsNullOrWhiteSpace(EventToken)
+            ? OwnerInstanceId + ":" + CardId + ":" + ActionSequence.ToString()
+            : EventToken.Trim();
+        IssuerPlayerId = IssuerPlayerId?.Trim() ?? "";
+        SkillCgPlayId = SkillCgPlayId?.Trim() ?? "";
 
         if (CreatedAt <= 0f)
         {
@@ -2619,6 +3227,9 @@ public sealed class SkillCgRequest
             SafeScale = ReadFloat(type, source, "SafeScale", 1f),
             CreatedAt = ReadFloat(type, source, "CreatedAt", Time.unscaledTime),
             ActionSequence = ReadLong(type, source, "ActionSequence", context.ActionSequence),
+            EventToken = ReadString(type, source, "EventToken", context.EventToken),
+            IssuerPlayerId = ReadString(type, source, "IssuerPlayerId", ""),
+            SkillCgPlayId = ReadString(type, source, "SkillCgPlayId", ""),
             IsRemote = ReadBool(type, source, "IsRemote", false),
             DisableSync = ReadBool(type, source, "DisableSync", false)
         };
@@ -2784,6 +3395,239 @@ public sealed class SkillCgNetworkEvent
     public float SafeScale { get; set; } = 1f;
 
     public long ActionSequence { get; set; }
+
+    public string EventToken { get; set; } = "";
+
+    public string IssuerPlayerId { get; set; } = "";
+
+    public string SkillCgPlayId { get; set; } = "";
+}
+
+[Serializable]
+public sealed class SkillCgPlaybackSnapshot
+{
+    public string IssuerPlayerId { get; set; } = "";
+
+    public string SkillCgPlayId { get; set; } = "";
+
+    public string OwnerStatusId { get; set; } = "";
+
+    public string CardId { get; set; } = "";
+
+    public long ActionSequence { get; set; }
+
+    public string FightToken { get; set; } = "";
+
+    public List<SkillCgNetworkEvent> Events { get; set; } = new();
+}
+
+internal sealed class SkillCgServerPlaybackEnvelope
+{
+    public SkillCgServerPlaybackEnvelope(SkillCgPlaybackSnapshot playback, AuraCgRpcSender sender)
+    {
+        Playback = playback ?? new SkillCgPlaybackSnapshot();
+        Sender = sender ?? AuraCgRpcSender.Unbound;
+    }
+
+    public SkillCgPlaybackSnapshot Playback { get; }
+
+    public AuraCgRpcSender Sender { get; }
+}
+
+internal sealed class SkillCgNetworkPlaybackEnvelope
+{
+    public SkillCgNetworkPlaybackEnvelope(SkillCgPlaybackSnapshot playback, string source)
+    {
+        Playback = playback ?? new SkillCgPlaybackSnapshot();
+        Source = source ?? "";
+    }
+
+    public SkillCgPlaybackSnapshot Playback { get; }
+
+    public string Source { get; }
+}
+
+public sealed class AuraCgRpcSender
+{
+    public static readonly AuraCgRpcSender Unbound = new("", "", false, false, "", false);
+
+    public AuraCgRpcSender(
+        string playerId,
+        string playerName,
+        bool isLobbyMember,
+        bool isLobbyHost,
+        string sourceHook,
+        bool isAvailable)
+    {
+        PlayerId = (playerId ?? "").Trim();
+        PlayerName = (playerName ?? "").Trim();
+        IsLobbyMember = isLobbyMember;
+        IsLobbyHost = isLobbyHost;
+        SourceHook = (sourceHook ?? "").Trim();
+        IsAvailable = isAvailable && PlayerId.Length > 0;
+    }
+
+    public string PlayerId { get; }
+
+    public string PlayerName { get; }
+
+    public bool IsLobbyMember { get; }
+
+    public bool IsLobbyHost { get; }
+
+    public string SourceHook { get; }
+
+    public bool IsAvailable { get; }
+}
+
+public interface IAuraCgServerBoundRpcCommand
+{
+    void BindServerSender(AuraCgRpcSender sender);
+}
+
+public static class AuraCgRpcAuthorityRuntime
+{
+    private static readonly HashSet<int> RegisteredConfigs = new();
+
+    public static void Initialize(ModConfig modConfig)
+    {
+        if (modConfig == null || !RegisteredConfigs.Add(modConfig.GetHashCode()))
+        {
+            return;
+        }
+
+        Register(modConfig, "PlayerManager.UserCode_CmdReceiveRpcCommand__RpcCommandBase");
+        Register(modConfig, "PlayerManager.UserCode_CmdReceiveRpcCommandExcludeOwner__RpcCommandBase");
+        Register(modConfig, "PlayerManager.CmdReceiveRpcCommand");
+        Register(modConfig, "PlayerManager.CmdReceiveRpcCommandExcludeOwner");
+    }
+
+    private static void Register(ModConfig modConfig, string target)
+    {
+        AuraSharedHooks.RegisterBefore(
+            modConfig,
+            target,
+            context => BindSender(context, target),
+            message => AuraCgLog.InfoOnce("rpc-authority:" + target + ":" + message, "[RpcAuthority] " + message),
+            message => AuraCgLog.WarnOnce("rpc-authority-warn:" + target + ":" + message, "[RpcAuthority] " + message),
+            safeInvoke: true);
+    }
+
+    private static void BindSender(ModHookContext context, string sourceHook)
+    {
+        var command = FindCommand(context.Arguments);
+        if (command is not IAuraCgServerBoundRpcCommand bound)
+        {
+            return;
+        }
+
+        bound.BindServerSender(CreateSender(context.Target, sourceHook));
+    }
+
+    private static RpcCommandBase? FindCommand(object[]? args)
+    {
+        return args?.OfType<RpcCommandBase>().FirstOrDefault();
+    }
+
+    private static AuraCgRpcSender CreateSender(object? target, string sourceHook)
+    {
+        try
+        {
+            var playerManager = target as PlayerManager;
+            var playerId = (playerManager?.PlayerId ?? "").Trim();
+            var playerName = (playerManager?.playerInfo?.Name ?? "").Trim();
+            var isMember = LobbyContains(playerId);
+            return new AuraCgRpcSender(
+                playerId,
+                playerName,
+                isMember,
+                isMember && IsLobbyHost(playerId),
+                sourceHook,
+                playerId.Length > 0);
+        }
+        catch (Exception ex)
+        {
+            AuraCgLog.WarnOnce("rpc-authority-sender-failed", "[RpcAuthority] failed to resolve server sender: " + ex.Message);
+            return AuraCgRpcSender.Unbound;
+        }
+    }
+
+    private static bool LobbyContains(string playerId)
+    {
+        if (string.IsNullOrWhiteSpace(playerId))
+        {
+            return false;
+        }
+
+        var players = GameServer.Instance?.LobbyInfo?.AddedPlayers;
+        return players == null
+               || players.Count == 0
+               || players.Any(player => player != null && player.Id == playerId);
+    }
+
+    private static bool IsLobbyHost(string playerId)
+    {
+        if (string.IsNullOrWhiteSpace(playerId))
+        {
+            return false;
+        }
+
+        var players = GameServer.Instance?.LobbyInfo?.AddedPlayers;
+        return players == null
+               || players.Count == 0
+               || string.Equals(players[0].Id, playerId, StringComparison.Ordinal);
+    }
+}
+
+[Serializable]
+public sealed class RpcSkillCgPlaybackRequest : RpcCommandBase, IAuraCgServerBoundRpcCommand
+{
+    private AuraCgRpcSender serverSender = AuraCgRpcSender.Unbound;
+
+    public SkillCgPlaybackSnapshot Playback { get; set; } = new();
+
+    public RpcSkillCgPlaybackRequest()
+    {
+    }
+
+    public RpcSkillCgPlaybackRequest(SkillCgPlaybackSnapshot playback)
+    {
+        Playback = playback ?? new SkillCgPlaybackSnapshot();
+    }
+
+    public void BindServerSender(AuraCgRpcSender sender)
+    {
+        serverSender = sender ?? AuraCgRpcSender.Unbound;
+    }
+
+    public override void CmdExecute()
+    {
+        SkillCgArbiterRuntime.ApplyServerPlaybackRequest(Playback, serverSender);
+    }
+
+    public override void RpcExecute()
+    {
+    }
+}
+
+[Serializable]
+public sealed class RpcSkillCgPlayback : RpcCommandBase
+{
+    public SkillCgPlaybackSnapshot Playback { get; set; } = new();
+
+    public RpcSkillCgPlayback()
+    {
+    }
+
+    public RpcSkillCgPlayback(SkillCgPlaybackSnapshot playback)
+    {
+        Playback = playback ?? new SkillCgPlaybackSnapshot();
+    }
+
+    public override void RpcExecute()
+    {
+        SkillCgArbiterRuntime.ApplyNetworkPlayback(Playback, "RpcSkillCgPlayback");
+    }
 }
 
 [Serializable]
@@ -2827,7 +3671,10 @@ public sealed class RpcSkillCgEvent : RpcCommandBase
             FocusX = request.FocusX,
             FocusY = request.FocusY,
             SafeScale = request.SafeScale,
-            ActionSequence = request.ActionSequence
+            ActionSequence = request.ActionSequence,
+            EventToken = request.EventToken,
+            IssuerPlayerId = request.IssuerPlayerId,
+            SkillCgPlayId = request.SkillCgPlayId
         };
     }
 
@@ -2870,6 +3717,7 @@ public sealed class RpcSkillCgEvent : RpcCommandBase
             SafeScale = Event.SafeScale,
             CreatedAt = Time.unscaledTime,
             ActionSequence = Event.ActionSequence,
+            EventToken = Event.EventToken,
             IsRemote = true,
             DisableSync = true
         });

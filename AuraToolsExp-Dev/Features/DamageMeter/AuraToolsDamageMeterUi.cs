@@ -153,9 +153,9 @@ internal static class AuraToolsDamageMeterUi
                 settings.IncludeUnknownTeam);
             if (runAggregate.HasDamage)
             {
-                emptyText.text = "Run total " + idleRunTotal
-                                 + " / Encounters " + runAggregate.EncounterCount
-                                 + " / Rounds " + runAggregate.TotalRounds;
+                emptyText.text = "本轮冒险累计伤害 " + idleRunTotal
+                                 + "\n战斗 " + runAggregate.EncounterCount
+                                 + " 场 / 回合 " + runAggregate.TotalRounds;
             }
 
             footer.text = networkStatus + "  /  拖动悬浮球可调整位置";

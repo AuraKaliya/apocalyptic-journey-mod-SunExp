@@ -209,6 +209,11 @@ public static class PolymorphStateStore
 
             RoleTable.Instance.Career = state.OriginalCareer;
             FightPlayer.Instance?.Status?.ResetAnimator(false);
+            PolymorphNetworkSync.BroadcastNativeCareerChange(
+                state.OwnerStatusId,
+                state.OriginalCareerId,
+                "PolymorphStateStore.RestoreOriginalCareer:" + source);
+            PolymorphNetworkSync.BroadcastRestore(state, "PolymorphStateStore.RestoreOriginalCareer:" + source);
             RoleSkillApi.RefreshFightSkills("PolymorphStateStore.RestoreOriginalCareer:" + source);
             SunExpLog.Info("[Polymorph] restored career from " + source + ": "
                 + state.RoleId + " -> " + state.OriginalCareerId);

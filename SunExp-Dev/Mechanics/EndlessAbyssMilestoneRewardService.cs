@@ -4,6 +4,7 @@ using System.Linq;
 using Data.Save;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
+using SunExp.Dll.Network;
 using Witch;
 using Witch.Core;
 
@@ -39,8 +40,10 @@ public static class EndlessAbyssMilestoneRewardService
     public static bool CanClaim(int floor)
     {
         floor = Math.Max(1, floor);
+        var key = Key(floor);
         return floor >= EndlessAbyssConfigStore.Current.Milestones.MinFloor
-            && !EndlessAbyssRunLedger.Contains(Key(floor));
+            && !EndlessAbyssRunLedger.Contains(key)
+            && !EndlessAbyssRunLedger.ContainsPrefix(ResultPrefix(floor));
     }
 
     public static IReadOnlyList<EndlessAbyssRelicOption> RelicCandidates()
@@ -97,26 +100,15 @@ public static class EndlessAbyssMilestoneRewardService
 
     public static bool GrantRelic(int floor, string relicId, out string message)
     {
-        message = "";
-        if (!CanClaim(floor) || string.IsNullOrWhiteSpace(relicId))
+        var resolution = new EndlessAbyssMilestoneResolution
         {
-            message = "\u5f53\u524d\u91cc\u7a0b\u7891\u5df2\u7ed3\u7b97\u3002";
-            return false;
-        }
-
-        try
-        {
-            PlayerApi.AddRelic(relicId);
-            Claim(floor, "relic:" + relicId);
-            message = "\u83b7\u5f97\u9057\u7269\uff1a" + RelicName(relicId);
-            PlayerApi.ShowCaption(message);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            message = "\u9057\u7269\u83b7\u53d6\u5931\u8d25\uff1a" + ex.Message;
-            return false;
-        }
+            Floor = Math.Max(1, floor),
+            Kind = EndlessAbyssMilestoneRewardKind.Relic,
+            RelicId = relicId ?? "",
+            Source = "GrantRelic",
+            Token = Guid.NewGuid().ToString("N")
+        };
+        return ApplyResolution(resolution, "EndlessAbyssMilestone.GrantRelic", broadcast: false, out message);
     }
 
     public static bool GrantRandomOtherDimensionCard(int floor, out string message)
@@ -146,80 +138,242 @@ public static class EndlessAbyssMilestoneRewardService
         }
 
         var cardId = ids[PickIndex(ids.Count)];
-        try
+        var resolution = new EndlessAbyssMilestoneResolution
         {
-            if (!PlayerApi.TryAddCardToDeck(cardId, out var grantedCardId, out var error))
-            {
-                message = "\u5f02\u6b21\u5143\u5361\u83b7\u53d6\u5931\u8d25\uff1a" + error;
-                return false;
-            }
-
-            TongtianTowerCardAffixService.NormalizeOwnedCards("EndlessAbyssMilestone.OtherDimensionCard");
-            GameSaveManager.UpdateRoles(RoleTable.Instance);
-            Claim(floor, "other-dimension:" + grantedCardId);
-            message = "\u83b7\u5f97\u5f02\u6b21\u5143\u5361\uff1a" + CardName(grantedCardId);
-            PlayerApi.ShowCaption(message);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            message = "\u5f02\u6b21\u5143\u5361\u83b7\u53d6\u5931\u8d25\uff1a" + ex.Message;
-            return false;
-        }
+            Floor = Math.Max(1, floor),
+            Kind = EndlessAbyssMilestoneRewardKind.OtherDimensionCard,
+            CardId = cardId,
+            Source = "GrantOtherDimensionCard",
+            Token = Guid.NewGuid().ToString("N")
+        };
+        return ApplyResolution(resolution, "EndlessAbyssMilestone.OtherDimensionCard", broadcast: false, out message);
     }
 
     public static bool RemoveBurnout(int floor, IDataConfig card, out string message)
     {
         message = "";
-        if (!CanClaim(floor) || card == null)
+        var resolution = CardResolution(
+            floor,
+            EndlessAbyssMilestoneRewardKind.RemoveBurnout,
+            card,
+            "RemoveBurnout");
+        return ApplyResolution(resolution, "EndlessAbyssMilestone.RemoveBurnout", broadcast: false, out message);
+    }
+
+    public static bool AddExtinction(int floor, IDataConfig card, out string message)
+    {
+        message = "";
+        var resolution = CardResolution(
+            floor,
+            EndlessAbyssMilestoneRewardKind.AddExtinction,
+            card,
+            "AddExtinction");
+        return ApplyResolution(resolution, "EndlessAbyssMilestone.AddExtinction", broadcast: false, out message);
+    }
+
+    public static bool ApplyNetworkResolution(EndlessAbyssMilestoneResolution? resolution, string source)
+    {
+        if (resolution == null)
+        {
+            return false;
+        }
+
+        return ApplyResolution(resolution, source, broadcast: false, out _);
+    }
+
+    private static bool ApplyResolution(
+        EndlessAbyssMilestoneResolution resolution,
+        string source,
+        bool broadcast,
+        out string message)
+    {
+        message = "";
+        var floor = Math.Max(1, resolution?.Floor ?? 1);
+        if (resolution == null || !CanClaim(floor))
         {
             message = "\u5f53\u524d\u91cc\u7a0b\u7891\u5df2\u7ed3\u7b97\u3002";
+            return true;
+        }
+
+        try
+        {
+            var success = resolution.Kind switch
+            {
+                EndlessAbyssMilestoneRewardKind.Relic => ApplyRelicResolution(floor, resolution, out message),
+                EndlessAbyssMilestoneRewardKind.OtherDimensionCard => ApplyOtherDimensionResolution(floor, resolution, out message),
+                EndlessAbyssMilestoneRewardKind.RemoveBurnout => ApplyRemoveBurnoutResolution(floor, resolution, out message),
+                EndlessAbyssMilestoneRewardKind.AddExtinction => ApplyAddExtinctionResolution(floor, resolution, out message),
+                _ => UnknownResolution(resolution, out message)
+            };
+
+            if (success && broadcast)
+            {
+                BroadcastResolution(resolution, source);
+            }
+
+            return success;
+        }
+        catch (Exception ex)
+        {
+            message = "\u91cc\u7a0b\u7891\u5956\u52b1\u7ed3\u7b97\u5931\u8d25\uff1a" + ex.Message;
+            SunExpLog.Warn("[EndlessAbyssMilestone] resolution failed from "
+                + source
+                + ": "
+                + ex.Message);
             return false;
+        }
+    }
+
+    private static bool ApplyRelicResolution(int floor, EndlessAbyssMilestoneResolution resolution, out string message)
+    {
+        if (string.IsNullOrWhiteSpace(resolution.RelicId))
+        {
+            message = "\u9057\u7269\u7ed3\u7b97\u7f3a\u5c11 ID\u3002";
+            return false;
+        }
+
+        PlayerApi.AddRelic(resolution.RelicId);
+        Claim(floor, "relic:" + resolution.RelicId);
+        message = "\u83b7\u5f97\u9057\u7269\uff1a" + RelicName(resolution.RelicId);
+        PlayerApi.ShowCaption(message);
+        return true;
+    }
+
+    private static bool ApplyOtherDimensionResolution(int floor, EndlessAbyssMilestoneResolution resolution, out string message)
+    {
+        if (string.IsNullOrWhiteSpace(resolution.CardId))
+        {
+            message = "\u5f02\u6b21\u5143\u5361\u7ed3\u7b97\u7f3a\u5c11 ID\u3002";
+            return false;
+        }
+
+        if (!PlayerApi.TryAddCardToDeck(resolution.CardId, out var grantedCardId, out var error))
+        {
+            message = "\u5f02\u6b21\u5143\u5361\u83b7\u53d6\u5931\u8d25\uff1a" + error;
+            return false;
+        }
+
+        TongtianTowerCardAffixService.NormalizeOwnedCards("EndlessAbyssMilestone.OtherDimensionCard");
+        TongtianTowerCardAffixService.TryPersistCurrentRole("EndlessAbyssMilestone.OtherDimensionCard");
+        Claim(floor, "other-dimension:" + grantedCardId);
+        message = "\u83b7\u5f97\u5f02\u6b21\u5143\u5361\uff1a" + CardName(grantedCardId);
+        PlayerApi.ShowCaption(message);
+        return true;
+    }
+
+    private static bool ApplyRemoveBurnoutResolution(int floor, EndlessAbyssMilestoneResolution resolution, out string message)
+    {
+        var card = ResolveDeckCard(resolution, BurnoutCards);
+        if (card == null)
+        {
+            Claim(floor, "remove-burnout:none");
+            message = "\u5f53\u524d\u5361\u7ec4\u6ca1\u6709\u53ef\u6e05\u9664\u711a\u6bc1\u7684\u5361\u3002";
+            PlayerApi.ShowCaption(message);
+            return true;
         }
 
         if (!CardMutationService.RemoveNativeTags(card, BurnoutTag))
         {
+            Claim(floor, "remove-burnout:unchanged");
             message = "\u8be5\u5361\u6ca1\u6709\u53ef\u6e05\u9664\u7684\u711a\u6bc1\u3002";
-            return false;
+            PlayerApi.ShowCaption(message);
+            return true;
         }
 
-        GameSaveManager.UpdateRoles(RoleTable.Instance);
+        TongtianTowerCardAffixService.TryPersistCurrentRole("EndlessAbyssMilestone.RemoveBurnout");
         Claim(floor, "remove-burnout:" + card.InstanceID);
         message = "\u5df2\u6e05\u9664\u711a\u6bc1\uff1a" + CardDisplayName(card);
         PlayerApi.ShowCaption(message);
         return true;
     }
 
-    public static bool AddExtinction(int floor, IDataConfig card, out string message)
+    private static bool ApplyAddExtinctionResolution(int floor, EndlessAbyssMilestoneResolution resolution, out string message)
     {
-        message = "";
-        if (!CanClaim(floor) || card == null)
+        var card = ResolveDeckCard(resolution, ExtinctionTargets);
+        if (card == null)
         {
-            message = "\u5f53\u524d\u91cc\u7a0b\u7891\u5df2\u7ed3\u7b97\u3002";
-            return false;
+            Claim(floor, "add-extinction:none");
+            message = "\u5f53\u524d\u5361\u7ec4\u6ca1\u6709\u53ef\u6dfb\u52a0\u7edd\u706d\u7684\u5361\u3002";
+            PlayerApi.ShowCaption(message);
+            return true;
         }
 
         if (HasExtinction(card))
         {
+            Claim(floor, "add-extinction:unchanged");
             message = "\u8be5\u5361\u5df2\u7ecf\u62e5\u6709\u7edd\u706d\u3002";
-            return false;
+            PlayerApi.ShowCaption(message);
+            return true;
         }
 
-        if (card is DataConfig dataConfig)
-        {
-            TongtianTowerOriginService.AttachExtinctionEnchTag(dataConfig);
-        }
-        else
+        if (card is not DataConfig dataConfig)
         {
             message = "\u8be5\u5361\u6682\u4e0d\u652f\u6301\u7edd\u706d\u9644\u7740\u3002";
             return false;
         }
 
-        GameSaveManager.UpdateRoles(RoleTable.Instance);
+        TongtianTowerOriginService.AttachExtinctionEnchTag(dataConfig);
+        TongtianTowerCardAffixService.TryPersistCurrentRole("EndlessAbyssMilestone.AddExtinction");
         Claim(floor, "add-extinction:" + card.InstanceID);
         message = "\u5df2\u6dfb\u52a0\u7edd\u706d\uff1a" + CardDisplayName(card);
         PlayerApi.ShowCaption(message);
         return true;
+    }
+
+    private static bool UnknownResolution(EndlessAbyssMilestoneResolution resolution, out string message)
+    {
+        message = "\u672a\u77e5\u7684\u91cc\u7a0b\u7891\u5956\u52b1\uff1a" + (resolution.Kind ?? "");
+        return false;
+    }
+
+    private static IDataConfig? ResolveDeckCard(
+        EndlessAbyssMilestoneResolution resolution,
+        Func<IReadOnlyList<EndlessAbyssCardOption>> candidatesProvider)
+    {
+        var candidates = candidatesProvider();
+        var byInstance = candidates.FirstOrDefault(option =>
+            !string.IsNullOrWhiteSpace(resolution.CardInstanceId)
+            && string.Equals(option.InstanceId, resolution.CardInstanceId, StringComparison.Ordinal));
+        if (byInstance?.Card != null)
+        {
+            return byInstance.Card;
+        }
+
+        var byBase = candidates.FirstOrDefault(option =>
+            !string.IsNullOrWhiteSpace(resolution.CardBaseId)
+            && string.Equals(CardConfigApi.Id(option.Card), resolution.CardBaseId, StringComparison.Ordinal));
+        return byBase?.Card ?? candidates.FirstOrDefault()?.Card;
+    }
+
+    private static EndlessAbyssMilestoneResolution CardResolution(
+        int floor,
+        string kind,
+        IDataConfig card,
+        string source)
+    {
+        return new EndlessAbyssMilestoneResolution
+        {
+            Floor = Math.Max(1, floor),
+            Kind = kind,
+            CardInstanceId = card?.InstanceID ?? "",
+            CardBaseId = CardConfigApi.Id(card),
+            CardId = CardConfigApi.Id(card),
+            Source = source,
+            Token = Guid.NewGuid().ToString("N")
+        };
+    }
+
+    private static void BroadcastResolution(EndlessAbyssMilestoneResolution resolution, string source)
+    {
+        if (!SunExpNetworkRuntime.IsMultiplayerSession() || SunExpNetworkRuntime.IsClientOnly())
+        {
+            return;
+        }
+
+        var snapshot = TongtianTowerStateSnapshot.Capture(source + ":milestone-resolution");
+        SunExpNetworkRuntime.Send(
+            new RpcEndlessAbyssMilestoneResolution(resolution, snapshot, source),
+            source);
     }
 
     private static IReadOnlyList<EndlessAbyssCardOption> CurrentDeckCards()
@@ -267,12 +421,43 @@ public static class EndlessAbyssMilestoneRewardService
 
     private static void Claim(int floor, string source)
     {
+        EndlessAbyssRunLedger.TryClaim(ResultKey(floor, source), "milestone-result:" + source);
         EndlessAbyssRunLedger.TryClaim(Key(floor), "milestone:" + source);
     }
 
     private static string Key(int floor)
     {
-        return "milestone:floor:" + Math.Max(1, floor);
+        return "milestone:player:" + PlayerScopeKey() + ":floor:" + Math.Max(1, floor);
+    }
+
+    private static string ResultKey(int floor, string source)
+    {
+        return ResultPrefix(floor) + Sanitize(source);
+    }
+
+    private static string ResultPrefix(int floor)
+    {
+        return Key(floor) + ":result:";
+    }
+
+    private static string PlayerScopeKey()
+    {
+        var playerId = SunExpNetworkRuntime.LocalPlayerId();
+        if (!string.IsNullOrWhiteSpace(playerId))
+        {
+            return Sanitize(playerId);
+        }
+
+        var roleId = RoleTable.Instance?.Id ?? "";
+        return string.IsNullOrWhiteSpace(roleId) ? "solo" : Sanitize(roleId);
+    }
+
+    private static string Sanitize(string value)
+    {
+        var clean = new string((value ?? "")
+            .Select(ch => char.IsLetterOrDigit(ch) || ch == '_' || ch == '-' ? ch : '_')
+            .ToArray());
+        return string.IsNullOrWhiteSpace(clean) ? "unknown" : clean;
     }
 
     private static int TongtianTowerModeRuntimeCurrentFloor()

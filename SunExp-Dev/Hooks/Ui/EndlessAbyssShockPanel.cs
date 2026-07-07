@@ -74,6 +74,7 @@ public static class EndlessAbyssShockPanel
         }
 
         activePanel = SunExpModalHost.CreateFullscreenRoot(PanelName, parent, new Color(0f, 0f, 0f, 0.72f));
+        SunExpTransientUiRegistry.Register("EndlessAbyssShock", Close);
         var window = CreateRect("Window", activePanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), ResolveWindowSize(parent));
         SunExpUiBuilder.ApplyPanelImage(window, SunExpUiSprites.Panel("[EndlessAbyssShock]"), WindowTint, true);
         var layout = window.AddComponent<VerticalLayoutGroup>();
@@ -284,13 +285,14 @@ public static class EndlessAbyssShockPanel
             + (string.IsNullOrWhiteSpace(request.NodeKind) ? "" : " / " + request.NodeKind);
     }
 
-    private static void Close(string source)
+    public static void Close(string source)
     {
         selected.Clear();
         optionImages.Clear();
         confirmButton = null;
         hintText = null;
         SunExpModalHost.Close(ref activePanel, source, "[EndlessAbyssShock]");
+        SunExpTransientUiRegistry.Unregister("EndlessAbyssShock");
     }
 
     private static Button CreateButton(Transform parent, string label, Vector2 size, Action action)

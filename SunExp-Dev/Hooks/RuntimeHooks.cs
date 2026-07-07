@@ -25,6 +25,7 @@ public static class RuntimeHooks
         RunHookStep("solar memory mode", () => SolarMemoryModeRuntime.Initialize(modConfig));
         RunHookStep("solar memory combat", () => SolarMemoryCombatRuntime.Initialize(modConfig));
         RunHookStep("solar memory reward", () => SolarMemoryRewardRuntime.Initialize());
+        RunHookStep("sunexp UI lifecycle", () => SunExpUiLifecycleRuntime.Initialize(modConfig));
         RunHookStep("tongtian tower mode", () => TongtianTowerModeRuntime.Initialize(modConfig));
         RunHookStep("tongtian tower combat", () => TongtianTowerCombatRuntime.Initialize(modConfig));
         RunHookStep("tongtian tower reward", () => TongtianTowerRewardRuntime.Initialize(modConfig));

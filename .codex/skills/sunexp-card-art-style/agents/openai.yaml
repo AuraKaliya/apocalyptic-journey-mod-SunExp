@@ -1,0 +1,4 @@
+interface:
+  display_name: "Witch Mod Art Style"
+  short_description: "Draw theme-first card art and relic icons for Witch mods."
+  default_prompt: "Use $sunexp-card-art-style to redesign SunExp or GoldExp card art and relic icons from current names, pack themes, mechanics, and accepted style references while preserving the correct card-vs-relic rules."

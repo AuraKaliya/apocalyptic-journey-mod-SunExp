@@ -5,6 +5,7 @@ using Data.Save;
 using Newtonsoft.Json;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
+using SunExp.Dll.Network;
 using Witch;
 using Witch.Core;
 
@@ -142,7 +143,26 @@ public static class EndlessAbyssShockService
             };
         }
 
-        return Apply(request, optionIds, source);
+        return Apply(request, optionIds, source, broadcast: true, validateRequired: true);
+    }
+
+    public static EndlessAbyssShockResult ApplyNetworkResolution(EndlessAbyssShockResolution? resolution, string source)
+    {
+        if (resolution?.Request == null)
+        {
+            return new EndlessAbyssShockResult
+            {
+                Success = false,
+                Message = "\u6df1\u6e0a\u9707\u8361\u7f51\u7edc\u7ed3\u7b97\u7f3a\u5c11\u8bf7\u6c42\u3002"
+            };
+        }
+
+        return Apply(
+            resolution.Request,
+            resolution.Options,
+            source,
+            broadcast: false,
+            validateRequired: false);
     }
 
     private static bool TryEnqueue(EndlessAbyssShockRequest request, string source)
@@ -171,14 +191,19 @@ public static class EndlessAbyssShockService
         return true;
     }
 
-    private static EndlessAbyssShockResult Apply(EndlessAbyssShockRequest request, IEnumerable<string> optionIds, string source)
+    private static EndlessAbyssShockResult Apply(
+        EndlessAbyssShockRequest request,
+        IEnumerable<string> optionIds,
+        string source,
+        bool broadcast,
+        bool validateRequired)
     {
         var selected = (optionIds ?? Array.Empty<string>())
             .Where(IsKnownOption)
             .Distinct(StringComparer.Ordinal)
             .ToList();
         var required = EndlessAbyssGazeService.RequiredShockChoices();
-        if (selected.Count != required)
+        if (validateRequired && selected.Count != required)
         {
             return new EndlessAbyssShockResult
             {
@@ -198,9 +223,10 @@ public static class EndlessAbyssShockService
         }
 
         var result = new EndlessAbyssShockResult { Success = true };
+        var seedBase = request.Key + ":" + source + ":" + SunExpNetworkRuntime.LocalPlayerId();
         foreach (var option in selected)
         {
-            ApplyOption(option, result, source);
+            ApplyOption(option, result, source, seedBase);
         }
 
         var passive = EndlessAbyssConfigStore.Current.Gaze.EndlessPassiveIncreasePerShock;
@@ -216,15 +242,22 @@ public static class EndlessAbyssShockService
             + "\uff1a"
             + EndlessAbyssGazeService.CurrentLevel();
         PlayerApi.ShowCaption(result.Message);
+        if (broadcast)
+        {
+            BroadcastResolution(request, selected, source);
+        }
+
         return result;
     }
 
-    private static void ApplyOption(string option, EndlessAbyssShockResult result, string source)
+    private static void ApplyOption(string option, EndlessAbyssShockResult result, string source, string seedBase)
     {
         switch (option)
         {
             case EndlessAbyssShockOptionIds.DestroyRelic:
-                if (!TongtianTowerPressureService.DestroyRandomEquippedRelic(source + ":shock"))
+                if (!TongtianTowerPressureService.DestroyRandomEquippedRelic(
+                        source + ":shock",
+                        seedBase + ":" + option))
                 {
                     EndlessAbyssGazeService.Increase(1, source + ":relic-fallback");
                 }
@@ -234,7 +267,8 @@ public static class EndlessAbyssShockService
             case EndlessAbyssShockOptionIds.AnnihilateCards:
                 var changed = TongtianTowerPressureService.AddAnnihilationToRandomDeckCards(
                     EndlessAbyssConfigStore.Current.Shock.AnnihilationCardCount,
-                    source + ":shock");
+                    source + ":shock",
+                    seedBase + ":" + option);
                 if (changed <= 0)
                 {
                     EndlessAbyssGazeService.Increase(1, source + ":annihilation-fallback");
@@ -247,6 +281,27 @@ public static class EndlessAbyssShockService
                 result.AppliedOptions.Add(option);
                 break;
         }
+    }
+
+    private static void BroadcastResolution(EndlessAbyssShockRequest request, IReadOnlyList<string> selected, string source)
+    {
+        if (!SunExpNetworkRuntime.IsMultiplayerSession() || SunExpNetworkRuntime.IsClientOnly())
+        {
+            return;
+        }
+
+        var safeSource = source ?? "";
+        var resolution = new EndlessAbyssShockResolution
+        {
+            Request = request,
+            Options = selected.ToList(),
+            Source = safeSource,
+            Token = Guid.NewGuid().ToString("N")
+        };
+        var snapshot = TongtianTowerStateSnapshot.Capture(safeSource + ":shock-resolution");
+        SunExpNetworkRuntime.Send(
+            new RpcEndlessAbyssShockResolution(resolution, snapshot, safeSource),
+            safeSource);
     }
 
     private static bool IsKnownOption(string option)

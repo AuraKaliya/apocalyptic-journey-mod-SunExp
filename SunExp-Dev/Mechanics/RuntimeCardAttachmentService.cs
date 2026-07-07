@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using Witch.UI.Window;
@@ -69,6 +70,21 @@ public sealed class RuntimeCardAttachmentResult
     }
 }
 
+public sealed class RuntimeHandAttachmentSpec
+{
+    public string[] NativeTags { get; set; } = Array.Empty<string>();
+
+    public string[] SpecialTags { get; set; } = Array.Empty<string>();
+
+    public string[] Markers { get; set; } = Array.Empty<string>();
+
+    public bool TemporaryWhiteRadiance { get; set; }
+
+    public string Token { get; set; } = "";
+
+    public string Source { get; set; } = "";
+}
+
 public static class RuntimeCardAttachmentService
 {
     private const string BurnoutTag = "Burnout";
@@ -80,6 +96,7 @@ public static class RuntimeCardAttachmentService
     private const string AddedVisibleTagsKey = "SunExpRuntimeAttachmentAddedVisibleTags";
     private static readonly object PendingAttachmentSync = new();
     private static readonly Dictionary<string, PendingHandAttachment> PendingHandAttachments = new(StringComparer.Ordinal);
+    private static readonly HashSet<string> AppliedNetworkTokens = new(StringComparer.Ordinal);
 
     public static RuntimeCardAttachment WunaWhiteSunPrayerHandAttachment()
     {
@@ -111,18 +128,32 @@ public static class RuntimeCardAttachmentService
             return false;
         }
 
-        lock (PendingAttachmentSync)
-        {
-            PendingHandAttachments[PendingHandAttachmentKey(attachment, source)] = new PendingHandAttachment(executor, attachment, source);
-        }
-
-        var enqueued = SunExpFrameDispatcher.RunOnceNextFrame("RuntimeCardAttachment.AttachToCurrentHand", FlushPendingHandAttachment);
-        if (!enqueued)
-        {
-            SunExpPerformanceCounters.Record("RuntimeCardAttachment.HandAttachDeduped");
-        }
+        var token = Guid.NewGuid().ToString("N");
+        EnqueueLocalHandAttachment(executor, attachment, source, token);
+        BroadcastHandAttachment(attachment, source, token);
 
         return true;
+    }
+
+    public static void ApplyNetworkHandAttachment(RuntimeHandAttachmentSpec? spec, string source)
+    {
+        if (spec == null)
+        {
+            return;
+        }
+
+        var token = (spec.Token ?? "").Trim();
+        if (!MarkNetworkToken(token))
+        {
+            return;
+        }
+
+        var attachment = new RuntimeCardAttachment(
+            spec.NativeTags,
+            spec.SpecialTags,
+            spec.Markers,
+            spec.TemporaryWhiteRadiance);
+        EnqueueLocalHandAttachment(null, attachment, string.IsNullOrWhiteSpace(spec.Source) ? source : spec.Source, token);
     }
 
     public static RuntimeCardAttachmentResult AttachToCurrentHand(ScriptExecutor? executor, RuntimeCardAttachment attachment)
@@ -823,9 +854,114 @@ public static class RuntimeCardAttachmentService
         }
     }
 
-    private static string PendingHandAttachmentKey(RuntimeCardAttachment attachment, string source)
+    private static void EnqueueLocalHandAttachment(ScriptExecutor? executor, RuntimeCardAttachment attachment, string source, string token)
+    {
+        MarkNetworkToken(token);
+        lock (PendingAttachmentSync)
+        {
+            PendingHandAttachments[PendingHandAttachmentKey(attachment, source, token)] = new PendingHandAttachment(executor, attachment, source);
+        }
+
+        var enqueued = SunExpFrameDispatcher.RunOnceNextFrame("RuntimeCardAttachment.AttachToCurrentHand", FlushPendingHandAttachment);
+        if (!enqueued)
+        {
+            SunExpPerformanceCounters.Record("RuntimeCardAttachment.HandAttachDeduped");
+        }
+    }
+
+    private static void BroadcastHandAttachment(RuntimeCardAttachment attachment, string source, string token)
+    {
+        var runtimeType = FindRuntimeType("SunExp.Dll.Network.SunExpNetworkRuntime");
+        if (runtimeType == null || InvokeBool(runtimeType, "IsMultiplayerSession") != true)
+        {
+            return;
+        }
+
+        var commandType = FindRuntimeType("SunExp.Dll.Network.RpcRuntimeHandAttachment");
+        if (commandType == null)
+        {
+            return;
+        }
+
+        try
+        {
+            var command = Activator.CreateInstance(
+                commandType,
+                new RuntimeHandAttachmentSpec
+                {
+                    NativeTags = attachment.NativeTags.ToArray(),
+                    SpecialTags = attachment.SpecialTags.ToArray(),
+                    Markers = attachment.Markers.ToArray(),
+                    TemporaryWhiteRadiance = attachment.TemporaryWhiteRadiance,
+                    Token = token,
+                    Source = source ?? ""
+                });
+            runtimeType.GetMethod("Send", BindingFlags.Public | BindingFlags.Static)
+                ?.Invoke(null, new[] { command, source ?? "RuntimeCardAttachment.BroadcastHandAttachment", true });
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("Runtime hand attachment network broadcast failed: " + ex.Message);
+        }
+    }
+
+    private static bool? InvokeBool(Type type, string name)
+    {
+        try
+        {
+            return type.GetMethod(name, BindingFlags.Public | BindingFlags.Static)?.Invoke(null, Array.Empty<object>()) as bool?;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static Type? FindRuntimeType(string name)
+    {
+        var direct = Type.GetType(name);
+        if (direct != null)
+        {
+            return direct;
+        }
+
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            try
+            {
+                var exact = assembly.GetType(name);
+                if (exact != null)
+                {
+                    return exact;
+                }
+            }
+            catch
+            {
+                // Best-effort runtime bridge.
+            }
+        }
+
+        return null;
+    }
+
+    private static bool MarkNetworkToken(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return true;
+        }
+
+        lock (PendingAttachmentSync)
+        {
+            return AppliedNetworkTokens.Add(token);
+        }
+    }
+
+    private static string PendingHandAttachmentKey(RuntimeCardAttachment attachment, string source, string token)
     {
         return (source ?? "").Trim()
+            + "|token="
+            + (token ?? "").Trim()
             + "|native="
             + string.Join(",", attachment.NativeTags)
             + "|special="

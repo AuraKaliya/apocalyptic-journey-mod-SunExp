@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
+using SunExp.Dll.Network;
 using UnityEngine;
 using Witch.UI;
 using Witch.UI.Window;
@@ -11,6 +13,8 @@ namespace SunExp.Dll.Mechanics;
 public static class ProjectionSummonService
 {
     private const int PartyCap = CompanionSlotService.MaxFriendlySlots;
+    private static readonly object NetworkSync = new();
+    private static readonly HashSet<string> ResolvedTokens = new(StringComparer.Ordinal);
 
     public static bool TrySummon(ScriptExecutor self, PolymorphRoleSpec role)
     {
@@ -26,61 +30,82 @@ public static class ProjectionSummonService
             return false;
         }
 
-        var currentCount = RealPlayerCount() + ProjectionStateStore.ActiveCount();
-        if (currentCount >= PartyCap)
+        if (SunExpNetworkRuntime.IsMultiplayerSession() && !SunExpNetworkRuntime.IsServer())
         {
-            PlayerApi.ShowCaption("拜托了：场上友方单位已达到4人上限。");
-            return false;
-        }
-
-        var slotIndex = CompanionSlotService.FindOpenPlayerSlot();
-        if (slotIndex == null)
-        {
-            PlayerApi.ShowCaption("拜托了：没有可用的友方站位。");
-            return false;
-        }
-
-        try
-        {
-            var prefab = SunExpResourceCache.Load<GameObject>("Model/player", true, "projection");
-            if (prefab == null)
-            {
-                PlayerApi.ShowCaption("拜托了：投影模型加载失败。");
-                return false;
-            }
-
-            var gameObject = UnityEngine.Object.Instantiate(prefab);
-            if (gameObject == null)
-            {
-                PlayerApi.ShowCaption("拜托了：投影模型加载失败。");
-                return false;
-            }
-
-            var stats = CompanionStatsService.ProjectionStats(role);
-            var projection = gameObject.AddComponent<ProjectionOtherObj>();
-            if (!projection.InitProjection(role, self.Self.InstanceId, slotIndex.Value, stats))
-            {
-                UnityEngine.Object.Destroy(gameObject);
-                PlayerApi.ShowCaption("拜托了：投影初始化失败。");
-                return false;
-            }
-
-            ProjectionStateStore.Register(new ProjectionState(
-                projection.InstanceId,
-                self.Self.InstanceId,
-                role.Id,
-                role.DisplayName,
-                projection,
-                slotIndex.Value));
-            PlayerApi.ShowCaption("拜托了：" + role.DisplayName + "的投影加入战斗。");
+            var token = Guid.NewGuid().ToString("N");
+            SunExpNetworkRuntime.Send(
+                new RpcProjectionSummonRequest(role.Id, self.Self.InstanceId, token),
+                "ProjectionSummonService.TrySummon");
+            PlayerApi.ShowCaption("拜托了：正在同步投影。");
             return true;
         }
-        catch (Exception ex)
+
+        return TrySummonLocal(
+            self.Self.InstanceId,
+            role,
+            "ProjectionSummonService.TrySummon",
+            broadcast: SunExpNetworkRuntime.IsMultiplayerSession());
+    }
+
+    public static void ResolveNetworkSummon(string roleId, string ownerStatusId, string token, SunExpRpcSender sender)
+    {
+        if (!ClaimToken(token))
         {
-            SunExpLog.Error("[Projection] summon failed", ex);
-            PlayerApi.ShowCaption("拜托了：召唤失败。");
-            return false;
+            return;
         }
+
+        var role = PolymorphRoleRegistry.Find(roleId);
+        var rejection = ValidateNetworkSender(sender, ownerStatusId);
+        if (role == null)
+        {
+            rejection = "unknown role: " + roleId;
+        }
+
+        if (!string.IsNullOrWhiteSpace(rejection))
+        {
+            BroadcastNetworkState(new ProjectionCompanionSnapshot
+            {
+                Token = token ?? "",
+                RoleId = roleId ?? "",
+                OwnerStatusId = ownerStatusId ?? "",
+                Accepted = false,
+                RejectionReason = rejection
+            }, "ProjectionSummonService.ResolveNetworkSummon.Reject");
+            return;
+        }
+
+        TrySummonLocal(ownerStatusId, role!, "ProjectionSummonService.ResolveNetworkSummon", broadcast: true, token: token);
+    }
+
+    public static void ApplyNetworkState(ProjectionCompanionSnapshot? snapshot, string source)
+    {
+        if (snapshot == null)
+        {
+            return;
+        }
+
+        if (!snapshot.Accepted)
+        {
+            if (SenderOwnsStatus(SunExpNetworkRuntime.LocalPlayerId(), snapshot.OwnerStatusId))
+            {
+                PlayerApi.ShowCaption("拜托了：" + snapshot.RejectionReason);
+            }
+
+            return;
+        }
+
+        var role = PolymorphRoleRegistry.Find(snapshot.RoleId);
+        if (role == null || string.IsNullOrWhiteSpace(snapshot.StatusId))
+        {
+            return;
+        }
+
+        if (ProjectionStateStore.Find(snapshot.StatusId) != null)
+        {
+            return;
+        }
+
+        SpawnProjection(role, snapshot.OwnerStatusId, snapshot.SlotIndex, snapshot.StatusId, source);
     }
 
     public static DataConfig CreateProjectionDataConfig(PolymorphRoleSpec role, CompanionStats? stats = null)
@@ -154,6 +179,168 @@ public static class ProjectionSummonService
     public static void PositionProjection(ProjectionOtherObj projection, int slotIndex)
     {
         CompanionSlotService.PositionInPlayerSlot(projection, slotIndex);
+    }
+
+    private static bool TrySummonLocal(string ownerStatusId, PolymorphRoleSpec role, string source, bool broadcast, string token = "")
+    {
+        var currentCount = RealPlayerCount() + ProjectionStateStore.ActiveCount();
+        if (currentCount >= PartyCap)
+        {
+            PlayerApi.ShowCaption("拜托了：场上友方单位已达到上限。");
+            BroadcastRejectIfNeeded(role.Id, ownerStatusId, token, "no open friendly slot", broadcast, source);
+            return false;
+        }
+
+        var slotIndex = CompanionSlotService.FindOpenPlayerSlot();
+        if (slotIndex == null)
+        {
+            PlayerApi.ShowCaption("拜托了：没有可用的友方站位。");
+            BroadcastRejectIfNeeded(role.Id, ownerStatusId, token, "no open friendly slot", broadcast, source);
+            return false;
+        }
+
+        var statusId = ProjectionStateStore.NextStatusId();
+        var spawned = SpawnProjection(role, ownerStatusId, slotIndex.Value, statusId, source);
+        if (spawned && broadcast)
+        {
+            BroadcastNetworkState(new ProjectionCompanionSnapshot
+            {
+                Token = string.IsNullOrWhiteSpace(token) ? Guid.NewGuid().ToString("N") : token,
+                RoleId = role.Id,
+                OwnerStatusId = ownerStatusId ?? "",
+                StatusId = statusId,
+                SlotIndex = slotIndex.Value,
+                Accepted = true
+            }, source);
+        }
+
+        return spawned;
+    }
+
+    private static bool SpawnProjection(PolymorphRoleSpec role, string ownerStatusId, int slotIndex, string statusId, string source)
+    {
+        try
+        {
+            var prefab = SunExpResourceCache.Load<GameObject>("Model/player", true, "projection");
+            if (prefab == null)
+            {
+                PlayerApi.ShowCaption("拜托了：投影模型加载失败。");
+                return false;
+            }
+
+            var gameObject = UnityEngine.Object.Instantiate(prefab);
+            if (gameObject == null)
+            {
+                PlayerApi.ShowCaption("拜托了：投影模型加载失败。");
+                return false;
+            }
+
+            var stats = CompanionStatsService.ProjectionStats(role);
+            var projection = gameObject.AddComponent<ProjectionOtherObj>();
+            if (!projection.InitProjection(role, ownerStatusId, slotIndex, stats, statusId))
+            {
+                UnityEngine.Object.Destroy(gameObject);
+                PlayerApi.ShowCaption("拜托了：投影初始化失败。");
+                return false;
+            }
+
+            ProjectionStateStore.Register(new ProjectionState(
+                projection.InstanceId,
+                ownerStatusId,
+                role.Id,
+                role.DisplayName,
+                projection,
+                slotIndex));
+            PlayerApi.ShowCaption("拜托了：" + role.DisplayName + "的投影加入战斗。");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("[Projection] summon failed from " + source, ex);
+            PlayerApi.ShowCaption("拜托了：召唤失败。");
+            return false;
+        }
+    }
+
+    private static void BroadcastRejectIfNeeded(string roleId, string ownerStatusId, string token, string reason, bool broadcast, string source)
+    {
+        if (!broadcast)
+        {
+            return;
+        }
+
+        BroadcastNetworkState(new ProjectionCompanionSnapshot
+        {
+            Token = token ?? "",
+            RoleId = roleId ?? "",
+            OwnerStatusId = ownerStatusId ?? "",
+            Accepted = false,
+            RejectionReason = reason ?? ""
+        }, source + ".Reject");
+    }
+
+    private static void BroadcastNetworkState(ProjectionCompanionSnapshot snapshot, string source)
+    {
+        SunExpNetworkRuntime.Send(new RpcProjectionCompanionState(snapshot), source);
+    }
+
+    private static bool ClaimToken(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return true;
+        }
+
+        lock (NetworkSync)
+        {
+            return ResolvedTokens.Add(token);
+        }
+    }
+
+    private static string ValidateNetworkSender(SunExpRpcSender sender, string ownerStatusId)
+    {
+        if (!SunExpNetworkRuntime.IsMultiplayerSession())
+        {
+            return "";
+        }
+
+        if (!sender.IsAvailable)
+        {
+            return "missing sender";
+        }
+
+        if (!sender.IsLobbyMember)
+        {
+            return "sender outside lobby";
+        }
+
+        return SenderOwnsStatus(sender.PlayerId, ownerStatusId) ? "" : "owner mismatch";
+    }
+
+    private static bool SenderOwnsStatus(string playerId, string ownerStatusId)
+    {
+        if (string.IsNullOrWhiteSpace(ownerStatusId))
+        {
+            return false;
+        }
+
+        if (string.Equals(playerId, ownerStatusId, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        try
+        {
+            var map = Singleton<TempDataManager>.Instance?.RoleStatusMap;
+            return map != null
+                && map.TryGetValue(playerId, out var statuses)
+                && statuses != null
+                && statuses.Contains(ownerStatusId);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static int RealPlayerCount()

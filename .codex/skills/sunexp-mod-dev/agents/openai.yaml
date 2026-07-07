@@ -1,0 +1,4 @@
+interface:
+  display_name: "SunExp Mod Dev"
+  short_description: "Route SunExp content, runtime, and validation."
+  default_prompt: "Use $sunexp-mod-dev to route and validate SunExp C# runtime, CSV content, shared integrations, visual runtime, and specialized skill work."

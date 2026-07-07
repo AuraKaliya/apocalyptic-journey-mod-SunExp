@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
+using SunExp.Dll.Network;
 using UnityEngine;
 
 namespace SunExp.Dll.Mechanics;
@@ -14,6 +15,8 @@ public static class HeartChangeControlService
 
     private static readonly object SyncRoot = new();
     private static readonly Dictionary<string, HeartChangeState> Active = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, int> ReservedSlots = new(StringComparer.Ordinal);
+    private static readonly HashSet<string> ResolvedNetworkTokens = new(StringComparer.Ordinal);
     private static readonly HashSet<string> RemovingBuffs = new(StringComparer.Ordinal);
 
     public static bool TryControlFromCard(ScriptExecutor self)
@@ -24,6 +27,17 @@ public static class HeartChangeControlService
             PlayerApi.ShowCaption("Heart Change: " + reason);
             RestoreCardTarget(self, target);
             return false;
+        }
+
+        if (SunExpNetworkRuntime.IsMultiplayerSession() && !SunExpNetworkRuntime.IsServer())
+        {
+            var token = Guid.NewGuid().ToString("N");
+            SunExpNetworkRuntime.Send(
+                new RpcHeartChangeControlRequest(StatusId(target), StatusId(self.Self), token),
+                "HeartChangeControlService.TryControlFromCard");
+            PlayerApi.ShowCaption("Heart Change: syncing control.");
+            RestoreCardTarget(self, target);
+            return true;
         }
 
         if (!ExecutorApi.AddStatusBuff(self, target, SunExpIds.HeartChangeBuffId, 1, "Target"))
@@ -63,6 +77,7 @@ public static class HeartChangeControlService
             ApplyFriendlyFacing(state);
             state.Status.UpdateStatus(true);
             QueueProxyAction(state, "Apply");
+            BroadcastState(state, active: true, accepted: true, token: "");
             SunExpPerformanceCounters.Record("HeartChange.Controlled");
         }
         catch (Exception ex)
@@ -89,6 +104,95 @@ public static class HeartChangeControlService
         {
             EndControl(state.Status, source, removeBuff: true, consumeNativeAction: false);
         }
+    }
+
+    public static void ResolveNetworkControl(string targetStatusId, string ownerStatusId, string token, SunExpRpcSender sender)
+    {
+        if (!ClaimNetworkToken(token))
+        {
+            return;
+        }
+
+        var target = FindStatus(targetStatusId);
+        var rejection = ValidateNetworkSender(sender, ownerStatusId);
+        if (target == null)
+        {
+            rejection = "target missing";
+        }
+        else if (!CanControlNetworkTarget(target, out var reason))
+        {
+            rejection = reason;
+        }
+
+        if (!string.IsNullOrWhiteSpace(rejection))
+        {
+            SunExpNetworkRuntime.Send(
+                new RpcHeartChangeControlState(targetStatusId, token, -1, active: false, accepted: false, rejection),
+                "HeartChangeControlService.ResolveNetworkControl.Reject");
+            return;
+        }
+
+        var slotIndex = CompanionSlotService.FindOpenPlayerSlot();
+        if (slotIndex == null)
+        {
+            SunExpNetworkRuntime.Send(
+                new RpcHeartChangeControlState(targetStatusId, token, -1, active: false, accepted: false, "no open friendly slot"),
+                "HeartChangeControlService.ResolveNetworkControl.NoSlot");
+            return;
+        }
+
+        ReserveSlot(targetStatusId, slotIndex.Value);
+        try
+        {
+            target!.AddBuff(SunExpIds.HeartChangeBuffId, 1);
+            if (!IsControlled(target))
+            {
+                ApplyNetworkState(
+                    new RpcHeartChangeControlState(targetStatusId, token, slotIndex.Value, active: true, accepted: true),
+                    "HeartChangeControlService.ResolveNetworkControl.AfterBuff");
+                var state = Snapshot(target);
+                if (state != null)
+                {
+                    BroadcastState(state, active: true, accepted: true, token: token);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[HeartChange] network add buff failed: " + ex.Message);
+            ApplyNetworkState(
+                new RpcHeartChangeControlState(targetStatusId, token, slotIndex.Value, active: true, accepted: true),
+                "HeartChangeControlService.ResolveNetworkControl.Fallback");
+        }
+    }
+
+    public static void ApplyNetworkState(RpcHeartChangeControlState? command, string source)
+    {
+        if (command == null)
+        {
+            return;
+        }
+
+        if (!command.Accepted)
+        {
+            PlayerApi.ShowCaption("Heart Change: " + command.RejectionReason);
+            return;
+        }
+
+        var status = FindStatus(command.TargetStatusId);
+        if (status == null)
+        {
+            return;
+        }
+
+        if (!command.Active)
+        {
+            EndControl(status, source + ".RemoteClear", removeBuff: false, consumeNativeAction: false, broadcast: false);
+            return;
+        }
+
+        ReserveSlot(command.TargetStatusId, command.SlotIndex);
+        ApplyWithReservedSlot(status, source);
     }
 
     public static void BeginEnemyAction(Enemy? enemy, int actionIndex, bool isSingle)
@@ -269,6 +373,75 @@ public static class HeartChangeControlService
         return true;
     }
 
+    private static bool CanControlNetworkTarget(IStatusManager? target, out string reason)
+    {
+        reason = "";
+        if (FightManager.Instance == null || FightManager.Instance.fightType == FightType.None)
+        {
+            reason = "can only be used in combat.";
+            return false;
+        }
+
+        if (target == null || target.fatherObject is not Enemy)
+        {
+            reason = "choose an enemy.";
+            return false;
+        }
+
+        if (!IsAlive(target))
+        {
+            reason = "target is not alive.";
+            return false;
+        }
+
+        if (IsControlled(target))
+        {
+            reason = "target is already controlled.";
+            return false;
+        }
+
+        if (AliveEnemyStatuses().Count(status => !IsControlled(status)) < 2)
+        {
+            reason = "needs at least two uncontrolled enemies.";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static void ApplyWithReservedSlot(IStatusManager status, string source)
+    {
+        if (!TryCreateState(status, out var state, out var reason))
+        {
+            SunExpLog.Warn("[HeartChange] network state rejected from " + source + ": " + reason);
+            return;
+        }
+
+        lock (SyncRoot)
+        {
+            if (Active.ContainsKey(state.StatusId))
+            {
+                return;
+            }
+
+            Active[state.StatusId] = state;
+        }
+
+        try
+        {
+            CompanionSlotService.PositionStatusInPlayerSlot(state.Status, state.SlotIndex);
+            ApplyFriendlyFacing(state);
+            state.Status.UpdateStatus(true);
+            QueueProxyAction(state, source);
+            SunExpPerformanceCounters.Record("HeartChange.Controlled.Network");
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[HeartChange] network positioning failed from " + source + ": " + ex.Message);
+            EndControl(state.Status, source + ".PositionFailed", removeBuff: false, consumeNativeAction: false, broadcast: false);
+        }
+    }
+
     private static bool TryCreateState(IStatusManager? status, out HeartChangeState state, out string reason)
     {
         state = HeartChangeState.Empty;
@@ -297,7 +470,7 @@ public static class HeartChangeControlService
             return false;
         }
 
-        var slotIndex = CompanionSlotService.FindOpenPlayerSlot();
+        var slotIndex = TakeReservedSlot(StatusId(status)) ?? CompanionSlotService.FindOpenPlayerSlot();
         if (slotIndex == null)
         {
             reason = "no open friendly slot.";
@@ -315,7 +488,7 @@ public static class HeartChangeControlService
         return true;
     }
 
-    private static void EndControl(IStatusManager? status, string source, bool removeBuff, bool consumeNativeAction)
+    private static void EndControl(IStatusManager? status, string source, bool removeBuff, bool consumeNativeAction, bool broadcast = true)
     {
         var state = TakeState(status);
         if (state == null)
@@ -345,6 +518,11 @@ public static class HeartChangeControlService
         if (removeBuff)
         {
             RemoveHeartChangeBuff(state.Status, source);
+        }
+
+        if (broadcast)
+        {
+            BroadcastState(state, active: false, accepted: true, token: "");
         }
 
         SunExpPerformanceCounters.Record("HeartChange.Cleared");
@@ -886,6 +1064,129 @@ public static class HeartChangeControlService
 
             Active.Remove(id);
             return state;
+        }
+    }
+
+    private static void ReserveSlot(string statusId, int slotIndex)
+    {
+        if (string.IsNullOrWhiteSpace(statusId) || slotIndex < 0)
+        {
+            return;
+        }
+
+        lock (SyncRoot)
+        {
+            ReservedSlots[statusId] = slotIndex;
+        }
+    }
+
+    private static int? TakeReservedSlot(string statusId)
+    {
+        if (string.IsNullOrWhiteSpace(statusId))
+        {
+            return null;
+        }
+
+        lock (SyncRoot)
+        {
+            if (!ReservedSlots.TryGetValue(statusId, out var slotIndex))
+            {
+                return null;
+            }
+
+            ReservedSlots.Remove(statusId);
+            return slotIndex;
+        }
+    }
+
+    private static bool ClaimNetworkToken(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return true;
+        }
+
+        lock (SyncRoot)
+        {
+            return ResolvedNetworkTokens.Add(token);
+        }
+    }
+
+    private static IStatusManager? FindStatus(string statusId)
+    {
+        if (string.IsNullOrWhiteSpace(statusId))
+        {
+            return null;
+        }
+
+        try
+        {
+            return FightManager.Instance?.statuses != null
+                && FightManager.Instance.statuses.TryGetValue(statusId, out var status)
+                ? status
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static void BroadcastState(HeartChangeState state, bool active, bool accepted, string token)
+    {
+        if (state == null || !SunExpNetworkRuntime.IsMultiplayerSession())
+        {
+            return;
+        }
+
+        SunExpNetworkRuntime.Send(
+            new RpcHeartChangeControlState(state.StatusId, token, state.SlotIndex, active, accepted),
+            "HeartChangeControlService.BroadcastState");
+    }
+
+    private static string ValidateNetworkSender(SunExpRpcSender sender, string ownerStatusId)
+    {
+        if (!SunExpNetworkRuntime.IsMultiplayerSession())
+        {
+            return "";
+        }
+
+        if (!sender.IsAvailable)
+        {
+            return "missing sender";
+        }
+
+        if (!sender.IsLobbyMember)
+        {
+            return "sender outside lobby";
+        }
+
+        return SenderOwnsStatus(sender.PlayerId, ownerStatusId) ? "" : "owner mismatch";
+    }
+
+    private static bool SenderOwnsStatus(string playerId, string ownerStatusId)
+    {
+        if (string.IsNullOrWhiteSpace(ownerStatusId))
+        {
+            return false;
+        }
+
+        if (string.Equals(playerId, ownerStatusId, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        try
+        {
+            var map = Singleton<TempDataManager>.Instance?.RoleStatusMap;
+            return map != null
+                && map.TryGetValue(playerId, out var statuses)
+                && statuses != null
+                && statuses.Contains(ownerStatusId);
+        }
+        catch
+        {
+            return false;
         }
     }
 

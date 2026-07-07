@@ -34,6 +34,17 @@ public static class EndlessAbyssRunLedger
         return Load().Entries.Contains(NormalizeKey(key), StringComparer.Ordinal);
     }
 
+    public static bool ContainsPrefix(string prefix)
+    {
+        prefix = NormalizeKey(prefix);
+        if (prefix.Length == 0)
+        {
+            return false;
+        }
+
+        return Load().Entries.Any(entry => NormalizeKey(entry).StartsWith(prefix, StringComparison.Ordinal));
+    }
+
     public static bool TryClaim(string key, string source)
     {
         key = NormalizeKey(key);
@@ -59,6 +70,37 @@ public static class EndlessAbyssRunLedger
         return true;
     }
 
+    public static string MergeRemotePreservingLocalMilestones(string remoteJson)
+    {
+        var remote = Parse(remoteJson);
+        var local = Load();
+        var entries = new List<string>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var entry in remote.Entries.Where(entry => !IsPlayerMilestone(entry)))
+        {
+            if (seen.Add(NormalizeKey(entry)))
+            {
+                entries.Add(NormalizeKey(entry));
+            }
+        }
+
+        foreach (var entry in local.Entries.Where(IsPlayerMilestone))
+        {
+            if (seen.Add(NormalizeKey(entry)))
+            {
+                entries.Add(NormalizeKey(entry));
+            }
+        }
+
+        if (entries.Count > MaxEntries)
+        {
+            entries = entries.Skip(entries.Count - MaxEntries).ToList();
+        }
+
+        return JsonConvert.SerializeObject(new EndlessAbyssLedgerDocument { Entries = entries });
+    }
+
     private static EndlessAbyssLedgerDocument Load()
     {
         try
@@ -79,6 +121,21 @@ public static class EndlessAbyssRunLedger
         }
     }
 
+    private static EndlessAbyssLedgerDocument Parse(string json)
+    {
+        try
+        {
+            return string.IsNullOrWhiteSpace(json)
+                ? new EndlessAbyssLedgerDocument()
+                : JsonConvert.DeserializeObject<EndlessAbyssLedgerDocument>(json)
+                  ?? new EndlessAbyssLedgerDocument();
+        }
+        catch
+        {
+            return new EndlessAbyssLedgerDocument();
+        }
+    }
+
     private static void Save(EndlessAbyssLedgerDocument document)
     {
         SetValue(SunExpIds.EndlessAbyssLedgerKey, JsonConvert.SerializeObject(document ?? new EndlessAbyssLedgerDocument()));
@@ -87,6 +144,11 @@ public static class EndlessAbyssRunLedger
     private static string NormalizeKey(string key)
     {
         return (key ?? "").Trim();
+    }
+
+    private static bool IsPlayerMilestone(string key)
+    {
+        return NormalizeKey(key).StartsWith("milestone:player:", StringComparison.Ordinal);
     }
 
     private static string CurrentValue(string key)

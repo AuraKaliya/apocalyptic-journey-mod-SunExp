@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using SunExp.Dll.Infrastructure;
+using SunExp.Dll.Mechanics;
 
 namespace SunExp.Dll.GameApi;
 
@@ -502,7 +503,7 @@ public static class BuffApi
         }
 
         var level = Math.Max(0, Math.Min(99, Level(status, SunExpIds.Ember)));
-        PlayerApi.SetScopedGameVar(SunExpIds.WunaPersistentEmber, status, level.ToString());
+        WunaEmberSyncService.CommitLocal(status, level, "BuffApi.SavePersistentEmber");
         return level;
     }
 

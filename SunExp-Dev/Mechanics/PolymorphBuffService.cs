@@ -62,6 +62,7 @@ public static class PolymorphBuffService
             var state = PolymorphStateStore.SetLocal(role, self.Self);
             self.ChangeCareer(role.Id);
             PolymorphRuntimeService.Enter(self, role, state);
+            PolymorphNetworkSync.BroadcastEnter(state, "PolymorphBuffService.Apply");
             PolymorphCooldownService.ApplyToCurrentRole(self, "PolymorphBuffService.Apply:" + role.Id);
             PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u5316\u8eab\u4e3a\u3010" + state.DisplayName + "\u3011\u3002");
             SunExpPerformanceCounters.Record("Polymorph.BuffApplied");

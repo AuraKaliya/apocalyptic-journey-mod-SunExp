@@ -118,6 +118,7 @@ public static class TongtianTowerIntroBoardRuntime
             "SunExpTongtianTowerIntroBoard",
             parent,
             new Color(0f, 0f, 0f, 0.68f));
+        SunExpTransientUiRegistry.Register("TongtianTowerIntro", ClosePanel);
         deckButtons.Clear();
         deckSelectedFrames.Clear();
         HideTooltip();
@@ -872,12 +873,18 @@ public static class TongtianTowerIntroBoardRuntime
 
     private static void ClosePanel()
     {
+        ClosePanel("TongtianTowerIntro.ClosePanel");
+    }
+
+    public static void ClosePanel(string source)
+    {
         HideTooltip();
-        SunExpModalHost.Close(ref activePanel, "TongtianTowerIntro.ClosePanel", "[TongtianTowerIntro]");
+        SunExpModalHost.Close(ref activePanel, source, "[TongtianTowerIntro]");
         activeTooltipLayer = null;
         hintText = null;
         deckButtons.Clear();
         deckSelectedFrames.Clear();
+        SunExpTransientUiRegistry.Unregister("TongtianTowerIntro");
     }
 
     private static Text AddTextFill(Transform parent, string value, int fontSize, TextAnchor anchor, Color color)

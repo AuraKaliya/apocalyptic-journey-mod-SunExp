@@ -54,6 +54,7 @@ public static class PolymorphRoleSelectionWindow
                 WindowName,
                 parent,
                 new Color(0f, 0f, 0f, 0.72f));
+            SunExpTransientUiRegistry.Register("PolymorphRoleSelection", Close);
 
             var window = CreateRect("Window", activeRoot.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), ResolveWindowSize(parent));
             ApplyPanelImage(window.gameObject, WindowTint);
@@ -90,6 +91,7 @@ public static class PolymorphRoleSelectionWindow
         SunExpModalHost.Close(ref activeRoot, source, "[PolymorphRoleSelection]");
         roleListContent = null;
         hintText = null;
+        SunExpTransientUiRegistry.Unregister("PolymorphRoleSelection");
     }
 
     private static void CreateHeader(Transform parent, int roleCount, PolymorphRoleSelectionRequest request)

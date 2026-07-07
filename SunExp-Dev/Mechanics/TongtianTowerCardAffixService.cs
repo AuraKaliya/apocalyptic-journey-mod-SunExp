@@ -78,7 +78,7 @@ public static class TongtianTowerCardAffixService
         changed += MarkList(role.UnCardList);
         if (changed > 0)
         {
-            GameSaveManager.UpdateRoles(role);
+            TryPersistRole(role, source + ":starter-baseline");
             SunExpLog.Info("[TongtianTowerCardAffix] marked starter deck baseline from "
                 + source
                 + ": "
@@ -102,11 +102,38 @@ public static class TongtianTowerCardAffixService
         changed += ApplyToList(role.UnCardList, source + ":reserve");
         if (changed > 0)
         {
-            GameSaveManager.UpdateRoles(role);
+            TryPersistRole(role, source + ":normalize-owned");
             SunExpLog.Info("[TongtianTowerCardAffix] normalized owned cards from " + source + ": " + changed + ".");
         }
 
         return changed;
+    }
+
+    public static bool TryPersistCurrentRole(string source)
+    {
+        return TryPersistRole(RoleTable.Instance, source);
+    }
+
+    public static bool TryPersistRole(RoleTable? role, string source)
+    {
+        if (role == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            GameSaveManager.UpdateRoles(role);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[TongtianTowerCardAffix] role persist skipped from "
+                + source
+                + ": "
+                + ex.Message);
+            return false;
+        }
     }
 
     public static bool ShouldSkipAutoBurnout(IDataConfig? config)
