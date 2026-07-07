@@ -157,8 +157,8 @@ public static class CardScripts
     private static void InitBurningStarHex(ScriptExecutor self)
     {
         ExecutorApi.SetBaseScript(self, "AttackCardItem", canSelf: false);
-        var baseDamage = CalcSolarSparkBaseDamage(self);
-        ExecutorApi.AddDamageDescription(self, "1", ExecutorApi.SolarKeywordDamage(self, baseDamage, ExecutorApi.PrimaryTarget(self)));
+        const int baseDamage = 8;
+        ExecutorApi.AddDamageDescription(self, "1", CalcBurningStarHexDamageAfterGain(self, ExecutorApi.PrimaryTarget(self)));
         ExecutorApi.AddValueDescription(self, "2", baseDamage);
         ExecutorApi.AddValueDescription(self, "3", 1);
     }
@@ -274,20 +274,10 @@ public static class CardScripts
     private static void UseBurningStarHex(ScriptExecutor self)
     {
         var target = ExecutorApi.PrimaryTarget(self);
-        var flame = self.Self?.GetBuff(SunExpIds.GatheredFlame);
-        var useFlame = Math.Min(5, flame?.buffConfig?.Level ?? 0);
-        var baseDamage = 8 + useFlame * 2;
-        ExecutorApi.DealSolarKeywordDamage(self, baseDamage, target);
+        self.SetStatus("Self");
+        self.AddBuff(SunExpIds.GatheredFlame, "5");
+        ExecutorApi.DealSolarKeywordDamage(self, 8, target);
         ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, 2, "Target");
-        if (flame?.buffConfig != null && useFlame > 0)
-        {
-            flame.buffConfig.Level -= useFlame;
-            if (flame.buffConfig.Level <= 0)
-            {
-                self.SetStatus("Self");
-                self.RemoveBuff(SunExpIds.GatheredFlame);
-            }
-        }
         RestorePrimaryTargetForAnimation(self, target);
     }
 
@@ -549,16 +539,20 @@ public static class CardScripts
 
     private static void UseEmberTower(ScriptExecutor self)
     {
-        var converted = ExecutorApi.SelfBuffLevel(self, SunExpIds.Burn);
+        var converted = ExecutorApi.SelfBuffLevel(self, SunExpIds.Ember)
+            + ExecutorApi.SelfBuffLevel(self, SunExpIds.Burn);
         if (converted > 0)
         {
             self.SetStatus("Self");
+            self.RemoveBuff(SunExpIds.Ember);
             self.RemoveBuff(SunExpIds.Burn);
             self.AddBuff(SunExpIds.GatheredFlame, converted.ToString());
         }
-        if (converted >= 5)
+
+        var draw = converted / 5;
+        if (draw > 0)
         {
-            self.DrawCount("1");
+            self.DrawCount(draw.ToString());
         }
     }
 
@@ -607,9 +601,13 @@ public static class CardScripts
         return type == "Negative" || type.Contains("负面");
     }
 
-    private static int CalcSolarSparkBaseDamage(ScriptExecutor self)
+    private static int CalcBurningStarHexDamageAfterGain(ScriptExecutor self, IStatusManager? target)
     {
-        return 8 + Math.Min(5, ExecutorApi.SelfBuffLevel(self, SunExpIds.GatheredFlame)) * 2;
+        var radiance = ExecutorApi.SelfBuffLevel(self, SunExpIds.SolarRadiance);
+        var flame = ExecutorApi.SelfBuffLevel(self, SunExpIds.GatheredFlame) + 5;
+        var burn = ExecutorApi.StatusBuffLevel(target, SunExpIds.Burn);
+        var coefficient = ExecutorApi.SolarMultiplier(self) * (radiance * 2 + flame / 3 + burn / 2);
+        return 8 + coefficient;
     }
 
     private static int CalcFlamePierceDamage(ScriptExecutor self)

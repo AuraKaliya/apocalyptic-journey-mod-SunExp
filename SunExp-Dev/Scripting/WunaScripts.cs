@@ -21,7 +21,12 @@ public static class WunaScripts
             ExecutorApi.SetVar(self, "SunExpWunaPrevEnemyBurn", "0");
             AttachOrbitFire(self, "InitCareer");
 
-            var token = (DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "SunExpWunaCareerToken", "0")) + 1).ToString();
+            var token = ExecutorApi.RegisterHook(self, "SunExpWunaCareerHook", "SunExpWunaCareerToken");
+            if (token == null)
+            {
+                return;
+            }
+
             self.SetStatus("Self");
             var fightStartRegistered = ExecutorApi.TryAddEvent(self, "FightStart", new Action(() =>
             {
@@ -34,19 +39,21 @@ public static class WunaScripts
                 ExecutorApi.SetVar(self, "SunExpWunaPrevEnemyBurn", EnemyBurnTotal(self));
                 WunaRoundRadianceState.ResetFight(self.Self);
                 AttachOrbitFire(self, "FightStart");
+                RegisterEnemyBurnListeners(self, token);
             }), "wuna_career");
             var startRoundRegistered = ExecutorApi.TryAddEvent(self, "StartRound", new Action(() =>
             {
                 if (ExecutorApi.IsHookTokenActive(self, "SunExpWunaCareerToken", token))
                 {
                     StartRound(self);
+                    RegisterEnemyBurnListeners(self, token);
                 }
             }), "wuna_career");
-            var burnChangeRegistered = ExecutorApi.TryAddEvent(self, "buff_burnOnLevelChange", new Action(() =>
+            var actionRegistered = ExecutorApi.TryAddEvent(self, "Action", new Action(() =>
             {
                 if (ExecutorApi.IsHookTokenActive(self, "SunExpWunaCareerToken", token))
                 {
-                    TryGainRadianceFromEnemyBurn(self);
+                    RegisterEnemyBurnListeners(self, token);
                 }
             }), "wuna_career");
 
@@ -65,11 +72,13 @@ public static class WunaScripts
                 }
             }), "wuna_career");
 
-            if (fightStartRegistered && startRoundRegistered && burnChangeRegistered)
+            if (fightStartRegistered && startRoundRegistered && actionRegistered)
             {
-                ExecutorApi.SetVar(self, "SunExpWunaCareerHook", "1");
-                ExecutorApi.SetVar(self, "SunExpWunaCareerToken", token);
+                RegisterEnemyBurnListeners(self, token);
+                return;
             }
+
+            ExecutorApi.ClearHook(self, "SunExpWunaCareerHook", "SunExpWunaCareerToken");
         }
         catch (Exception ex)
         {
@@ -265,6 +274,61 @@ public static class WunaScripts
     private static int AllBurnTotal(ScriptExecutor self)
     {
         return EnemyBurnTotal(self) + ExecutorApi.SelfBuffLevel(self, SunExpIds.Burn);
+    }
+
+    private static int RegisterEnemyBurnListeners(ScriptExecutor self, string token)
+    {
+        if (self == null || !ExecutorApi.IsHookTokenActive(self, "SunExpWunaCareerToken", token))
+        {
+            return 0;
+        }
+
+        try
+        {
+            var registered = 0;
+            foreach (var target in ExecutorApi.EnemyTargets(self))
+            {
+                var targetId = target?.InstanceId;
+                if (string.IsNullOrWhiteSpace(targetId))
+                {
+                    continue;
+                }
+
+                var listenerKey = "SunExpWunaBurnListener_" + targetId + "_" + token;
+                if (ExecutorApi.GetVar(self, listenerKey, "0") == "1")
+                {
+                    continue;
+                }
+
+                ExecutorApi.SetVar(self, listenerKey, "1");
+                EventCenter.Instance.AddEventListener(
+                    SunExpIds.Burn + "OnLevelChange" + targetId,
+                    new Action(() => OnEnemyBurnChanged(self, token)),
+                    self,
+                    EventDispose.OnFightEnd);
+                registered++;
+            }
+
+            if (registered > 0)
+            {
+                SunExpLog.Debug("[WunaRadiance] registered enemy burn listeners: count=" + registered + ".");
+            }
+
+            return registered;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Debug("[WunaRadiance] enemy burn listener registration skipped: " + ex.Message);
+            return 0;
+        }
+    }
+
+    private static void OnEnemyBurnChanged(ScriptExecutor self, string token)
+    {
+        if (ExecutorApi.IsHookTokenActive(self, "SunExpWunaCareerToken", token))
+        {
+            TryGainRadianceFromEnemyBurn(self);
+        }
     }
 
     private static int AddEmber(ScriptExecutor self, int amount)
