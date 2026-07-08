@@ -58,6 +58,10 @@ internal sealed class CardVisualSkinMarker : MonoBehaviour
 
     public string LastVisualSignature { get; set; } = "";
 
+    public int LastAppliedRootInstanceId { get; set; }
+
+    public string LastAppliedStage { get; set; } = "";
+
     public string LastFrameEffectId { get; set; } = "";
 
     public string LastFaceEffectId { get; set; } = "";

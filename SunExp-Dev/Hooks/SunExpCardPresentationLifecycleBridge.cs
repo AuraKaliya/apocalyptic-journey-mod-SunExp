@@ -1,158 +1,110 @@
-using System;
-using SunExp.Dll.GameApi;
+using SunExp.Dll.Infrastructure;
 using UnityEngine;
 using Witch.Core;
-using Witch.UI.Window;
 
 namespace SunExp.Dll.Hooks;
 
 public static class SunExpCardPresentationLifecycleBridge
 {
+    private static int observedSetCardStyle;
+    private static bool loggedUnexpectedShape;
+    private static bool loggedMissingArguments;
+    private static bool loggedRecoveredShape;
+
     public static void Initialize()
     {
         SunExpCardLifecycleRouter.Register("CardPresentationBridge", new SunExpCardLifecycleSubscription
         {
-            AfterSetCardStyle = ApplyFromSetCardStyle,
-            AfterCardItemInit = context => ApplyFromItemRoot(context, SunExpHookTargets.CardItemInit, SunExpCardPresentationSurface.CombatCard),
-            AfterAttackCardItemInit = context => ApplyFromItemRoot(context, SunExpHookTargets.AttackCardItemInit, SunExpCardPresentationSurface.CombatCard),
-            AfterCardItemDataUpdate = context => ApplyFromItemRoot(context, SunExpHookTargets.CardItemDataUpdate, SunExpCardPresentationSurface.CombatCard),
-            AfterAttackCardItemDataUpdate = context => ApplyFromItemRoot(context, SunExpHookTargets.AttackCardItemDataUpdate, SunExpCardPresentationSurface.CombatCard),
-            AfterCardItemDrawEffect = context => ApplyFromItemRoot(context, SunExpHookTargets.CardItemDrawEffect, SunExpCardPresentationSurface.CombatCard),
-            AfterCommonCardItemDrawEffect = context => ApplyFromItemRoot(context, SunExpHookTargets.CommonCardItemDrawEffect, SunExpCardPresentationSurface.CombatCard),
-            AfterAttackCardItemDrawEffect = context => ApplyFromItemRoot(context, SunExpHookTargets.AttackCardItemDrawEffect, SunExpCardPresentationSurface.CombatCard),
-            AfterFightUiCreateCardItem = context => SunExpCardPresentationRouter.RequestActiveCombatCardsReapply(SunExpHookTargets.FightUiCreateCardItem),
-            AfterFightUiCreateCardItemInternal = ApplyFromFightUiCreateCardItemInternal,
-            AfterScriptExecutorGetCardFromDeck = context => SunExpCardPresentationRouter.RequestActiveCombatCardsReapply(SunExpHookTargets.ScriptExecutorGetCardFromDeck),
-            AfterDictItemInit = context => ApplyFromArgumentRoot(context, 0, null, SunExpHookTargets.DictItemInit, SunExpCardPresentationSurface.Dictionary),
-            AfterDictionaryShowItemInit = context => ApplyFromArgumentRoot(context, 0, null, SunExpHookTargets.DictionaryShowItemInit, SunExpCardPresentationSurface.Dictionary),
-            AfterDisplayCardInit = context => ApplyFromArgumentRoot(context, 0, null, SunExpHookTargets.DisplayCardInit, SunExpCardPresentationSurface.Display),
-            AfterShowCardInit = ApplyFromShowCard,
-            AfterSafeBoxItemInit = ApplyFromSafeBoxItem,
-            AfterEnchCardItemInit = context => ApplyFromArgumentRoot(context, 0, null, SunExpHookTargets.EnchCardItemInit, SunExpCardPresentationSurface.Display),
-            AfterCardChoiceItemInitialize = ApplyFromCardChoiceItem,
-            AfterPackShowItemInit = context => ApplyFromArgumentRoot(context, 0, "CardItem", SunExpHookTargets.PackShowItemInit, SunExpCardPresentationSurface.CardPack),
-            AfterShopItemInit = context => ApplyFromArgumentRoot(context, 0, "CardItem", SunExpHookTargets.ShopItemInit, SunExpCardPresentationSurface.Shop),
-            AfterWarehouseItemInit = context => ApplyFromArgumentRoot(context, 2, "CardItem", SunExpHookTargets.WarehouseItemInit, SunExpCardPresentationSurface.Warehouse)
+            AfterSetCardStyle = ApplyFromSetCardStyle
         });
     }
 
     private static void ApplyFromSetCardStyle(ModHookContext context)
     {
         var args = context.Arguments;
-        if (args == null
-            || args.Length < 2
-            || args[0] is not Transform transform
-            || args[1] is not IDataConfig config)
+        observedSetCardStyle++;
+        SunExpPerformanceCounters.Record("CardPresentation.SetCardStyleObserved");
+
+        if (!TryExtractSetCardStyleArguments(args, out var transform, out var config))
         {
+            if (!loggedMissingArguments)
+            {
+                loggedMissingArguments = true;
+                SunExpPerformanceCounters.Record("CardPresentation.SetCardStyleArgumentMiss");
+                SunExpLog.Warn("Card presentation SetCardStyle hook observed but arguments were not Transform + IDataConfig: "
+                    + ArgumentShape(args)
+                    + ", observed="
+                    + observedSetCardStyle);
+            }
+
             return;
         }
 
         SunExpCardPresentationRouter.RequestApply(transform, config, SunExpHookTargets.ICardSetCardStyle, SunExpCardPresentationSurface.CardStyle);
     }
 
-    private static void ApplyFromItemRoot(ModHookContext context, string source, SunExpCardPresentationSurface surface)
+    private static bool TryExtractSetCardStyleArguments(object[]? args, out Transform? transform, out IDataConfig? config)
     {
-        if (context.Target is not Item item)
+        transform = null;
+        config = null;
+        if (args == null || args.Length == 0)
         {
-            return;
+            return false;
         }
 
-        SunExpCardPresentationRouter.RequestApply(new SunExpCardPresentationContext
+        if (args.Length >= 2 && args[0] is Transform directTransform && args[1] is IDataConfig directConfig)
         {
-            Root = item.transform,
-            Config = item.dataConfig,
-            Source = source,
-            Surface = surface
-        });
-    }
-
-    private static void ApplyFromArgumentRoot(
-        ModHookContext context,
-        int configArgIndex,
-        string? childPath,
-        string source,
-        SunExpCardPresentationSurface surface)
-    {
-        var config = ConfigFromArgument(context.Arguments, configArgIndex)
-            ?? CardConfigApi.FromActionPayload(context.Target);
-        var root = RootFromTarget(context.Target, childPath);
-        SunExpCardPresentationRouter.RequestApply(root, config, source, surface);
-    }
-
-    private static void ApplyFromShowCard(ModHookContext context)
-    {
-        var args = context.Arguments;
-        if (args != null && args.Length > 1 && args[1] is bool equipped && equipped)
-        {
-            return;
+            transform = directTransform;
+            config = directConfig;
+            return true;
         }
 
-        ApplyFromArgumentRoot(context, 0, null, SunExpHookTargets.ShowCardInit, SunExpCardPresentationSurface.Display);
-    }
-
-    private static void ApplyFromSafeBoxItem(ModHookContext context)
-    {
-        if (context.Target is SafeBoxItem { InBackPack: false })
+        foreach (var arg in args)
         {
-            return;
+            transform ??= arg as Transform;
+            config ??= arg as IDataConfig;
         }
 
-        ApplyFromArgumentRoot(context, 0, null, SunExpHookTargets.SafeBoxItemInit, SunExpCardPresentationSurface.SafeBox);
-    }
-
-    private static void ApplyFromCardChoiceItem(ModHookContext context)
-    {
-        var args = context.Arguments;
-        if (args == null || args.Length < 2)
+        if (transform != null && config != null)
         {
-            return;
+            if (!loggedRecoveredShape)
+            {
+                loggedRecoveredShape = true;
+                SunExpPerformanceCounters.Record("CardPresentation.SetCardStyleArgumentRecovered");
+                SunExpLog.Warn("Card presentation SetCardStyle hook used recovered argument shape: " + ArgumentShape(args));
+            }
+
+            return true;
         }
 
-        var cardId = Convert.ToString(args[1]);
-        if (string.IsNullOrWhiteSpace(cardId))
+        if (!loggedUnexpectedShape)
         {
-            return;
+            loggedUnexpectedShape = true;
+            SunExpPerformanceCounters.Record("CardPresentation.SetCardStyleUnexpectedShape");
+            SunExpLog.Warn("Card presentation SetCardStyle hook argument shape unsupported: " + ArgumentShape(args));
         }
 
-        SunExpCardPresentationRouter.RequestApply(
-            RootFromTarget(context.Target, null),
-            new DataConfig(cardId, DataType.Card),
-            SunExpHookTargets.CardChoiceItemInitialize,
-            SunExpCardPresentationSurface.RewardChoice);
+        return false;
     }
 
-    private static void ApplyFromFightUiCreateCardItemInternal(ModHookContext context)
+    private static string ArgumentShape(object[]? args)
     {
-        var config = ConfigFromArgument(context.Arguments, 0);
-        if (config == null)
+        if (args == null)
         {
-            return;
+            return "<null>";
         }
 
-        SunExpCardPresentationRouter.RequestApply(
-            SunExpCardPresentationRouter.FindCombatCardRoot(config),
-            config,
-            SunExpHookTargets.FightUiCreateCardItemInternal,
-            SunExpCardPresentationSurface.CombatCardInternal);
-        SunExpCardPresentationRouter.RequestActiveCombatCardsReapply(SunExpHookTargets.FightUiCreateCardItemInternal);
-    }
-
-    private static IDataConfig? ConfigFromArgument(object[]? args, int index)
-    {
-        return args == null || index < 0 || args.Length <= index
-            ? null
-            : CardConfigApi.FromActionPayload(args[index]);
-    }
-
-    private static Transform? RootFromTarget(object? target, string? childPath)
-    {
-        if (target is not UnityEngine.Component component)
+        if (args.Length == 0)
         {
-            return null;
+            return "<empty>";
         }
 
-        return string.IsNullOrWhiteSpace(childPath)
-            ? component.transform
-            : component.transform.Find(childPath);
+        var parts = new string[args.Length];
+        for (var i = 0; i < args.Length; i++)
+        {
+            parts[i] = args[i]?.GetType().FullName ?? "<null>";
+        }
+
+        return string.Join(", ", parts);
     }
 }

@@ -20,7 +20,8 @@ public enum SunExpCardPresentationSurface
     Warehouse,
     SafeBox,
     Dictionary,
-    CardPack
+    CardPack,
+    PostCommit
 }
 
 public sealed class SunExpCardPresentationContext
@@ -100,17 +101,35 @@ public static class SunExpCardPresentationRouter
     {
         try
         {
-            foreach (var item in FightUI.cardItemList ?? new List<CardItem>())
+            var root = FindCardRoot(FightUI.cardItemList, config);
+            if (root != null)
             {
-                if (item != null && ReferenceEquals(item.dataConfig, config))
-                {
-                    return item.transform;
-                }
+                return root;
             }
+
+            return FindCardRoot(FightUI.WaitCard, config);
         }
         catch (Exception ex)
         {
             SunExpLog.Debug("Card presentation combat-card lookup failed: " + ex.Message);
+        }
+
+        return null;
+    }
+
+    private static Transform? FindCardRoot(IEnumerable<CardItem>? cards, IDataConfig config)
+    {
+        if (cards == null)
+        {
+            return null;
+        }
+
+        foreach (var item in cards)
+        {
+            if (item != null && ReferenceEquals(item.dataConfig, config))
+            {
+                return item.transform;
+            }
         }
 
         return null;

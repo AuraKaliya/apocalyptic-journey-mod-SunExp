@@ -89,14 +89,14 @@ public static class StarScoreRuntime
     {
         try
         {
-            TryRegisterForPlayer("CardUseBefore");
             var card = context.Target as CardItem;
             var config = CardConfigApi.FromActionPayload(context.Target);
-            if (config == null)
+            if (config == null || !HasCardUseInterest(config))
             {
                 return;
             }
 
+            TryRegisterForPlayer("CardUseBefore");
             BeginCostPreviewsForSelection(card);
             EndlessAbyssGazePressureService.OnCardUseBefore(card, "StarScore.CardUseBefore");
 
@@ -291,6 +291,11 @@ public static class StarScoreRuntime
 
     private static void TryBeginBlessingPreview(CardItem? card)
     {
+        if (!HasSelectionPreviewInterest())
+        {
+            return;
+        }
+
         BeginCostPreviewsForSelection(card);
     }
 
@@ -299,8 +304,14 @@ public static class StarScoreRuntime
         try
         {
             var config = card?.dataConfig;
-            var player = FightPlayer.Instance?.Status;
             if (config == null)
+            {
+                return;
+            }
+
+            var player = FightPlayer.Instance?.Status;
+            var hasBlessing = player != null && BuffApi.Level(player, SunExpIds.StarBlessing) > 0;
+            if (!hasBlessing && !SunExpHardTagState.Active(SunExpHardTagIds.AbyssGaze))
             {
                 return;
             }
@@ -308,7 +319,7 @@ public static class StarScoreRuntime
             var refreshed = false;
             if (player != null
                 && !StarScoreService.IsStellarOvertureCard(CardConfigApi.Id(config))
-                && BuffApi.Level(player, SunExpIds.StarBlessing) > 0
+                && hasBlessing
                 && CostOverrides.BeginPreview(config, StarBlessingHalfCost(CardConfigApi.CurrentCost(config))))
             {
                 refreshed = true;
@@ -332,6 +343,11 @@ public static class StarScoreRuntime
         {
             var config = card?.dataConfig;
             if (config == null)
+            {
+                return;
+            }
+
+            if (!HasSelectionPreviewInterest() && !CostOverrides.Contains(config))
             {
                 return;
             }
@@ -410,6 +426,24 @@ public static class StarScoreRuntime
     {
         return DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.data, "Tag"), SunExpIds.MorningStarSealTag)
             || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, "SpecialTag"), SunExpIds.MorningStarSealTag);
+    }
+
+    private static bool HasSelectionPreviewInterest()
+    {
+        var player = FightPlayer.Instance?.Status;
+        return (player != null && BuffApi.Level(player, SunExpIds.StarBlessing) > 0)
+            || SunExpHardTagState.Active(SunExpHardTagIds.AbyssGaze);
+    }
+
+    private static bool HasCardUseInterest(IDataConfig config)
+    {
+        var player = FightPlayer.Instance?.Status;
+        return StarScoreService.IsStellarOvertureCard(CardConfigApi.Id(config))
+            || HasMorningStarSeal(config)
+            || SunExpHardTagState.Active(SunExpHardTagIds.AbyssGaze)
+            || (player != null
+                && (BuffApi.Level(player, SunExpIds.StarBlessing) > 0
+                    || BuffApi.Level(player, SunExpIds.Resonance) > 0));
     }
 
     private static void ConsumeBuff(IStatusManager status, string buffId, int amount)

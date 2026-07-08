@@ -45,7 +45,7 @@ public static class CardVisualSkinApi
             "",
             "Morning Star",
             120,
-            SunExpIds.StellarOvertureCardIds,
+            SunExpIds.StellarOvertureCardEffectIds,
             SunExpIds.MorningStarThemeCardPackIds,
             new[] { SunExpIds.StellarOvertureCardIconPathPrefix });
         SunExpLog.Info("Card visual skin registry initialized: rules=" + CardVisualSkinRegistry.RuleCount);

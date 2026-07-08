@@ -12,6 +12,7 @@ namespace SunExp.Dll.Hooks;
 public static class EndlessSeaCardAffixRuntime
 {
     private const string CombatNormalizeFrameKey = "EndlessSeaCardAffix.NormalizeCombatCards";
+    private static bool cardLifecycleRegistered;
 
     private static readonly FieldInfo? CardChoiceItemDataConfigField = typeof(CardChoiceItem).GetField(
         "dataConfig",
@@ -19,6 +20,30 @@ public static class EndlessSeaCardAffixRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
+        SunExpBattleLifecycleRouter.Register("EndlessSeaCardAffix.Activator", new SunExpBattleLifecycleSubscription
+        {
+            FightStarted = _ => EnsureCardLifecycleRegisteredForEndlessSea()
+        });
+        EnsureCardLifecycleRegisteredForEndlessSea();
+        SunExpLog.Info("Endless Sea card affix runtime initialized");
+    }
+
+    private static void EnsureCardLifecycleRegisteredForEndlessSea()
+    {
+        if (EndlessSeaModeRuntime.IsEndlessSeaRun())
+        {
+            EnsureCardLifecycleRegistered();
+        }
+    }
+
+    private static void EnsureCardLifecycleRegistered()
+    {
+        if (cardLifecycleRegistered)
+        {
+            return;
+        }
+
+        cardLifecycleRegistered = true;
         SunExpCardLifecycleRouter.Register("EndlessSeaCardAffix", new SunExpCardLifecycleSubscription
         {
             AfterCardChoiceItemInitialize = ApplyToChoiceItem,
@@ -38,7 +63,6 @@ public static class EndlessSeaCardAffixRuntime
             AfterWarehouseItemInit = ApplyToFirstDataConfigArgument,
             AfterSafeBoxItemInit = ApplyToFirstDataConfigArgument
         });
-        SunExpLog.Info("Endless Sea card affix runtime initialized");
     }
 
     private static void ApplyToChoiceItem(ModHookContext context)

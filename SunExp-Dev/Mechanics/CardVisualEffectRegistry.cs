@@ -30,6 +30,7 @@ public static class CardVisualEffectRegistry
             });
             HitCache.Clear();
             MissCache.Clear();
+            CardVisualInterestIndex.Invalidate();
         }
     }
 
@@ -46,6 +47,7 @@ public static class CardVisualEffectRegistry
             Effects.RemoveAll(effect => string.Equals(effect.Spec.OwnerModId, owner, StringComparison.OrdinalIgnoreCase));
             HitCache.Clear();
             MissCache.Clear();
+            CardVisualInterestIndex.Invalidate();
         }
     }
 

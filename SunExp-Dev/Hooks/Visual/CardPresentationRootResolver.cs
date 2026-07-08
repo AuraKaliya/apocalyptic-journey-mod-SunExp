@@ -43,7 +43,7 @@ public static class CardPresentationRootResolver
             }
         }
 
-        return root;
+        return null;
     }
 
     private static bool HasCardVisualNodes(Transform? root)

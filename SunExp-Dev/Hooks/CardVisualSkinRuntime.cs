@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks.Visual;
 using SunExp.Dll.Infrastructure;
+using SunExp.Dll.Mechanics;
 using UnityEngine;
 using Witch.Core;
 using Witch.Mod;
@@ -11,6 +13,8 @@ namespace SunExp.Dll.Hooks;
 
 public static class CardVisualSkinRuntime
 {
+    private static readonly HashSet<string> LoggedRootMisses = new(StringComparer.Ordinal);
+
     public static void Initialize(ModConfig modConfig)
     {
         SunExpCardPresentationRouter.Register("CardVisualSkin", new SunExpCardPresentationSubscription
@@ -46,6 +50,11 @@ public static class CardVisualSkinRuntime
                 return;
             }
 
+            if (!CardVisualInterestIndex.MayAffect(config))
+            {
+                return;
+            }
+
             var visualRoot = CardPresentationRootResolver.FindCardVisualRoot(item.transform);
             var marker = visualRoot == null ? null : visualRoot.GetComponent<CardVisualSkinMarker>();
             if (marker != null && marker.SuppressFrameEffectOverlay(config, source))
@@ -68,25 +77,52 @@ public static class CardVisualSkinRuntime
             || card?.Tags.Contains("Burnout") == true;
     }
 
-    private static void ApplySafely(Transform? root, IDataConfig? config, string source, bool scheduleDeferred = true)
+    private static void ApplySafely(Transform? root, IDataConfig? config, string source)
     {
         if (config == null)
         {
             return;
         }
 
+        if (!CardVisualInterestIndex.MayAffect(config))
+        {
+            SunExpPerformanceCounters.Record("CardVisualSkin.InterestMiss");
+            return;
+        }
+
         var visualRoot = CardPresentationRootResolver.FindCardVisualRoot(root);
-        var applied = CardVisualSkinApplier.Apply(visualRoot, config);
+        if (visualRoot == null)
+        {
+            LogRootMiss(config, source, root);
+            return;
+        }
+
+        var applied = CardVisualSkinApplier.Apply(visualRoot, config, source);
         if (applied)
         {
             SunExpPerformanceCounters.Record("CardVisualSkin.Apply");
             SunExpLog.Debug("Card visual skin applied from " + source + ": " + DictionaryUtil.Get(config.data, "Id", "unknown"));
         }
+    }
 
-        if (scheduleDeferred && visualRoot != null)
+    private static void LogRootMiss(IDataConfig config, string source, Transform? root)
+    {
+        var key = CardConfigApi.Id(config)
+            + "|"
+            + (source ?? "")
+            + "|"
+            + (root == null ? "null" : root.GetInstanceID().ToString());
+        if (LoggedRootMisses.Count >= 32 || !LoggedRootMisses.Add(key))
         {
-            var key = "CardVisualSkinRuntime.Deferred." + source + "." + visualRoot.GetInstanceID();
-            SunExpFrameScheduler.RunOnceNextFrame(key, () => ApplySafely(visualRoot, config, source + ".deferred", scheduleDeferred: false));
+            return;
         }
+
+        SunExpPerformanceCounters.Record("CardVisualSkin.RootMiss");
+        SunExpLog.Warn("Card visual skin root missing: cardId="
+            + CardConfigApi.Id(config)
+            + ", source="
+            + source
+            + ", root="
+            + (root == null ? "<null>" : root.name));
     }
 }

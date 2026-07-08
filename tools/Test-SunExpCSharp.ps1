@@ -40,12 +40,14 @@ function New-ProjectXml {
     $cardVisualEffectTarget = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualEffectTarget.cs"
     $cardVisualEffectSpec = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualEffectSpec.cs"
     $cardVisualEffectRegistry = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualEffectRegistry.cs"
+    $cardVisualInterestIndex = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualInterestIndex.cs"
     $cardVisualSkinSpec = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualSkinSpec.cs"
     $cardVisualSkinRule = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualSkinRule.cs"
     $cardVisualSkinRegistry = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualSkinRegistry.cs"
     $cardMutationService = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardMutationService.cs"
     $runtimeCardAttachmentService = Join-Path $RepoRoot "SunExp-Dev\Mechanics\RuntimeCardAttachmentService.cs"
     $sunExpCardRefreshQueue = Join-Path $RepoRoot "SunExp-Dev\Mechanics\SunExpCardRefreshQueue.cs"
+    $cardGrantPostCommitQueue = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardGrantPostCommitQueue.cs"
     $starBlessingCostOverrideStore = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarBlessingCostOverrideStore.cs"
     $loneerCombatState = Join-Path $RepoRoot "SunExp-Dev\Mechanics\LoneerCombatState.cs"
     $starScoreNote = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreNote.cs"
@@ -82,10 +84,12 @@ function New-ProjectXml {
     <Compile Include="$cardVisualEffectTarget" />
     <Compile Include="$cardVisualEffectSpec" />
     <Compile Include="$cardVisualEffectRegistry" />
+    <Compile Include="$cardVisualInterestIndex" />
     <Compile Include="$cardVisualSkinSpec" />
     <Compile Include="$cardVisualSkinRule" />
     <Compile Include="$cardVisualSkinRegistry" />
     <Compile Include="$sunExpCardRefreshQueue" />
+    <Compile Include="$cardGrantPostCommitQueue" />
     <Compile Include="$cardMutationService" />
     <Compile Include="$runtimeCardAttachmentService" />
     <Compile Include="$starBlessingCostOverrideStore" />
@@ -283,6 +287,50 @@ public interface IDataConfig
     bool isCompiling { get; }
 }
 
+namespace SunExp.Dll.Hooks
+{
+    public enum SunExpCardPresentationSurface
+    {
+        PostCommit
+    }
+
+    public sealed class TestCardRoot
+    {
+        private readonly CardItem card;
+
+        public TestCardRoot(CardItem card)
+        {
+            this.card = card;
+        }
+
+        public T? GetComponent<T>()
+            where T : class
+        {
+            return card as T;
+        }
+    }
+
+    public static class SunExpCardPresentationRouter
+    {
+        public static TestCardRoot? FindCombatCardRoot(IDataConfig config)
+        {
+            foreach (var item in Witch.UI.Window.FightUI.cardItemList)
+            {
+                if (ReferenceEquals(item.dataConfig, config))
+                {
+                    return new TestCardRoot(item);
+                }
+            }
+
+            return null;
+        }
+
+        public static void RequestApply(TestCardRoot root, IDataConfig config, string source, SunExpCardPresentationSurface surface)
+        {
+        }
+    }
+}
+
 namespace SunExp.Dll.GameApi
 {
     public static class ExecutorApi
@@ -419,6 +467,7 @@ internal static class Program
         TestSolarMemoryIsolationIds();
         TestCardVisualSkinRegistry();
         TestCardVisualEffectRegistry();
+        TestCardVisualInterestIndex();
         TestMapNodeTextureFitService();
         TestModeChoiceDragRange();
         TestLoneerStateOwnership();
@@ -513,6 +562,14 @@ internal static class Program
             ["Icon"] = "Mods/SunExp/ModResource/Images/Card/MorningStar/prewritten_measure"
         });
         Equal(SunExpIds.MorningStarCardVisualSkinId, CardVisualSkinRegistry.Resolve(morningStarPackCard)?.Id, "Morning Star Overture pack cards use the Morning Star card visual skin");
+
+        var generatedOvertureCard = new DataConfig(new Dictionary<string, string>
+        {
+            ["Id"] = "*" + SunExpIds.StellarOvertureStartShortCardId,
+            ["PackBelong"] = "",
+            ["Icon"] = ""
+        });
+        Equal(SunExpIds.MorningStarCardVisualSkinId, CardVisualSkinRegistry.Resolve(generatedOvertureCard)?.Id, "Generated Stellar Overture cards use the Morning Star card visual skin by runtime id");
         CardVisualSkinRegistry.ClearOwner(SunExpIds.ModId);
     }
 
@@ -616,6 +673,60 @@ internal static class Program
             ["Id"] = SunExpIds.PrewrittenMeasureCardId
         });
         Equal(null, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, ordinaryMorningStarCard)?.Id, "Stardust does not apply to ordinary Morning Star cards");
+    }
+
+    private static void TestCardVisualInterestIndex()
+    {
+        CardVisualSkinRegistry.ClearOwner("InterestTest");
+        CardVisualEffectRegistry.ClearOwner("InterestTest");
+
+        var officialCard = new DataConfig(new Dictionary<string, string>
+        {
+            ["Id"] = "official_card",
+            ["PackBelong"] = "official_pack",
+            ["Icon"] = "Icon/Card/official"
+        });
+        False(CardVisualInterestIndex.MayAffect(officialCard), "Card visual interest index misses ordinary official cards");
+
+        CardVisualSkinApi.RegisterTheme(
+            "InterestTest",
+            "interest.skin",
+            "frame",
+            "",
+            "Interest",
+            10,
+            null,
+            new[] { "interest_pack" },
+            null);
+        var skinCard = new DataConfig(new Dictionary<string, string>
+        {
+            ["Id"] = "skin_card",
+            ["PackBelong"] = "interest_pack",
+            ["Icon"] = "Icon/Card/skin"
+        });
+        True(CardVisualInterestIndex.MayAffect(skinCard), "Card visual interest index hits skin pack rules");
+
+        CardVisualSkinRegistry.ClearOwner("InterestTest");
+        False(CardVisualInterestIndex.MayAffect(skinCard), "Card visual interest index invalidates after skin rules are cleared");
+
+        CardVisualEffectRegistry.Register(new CardVisualEffectSpec(
+            "InterestTest",
+            "interest.effect",
+            CardVisualEffectTarget.Frame,
+            SunExpIds.CardFaceFoilHoloVisualEffectId,
+            "Interest Effect",
+            10,
+            new[] { "effect_card" }));
+        var effectCard = new DataConfig(new Dictionary<string, string>
+        {
+            ["Id"] = "effect_card",
+            ["PackBelong"] = "official_pack",
+            ["Icon"] = "Icon/Card/effect"
+        });
+        True(CardVisualInterestIndex.MayAffect(effectCard), "Card visual interest index hits frame effect rules without a skin rule");
+
+        CardVisualEffectRegistry.ClearOwner("InterestTest");
+        False(CardVisualInterestIndex.MayAffect(effectCard), "Card visual interest index invalidates after effect rules are cleared");
     }
 
     private static void TestMapNodeTextureFitService()
@@ -1147,6 +1258,7 @@ function Invoke-SourceAssertions {
     $sunExpFieldId = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpFieldId.cs"))
     $playerApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\PlayerApi.cs"))
     $cardApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\CardApi.cs"))
+    $cardGrantPostCommitQueue = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardGrantPostCommitQueue.cs"))
     $roleSkillApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\RoleSkillApi.cs"))
     $cardMutationService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardMutationService.cs"))
     $polymorphActivationService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\PolymorphActivationService.cs"))
@@ -1599,6 +1711,11 @@ function Invoke-SourceAssertions {
     Assert-True $cardApi.Contains("public static CardGrantResult GrantCardToHand") "Generated cards must go through the structured CardApi grant pipeline."
     Assert-True $cardApi.Contains('self.AddCardByData(resolved, request?.RuntimeTags ?? "");') "Generated cards must receive their runtime tags during DataConfig creation."
     Assert-True $cardApi.Contains("self.GetCardFromDeck(added);") "Generated cards must deliver the exact tagged DataConfig to the hand queue."
+    Assert-True $cardApi.Contains("CardGrantPostCommitQueue.Request") "Generated cards must submit SunExp post-commit refresh work after native delivery succeeds."
+    Assert-True $cardGrantPostCommitQueue.Contains("SunExpCardRefreshQueue.RequestConfigTagRefresh") "Post-commit card grant refreshes must reuse the card refresh queue."
+    Assert-True $cardGrantPostCommitQueue.Contains("SunExpCardPresentationRouter.RequestApply") "Post-commit card grant visuals must route through the presentation router."
+    Assert-True (-not $cardGrantPostCommitQueue.Contains("AddCardByData")) "Post-commit card grant refreshes must not own native card creation."
+    Assert-True (-not $cardGrantPostCommitQueue.Contains("GetCardFromDeck")) "Post-commit card grant refreshes must not move cards through the native battle flow."
     Assert-True (-not $cardApi.Contains("LoneerDerivedTag")) "CardApi must not contain Loneer-specific business tags."
     Assert-True (-not $cardApi.Contains("WhiteRadianceTag")) "CardApi must not contain Wuna/SunExp-specific business tags."
     Assert-True (-not $wunaScripts.Contains("AddCardByData")) "Wuna must not hand-roll combat card creation."

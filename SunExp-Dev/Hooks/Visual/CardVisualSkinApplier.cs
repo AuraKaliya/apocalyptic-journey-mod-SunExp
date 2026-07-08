@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using SunExp.Dll.Hooks;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
 using UnityEngine;
@@ -15,6 +16,11 @@ public static class CardVisualSkinApplier
 
     public static bool Apply(Transform? cardRoot, IDataConfig? config)
     {
+        return Apply(cardRoot, config, "");
+    }
+
+    public static bool Apply(Transform? cardRoot, IDataConfig? config, string source)
+    {
         var start = SunExpPerformanceCounters.Timestamp();
         try
         {
@@ -23,10 +29,22 @@ public static class CardVisualSkinApplier
             return false;
         }
 
+        if (!CardVisualInterestIndex.MayAffect(config))
+        {
+            SunExpPerformanceCounters.Record("CardVisualSkin.InterestMiss.Applier");
+            return false;
+        }
+
         var marker = cardRoot.GetComponent<CardVisualSkinMarker>() ?? cardRoot.gameObject.AddComponent<CardVisualSkinMarker>();
         var resumedFrameEffect = marker.ResumeFrameEffectOverlayFor(config);
         var visualSignature = VisualSignature(config);
-        if (!resumedFrameEffect && visualSignature.Length > 0 && marker.LastVisualSignature == visualSignature)
+        var rootInstanceId = cardRoot.GetInstanceID();
+        var forceRefresh = string.Equals(source, SunExpHookTargets.ICardSetCardStyle, System.StringComparison.Ordinal);
+        if (!forceRefresh
+            && !resumedFrameEffect
+            && visualSignature.Length > 0
+            && marker.LastAppliedRootInstanceId == rootInstanceId
+            && marker.LastVisualSignature == visualSignature)
         {
             SunExpPerformanceCounters.Record("CardVisualSkin.SignatureSkip");
             return false;
@@ -58,6 +76,8 @@ public static class CardVisualSkinApplier
         var appliedEffect = CardVisualEffectApplier.Apply(marker, config);
         SunExpPerformanceCounters.RecordDuration("CardVisualSkin.ApplyEffect", effectStart);
         marker.LastVisualSignature = visualSignature;
+        marker.LastAppliedRootInstanceId = rootInstanceId;
+        marker.LastAppliedStage = source ?? "";
         return appliedFrame || appliedBackground || appliedEffect;
         }
         finally
@@ -201,6 +221,10 @@ public static class CardVisualSkinApplier
             + "\u001f"
             + DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey)
             + "\u001f"
-            + "Unified";
+            + (CardVisualThemeCatalog.Resolve(config)?.Id ?? "")
+            + "\u001f"
+            + (CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Face, config)?.Id ?? "")
+            + "\u001f"
+            + (CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, config)?.Id ?? "");
     }
 }

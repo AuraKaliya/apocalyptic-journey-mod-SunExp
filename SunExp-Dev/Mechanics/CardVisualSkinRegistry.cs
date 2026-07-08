@@ -32,6 +32,7 @@ public static class CardVisualSkinRegistry
             });
             HitCache.Clear();
             MissCache.Clear();
+            CardVisualInterestIndex.Invalidate();
         }
     }
 
@@ -48,6 +49,7 @@ public static class CardVisualSkinRegistry
             Rules.RemoveAll(rule => string.Equals(rule.Rule.Skin.OwnerModId, owner, StringComparison.OrdinalIgnoreCase));
             HitCache.Clear();
             MissCache.Clear();
+            CardVisualInterestIndex.Invalidate();
         }
     }
 

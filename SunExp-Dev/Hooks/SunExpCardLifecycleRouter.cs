@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using AuraShared.Core;
 using SunExp.Dll.Infrastructure;
 using Witch.Core;
 using Witch.Mod;
@@ -8,6 +9,8 @@ namespace SunExp.Dll.Hooks;
 
 public sealed class SunExpCardLifecycleSubscription
 {
+    public int Priority { get; set; }
+
     public Action<ModHookContext>? BeforeCommonCardUse { get; set; }
     public Action<ModHookContext>? BeforeAttackCardUse { get; set; }
     public Action<ModHookContext>? AfterCommonCardUse { get; set; }
@@ -46,51 +49,27 @@ public sealed class SunExpCardLifecycleSubscription
 public static class SunExpCardLifecycleRouter
 {
     private static readonly object SyncRoot = new();
-    private static readonly Dictionary<string, SunExpCardLifecycleSubscription> Subscriptions = new(StringComparer.Ordinal);
-    private static KeyValuePair<string, SunExpCardLifecycleSubscription>[]? cachedSubscriptions;
+    private static readonly Dictionary<string, SunExpCardLifecycleSubscription> PendingSubscriptions = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, IDisposable> SharedRegistrations = new(StringComparer.Ordinal);
+    private static ModConfig? activeConfig;
     private static bool initialized;
 
     public static void Initialize(ModConfig modConfig)
     {
-        if (initialized)
+        lock (SyncRoot)
         {
-            return;
+            activeConfig = modConfig;
+            if (initialized)
+            {
+                return;
+            }
+
+            initialized = true;
+            foreach (var pair in PendingSubscriptions)
+            {
+                RegisterWithSharedNoLock(pair.Key, pair.Value);
+            }
         }
-
-        initialized = true;
-        Before(modConfig, SunExpHookTargets.CommonCardItemTrueUse, subscription => subscription.BeforeCommonCardUse);
-        Before(modConfig, SunExpHookTargets.AttackCardItemTrueUse, subscription => subscription.BeforeAttackCardUse);
-        After(modConfig, SunExpHookTargets.CommonCardItemTrueUse, subscription => subscription.AfterCommonCardUse);
-        After(modConfig, SunExpHookTargets.AttackCardItemTrueUse, subscription => subscription.AfterAttackCardUse);
-
-        After(modConfig, SunExpHookTargets.ICardSetCardStyle, subscription => subscription.AfterSetCardStyle);
-        After(modConfig, SunExpHookTargets.CardItemInit, subscription => subscription.AfterCardItemInit);
-        After(modConfig, SunExpHookTargets.AttackCardItemInit, subscription => subscription.AfterAttackCardItemInit);
-        After(modConfig, SunExpHookTargets.CardItemDataUpdate, subscription => subscription.AfterCardItemDataUpdate);
-        After(modConfig, SunExpHookTargets.AttackCardItemDataUpdate, subscription => subscription.AfterAttackCardItemDataUpdate);
-        After(modConfig, SunExpHookTargets.CardItemDrawEffect, subscription => subscription.AfterCardItemDrawEffect);
-        After(modConfig, SunExpHookTargets.CommonCardItemDrawEffect, subscription => subscription.AfterCommonCardItemDrawEffect);
-        After(modConfig, SunExpHookTargets.AttackCardItemDrawEffect, subscription => subscription.AfterAttackCardItemDrawEffect);
-        After(modConfig, SunExpHookTargets.FightUiCreateCardItem, subscription => subscription.AfterFightUiCreateCardItem);
-        After(modConfig, SunExpHookTargets.FightUiCreateCardItemInternal, subscription => subscription.AfterFightUiCreateCardItemInternal);
-        After(modConfig, SunExpHookTargets.ScriptExecutorGetCardFromDeck, subscription => subscription.AfterScriptExecutorGetCardFromDeck);
-        After(modConfig, SunExpHookTargets.ScriptExecutorRandomAddCard, subscription => subscription.AfterScriptExecutorRandomAddCard);
-        After(modConfig, SunExpHookTargets.CardChoiceItemInitialize, subscription => subscription.AfterCardChoiceItemInitialize);
-        Before(modConfig, SunExpHookTargets.CardChoiceUiSelect, subscription => subscription.BeforeCardChoiceUiSelect);
-
-        After(modConfig, SunExpHookTargets.DictItemInit, subscription => subscription.AfterDictItemInit);
-        After(modConfig, SunExpHookTargets.DictionaryShowItemInit, subscription => subscription.AfterDictionaryShowItemInit);
-        After(modConfig, SunExpHookTargets.DisplayCardInit, subscription => subscription.AfterDisplayCardInit);
-        After(modConfig, SunExpHookTargets.ShowCardInit, subscription => subscription.AfterShowCardInit);
-        After(modConfig, SunExpHookTargets.SafeBoxItemInit, subscription => subscription.AfterSafeBoxItemInit);
-        After(modConfig, SunExpHookTargets.EnchCardItemInit, subscription => subscription.AfterEnchCardItemInit);
-        After(modConfig, SunExpHookTargets.PackShowItemInit, subscription => subscription.AfterPackShowItemInit);
-        After(modConfig, SunExpHookTargets.ShopItemInit, subscription => subscription.AfterShopItemInit);
-        After(modConfig, SunExpHookTargets.WarehouseItemInit, subscription => subscription.AfterWarehouseItemInit);
-
-        After(modConfig, SunExpHookTargets.PlayerInfoAddCard, subscription => subscription.AfterPlayerInfoAddCard);
-        After(modConfig, SunExpHookTargets.PlayerInfoAddCardById, subscription => subscription.AfterPlayerInfoAddCardById);
-        After(modConfig, SunExpHookTargets.PlayerInfoRandomAddCard, subscription => subscription.AfterPlayerInfoRandomAddCard);
     }
 
     public static void Register(string id, SunExpCardLifecycleSubscription subscription)
@@ -102,70 +81,73 @@ public static class SunExpCardLifecycleRouter
 
         lock (SyncRoot)
         {
-            Subscriptions[id.Trim()] = subscription;
-            cachedSubscriptions = null;
+            var normalizedId = id.Trim();
+            PendingSubscriptions[normalizedId] = subscription;
+            if (initialized && activeConfig != null)
+            {
+                RegisterWithSharedNoLock(normalizedId, subscription);
+            }
         }
 
         SunExpPerformanceCounters.Record("CardLifecycle.HandlerRegistered");
     }
 
-    private static void Before(
-        ModConfig config,
-        string target,
-        Func<SunExpCardLifecycleSubscription, Action<ModHookContext>?> selector)
+    private static void RegisterWithSharedNoLock(string id, SunExpCardLifecycleSubscription subscription)
     {
-        SunExpHookRegistry.BeforeRouted(config, target, context => Dispatch(target, context, selector), "CardLifecycle");
-    }
-
-    private static void After(
-        ModConfig config,
-        string target,
-        Func<SunExpCardLifecycleSubscription, Action<ModHookContext>?> selector)
-    {
-        SunExpHookRegistry.AfterRouted(config, target, context => Dispatch(target, context, selector), "CardLifecycle");
-    }
-
-    private static void Dispatch(
-        string target,
-        ModHookContext context,
-        Func<SunExpCardLifecycleSubscription, Action<ModHookContext>?> selector)
-    {
-        foreach (var pair in SnapshotSubscriptions())
+        if (activeConfig == null)
         {
-            var action = selector(pair.Value);
-            if (action == null)
-            {
-                continue;
-            }
-
-            try
-            {
-                action(context);
-            }
-            catch (Exception ex)
-            {
-                SunExpLog.Error("Card lifecycle handler failed: " + pair.Key + " @ " + target, ex);
-            }
+            return;
         }
+
+        if (SharedRegistrations.TryGetValue(id, out var previous))
+        {
+            previous.Dispose();
+        }
+
+        SharedRegistrations[id] = AuraCardLifecycleRouter.Register(
+            activeConfig,
+            SunExpIds.ModId,
+            id,
+            ToSharedSubscription(subscription),
+            SunExpLog.Info,
+            message => SunExpLog.Warn(message));
     }
 
-    private static KeyValuePair<string, SunExpCardLifecycleSubscription>[] SnapshotSubscriptions()
+    private static AuraCardLifecycleSubscription ToSharedSubscription(SunExpCardLifecycleSubscription subscription)
     {
-        lock (SyncRoot)
+        return new AuraCardLifecycleSubscription
         {
-            if (cachedSubscriptions != null)
-            {
-                return cachedSubscriptions;
-            }
-
-            cachedSubscriptions = new KeyValuePair<string, SunExpCardLifecycleSubscription>[Subscriptions.Count];
-            var index = 0;
-            foreach (var pair in Subscriptions)
-            {
-                cachedSubscriptions[index++] = pair;
-            }
-
-            return cachedSubscriptions;
-        }
+            Priority = subscription.Priority,
+            BeforeCommonCardUse = subscription.BeforeCommonCardUse,
+            BeforeAttackCardUse = subscription.BeforeAttackCardUse,
+            AfterCommonCardUse = subscription.AfterCommonCardUse,
+            AfterAttackCardUse = subscription.AfterAttackCardUse,
+            AfterSetCardStyle = subscription.AfterSetCardStyle,
+            AfterCardItemInit = subscription.AfterCardItemInit,
+            AfterAttackCardItemInit = subscription.AfterAttackCardItemInit,
+            AfterCardItemDataUpdate = subscription.AfterCardItemDataUpdate,
+            AfterAttackCardItemDataUpdate = subscription.AfterAttackCardItemDataUpdate,
+            AfterCardItemDrawEffect = subscription.AfterCardItemDrawEffect,
+            AfterCommonCardItemDrawEffect = subscription.AfterCommonCardItemDrawEffect,
+            AfterAttackCardItemDrawEffect = subscription.AfterAttackCardItemDrawEffect,
+            AfterFightUiCreateCardItem = subscription.AfterFightUiCreateCardItem,
+            AfterFightUiCreateCardItemInternal = subscription.AfterFightUiCreateCardItemInternal,
+            AfterScriptExecutorGetCardFromDeck = subscription.AfterScriptExecutorGetCardFromDeck,
+            AfterScriptExecutorRandomAddCard = subscription.AfterScriptExecutorRandomAddCard,
+            AfterCardChoiceItemInitialize = subscription.AfterCardChoiceItemInitialize,
+            BeforeCardChoiceUiSelect = subscription.BeforeCardChoiceUiSelect,
+            AfterDictItemInit = subscription.AfterDictItemInit,
+            AfterDictionaryShowItemInit = subscription.AfterDictionaryShowItemInit,
+            AfterDisplayCardInit = subscription.AfterDisplayCardInit,
+            AfterShowCardInit = subscription.AfterShowCardInit,
+            AfterSafeBoxItemInit = subscription.AfterSafeBoxItemInit,
+            AfterEnchCardItemInit = subscription.AfterEnchCardItemInit,
+            AfterPackShowItemInit = subscription.AfterPackShowItemInit,
+            AfterShopItemInit = subscription.AfterShopItemInit,
+            AfterWarehouseItemInit = subscription.AfterWarehouseItemInit,
+            AfterPlayerInfoAddCard = subscription.AfterPlayerInfoAddCard,
+            AfterPlayerInfoAddCardById = subscription.AfterPlayerInfoAddCardById,
+            AfterPlayerInfoRandomAddCard = subscription.AfterPlayerInfoRandomAddCard
+        };
     }
 }

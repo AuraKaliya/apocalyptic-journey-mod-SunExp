@@ -25,6 +25,7 @@ public static class SunExpHardTagRuntime
     private static string? registeredPlayerStatusId;
     private static string? registeredAbyssGazeEndRoundStatusId;
     private static int stagnantWaterRefreshSequence;
+    private static bool cardLifecycleRegistered;
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -37,6 +38,28 @@ public static class SunExpHardTagRuntime
             FightStarted = OnFightStart,
             FightEnding = OnFightEnding
         });
+        SunExpStatusLifecycleRouter.Register("HardTag", new SunExpStatusLifecycleSubscription
+        {
+            AfterEnemyInit = OnEnemyInit
+        });
+        SunExpCombatActionRouter.Register("HardTag", new SunExpCombatActionSubscription
+        {
+            BeforeOtherObjAction = OnEnemyDoOneAction
+        });
+        RegisterAfter(modConfig, SunExpHookTargets.FightPlayerTurnInit, OnPlayerTurn);
+        RegisterBefore(modConfig, SunExpHookTargets.SkillItemTrueUse, OnSkillUseBefore);
+        RegisterAfter(modConfig, SunExpHookTargets.SkillItemTrueUse, OnSkillUseAfter);
+        SunExpLog.Info("SunExp hard tag runtime initialized");
+    }
+
+    private static void EnsureCardLifecycleRegistered()
+    {
+        if (cardLifecycleRegistered)
+        {
+            return;
+        }
+
+        cardLifecycleRegistered = true;
         SunExpCardLifecycleRouter.Register("HardTag", new SunExpCardLifecycleSubscription
         {
             AfterCardItemInit = OnCardItemChanged,
@@ -52,18 +75,6 @@ public static class SunExpHardTagRuntime
             AfterCommonCardUse = OnCardUseAfter,
             AfterAttackCardUse = OnCardUseAfter
         });
-        SunExpStatusLifecycleRouter.Register("HardTag", new SunExpStatusLifecycleSubscription
-        {
-            AfterEnemyInit = OnEnemyInit
-        });
-        SunExpCombatActionRouter.Register("HardTag", new SunExpCombatActionSubscription
-        {
-            BeforeOtherObjAction = OnEnemyDoOneAction
-        });
-        RegisterAfter(modConfig, SunExpHookTargets.FightPlayerTurnInit, OnPlayerTurn);
-        RegisterBefore(modConfig, SunExpHookTargets.SkillItemTrueUse, OnSkillUseBefore);
-        RegisterAfter(modConfig, SunExpHookTargets.SkillItemTrueUse, OnSkillUseAfter);
-        SunExpLog.Info("SunExp hard tag runtime initialized");
     }
 
     public static List<DataConfig> SelectedRuntimeHardTags()
@@ -128,6 +139,7 @@ public static class SunExpHardTagRuntime
                 return;
             }
 
+            EnsureCardLifecycleRegistered();
             RunFightStartStep("ScorchedWorld", ApplyScorchedWorld);
             RunFightStartStep("SunsetExpedition", ApplySunsetExpedition);
             RunFightStartStep("MorningStarDimmedPower", ApplyMorningStarDimmedMaxPower);

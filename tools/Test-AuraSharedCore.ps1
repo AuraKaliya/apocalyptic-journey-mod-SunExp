@@ -349,6 +349,13 @@ foreach ($required in @("AuraSharedIdentity.SelectRoleId", "ReadStatusRoleId", "
     }
 }
 
+$cardLifecycleRouterText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraCardLifecycleRouter.cs")
+foreach ($required in @("AuraCardLifecyclePhase", "AuraHookRegistry", "RegisteredPhases", "EnsurePhaseRegistrationsNoLock", "EnsureBeforeNoLock", "EnsureAfterNoLock", "CommonCardItemTrueUse", "CardItemInit", "PlayerInfoRandomAddCard", "OrderByDescending", "ThenBy")) {
+    if (-not $cardLifecycleRouterText.Contains($required)) {
+        throw "Shared card lifecycle router is missing shared hook ownership or deterministic dispatch: $required"
+    }
+}
+
 $sharedConsumerProjects = @(
     "SunExp-Dev\SunExp.Dll.csproj",
     "SanGuoShaExp-Dev\SanGuoShaExp.Dll.csproj",
