@@ -13,9 +13,13 @@ namespace SunExp.Dll.Mechanics;
 
 public static class EndlessAbyssShockOptionIds
 {
-    public const string DestroyRelic = "destroy-relic";
-    public const string AnnihilateCards = "annihilate-cards";
+    public const string Sacrifice = "sacrifice";
+    public const string CrackCards = "crack-cards";
     public const string IncreaseGaze = "increase-gaze";
+    public const string Evolution = "evolution";
+
+    public const string DestroyRelic = Sacrifice;
+    public const string AnnihilateCards = CrackCards;
 }
 
 public sealed class EndlessAbyssShockRequest
@@ -267,7 +271,7 @@ public static class EndlessAbyssShockService
     {
         switch (option)
         {
-            case EndlessAbyssShockOptionIds.DestroyRelic:
+            case EndlessAbyssShockOptionIds.Sacrifice:
                 if (!TongtianTowerPressureService.DestroyRandomEquippedRelic(
                         source + ":shock",
                         seedBase + ":" + option))
@@ -275,22 +279,37 @@ public static class EndlessAbyssShockService
                     EndlessAbyssGazeService.Increase(1, source + ":relic-fallback");
                 }
 
+                EndlessAbyssRewardService.GrantRandomCards(
+                    EndlessAbyssConfigStore.Current.Shock.SacrificeCardRewardCount,
+                    source + ":sacrifice");
                 result.AppliedOptions.Add(option);
                 break;
-            case EndlessAbyssShockOptionIds.AnnihilateCards:
-                var changed = TongtianTowerPressureService.AddAnnihilationToRandomDeckCards(
-                    EndlessAbyssConfigStore.Current.Shock.AnnihilationCardCount,
+            case EndlessAbyssShockOptionIds.CrackCards:
+                var changed = TongtianTowerPressureService.AddCrackToRandomDeckCards(
+                    EndlessAbyssConfigStore.Current.Shock.CrackCardCount,
                     source + ":shock",
                     seedBase + ":" + option);
                 if (changed <= 0)
                 {
-                    EndlessAbyssGazeService.Increase(1, source + ":annihilation-fallback");
+                    EndlessAbyssGazeService.Increase(1, source + ":crack-fallback");
                 }
 
+                PlayerApi.AddMoney(EndlessAbyssConfigStore.Current.Shock.CrackGold);
                 result.AppliedOptions.Add(option);
                 break;
             case EndlessAbyssShockOptionIds.IncreaseGaze:
                 EndlessAbyssGazeService.Increase(1, source + ":selected");
+                EndlessAbyssRewardService.IncreasePlayerMaxHp(
+                    EndlessAbyssConfigStore.Current.Shock.GazeMaxHpReward,
+                    source + ":gaze");
+                EndlessAbyssRewardService.AddRandomOrigin(
+                    EndlessAbyssConfigStore.Current.Shock.GazeOriginReward,
+                    source + ":gaze");
+                result.AppliedOptions.Add(option);
+                break;
+            case EndlessAbyssShockOptionIds.Evolution:
+                EndlessAbyssRewardService.IncreaseEvolution(1, source + ":selected");
+                EndlessAbyssRewardService.GrantRandomBlessing(source + ":evolution");
                 result.AppliedOptions.Add(option);
                 break;
         }
@@ -319,9 +338,10 @@ public static class EndlessAbyssShockService
 
     private static bool IsKnownOption(string option)
     {
-        return string.Equals(option, EndlessAbyssShockOptionIds.DestroyRelic, StringComparison.Ordinal)
-            || string.Equals(option, EndlessAbyssShockOptionIds.AnnihilateCards, StringComparison.Ordinal)
-            || string.Equals(option, EndlessAbyssShockOptionIds.IncreaseGaze, StringComparison.Ordinal);
+        return string.Equals(option, EndlessAbyssShockOptionIds.Sacrifice, StringComparison.Ordinal)
+            || string.Equals(option, EndlessAbyssShockOptionIds.CrackCards, StringComparison.Ordinal)
+            || string.Equals(option, EndlessAbyssShockOptionIds.IncreaseGaze, StringComparison.Ordinal)
+            || string.Equals(option, EndlessAbyssShockOptionIds.Evolution, StringComparison.Ordinal);
     }
 
     private static bool TryClaimResolutionToken(string? token, string source)

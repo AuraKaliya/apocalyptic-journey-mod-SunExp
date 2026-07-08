@@ -10,7 +10,13 @@
   },
   "shock": {
     "stealthMinFloor": 1,
-    "annihilationCardCount": 3
+    "annihilationCardCount": 3,
+    "crackCardCount": 2,
+    "crackGold": 300,
+    "sacrificeCardRewardCount": 2,
+    "gazeMaxHpReward": 20,
+    "gazeOriginReward": 2,
+    "crackThreshold": 3
   },
   "milestones": {
     "minFloor": 2

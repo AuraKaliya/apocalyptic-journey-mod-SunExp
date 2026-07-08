@@ -1,0 +1,4 @@
+Id,Type,已完成,Note,Name,Name_zh-Hant,Name_en,Name_ja,Description,Description_zh-Hant,Description_en,Description_ja
+唯一的标识（不能重复）,类型,TRUE,备注,名称,名稱,Name,名称,描述,描述,Description,説明
+abyss_life_theft,诅咒,TRUE,,生机窃取,生機竊取,Life Theft,生命窃取,抽到时，失去最大生命值{0}%的当前生命，敌方全体生命上限提高{1}%。丢弃时，失去最大生命值{2}%的当前生命。,抽到時，失去最大生命值{0}%的當前生命，敵方全體生命上限提高{1}%。丟棄時，失去最大生命值{2}%的當前生命。,"When drawn, lose current HP equal to {0}% of Max HP and all enemies gain {1}% Max HP. When discarded, lose current HP equal to {2}% of Max HP.",引いた時、最大HP{0}%分の現在HPを失い、敵全体の最大HPが{1}%増加する。捨てた時、最大HP{2}%分の現在HPを失う。
+abyss_deficit,诅咒,TRUE,,亏空,虧空,Deficit,欠損,抽到时，失去{0}点魔能。,抽到時，失去{0}點魔能。,"When drawn, lose {0} Mana.",引いた時、マナを{0}失う。

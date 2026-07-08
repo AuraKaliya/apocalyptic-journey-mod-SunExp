@@ -13,6 +13,7 @@ namespace AuraToolsExp.Dll.Features.Logging;
 
 public static class AuraToolsFileLogRuntime
 {
+    private const int MaxStackTraceChars = 4096;
     private static readonly object Gate = new();
     private static readonly Dictionary<string, MirrorWindow> MirrorWindows = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, DateTime> LastMirrorByKey = new(StringComparer.OrdinalIgnoreCase);
@@ -109,7 +110,7 @@ public static class AuraToolsFileLogRuntime
             level,
             type.ToString(),
             normalizedCondition,
-            ShouldIncludeStackTrace(level) ? Normalize(stackTrace) : null));
+            ShouldIncludeStackTrace(level) ? NormalizeStackTrace(stackTrace) : null));
     }
 
     private static void Enqueue(AuraLogRecord record)
@@ -378,15 +379,15 @@ public static class AuraToolsFileLogRuntime
     private static int MirrorLimitPerSecond(string level)
     {
         return LevelRank(level) >= LevelRank(LoggingLevelNames.Error)
-            ? 500
+            ? 120
             : LevelRank(level) >= LevelRank(LoggingLevelNames.Warning)
-                ? 300
-                : 160;
+                ? 80
+                : 60;
     }
 
     private static double DuplicateWindowMs(string level)
     {
-        return LevelRank(level) >= LevelRank(LoggingLevelNames.Error) ? 150d : 500d;
+        return LevelRank(level) >= LevelRank(LoggingLevelNames.Error) ? 1000d : 1500d;
     }
 
     private static string StableMessageKey(string message)
@@ -397,6 +398,14 @@ public static class AuraToolsFileLogRuntime
         }
 
         return message.Length <= 256 ? message : message.Substring(0, 256);
+    }
+
+    private static string NormalizeStackTrace(string value)
+    {
+        var normalized = Normalize(value);
+        return normalized.Length <= MaxStackTraceChars
+            ? normalized
+            : normalized.Substring(0, MaxStackTraceChars) + "\n... <stack trace truncated>";
     }
 
     private static void PruneDuplicateKeys(DateTime now)

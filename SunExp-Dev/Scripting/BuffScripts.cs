@@ -23,6 +23,7 @@ public static class BuffScripts
         ["star_stone_pouch"] = ApplyStarStonePouch,
         ["star_score"] = ApplyStarScore,
         ["star_stage"] = ApplyStarStage,
+        ["abyss_blessing"] = EndlessAbyssBlessingService.Apply,
         [SunExpIds.PolymorphTraitBuffShortId] = ApplyPolymorphTrait,
         [SunExpIds.HeartChangeBuffShortId] = ApplyHeartChange
     };
@@ -42,6 +43,7 @@ public static class BuffScripts
         ["star_stone_pouch"] = ClearStarStonePouch,
         ["star_score"] = ClearStarScore,
         ["star_stage"] = ClearStarStage,
+        ["abyss_blessing"] = EndlessAbyssBlessingService.Clear,
         [SunExpIds.PolymorphTraitBuffShortId] = ClearPolymorphTrait,
         [SunExpIds.HeartChangeBuffShortId] = ClearHeartChange
     };

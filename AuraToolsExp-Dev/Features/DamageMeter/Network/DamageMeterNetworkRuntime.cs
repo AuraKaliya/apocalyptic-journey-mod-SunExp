@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using AuraToolsExp.Dll.Features.DamageMeter.Resolution;
 using AuraToolsExp.Dll.Infrastructure;
@@ -23,7 +24,9 @@ internal static class DamageMeterNetworkRuntime
         new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, Queue<long>> ReporterRateWindows =
         new(StringComparer.OrdinalIgnoreCase);
+    private static readonly List<DamageEvent> PendingSubmitBatch = new();
     private static long localReporterSequence;
+    private static long nextSubmitBatchFlushAtMs;
     private static int hostRoundSignalCount;
     private static bool snapshotRequestPending;
     private static string currentAdventureId = "";
@@ -51,6 +54,8 @@ internal static class DamageMeterNetworkRuntime
         snapshotRequestPending = false;
         LastReporterSequence.Clear();
         ReporterRateWindows.Clear();
+        PendingSubmitBatch.Clear();
+        nextSubmitBatchFlushAtMs = 0;
     }
 
     public static void StartFight(bool sharedEnabled)
@@ -95,6 +100,20 @@ internal static class DamageMeterNetworkRuntime
         NotifyChanged();
     }
 
+    public static void Tick()
+    {
+        if (!IsMultiplayer || PendingSubmitBatch.Count == 0)
+        {
+            return;
+        }
+
+        var now = NowMs();
+        if (nextSubmitBatchFlushAtMs > 0 && now >= nextSubmitBatchFlushAtMs)
+        {
+            FlushPendingSubmissions();
+        }
+    }
+
     public static void RestoreAdventureHistory()
     {
         if (!IsHost || HistoryInstance.Records.Count > 0)
@@ -112,6 +131,8 @@ internal static class DamageMeterNetworkRuntime
         {
             return;
         }
+
+        FlushPendingSubmissions(immediate: true);
 
         if (!IsHost)
         {
@@ -141,6 +162,8 @@ internal static class DamageMeterNetworkRuntime
         {
             return;
         }
+
+        FlushPendingSubmissions(immediate: true);
 
         if (!IsMultiplayer)
         {
@@ -188,7 +211,46 @@ internal static class DamageMeterNetworkRuntime
             return;
         }
 
-        Send(new DamageMeterSubmitCommand { Candidate = damage });
+        EnqueueSubmit(damage);
+    }
+
+    public static void FlushPendingSubmissions(bool immediate = false)
+    {
+        if (!IsMultiplayer || PendingSubmitBatch.Count == 0)
+        {
+            PendingSubmitBatch.Clear();
+            nextSubmitBatchFlushAtMs = 0;
+            return;
+        }
+
+        var events = PendingSubmitBatch.ToList();
+        PendingSubmitBatch.Clear();
+        nextSubmitBatchFlushAtMs = 0;
+        var maximum = Math.Max(1, AuraToolsConfigService.MatchExperience.DamageMeter.MaxEventsPerBatch);
+        for (var offset = 0; offset < events.Count; offset += maximum)
+        {
+            var count = Math.Min(maximum, events.Count - offset);
+            Send(new DamageMeterSubmitBatchCommand
+            {
+                Candidates = events.GetRange(offset, count)
+            }, deferSubmit: !immediate);
+        }
+    }
+
+    private static void EnqueueSubmit(DamageEvent damage)
+    {
+        PendingSubmitBatch.Add(damage.Copy());
+        var now = NowMs();
+        if (nextSubmitBatchFlushAtMs <= 0)
+        {
+            nextSubmitBatchFlushAtMs = now + SubmitBatchIntervalMs();
+        }
+
+        if (PendingSubmitBatch.Count >= Math.Max(1, AuraToolsConfigService.MatchExperience.DamageMeter.MaxEventsPerBatch)
+            || now >= nextSubmitBatchFlushAtMs)
+        {
+            FlushPendingSubmissions();
+        }
     }
 
     public static bool AcceptOnServer(
@@ -196,6 +258,59 @@ internal static class DamageMeterNetworkRuntime
         AuraToolsRpcSender sender,
         out DamageEvent confirmed,
         out string rejection)
+    {
+        return AcceptOnServer(candidate, sender, out confirmed, out rejection, true);
+    }
+
+    public static bool AcceptBatchOnServer(
+        IEnumerable<DamageEvent>? candidates,
+        AuraToolsRpcSender sender,
+        out List<DamageEvent> confirmed,
+        out List<string> rejections)
+    {
+        confirmed = new List<DamageEvent>();
+        rejections = new List<string>();
+        var limit = Math.Max(1, AuraToolsConfigService.MatchExperience.DamageMeter.MaxEventsPerBatch);
+        var consumed = 0;
+        foreach (var candidate in candidates ?? Enumerable.Empty<DamageEvent>())
+        {
+            if (consumed >= limit)
+            {
+                rejections.Add("batch limit exceeded");
+                break;
+            }
+
+            consumed++;
+            if (AcceptOnServer(candidate, sender, out var accepted, out var rejection, false))
+            {
+                confirmed.Add(accepted);
+            }
+            else if (!string.IsNullOrWhiteSpace(rejection))
+            {
+                rejections.Add(rejection);
+            }
+        }
+
+        if (confirmed.Count > 0)
+        {
+            NotifyChanged();
+            return true;
+        }
+
+        if (rejections.Count == 0)
+        {
+            rejections.Add("empty batch");
+        }
+
+        return false;
+    }
+
+    private static bool AcceptOnServer(
+        DamageEvent candidate,
+        AuraToolsRpcSender sender,
+        out DamageEvent confirmed,
+        out string rejection,
+        bool notify)
     {
         confirmed = new DamageEvent();
         rejection = "";
@@ -242,33 +357,75 @@ internal static class DamageMeterNetworkRuntime
 
         RunAggregateInstance.Apply(confirmed);
         LastReporterSequence[confirmed.ReporterPlayerId] = confirmed.ReporterSequence;
-        NotifyChanged();
+        if (notify)
+        {
+            NotifyChanged();
+        }
+
         return true;
     }
 
     public static void ApplyConfirmed(DamageEvent confirmed)
     {
+        ApplyConfirmedCore(confirmed, true);
+    }
+
+    public static void ApplyConfirmedBatch(IEnumerable<DamageEvent>? confirmed)
+    {
+        snapshotRequestPending = false;
+        var changed = false;
+        foreach (var damage in confirmed ?? Enumerable.Empty<DamageEvent>())
+        {
+            var result = ApplyConfirmedCore(damage, false);
+            changed = changed || result == ApplyConfirmedResult.Applied;
+            if (result == ApplyConfirmedResult.SnapshotRequested)
+            {
+                if (changed)
+                {
+                    NotifyChanged();
+                }
+
+                return;
+            }
+        }
+
+        if (changed)
+        {
+            NotifyChanged();
+        }
+    }
+
+    private static ApplyConfirmedResult ApplyConfirmedCore(DamageEvent confirmed, bool notify)
+    {
         snapshotRequestPending = false;
         if (confirmed == null)
         {
-            return;
+            return ApplyConfirmedResult.Ignored;
         }
 
         if (confirmed.ServerSequence > LedgerInstance.ServerSequence + 1)
         {
             RequestSnapshot();
-            return;
+            return ApplyConfirmedResult.SnapshotRequested;
         }
 
-        if (LedgerInstance.Apply(confirmed))
+        if (!LedgerInstance.Apply(confirmed))
         {
-            if (!RunAggregateInstance.Apply(confirmed))
-            {
-                RequestSnapshot();
-            }
+            return ApplyConfirmedResult.Ignored;
+        }
 
+        if (!RunAggregateInstance.Apply(confirmed))
+        {
+            RequestSnapshot();
+            return ApplyConfirmedResult.SnapshotRequested;
+        }
+
+        if (notify)
+        {
             NotifyChanged();
         }
+
+        return ApplyConfirmedResult.Applied;
     }
 
     public static bool ApplyControlOnServer(
@@ -747,6 +904,16 @@ internal static class DamageMeterNetworkRuntime
         return string.Equals(LedgerInstance.SessionId, sessionId, StringComparison.Ordinal);
     }
 
+    private static int SubmitBatchIntervalMs()
+    {
+        return Math.Max(50, AuraToolsConfigService.MatchExperience.DamageMeter.SubmitBatchIntervalMs);
+    }
+
+    private static long NowMs()
+    {
+        return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+    }
+
     private static string EnsureAdventureId()
     {
         if (string.IsNullOrWhiteSpace(currentAdventureId))
@@ -801,10 +968,13 @@ internal static class DamageMeterNetworkRuntime
         return value == null || value.Length <= DamageMeterProtocol.MaxStringLength;
     }
 
-    private static void Send(RpcCommandBase command)
+    private static void Send(RpcCommandBase command, bool deferSubmit = true)
     {
         var source = "DamageMeter." + command.GetType().Name;
-        var sent = command is DamageMeterSubmitCommand
+        var shouldDefer = deferSubmit
+                          && (command is DamageMeterSubmitCommand
+                              || command is DamageMeterSubmitBatchCommand);
+        var sent = shouldDefer
             ? AuraToolsRpcTransport.SendDeferred(PlayerManager.Instance, command, source)
             : AuraToolsRpcTransport.Send(PlayerManager.Instance, command, source);
         if (!sent)
@@ -816,5 +986,12 @@ internal static class DamageMeterNetworkRuntime
     private static void NotifyChanged()
     {
         AuraToolsDamageMeterRuntime.NotifyLedgerChanged();
+    }
+
+    private enum ApplyConfirmedResult
+    {
+        Ignored,
+        Applied,
+        SnapshotRequested
     }
 }

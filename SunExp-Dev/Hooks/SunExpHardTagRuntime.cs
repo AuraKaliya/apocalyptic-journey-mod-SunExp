@@ -24,11 +24,18 @@ public static class SunExpHardTagRuntime
     private static readonly object EventOwner = new();
     private static readonly Dictionary<string, int> SkillCooldownBeforeUse = new(StringComparer.Ordinal);
     private static string? registeredPlayerStatusId;
+    private static string? registeredAbyssGazeEndRoundStatusId;
     private static int stagnantWaterRefreshSequence;
 
     public static void Initialize(ModConfig modConfig)
     {
+        SunExpActionEventRouter.RegisterHandler(
+            "EndlessAbyssGaze",
+            context => EndlessAbyssGazePressureService.OnCardAction(context.Config, "Action"),
+            () => EndlessAbyssGazePressureService.OnCardActionAfter("ActionAfter"));
         RegisterAfter(modConfig, "Fight_Start.Init", OnFightStart);
+        RegisterBefore(modConfig, "Fight_Win.ResetStates", OnFightEnding);
+        RegisterBefore(modConfig, "Fight_Escape.ResetStates", OnFightEnding);
         RegisterAfter(modConfig, "Fight_PlayerTurn.Init", OnPlayerTurn);
         RegisterAfter(modConfig, "Enemy.Init", OnEnemyInit);
         RegisterBefore(modConfig, "OtherObj.DoOneAction", OnEnemyDoOneAction);
@@ -37,8 +44,9 @@ public static class SunExpHardTagRuntime
         RegisterAfter(modConfig, "CardItem.DataUpdate", OnCardItemChanged);
         RegisterAfter(modConfig, "AttackCardItem.DataUpdate", OnCardItemChanged);
         RegisterAfter(modConfig, "FightUI.CreateCardItem", OnFightUiCreateCard);
-        RegisterAfter(modConfig, "FightUI.CreateCardItemInternal", OnFightUiCreateCard);
+        RegisterAfter(modConfig, "FightUI.CreateCardItemInternal", OnFightUiCreateCardInternal);
         RegisterAfter(modConfig, "ScriptExecutor.GetCardFromDeck", OnScriptExecutorGetCardFromDeck);
+        RegisterAfter(modConfig, "ScriptExecutor.RandomAddCard", OnScriptExecutorRandomAddCard);
         RegisterBefore(modConfig, "CommonCardItem.TrueUse", OnCardUseBefore);
         RegisterBefore(modConfig, "AttackCardItem.TrueUse", OnCardUseBefore);
         RegisterAfter(modConfig, "CommonCardItem.TrueUse", OnCardUseAfter);
@@ -101,6 +109,7 @@ public static class SunExpHardTagRuntime
         try
         {
             registeredPlayerStatusId = null;
+            registeredAbyssGazeEndRoundStatusId = null;
             SkillCooldownBeforeUse.Clear();
             EventCenter.Instance.Clear(EventOwner);
 
@@ -111,7 +120,11 @@ public static class SunExpHardTagRuntime
 
             RunFightStartStep("ScorchedWorld", ApplyScorchedWorld);
             RunFightStartStep("SunsetExpedition", ApplySunsetExpedition);
+            RunFightStartStep("MorningStarDimmedPower", ApplyMorningStarDimmedMaxPower);
             RunFightStartStep("MorningStarDimmed", () => ApplyMorningStarDimmedToCombatCards(CurrentPlayerExecutor(), "Fight_Start.Init"));
+            RunFightStartStep("AbyssGazeReset", () => EndlessAbyssGazePressureService.ResetPlayerTurn(CurrentPlayerExecutor(), "Fight_Start.Init"));
+            RunFightStartStep("AbyssGazeActionRouter", () => SunExpActionEventRouter.ResetForFight("AbyssGaze.Fight_Start.Init"));
+            RunFightStartStep("AbyssGazeEndRoundListener", () => RegisterAbyssGazeEndRoundListener("Fight_Start.Init"));
             RunFightStartStep("BlackSunListener", () => RegisterPlayerRoundListener("Fight_Start.Init"));
         }
         catch (Exception ex)
@@ -142,11 +155,26 @@ public static class SunExpHardTagRuntime
             }
 
             ApplyMorningStarDimmedToCombatCards(CurrentPlayerExecutor(), "Fight_PlayerTurn.Init");
+            EndlessAbyssGazePressureService.ResetPlayerTurn(CurrentPlayerExecutor(), "Fight_PlayerTurn.Init");
+            SunExpActionEventRouter.EnsureRegistered("AbyssGaze.Fight_PlayerTurn.Init");
+            RegisterAbyssGazeEndRoundListener("Fight_PlayerTurn.Init");
             RegisterPlayerRoundListener("Fight_PlayerTurn.Init");
         }
         catch (Exception ex)
         {
             SunExpLog.Error("SunExp hard tag player turn failed", ex);
+        }
+    }
+
+    private static void OnFightEnding(ModHookContext context)
+    {
+        try
+        {
+            EndlessAbyssCrackService.RestoreTemporaryCracks("FightEnding");
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("SunExp crack restore failed", ex);
         }
     }
 
@@ -205,12 +233,15 @@ public static class SunExpHardTagRuntime
     {
         try
         {
-            if (!SunExpHardTagState.Active(SunExpHardTagIds.MorningStarDimmed))
+            if (SunExpHardTagState.Active(SunExpHardTagIds.MorningStarDimmed))
             {
-                return;
+                ApplyMorningStarDimmedToCard(context.Target as CardItem, "CardUseBefore");
             }
 
-            ApplyMorningStarDimmedToCard(context.Target as CardItem, "CardUseBefore");
+            if (SunExpHardTagState.Active(SunExpHardTagIds.AbyssGaze))
+            {
+                SunExpActionEventRouter.EnsureRegistered("AbyssGaze.CardUseBefore");
+            }
         }
         catch (Exception ex)
         {
@@ -226,6 +257,9 @@ public static class SunExpHardTagRuntime
             {
                 ApplyMorningStarDimmedToCombatCards(CurrentPlayerExecutor(), "CardUseAfter");
             }
+
+            EndlessAbyssCrackService.OnCardPlayed(context.Target as CardItem, "CardUseAfter");
+            EndlessAbyssGazePressureService.OnCardUseAfter(context.Target as CardItem, "CardUseAfter");
         }
         catch (Exception ex)
         {
@@ -263,26 +297,64 @@ public static class SunExpHardTagRuntime
         }
     }
 
-    private static void OnScriptExecutorGetCardFromDeck(ModHookContext context)
+    private static void OnFightUiCreateCardInternal(ModHookContext context)
     {
         try
         {
-            if (!SunExpHardTagState.Active(SunExpHardTagIds.MorningStarDimmed))
+            if (SunExpHardTagState.Active(SunExpHardTagIds.MorningStarDimmed))
             {
-                return;
+                ApplyMorningStarDimmedToCombatCards(CurrentPlayerExecutor(), "FightUI.CreateCardItemInternal");
             }
 
             var args = context.Arguments;
             if (args != null && args.Length > 0 && args[0] is IDataConfig config)
             {
-                ApplyMorningStarDimmedToConfig(config, "ScriptExecutor.GetCardFromDeck:arg");
+                EndlessAbyssGazePressureService.OnCardGained(CurrentPlayerExecutor(), config, "FightUI.CreateCardItemInternal");
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("SunExp hard tag combat card materialize hook failed", ex);
+        }
+    }
+
+    private static void OnScriptExecutorGetCardFromDeck(ModHookContext context)
+    {
+        try
+        {
+            var args = context.Arguments;
+            if (args != null && args.Length > 0 && args[0] is IDataConfig config)
+            {
+                if (SunExpHardTagState.Active(SunExpHardTagIds.MorningStarDimmed))
+                {
+                    ApplyMorningStarDimmedToConfig(config, "ScriptExecutor.GetCardFromDeck:arg");
+                }
+
+                EndlessAbyssGazePressureService.OnCardGained(context.Target as ScriptExecutor, config, "ScriptExecutor.GetCardFromDeck");
             }
 
-            ApplyMorningStarDimmedToCombatCards(context.Target as ScriptExecutor, "ScriptExecutor.GetCardFromDeck");
+            if (SunExpHardTagState.Active(SunExpHardTagIds.MorningStarDimmed))
+            {
+                ApplyMorningStarDimmedToCombatCards(context.Target as ScriptExecutor, "ScriptExecutor.GetCardFromDeck");
+            }
         }
         catch (Exception ex)
         {
             SunExpLog.Error("SunExp hard tag deck draw hook failed", ex);
+        }
+    }
+
+    private static void OnScriptExecutorRandomAddCard(ModHookContext context)
+    {
+        try
+        {
+            var args = context.Arguments;
+            var cardId = args != null && args.Length > 0 ? Convert.ToString(args[0]) ?? "" : "";
+            EndlessAbyssGazePressureService.OnCardGainedById(context.Target as ScriptExecutor, cardId, "ScriptExecutor.RandomAddCard");
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("SunExp hard tag random add card hook failed", ex);
         }
     }
 
@@ -341,6 +413,31 @@ public static class SunExpHardTagRuntime
         EventCenter.Instance.AddEventListener("StartRound" + statusId, new Action(() => OnLocalPlayerStartRound(executor)), EventOwner, EventDispose.OnFightEnd);
         registeredPlayerStatusId = statusId;
         SunExpLog.Info("Registered black sun player StartRound listener from " + source + ": statusId=" + statusId);
+    }
+
+    private static void RegisterAbyssGazeEndRoundListener(string source)
+    {
+        if (!SunExpHardTagState.Active(SunExpHardTagIds.AbyssGaze))
+        {
+            return;
+        }
+
+        var player = FightPlayer.Instance;
+        var status = player?.Status;
+        var executor = status?.MirrorSc as ScriptExecutor;
+        var statusId = status?.InstanceId;
+        if (string.IsNullOrWhiteSpace(statusId) || executor == null || registeredAbyssGazeEndRoundStatusId == statusId)
+        {
+            return;
+        }
+
+        EventCenter.Instance.AddEventListener(
+            "EndRound" + statusId,
+            new Action(() => EndlessAbyssGazePressureService.ResetPlayerTurn(executor, "EndRound")),
+            EventOwner,
+            EventDispose.OnFightEnd);
+        registeredAbyssGazeEndRoundStatusId = statusId;
+        SunExpLog.Info("Registered abyss gaze EndRound listener from " + source + ": statusId=" + statusId);
     }
 
     private static void OnLocalPlayerStartRound(ScriptExecutor executor)
@@ -454,6 +551,23 @@ public static class SunExpHardTagRuntime
         }
 
         return changed;
+    }
+
+    private static void ApplyMorningStarDimmedMaxPower()
+    {
+        if (!SunExpHardTagState.Active(SunExpHardTagIds.MorningStarDimmed))
+        {
+            return;
+        }
+
+        var executor = CurrentPlayerExecutor();
+        if (executor == null)
+        {
+            return;
+        }
+
+        executor.SetStatus("Self");
+        executor.ChangeMaxPower("1");
     }
 
     private static int ApplyMorningStarDimmedToCardItems(IEnumerable<CardItem>? cards, string source)
@@ -903,6 +1017,7 @@ public static class SunExpHardTagRuntime
             || SunExpHardTagState.Active(SunExpHardTagIds.SunsetExpedition)
             || SunExpHardTagState.Active(SunExpHardTagIds.Rebirth)
             || SunExpHardTagState.Active(SunExpHardTagIds.AbyssalShock)
+            || SunExpHardTagState.Active(SunExpHardTagIds.AbyssGaze)
             || SunExpHardTagState.Active(SunExpHardTagIds.MorningStarDimmed)
             || SunExpHardTagState.Active(SunExpHardTagIds.OtherDimensionStagnantWater);
     }

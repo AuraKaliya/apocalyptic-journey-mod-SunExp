@@ -56,7 +56,7 @@ public static class SolarRadianceService
         }
 
         var tier = BuffApi.Level(executor.Self, SunExpIds.SolarCrownTier);
-        SunExpLog.Info("SolarCrown trigger source=" + source + ", tier=" + tier + ", effects=" + SolarCrownEffectSummary(tier));
+        SunExpLog.Debug("SolarCrown trigger source=" + source + ", tier=" + tier + ", effects=" + SolarCrownEffectSummary(tier));
         var effectCount = 0;
 
         if (tier >= 1)

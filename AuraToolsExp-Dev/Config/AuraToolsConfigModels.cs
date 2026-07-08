@@ -513,6 +513,9 @@ public sealed class DamageMeterSettings
     private const int DefaultMaxHistoryEnvelopeBytes = 1048576;
     private const int DefaultMaxAvatarEncodePixels = 262144;
     private const int DefaultMaxAvatarPngBytes = 262144;
+    private const int DefaultUiRefreshIntervalMs = 250;
+    private const int DefaultSubmitBatchIntervalMs = 250;
+    private const int DefaultMaxEventsPerBatch = 24;
 
     [JsonProperty("enabled")]
     public bool Enabled { get; set; }
@@ -556,6 +559,15 @@ public sealed class DamageMeterSettings
     [JsonProperty("maxAvatarPngBytes")]
     public int MaxAvatarPngBytes { get; set; } = DefaultMaxAvatarPngBytes;
 
+    [JsonProperty("uiRefreshIntervalMs")]
+    public int UiRefreshIntervalMs { get; set; } = DefaultUiRefreshIntervalMs;
+
+    [JsonProperty("submitBatchIntervalMs")]
+    public int SubmitBatchIntervalMs { get; set; } = DefaultSubmitBatchIntervalMs;
+
+    [JsonProperty("maxEventsPerBatch")]
+    public int MaxEventsPerBatch { get; set; } = DefaultMaxEventsPerBatch;
+
     [JsonProperty("settlementCg")]
     public DamageSettlementCgSettings SettlementCg { get; set; } = new();
 
@@ -577,6 +589,15 @@ public sealed class DamageMeterSettings
         MaxAvatarPngBytes = Math.Max(16384, Math.Min(1048576, MaxAvatarPngBytes <= 0
             ? DefaultMaxAvatarPngBytes
             : MaxAvatarPngBytes));
+        UiRefreshIntervalMs = Math.Max(100, Math.Min(2000, UiRefreshIntervalMs <= 0
+            ? DefaultUiRefreshIntervalMs
+            : UiRefreshIntervalMs));
+        SubmitBatchIntervalMs = Math.Max(50, Math.Min(1000, SubmitBatchIntervalMs <= 0
+            ? DefaultSubmitBatchIntervalMs
+            : SubmitBatchIntervalMs));
+        MaxEventsPerBatch = Math.Max(1, Math.Min(64, MaxEventsPerBatch <= 0
+            ? DefaultMaxEventsPerBatch
+            : MaxEventsPerBatch));
         SettlementCg ??= new DamageSettlementCgSettings();
         SettlementCg.Normalize();
     }
@@ -1018,7 +1039,7 @@ public sealed class AuraToolsSkinSettings
 public sealed class AuraToolsLoggingSettings
 {
     [JsonProperty("schemaVersion")]
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } = 3;
 
     [JsonProperty("enabled")]
     public bool Enabled { get; set; } = true;
@@ -1030,16 +1051,16 @@ public sealed class AuraToolsLoggingSettings
     public string MinimumLevel { get; set; } = "Info";
 
     [JsonProperty("mirrorUnityLog")]
-    public bool MirrorUnityLog { get; set; } = true;
+    public bool MirrorUnityLog { get; set; }
 
     [JsonProperty("mirrorCommandsLog")]
-    public bool MirrorCommandsLog { get; set; } = true;
+    public bool MirrorCommandsLog { get; set; }
 
     [JsonProperty("enabledSources")]
-    public List<string> EnabledSources { get; set; } = new() { "AuraTools", "Unity", "Command" };
+    public List<string> EnabledSources { get; set; } = new() { "AuraTools" };
 
     [JsonProperty("unityLogTypes")]
-    public List<string> UnityLogTypes { get; set; } = new() { "Log", "Warning", "Error", "Exception", "Assert" };
+    public List<string> UnityLogTypes { get; set; } = new() { "Warning", "Error", "Exception", "Assert" };
 
     [JsonProperty("includedCommandTags")]
     public List<string> IncludedCommandTags { get; set; } = new();
@@ -1051,7 +1072,7 @@ public sealed class AuraToolsLoggingSettings
     public string StackTraceMode { get; set; } = "ErrorsOnly";
 
     [JsonProperty("maxQueueLength")]
-    public int MaxQueueLength { get; set; } = 4096;
+    public int MaxQueueLength { get; set; } = 1024;
 
     [JsonProperty("flushIntervalMs")]
     public int FlushIntervalMs { get; set; } = 1000;
@@ -1061,17 +1082,73 @@ public sealed class AuraToolsLoggingSettings
 
     public void Normalize()
     {
-        SchemaVersion = Math.Max(1, SchemaVersion);
+        var loadedSchemaVersion = SchemaVersion;
+        var shouldMigrateHighVolumeDefaults = loadedSchemaVersion < 2 && LooksLikeLegacyHighVolumeDefaults();
+        var shouldMigrateWarningOnlyDefaults = loadedSchemaVersion < 3 && LooksLikeWarningOnlyDefaults();
+        SchemaVersion = Math.Max(3, SchemaVersion);
+        if (shouldMigrateHighVolumeDefaults || shouldMigrateWarningOnlyDefaults)
+        {
+            MinimumLevel = LoggingLevelNames.Info;
+            MirrorUnityLog = false;
+            MirrorCommandsLog = false;
+            EnabledSources = new List<string> { "AuraTools" };
+            UnityLogTypes = new List<string> { "Warning", "Error", "Exception", "Assert" };
+            StackTraceMode = LoggingStackTraceModes.ErrorsOnly;
+            MaxQueueLength = Math.Min(MaxQueueLength <= 0 ? 1024 : MaxQueueLength, 1024);
+        }
+
         FileNamePattern = string.IsNullOrWhiteSpace(FileNamePattern) ? "AuraTools-{date}.log" : FileNamePattern.Trim();
         MinimumLevel = LoggingLevelNames.Normalize(MinimumLevel);
-        EnabledSources = NormalizeList(EnabledSources, new[] { "AuraTools", "Unity", "Command" });
-        UnityLogTypes = NormalizeList(UnityLogTypes, new[] { "Log", "Warning", "Error", "Exception", "Assert" });
+        EnabledSources = NormalizeList(EnabledSources, new[] { "AuraTools" });
+        UnityLogTypes = NormalizeList(UnityLogTypes, new[] { "Warning", "Error", "Exception", "Assert" });
         IncludedCommandTags = NormalizeList(IncludedCommandTags, Array.Empty<string>());
         ExcludedCommandTags = NormalizeList(ExcludedCommandTags, Array.Empty<string>());
         StackTraceMode = LoggingStackTraceModes.Normalize(StackTraceMode);
         MaxQueueLength = Math.Max(128, Math.Min(65536, MaxQueueLength));
         FlushIntervalMs = Math.Max(100, Math.Min(10000, FlushIntervalMs));
         MaxRetainedLogFiles = Math.Max(1, Math.Min(50, MaxRetainedLogFiles));
+    }
+
+    private bool LooksLikeLegacyHighVolumeDefaults()
+    {
+        return MirrorUnityLog
+               || MirrorCommandsLog
+               || ContainsValue(EnabledSources, "Unity")
+               || ContainsValue(EnabledSources, "Command")
+               || ContainsValue(UnityLogTypes, "Log")
+               || string.Equals(StackTraceMode, LoggingStackTraceModes.All, StringComparison.OrdinalIgnoreCase)
+               || MaxQueueLength >= 4096;
+    }
+
+    private bool LooksLikeWarningOnlyDefaults()
+    {
+        return string.Equals(MinimumLevel, LoggingLevelNames.Warning, StringComparison.OrdinalIgnoreCase)
+               && !MirrorUnityLog
+               && !MirrorCommandsLog
+               && ContainsOnlyValue(EnabledSources, "AuraTools")
+               && !ContainsValue(UnityLogTypes, "Log")
+               && string.Equals(StackTraceMode, LoggingStackTraceModes.ErrorsOnly, StringComparison.OrdinalIgnoreCase)
+               && MaxQueueLength <= 1024;
+    }
+
+    private static bool ContainsValue(IEnumerable<string>? values, string expected)
+    {
+        return values != null && values.Any(value => string.Equals(value, expected, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool ContainsOnlyValue(IEnumerable<string>? values, string expected)
+    {
+        if (values == null)
+        {
+            return false;
+        }
+
+        var normalized = values
+            .Select(value => value?.Trim() ?? "")
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        return normalized.Count == 1 && string.Equals(normalized[0], expected, StringComparison.OrdinalIgnoreCase);
     }
 
     private static List<string> NormalizeList(IEnumerable<string>? values, IEnumerable<string> fallback)

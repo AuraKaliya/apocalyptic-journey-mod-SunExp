@@ -13,6 +13,11 @@ public static class AuraCgRegistryRuntime
     public const string RegistryAuthorityId = "AuraCgShared";
     public const string RegistryFileName = "cg.registry.json";
     public const int CurrentRegistrySchemaVersion = 1;
+    private static readonly object CacheGate = new();
+    private static AuraCgRegistryDocument? cachedDocument;
+    private static DateTime cachedDocumentUtc;
+    private static long cachedRevision = -1;
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(2);
 
     public static bool RegisterManifest(ModConfig? modConfig, string ownerModId, string manifestRelativePath = "SharedResources/cg.registry.json")
     {
@@ -91,6 +96,7 @@ public static class AuraCgRegistryRuntime
                 CurrentRegistrySchemaVersion);
             if (result.Success)
             {
+                InvalidateCache();
                 AuraCgActivationRuntime.ApplyManifestDefaults(manifest.OwnerModId, accepted);
                 AuraCgLog.InfoOnce(
                     "cg-manifest-registered:" + manifest.OwnerModId,
@@ -111,13 +117,7 @@ public static class AuraCgRegistryRuntime
 
     public static IReadOnlyList<AuraCgRegistryEntry> GetRegisteredEntries(string ownerModId = "")
     {
-        var snapshot = AuraSharedConfigStore.ReadShared(
-            RegistryAuthorityId,
-            AuraSharedSystems.Cg,
-            RegistryFileName,
-            new AuraCgRegistryDocument());
-        var document = snapshot.Value ?? new AuraCgRegistryDocument();
-        document.Normalize();
+        var document = GetCachedDocument();
         return document.Entries
             .Where(entry => entry.Enabled)
             .Where(entry => string.IsNullOrWhiteSpace(ownerModId)
@@ -126,6 +126,47 @@ public static class AuraCgRegistryRuntime
             .ThenBy(entry => entry.OwnerModId, StringComparer.OrdinalIgnoreCase)
             .ThenBy(entry => entry.CgId, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    public static void InvalidateCache()
+    {
+        lock (CacheGate)
+        {
+            cachedDocument = null;
+            cachedRevision = -1;
+            cachedDocumentUtc = DateTime.MinValue;
+        }
+    }
+
+    private static AuraCgRegistryDocument GetCachedDocument()
+    {
+        lock (CacheGate)
+        {
+            if (cachedDocument != null && DateTime.UtcNow - cachedDocumentUtc <= CacheTtl)
+            {
+                return cachedDocument;
+            }
+
+            var snapshot = AuraSharedConfigStore.ReadShared(
+                RegistryAuthorityId,
+                AuraSharedSystems.Cg,
+                RegistryFileName,
+                new AuraCgRegistryDocument());
+            if (cachedDocument != null
+                && snapshot.Found
+                && snapshot.Revision == cachedRevision
+                && DateTime.UtcNow - cachedDocumentUtc <= CacheTtl)
+            {
+                return cachedDocument;
+            }
+
+            var document = snapshot.Value ?? new AuraCgRegistryDocument();
+            document.Normalize();
+            cachedDocument = document;
+            cachedRevision = snapshot.Found ? snapshot.Revision : 0;
+            cachedDocumentUtc = DateTime.UtcNow;
+            return document;
+        }
     }
 }
 

@@ -2311,7 +2311,7 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemoryRoleCommit.Contains("CommittedTokens.Add(commitToken)") "Solar memory final role command must suppress duplicate network delivery."
     Assert-True ($modConfig.ModVersion -eq "0.4.2") "SunExp network protocol change must ship as version 0.4.2."
     Assert-True ($modConfig.MustSame -eq $true) "SunExp must require an identical multiplayer mod version."
-    Assert-True $audioArbiterRuntime.Contains('CurrentBuildId = "audio-arbiter-2026-06-23-v5"') "Audio arbiter must expose the owner-qualified provider runtime build id."
+    Assert-True $audioArbiterRuntime.Contains('CurrentBuildId = "audio-arbiter-2026-07-08-v6"') "Audio arbiter must expose the owner-qualified provider runtime build id."
     Assert-True $audioArbiterRuntime.Contains('const string sharedPrefix = "Shared:"') "Audio arbiter must resolve AuraShared resource paths."
     Assert-True $audioArbiterRuntime.Contains("MatchesProviderRequest") "Audio arbiter must expose owner-aware provider matching."
     Assert-True ([regex]::IsMatch($audioArbiterRuntime, 'MatchesProviderRequest\(requestedProviderId,\s*"",\s*ownerStrict:\s*false\)')) "Audio bare provider matching must remain backward-compatible."

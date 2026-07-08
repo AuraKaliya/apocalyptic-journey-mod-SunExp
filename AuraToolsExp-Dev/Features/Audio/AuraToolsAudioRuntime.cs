@@ -124,7 +124,8 @@ public static class AuraToolsAudioRuntime
                 condition: IsCommonCardUseEnabled,
                 cooldownSeconds: 0.02f,
                 sync: true,
-                gainDb: common.GainDb));
+                gainDb: common.GainDb,
+                kind: SoundEventKinds.CardUse));
 
         foreach (var role in CurrentCardUseRoles())
         {
@@ -144,7 +145,8 @@ public static class AuraToolsAudioRuntime
                     condition: context => IsRoleCardUseEnabled(context, roleId),
                     cooldownSeconds: 0.02f,
                     sync: true,
-                    gainDb: settings.GainDb));
+                    gainDb: settings.GainDb,
+                    kind: SoundEventKinds.CardUse));
         }
 
         AuraToolsLog.Info("Audio/CardUse providers registered. mode=" + DescribeCardUseMode()

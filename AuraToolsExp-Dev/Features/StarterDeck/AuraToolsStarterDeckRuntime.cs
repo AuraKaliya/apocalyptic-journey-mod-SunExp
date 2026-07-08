@@ -38,6 +38,7 @@ public static class AuraToolsStarterDeckRuntime
     private static readonly Dictionary<string, Sprite?> cardIconCache = new(StringComparer.OrdinalIgnoreCase);
     private const string SunExpSolarMemoryModeKey = "SunExp_SolarMemoryMode";
     private static StarterDeckPreparationContext? preparationContext;
+    private static int lastMultiplayerSkipLogFrame = -100000;
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -112,6 +113,12 @@ public static class AuraToolsStarterDeckRuntime
         if (!IsWorldSimulationRun(context, allowNormalMapHookFallback))
         {
             AuraToolsLog.Info("[StarterDeck] skipped: not a confirmed world-simulation run. source=" + source + ".");
+            return;
+        }
+
+        if (IsMultiplayerSession())
+        {
+            LogMultiplayerStarterDeckSkipped(source);
             return;
         }
 
@@ -195,6 +202,43 @@ public static class AuraToolsStarterDeckRuntime
         return allowNormalMapHookFallback;
     }
 
+    private static bool IsMultiplayerSession()
+    {
+        try
+        {
+            return PlayerManager.Instance != null;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void LogMultiplayerStarterDeckSkipped(string source)
+    {
+        var frame = SafeFrameCount();
+        if (frame - lastMultiplayerSkipLogFrame < 300)
+        {
+            return;
+        }
+
+        lastMultiplayerSkipLogFrame = frame;
+        AuraToolsLog.Info("[StarterDeck] skipped: multiplayer world-simulation keeps native per-player decks; source="
+                          + source + ".");
+    }
+
+    private static int SafeFrameCount()
+    {
+        try
+        {
+            return Time.frameCount;
+        }
+        catch
+        {
+            return int.MaxValue;
+        }
+    }
+
     private static bool IsNormalMapManager(object? value)
     {
         return string.Equals(value?.GetType().Name, "NormalMapManager", StringComparison.OrdinalIgnoreCase);
@@ -209,13 +253,24 @@ public static class AuraToolsStarterDeckRuntime
         }
 
         var modeType = ReadLobbyModeType();
+        var capturedUtc = DateTime.UtcNow;
+        var previous = preparationContext;
         preparationContext = new StarterDeckPreparationContext
         {
             RoleId = selectedRole,
             ModeType = modeType,
             Source = source,
-            CapturedUtc = DateTime.UtcNow
+            CapturedUtc = capturedUtc
         };
+
+        if (previous != null
+            && capturedUtc - previous.CapturedUtc < TimeSpan.FromSeconds(3)
+            && string.Equals(previous.RoleId, selectedRole, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(previous.ModeType, modeType, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(previous.Source, source, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
 
         AuraToolsLog.Info("[StarterDeck] role context captured; role="
                           + selectedRole

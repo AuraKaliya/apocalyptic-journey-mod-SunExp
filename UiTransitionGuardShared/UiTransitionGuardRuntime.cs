@@ -34,7 +34,7 @@ public static class UiTransitionGuardRuntime
 {
     private const string GlobalObjectName = "UiTransitionGuard.Global";
     private const string ComponentFullName = "UiTransitionGuardShared.UiTransitionGuardRuntime+UiTransitionGuardComponent";
-    public const string CurrentBuildId = "ui-transition-guard-2026-07-06-v2";
+    public const string CurrentBuildId = "ui-transition-guard-2026-07-08-v3";
     public const int CurrentProtocolVersion = 2;
     public const int MinimumSupportedProtocolVersion = 1;
 
@@ -287,10 +287,15 @@ public static class UiTransitionGuardRuntime
         private const int MaxRaycasterDetailsPerPass = 12;
 
         private readonly Dictionary<int, SuspendedRaycaster> suspendedRaycasters = new();
+        private readonly Dictionary<int, int> lastRaycastDisableFrameByRoot = new();
+        private readonly Dictionary<int, int> lastRaycasterLeaseFrameByRoot = new();
+        private readonly Dictionary<int, int> lastRootScrubFrameByRoot = new();
+        private readonly Dictionary<string, int> lastGuardFrameBySource = new(StringComparer.Ordinal);
         private readonly List<DeferredAction> deferredActions = new();
         private readonly HashSet<string> owners = new(StringComparer.OrdinalIgnoreCase);
         private int guardUntilFrame = -1;
         private int lastScrubFrame = -1;
+        private int lastGlobalScrubFrame = -1;
         private string guardSource = "";
         private string primaryOwner = "";
         private bool hooksRegistered;
@@ -359,12 +364,23 @@ public static class UiTransitionGuardRuntime
         public void BeginTransition(string ownerModId, string source, int frames = DefaultGuardFrames)
         {
             var effectiveFrames = ClampGuardFrames(frames);
+            var frame = Time.frameCount;
             guardSource = ownerModId + ":" + source;
-            guardUntilFrame = Math.Max(guardUntilFrame, Time.frameCount + effectiveFrames);
+            guardUntilFrame = Math.Max(guardUntilFrame, frame + effectiveFrames);
+            if (lastGuardFrameBySource.TryGetValue(guardSource, out var lastGuardFrame)
+                && lastGuardFrame == frame)
+            {
+                Trace("Duplicate guard arm skipped. source=" + guardSource
+                      + ", frame=" + frame
+                      + ", untilFrame=" + guardUntilFrame);
+                return;
+            }
+
+            lastGuardFrameBySource[guardSource] = frame;
             lastScrubFrame = -1;
-            Info("Guard armed. source=" + guardSource
-                 + ", frame=" + Time.frameCount
-                 + ", untilFrame=" + guardUntilFrame);
+            Verbose("Guard armed. source=" + guardSource
+                    + ", frame=" + frame
+                    + ", untilFrame=" + guardUntilFrame);
             QueueGlobalScrub(ownerModId, source + ":guard-arm", 1);
             if (registryScrubFrames > 0)
             {
@@ -377,7 +393,12 @@ public static class UiTransitionGuardRuntime
 
         public int DisableRaycasts(string ownerModId, GameObject? root, string source)
         {
-            return UiRaycastSafeDestroyRuntime.DisableRaycasts(root, ownerModId + ":" + source, Info);
+            if (!ShouldProcessRootThisFrame(root, lastRaycastDisableFrameByRoot))
+            {
+                return 0;
+            }
+
+            return UiRaycastSafeDestroyRuntime.DisableRaycasts(root, ownerModId + ":" + source, Verbose);
         }
 
         public void RunAfterGuard(string ownerModId, string source, Action action, int extraFrames = 4)
@@ -490,6 +511,7 @@ public static class UiTransitionGuardRuntime
 
         private void MaintainGuard()
         {
+            PruneFrameMaps();
             if (IsActive())
             {
                 if (lastScrubFrame < 0 || Time.frameCount - lastScrubFrame >= scrubEveryFrames)
@@ -553,6 +575,11 @@ public static class UiTransitionGuardRuntime
                 return 0;
             }
 
+            if (!ShouldProcessRootThisFrame(root, lastRaycasterLeaseFrameByRoot))
+            {
+                return 0;
+            }
+
             GraphicRaycaster[] raycasters;
             try
             {
@@ -575,11 +602,11 @@ public static class UiTransitionGuardRuntime
 
             if (suspended > 0)
             {
-                Info("Leased raycasters. source=" + source
-                     + ", frame=" + Time.frameCount
-                     + ", count=" + suspended
-                     + ", tracked=" + suspendedRaycasters.Count
-                     + ", untilFrame=" + guardUntilFrame);
+                Verbose("Leased raycasters. source=" + source
+                        + ", frame=" + Time.frameCount
+                        + ", count=" + suspended
+                        + ", tracked=" + suspendedRaycasters.Count
+                        + ", untilFrame=" + guardUntilFrame);
             }
 
             return suspended;
@@ -673,17 +700,26 @@ public static class UiTransitionGuardRuntime
                 }
             }
 
-            Info("Restored raycasters. source=" + source
-                 + ", frame=" + Time.frameCount
-                 + ", restored=" + restored
-                 + ", skipped=" + skipped
-                 + ", tracked=" + suspendedRaycasters.Count);
+            Verbose("Restored raycasters. source=" + source
+                    + ", frame=" + Time.frameCount
+                    + ", restored=" + restored
+                    + ", skipped=" + skipped
+                    + ", tracked=" + suspendedRaycasters.Count);
             suspendedRaycasters.Clear();
             QueueGlobalScrub(primaryOwner, source + ":after-restore", 1);
         }
 
         private void QueueGlobalScrub(string ownerModId, string source, int frames)
         {
+            var frame = Time.frameCount;
+            if (lastGlobalScrubFrame == frame)
+            {
+                Trace("Duplicate global scrub skipped. source=" + source
+                      + ", frame=" + frame);
+                return;
+            }
+
+            lastGlobalScrubFrame = frame;
             AuraSharedFrameScheduler.Enqueue("UiTransitionGuard.Scrub:" + source, () =>
             {
                 UiRaycastSafeDestroyRuntime.ScrubGraphicRegistryForFrames(
@@ -695,10 +731,87 @@ public static class UiTransitionGuardRuntime
 
         private int ScrubRoot(GameObject? root, string source)
         {
+            if (!ShouldProcessRootThisFrame(root, lastRootScrubFrameByRoot))
+            {
+                return 0;
+            }
+
             return UiRaycastSafeDestroyRuntime.ScrubGraphicRegistryForRoot(
                 root,
                 primaryOwner + ":" + source,
                 Trace);
+        }
+
+        private static bool ShouldProcessRootThisFrame(GameObject? root, Dictionary<int, int> lastFrameByRoot)
+        {
+            if (!TryRootId(root, out var rootId))
+            {
+                return false;
+            }
+
+            var frame = Time.frameCount;
+            if (lastFrameByRoot.TryGetValue(rootId, out var lastFrame) && lastFrame == frame)
+            {
+                return false;
+            }
+
+            lastFrameByRoot[rootId] = frame;
+            return true;
+        }
+
+        private static bool TryRootId(GameObject? root, out int rootId)
+        {
+            rootId = 0;
+            if (root == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                rootId = root.GetInstanceID();
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private void PruneFrameMaps()
+        {
+            var frame = Time.frameCount;
+            PruneFrameMap(lastRaycastDisableFrameByRoot, frame);
+            PruneFrameMap(lastRaycasterLeaseFrameByRoot, frame);
+            PruneFrameMap(lastRootScrubFrameByRoot, frame);
+            if (lastGuardFrameBySource.Count > 256)
+            {
+                var expired = lastGuardFrameBySource
+                    .Where(pair => frame - pair.Value > 60)
+                    .Select(pair => pair.Key)
+                    .ToList();
+                foreach (var key in expired)
+                {
+                    lastGuardFrameBySource.Remove(key);
+                }
+            }
+        }
+
+        private static void PruneFrameMap(Dictionary<int, int> map, int frame)
+        {
+            if (map.Count <= 256)
+            {
+                return;
+            }
+
+            var expired = map
+                .Where(pair => frame - pair.Value > 60)
+                .Select(pair => pair.Key)
+                .ToList();
+            foreach (var key in expired)
+            {
+                map.Remove(key);
+            }
         }
 
         private void RunDueDeferredActions()

@@ -178,6 +178,7 @@ public static class AuraSharedRuntime
         private AuraSharedStorageCoordinator? storage;
         private AuraSharedPackageCoordinator? packages;
         private bool recoveredTransactions;
+        private string ensuredStandardDirectoryRoot = "";
 
         public int ProtocolVersion => CurrentProtocolVersion;
 
@@ -212,14 +213,23 @@ public static class AuraSharedRuntime
             }
             if (!string.IsNullOrWhiteSpace(ownerModId))
             {
+                var addedOwner = false;
                 lock (resourceGate)
                 {
-                    owners.Add(ownerModId.Trim());
+                    addedOwner = owners.Add(ownerModId.Trim());
+                }
+
+                if (addedOwner)
+                {
+                    Debug.Log("[AuraShared] Owner initialized: " + ownerModId + ", root=" + rootDirectory);
                 }
             }
 
-            AuraSharedPaths.EnsureStandardDirectories();
-            Debug.Log("[AuraShared] Owner initialized: " + ownerModId + ", root=" + rootDirectory);
+            if (!string.Equals(ensuredStandardDirectoryRoot, rootDirectory, StringComparison.OrdinalIgnoreCase))
+            {
+                AuraSharedPaths.EnsureStandardDirectories();
+                ensuredStandardDirectoryRoot = rootDirectory;
+            }
         }
 
         public string[] GetOwners()

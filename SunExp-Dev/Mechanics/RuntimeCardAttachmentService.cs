@@ -303,7 +303,11 @@ public static class RuntimeCardAttachmentService
             changed++;
         }
 
-        RefreshDataConfigTags(config);
+        if (changed > 0)
+        {
+            RefreshDataConfigTags(config);
+        }
+
         return changed;
     }
 
@@ -325,6 +329,7 @@ public static class RuntimeCardAttachmentService
             result.TouchedConfigs++;
         }
 
+        var changedBefore = result.Changed;
         CaptureOriginalVars(card.Vars);
         CaptureOriginalVars(card.dataConfig?.Vars);
         if (AppendNativeTokens(card.dataConfig, attachment.NativeTags))
@@ -376,7 +381,10 @@ public static class RuntimeCardAttachmentService
             }
         }
 
-        RefreshCardItem(card);
+        if (result.Changed > changedBefore)
+        {
+            RefreshCardItem(card);
+        }
     }
 
     private static void AttachToConfig(
@@ -466,7 +474,11 @@ public static class RuntimeCardAttachmentService
         }
 
         var changed = ClearVars(config.Vars, config.data, seenVars);
-        RefreshDataConfigTags(config);
+        if (changed > 0)
+        {
+            RefreshDataConfigTags(config);
+        }
+
         return changed;
     }
 

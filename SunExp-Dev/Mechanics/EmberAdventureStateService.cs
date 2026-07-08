@@ -75,11 +75,19 @@ public static class EmberAdventureStateService
     public static int CommitLocal(IStatusManager? status, int level, string source)
     {
         var safeSource = source ?? "";
+        var ownerPlayerId = ResolveOwnerPlayerId(status);
+        var ownerStatusId = ResolveOwnerStatusId(status);
+        var safeLevel = Clamp(level);
+        if (StorageMatches(ownerPlayerId, ownerStatusId, safeLevel))
+        {
+            return safeLevel;
+        }
+
         var snapshot = new EmberAdventureStateSnapshot
         {
-            OwnerPlayerId = ResolveOwnerPlayerId(status),
-            OwnerStatusId = ResolveOwnerStatusId(status),
-            Level = Clamp(level),
+            OwnerPlayerId = ownerPlayerId,
+            OwnerStatusId = ownerStatusId,
+            Level = safeLevel,
             Sequence = NextSequence(),
             Source = safeSource
         };
@@ -147,6 +155,11 @@ public static class EmberAdventureStateService
             }
         }
 
+        if (StorageMatches(snapshot.OwnerPlayerId, snapshot.OwnerStatusId, snapshot.Level))
+        {
+            return false;
+        }
+
         if (!string.IsNullOrWhiteSpace(snapshot.OwnerPlayerId))
         {
             PlayerApi.SetGameVar(OwnerGameVarKey(SunExpIds.PersistentEmber, snapshot.OwnerPlayerId), snapshot.Level.ToString());
@@ -162,7 +175,7 @@ public static class EmberAdventureStateService
             PlayerApi.SetScopedGameVar(SunExpIds.PersistentEmber, FightPlayer.Instance?.Status, snapshot.Level.ToString());
         }
 
-        SunExpLog.Info("[EmberAdventureState] saved owner="
+        SunExpLog.Debug("[EmberAdventureState] saved owner="
             + ownerKey
             + "; level="
             + snapshot.Level
@@ -212,14 +225,24 @@ public static class EmberAdventureStateService
 
         if (safeLevel <= 0)
         {
-            CommitLocal(status, safeLevel, "EmberAdventureStateService.ApplyToStatus:" + source);
+            var ownerPlayerId = ResolveOwnerPlayerId(status);
+            var ownerStatusId = ResolveOwnerStatusId(status);
+            if (!StorageMatches(ownerPlayerId, ownerStatusId, safeLevel))
+            {
+                CommitLocal(status, safeLevel, "EmberAdventureStateService.ApplyToStatus:" + source);
+            }
         }
     }
 
     private static bool IsLocalOwner(EmberAdventureStateSnapshot snapshot)
     {
-        return SunExpNetworkRuntime.IsLocalPlayer(snapshot.OwnerPlayerId)
-            || string.Equals(snapshot.OwnerStatusId, PlayerApi.LocalPlayerStatusId(), StringComparison.Ordinal);
+        return IsLocalOwner(snapshot.OwnerPlayerId, snapshot.OwnerStatusId);
+    }
+
+    private static bool IsLocalOwner(string ownerPlayerId, string ownerStatusId)
+    {
+        return SunExpNetworkRuntime.IsLocalPlayer(ownerPlayerId)
+            || string.Equals(ownerStatusId, PlayerApi.LocalPlayerStatusId(), StringComparison.Ordinal);
     }
 
     private static string ResolveOwnerPlayerId(IStatusManager? status)
@@ -269,6 +292,29 @@ public static class EmberAdventureStateService
 
         var value = PlayerApi.GetGameVar(OwnerGameVarKey(key, ownerId), "");
         return string.IsNullOrWhiteSpace(value) ? -1 : DictionaryUtil.ParseInt(value, -1);
+    }
+
+    private static bool StorageMatches(string ownerPlayerId, string ownerStatusId, int level)
+    {
+        var safeLevel = Clamp(level);
+        return OwnerValueMatches(SunExpIds.PersistentEmber, ownerPlayerId, safeLevel)
+               && OwnerValueMatches(SunExpIds.PersistentEmber, ownerStatusId, safeLevel)
+               && (!IsLocalOwner(ownerPlayerId, ownerStatusId) || ScopedValueMatches(safeLevel));
+    }
+
+    private static bool OwnerValueMatches(string key, string ownerId, int level)
+    {
+        return string.IsNullOrWhiteSpace(ownerId) || ReadOwnerValue(key, ownerId) == Clamp(level);
+    }
+
+    private static bool ScopedValueMatches(int level)
+    {
+        var value = PlayerApi.GetScopedGameVar(
+            SunExpIds.PersistentEmber,
+            FightPlayer.Instance?.Status,
+            "",
+            migrateLegacyWhenSolo: false);
+        return !string.IsNullOrWhiteSpace(value) && Clamp(DictionaryUtil.ParseInt(value, -1)) == Clamp(level);
     }
 
     private static string OwnerGameVarKey(string key, string ownerId)

@@ -161,6 +161,12 @@ public static class BossScripts
                 case "saint_white_edict":
                     UseSaintPurification(self);
                     break;
+                case "abyss_life_theft_intent":
+                    EndlessAbyssCurseService.AddCurseCardsToDeck(self, SunExpIds.AbyssLifeTheftCardId, 2);
+                    break;
+                case "abyss_deficit_intent":
+                    EndlessAbyssCurseService.AddCurseCardsToDeck(self, SunExpIds.AbyssDeficitCardId, 2);
+                    break;
                 default:
                     ExecutorApi.DealDamageToTarget(self, ExecutorApi.PrimaryTarget(self), 10);
                     break;
@@ -188,6 +194,8 @@ public static class BossScripts
             "saint_purification" => new BossCardSpec(0, 1, "Damage", SaintPurificationDamage),
             "saint_return_to_court" => new BossCardSpec(2, 2, "Damage", SaintReturnDamage),
             "saint_white_edict" => new BossCardSpec(0, 3, "Damage", SaintPurificationDamage),
+            "abyss_life_theft_intent" => new BossCardSpec(1, 2, "Draw", 2),
+            "abyss_deficit_intent" => new BossCardSpec(1, 2, "Draw", 2),
             _ => new BossCardSpec(0, 1, "Damage", 10)
         };
     }

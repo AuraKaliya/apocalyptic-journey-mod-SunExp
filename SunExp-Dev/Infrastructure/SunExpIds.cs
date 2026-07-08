@@ -89,6 +89,15 @@ public static class SunExpIds
     public const string Cripple = "buff_cripple";
     public const string Extraordinary = "buff_extraordinary";
     public const string EnemyCardSaintWhiteEdict = "SunExp_sunexp_enemycard_saint_white_edict";
+    public const string AbyssLifeTheftCardId = "SunExp_cursecard_abyss_life_theft";
+    public const string AbyssDeficitCardId = "SunExp_cursecard_abyss_deficit";
+    public const string AbyssGazeBuffI = "SunExp_sunexp_abyss_gaze_i";
+    public const string AbyssGazeBuffII = "SunExp_sunexp_abyss_gaze_ii";
+    public const string AbyssGazeBuffIII = "SunExp_sunexp_abyss_gaze_iii";
+    public const string AbyssBlessingBuff = "SunExp_sunexp_abyss_blessing";
+    public const string AbyssLifeTheftEnemyCardId = "SunExp_sunexp_enemycard_abyss_life_theft";
+    public const string AbyssDeficitEnemyCardId = "SunExp_sunexp_enemycard_abyss_deficit";
+    public const string EndlessAbyssEvolutionLevelKey = "SunExp_EndlessAbyssEvolutionLevel";
 
     public const string TempWhiteRadiance = "SunExpTempWhiteRadiance";
     public const string TempWhiteRadianceLockId = "SunExpTempWhiteRadianceLockId";

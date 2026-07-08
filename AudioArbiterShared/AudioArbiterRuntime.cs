@@ -18,7 +18,7 @@ public static class AudioArbiterRuntime
 {
     private const string GlobalObjectName = "AudioArbiter.Global";
     private const string ComponentFullName = "AudioArbiter.Shared.AudioArbiterRuntime+AudioArbiterComponent";
-    public const string CurrentBuildId = "audio-arbiter-2026-06-23-v5";
+    public const string CurrentBuildId = "audio-arbiter-2026-07-08-v6";
     public const int CurrentProtocolVersion = 4;
     public const int MinimumSupportedProtocolVersion = 4;
     public const int SupportedManifestSchemaVersion = 2;
@@ -240,6 +240,8 @@ public static class AudioArbiterRuntime
     public sealed class AudioArbiterComponent : MonoBehaviour
     {
         private const float LowHealthNoProviderCooldownSeconds = 0.75f;
+        private const float LowHealthRecoveryMargin = 0.05f;
+        private const float LegacyLowHealthFallbackThreshold = 0.35f;
         private readonly List<SoundProviderHandle> soundProviders = new();
         private readonly HashSet<string> receivedEventIds = new(StringComparer.Ordinal);
         private readonly HashSet<string> lowHealthAnnounced = new(StringComparer.OrdinalIgnoreCase);
@@ -404,6 +406,8 @@ public static class AudioArbiterRuntime
                         sync: provider.sync ?? defaults.sync ?? true,
                         gainDb: provider.gainDb ?? defaults.gainDb ?? 0f,
                         volumeMultiplier: provider.volumeMultiplier ?? defaults.volumeMultiplier ?? 1f,
+                        kind: provider.kind,
+                        lowHealthCrossDownThreshold: provider.match?.hpRatioCrossDown,
                         suppressVocalStates: provider.suppressOriginal?.vocalStates ?? Array.Empty<string>(),
                         suppressNarrationIds: provider.suppressOriginal?.narrationIds ?? Array.Empty<int>()));
                     registered++;
@@ -1322,6 +1326,12 @@ public static class AudioArbiterRuntime
             }
 
             lastHpRatioByStatus[statusId] = ratio;
+            if (ratio > previousRatio)
+            {
+                ResetLowHealthAnnouncementIfRecovered(statusId, ratio);
+                return;
+            }
+
             if (ratio >= previousRatio || lowHealthAnnounced.Contains(statusId))
             {
                 return;
@@ -1362,11 +1372,97 @@ public static class AudioArbiterRuntime
                 return;
             }
 
+            if (!ShouldAttemptLowHealthRequest(request))
+            {
+                return;
+            }
+
             TraceRequest(request, "LowHealth event observed");
             if (RequestSoundInternal(request, syncRemote: true))
             {
                 lowHealthAnnounced.Add(statusId);
             }
+        }
+
+        private void ResetLowHealthAnnouncementIfRecovered(string statusId, float ratio)
+        {
+            var threshold = LowestConfiguredLowHealthThreshold();
+            var resetAt = threshold >= 0f ? threshold + LowHealthRecoveryMargin : 0.5f;
+            if (ratio >= resetAt)
+            {
+                lowHealthAnnounced.Remove(statusId);
+            }
+        }
+
+        private bool ShouldAttemptLowHealthRequest(SoundPlaybackRequest request)
+        {
+            var hasUnknownProvider = false;
+            var explicitCandidates = 0;
+            var thresholdCandidates = 0;
+            var crossedThreshold = false;
+
+            foreach (var provider in soundProviders)
+            {
+                if (string.IsNullOrWhiteSpace(provider.Kind))
+                {
+                    hasUnknownProvider = true;
+                    continue;
+                }
+
+                if (!IsLowHealthProvider(provider))
+                {
+                    continue;
+                }
+
+                explicitCandidates++;
+                var threshold = provider.LowHealthCrossDownThreshold;
+                if (threshold < 0f)
+                {
+                    return true;
+                }
+
+                thresholdCandidates++;
+                if (request.PreviousHpRatio > threshold && request.HpRatio <= threshold)
+                {
+                    crossedThreshold = true;
+                }
+            }
+
+            if (explicitCandidates > 0)
+            {
+                return thresholdCandidates < explicitCandidates || crossedThreshold;
+            }
+
+            if (!hasUnknownProvider)
+            {
+                return false;
+            }
+
+            return request.PreviousHpRatio > LegacyLowHealthFallbackThreshold
+                   && request.HpRatio <= LegacyLowHealthFallbackThreshold;
+        }
+
+        private float LowestConfiguredLowHealthThreshold()
+        {
+            var threshold = -1f;
+            foreach (var provider in soundProviders)
+            {
+                if (!IsLowHealthProvider(provider) || provider.LowHealthCrossDownThreshold < 0f)
+                {
+                    continue;
+                }
+
+                threshold = threshold < 0f
+                    ? provider.LowHealthCrossDownThreshold
+                    : Math.Min(threshold, provider.LowHealthCrossDownThreshold);
+            }
+
+            return threshold;
+        }
+
+        private static bool IsLowHealthProvider(SoundProviderHandle provider)
+        {
+            return string.Equals(provider.Kind, SoundEventKinds.LowHealth, StringComparison.OrdinalIgnoreCase);
         }
 
         private bool IsLowHealthNoProviderSuppressed(SoundPlaybackRequest request)
@@ -1672,6 +1768,8 @@ public static class AudioArbiterRuntime
             }
 
             QualifiedProviderId = QualifyProviderId(OwnerModId, ProviderId);
+            Kind = ReadString("Kind", "");
+            LowHealthCrossDownThreshold = ReadFloat("LowHealthCrossDownThreshold", -1f);
             Priority = ReadInt("Priority", 0);
             HardClaim = ReadBool("HardClaim", false);
             Sync = ReadBool("Sync", true);
@@ -1689,6 +1787,10 @@ public static class AudioArbiterRuntime
         public string OwnerModId { get; }
 
         public string QualifiedProviderId { get; }
+
+        public string Kind { get; }
+
+        public float LowHealthCrossDownThreshold { get; }
 
         public int Priority { get; }
 
@@ -2223,11 +2325,15 @@ public sealed class FileSoundProvider : IDisposable
         bool sync = true,
         float gainDb = 0f,
         float volumeMultiplier = 1f,
+        string kind = "",
+        float? lowHealthCrossDownThreshold = null,
         string[]? suppressVocalStates = null,
         int[]? suppressNarrationIds = null)
     {
         ProviderId = providerId;
         OwnerModId = ownerModId;
+        Kind = (kind ?? "").Trim();
+        LowHealthCrossDownThreshold = lowHealthCrossDownThreshold ?? -1f;
         Priority = priority;
         Bus = bus;
         Policy = policy;
@@ -2250,6 +2356,10 @@ public sealed class FileSoundProvider : IDisposable
     public string ProviderId { get; }
 
     public string OwnerModId { get; }
+
+    public string Kind { get; }
+
+    public float LowHealthCrossDownThreshold { get; }
 
     public int Priority { get; }
 

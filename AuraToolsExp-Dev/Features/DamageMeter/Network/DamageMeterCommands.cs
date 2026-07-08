@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using AuraToolsExp.Dll.Infrastructure;
 using Network.Command;
@@ -46,6 +47,56 @@ public sealed class DamageMeterSubmitCommand : RpcCommandBase, IAuraToolsServerB
         if (Confirmed != null)
         {
             DamageMeterNetworkRuntime.ApplyConfirmed(Confirmed);
+        }
+    }
+}
+
+[Serializable]
+public sealed class DamageMeterSubmitBatchCommand : RpcCommandBase, IAuraToolsServerBoundRpcCommand
+{
+    private AuraToolsRpcSender serverSender = AuraToolsRpcSender.Unbound;
+
+    public List<DamageEvent> Candidates { get; set; } = new();
+
+    public List<DamageEvent> Confirmed { get; set; } = new();
+
+    public List<string> RejectionReasons { get; set; } = new();
+
+    public void BindServerSender(AuraToolsRpcSender sender)
+    {
+        serverSender = sender ?? AuraToolsRpcSender.Unbound;
+    }
+
+    public override void CmdExecute()
+    {
+        if (!DamageMeterNetworkRuntime.AcceptBatchOnServer(
+                Candidates,
+                serverSender,
+                out var confirmed,
+                out var rejections))
+        {
+            Confirmed = new List<DamageEvent>();
+            RejectionReasons = rejections;
+            AuraToolsLog.Warn("[DamageMeter] event batch rejected: " + string.Join("; ", rejections));
+            return;
+        }
+
+        Confirmed = confirmed;
+        RejectionReasons = rejections;
+        if (rejections.Count > 0)
+        {
+            AuraToolsLog.Debug("[DamageMeter] event batch accepted with rejections="
+                               + rejections.Count
+                               + "; first="
+                               + rejections[0]);
+        }
+    }
+
+    public override void RpcExecute()
+    {
+        if (Confirmed != null && Confirmed.Count > 0)
+        {
+            DamageMeterNetworkRuntime.ApplyConfirmedBatch(Confirmed);
         }
     }
 }

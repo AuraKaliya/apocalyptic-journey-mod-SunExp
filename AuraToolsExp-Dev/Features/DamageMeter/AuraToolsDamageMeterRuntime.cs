@@ -198,6 +198,7 @@ public static class AuraToolsDamageMeterRuntime
         }
 
         disabledUiHidden = false;
+        DamageMeterNetworkRuntime.Tick();
         ReconcileAvailabilitySafe();
         RefreshUiSafe();
     }
@@ -225,14 +226,23 @@ public static class AuraToolsDamageMeterRuntime
     private static void RefreshUiSafe()
     {
         var now = Time.unscaledTime;
-        if (now < uiRetryBlockedUntil || !uiDirty && now < nextRefreshAt)
+        var refreshInterval = Math.Max(
+            0.1f,
+            AuraToolsConfigService.MatchExperience.DamageMeter.UiRefreshIntervalMs / 1000f);
+        if (now < uiRetryBlockedUntil || now < nextRefreshAt)
         {
+            return;
+        }
+
+        if (!uiDirty && !Ledger.InFight)
+        {
+            nextRefreshAt = now + refreshInterval;
             return;
         }
 
         try
         {
-            nextRefreshAt = now + 0.2f;
+            nextRefreshAt = now + refreshInterval;
             uiDirty = false;
             AuraToolsDamageMeterUi.Refresh(
                 Ledger,
@@ -1199,6 +1209,12 @@ public static class AuraToolsDamageMeterRuntime
 
             PruneFrames();
             var source = executor.Self;
+            var targets = CaptureTargetHpFrames(executor);
+            if (targets.Count == 0)
+            {
+                return;
+            }
+
             PureHpFrames.Add(new PureHpFrame
             {
                 CallId = ++nextCallId,
@@ -1207,10 +1223,7 @@ public static class AuraToolsDamageMeterRuntime
                 Source = source,
                 SourceId = SafeStatusId(source),
                 SourceDataId = SafeDataId(executor.dataConfig),
-                Targets = ResolveTargets(executor)
-                    .Distinct()
-                    .Select(target => new TargetHpFrame { Target = target, BeforeHp = SafeHp(target) })
-                    .ToList()
+                Targets = targets
             });
             Limit(PureHpFrames, 128);
         });
@@ -1638,6 +1651,39 @@ public static class AuraToolsDamageMeterRuntime
         {
             yield return executor.Target;
         }
+    }
+
+    private static List<TargetHpFrame> CaptureTargetHpFrames(IScriptExecutor executor)
+    {
+        var frames = new List<TargetHpFrame>();
+        foreach (var target in ResolveTargets(executor))
+        {
+            if (target == null || ContainsTarget(frames, target))
+            {
+                continue;
+            }
+
+            frames.Add(new TargetHpFrame
+            {
+                Target = target,
+                BeforeHp = SafeHp(target)
+            });
+        }
+
+        return frames;
+    }
+
+    private static bool ContainsTarget(List<TargetHpFrame> frames, IStatusManager target)
+    {
+        for (var i = 0; i < frames.Count; i++)
+        {
+            if (ReferenceEquals(frames[i].Target, target))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static string ArgumentString(object[]? arguments, int index)

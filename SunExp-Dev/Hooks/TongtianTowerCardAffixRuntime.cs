@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using AuraShared.Core;
 using SunExp.Dll.Infrastructure;
@@ -11,6 +12,8 @@ namespace SunExp.Dll.Hooks;
 
 public static class TongtianTowerCardAffixRuntime
 {
+    private const string CombatNormalizeFrameKey = "TongtianTowerCardAffix.NormalizeCombatCards";
+
     private static readonly FieldInfo? CardChoiceItemDataConfigField = typeof(CardChoiceItem).GetField(
         "dataConfig",
         BindingFlags.Instance | BindingFlags.NonPublic);
@@ -103,9 +106,32 @@ public static class TongtianTowerCardAffixRuntime
     {
         try
         {
-            if (TongtianTowerModeRuntime.IsTongtianTowerRun())
+            if (!TongtianTowerModeRuntime.IsTongtianTowerRun())
             {
-                TongtianTowerCardAffixService.NormalizeCombatCards(null, "FightUI.CreateCardItem");
+                return;
+            }
+
+            var handledTarget = false;
+            if (context.Arguments != null)
+            {
+                foreach (var arg in context.Arguments)
+                {
+                    if (arg is CardItem card)
+                    {
+                        handledTarget = true;
+                        TongtianTowerCardAffixService.ApplyBurnout(card, "FightUI.CreateCardItem:arg");
+                    }
+                    else if (arg is IDataConfig config)
+                    {
+                        handledTarget = true;
+                        TongtianTowerCardAffixService.ApplyBurnout(config, "FightUI.CreateCardItem:arg");
+                    }
+                }
+            }
+
+            if (!handledTarget)
+            {
+                QueueCombatNormalize(null, "FightUI.CreateCardItem");
             }
         }
         catch (Exception ex)
@@ -126,9 +152,10 @@ public static class TongtianTowerCardAffixRuntime
             if (context.Arguments != null && context.Arguments.Length > 0 && context.Arguments[0] is IDataConfig config)
             {
                 TongtianTowerCardAffixService.ApplyBurnout(config, "ScriptExecutor.GetCardFromDeck");
+                return;
             }
 
-            TongtianTowerCardAffixService.NormalizeCombatCards(context.Target as ScriptExecutor, "ScriptExecutor.GetCardFromDeck");
+            QueueCombatNormalize(context.Target as ScriptExecutor, "ScriptExecutor.GetCardFromDeck");
         }
         catch (Exception ex)
         {
@@ -142,7 +169,22 @@ public static class TongtianTowerCardAffixRuntime
         {
             if (TongtianTowerModeRuntime.IsTongtianTowerRun())
             {
-                TongtianTowerCardAffixService.NormalizeOwnedCards("PlayerInfo.AddCard");
+                var handledTarget = false;
+                var changed = false;
+                foreach (var config in DataConfigsFromArguments(context.Arguments))
+                {
+                    handledTarget = true;
+                    changed |= TongtianTowerCardAffixService.ApplyBurnout(config, "PlayerInfo.AddCard:arg");
+                }
+
+                if (changed)
+                {
+                    TongtianTowerCardAffixService.TryPersistCurrentRole("PlayerInfo.AddCard:target");
+                }
+                else if (!handledTarget)
+                {
+                    TongtianTowerCardAffixService.NormalizeRecentOwnedCards(ParseGrantedCardCount(context.Arguments), "PlayerInfo.AddCard");
+                }
             }
         }
         catch (Exception ex)
@@ -185,6 +227,43 @@ public static class TongtianTowerCardAffixRuntime
     {
         ICard.SetCardMsg(item.transform, config, null);
         item.DataUpdate();
+    }
+
+    private static void QueueCombatNormalize(ScriptExecutor? executor, string source)
+    {
+        if (!SunExpFrameDispatcher.RunOnceNextFrame(
+                CombatNormalizeFrameKey + ":" + source,
+                () => TongtianTowerCardAffixService.NormalizeCombatCards(executor, source + ":deferred")))
+        {
+            SunExpPerformanceCounters.Record("TongtianTowerCardAffix.NormalizeCombatCards.Deduped");
+        }
+    }
+
+    private static IEnumerable<IDataConfig> DataConfigsFromArguments(object[]? args)
+    {
+        if (args == null)
+        {
+            yield break;
+        }
+
+        foreach (var arg in args)
+        {
+            if (arg is IDataConfig config)
+            {
+                yield return config;
+            }
+        }
+    }
+
+    private static int ParseGrantedCardCount(object[]? args)
+    {
+        if (args == null || args.Length == 0)
+        {
+            return 1;
+        }
+
+        var text = Convert.ToString(args[0])?.Trim() ?? "";
+        return int.TryParse(text, out var count) && count > 0 ? Math.Min(16, count) : 1;
     }
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)

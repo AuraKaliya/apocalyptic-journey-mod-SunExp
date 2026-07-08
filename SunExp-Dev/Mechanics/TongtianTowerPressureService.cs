@@ -93,6 +93,50 @@ public static class TongtianTowerPressureService
         }
     }
 
+    public static int AddCrackToRandomDeckCards(int count, string source, string seed)
+    {
+        try
+        {
+            var role = RoleTable.Instance;
+            if (role?.cardList == null || count <= 0)
+            {
+                return 0;
+            }
+
+            var candidates = role.cardList
+                .Where(card => card != null && !HasNativeTag(card, EndlessAbyssCrackService.CrackTag))
+                .ToList();
+            var changed = 0;
+            while (changed < count && candidates.Count > 0)
+            {
+                var index = PickIndex(candidates.Count, seed + ":" + changed);
+                var card = candidates[index];
+                candidates.RemoveAt(index);
+                if (CardMutationService.AddNativeTags(card, EndlessAbyssCrackService.CrackTag))
+                {
+                    changed++;
+                }
+            }
+
+            if (changed > 0)
+            {
+                GameSaveManager.UpdateRoles(role);
+                SunExpLog.Info("[TongtianPressure] added Crack to "
+                    + changed
+                    + " deck cards from "
+                    + source
+                    + ".");
+            }
+
+            return changed;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[TongtianPressure] add Crack failed from " + source + ": " + ex.Message);
+            return 0;
+        }
+    }
+
     public static void ApplyPostBattlePressure(int floor, bool boss, string source)
     {
         EndlessAbyssShockService.TryEnqueueEndlessBattleShock(

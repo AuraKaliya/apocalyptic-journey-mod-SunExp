@@ -85,10 +85,19 @@ public static class StarScoreRuntime
         try
         {
             TryRegisterForPlayer("CardUseBefore");
+            var card = context.Target as CardItem;
             var config = CardConfigApi.FromActionPayload(context.Target);
-            if (config == null || StarScoreService.IsStellarOvertureCard(CardConfigApi.Id(config)))
+            if (config == null)
             {
-                CancelBlessingPreview(context.Target as CardItem);
+                return;
+            }
+
+            BeginCostPreviewsForSelection(card);
+            EndlessAbyssGazePressureService.OnCardUseBefore(card, "StarScore.CardUseBefore");
+
+            if (StarScoreService.IsStellarOvertureCard(CardConfigApi.Id(config)))
+            {
+                CancelBlessingPreview(card);
                 return;
             }
 
@@ -103,10 +112,10 @@ public static class StarScoreRuntime
             var hasBlessing = player != null && BuffApi.Level(player, SunExpIds.StarBlessing) > 0;
             if (!hasBlessing)
             {
-                CancelBlessingPreview(context.Target as CardItem);
+                CancelBlessingPreview(card);
             }
 
-            var actualPaidCost = CostOverrides.TargetCost(config) ?? CardConfigApi.CurrentCost(config);
+            var actualPaidCost = CardConfigApi.CurrentCost(config);
             var sealBlessingGain = HasMorningStarSeal(config) ? actualPaidCost : 0;
             if (hasBlessing && player != null)
             {
@@ -114,10 +123,11 @@ public static class StarScoreRuntime
                 {
                     var halfCost = StarBlessingHalfCost(CardConfigApi.CurrentCost(config));
                     CostOverrides.BeginPreview(config, halfCost);
-                    actualPaidCost = CostOverrides.TargetCost(config) ?? halfCost;
+                    EndlessAbyssGazePressureService.OnCardUseBefore(card, "StarScore.CardUseBefore:Fallback");
+                    actualPaidCost = CardConfigApi.CurrentCost(config);
                 }
 
-                RefreshCard(context.Target as CardItem);
+                RefreshCard(card);
                 DictionaryUtil.Set(config.Vars, PendingBlessingOvertureVar, "1");
                 DictionaryUtil.Set(config.Vars, PendingBlessingCostVar, "1");
                 ConsumeBuff(player, SunExpIds.StarBlessing, 1);
@@ -276,26 +286,38 @@ public static class StarScoreRuntime
 
     private static void TryBeginBlessingPreview(CardItem? card)
     {
+        BeginCostPreviewsForSelection(card);
+    }
+
+    private static void BeginCostPreviewsForSelection(CardItem? card)
+    {
         try
         {
             var config = card?.dataConfig;
             var player = FightPlayer.Instance?.Status;
-            if (config == null
-                || player == null
-                || StarScoreService.IsStellarOvertureCard(CardConfigApi.Id(config))
-                || BuffApi.Level(player, SunExpIds.StarBlessing) <= 0)
+            if (config == null)
             {
                 return;
             }
 
-            if (CostOverrides.BeginPreview(config, StarBlessingHalfCost(CardConfigApi.CurrentCost(config))))
+            var refreshed = false;
+            if (player != null
+                && !StarScoreService.IsStellarOvertureCard(CardConfigApi.Id(config))
+                && BuffApi.Level(player, SunExpIds.StarBlessing) > 0
+                && CostOverrides.BeginPreview(config, StarBlessingHalfCost(CardConfigApi.CurrentCost(config))))
+            {
+                refreshed = true;
+            }
+
+            EndlessAbyssGazePressureService.BeginCostPreview(card, "StarScorePreview");
+            if (refreshed)
             {
                 RefreshCard(card);
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Star blessing preview failed", ex);
+            SunExpLog.Error("Card cost preview failed", ex);
         }
     }
 
@@ -304,8 +326,19 @@ public static class StarScoreRuntime
         try
         {
             var config = card?.dataConfig;
-            if (config == null || !CostOverrides.Contains(config))
+            if (config == null)
             {
+                return;
+            }
+
+            var refreshed = EndlessAbyssGazePressureService.CancelCostPreview(card, "StarScorePreviewCancel");
+            if (!CostOverrides.Contains(config))
+            {
+                if (refreshed)
+                {
+                    RefreshCard(card);
+                }
+
                 return;
             }
 

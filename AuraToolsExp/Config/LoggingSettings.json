@@ -1,8 +1,21 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 3,
   "enabled": true,
   "fileNamePattern": "AuraTools-{date}.log",
   "minimumLevel": "Info",
-  "mirrorUnityLog": true,
-  "mirrorCommandsLog": true
+  "mirrorUnityLog": false,
+  "mirrorCommandsLog": false,
+  "enabledSources": [
+    "AuraTools"
+  ],
+  "unityLogTypes": [
+    "Warning",
+    "Error",
+    "Exception",
+    "Assert"
+  ],
+  "stackTraceMode": "ErrorsOnly",
+  "maxQueueLength": 1024,
+  "flushIntervalMs": 1000,
+  "maxRetainedLogFiles": 10
 }

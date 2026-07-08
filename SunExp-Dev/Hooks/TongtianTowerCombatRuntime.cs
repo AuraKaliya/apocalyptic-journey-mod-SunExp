@@ -51,6 +51,7 @@ public static class TongtianTowerCombatRuntime
             status.CurHp = nextCurHp;
             MarkScaled(status, floor);
             RefreshStatusTransfer(enemy, status);
+            ApplyEndlessAbyssEnemyModifiers(enemy, floor, "Enemy.Init");
 
             SunExpLog.Info("[TongtianTowerCombat] scaled enemy HP x"
                 + multiplier.ToString("0.###")
@@ -70,6 +71,14 @@ public static class TongtianTowerCombatRuntime
         {
             SunExpLog.Error("Tongtian tower enemy HP scaling failed", ex);
         }
+    }
+
+    private static void ApplyEndlessAbyssEnemyModifiers(Enemy enemy, int floor, string source)
+    {
+        var nodeKind = TongtianTowerRewardPlan.CurrentNodeKind();
+        EndlessAbyssBlessingService.ApplyOpeningStacks(enemy, source);
+        EndlessAbyssRewardService.ApplyEvolutionTraits(enemy, source);
+        EndlessAbyssEnemyIntentPoolService.TryAddIntent(enemy, floor, nodeKind, source);
     }
 
     private static void AddEndlessExtraEnemiesAfterFightInit(ModHookContext context)

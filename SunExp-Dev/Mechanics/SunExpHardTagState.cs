@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using SunExp.Dll.Infrastructure;
 using Data.Save;
+using Witch.Core;
 
 namespace SunExp.Dll.Mechanics;
 
@@ -14,6 +15,12 @@ public static class SunExpHardTagState
 
     public static int Level(string id)
     {
+        var runtimeLevel = RuntimeLevel(id);
+        if (runtimeLevel > 0)
+        {
+            return runtimeLevel;
+        }
+
         var level = 0;
         foreach (var tag in CurrentHardTags())
         {
@@ -25,6 +32,35 @@ public static class SunExpHardTagState
         }
 
         return level;
+    }
+
+    private static int RuntimeLevel(string id)
+    {
+        try
+        {
+            var entries = Singleton<GameRuntimeData>.Instance?.HardTags;
+            if (entries == null)
+            {
+                return 0;
+            }
+
+            var level = 0;
+            foreach (var entry in entries)
+            {
+                var tagId = DictionaryUtil.Get(entry?.Data, "Id");
+                if (SunExpHardTagIds.Same(tagId, id))
+                {
+                    level += Math.Max(0, entry?.DynamicValue ?? 0);
+                }
+            }
+
+            return level;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Debug("Runtime hard tag read skipped: " + ex.Message);
+            return 0;
+        }
     }
 
     private static IEnumerable<DataConfig?> CurrentHardTags()

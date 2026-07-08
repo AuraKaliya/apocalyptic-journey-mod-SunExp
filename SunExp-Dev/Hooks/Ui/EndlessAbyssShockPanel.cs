@@ -182,9 +182,10 @@ public static class EndlessAbyssShockPanel
         scroll.movementType = ScrollRect.MovementType.Clamped;
         scroll.scrollSensitivity = 26f;
 
-        CreateOption(content, EndlessAbyssShockOptionIds.DestroyRelic, "\u9057\u7269\u5760\u843d", "\u968f\u673a\u9500\u6bc1 1 \u4ef6\u5df2\u88c5\u5907\u9057\u7269\u3002");
-        CreateOption(content, EndlessAbyssShockOptionIds.AnnihilateCards, "\u6e6e\u706d\u6d78\u67d3", "\u7ed9\u5f53\u524d\u5361\u7ec4\u5185\u968f\u673a 3 \u5f20\u5361\u6dfb\u52a0\u6e6e\u706d\u3002");
-        CreateOption(content, EndlessAbyssShockOptionIds.IncreaseGaze, "\u6ce8\u89c6\u52a0\u6df1", SunExpIds.EndlessAbyssGazeName + " +1\u3002");
+        CreateOption(content, EndlessAbyssShockOptionIds.Sacrifice, "\u732e\u796d", "\u968f\u673a\u9500\u6bc1 1 \u4ef6\u5df2\u88c5\u5907\u9057\u7269\uff0c\u83b7\u5f97 2 \u5f20\u968f\u673a\u5361\u724c\u3002");
+        CreateOption(content, EndlessAbyssShockOptionIds.CrackCards, "\u88c2\u75d5", "\u7ed9\u5f53\u524d\u5361\u7ec4\u5185\u968f\u673a 2 \u5f20\u6ca1\u6709\u88c2\u75d5\u7684\u5361\u6dfb\u52a0\u88c2\u75d5\uff0c\u83b7\u5f97 300 \u91d1\u5e01\u3002");
+        CreateOption(content, EndlessAbyssShockOptionIds.IncreaseGaze, "\u6ce8\u89c6", SunExpIds.EndlessAbyssGazeName + " +1\uff0c\u751f\u547d\u4e0a\u9650 +20\uff0c\u968f\u673a 1 \u4e2a\u672c\u6e90 +2\u3002");
+        CreateOption(content, EndlessAbyssShockOptionIds.Evolution, "\u8fdb\u5316", "\u654c\u4eba\u989d\u5916\u83b7\u5f97 1 \u4e2a\u9ad8\u7ea7\u7279\u6027\uff0c\u83b7\u5f97 1 \u4e2a\u968f\u673a\u795d\u798f\u3002");
     }
 
     private static void CreateOption(RectTransform parent, string id, string title, string body)

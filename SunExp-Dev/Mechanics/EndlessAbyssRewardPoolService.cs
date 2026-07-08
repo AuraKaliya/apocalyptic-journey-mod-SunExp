@@ -145,7 +145,7 @@ public static class EndlessAbyssRewardPoolService
                 continue;
             }
 
-            if (respectEnabledPacks && enabledPacks.Count > 0 && !enabledPacks.Contains(pack))
+            if (respectEnabledPacks && enabledPacks.Count > 0 && !CardPackEnabled(pack, enabledPacks))
             {
                 continue;
             }
@@ -197,6 +197,19 @@ public static class EndlessAbyssRewardPoolService
         var source = sourcePackId.Trim();
         return string.Equals(rowPackId, source, StringComparison.OrdinalIgnoreCase)
             || string.Equals(rowPackId, "SunExp_sunexp_" + source, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool CardPackEnabled(string rowPackId, HashSet<string> enabledPacks)
+    {
+        if (enabledPacks.Contains(rowPackId))
+        {
+            return true;
+        }
+
+        const string prefix = "SunExp_sunexp_";
+        return rowPackId.StartsWith(prefix, StringComparison.Ordinal)
+            ? enabledPacks.Contains(rowPackId.Substring(prefix.Length))
+            : enabledPacks.Contains(prefix + rowPackId);
     }
 
     private static HashSet<string> EnabledCardPacks()

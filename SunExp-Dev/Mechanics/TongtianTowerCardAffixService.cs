@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Data.Save;
 using SunExp.Dll.Infrastructure;
 using Witch.Core;
@@ -109,6 +110,27 @@ public static class TongtianTowerCardAffixService
         return changed;
     }
 
+    public static int NormalizeRecentOwnedCards(int count, string source)
+    {
+        var role = RoleTable.Instance;
+        if (role == null)
+        {
+            return 0;
+        }
+
+        var safeCount = Math.Max(1, Math.Min(16, count));
+        var changed = 0;
+        changed += ApplyToRecent(role.cardList, safeCount, source + ":deck-recent");
+        changed += ApplyToRecent(role.UnCardList, safeCount, source + ":reserve-recent");
+        if (changed > 0)
+        {
+            TryPersistRole(role, source + ":normalize-recent-owned");
+            SunExpLog.Info("[TongtianTowerCardAffix] normalized recent owned cards from " + source + ": " + changed + ".");
+        }
+
+        return changed;
+    }
+
     public static bool TryPersistCurrentRole(string source)
     {
         return TryPersistRole(RoleTable.Instance, source);
@@ -166,6 +188,38 @@ public static class TongtianTowerCardAffixService
 
         var changed = 0;
         foreach (var card in cards)
+        {
+            if (ApplyBurnout(card, source))
+            {
+                changed++;
+            }
+        }
+
+        return changed;
+    }
+
+    private static int ApplyToRecent(IEnumerable<IDataConfig>? cards, int count, string source)
+    {
+        if (cards == null)
+        {
+            return 0;
+        }
+
+        var changed = 0;
+        if (cards is IList<IDataConfig> list)
+        {
+            for (var i = Math.Max(0, list.Count - count); i < list.Count; i++)
+            {
+                if (ApplyBurnout(list[i], source))
+                {
+                    changed++;
+                }
+            }
+
+            return changed;
+        }
+
+        foreach (var card in cards.Reverse().Take(count))
         {
             if (ApplyBurnout(card, source))
             {

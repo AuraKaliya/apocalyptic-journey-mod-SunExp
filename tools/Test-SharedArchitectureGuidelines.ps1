@@ -90,7 +90,7 @@ if ($auraCgRuntime -match "manager\?\.(upperCanvasTf|canvasTf)|GameUIManager|Gra
 }
 
 $uiTransitionGuardRuntime = Read-RepoText "UiTransitionGuardShared\UiTransitionGuardRuntime.cs"
-Require-Text $uiTransitionGuardRuntime "ui-transition-guard-2026-07-06-v2" "UiTransitionGuard must bump BuildId for scoped raycaster lease semantics."
+Require-Text $uiTransitionGuardRuntime "ui-transition-guard-2026-07-08-v3" "UiTransitionGuard must bump BuildId for per-frame UI guard dedupe semantics."
 Require-Text $uiTransitionGuardRuntime "LeaseRaycasters" "UiTransitionGuard must use scoped raycaster leases."
 Require-Text $uiTransitionGuardRuntime "OnDisable\(\)[\s\S]*RestoreRaycasters" "UiTransitionGuard must restore raycaster leases when disabled."
 Require-Text $uiTransitionGuardRuntime "UiTransitionGuardOptions[\s\S]*MaxGuardFrames[\s\S]*RegistryScrubFrames[\s\S]*ScrubEveryFrames" "UiTransitionGuard options must bound guard and scrub windows."

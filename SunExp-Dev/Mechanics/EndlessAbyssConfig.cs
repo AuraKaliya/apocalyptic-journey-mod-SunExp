@@ -45,6 +45,18 @@ public sealed class EndlessAbyssShockConfig
     public int StealthMinFloor { get; set; } = 1;
 
     public int AnnihilationCardCount { get; set; } = 3;
+
+    public int CrackCardCount { get; set; } = 2;
+
+    public int CrackGold { get; set; } = 300;
+
+    public int SacrificeCardRewardCount { get; set; } = 2;
+
+    public int GazeMaxHpReward { get; set; } = 20;
+
+    public int GazeOriginReward { get; set; } = 2;
+
+    public int CrackThreshold { get; set; } = 3;
 }
 
 public sealed class EndlessAbyssMilestoneConfig
@@ -171,6 +183,12 @@ public static class EndlessAbyssConfigStore
         document.Gaze.HpGrowthPerGaze = Math.Max(0.0, Math.Min(1.0, document.Gaze.HpGrowthPerGaze));
         document.Shock.StealthMinFloor = Math.Max(1, document.Shock.StealthMinFloor);
         document.Shock.AnnihilationCardCount = Math.Max(1, document.Shock.AnnihilationCardCount);
+        document.Shock.CrackCardCount = Math.Max(1, document.Shock.CrackCardCount);
+        document.Shock.CrackGold = Math.Max(0, document.Shock.CrackGold);
+        document.Shock.SacrificeCardRewardCount = Math.Max(1, document.Shock.SacrificeCardRewardCount);
+        document.Shock.GazeMaxHpReward = Math.Max(0, document.Shock.GazeMaxHpReward);
+        document.Shock.GazeOriginReward = Math.Max(0, document.Shock.GazeOriginReward);
+        document.Shock.CrackThreshold = Math.Max(1, document.Shock.CrackThreshold);
         document.Milestones.MinFloor = Math.Max(1, document.Milestones.MinFloor);
         document.Rewards.OtherDimensionCardPoolId = string.IsNullOrWhiteSpace(document.Rewards.OtherDimensionCardPoolId)
             ? SunExpIds.EndlessAbyssOtherDimensionCardPoolId

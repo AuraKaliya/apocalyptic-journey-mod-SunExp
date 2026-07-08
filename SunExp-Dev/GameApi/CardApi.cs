@@ -383,6 +383,7 @@ public static class CardApi
         return new[]
         {
             id,
+            "SunExp_cursecard_" + id,
             "SunExp_sunexp_" + id,
             "SunExp_loneer_" + id,
             "SunExp_wuna_" + id

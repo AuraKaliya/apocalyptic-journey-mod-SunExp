@@ -12,6 +12,10 @@ public static class AuraCgActivationRuntime
     public const int CurrentActivationSchemaVersion = 1;
     public const string SourceManifestDefault = "ManifestDefault";
     public const string SourceUserOverride = "UserOverride";
+    private static readonly object CacheGate = new();
+    private static AuraSharedConfigSnapshot<AuraCgActivationDocument>? cachedSnapshot;
+    private static DateTime cachedSnapshotUtc;
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(2);
 
     public static bool ApplyManifestDefaults(string ownerModId, IEnumerable<AuraCgRegistryEntry> entries)
     {
@@ -25,7 +29,7 @@ public static class AuraCgActivationRuntime
 
         for (var attempt = 0; attempt < 3; attempt++)
         {
-            var snapshot = ReadDocument();
+            var snapshot = ReadDocument(useCache: false);
             var document = snapshot.Value ?? new AuraCgActivationDocument();
             document.Normalize();
             var changed = false;
@@ -49,6 +53,7 @@ public static class AuraCgActivationRuntime
                 CurrentActivationSchemaVersion);
             if (result.Success)
             {
+                InvalidateCache();
                 AuraCgLog.InfoOnce(
                     "cg-activation-defaults:" + ownerModId,
                     "CG activation defaults applied. owner=" + ownerModId + ", entries=" + normalizedEntries.Count);
@@ -186,7 +191,7 @@ public static class AuraCgActivationRuntime
 
         for (var attempt = 0; attempt < 3; attempt++)
         {
-            var snapshot = ReadDocument();
+            var snapshot = ReadDocument(useCache: false);
             var document = snapshot.Value ?? new AuraCgActivationDocument();
             document.Normalize();
             var state = document.Entries.FirstOrDefault(entry =>
@@ -208,6 +213,7 @@ public static class AuraCgActivationRuntime
                 CurrentActivationSchemaVersion);
             if (result.Success)
             {
+                InvalidateCache();
                 return true;
             }
 
@@ -270,13 +276,39 @@ public static class AuraCgActivationRuntime
         return false;
     }
 
-    private static AuraSharedConfigSnapshot<AuraCgActivationDocument> ReadDocument()
+    private static AuraSharedConfigSnapshot<AuraCgActivationDocument> ReadDocument(bool useCache = true)
     {
-        return AuraSharedConfigStore.ReadShared(
-            AuraCgRegistryRuntime.RegistryAuthorityId,
-            AuraSharedSystems.Cg,
-            ActivationFileName,
-            new AuraCgActivationDocument());
+        lock (CacheGate)
+        {
+            if (useCache && cachedSnapshot != null && DateTime.UtcNow - cachedSnapshotUtc <= CacheTtl)
+            {
+                return cachedSnapshot;
+            }
+
+            var snapshot = AuraSharedConfigStore.ReadShared(
+                AuraCgRegistryRuntime.RegistryAuthorityId,
+                AuraSharedSystems.Cg,
+                ActivationFileName,
+                new AuraCgActivationDocument());
+            snapshot.Value ??= new AuraCgActivationDocument();
+            snapshot.Value.Normalize();
+            if (useCache)
+            {
+                cachedSnapshot = snapshot;
+                cachedSnapshotUtc = DateTime.UtcNow;
+            }
+
+            return snapshot;
+        }
+    }
+
+    public static void InvalidateCache()
+    {
+        lock (CacheGate)
+        {
+            cachedSnapshot = null;
+            cachedSnapshotUtc = DateTime.MinValue;
+        }
     }
 }
 

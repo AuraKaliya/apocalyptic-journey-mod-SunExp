@@ -291,8 +291,8 @@ public static class SkillCgArbiterRuntime
     {
         var requests = AuraCgRegistryRuntime.GetRegisteredEntries(ownerModId)
             .Where(entry => IsRegisteredCgEntry(entry, kind))
-            .Where(entry => AuraCgActivationRuntime.CanConsumerPlay(entry, consumerModId))
             .Where(entry => string.IsNullOrWhiteSpace(roleId) || EntryMatchesRole(entry, roleId))
+            .Where(entry => AuraCgActivationRuntime.CanConsumerPlay(entry, consumerModId))
             .Select(entry => CreateRegisteredRequest(entry, ResolveRegisteredImageResource(entry), ResolveImagePath(entry.OwnerModId, ResolveRegisteredImageResource(entry)), new SkillCgTriggerContext
             {
                 CardId = (entry.CardIds ?? new List<string>()).FirstOrDefault() ?? "*",
@@ -308,10 +308,10 @@ public static class SkillCgArbiterRuntime
     private static bool EntryMatchesTrigger(AuraCgRegistryEntry entry, string kind, string consumerModId, SkillCgTriggerContext context)
     {
         return IsRegisteredCgEntry(entry, kind)
-               && AuraCgActivationRuntime.CanConsumerPlay(entry, consumerModId)
                && EntryMatchesRole(entry, context.OwnerRoleId)
                && EntryMatchesCard(entry, context.CardId)
-               && EntryMatchesAction(context.Action);
+               && EntryMatchesAction(context.Action)
+               && AuraCgActivationRuntime.CanConsumerPlay(entry, consumerModId);
     }
 
     private static bool IsSkillCgEntry(AuraCgRegistryEntry entry)

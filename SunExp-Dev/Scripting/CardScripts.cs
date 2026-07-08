@@ -76,6 +76,12 @@ public static class CardScripts
         try
         {
             id = NormalizeId(id);
+            if (EndlessAbyssCurseService.IsCurseCard(id))
+            {
+                EndlessAbyssCurseService.Init(self, id);
+                return;
+            }
+
             if (IsStarScoreEntry(id))
             {
                 StarScoreService.Init(self, id);
@@ -553,6 +559,38 @@ public static class CardScripts
         if (draw > 0)
         {
             self.DrawCount(draw.ToString());
+        }
+    }
+
+    public static void Draw(ScriptExecutor self, string id)
+    {
+        try
+        {
+            id = NormalizeId(id);
+            if (EndlessAbyssCurseService.IsCurseCard(id))
+            {
+                EndlessAbyssCurseService.Draw(self, id);
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Card Draw failed: " + id, ex);
+        }
+    }
+
+    public static void Drop(ScriptExecutor self, string id)
+    {
+        try
+        {
+            id = NormalizeId(id);
+            if (EndlessAbyssCurseService.IsCurseCard(id))
+            {
+                EndlessAbyssCurseService.Drop(self, id);
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Card Drop failed: " + id, ex);
         }
     }
 
