@@ -10,7 +10,7 @@ public static class AuraToolsLog
 
     public static void Info(string message)
     {
-        AuraSharedLog.Info(Tag, message);
+        AuraSharedLog.DebugLog(Tag, message, IsDebugEnabled());
     }
 
     public static void Debug(string message)

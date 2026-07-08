@@ -4,7 +4,7 @@ using UnityEngine.EventSystems;
 
 namespace SunExp.Dll.Hooks.Ui;
 
-public sealed class TongtianTowerThemePackHoverProbe : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
+public sealed class EndlessSeaThemePackHoverProbe : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
 {
     private Action<RectTransform>? onEnter;
     private Action? onExit;

@@ -1,5 +1,4 @@
 using System;
-using AuraShared.Core;
 using SunExp.Dll.Hooks.Ui;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
@@ -16,10 +15,13 @@ public static class StarScoreHudRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
-        RegisterAfter(modConfig, "Fight_Start.Init", OnFightBoundary);
-        RegisterAfter(modConfig, "Fight_Win.Init", OnFightBoundary);
-        RegisterAfter(modConfig, "Fight_Loss.Init", OnFightBoundary);
-        RegisterAfter(modConfig, "Fight_Escape.Init", OnFightBoundary);
+        SunExpBattleLifecycleRouter.Register("StarScoreHud", new SunExpBattleLifecycleSubscription
+        {
+            FightStarted = OnFightBoundary,
+            FightEnding = OnFightBoundary
+        });
+        RegisterAfter(modConfig, SunExpHookTargets.FightWinInit, OnFightBoundary);
+        RegisterAfter(modConfig, SunExpHookTargets.FightEscapeInit, OnFightBoundary);
 
         StarScoreService.Changed -= OnStarScoreChanged;
         StarScoreService.Changed += OnStarScoreChanged;
@@ -28,7 +30,7 @@ public static class StarScoreHudRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Star score HUD " + message));
+        SunExpHookRegistry.After(config, target, action, "StarScoreHud");
     }
 
     private static void OnFightBoundary(ModHookContext context)

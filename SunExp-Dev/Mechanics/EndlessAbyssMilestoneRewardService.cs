@@ -34,7 +34,7 @@ public static class EndlessAbyssMilestoneRewardService
 
     public static bool CanClaimCurrentFloor()
     {
-        return CanClaim(TongtianTowerModeRuntimeCurrentFloor());
+        return CanClaim(EndlessSeaModeRuntimeCurrentFloor());
     }
 
     public static bool CanClaim(int floor)
@@ -253,8 +253,8 @@ public static class EndlessAbyssMilestoneRewardService
             return false;
         }
 
-        TongtianTowerCardAffixService.NormalizeOwnedCards("EndlessAbyssMilestone.OtherDimensionCard");
-        TongtianTowerCardAffixService.TryPersistCurrentRole("EndlessAbyssMilestone.OtherDimensionCard");
+        EndlessSeaCardAffixService.NormalizeOwnedCards("EndlessAbyssMilestone.OtherDimensionCard");
+        EndlessSeaCardAffixService.TryPersistCurrentRole("EndlessAbyssMilestone.OtherDimensionCard");
         Claim(floor, "other-dimension:" + grantedCardId);
         message = "\u83b7\u5f97\u5f02\u6b21\u5143\u5361\uff1a" + CardName(grantedCardId);
         PlayerApi.ShowCaption(message);
@@ -280,7 +280,7 @@ public static class EndlessAbyssMilestoneRewardService
             return true;
         }
 
-        TongtianTowerCardAffixService.TryPersistCurrentRole("EndlessAbyssMilestone.RemoveBurnout");
+        EndlessSeaCardAffixService.TryPersistCurrentRole("EndlessAbyssMilestone.RemoveBurnout");
         Claim(floor, "remove-burnout:" + card.InstanceID);
         message = "\u5df2\u6e05\u9664\u711a\u6bc1\uff1a" + CardDisplayName(card);
         PlayerApi.ShowCaption(message);
@@ -312,8 +312,8 @@ public static class EndlessAbyssMilestoneRewardService
             return false;
         }
 
-        TongtianTowerOriginService.AttachExtinctionEnchTag(dataConfig);
-        TongtianTowerCardAffixService.TryPersistCurrentRole("EndlessAbyssMilestone.AddExtinction");
+        EndlessSeaOriginService.AttachExtinctionEnchTag(dataConfig);
+        EndlessSeaCardAffixService.TryPersistCurrentRole("EndlessAbyssMilestone.AddExtinction");
         Claim(floor, "add-extinction:" + card.InstanceID);
         message = "\u5df2\u6dfb\u52a0\u7edd\u706d\uff1a" + CardDisplayName(card);
         PlayerApi.ShowCaption(message);
@@ -370,7 +370,7 @@ public static class EndlessAbyssMilestoneRewardService
             return;
         }
 
-        var snapshot = TongtianTowerStateSnapshot.Capture(source + ":milestone-resolution");
+        var snapshot = EndlessSeaStateSnapshot.Capture(source + ":milestone-resolution");
         SunExpNetworkRuntime.Send(
             new RpcEndlessAbyssMilestoneResolution(resolution, snapshot, source),
             source);
@@ -460,9 +460,9 @@ public static class EndlessAbyssMilestoneRewardService
         return string.IsNullOrWhiteSpace(clean) ? "unknown" : clean;
     }
 
-    private static int TongtianTowerModeRuntimeCurrentFloor()
+    private static int EndlessSeaModeRuntimeCurrentFloor()
     {
-        return Math.Max(1, GameSaveManager.GetValue<int>(SunExpIds.TongtianTowerFloorKey));
+        return Math.Max(1, GameSaveManager.GetValue<int>(SunExpIds.EndlessSeaFloorKey));
     }
 
     private static bool IsLocked(string id)

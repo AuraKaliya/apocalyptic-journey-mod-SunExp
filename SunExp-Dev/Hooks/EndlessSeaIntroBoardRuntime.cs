@@ -17,7 +17,7 @@ using Witch.UI;
 
 namespace SunExp.Dll.Hooks;
 
-public static class TongtianTowerIntroBoardRuntime
+public static class EndlessSeaIntroBoardRuntime
 {
     private const float FooterHeight = 46f;
     private const float CoverMaxWidth = 150f;
@@ -58,7 +58,7 @@ public static class TongtianTowerIntroBoardRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Tongtian tower intro " + message));
+        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Endless Sea intro " + message));
     }
 
     private static void TryShowIntroBoard(ModHookContext context)
@@ -89,36 +89,36 @@ public static class TongtianTowerIntroBoardRuntime
             var parent = SunExpModalHost.ModalParent();
             if (parent == null)
             {
-                SunExpLog.Warn("[TongtianTowerIntro] skipped: UI canvas unavailable from " + source + ".");
+                SunExpLog.Warn("[EndlessSeaIntro] skipped: UI canvas unavailable from " + source + ".");
                 return false;
             }
 
-            SunExpLog.Info("[TongtianTowerIntro] opening intro board from " + source + ".");
+            SunExpLog.Info("[EndlessSeaIntro] opening intro board from " + source + ".");
             ShowIntroBoard(roleTable, parent);
             return true;
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Tongtian tower intro board failed", ex);
+            SunExpLog.Error("Endless Sea intro board failed", ex);
             return false;
         }
     }
 
     private static bool ShouldShow()
     {
-        return TongtianTowerModeRuntime.IsTongtianTowerRun()
-            && TongtianTowerModeRuntime.CurrentFloor() == 1
-            && GameSaveManager.GetValue<string>(SunExpIds.TongtianTowerIntroSeenKey) != "1"
-            && GameSaveManager.GetValue<string>(SunExpIds.TongtianTowerStarterDeckAppliedKey) != "1";
+        return EndlessSeaModeRuntime.IsEndlessSeaRun()
+            && EndlessSeaModeRuntime.CurrentFloor() == 1
+            && GameSaveManager.GetValue<string>(SunExpIds.EndlessSeaIntroSeenKey) != "1"
+            && GameSaveManager.GetValue<string>(SunExpIds.EndlessSeaStarterDeckAppliedKey) != "1";
     }
 
     private static void ShowIntroBoard(RoleTable roleTable, Transform parent)
     {
         activePanel = SunExpModalHost.CreateFullscreenRoot(
-            "SunExpTongtianTowerIntroBoard",
+            "SunExpEndlessSeaIntroBoard",
             parent,
             new Color(0f, 0f, 0f, 0.68f));
-        SunExpTransientUiRegistry.Register("TongtianTowerIntro", ClosePanel);
+        SunExpTransientUiRegistry.Register("EndlessSeaIntro", ClosePanel);
         deckButtons.Clear();
         deckSelectedFrames.Clear();
         HideTooltip();
@@ -132,7 +132,7 @@ public static class TongtianTowerIntroBoardRuntime
             new Vector2(0.5f, 0.5f),
             windowSize);
         var window = windowRect.gameObject;
-        SunExpUiBuilder.ApplyPanelImage(window, SunExpUiSprites.Panel("[TongtianTowerIntro]"), PanelTint, true);
+        SunExpUiBuilder.ApplyPanelImage(window, SunExpUiSprites.Panel("[EndlessSeaIntro]"), PanelTint, true);
         starterDeckHint = DefaultStarterDeckHint;
 
         var layout = window.AddComponent<VerticalLayoutGroup>();
@@ -158,7 +158,7 @@ public static class TongtianTowerIntroBoardRuntime
         element.preferredHeight = 68f;
         element.minHeight = 68f;
 
-        var title = AddTextFill(header.transform, SunExpIds.TongtianTowerTitle, 32, TextAnchor.UpperCenter, Gold);
+        var title = AddTextFill(header.transform, SunExpIds.EndlessSeaTitle, 32, TextAnchor.UpperCenter, Gold);
         title.fontStyle = FontStyle.Bold;
         AddTextShadow(title, new Color(0f, 0f, 0f, 0.72f), new Vector2(1.5f, -1.5f));
 
@@ -286,7 +286,7 @@ public static class TongtianTowerIntroBoardRuntime
 
         var titleText = AddAutoTextBlock(section.transform, title, 16, TextAnchor.UpperLeft, Gold);
         titleText.fontStyle = FontStyle.Bold;
-        var bodyText = AddAutoTextBlock(section.transform, TongtianTowerRichTextSanitizer.Sanitize(body), 14, TextAnchor.UpperLeft, SoftText);
+        var bodyText = AddAutoTextBlock(section.transform, EndlessSeaRichTextSanitizer.Sanitize(body), 14, TextAnchor.UpperLeft, SoftText);
         bodyText.supportRichText = true;
         bodyText.lineSpacing = 1.12f;
     }
@@ -298,7 +298,7 @@ public static class TongtianTowerIntroBoardRuntime
         element.minWidth = 380f;
         element.preferredWidth = 560f;
         element.flexibleWidth = 1.2f;
-        SunExpUiBuilder.ApplyPanelImage(pane, SunExpUiSprites.Panel("[TongtianTowerIntro]"), SectionTint, true);
+        SunExpUiBuilder.ApplyPanelImage(pane, SunExpUiSprites.Panel("[EndlessSeaIntro]"), SectionTint, true);
 
         var layout = pane.AddComponent<VerticalLayoutGroup>();
         layout.padding = new RectOffset(16, 16, 12, 14);
@@ -320,7 +320,7 @@ public static class TongtianTowerIntroBoardRuntime
         label.fontStyle = FontStyle.Bold;
         AddTextBlock(titleRow.transform, "悬停查看 4 张主题卡", 13, TextAnchor.MiddleRight, MutedText, 30f, 0f, 170f);
 
-        var profiles = TongtianTowerStarterDeckCatalog.AvailableProfiles();
+        var profiles = EndlessSeaStarterDeckCatalog.AvailableProfiles();
         starterDeckHint = profiles.Any(profile => !string.IsNullOrWhiteSpace(profile.RequiredPackId))
             ? DefaultStarterDeckHint
             : DefaultOnlyStarterDeckHint;
@@ -329,7 +329,7 @@ public static class TongtianTowerIntroBoardRuntime
         var scrollElement = scrollRoot.AddComponent<LayoutElement>();
         scrollElement.minHeight = 410f;
         scrollElement.flexibleHeight = 1f;
-        SunExpUiBuilder.ApplyLabelImage(scrollRoot, SunExpUiSprites.Label("[TongtianTowerIntro]"), new Color(0.01f, 0.014f, 0.045f, 0.56f), true);
+        SunExpUiBuilder.ApplyLabelImage(scrollRoot, SunExpUiSprites.Label("[EndlessSeaIntro]"), new Color(0.01f, 0.014f, 0.045f, 0.56f), true);
 
         var viewport = SunExpUiBuilder.CreateRect(
             "Viewport",
@@ -379,10 +379,10 @@ public static class TongtianTowerIntroBoardRuntime
         }
     }
 
-    private static void CreateThemePackButton(Transform parent, RoleTable roleTable, TongtianTowerStarterDeckProfile profile)
+    private static void CreateThemePackButton(Transform parent, RoleTable roleTable, EndlessSeaStarterDeckProfile profile)
     {
         var panel = CreateLayoutObject("Theme_" + profile.Id, parent);
-        var image = SunExpUiBuilder.ApplyLabelImage(panel, SunExpUiSprites.Label("[TongtianTowerIntro]"), DeckTint, true);
+        var image = SunExpUiBuilder.ApplyLabelImage(panel, SunExpUiSprites.Label("[EndlessSeaIntro]"), DeckTint, true);
         var button = panel.AddComponent<Button>();
         button.targetGraphic = image;
         button.colors = new ColorBlock
@@ -405,7 +405,7 @@ public static class TongtianTowerIntroBoardRuntime
         var selectedFrame = CreateSelectedFrame(panel.transform);
         deckSelectedFrames.Add(selectedFrame);
 
-        var probe = panel.AddComponent<TongtianTowerThemePackHoverProbe>();
+        var probe = panel.AddComponent<EndlessSeaThemePackHoverProbe>();
         probe.Configure(source => ShowThemeTooltip(profile, source), HideTooltip);
 
         var layout = panel.AddComponent<VerticalLayoutGroup>();
@@ -448,7 +448,7 @@ public static class TongtianTowerIntroBoardRuntime
         layout.ignoreLayout = true;
 
         var frame = frameRect.gameObject.AddComponent<Image>();
-        frame.sprite = SunExpUiSprites.Button("[TongtianTowerIntro]");
+        frame.sprite = SunExpUiSprites.Button("[EndlessSeaIntro]");
         frame.type = frame.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
         frame.fillCenter = false;
         frame.color = new Color(Gold.r, Gold.g, Gold.b, 0.95f);
@@ -457,7 +457,7 @@ public static class TongtianTowerIntroBoardRuntime
         return frameRect.gameObject;
     }
 
-    private static void CreatePackCover(Transform parent, TongtianTowerStarterDeckProfile profile)
+    private static void CreatePackCover(Transform parent, EndlessSeaStarterDeckProfile profile)
     {
         var host = CreateLayoutObject("Cover", parent);
         var element = host.AddComponent<LayoutElement>();
@@ -465,7 +465,7 @@ public static class TongtianTowerIntroBoardRuntime
         element.preferredWidth = CoverMaxWidth;
         element.minHeight = CoverMaxHeight;
         element.preferredHeight = CoverMaxHeight;
-        SunExpUiBuilder.ApplyPanelImage(host, SunExpUiSprites.Panel("[TongtianTowerIntro]"), new Color(0.012f, 0.016f, 0.052f, 0.92f));
+        SunExpUiBuilder.ApplyPanelImage(host, SunExpUiSprites.Panel("[EndlessSeaIntro]"), new Color(0.012f, 0.016f, 0.052f, 0.92f));
 
         var sprite = TryLoadPackCover(profile);
         if (sprite == null)
@@ -516,7 +516,7 @@ public static class TongtianTowerIntroBoardRuntime
         hintText.resizeTextMaxSize = 15;
     }
 
-    private static void ShowThemeTooltip(TongtianTowerStarterDeckProfile profile, RectTransform source)
+    private static void ShowThemeTooltip(EndlessSeaStarterDeckProfile profile, RectTransform source)
     {
         if (activeTooltipLayer == null)
         {
@@ -533,7 +533,7 @@ public static class TongtianTowerIntroBoardRuntime
             new Vector2(TooltipWidth, TooltipHeight));
         activeTooltip = tooltipRect.gameObject;
         activeTooltip.transform.SetAsLastSibling();
-        var background = SunExpUiBuilder.ApplyLabelImage(activeTooltip, SunExpUiSprites.Label("[TongtianTowerIntro]"), new Color(0.015f, 0.018f, 0.055f, 0.88f));
+        var background = SunExpUiBuilder.ApplyLabelImage(activeTooltip, SunExpUiSprites.Label("[EndlessSeaIntro]"), new Color(0.015f, 0.018f, 0.055f, 0.88f));
         if (background != null)
         {
             background.raycastTarget = false;
@@ -558,7 +558,7 @@ public static class TongtianTowerIntroBoardRuntime
         grid.cellSize = new Vector2(160f, 74f);
         grid.spacing = new Vector2(10f, 10f);
 
-        foreach (var cardId in profile.ThemeCardIds.Take(TongtianTowerStarterDeckCatalog.ThemeDeckSize))
+        foreach (var cardId in profile.ThemeCardIds.Take(EndlessSeaStarterDeckCatalog.ThemeDeckSize))
         {
             CreateTooltipCard(gridRoot.transform, cardId);
         }
@@ -600,7 +600,7 @@ public static class TongtianTowerIntroBoardRuntime
         iconElement.preferredWidth = 64f;
         iconElement.minHeight = 64f;
         iconElement.preferredHeight = 64f;
-        SunExpUiBuilder.ApplyPanelImage(iconHost, SunExpUiSprites.Panel("[TongtianTowerIntro]"), new Color(0.02f, 0.025f, 0.08f, 0.82f));
+        SunExpUiBuilder.ApplyPanelImage(iconHost, SunExpUiSprites.Panel("[EndlessSeaIntro]"), new Color(0.02f, 0.025f, 0.08f, 0.82f));
 
         var sprite = TryLoadCardIcon(cardId);
         if (sprite != null)
@@ -619,7 +619,7 @@ public static class TongtianTowerIntroBoardRuntime
             image.raycastTarget = false;
         }
 
-        var name = AddTextBlock(card.transform, TongtianTowerStarterDeckCatalog.CardDisplayName(cardId), 13, TextAnchor.MiddleLeft, SoftText, 64f, 1f);
+        var name = AddTextBlock(card.transform, EndlessSeaStarterDeckCatalog.CardDisplayName(cardId), 13, TextAnchor.MiddleLeft, SoftText, 64f, 1f);
         name.resizeTextForBestFit = true;
         name.resizeTextMinSize = 10;
         name.resizeTextMaxSize = 13;
@@ -661,7 +661,7 @@ public static class TongtianTowerIntroBoardRuntime
         }
     }
 
-    private static void ApplyStarterDeck(RoleTable roleTable, TongtianTowerStarterDeckProfile profile)
+    private static void ApplyStarterDeck(RoleTable roleTable, EndlessSeaStarterDeckProfile profile)
     {
         try
         {
@@ -674,7 +674,7 @@ public static class TongtianTowerIntroBoardRuntime
             HideTooltip();
             UpdateHint("正在应用：" + profile.Title + "...");
             SetDeckButtonsInteractable(false);
-            if (profile.CardIds.Count != TongtianTowerStarterDeckCatalog.DeckSize)
+            if (profile.CardIds.Count != EndlessSeaStarterDeckCatalog.DeckSize)
             {
                 UpdateHint("开局卡组配置数量异常，请检查硬编码卡组。");
                 SetDeckButtonsInteractable(true);
@@ -682,13 +682,13 @@ public static class TongtianTowerIntroBoardRuntime
             }
 
             var invalidCards = profile.CardIds
-                .Where(TongtianTowerStarterDeckCatalog.IsInvalidCardId)
+                .Where(EndlessSeaStarterDeckCatalog.IsInvalidCardId)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
             if (invalidCards.Count > 0)
             {
                 UpdateHint("开局卡组存在无效卡牌：" + string.Join(" / ", invalidCards));
-                SunExpLog.Warn("[TongtianTowerIntro] rejected invalid starter deck "
+                SunExpLog.Warn("[EndlessSeaIntro] rejected invalid starter deck "
                     + profile.Id
                     + ": "
                     + string.Join("|", invalidCards));
@@ -696,12 +696,12 @@ public static class TongtianTowerIntroBoardRuntime
                 return;
             }
 
-            if (!TongtianTowerCardAffixService.RunWithStarterDeckSuppressed(() =>
+            if (!EndlessSeaCardAffixService.RunWithStarterDeckSuppressed(() =>
                     StarterDeckArbiterRuntime.ApplyDeck(
                         roleTable,
                         profile.CardIds,
                         CreateClaim(profile),
-                        TongtianTowerStarterDeckCatalog.IsInvalidCardId,
+                        EndlessSeaStarterDeckCatalog.IsInvalidCardId,
                         sync: true)))
             {
                 UpdateHint("卡组写入失败，请重新选择。");
@@ -710,44 +710,44 @@ public static class TongtianTowerIntroBoardRuntime
             }
 
             MarkApplied(roleTable, profile.Id);
-            TongtianTowerCardAffixService.MarkStarterDeckBaseline(roleTable, "TongtianTowerIntroBoard.ApplyStarterDeck");
-            SetSaveValue(SunExpIds.TongtianTowerIntroSeenKey, "1");
-            SetSaveValue(SunExpIds.TongtianTowerStarterDeckAppliedKey, "1");
-            SetSaveValue(SunExpIds.TongtianTowerStarterDeckModeKey, profile.Id);
-            TongtianTowerRunStateStore.MarkPhase(TongtianTowerRunPhase.MapPlanning, "TongtianTowerIntroBoard.ApplyStarterDeck");
+            EndlessSeaCardAffixService.MarkStarterDeckBaseline(roleTable, "EndlessSeaIntroBoard.ApplyStarterDeck");
+            SetSaveValue(SunExpIds.EndlessSeaIntroSeenKey, "1");
+            SetSaveValue(SunExpIds.EndlessSeaStarterDeckAppliedKey, "1");
+            SetSaveValue(SunExpIds.EndlessSeaStarterDeckModeKey, profile.Id);
+            EndlessSeaRunStateStore.MarkPhase(EndlessSeaRunPhase.MapPlanning, "EndlessSeaIntroBoard.ApplyStarterDeck");
             ClosePanel();
             SunExpFrameDispatcher.RunOnceNextFrame(
                 "EndlessAbyss.MapPanels.AfterStarterDeck",
-                () => TongtianTowerModeRuntime.TryOpenAbyssMapPanels("TongtianTowerIntroBoard.ApplyStarterDeck"));
+                () => EndlessSeaModeRuntime.TryOpenAbyssMapPanels("EndlessSeaIntroBoard.ApplyStarterDeck"));
             UIManager.Instance?.ShowTip(SunExpIds.EndlessAbyssTitle + "\u5f00\u5c40\u5361\u7ec4\uff1a" + profile.Title);
-            SunExpLog.Info("[TongtianTowerIntro] applied starter deck "
+            SunExpLog.Info("[EndlessSeaIntro] applied starter deck "
                 + profile.Id
                 + "; cards="
                 + string.Join("|", profile.CardIds));
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Tongtian tower starter deck apply failed", ex);
+            SunExpLog.Error("Endless Sea starter deck apply failed", ex);
             UpdateHint("卡组写入异常，请查看日志。");
             SetDeckButtonsInteractable(true);
         }
     }
 
-    private static StarterDeckClaim CreateClaim(TongtianTowerStarterDeckProfile profile)
+    private static StarterDeckClaim CreateClaim(EndlessSeaStarterDeckProfile profile)
     {
         return new StarterDeckClaim
         {
-            Owner = SunExpIds.StarterDeckOwnerTongtianTower,
-            Scope = SunExpIds.TongtianTowerModeKey,
-            ModeId = "SunExp.TongtianTower",
+            Owner = SunExpIds.StarterDeckOwnerEndlessSea,
+            Scope = SunExpIds.EndlessSeaModeKey,
+            ModeId = "SunExp.EndlessSea",
             Source = "intro-board",
             State = StarterDeckArbiterRuntime.StateApplied,
-            AppliedKey = SunExpIds.TongtianTowerStarterDeckAppliedKey,
-            AppliedModeKey = SunExpIds.TongtianTowerStarterDeckModeKey,
+            AppliedKey = SunExpIds.EndlessSeaStarterDeckAppliedKey,
+            AppliedModeKey = SunExpIds.EndlessSeaStarterDeckModeKey,
             AppliedMode = profile.Id,
-            LegacyMode = "sunexp-tongtian-tower",
-            DeckSize = TongtianTowerStarterDeckCatalog.DeckSize,
-            SourceName = "SunExp.TongtianTower.IntroBoard"
+            LegacyMode = "sunexp-endless-sea",
+            DeckSize = EndlessSeaStarterDeckCatalog.DeckSize,
+            SourceName = "SunExp.EndlessSea.IntroBoard"
         };
     }
 
@@ -755,25 +755,25 @@ public static class TongtianTowerIntroBoardRuntime
     {
         return StarterDeckArbiterRuntime.HasApplied(
                 roleTable,
-                SunExpIds.TongtianTowerStarterDeckAppliedKey,
-                SunExpIds.StarterDeckOwnerTongtianTower)
+                SunExpIds.EndlessSeaStarterDeckAppliedKey,
+                SunExpIds.StarterDeckOwnerEndlessSea)
             || roleTable.SpecialVarMap != null
-            && roleTable.SpecialVarMap.TryGetValue(SunExpIds.TongtianTowerStarterDeckAppliedKey, out var value)
+            && roleTable.SpecialVarMap.TryGetValue(SunExpIds.EndlessSeaStarterDeckAppliedKey, out var value)
             && value == "1";
     }
 
     private static void MarkApplied(RoleTable roleTable, string mode)
     {
         roleTable.SpecialVarMap ??= new Dictionary<string, string>();
-        roleTable.SpecialVarMap[SunExpIds.TongtianTowerIntroSeenKey] = "1";
-        roleTable.SpecialVarMap[SunExpIds.TongtianTowerStarterDeckAppliedKey] = "1";
-        roleTable.SpecialVarMap[SunExpIds.TongtianTowerStarterDeckModeKey] = mode;
-        roleTable.SpecialVarMap[SunExpIds.StarterDeckOwnerKey] = SunExpIds.StarterDeckOwnerTongtianTower;
-        roleTable.SpecialVarMap[SunExpIds.StarterDeckScopeKey] = SunExpIds.TongtianTowerModeKey;
+        roleTable.SpecialVarMap[SunExpIds.EndlessSeaIntroSeenKey] = "1";
+        roleTable.SpecialVarMap[SunExpIds.EndlessSeaStarterDeckAppliedKey] = "1";
+        roleTable.SpecialVarMap[SunExpIds.EndlessSeaStarterDeckModeKey] = mode;
+        roleTable.SpecialVarMap[SunExpIds.StarterDeckOwnerKey] = SunExpIds.StarterDeckOwnerEndlessSea;
+        roleTable.SpecialVarMap[SunExpIds.StarterDeckScopeKey] = SunExpIds.EndlessSeaModeKey;
         roleTable.SpecialVarMap[SunExpIds.StarterDeckStateKey] = SunExpIds.StarterDeckStateApplied;
     }
 
-    private static Sprite? TryLoadPackCover(TongtianTowerStarterDeckProfile profile)
+    private static Sprite? TryLoadPackCover(EndlessSeaStarterDeckProfile profile)
     {
         var key = profile.Id + "|" + profile.CoverPackId + "|" + profile.RequiredPackId;
         if (packCoverCache.TryGetValue(key, out var cached))
@@ -795,7 +795,7 @@ public static class TongtianTowerIntroBoardRuntime
         return sprite;
     }
 
-    private static IEnumerable<string> CoverCandidates(TongtianTowerStarterDeckProfile profile)
+    private static IEnumerable<string> CoverCandidates(EndlessSeaStarterDeckProfile profile)
     {
         if (!string.IsNullOrWhiteSpace(profile.CoverPackId))
         {
@@ -821,7 +821,7 @@ public static class TongtianTowerIntroBoardRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[TongtianTowerIntro] failed to load pack cover for " + packId + ": " + ex.Message);
+            SunExpLog.Debug("[EndlessSeaIntro] failed to load pack cover for " + packId + ": " + ex.Message);
             return null;
         }
     }
@@ -845,7 +845,7 @@ public static class TongtianTowerIntroBoardRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[TongtianTowerIntro] failed to load card icon for " + cardId + ": " + ex.Message);
+            SunExpLog.Warn("[EndlessSeaIntro] failed to load card icon for " + cardId + ": " + ex.Message);
         }
 
         cardIconCache[cardId] = sprite;
@@ -873,18 +873,18 @@ public static class TongtianTowerIntroBoardRuntime
 
     private static void ClosePanel()
     {
-        ClosePanel("TongtianTowerIntro.ClosePanel");
+        ClosePanel("EndlessSeaIntro.ClosePanel");
     }
 
     public static void ClosePanel(string source)
     {
         HideTooltip();
-        SunExpModalHost.Close(ref activePanel, source, "[TongtianTowerIntro]");
+        SunExpModalHost.Close(ref activePanel, source, "[EndlessSeaIntro]");
         activeTooltipLayer = null;
         hintText = null;
         deckButtons.Clear();
         deckSelectedFrames.Clear();
-        SunExpTransientUiRegistry.Unregister("TongtianTowerIntro");
+        SunExpTransientUiRegistry.Unregister("EndlessSeaIntro");
     }
 
     private static Text AddTextFill(Transform parent, string value, int fontSize, TextAnchor anchor, Color color)

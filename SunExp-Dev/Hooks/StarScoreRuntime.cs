@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using AuraShared.Core;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
@@ -22,7 +21,17 @@ public static class StarScoreRuntime
     public static void Initialize(ModConfig modConfig)
     {
         EnsureHandlerRegistered();
-        RegisterAfter(modConfig, "Fight_Start.Init", OnFightStart);
+        SunExpBattleLifecycleRouter.Register("StarScore", new SunExpBattleLifecycleSubscription
+        {
+            FightStarted = OnFightStart
+        });
+        SunExpCardLifecycleRouter.Register("StarScore", new SunExpCardLifecycleSubscription
+        {
+            BeforeCommonCardUse = OnCardUseBefore,
+            BeforeAttackCardUse = OnCardUseBefore,
+            AfterCommonCardUse = OnCardUseAfter,
+            AfterAttackCardUse = OnCardUseAfter
+        });
         RegisterAfter(modConfig, "CommonCardItem.OnBeginDrag", OnCommonCardBeginDragAfter);
         RegisterAfter(modConfig, "CommonCardItem.OnEndDrag", OnCardSelectionEndedAfter);
         RegisterAfter(modConfig, "AttackCardItem.OnPointerDown", OnAttackCardPointerDownAfter);
@@ -30,21 +39,17 @@ public static class StarScoreRuntime
         RegisterAfter(modConfig, "AttackCardItem.CommitOrCancelFromKeyboard", OnCardSelectionEndedAfter);
         RegisterAfter(modConfig, "CardItem.CancelUseDrag", OnCardSelectionEndedAfter);
         RegisterBefore(modConfig, "CardItem.OnDestroy", OnCardDestroyedBefore);
-        RegisterBefore(modConfig, "CommonCardItem.TrueUse", OnCardUseBefore);
-        RegisterBefore(modConfig, "AttackCardItem.TrueUse", OnCardUseBefore);
-        RegisterAfter(modConfig, "CommonCardItem.TrueUse", OnCardUseAfter);
-        RegisterAfter(modConfig, "AttackCardItem.TrueUse", OnCardUseAfter);
         SunExpLog.Info("Star score runtime initialized");
     }
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterBefore(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Star score " + message));
+        SunExpHookRegistry.Before(config, target, action, "StarScore");
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Star score " + message));
+        SunExpHookRegistry.After(config, target, action, "StarScore");
     }
 
     private static void OnFightStart(ModHookContext context)

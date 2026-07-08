@@ -11,7 +11,7 @@ public static class EndlessAbyssMilestonePromptService
 
     public static void Schedule(string source)
     {
-        if (!TongtianTowerModeRuntime.IsTongtianTowerRun())
+        if (!EndlessSeaModeRuntime.IsEndlessSeaRun())
         {
             return;
         }
@@ -25,7 +25,7 @@ public static class EndlessAbyssMilestonePromptService
     {
         try
         {
-            if (!TongtianTowerModeRuntime.IsTongtianTowerRun()
+            if (!EndlessSeaModeRuntime.IsEndlessSeaRun()
                 || EndlessAbyssMilestoneRewardPanel.IsOpen
                 || EndlessAbyssShockPanel.IsOpen
                 || EndlessAbyssShockService.PendingRequest() != null)
@@ -33,7 +33,7 @@ public static class EndlessAbyssMilestonePromptService
                 return false;
             }
 
-            var floor = TongtianTowerModeRuntime.CurrentFloor();
+            var floor = EndlessSeaModeRuntime.CurrentFloor();
             if (!EndlessAbyssMilestoneRewardService.CanClaim(floor))
             {
                 if (lastPromptedFloor == floor)

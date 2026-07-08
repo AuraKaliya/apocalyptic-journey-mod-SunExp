@@ -16,7 +16,7 @@ public static class BattleRewardApi
 {
     private const BindingFlags InstanceFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
-    public static bool ReplaceWithRewardSpec(BattleRewardsUI? rewardUi, TongtianTowerRewardSpec spec, string source)
+    public static bool ReplaceWithRewardSpec(BattleRewardsUI? rewardUi, EndlessSeaRewardSpec spec, string source)
     {
         if (rewardUi == null || spec == null)
         {

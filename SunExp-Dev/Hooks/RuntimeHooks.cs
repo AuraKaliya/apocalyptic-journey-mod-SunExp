@@ -15,9 +15,11 @@ public static class RuntimeHooks
     {
         RunHookStep("status buff hooks", () =>
         {
-            RegisterBefore(modConfig, "StatusManager.AddBuff", OnStatusManagerAddBuffBefore);
-            RegisterAfter(modConfig, "StatusManager.AddBuff", OnStatusManagerAddBuffAfter);
+            SunExpHookRegistry.Before(modConfig, "StatusManager.AddBuff", OnStatusManagerAddBuffBefore, "RuntimeHooks");
+            SunExpHookRegistry.After(modConfig, "StatusManager.AddBuff", OnStatusManagerAddBuffAfter, "RuntimeHooks");
         });
+        RunHookStep("battle lifecycle router", () => SunExpBattleLifecycleRouter.Initialize(modConfig));
+        RunHookStep("card lifecycle router", () => SunExpCardLifecycleRouter.Initialize(modConfig));
         RunHookStep("dialogue flow", () => DialogueFlowRuntime.Initialize(modConfig));
         RunHookStep("familiar growth", () => FamiliarGrowthRuntime.Initialize(modConfig));
         RunHookStep("dusk partner", () => DuskPartnerRuntime.Initialize(modConfig));
@@ -27,12 +29,12 @@ public static class RuntimeHooks
         RunHookStep("solar memory reward", () => SolarMemoryRewardRuntime.Initialize());
         RunHookStep("ember adventure state", () => EmberAdventureStateRuntime.Initialize(modConfig));
         RunHookStep("sunexp UI lifecycle", () => SunExpUiLifecycleRuntime.Initialize(modConfig));
-        RunHookStep("tongtian tower mode", () => TongtianTowerModeRuntime.Initialize(modConfig));
-        RunHookStep("tongtian tower combat", () => TongtianTowerCombatRuntime.Initialize(modConfig));
-        RunHookStep("tongtian tower reward", () => TongtianTowerRewardRuntime.Initialize(modConfig));
-        RunHookStep("tongtian tower post battle", () => TongtianTowerRewardRuntime.InitializePostBattleHooks(modConfig));
-        RunHookStep("tongtian tower card affix", () => TongtianTowerCardAffixRuntime.Initialize(modConfig));
-        RunHookStep("tongtian tower intro board", () => TongtianTowerIntroBoardRuntime.Initialize(modConfig));
+        RunHookStep("endless sea mode", () => EndlessSeaModeRuntime.Initialize(modConfig));
+        RunHookStep("endless sea combat", () => EndlessSeaCombatRuntime.Initialize(modConfig));
+        RunHookStep("endless sea reward", () => EndlessSeaRewardRuntime.Initialize(modConfig));
+        RunHookStep("endless sea post battle", () => EndlessSeaRewardRuntime.InitializePostBattleHooks(modConfig));
+        RunHookStep("endless sea card affix", () => EndlessSeaCardAffixRuntime.Initialize(modConfig));
+        RunHookStep("endless sea intro board", () => EndlessSeaIntroBoardRuntime.Initialize(modConfig));
         RunHookStep("battle reward adjustment", () => BattleRewardAdjustmentRuntime.Initialize(modConfig));
         RunHookStep("solar memory content isolation", () => SolarMemoryContentIsolationRuntime.Initialize(modConfig));
         RunHookStep("solar memory starter deck", () => SolarMemoryStarterDeckRuntime.Initialize(modConfig));
@@ -61,16 +63,6 @@ public static class RuntimeHooks
     private static void RunHookStep(string name, Action action)
     {
         AuraSharedHooks.RunStep(name, action, (step, ex) => SunExpLog.Error("Runtime hook step failed: " + step, ex));
-    }
-
-    private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
-    {
-        AuraSharedHooks.RegisterBefore(config, target, action, SunExpLog.Debug, SunExpLog.Warn);
-    }
-
-    private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
-    {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, SunExpLog.Warn);
     }
 
     private static void OnStatusManagerAddBuffBefore(ModHookContext context)

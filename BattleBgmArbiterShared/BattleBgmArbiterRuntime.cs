@@ -4,10 +4,12 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using AuraShared.Core;
 using UnityEngine;
 using UnityEngine.Networking;
 using Witch;
 using Witch.Core;
+using Witch.UI;
 using Witch.Mod;
 using Witch.UI.Window;
 
@@ -93,7 +95,7 @@ public static class BattleBgmArbiterRuntime
 
         var component = gameObject.AddComponent<BattleBgmArbiterComponent>();
         component.InitializeOwner(modConfig, ownerModId);
-        Debug.Log("[BattleBgmArbiter] Created global arbiter, owner=" + ownerModId);
+        AuraSharedLog.DebugLog("BattleBgmArbiter", "Created global arbiter, owner=" + ownerModId, false);
         return component;
     }
 
@@ -107,11 +109,14 @@ public static class BattleBgmArbiterRuntime
             .All(name => existingType.GetMethod(name, BindingFlags.Instance | BindingFlags.Public) != null);
         if (ReuseLogOwners.Add(ownerModId))
         {
-            Debug.Log("[BattleBgmArbiter] Reusing global arbiter for " + ownerModId
+            AuraSharedLog.DebugLog(
+                "BattleBgmArbiter",
+                "Reusing global arbiter for " + ownerModId
                 + ", ownerType=" + existingType.Assembly.GetName().Name
                 + ", protocol=" + (protocolVersion <= 0 ? "unknown" : protocolVersion.ToString())
                 + ", minSupported=" + (minimumSupported == int.MaxValue ? "unknown" : minimumSupported.ToString())
-                + ", buildId=" + (string.IsNullOrWhiteSpace(buildId) ? "<missing>" : buildId));
+                + ", buildId=" + (string.IsNullOrWhiteSpace(buildId) ? "<missing>" : buildId),
+                false);
         }
 
         var compatible = protocolVersion >= MinimumSupportedProtocolVersion
@@ -297,6 +302,12 @@ public static class BattleBgmArbiterRuntime
         {
             try
             {
+                if (inBattle)
+                {
+                    Warn("Clearing stale battle BGM state before new preparation context. previousSession=" + battleSessionId);
+                    ClearBattleState("new preparation context");
+                }
+
                 var gameEntry = context.Target as GameEntryUI;
                 var careerId = ReadDataConfigId(GameEntryUI.career);
                 var packs = ReadCardPacksFromGameEntry(gameEntry);
@@ -355,8 +366,11 @@ public static class BattleBgmArbiterRuntime
                 EnsureAdventureContext("fight init before");
                 if (inBattle)
                 {
-                    Warn("A battle is already active; keeping previous pre-battle snapshot. session=" + battleSessionId);
-                    return;
+                    if (!TryClearStaleBattleBeforeNewFight("FightInit.Init"))
+                    {
+                        Warn("A battle is already active; keeping previous pre-battle snapshot. session=" + battleSessionId);
+                        return;
+                    }
                 }
 
                 battleSessionId++;
@@ -821,6 +835,33 @@ public static class BattleBgmArbiterRuntime
             preBattleSnapshot = null;
         }
 
+        private bool TryClearStaleBattleBeforeNewFight(string source)
+        {
+            var fightUiMissing = false;
+            try
+            {
+                fightUiMissing = UIManager.Instance?.GetUI<FightUI>("FightUI") == null;
+            }
+            catch
+            {
+                fightUiMissing = true;
+            }
+
+            if (!fightUiMissing)
+            {
+                return false;
+            }
+
+            Warn("Clearing stale battle BGM state before new fight. source="
+                + source
+                + ", previousSession="
+                + battleSessionId
+                + ", fightUiMissing="
+                + fightUiMissing);
+            ClearBattleState("stale before " + source);
+            return true;
+        }
+
         private static string ReadPayloadString(object? payload, string propertyName)
         {
             try
@@ -903,7 +944,7 @@ public static class BattleBgmArbiterRuntime
 
         private void Log(string message)
         {
-            Debug.Log("[BattleBgmArbiter] " + message);
+            AuraSharedLog.DebugLog("BattleBgmArbiter", message, false);
         }
 
         private void Warn(string message)
@@ -1021,7 +1062,7 @@ public static class BattleBgmArbiterRuntime
                     if (provider is IDisposable disposable)
                     {
                         disposable.Dispose();
-                        Debug.Log("[BattleBgmArbiter] Provider disposed: " + ProviderId + ", reason=" + reason);
+                        AuraSharedLog.DebugLog("BattleBgmArbiter", "Provider disposed: " + ProviderId + ", reason=" + reason, false);
                         return;
                     }
 
@@ -1029,7 +1070,7 @@ public static class BattleBgmArbiterRuntime
                     if (method != null)
                     {
                         method.Invoke(provider, Array.Empty<object>());
-                        Debug.Log("[BattleBgmArbiter] Provider disposed through reflection: " + ProviderId + ", reason=" + reason);
+                        AuraSharedLog.DebugLog("BattleBgmArbiter", "Provider disposed through reflection: " + ProviderId + ", reason=" + reason, false);
                     }
                 }
                 catch (Exception ex)
@@ -1471,7 +1512,7 @@ public sealed class FileBattleBgmProvider : IDisposable
 
         clip = null;
         loadState = "Disposed";
-        Debug.Log(LogPrefix + "Provider disposed. provider=" + ProviderId);
+        AuraSharedLog.DebugLog("BattleBgmArbiter", LogPrefix + "Provider disposed. provider=" + ProviderId, false);
     }
 
     private void StartLoad(string reason)
@@ -1496,7 +1537,7 @@ public sealed class FileBattleBgmProvider : IDisposable
 
         clip = null;
         loadState = "Loading";
-        Debug.Log(LogPrefix + "BGM load started. provider=" + ProviderId + ", reason=" + reason + ", generation=" + currentGeneration + ", signature=" + cachedSignature);
+        AuraSharedLog.DebugLog("BattleBgmArbiter", LogPrefix + "BGM load started. provider=" + ProviderId + ", reason=" + reason + ", generation=" + currentGeneration + ", signature=" + cachedSignature, false);
         runner.LoadAudio(audioPath, currentGeneration, OnLoadCompleted);
     }
 
@@ -1509,7 +1550,7 @@ public sealed class FileBattleBgmProvider : IDisposable
 
         if (completedGeneration != generation)
         {
-            Debug.Log(LogPrefix + "Ignored stale load result. provider=" + ProviderId + ", generation=" + completedGeneration + ", active=" + generation);
+            AuraSharedLog.DebugLog("BattleBgmArbiter", LogPrefix + "Ignored stale load result. provider=" + ProviderId + ", generation=" + completedGeneration + ", active=" + generation, false);
             return;
         }
 
@@ -1525,12 +1566,12 @@ public sealed class FileBattleBgmProvider : IDisposable
         loadedClip.name = Path.GetFileNameWithoutExtension(audioPath);
         clip = loadedClip;
         loadState = "Ready";
-        Debug.Log(LogPrefix + "BGM load succeeded. provider=" + ProviderId
+        AuraSharedLog.DebugLog("BattleBgmArbiter", LogPrefix + "BGM load succeeded. provider=" + ProviderId
             + ", signature=" + cachedSignature
             + ", clip=" + loadedClip.name
             + ", length=" + loadedClip.length.ToString("0.000") + "s"
             + ", frequency=" + loadedClip.frequency
-            + ", channels=" + loadedClip.channels);
+            + ", channels=" + loadedClip.channels, false);
     }
 
     private void CheckAudioFile()
@@ -1547,13 +1588,13 @@ public sealed class FileBattleBgmProvider : IDisposable
             {
                 if (BattleBgmArbiterRuntime.VerboseLogging)
                 {
-                    Debug.Log(LogPrefix + "File watcher check: unchanged. provider=" + ProviderId + ", signature=" + currentSignature + ", state=" + loadState);
+                    AuraSharedLog.DebugLog("BattleBgmArbiter", LogPrefix + "File watcher check: unchanged. provider=" + ProviderId + ", signature=" + currentSignature + ", state=" + loadState, false);
                 }
 
                 return;
             }
 
-            Debug.Log(LogPrefix + "File watcher check: changed. provider=" + ProviderId + ", cached=" + cachedSignature + ", current=" + currentSignature);
+            AuraSharedLog.DebugLog("BattleBgmArbiter", LogPrefix + "File watcher check: changed. provider=" + ProviderId + ", cached=" + cachedSignature + ", current=" + currentSignature, false);
             StartLoad("file watcher detected resource change");
         }
         catch (Exception ex)

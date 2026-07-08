@@ -77,12 +77,6 @@ public sealed class StarScoreHudShaderController : MonoBehaviour
 
     private void Update()
     {
-        if (SunExpPerformanceSettings.Quality == SunExpPerformanceQuality.UltraLow && IsStable(0f))
-        {
-            enabled = false;
-            return;
-        }
-
         var delta = Mathf.Max(Time.unscaledDeltaTime, 0f);
         if (ShouldAnimateFlow())
         {
@@ -170,8 +164,7 @@ public sealed class StarScoreHudShaderController : MonoBehaviour
 
     private static bool ShouldAnimateFlow()
     {
-        return SunExpPerformanceSettings.Quality != SunExpPerformanceQuality.Low
-            && SunExpPerformanceSettings.Quality != SunExpPerformanceQuality.UltraLow;
+        return true;
     }
 
     private void OnDestroy()

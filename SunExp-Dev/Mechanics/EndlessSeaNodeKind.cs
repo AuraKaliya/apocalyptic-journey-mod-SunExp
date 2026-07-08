@@ -1,6 +1,6 @@
 namespace SunExp.Dll.Mechanics;
 
-public enum TongtianTowerNodeKind
+public enum EndlessSeaNodeKind
 {
     Monster,
     Elite,

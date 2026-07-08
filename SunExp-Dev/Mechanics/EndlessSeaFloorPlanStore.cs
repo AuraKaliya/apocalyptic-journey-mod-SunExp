@@ -5,11 +5,11 @@ using SunExp.Dll.Infrastructure;
 
 namespace SunExp.Dll.Mechanics;
 
-public static class TongtianTowerFloorPlanStore
+public static class EndlessSeaFloorPlanStore
 {
-    public static TongtianTowerFloorPlan? Load()
+    public static EndlessSeaFloorPlan? Load()
     {
-        var json = GetSaveValue(SunExpIds.TongtianTowerFloorPlanKey);
+        var json = GetSaveValue(SunExpIds.EndlessSeaFloorPlanKey);
         if (string.IsNullOrWhiteSpace(json))
         {
             return null;
@@ -17,27 +17,27 @@ public static class TongtianTowerFloorPlanStore
 
         try
         {
-            var plan = JsonConvert.DeserializeObject<TongtianTowerFloorPlan>(json);
+            var plan = JsonConvert.DeserializeObject<EndlessSeaFloorPlan>(json);
             plan?.Normalize();
             return plan != null && plan.IsValid ? plan : null;
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[TongtianTowerMap] ignored invalid floor plan: " + ex.Message);
+            SunExpLog.Warn("[EndlessSeaMap] ignored invalid floor plan: " + ex.Message);
             return null;
         }
     }
 
-    public static bool TryLoad(int floor, out TongtianTowerFloorPlan plan)
+    public static bool TryLoad(int floor, out EndlessSeaFloorPlan plan)
     {
         plan = Load()!;
         return plan != null && plan.Floor == Math.Max(1, floor) && plan.IsValid;
     }
 
-    public static void Save(TongtianTowerFloorPlan plan)
+    public static void Save(EndlessSeaFloorPlan plan)
     {
         plan.Normalize();
-        SetSaveValue(SunExpIds.TongtianTowerFloorPlanKey, JsonConvert.SerializeObject(plan));
+        SetSaveValue(SunExpIds.EndlessSeaFloorPlanKey, JsonConvert.SerializeObject(plan));
     }
 
     private static string GetSaveValue(string key)

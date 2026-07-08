@@ -201,6 +201,6 @@ public static class CardVisualSkinApplier
             + "\u001f"
             + DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey)
             + "\u001f"
-            + SunExpPerformanceSettings.Quality;
+            + "Unified";
     }
 }

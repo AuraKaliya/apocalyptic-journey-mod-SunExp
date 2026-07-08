@@ -15,7 +15,7 @@ public static class SunExpLog
 
     public static void Info(string message)
     {
-        AuraSharedLog.Info(SunExpIds.ModLogTag, message);
+        AuraSharedLog.DebugLog(SunExpIds.ModLogTag, message, IsDebugEnabled());
     }
 
     public static void Warn(string message)

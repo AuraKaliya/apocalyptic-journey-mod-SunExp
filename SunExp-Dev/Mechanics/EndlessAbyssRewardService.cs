@@ -12,10 +12,10 @@ public static class EndlessAbyssRewardService
 {
     private static readonly string[] OriginKeys =
     {
-        TongtianTowerOriginService.Strength,
-        TongtianTowerOriginService.Spirit,
-        TongtianTowerOriginService.Fortune,
-        TongtianTowerOriginService.Perceive
+        EndlessSeaOriginService.Strength,
+        EndlessSeaOriginService.Spirit,
+        EndlessSeaOriginService.Fortune,
+        EndlessSeaOriginService.Perceive
     };
 
     private static readonly string[] EvolutionTraitPool =
@@ -45,8 +45,8 @@ public static class EndlessAbyssRewardService
 
         if (granted > 0)
         {
-            TongtianTowerCardAffixService.NormalizeOwnedCards("EndlessAbyssReward.Card");
-            TongtianTowerCardAffixService.TryPersistCurrentRole("EndlessAbyssReward.Card");
+            EndlessSeaCardAffixService.NormalizeOwnedCards("EndlessAbyssReward.Card");
+            EndlessSeaCardAffixService.TryPersistCurrentRole("EndlessAbyssReward.Card");
         }
 
         return granted;

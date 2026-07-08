@@ -26,8 +26,8 @@ public static class WunaActionAnimationRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
-        RegisterBefore(modConfig, "FightUI.CallActionAnimation", BeforeCallActionAnimation);
-        RegisterAfter(modConfig, "FightUI.CallActionAnimation", AfterCallActionAnimation);
+        RegisterBefore(modConfig, SunExpHookTargets.FightUiCallActionAnimation, BeforeCallActionAnimation);
+        RegisterAfter(modConfig, SunExpHookTargets.FightUiCallActionAnimation, AfterCallActionAnimation);
     }
 
     private static void BeforeCallActionAnimation(ModHookContext context)
@@ -279,12 +279,12 @@ public static class WunaActionAnimationRuntime
 
     private static void RegisterBefore(ModConfig modConfig, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterBefore(modConfig, target, action, SunExpLog.Debug, SunExpLog.Warn);
+        SunExpHookRegistry.Before(modConfig, target, action, "WunaActionAnimation");
     }
 
     private static void RegisterAfter(ModConfig modConfig, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(modConfig, target, action, SunExpLog.Debug, SunExpLog.Warn);
+        SunExpHookRegistry.After(modConfig, target, action, "WunaActionAnimation");
     }
 
     private readonly struct EffectPatch

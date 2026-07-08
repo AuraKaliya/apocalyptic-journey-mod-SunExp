@@ -1,4 +1,3 @@
-using AuraShared.Core;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
 using Witch.Core;
@@ -10,7 +9,10 @@ public static class LoneerRuntime
 {
     public static void Initialize(ModConfig modConfig)
     {
-        AuraSharedHooks.RegisterAfter(modConfig, "Fight_Start.Init", OnFightStart, SunExpLog.Debug, message => SunExpLog.Warn("Loneer " + message));
+        SunExpBattleLifecycleRouter.Register("Loneer", new SunExpBattleLifecycleSubscription
+        {
+            FightStarted = OnFightStart
+        });
     }
 
     private static void OnFightStart(ModHookContext context)

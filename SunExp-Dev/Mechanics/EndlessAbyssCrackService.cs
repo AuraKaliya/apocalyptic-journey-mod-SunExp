@@ -72,7 +72,7 @@ public static class EndlessAbyssCrackService
 
             if (restored > 0)
             {
-                TongtianTowerCardAffixService.TryPersistCurrentRole("EndlessAbyssCrack.Restore");
+                EndlessSeaCardAffixService.TryPersistCurrentRole("EndlessAbyssCrack.Restore");
                 SunExpLog.Info("[EndlessAbyssCrack] restored " + restored + " cards from " + source + ".");
             }
         }

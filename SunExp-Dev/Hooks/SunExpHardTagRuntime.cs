@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using AuraShared.Core;
 using Data.Save;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
@@ -33,26 +32,31 @@ public static class SunExpHardTagRuntime
             "EndlessAbyssGaze",
             context => EndlessAbyssGazePressureService.OnCardAction(context.Config, "Action"),
             () => EndlessAbyssGazePressureService.OnCardActionAfter("ActionAfter"));
-        RegisterAfter(modConfig, "Fight_Start.Init", OnFightStart);
-        RegisterBefore(modConfig, "Fight_Win.ResetStates", OnFightEnding);
-        RegisterBefore(modConfig, "Fight_Escape.ResetStates", OnFightEnding);
-        RegisterAfter(modConfig, "Fight_PlayerTurn.Init", OnPlayerTurn);
-        RegisterAfter(modConfig, "Enemy.Init", OnEnemyInit);
-        RegisterBefore(modConfig, "OtherObj.DoOneAction", OnEnemyDoOneAction);
-        RegisterAfter(modConfig, "CardItem.Init", OnCardItemChanged);
-        RegisterAfter(modConfig, "AttackCardItem.Init", OnCardItemChanged);
-        RegisterAfter(modConfig, "CardItem.DataUpdate", OnCardItemChanged);
-        RegisterAfter(modConfig, "AttackCardItem.DataUpdate", OnCardItemChanged);
-        RegisterAfter(modConfig, "FightUI.CreateCardItem", OnFightUiCreateCard);
-        RegisterAfter(modConfig, "FightUI.CreateCardItemInternal", OnFightUiCreateCardInternal);
-        RegisterAfter(modConfig, "ScriptExecutor.GetCardFromDeck", OnScriptExecutorGetCardFromDeck);
-        RegisterAfter(modConfig, "ScriptExecutor.RandomAddCard", OnScriptExecutorRandomAddCard);
-        RegisterBefore(modConfig, "CommonCardItem.TrueUse", OnCardUseBefore);
-        RegisterBefore(modConfig, "AttackCardItem.TrueUse", OnCardUseBefore);
-        RegisterAfter(modConfig, "CommonCardItem.TrueUse", OnCardUseAfter);
-        RegisterAfter(modConfig, "AttackCardItem.TrueUse", OnCardUseAfter);
-        RegisterBefore(modConfig, "SkillItem.TrueUse", OnSkillUseBefore);
-        RegisterAfter(modConfig, "SkillItem.TrueUse", OnSkillUseAfter);
+        SunExpBattleLifecycleRouter.Register("HardTag", new SunExpBattleLifecycleSubscription
+        {
+            FightStarted = OnFightStart,
+            FightEnding = OnFightEnding
+        });
+        SunExpCardLifecycleRouter.Register("HardTag", new SunExpCardLifecycleSubscription
+        {
+            AfterCardItemInit = OnCardItemChanged,
+            AfterAttackCardItemInit = OnCardItemChanged,
+            AfterCardItemDataUpdate = OnCardItemChanged,
+            AfterAttackCardItemDataUpdate = OnCardItemChanged,
+            AfterFightUiCreateCardItem = OnFightUiCreateCard,
+            AfterFightUiCreateCardItemInternal = OnFightUiCreateCardInternal,
+            AfterScriptExecutorGetCardFromDeck = OnScriptExecutorGetCardFromDeck,
+            AfterScriptExecutorRandomAddCard = OnScriptExecutorRandomAddCard,
+            BeforeCommonCardUse = OnCardUseBefore,
+            BeforeAttackCardUse = OnCardUseBefore,
+            AfterCommonCardUse = OnCardUseAfter,
+            AfterAttackCardUse = OnCardUseAfter
+        });
+        RegisterAfter(modConfig, SunExpHookTargets.FightPlayerTurnInit, OnPlayerTurn);
+        RegisterAfter(modConfig, SunExpHookTargets.EnemyInit, OnEnemyInit);
+        RegisterBefore(modConfig, SunExpHookTargets.OtherObjDoOneAction, OnEnemyDoOneAction);
+        RegisterBefore(modConfig, SunExpHookTargets.SkillItemTrueUse, OnSkillUseBefore);
+        RegisterAfter(modConfig, SunExpHookTargets.SkillItemTrueUse, OnSkillUseAfter);
         SunExpLog.Info("SunExp hard tag runtime initialized");
     }
 
@@ -96,12 +100,12 @@ public static class SunExpHardTagRuntime
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterBefore(config, target, action, SunExpLog.Debug, SunExpLog.Warn);
+        SunExpHookRegistry.Before(config, target, action, "HardTag");
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, SunExpLog.Warn);
+        SunExpHookRegistry.After(config, target, action, "HardTag");
     }
 
     private static void OnFightStart(ModHookContext context)

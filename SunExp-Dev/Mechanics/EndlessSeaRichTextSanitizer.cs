@@ -3,7 +3,7 @@ using System.Text;
 
 namespace SunExp.Dll.Mechanics;
 
-public static class TongtianTowerRichTextSanitizer
+public static class EndlessSeaRichTextSanitizer
 {
     private const int MaxTagLength = 48;
     private static readonly string[] AllowedSimpleTags = { "b", "i", "u", "br" };

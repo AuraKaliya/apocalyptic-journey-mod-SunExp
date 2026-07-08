@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using AuraShared.Core;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
 using Witch.Core;
@@ -10,9 +9,9 @@ using Witch.UI.Window;
 
 namespace SunExp.Dll.Hooks;
 
-public static class TongtianTowerCardAffixRuntime
+public static class EndlessSeaCardAffixRuntime
 {
-    private const string CombatNormalizeFrameKey = "TongtianTowerCardAffix.NormalizeCombatCards";
+    private const string CombatNormalizeFrameKey = "EndlessSeaCardAffix.NormalizeCombatCards";
 
     private static readonly FieldInfo? CardChoiceItemDataConfigField = typeof(CardChoiceItem).GetField(
         "dataConfig",
@@ -20,37 +19,40 @@ public static class TongtianTowerCardAffixRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
-        RegisterAfter(modConfig, "CardChoiceItem.Initialize", ApplyToChoiceItem);
-        RegisterBefore(modConfig, "CardChoiceUI.Select", ApplyToSelectedCard);
-        RegisterAfter(modConfig, "CardItem.Init", ApplyToCardItem);
-        RegisterAfter(modConfig, "AttackCardItem.Init", ApplyToCardItem);
-        RegisterAfter(modConfig, "CardItem.DataUpdate", ApplyToCardItem);
-        RegisterAfter(modConfig, "AttackCardItem.DataUpdate", ApplyToCardItem);
-        RegisterAfter(modConfig, "FightUI.CreateCardItem", NormalizeCombatCards);
-        RegisterAfter(modConfig, "FightUI.CreateCardItemInternal", NormalizeCombatCards);
-        RegisterAfter(modConfig, "ScriptExecutor.GetCardFromDeck", NormalizeScriptExecutorCards);
-        RegisterAfter(modConfig, "PlayerInfo.AddCard", NormalizeOwnedCards);
-        RegisterAfter(modConfig, "PlayerInfo.AddCardById", NormalizeOwnedCards);
-        RegisterAfter(modConfig, "PlayerInfo.RandomAddCard", NormalizeOwnedCards);
-        RegisterAfter(modConfig, "ShopItem.Init", ApplyToFirstDataConfigArgument);
-        RegisterAfter(modConfig, "PackShowItem.Init", ApplyToFirstDataConfigArgument);
-        RegisterAfter(modConfig, "WarehouseItem.Init", ApplyToFirstDataConfigArgument);
-        RegisterAfter(modConfig, "SafeBoxItem.Init", ApplyToFirstDataConfigArgument);
-        SunExpLog.Info("Tongtian Tower card affix runtime initialized");
+        SunExpCardLifecycleRouter.Register("EndlessSeaCardAffix", new SunExpCardLifecycleSubscription
+        {
+            AfterCardChoiceItemInitialize = ApplyToChoiceItem,
+            BeforeCardChoiceUiSelect = ApplyToSelectedCard,
+            AfterCardItemInit = ApplyToCardItem,
+            AfterAttackCardItemInit = ApplyToCardItem,
+            AfterCardItemDataUpdate = ApplyToCardItem,
+            AfterAttackCardItemDataUpdate = ApplyToCardItem,
+            AfterFightUiCreateCardItem = NormalizeCombatCards,
+            AfterFightUiCreateCardItemInternal = NormalizeCombatCards,
+            AfterScriptExecutorGetCardFromDeck = NormalizeScriptExecutorCards,
+            AfterPlayerInfoAddCard = NormalizeOwnedCards,
+            AfterPlayerInfoAddCardById = NormalizeOwnedCards,
+            AfterPlayerInfoRandomAddCard = NormalizeOwnedCards,
+            AfterShopItemInit = ApplyToFirstDataConfigArgument,
+            AfterPackShowItemInit = ApplyToFirstDataConfigArgument,
+            AfterWarehouseItemInit = ApplyToFirstDataConfigArgument,
+            AfterSafeBoxItemInit = ApplyToFirstDataConfigArgument
+        });
+        SunExpLog.Info("Endless Sea card affix runtime initialized");
     }
 
     private static void ApplyToChoiceItem(ModHookContext context)
     {
         try
         {
-            if (!TongtianTowerModeRuntime.IsTongtianTowerRun()
+            if (!EndlessSeaModeRuntime.IsEndlessSeaRun()
                 || context.Target is not CardChoiceItem item
                 || CardChoiceItemDataConfigField?.GetValue(item) is not DataConfig config)
             {
                 return;
             }
 
-            if (!TongtianTowerCardAffixService.ApplyBurnout(config, "CardChoiceItem.Initialize"))
+            if (!EndlessSeaCardAffixService.ApplyBurnout(config, "CardChoiceItem.Initialize"))
             {
                 return;
             }
@@ -59,7 +61,7 @@ public static class TongtianTowerCardAffixRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[TongtianTowerCardAffix] choice item hook failed", ex);
+            SunExpLog.Error("[EndlessSeaCardAffix] choice item hook failed", ex);
         }
     }
 
@@ -67,7 +69,7 @@ public static class TongtianTowerCardAffixRuntime
     {
         try
         {
-            if (!TongtianTowerModeRuntime.IsTongtianTowerRun())
+            if (!EndlessSeaModeRuntime.IsEndlessSeaRun())
             {
                 return;
             }
@@ -78,12 +80,12 @@ public static class TongtianTowerCardAffixRuntime
                 return;
             }
 
-            TongtianTowerCardAffixService.ApplyBurnout(config, "CardChoiceUI.Select");
-            TongtianTowerCardAffixService.NormalizeOwnedCards("CardChoiceUI.Select");
+            EndlessSeaCardAffixService.ApplyBurnout(config, "CardChoiceUI.Select");
+            EndlessSeaCardAffixService.NormalizeOwnedCards("CardChoiceUI.Select");
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[TongtianTowerCardAffix] selected card hook failed", ex);
+            SunExpLog.Error("[EndlessSeaCardAffix] selected card hook failed", ex);
         }
     }
 
@@ -91,14 +93,14 @@ public static class TongtianTowerCardAffixRuntime
     {
         try
         {
-            if (TongtianTowerModeRuntime.IsTongtianTowerRun())
+            if (EndlessSeaModeRuntime.IsEndlessSeaRun())
             {
-                TongtianTowerCardAffixService.ApplyBurnout(context.Target as CardItem, "CardItem");
+                EndlessSeaCardAffixService.ApplyBurnout(context.Target as CardItem, "CardItem");
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[TongtianTowerCardAffix] card item hook failed", ex);
+            SunExpLog.Error("[EndlessSeaCardAffix] card item hook failed", ex);
         }
     }
 
@@ -106,7 +108,7 @@ public static class TongtianTowerCardAffixRuntime
     {
         try
         {
-            if (!TongtianTowerModeRuntime.IsTongtianTowerRun())
+            if (!EndlessSeaModeRuntime.IsEndlessSeaRun())
             {
                 return;
             }
@@ -119,12 +121,12 @@ public static class TongtianTowerCardAffixRuntime
                     if (arg is CardItem card)
                     {
                         handledTarget = true;
-                        TongtianTowerCardAffixService.ApplyBurnout(card, "FightUI.CreateCardItem:arg");
+                        EndlessSeaCardAffixService.ApplyBurnout(card, "FightUI.CreateCardItem:arg");
                     }
                     else if (arg is IDataConfig config)
                     {
                         handledTarget = true;
-                        TongtianTowerCardAffixService.ApplyBurnout(config, "FightUI.CreateCardItem:arg");
+                        EndlessSeaCardAffixService.ApplyBurnout(config, "FightUI.CreateCardItem:arg");
                     }
                 }
             }
@@ -136,7 +138,7 @@ public static class TongtianTowerCardAffixRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[TongtianTowerCardAffix] combat card normalization failed", ex);
+            SunExpLog.Error("[EndlessSeaCardAffix] combat card normalization failed", ex);
         }
     }
 
@@ -144,14 +146,14 @@ public static class TongtianTowerCardAffixRuntime
     {
         try
         {
-            if (!TongtianTowerModeRuntime.IsTongtianTowerRun())
+            if (!EndlessSeaModeRuntime.IsEndlessSeaRun())
             {
                 return;
             }
 
             if (context.Arguments != null && context.Arguments.Length > 0 && context.Arguments[0] is IDataConfig config)
             {
-                TongtianTowerCardAffixService.ApplyBurnout(config, "ScriptExecutor.GetCardFromDeck");
+                EndlessSeaCardAffixService.ApplyBurnout(config, "ScriptExecutor.GetCardFromDeck");
                 return;
             }
 
@@ -159,7 +161,7 @@ public static class TongtianTowerCardAffixRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[TongtianTowerCardAffix] script executor card normalization failed", ex);
+            SunExpLog.Error("[EndlessSeaCardAffix] script executor card normalization failed", ex);
         }
     }
 
@@ -167,29 +169,29 @@ public static class TongtianTowerCardAffixRuntime
     {
         try
         {
-            if (TongtianTowerModeRuntime.IsTongtianTowerRun())
+            if (EndlessSeaModeRuntime.IsEndlessSeaRun())
             {
                 var handledTarget = false;
                 var changed = false;
                 foreach (var config in DataConfigsFromArguments(context.Arguments))
                 {
                     handledTarget = true;
-                    changed |= TongtianTowerCardAffixService.ApplyBurnout(config, "PlayerInfo.AddCard:arg");
+                    changed |= EndlessSeaCardAffixService.ApplyBurnout(config, "PlayerInfo.AddCard:arg");
                 }
 
                 if (changed)
                 {
-                    TongtianTowerCardAffixService.TryPersistCurrentRole("PlayerInfo.AddCard:target");
+                    EndlessSeaCardAffixService.TryPersistCurrentRole("PlayerInfo.AddCard:target");
                 }
                 else if (!handledTarget)
                 {
-                    TongtianTowerCardAffixService.NormalizeRecentOwnedCards(ParseGrantedCardCount(context.Arguments), "PlayerInfo.AddCard");
+                    EndlessSeaCardAffixService.NormalizeRecentOwnedCards(ParseGrantedCardCount(context.Arguments), "PlayerInfo.AddCard");
                 }
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[TongtianTowerCardAffix] owned card normalization failed", ex);
+            SunExpLog.Error("[EndlessSeaCardAffix] owned card normalization failed", ex);
         }
     }
 
@@ -197,7 +199,7 @@ public static class TongtianTowerCardAffixRuntime
     {
         try
         {
-            if (!TongtianTowerModeRuntime.IsTongtianTowerRun())
+            if (!EndlessSeaModeRuntime.IsEndlessSeaRun())
             {
                 return;
             }
@@ -212,14 +214,14 @@ public static class TongtianTowerCardAffixRuntime
             {
                 if (arg is IDataConfig config)
                 {
-                    TongtianTowerCardAffixService.ApplyBurnout(config, "CardDisplay.Init");
+                    EndlessSeaCardAffixService.ApplyBurnout(config, "CardDisplay.Init");
                     return;
                 }
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[TongtianTowerCardAffix] display card hook failed", ex);
+            SunExpLog.Error("[EndlessSeaCardAffix] display card hook failed", ex);
         }
     }
 
@@ -233,9 +235,9 @@ public static class TongtianTowerCardAffixRuntime
     {
         if (!SunExpFrameDispatcher.RunOnceNextFrame(
                 CombatNormalizeFrameKey + ":" + source,
-                () => TongtianTowerCardAffixService.NormalizeCombatCards(executor, source + ":deferred")))
+                () => EndlessSeaCardAffixService.NormalizeCombatCards(executor, source + ":deferred")))
         {
-            SunExpPerformanceCounters.Record("TongtianTowerCardAffix.NormalizeCombatCards.Deduped");
+            SunExpPerformanceCounters.Record("EndlessSeaCardAffix.NormalizeCombatCards.Deduped");
         }
     }
 
@@ -266,13 +268,4 @@ public static class TongtianTowerCardAffixRuntime
         return int.TryParse(text, out var count) && count > 0 ? Math.Min(16, count) : 1;
     }
 
-    private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
-    {
-        AuraSharedHooks.RegisterBefore(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Tongtian Tower card affix " + message));
-    }
-
-    private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
-    {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Tongtian Tower card affix " + message));
-    }
 }

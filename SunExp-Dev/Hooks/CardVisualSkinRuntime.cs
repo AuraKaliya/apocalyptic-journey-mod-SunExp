@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using AuraShared.Core;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks.Visual;
 using SunExp.Dll.Infrastructure;
@@ -19,44 +18,33 @@ public static class CardVisualSkinRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
-        RegisterAfter(modConfig, "ICard.SetCardStyle", ApplyFromSetCardStyle);
-
-        RegisterBefore(modConfig, "CommonCardItem.TrueUse", context => SuppressBurnoutFrameEffect(context, "CommonCardItem.TrueUse"));
-        RegisterBefore(modConfig, "AttackCardItem.TrueUse", context => SuppressBurnoutFrameEffect(context, "AttackCardItem.TrueUse"));
-
-        RegisterAfter(modConfig, "CardItem.Init", context => ApplyFromItemRoot(context, "CardItem.Init"));
-        RegisterAfter(modConfig, "AttackCardItem.Init", context => ApplyFromItemRoot(context, "AttackCardItem.Init"));
-        RegisterAfter(modConfig, "CardItem.DataUpdate", context => ApplyFromItemRoot(context, "CardItem.DataUpdate"));
-        RegisterAfter(modConfig, "CardItem.DrawEffect", context => ApplyFromItemRoot(context, "CardItem.DrawEffect"));
-        RegisterAfter(modConfig, "CommonCardItem.DrawEffect", context => ApplyFromItemRoot(context, "CommonCardItem.DrawEffect"));
-        RegisterAfter(modConfig, "AttackCardItem.DrawEffect", context => ApplyFromItemRoot(context, "AttackCardItem.DrawEffect"));
-        RegisterAfter(modConfig, "FightUI.CreateCardItem", context => RequestActiveCombatCardsReapply("FightUI.CreateCardItem"));
-        RegisterAfter(modConfig, "FightUI.CreateCardItemInternal", ApplyFromFightUiCreateCardItemInternal);
-        RegisterAfter(modConfig, "ScriptExecutor.GetCardFromDeck", context => RequestActiveCombatCardsReapply("ScriptExecutor.GetCardFromDeck"));
-
-        RegisterAfter(modConfig, "DictItem.Init", context => ApplyFromArgumentRoot(context, 0, null, "DictItem.Init"));
-        RegisterAfter(modConfig, "DictionaryShowItem.Init", context => ApplyFromArgumentRoot(context, 0, null, "DictionaryShowItem.Init"));
-        RegisterAfter(modConfig, "DisplayCard.Init", context => ApplyFromArgumentRoot(context, 0, null, "DisplayCard.Init"));
-        RegisterAfter(modConfig, "ShowCard.Init", ApplyFromShowCard);
-        RegisterAfter(modConfig, "SafeBoxItem.Init", ApplyFromSafeBoxItem);
-        RegisterAfter(modConfig, "EnchCardItem.Init", context => ApplyFromArgumentRoot(context, 0, null, "EnchCardItem.Init"));
-        RegisterAfter(modConfig, "CardChoiceItem.Initialize", ApplyFromCardChoiceItem);
-
-        RegisterAfter(modConfig, "PackShowItem.Init", context => ApplyFromArgumentRoot(context, 0, "CardItem", "PackShowItem.Init"));
-        RegisterAfter(modConfig, "ShopItem.Init", context => ApplyFromArgumentRoot(context, 0, "CardItem", "ShopItem.Init"));
-        RegisterAfter(modConfig, "WarehouseItem.Init", context => ApplyFromArgumentRoot(context, 2, "CardItem", "WarehouseItem.Init"));
+        SunExpCardLifecycleRouter.Register("CardVisualSkin", new SunExpCardLifecycleSubscription
+        {
+            AfterSetCardStyle = ApplyFromSetCardStyle,
+            BeforeCommonCardUse = context => SuppressBurnoutFrameEffect(context, SunExpHookTargets.CommonCardItemTrueUse),
+            BeforeAttackCardUse = context => SuppressBurnoutFrameEffect(context, SunExpHookTargets.AttackCardItemTrueUse),
+            AfterCardItemInit = context => ApplyFromItemRoot(context, SunExpHookTargets.CardItemInit),
+            AfterAttackCardItemInit = context => ApplyFromItemRoot(context, SunExpHookTargets.AttackCardItemInit),
+            AfterCardItemDataUpdate = context => ApplyFromItemRoot(context, SunExpHookTargets.CardItemDataUpdate),
+            AfterCardItemDrawEffect = context => ApplyFromItemRoot(context, SunExpHookTargets.CardItemDrawEffect),
+            AfterCommonCardItemDrawEffect = context => ApplyFromItemRoot(context, SunExpHookTargets.CommonCardItemDrawEffect),
+            AfterAttackCardItemDrawEffect = context => ApplyFromItemRoot(context, SunExpHookTargets.AttackCardItemDrawEffect),
+            AfterFightUiCreateCardItem = context => RequestActiveCombatCardsReapply(SunExpHookTargets.FightUiCreateCardItem),
+            AfterFightUiCreateCardItemInternal = ApplyFromFightUiCreateCardItemInternal,
+            AfterScriptExecutorGetCardFromDeck = context => RequestActiveCombatCardsReapply(SunExpHookTargets.ScriptExecutorGetCardFromDeck),
+            AfterDictItemInit = context => ApplyFromArgumentRoot(context, 0, null, SunExpHookTargets.DictItemInit),
+            AfterDictionaryShowItemInit = context => ApplyFromArgumentRoot(context, 0, null, SunExpHookTargets.DictionaryShowItemInit),
+            AfterDisplayCardInit = context => ApplyFromArgumentRoot(context, 0, null, SunExpHookTargets.DisplayCardInit),
+            AfterShowCardInit = ApplyFromShowCard,
+            AfterSafeBoxItemInit = ApplyFromSafeBoxItem,
+            AfterEnchCardItemInit = context => ApplyFromArgumentRoot(context, 0, null, SunExpHookTargets.EnchCardItemInit),
+            AfterCardChoiceItemInitialize = ApplyFromCardChoiceItem,
+            AfterPackShowItemInit = context => ApplyFromArgumentRoot(context, 0, "CardItem", SunExpHookTargets.PackShowItemInit),
+            AfterShopItemInit = context => ApplyFromArgumentRoot(context, 0, "CardItem", SunExpHookTargets.ShopItemInit),
+            AfterWarehouseItemInit = context => ApplyFromArgumentRoot(context, 2, "CardItem", SunExpHookTargets.WarehouseItemInit)
+        });
 
         SunExpLog.Info("Card visual skin runtime initialized");
-    }
-
-    private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
-    {
-        AuraSharedHooks.RegisterBefore(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Card visual skin " + message));
-    }
-
-    private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
-    {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Card visual skin " + message));
     }
 
     private static void ApplyFromSetCardStyle(ModHookContext context)

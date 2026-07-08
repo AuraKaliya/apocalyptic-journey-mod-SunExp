@@ -23,7 +23,7 @@ public static class WunaOrbitFireRuntime
         RegisterAfter(modConfig, "StatusManager.InitAnimator", AttachFromStatusContext);
         RegisterAfter(modConfig, "StatusManager.SetSprite", AttachFromStatusContext);
         RegisterAfter(modConfig, "FightUI.FadeIn", AttachFromFightUiContext);
-        RegisterAfter(modConfig, "FightUI.CallActionAnimation", AttachFromActionContext);
+        RegisterAfter(modConfig, SunExpHookTargets.FightUiCallActionAnimation, AttachFromActionContext);
         SunExpLog.Info(LogPrefix + " runtime initialized");
     }
 
@@ -387,6 +387,6 @@ public static class WunaOrbitFireRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Wuna orbit fire " + message));
+        SunExpHookRegistry.After(config, target, action, "WunaOrbitFire");
     }
 }

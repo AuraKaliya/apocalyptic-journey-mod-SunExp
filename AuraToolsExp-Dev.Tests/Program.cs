@@ -640,8 +640,8 @@ void TestRuntimeArchitectureGuards()
     Assert(skillCgRuntime.Contains("safeModeDisabled", StringComparison.Ordinal)
            && skillCgRuntime.Contains("RunHook(", StringComparison.Ordinal),
         "SkillCG hooks must have runtime failure isolation");
-    Assert(skillCgRuntime.Contains("PreloadOnFightStart", StringComparison.Ordinal),
-        "SkillCG fight-start preload must be configurable");
+    Assert(!skillCgRuntime.Contains("PreloadOnFightStart", StringComparison.Ordinal),
+        "SkillCG must not preload registered CG during fight start");
 
     var matchSettings = ReadRepoText("AuraToolsExp/Config/MatchExperienceSettings.json");
     Assert(matchSettings.Contains("\"loadHistoryOnStartup\": false", StringComparison.Ordinal)
@@ -658,9 +658,9 @@ void TestRuntimeArchitectureGuards()
         "packaged logging config keeps AuraTools lifecycle logs visible without high-volume mirrors");
 
     var skillCgSettings = ReadRepoText("AuraToolsExp/Config/SkillCgSettings.json");
-    Assert(skillCgSettings.Contains("\"preloadOnFightStart\": true", StringComparison.Ordinal)
+    Assert(!skillCgSettings.Contains("\"preloadOnFightStart\"", StringComparison.Ordinal)
            && skillCgSettings.Contains("\"disableAfterFailures\": true", StringComparison.Ordinal),
-        "packaged SkillCG config defaults to fight-start preload and failure fuse enabled");
+        "packaged SkillCG config uses adventure preload and keeps failure fuse enabled");
 }
 
 void TestDetailLimit()

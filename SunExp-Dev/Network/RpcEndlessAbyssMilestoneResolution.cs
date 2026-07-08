@@ -37,7 +37,7 @@ public sealed class RpcEndlessAbyssMilestoneResolution : RpcCommandBase
 {
     public EndlessAbyssMilestoneResolution Resolution { get; set; } = new();
 
-    public TongtianTowerStateSnapshot Snapshot { get; set; } = new();
+    public EndlessSeaStateSnapshot Snapshot { get; set; } = new();
 
     public string Source { get; set; } = "";
 
@@ -47,11 +47,11 @@ public sealed class RpcEndlessAbyssMilestoneResolution : RpcCommandBase
 
     public RpcEndlessAbyssMilestoneResolution(
         EndlessAbyssMilestoneResolution resolution,
-        TongtianTowerStateSnapshot snapshot,
+        EndlessSeaStateSnapshot snapshot,
         string source)
     {
         Resolution = resolution ?? new EndlessAbyssMilestoneResolution();
-        Snapshot = snapshot ?? new TongtianTowerStateSnapshot();
+        Snapshot = snapshot ?? new EndlessSeaStateSnapshot();
         Source = source ?? "";
     }
 

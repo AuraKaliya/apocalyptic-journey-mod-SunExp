@@ -13,9 +13,9 @@ using Witch.UI.Window;
 
 namespace SunExp.Dll.Hooks;
 
-public static class TongtianTowerModeEntryRuntime
+public static class EndlessSeaModeEntryRuntime
 {
-    private const string EntryObjectName = "SunExp_TongtianTowerMode";
+    private const string EntryObjectName = "SunExp_EndlessSeaMode";
     private const string VisualEntryId = "endless_abyss";
     private const string DefaultEntryTitleSpritePath = "Mods/SunExp/ModResource/Images/UI/endless_sea_title_c.png";
     private const string DefaultEntryHighlightedTitleSpritePath = "Mods/SunExp/ModResource/Images/UI/endless_sea_title_h.png";
@@ -42,8 +42,8 @@ public static class TongtianTowerModeEntryRuntime
             "SublimationMode",
             110,
             ConfigureRegisteredEntry,
-            TongtianTowerRunLauncher.Start,
-            SunExpIds.TongtianTowerTitle));
+            EndlessSeaRunLauncher.Start,
+            SunExpIds.EndlessSeaTitle));
     }
 
     private static void ConfigureRegisteredEntry(GameObject entry, ModeChoiceUI modeChoice)
@@ -59,7 +59,7 @@ public static class TongtianTowerModeEntryRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Tongtian tower entry injection failed", ex);
+            SunExpLog.Error("Endless Sea entry injection failed", ex);
         }
     }
 
@@ -112,14 +112,14 @@ public static class TongtianTowerModeEntryRuntime
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
             var text = go.AddComponent<Text>();
-            ConfigureText(text, SunExpIds.TongtianTowerTitle, 30, FontStyle.Bold, TextAnchor.MiddleCenter, Color.white);
+            ConfigureText(text, SunExpIds.EndlessSeaTitle, 30, FontStyle.Bold, TextAnchor.MiddleCenter, Color.white);
             return;
         }
 
         var titleText = title.GetComponent<Text>();
         if (titleText != null)
         {
-            titleText.text = SunExpIds.TongtianTowerTitle;
+            titleText.text = SunExpIds.EndlessSeaTitle;
         }
 
         title.gameObject.SetActive(true);
@@ -127,8 +127,8 @@ public static class TongtianTowerModeEntryRuntime
 
     private static string EntryDescription()
     {
-        var description = SunExpIds.TongtianTowerDescription;
-        var subtitle = SunExpIds.TongtianTowerSubtitle;
+        var description = SunExpIds.EndlessSeaDescription;
+        var subtitle = SunExpIds.EndlessSeaSubtitle;
         return string.IsNullOrWhiteSpace(subtitle) ? description : description + "\n" + subtitle;
     }
 
@@ -203,7 +203,7 @@ public static class TongtianTowerModeEntryRuntime
             var sprite = SunExpResourceCache.Load<Sprite>(path, true);
             if (sprite == null)
             {
-                SunExpLog.Warn("[TongtianTowerMode] entry sprite missing: " + path);
+                SunExpLog.Warn("[EndlessSeaMode] entry sprite missing: " + path);
                 return null;
             }
 
@@ -212,7 +212,7 @@ public static class TongtianTowerModeEntryRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[TongtianTowerMode] failed to load entry sprite " + path + ": " + ex.Message);
+            SunExpLog.Warn("[EndlessSeaMode] failed to load entry sprite " + path + ": " + ex.Message);
             return null;
         }
     }
@@ -263,7 +263,7 @@ public static class TongtianTowerModeEntryRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[TongtianTowerMode] failed to trim entry sprite: " + ex.Message);
+            SunExpLog.Warn("[EndlessSeaMode] failed to trim entry sprite: " + ex.Message);
             return sprite;
         }
     }
@@ -283,7 +283,7 @@ public static class TongtianTowerModeEntryRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[TongtianTowerMode] failed to crop entry title sprite: " + ex.Message);
+            SunExpLog.Warn("[EndlessSeaMode] failed to crop entry title sprite: " + ex.Message);
             return sprite;
         }
     }
@@ -423,7 +423,7 @@ public static class TongtianTowerModeEntryRuntime
         {
             switchButton.interactable = true;
             switchButton.onClick.RemoveAllListeners();
-            switchButton.onClick.AddListener(new UnityAction(() => TongtianTowerRunLauncher.Start(modeChoice)));
+            switchButton.onClick.AddListener(new UnityAction(() => EndlessSeaRunLauncher.Start(modeChoice)));
         }
 
         foreach (var component in entry.GetComponentsInChildren<MonoBehaviour>(true))
@@ -437,7 +437,7 @@ public static class TongtianTowerModeEntryRuntime
         foreach (var button in entry.GetComponentsInChildren<Button>(true))
         {
             button.onClick.RemoveAllListeners();
-            button.onClick.AddListener(new UnityAction(() => TongtianTowerRunLauncher.Start(modeChoice)));
+            button.onClick.AddListener(new UnityAction(() => EndlessSeaRunLauncher.Start(modeChoice)));
         }
     }
 

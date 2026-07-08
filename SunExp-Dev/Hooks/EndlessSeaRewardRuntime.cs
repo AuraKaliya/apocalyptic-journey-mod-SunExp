@@ -10,16 +10,16 @@ using Witch.UI.Window;
 
 namespace SunExp.Dll.Hooks;
 
-public static class TongtianTowerRewardRuntime
+public static class EndlessSeaRewardRuntime
 {
-    private const string RewardRuleId = "SunExp.TongtianTower.RewardPlan";
+    private const string RewardRuleId = "SunExp.EndlessSea.RewardPlan";
     private static readonly ConditionalWeakTable<BattleRewardsUI, RewardReplacementState> ReplacementStates = new();
 
     public static void Initialize(ModConfig modConfig)
     {
         BattleRewardAdjustmentService.RegisterExclusive(new BattleRewardExclusiveRule(
             RewardRuleId,
-            context => AppliesToTongtianTowerBattleReward(context.RewardUi)));
+            context => AppliesToEndlessSeaBattleReward(context.RewardUi)));
         RegisterAfter(modConfig, "BattleRewardsUI.ModeSetReward", ReplaceRewardPlan);
     }
 
@@ -28,9 +28,9 @@ public static class TongtianTowerRewardRuntime
         RegisterAfter(modConfig, "BattleRewardsUI.Entry", ApplyPostBattlePressure);
     }
 
-    private static bool AppliesToTongtianTowerBattleReward(BattleRewardsUI? rewardUi)
+    private static bool AppliesToEndlessSeaBattleReward(BattleRewardsUI? rewardUi)
     {
-        return TongtianTowerModeRuntime.IsTongtianTowerRun()
+        return EndlessSeaModeRuntime.IsEndlessSeaRun()
             && rewardUi != null
             && BattleRewardApi.IsCurrentBattleReward();
     }
@@ -40,7 +40,7 @@ public static class TongtianTowerRewardRuntime
         try
         {
             var rewardUi = context.Target as BattleRewardsUI;
-            if (!AppliesToTongtianTowerBattleReward(rewardUi))
+            if (!AppliesToEndlessSeaBattleReward(rewardUi))
             {
                 return;
             }
@@ -48,25 +48,25 @@ public static class TongtianTowerRewardRuntime
             if (ReplaceRewardPlan(rewardUi, "BattleRewardsUI.ModeSetReward"))
             {
                 SunExpFrameDispatcher.RunOnceNextFrame(
-                    "TongtianTowerReward.VerifyExclusive",
+                    "EndlessSeaReward.VerifyExclusive",
                     () => ReplaceRewardPlan(rewardUi, "BattleRewardsUI.ModeSetReward:verify"));
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Tongtian tower reward plan failed", ex);
+            SunExpLog.Error("Endless Sea reward plan failed", ex);
         }
     }
 
     private static bool ReplaceRewardPlan(BattleRewardsUI? rewardUi, string source)
     {
-        if (!AppliesToTongtianTowerBattleReward(rewardUi))
+        if (!AppliesToEndlessSeaBattleReward(rewardUi))
         {
             return false;
         }
 
-        var boss = TongtianTowerRewardPlan.IsCurrentNodeBoss();
-        var floor = TongtianTowerModeRuntime.CurrentFloor();
+        var boss = EndlessSeaRewardPlan.IsCurrentNodeBoss();
+        var floor = EndlessSeaModeRuntime.CurrentFloor();
         var state = ReplacementStates.GetValue(rewardUi!, _ => new RewardReplacementState());
         var generation = floor + ":" + boss + ":" + BattleRewardApi.GeneratedRewardSnapshot(rewardUi);
         if (state.LastGeneration == generation && state.Verified)
@@ -74,14 +74,14 @@ public static class TongtianTowerRewardRuntime
             return false;
         }
 
-        var spec = TongtianTowerRewardPlan.ForCurrentNode(floor, boss);
+        var spec = EndlessSeaRewardPlan.ForCurrentNode(floor, boss);
         var before = BattleRewardApi.GeneratedRewardSnapshot(rewardUi);
         var applied = BattleRewardApi.ReplaceWithRewardSpec(rewardUi, spec, RewardRuleId);
         var after = BattleRewardApi.GeneratedRewardSnapshot(rewardUi);
         state.LastGeneration = floor + ":" + boss + ":" + after;
         state.Verified = source.EndsWith(":verify", StringComparison.Ordinal);
-        TongtianTowerRunStateStore.MarkPhase(TongtianTowerRunPhase.Reward, source);
-        SunExpLog.Info("[TongtianTowerReward] replaced native battle rewards from "
+        EndlessSeaRunStateStore.MarkPhase(EndlessSeaRunPhase.Reward, source);
+        SunExpLog.Info("[EndlessSeaReward] replaced native battle rewards from "
             + source
             + "; floor="
             + floor
@@ -99,26 +99,26 @@ public static class TongtianTowerRewardRuntime
     {
         try
         {
-            if (!TongtianTowerModeRuntime.IsTongtianTowerRun())
+            if (!EndlessSeaModeRuntime.IsEndlessSeaRun())
             {
                 return;
             }
 
             EndlessAbyssShockService.TryEnqueueEndlessBattleShock(
-                TongtianTowerModeRuntime.CurrentFloor(),
-                TongtianTowerRewardPlan.CurrentNodeKind(),
+                EndlessSeaModeRuntime.CurrentFloor(),
+                EndlessSeaRewardPlan.CurrentNodeKind(),
                 "BattleRewardsUI.Entry");
-            TongtianTowerOriginService.ApplyBattleEndEffects("BattleRewardsUI.Entry");
+            EndlessSeaOriginService.ApplyBattleEndEffects("BattleRewardsUI.Entry");
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Tongtian tower post battle pressure failed", ex);
+            SunExpLog.Error("Endless Sea post battle pressure failed", ex);
         }
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Tongtian tower reward " + message));
+        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Endless Sea reward " + message));
     }
 
     private sealed class RewardReplacementState

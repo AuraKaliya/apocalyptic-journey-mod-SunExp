@@ -42,7 +42,7 @@ public static class EndlessAbyssMilestoneRewardPanel
                 return true;
             }
 
-            var floor = Math.Max(1, GameSaveManager.GetValue<int>(SunExpIds.TongtianTowerFloorKey));
+            var floor = Math.Max(1, GameSaveManager.GetValue<int>(SunExpIds.EndlessSeaFloorKey));
             if (!EndlessAbyssMilestoneRewardService.CanClaim(floor))
             {
                 return false;

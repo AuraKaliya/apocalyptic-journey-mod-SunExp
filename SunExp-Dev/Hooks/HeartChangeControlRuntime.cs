@@ -1,5 +1,4 @@
 using System;
-using AuraShared.Core;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
 using Witch.Core;
@@ -11,16 +10,18 @@ public static class HeartChangeControlRuntime
 {
     public static void Initialize(ModConfig modConfig)
     {
-        RegisterAfter(modConfig, "Fight_Start.Init", context => ClearBattle("Fight_Start.Init"));
-        RegisterBefore(modConfig, "Fight_Win.Init", context => ClearBattle("Fight_Win.Init:before"));
-        RegisterBefore(modConfig, "Fight_Loss.Init", context => ClearBattle("Fight_Loss.Init:before"));
-        RegisterBefore(modConfig, "Fight_Escape.Init", context => ClearBattle("Fight_Escape.Init:before"));
-        RegisterBefore(modConfig, "Fight_Win.ResetStates", context => ClearBattle("Fight_Win.ResetStates:before"));
-        RegisterBefore(modConfig, "Fight_Escape.ResetStates", context => ClearBattle("Fight_Escape.ResetStates:before"));
+        SunExpBattleLifecycleRouter.Register("HeartChange", new SunExpBattleLifecycleSubscription
+        {
+            FightStarted = context => ClearBattle("Fight_Start.Init"),
+            FightEnding = context => ClearBattle("FightEnding")
+        });
+        RegisterBefore(modConfig, SunExpHookTargets.FightWinInit, context => ClearBattle("Fight_Win.Init:before"));
+        RegisterBefore(modConfig, SunExpHookTargets.FightLossInit, context => ClearBattle("Fight_Loss.Init:before"));
+        RegisterBefore(modConfig, SunExpHookTargets.FightEscapeInit, context => ClearBattle("Fight_Escape.Init:before"));
         RegisterAfter(modConfig, "ScriptExecutor.SetStatus", RetargetAfterSetStatus);
         RegisterBefore(modConfig, "ScriptExecutor.RunScript", RetargetBeforeRunScript);
-        RegisterBefore(modConfig, "OtherObj.DoOneAction", BeginEnemyAction);
-        RegisterAfter(modConfig, "OtherObj.DoOneAction", EndEnemyAction);
+        RegisterBefore(modConfig, SunExpHookTargets.OtherObjDoOneAction, BeginEnemyAction);
+        RegisterAfter(modConfig, SunExpHookTargets.OtherObjDoOneAction, EndEnemyAction);
         RegisterAfter(modConfig, "StatusManager.Hit", CleanupAfterStatusChanged);
         RegisterAfter(modConfig, "StatusManager.set_CurHp", CleanupAfterStatusChanged);
         RegisterAfter(modConfig, "StatusManager.set_MaxHp", CleanupAfterStatusChanged);
@@ -29,12 +30,12 @@ public static class HeartChangeControlRuntime
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterBefore(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("HeartChange " + message));
+        SunExpHookRegistry.Before(config, target, action, "HeartChange");
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("HeartChange " + message));
+        SunExpHookRegistry.After(config, target, action, "HeartChange");
     }
 
     private static void ClearBattle(string source)

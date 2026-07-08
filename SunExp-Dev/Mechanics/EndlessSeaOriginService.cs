@@ -7,7 +7,7 @@ using Witch.Core;
 
 namespace SunExp.Dll.Mechanics;
 
-public static class TongtianTowerOriginService
+public static class EndlessSeaOriginService
 {
     public const int OriginCap = 50;
     public const string Strength = "Strength";
@@ -19,7 +19,7 @@ public static class TongtianTowerOriginService
     private const int FortuneDiceBonus = 50;
     private const int FortuneExtraTriggerThreshold = 150;
     private const int FortuneExtraTriggers = 2;
-    private const string OriginAppliedKey = "SunExpTongtianTowerOriginStartApplied";
+    private const string OriginAppliedKey = "SunExpEndlessSeaOriginStartApplied";
     private static readonly Action<Dice.State> FortuneDiceBonusHandler = ApplyFortuneDiceBonus;
 
     public static void EnsureOriginCaps(string source)
@@ -57,11 +57,11 @@ public static class TongtianTowerOriginService
             }
 
             GameSaveManager.UpdateRoles(role);
-            SunExpLog.Info("[TongtianOrigin] raised origin caps to 50 from " + source + ".");
+            SunExpLog.Info("[EndlessSeaOrigin] raised origin caps to 50 from " + source + ".");
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[TongtianOrigin] origin cap update failed from " + source + ": " + ex.Message);
+            SunExpLog.Warn("[EndlessSeaOrigin] origin cap update failed from " + source + ": " + ex.Message);
         }
     }
 
@@ -102,7 +102,7 @@ public static class TongtianTowerOriginService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[TongtianOrigin] battle start effects failed from " + source + ": " + ex.Message);
+            SunExpLog.Warn("[EndlessSeaOrigin] battle start effects failed from " + source + ": " + ex.Message);
         }
     }
 
@@ -130,11 +130,11 @@ public static class TongtianTowerOriginService
                 GameSaveManager.UpdateRoles(role);
             }
 
-            SunExpLog.Info("[TongtianOrigin] restored player HP to max from " + source + ".");
+            SunExpLog.Info("[EndlessSeaOrigin] restored player HP to max from " + source + ".");
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[TongtianOrigin] battle end heal failed from " + source + ": " + ex.Message);
+            SunExpLog.Warn("[EndlessSeaOrigin] battle end heal failed from " + source + ": " + ex.Message);
         }
     }
 
@@ -147,7 +147,7 @@ public static class TongtianTowerOriginService
     {
         AttachDiceWrapper(ReadMember(executor, "ValueDice"));
         AttachDiceWrapper(executor.CheckDice);
-        SunExpLog.Info("[TongtianOrigin] attached fortune dice +50.");
+        SunExpLog.Info("[EndlessSeaOrigin] attached fortune dice +50.");
     }
 
     private static void AttachDiceWrapper(object? wrapper)
@@ -204,7 +204,7 @@ public static class TongtianTowerOriginService
                 executor,
                 CardGrantRequest.ToHand(UnstableThoughtCard)
                     .WithRuntimeTags("Burnout", "Fragmented")
-                    .WithSource("TongtianOrigin.Strength50")
+                    .WithSource("EndlessSeaOrigin.Strength50")
                     .WithWritableRuntimeConfig()
                     .Configure("extinction-enchant", AttachExtinctionEnchTag));
         }
@@ -225,7 +225,7 @@ public static class TongtianTowerOriginService
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[TongtianOrigin] attach extinction enchant skipped: " + ex.Message);
+            SunExpLog.Debug("[EndlessSeaOrigin] attach extinction enchant skipped: " + ex.Message);
         }
     }
 
@@ -246,7 +246,7 @@ public static class TongtianTowerOriginService
 
     private static int CurrentFloor()
     {
-        return Math.Max(1, GameSaveManager.GetValue<int>(SunExpIds.TongtianTowerFloorKey));
+        return Math.Max(1, GameSaveManager.GetValue<int>(SunExpIds.EndlessSeaFloorKey));
     }
 
     private static int OriginValue(string key)

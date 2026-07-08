@@ -674,9 +674,6 @@ public sealed class AuraToolsSkillCgSettings
     [JsonProperty("duplicateWindowSeconds")]
     public float DuplicateWindowSeconds { get; set; } = 1.25f;
 
-    [JsonProperty("preloadOnFightStart")]
-    public bool PreloadOnFightStart { get; set; } = true;
-
     [JsonProperty("disableAfterFailures")]
     public bool DisableAfterFailures { get; set; } = true;
 

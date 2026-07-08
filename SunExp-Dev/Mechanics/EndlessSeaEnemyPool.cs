@@ -7,7 +7,7 @@ using Witch.Core;
 
 namespace SunExp.Dll.Mechanics;
 
-public static class TongtianTowerEnemyPool
+public static class EndlessSeaEnemyPool
 {
     public static readonly IReadOnlyList<string> NormalBossEnemyIds = new[]
     {

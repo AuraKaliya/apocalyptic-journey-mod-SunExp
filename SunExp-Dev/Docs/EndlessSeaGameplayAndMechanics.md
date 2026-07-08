@@ -1,6 +1,6 @@
 # 无尽之渊：玩法介绍、机制与数值文档
 
-本文档用于审阅当前已实现的【无尽之渊】玩法。历史开发名为【通天之塔】，因此内部仍保留 `TongtianTower*` 类名、存档键与部分 Hook 名称，用于兼容旧存档、旧测试和既有架构断言；玩家可见文本统一使用【无尽之渊】。
+本文档用于审阅当前已实现的【无尽之渊】玩法。历史开发名为【无尽之海之塔】，因此内部仍保留 `EndlessSea*` 类名、存档键与部分 Hook 名称，用于兼容旧存档、旧测试和既有架构断言；玩家可见文本统一使用【无尽之渊】。
 
 ## 玩法定位
 
@@ -33,9 +33,9 @@
 
 内部兼容命名：
 
-- `TongtianTower*`：历史代码命名，表示无尽之渊主玩法运行时。
-- `SunExp_TongtianTowerMode` 等 GameVars：历史存档键，不随玩家可见命名变更。
-- `SunExpTongtianTower`：旧版 modeType 兼容迁移标记。
+- `EndlessSea*`：历史代码命名，表示无尽之渊主玩法运行时。
+- `SunExp_EndlessSeaMode` 等 GameVars：历史存档键，不随玩家可见命名变更。
+- `SunExpEndlessSea`：旧版 modeType 兼容迁移标记。
 
 ## 入口与存档
 
@@ -45,10 +45,10 @@
 
 - `SaveInfo.modeType = "Normal"`：必须保持官方普通模式承载类型，确保 `GameServer.StartRole` 能通过 `GameSaveManager.GetSaveType()` 正确选择 `NormalMapManager`。
 - `LobbyManager.SetLobbyModeType("Normal")`：运行时仍复用官方 `NormalMapManager`，避免原生地图启动链路拿到自定义模式类型。
-- `SunExp_TongtianTowerMode = "1"`：标记当前存档为无尽之渊。
-- `SunExp_TongtianTowerFloor = "1"`：当前层数从第 1 层开始。
-- `SunExp_TongtianTowerGeneratedFloor = "0"`：记录已生成地图的层数。
-- `SunExp_TongtianTowerSeed = seed`：保存本次运行种子。
+- `SunExp_EndlessSeaMode = "1"`：标记当前存档为无尽之渊。
+- `SunExp_EndlessSeaFloor = "1"`：当前层数从第 1 层开始。
+- `SunExp_EndlessSeaGeneratedFloor = "0"`：记录已生成地图的层数。
+- `SunExp_EndlessSeaSeed = seed`：保存本次运行种子。
 - `SunExp_EndlessAbyssGazeLevel = "1"`：注视等级初始值为 1。
 - `SunExp_EndlessAbyssLedger`：记录深渊震荡与里程碑奖励结算。
 - `SunExp_EndlessAbyssPendingShock`：记录待处理的深渊震荡，防止重复触发。
@@ -80,7 +80,7 @@
 selectableNodes = 1 Rest + 1 Building + dynamic Fight nodes
 ```
 
-每层生成 8 个可选节点，用于原生地图选择流程消费；玩家从中选择 4 张填入中间槽位。配比由 `TongtianTowerSelectableNodeDeckPlanner` 生成，并用地图骰子做确定性洗牌。
+每层生成 8 个可选节点，用于原生地图选择流程消费；玩家从中选择 4 张填入中间槽位。配比由 `EndlessSeaSelectableNodeDeckPlanner` 生成，并用地图骰子做确定性洗牌。
 
 ### 节点类型
 
@@ -91,17 +91,17 @@ selectableNodes = 1 Rest + 1 Building + dynamic Fight nodes
 - 首领：潜行模式和普通层终点节点。
 - 无尽首领：进入无尽模式后的终点节点，用于承接更高强度和后续扩展奖励。
 
-`TongtianTowerNodeKind` 保存节点分类。奖励、额外敌人、深渊震荡触发和后续 UI 展示都应优先读取节点分类，而不是只依赖层数。
+`EndlessSeaNodeKind` 保存节点分类。奖励、额外敌人、深渊震荡触发和后续 UI 展示都应优先读取节点分类，而不是只依赖层数。
 
 ### 独立地图生成
 
-无尽之渊不调用原生世界推演地图生成器，也不调用 `TypeGenerate`。当前实现由 `TongtianTowerMapBuilder` 直接生成当前层所需的 `MapTree.DefaultNode` 和 `MapTree.SelectNode`。
+无尽之渊不调用原生世界推演地图生成器，也不调用 `TypeGenerate`。当前实现由 `EndlessSeaMapBuilder` 直接生成当前层所需的 `MapTree.DefaultNode` 和 `MapTree.SelectNode`。
 
 ```mermaid
 flowchart TD
     A["进入无尽之渊存档"] --> B["设置玩法 GameVars"]
     B --> C["NormalMapManager.MapItemInit 前确保地图"]
-    C --> D["TongtianTowerMapBuilder.BuildFloor"]
+    C --> D["EndlessSeaMapBuilder.BuildFloor"]
     D --> E["生成首节点怪物与尾节点首领"]
     D --> F["生成 8 个可选节点牌"]
     E --> G["写入 MapTree.DefaultNode"]
@@ -127,13 +127,13 @@ flowchart TD
 
 无尽之渊层数和原生地图层数分离：
 
-- 无尽之渊层数：`SunExp_TongtianTowerFloor`。
+- 无尽之渊层数：`SunExp_EndlessSeaFloor`。
 - 原生地图层数：`MapManager.Instance.Level` / `NormalMapManager.Level`。
 
 当原生层数达到 6 时，运行时在 `NormalMapManager.ReadyToChangeMap` 前执行推进：
 
-1. 房主将 `SunExp_TongtianTowerFloor` 加 1。
-2. 将 `SunExp_TongtianTowerGeneratedFloor` 重置为 `0`。
+1. 房主将 `SunExp_EndlessSeaFloor` 加 1。
+2. 将 `SunExp_EndlessSeaGeneratedFloor` 重置为 `0`。
 3. 将原生 `MapManager` 层数重置为 `0`。
 4. 强制生成下一层无尽之渊地图。
 
@@ -206,7 +206,7 @@ requiredChoices = clamp(1 + floor((gazeLevel - 1) / 2), 1, 3)
 
 - `Enemy.Init` 后。
 - 仅在无尽之渊存档中生效。
-- 每个敌人每层只缩放一次，通过动态变量 `SunExpTongtianTowerHpScaledFloor` 防止重复缩放。
+- 每个敌人每层只缩放一次，通过动态变量 `SunExpEndlessSeaHpScaledFloor` 防止重复缩放。
 
 HP 倍率公式：
 
@@ -235,7 +235,7 @@ hpMultiplier(floor) =
 
 ## 战斗奖励与卡组运营
 
-无尽之渊战斗奖励会在原生奖励生成后清理本体默认奖励 UI，再按 `TongtianTowerRewardPlan` 生成专属奖励。该逻辑由 `TongtianTowerRewardRuntime` 注册到 `BattleRewardsUI.ModeSetReward` 后执行。
+无尽之渊战斗奖励会在原生奖励生成后清理本体默认奖励 UI，再按 `EndlessSeaRewardPlan` 生成专属奖励。该逻辑由 `EndlessSeaRewardRuntime` 注册到 `BattleRewardsUI.ModeSetReward` 后执行。
 
 当前奖励类型由层数和节点类型共同决定：
 
@@ -254,7 +254,7 @@ hpMultiplier(floor) =
 
 1. `CardChoiceItem.Initialize` 后：读取候选卡的 `DataConfig`，添加 `Burnout`，并刷新候选卡展示。
 2. `CardChoiceUI.Select` 前：在卡牌进入玩家未装备牌列表之前再次添加 `Burnout` 兜底。
-3. `PlayerInfo` 加卡、商店/仓库/卡包展示、战斗卡牌生成与抽牌相关 Hook：统一调用 `TongtianTowerCardAffixService`，扫描 `RoleTable.cardList`、`RoleTable.UnCardList` 与战斗 UI 卡牌列表，补齐通过非奖励路径进入本玩法的卡牌限制。
+3. `PlayerInfo` 加卡、商店/仓库/卡包展示、战斗卡牌生成与抽牌相关 Hook：统一调用 `EndlessSeaCardAffixService`，扫描 `RoleTable.cardList`、`RoleTable.UnCardList` 与战斗 UI 卡牌列表，补齐通过非奖励路径进入本玩法的卡牌限制。
 
 ## 里程碑奖励
 
@@ -272,7 +272,7 @@ hpMultiplier(floor) =
 | 参数 | 当前值 | 说明 |
 | --- | --- | --- |
 | 玩法入口排序 | `110` | 位于日耀回忆之后 |
-| 存档承载类型 | `Normal` | 交给原生 `NormalMapManager` 启动；无尽之渊身份由 `SunExp_TongtianTowerMode` 标记 |
+| 存档承载类型 | `Normal` | 交给原生 `NormalMapManager` 启动；无尽之渊身份由 `SunExp_EndlessSeaMode` 标记 |
 | 每层可视节点数 | `6` | `Start` + `Node1-4` + `End` |
 | 每层可选节点数 | `8` | 1 休息处 + 1 建筑 + 动态战斗节点 |
 | 潜行模式层数 | `1-6` | 每层触发一次深渊震荡 |
@@ -282,7 +282,7 @@ hpMultiplier(floor) =
 | 敌方 HP 早期成长 | `+12% / 层` | 从第 2 层开始 |
 | 敌方 HP 后期成长 | 第 11 层起 `+3% / 层` | 与早期成长叠加 |
 | 敌方 HP 倍率上限 | `20x` | 约第 130 层达到 |
-| 战斗奖励 | `TongtianTowerRewardPlan` | 替换本体默认战斗奖励 |
+| 战斗奖励 | `EndlessSeaRewardPlan` | 替换本体默认战斗奖励 |
 | 获得卡限制 | `Burnout` | 无尽之渊内任意渠道获得的卡牌默认焚毁 |
 | 里程碑奖励 | 第 2 层起 | 每层一次，写入 ledger 防重 |
 
@@ -292,18 +292,18 @@ hpMultiplier(floor) =
 | --- | --- |
 | `SunExp/endless_abyss.config.json` | 无尽之渊配置 |
 | `SunExp-Dev/Infrastructure/SunExpIds.cs` | 玩法标记、标题、常量、节点元数据键 |
-| `SunExp-Dev/Hooks/TongtianTowerModeEntryRuntime.cs` | 模式选择入口注册与展示 |
-| `SunExp-Dev/Hooks/TongtianTowerRunLauncher.cs` | 无尽之渊存档创建与启动 |
-| `SunExp-Dev/Hooks/TongtianTowerSaveCacheRuntime.cs` | 玩法存档与官方 Normal 缓存 / 新开局清理的隔离 |
+| `SunExp-Dev/Hooks/EndlessSeaModeEntryRuntime.cs` | 模式选择入口注册与展示 |
+| `SunExp-Dev/Hooks/EndlessSeaRunLauncher.cs` | 无尽之渊存档创建与启动 |
+| `SunExp-Dev/Hooks/EndlessSeaSaveCacheRuntime.cs` | 玩法存档与官方 Normal 缓存 / 新开局清理的隔离 |
 | `SunExp-Dev/GameApi/ModeChoiceSaveCacheApi.cs` | 官方 `ModeChoiceUI.beforeSave` 与 `GameEntryUI.selectedSave` 的安全访问封装 |
-| `SunExp-Dev/Hooks/TongtianTowerModeRuntime.cs` | 地图 Hook、层推进、UI 修复、同步修复 |
-| `SunExp-Dev/Mechanics/TongtianTowerMapBuilder.cs` | 独立地图构建与默认节点映射 |
-| `SunExp-Dev/Mechanics/TongtianTowerNodePoolService.cs` | 怪物、精英、首领、无尽首领、建筑、休息处节点池筛选与抽取 |
-| `SunExp-Dev/Mechanics/TongtianTowerSelectableNodeDeckPlanner.cs` | 可选节点牌配比与确定性洗牌 |
-| `SunExp-Dev/Hooks/TongtianTowerCombatRuntime.cs` | 敌方 HP 成长与额外敌人压力 |
-| `SunExp-Dev/Hooks/TongtianTowerRewardRuntime.cs` | 专属战斗奖励替换与战后流程 |
-| `SunExp-Dev/Hooks/TongtianTowerCardAffixRuntime.cs` | 卡牌限制 Hook |
-| `SunExp-Dev/Mechanics/TongtianTowerCardAffixService.cs` | 获得卡牌默认焚毁服务 |
+| `SunExp-Dev/Hooks/EndlessSeaModeRuntime.cs` | 地图 Hook、层推进、UI 修复、同步修复 |
+| `SunExp-Dev/Mechanics/EndlessSeaMapBuilder.cs` | 独立地图构建与默认节点映射 |
+| `SunExp-Dev/Mechanics/EndlessSeaNodePoolService.cs` | 怪物、精英、首领、无尽首领、建筑、休息处节点池筛选与抽取 |
+| `SunExp-Dev/Mechanics/EndlessSeaSelectableNodeDeckPlanner.cs` | 可选节点牌配比与确定性洗牌 |
+| `SunExp-Dev/Hooks/EndlessSeaCombatRuntime.cs` | 敌方 HP 成长与额外敌人压力 |
+| `SunExp-Dev/Hooks/EndlessSeaRewardRuntime.cs` | 专属战斗奖励替换与战后流程 |
+| `SunExp-Dev/Hooks/EndlessSeaCardAffixRuntime.cs` | 卡牌限制 Hook |
+| `SunExp-Dev/Mechanics/EndlessSeaCardAffixService.cs` | 获得卡牌默认焚毁服务 |
 | `SunExp-Dev/Mechanics/EndlessAbyssConfig.cs` | 配置加载与默认值 |
 | `SunExp-Dev/Mechanics/EndlessAbyssShockService.cs` | 深渊震荡触发、选择和结算 |
 | `SunExp-Dev/Mechanics/EndlessAbyssRunLedger.cs` | 震荡与里程碑防重记录 |
@@ -313,10 +313,10 @@ hpMultiplier(floor) =
 
 ## 存档兼容说明
 
-- 无尽之渊存档的 `SaveInfo.modeType` 必须保持为 `Normal`。官方 `GameServer.StartRole` 会使用 `GameSaveManager.GetSaveType()` 选择地图管理器；如果这里写入 `SunExpTongtianTower`，原生 `MapManager.SetMap` 无法拿到 `NormalMapManager`，随后 `SetLevel` 会空引用。
-- 玩法身份由 `GameVars["SunExp_TongtianTowerMode"] = "1"` 标记，不再依赖 `SaveInfo.modeType`。
-- `TongtianTowerRunStateStore.RepairSave` 会把旧版 `SunExpTongtianTower` 存档迁移回 `Normal`，同时保留玩法专属 GameVars。
-- `TongtianTowerSaveCacheRuntime` 负责隔离官方普通模式缓存：清理 `ModeChoiceUI.beforeSave["Normal"]` 中误缓存的无尽之渊档，并在官方普通模式新开局清理 Normal 存档时临时保护无尽之渊档，避免误删。
+- 无尽之渊存档的 `SaveInfo.modeType` 必须保持为 `Normal`。官方 `GameServer.StartRole` 会使用 `GameSaveManager.GetSaveType()` 选择地图管理器；如果这里写入 `SunExpEndlessSea`，原生 `MapManager.SetMap` 无法拿到 `NormalMapManager`，随后 `SetLevel` 会空引用。
+- 玩法身份由 `GameVars["SunExp_EndlessSeaMode"] = "1"` 标记，不再依赖 `SaveInfo.modeType`。
+- `EndlessSeaRunStateStore.RepairSave` 会把旧版 `SunExpEndlessSea` 存档迁移回 `Normal`，同时保留玩法专属 GameVars。
+- `EndlessSeaSaveCacheRuntime` 负责隔离官方普通模式缓存：清理 `ModeChoiceUI.beforeSave["Normal"]` 中误缓存的无尽之渊档，并在官方普通模式新开局清理 Normal 存档时临时保护无尽之渊档，避免误删。
 
 ## 验证方式
 

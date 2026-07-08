@@ -63,7 +63,7 @@ public static class EndlessAbyssShockService
     {
         floor = Math.Max(1, floor);
         var config = EndlessAbyssConfigStore.Current;
-        if (TongtianTowerRewardPlan.IsEndless(floor) || floor < config.Shock.StealthMinFloor)
+        if (EndlessSeaRewardPlan.IsEndless(floor) || floor < config.Shock.StealthMinFloor)
         {
             return false;
         }
@@ -80,10 +80,10 @@ public static class EndlessAbyssShockService
         }, source);
     }
 
-    public static bool TryEnqueueEndlessBattleShock(int floor, TongtianTowerNodeKind nodeKind, string source)
+    public static bool TryEnqueueEndlessBattleShock(int floor, EndlessSeaNodeKind nodeKind, string source)
     {
         floor = Math.Max(1, floor);
-        if (!TongtianTowerRewardPlan.IsEndless(floor))
+        if (!EndlessSeaRewardPlan.IsEndless(floor))
         {
             return false;
         }
@@ -91,7 +91,7 @@ public static class EndlessAbyssShockService
         EndlessAbyssGazeService.EnsureAtLeast(EndlessAbyssConfigStore.Current.Gaze.EndlessMinLevel, source + ":endless-entry");
 
         var data = MapManager.Instance?.MapTree?.currentNode?.data;
-        var slot = DictionaryUtil.Get(data, SunExpIds.TongtianTowerNodeSlotKey, (MapManager.Instance?.Level ?? 0).ToString());
+        var slot = DictionaryUtil.Get(data, SunExpIds.EndlessSeaNodeSlotKey, (MapManager.Instance?.Level ?? 0).ToString());
         var nodeId = DictionaryUtil.Get(data, "NodeId", DictionaryUtil.Get(data, "Id", "unknown"));
         return TryEnqueue(new EndlessAbyssShockRequest
         {
@@ -272,7 +272,7 @@ public static class EndlessAbyssShockService
         switch (option)
         {
             case EndlessAbyssShockOptionIds.Sacrifice:
-                if (!TongtianTowerPressureService.DestroyRandomEquippedRelic(
+                if (!EndlessSeaPressureService.DestroyRandomEquippedRelic(
                         source + ":shock",
                         seedBase + ":" + option))
                 {
@@ -285,7 +285,7 @@ public static class EndlessAbyssShockService
                 result.AppliedOptions.Add(option);
                 break;
             case EndlessAbyssShockOptionIds.CrackCards:
-                var changed = TongtianTowerPressureService.AddCrackToRandomDeckCards(
+                var changed = EndlessSeaPressureService.AddCrackToRandomDeckCards(
                     EndlessAbyssConfigStore.Current.Shock.CrackCardCount,
                     source + ":shock",
                     seedBase + ":" + option);
@@ -330,7 +330,7 @@ public static class EndlessAbyssShockService
             Source = safeSource,
             Token = Guid.NewGuid().ToString("N")
         };
-        var snapshot = TongtianTowerStateSnapshot.Capture(safeSource + ":shock-resolution");
+        var snapshot = EndlessSeaStateSnapshot.Capture(safeSource + ":shock-resolution");
         SunExpNetworkRuntime.Send(
             new RpcEndlessAbyssShockResolution(resolution, snapshot, safeSource),
             safeSource);

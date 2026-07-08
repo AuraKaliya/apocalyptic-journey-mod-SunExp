@@ -7,7 +7,7 @@ using Witch.Core;
 
 namespace SunExp.Dll.Mechanics;
 
-public static class TongtianTowerMapBuilder
+public static class EndlessSeaMapBuilder
 {
     public static bool EnsureFloorMapState(
         NormalMapManager manager,
@@ -18,12 +18,12 @@ public static class TongtianTowerMapBuilder
         var tree = manager?.MapTree;
         if (tree == null)
         {
-            SunExpLog.Warn("[TongtianTowerMap] skipped build from " + source + ": MapTree is null.");
+            SunExpLog.Warn("[EndlessSeaMap] skipped build from " + source + ": MapTree is null.");
             return false;
         }
 
         var normalizedFloor = Math.Max(1, floor);
-        EnsureTowerSaveDefaults();
+        EnsureSeaSaveDefaults();
         EnsureNativeGeneratorSuppressed(tree);
         if (!forceRebuild && IsCurrentFloorReady(tree, normalizedFloor))
         {
@@ -36,14 +36,14 @@ public static class TongtianTowerMapBuilder
 
     public static IReadOnlyList<MapTree.Node> VisualDefaultNodes(MapTree? tree)
     {
-        var result = new List<MapTree.Node>(SunExpIds.TongtianTowerLayerNodeCount);
-        var plan = TongtianTowerFloorPlanStore.Load();
+        var result = new List<MapTree.Node>(SunExpIds.EndlessSeaLayerNodeCount);
+        var plan = EndlessSeaFloorPlanStore.Load();
         if (tree == null || plan == null)
         {
             return result;
         }
 
-        for (var slot = 0; slot < SunExpIds.TongtianTowerLayerNodeCount; slot++)
+        for (var slot = 0; slot < SunExpIds.EndlessSeaLayerNodeCount; slot++)
         {
             if (plan.TryGetSlot(slot, out var slotPlan))
             {
@@ -57,7 +57,7 @@ public static class TongtianTowerMapBuilder
     public static bool TryGetVisualDefaultNode(MapTree? tree, int visualSlot, out MapTree.Node node)
     {
         node = null!;
-        var plan = TongtianTowerFloorPlanStore.Load();
+        var plan = EndlessSeaFloorPlanStore.Load();
         if (tree == null || plan == null || !plan.TryGetSlot(visualSlot, out var slot))
         {
             return false;
@@ -75,32 +75,32 @@ public static class TongtianTowerMapBuilder
         }
 
         var changed = false;
-        changed = RepairMapArraySlot(tree, SunExpIds.TongtianTowerStartSlotIndex, maps, mapData) || changed;
-        changed = RepairMapArraySlot(tree, SunExpIds.TongtianTowerBossSlotIndex, maps, mapData) || changed;
+        changed = RepairMapArraySlot(tree, SunExpIds.EndlessSeaStartSlotIndex, maps, mapData) || changed;
+        changed = RepairMapArraySlot(tree, SunExpIds.EndlessSeaBossSlotIndex, maps, mapData) || changed;
 
         return changed;
     }
 
     private static void BuildFloor(MapTree tree, int floor, string source)
     {
-        var plan = TongtianTowerFloorPlanner.Create(tree, floor);
-        TongtianTowerFloorPlanStore.Save(plan);
+        var plan = EndlessSeaFloorPlanner.Create(tree, floor);
+        EndlessSeaFloorPlanStore.Save(plan);
         tree.DefaultNode.Clear();
         var nativeDefaults = new List<MapTree.Node>(NativeDefaultOrder(tree, plan));
         foreach (var node in nativeDefaults)
         {
-            MapNodeSafetyService.EnsureNodeDice(tree, node, "TongtianTowerMapBuilder.Default");
+            MapNodeSafetyService.EnsureNodeDice(tree, node, "EndlessSeaMapBuilder.Default");
             tree.DefaultNode.Add(node);
         }
 
         tree.SelectNode.Clear();
-        var selectableKinds = TongtianTowerSelectableNodeDeckPlanner.CreateKinds(
+        var selectableKinds = EndlessSeaSelectableNodeDeckPlanner.CreateKinds(
             tree,
             floor,
-            SunExpIds.TongtianTowerSelectableNodeCount);
+            SunExpIds.EndlessSeaSelectableNodeCount);
         for (var i = 0; i < selectableKinds.Count; i++)
         {
-            var selectNode = TongtianTowerNodePoolService.CreateNode(
+            var selectNode = EndlessSeaNodePoolService.CreateNode(
                 tree,
                 floor,
                 i,
@@ -115,9 +115,9 @@ public static class TongtianTowerMapBuilder
         tree.currentNode = tree.root;
         GameSaveManager.UpdateNode(tree.root);
         EnsureNativeGeneratorSuppressed(tree);
-        SetSaveValue(SunExpIds.TongtianTowerGeneratedFloorKey, floor.ToString());
+        SetSaveValue(SunExpIds.EndlessSeaGeneratedFloorKey, floor.ToString());
 
-        SunExpLog.Info("[TongtianTowerMap] floor built from "
+        SunExpLog.Info("[EndlessSeaMap] floor built from "
             + source
             + "; floor="
             + floor
@@ -131,26 +131,26 @@ public static class TongtianTowerMapBuilder
             + string.Join("|", NativeSummaries(nativeDefaults)));
     }
 
-    private static IEnumerable<MapTree.Node> NativeDefaultOrder(MapTree tree, TongtianTowerFloorPlan plan)
+    private static IEnumerable<MapTree.Node> NativeDefaultOrder(MapTree tree, EndlessSeaFloorPlan plan)
     {
-        return TongtianTowerMapProjectionService.NativeDefaultOrder(tree, plan);
+        return EndlessSeaMapProjectionService.NativeDefaultOrder(tree, plan);
     }
 
     private static bool IsCurrentFloorReady(MapTree tree, int floor)
     {
-        if (!TongtianTowerFloorPlanStore.TryLoad(floor, out var plan))
+        if (!EndlessSeaFloorPlanStore.TryLoad(floor, out var plan))
         {
             return false;
         }
 
-        if (tree.DefaultNode.Count < SunExpIds.TongtianTowerNativeDefaultNodeCount
-            || tree.SelectNode.Count < SunExpIds.TongtianTowerSelectableNodeCount
-            || GameSaveManager.GetValue<int>(SunExpIds.TongtianTowerGeneratedFloorKey) != floor)
+        if (tree.DefaultNode.Count < SunExpIds.EndlessSeaNativeDefaultNodeCount
+            || tree.SelectNode.Count < SunExpIds.EndlessSeaSelectableNodeCount
+            || GameSaveManager.GetValue<int>(SunExpIds.EndlessSeaGeneratedFloorKey) != floor)
         {
             return false;
         }
 
-        return TongtianTowerMapProjectionService.IsNativeBootstrapReady(tree, plan);
+        return EndlessSeaMapProjectionService.IsNativeBootstrapReady(tree, plan);
     }
 
     private static bool RepairMapArraySlot(MapTree? tree, int visualSlot, string[] maps, string[] mapData)
@@ -195,12 +195,12 @@ public static class TongtianTowerMapBuilder
             var id = DictionaryUtil.Get(node.data, "Id");
             var nodeId = DictionaryUtil.Get(node.data, "NodeId", id);
             var type = DictionaryUtil.Get(node.data, "Type");
-            var kind = DictionaryUtil.Get(node.data, SunExpIds.TongtianTowerNodeKindKey, type);
+            var kind = DictionaryUtil.Get(node.data, SunExpIds.EndlessSeaNodeKindKey, type);
             yield return id + "/" + nodeId + ":" + kind;
         }
     }
 
-    private static void EnsureTowerSaveDefaults()
+    private static void EnsureSeaSaveDefaults()
     {
         SetSaveValue(GameVar.ExLockDes.ToString(), "0");
         SetSaveValue(GameVar.ExDeleteDes.ToString(), "0");

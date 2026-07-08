@@ -19,6 +19,7 @@ public static class SkillCgArbiterRuntime
 {
     public const string SkillCgKind = "skill";
     public const string CardUseCgKind = "cardUse";
+    public const string FeastCgKind = "feast";
     private const string GlobalObjectName = "AuraCg.Global";
     private const string ComponentFullName = "AuraCg.Shared.SkillCgArbiterRuntime+SkillCgArbiterComponent";
     private const float SlideDurationSeconds = 2.0f;
@@ -117,6 +118,35 @@ public static class SkillCgArbiterRuntime
 
         var arbiter = EnsureArbiter(ownerModId);
         Invoke(arbiter, "PreloadCg", batch);
+    }
+
+    public static void EnsureAdventurePreloaded(
+        string consumerModId,
+        string ownerModId,
+        string adventureKey,
+        IEnumerable<string> kinds,
+        string roleId = "")
+    {
+        var normalizedKinds = (kinds ?? Array.Empty<string>())
+            .Select(kind => (kind ?? "").Trim())
+            .Where(kind => kind.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (normalizedKinds.Length == 0)
+        {
+            return;
+        }
+
+        var requests = BuildRegisteredCgPreloadRequests(consumerModId, ownerModId, roleId, normalizedKinds);
+        if (requests.Count == 0)
+        {
+            return;
+        }
+
+        var arbiter = EnsureArbiter(consumerModId);
+        Invoke(arbiter, "EnsureAdventurePreloaded", new SkillCgAdventurePreloadRequest(
+            string.IsNullOrWhiteSpace(adventureKey) ? "default" : adventureKey.Trim(),
+            requests));
     }
 
     public static IReadOnlyList<SkillCgRegisteredEntryView> GetRegisteredSkillCgEntries(string ownerModId = "")
@@ -289,10 +319,30 @@ public static class SkillCgArbiterRuntime
 
     private static void PreloadRegisteredCgByKind(string kind, string consumerModId, string ownerModId, string roleId)
     {
-        var requests = AuraCgRegistryRuntime.GetRegisteredEntries(ownerModId)
-            .Where(entry => IsRegisteredCgEntry(entry, kind))
+        var requests = BuildRegisteredCgPreloadRequests(consumerModId, ownerModId, roleId, kind);
+        PreloadCg(consumerModId, requests);
+    }
+
+    private static List<SkillCgRequest> BuildRegisteredCgPreloadRequests(
+        string consumerModId,
+        string ownerModId,
+        string roleId,
+        params string[] kinds)
+    {
+        var kindSet = new HashSet<string>(
+            (kinds ?? Array.Empty<string>())
+            .Select(kind => (kind ?? "").Trim())
+            .Where(kind => kind.Length > 0),
+            StringComparer.OrdinalIgnoreCase);
+        if (kindSet.Count == 0)
+        {
+            return new List<SkillCgRequest>();
+        }
+
+        return AuraCgRegistryRuntime.GetRegisteredEntries(ownerModId)
+            .Where(entry => kindSet.Any(kind => IsRegisteredCgEntry(entry, kind)))
             .Where(entry => string.IsNullOrWhiteSpace(roleId) || EntryMatchesRole(entry, roleId))
-            .Where(entry => !string.Equals(kind, CardUseCgKind, StringComparison.OrdinalIgnoreCase) || EntryMatchesEnabledRuntimeCardPack(entry))
+            .Where(entry => !string.Equals(entry.Kind, CardUseCgKind, StringComparison.OrdinalIgnoreCase) || EntryMatchesEnabledRuntimeCardPack(entry))
             .Where(entry => AuraCgActivationRuntime.CanConsumerPlay(entry, consumerModId))
             .Select(entry => CreateRegisteredRequest(entry, ResolveRegisteredImageResource(entry), ResolveImagePath(entry.OwnerModId, ResolveRegisteredImageResource(entry)), new SkillCgTriggerContext
             {
@@ -303,7 +353,6 @@ public static class SkillCgArbiterRuntime
             .Where(request => request != null)
             .Cast<SkillCgRequest>()
             .ToList();
-        PreloadCg(consumerModId, requests);
     }
 
     private static bool EntryMatchesEnabledRuntimeCardPack(AuraCgRegistryEntry entry)
@@ -659,7 +708,7 @@ public static class SkillCgArbiterRuntime
         var protocolVersion = ReadIntProperty(existing, "ProtocolVersion", 0);
         var minimumSupported = ReadIntProperty(existing, "MinimumSupportedProtocolVersion", int.MaxValue);
         var buildId = ReadStringProperty(existing, "BuildId");
-        var methodsPresent = new[] { "Configure", "RegisterProvider", "Trigger", "RequestCg", "PreloadCg", "ClearQueue" }
+        var methodsPresent = new[] { "Configure", "RegisterProvider", "Trigger", "RequestCg", "PreloadCg", "EnsureAdventurePreloaded", "ClearQueue" }
             .All(name => type.GetMethod(name, BindingFlags.Instance | BindingFlags.Public) != null);
         var compatible = protocolVersion >= MinimumSupportedProtocolVersion
             && minimumSupported <= CurrentProtocolVersion
@@ -763,6 +812,19 @@ public static class SkillCgArbiterRuntime
         public string Reason { get; }
     }
 
+    public sealed class SkillCgAdventurePreloadRequest
+    {
+        public SkillCgAdventurePreloadRequest(string key, IReadOnlyList<SkillCgRequest> requests)
+        {
+            Key = string.IsNullOrWhiteSpace(key) ? "default" : key.Trim();
+            Requests = requests ?? Array.Empty<SkillCgRequest>();
+        }
+
+        public string Key { get; }
+
+        public IReadOnlyList<SkillCgRequest> Requests { get; }
+    }
+
     public sealed class SkillCgArbiterComponent : MonoBehaviour
     {
         private const int MaxPlaybackPoolEntries = 512;
@@ -779,6 +841,7 @@ public static class SkillCgArbiterRuntime
         private readonly Dictionary<string, List<Sprite>> sequenceCache = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, AssetBundle?> assetBundleCache = new(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> preloadKeys = new(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> adventurePreloadKeys = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<int, Sprite> invertedSpriteCache = new();
         private SkillCgArbiterOptions options = new();
         private bool playing;
@@ -948,6 +1011,23 @@ public static class SkillCgArbiterRuntime
 
                 StartCoroutine(PreloadRequest(request, key));
             }
+        }
+
+        public void EnsureAdventurePreloaded(object? value)
+        {
+            if (value is not SkillCgAdventurePreloadRequest request)
+            {
+                return;
+            }
+
+            if (!adventurePreloadKeys.Add(request.Key))
+            {
+                AuraCgLog.DebugLog("Adventure CG preload skipped; already queued. key=" + request.Key);
+                return;
+            }
+
+            AuraCgLog.DebugLog("Adventure CG preload queued. key=" + request.Key + ", count=" + request.Requests.Count);
+            PreloadCg(request.Requests);
         }
 
         private IEnumerator PreloadRequest(SkillCgRequest request, string key)

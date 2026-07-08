@@ -12,7 +12,7 @@ internal static class AuraCgLog
     {
         if (Seen.Add("info:" + key))
         {
-            AuraSharedLog.Info("AuraCG", message);
+            AuraSharedLog.DebugLog("AuraCG", message, false);
         }
     }
 

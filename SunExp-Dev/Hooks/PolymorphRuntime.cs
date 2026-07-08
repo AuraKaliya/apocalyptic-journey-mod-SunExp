@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using AuraShared.Core;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks.Visual;
 using SunExp.Dll.Infrastructure;
@@ -19,25 +18,27 @@ public static class PolymorphRuntime
     {
         PolymorphRoleCropRegistry.Load(modConfig);
         PolymorphCardFaceRuntime.Initialize(modConfig);
-        RegisterAfter(modConfig, "Fight_Start.Init", context => ClearBattle("Fight_Start.Init"));
-        RegisterBefore(modConfig, "Fight_Win.Init", context => ClearBattle("Fight_Win.Init:before"));
-        RegisterBefore(modConfig, "Fight_Loss.Init", context => ClearBattle("Fight_Loss.Init:before"));
-        RegisterBefore(modConfig, "Fight_Escape.Init", context => ClearBattle("Fight_Escape.Init:before"));
-        RegisterBefore(modConfig, "Fight_Win.ResetStates", context => ClearBattle("Fight_Win.ResetStates:before"));
-        RegisterBefore(modConfig, "Fight_Escape.ResetStates", context => ClearBattle("Fight_Escape.ResetStates:before"));
-        RegisterBefore(modConfig, "SkillItem.TrueUse", CaptureSkillUseBefore);
-        RegisterAfter(modConfig, "SkillItem.TrueUse", MarkSkillUseAfter);
+        SunExpBattleLifecycleRouter.Register("Polymorph", new SunExpBattleLifecycleSubscription
+        {
+            FightStarted = context => ClearBattle("Fight_Start.Init"),
+            FightEnding = context => ClearBattle("FightEnding")
+        });
+        RegisterBefore(modConfig, SunExpHookTargets.FightWinInit, context => ClearBattle("Fight_Win.Init:before"));
+        RegisterBefore(modConfig, SunExpHookTargets.FightLossInit, context => ClearBattle("Fight_Loss.Init:before"));
+        RegisterBefore(modConfig, SunExpHookTargets.FightEscapeInit, context => ClearBattle("Fight_Escape.Init:before"));
+        RegisterBefore(modConfig, SunExpHookTargets.SkillItemTrueUse, CaptureSkillUseBefore);
+        RegisterAfter(modConfig, SunExpHookTargets.SkillItemTrueUse, MarkSkillUseAfter);
         SunExpLog.Info("Polymorph runtime initialized");
     }
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterBefore(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Polymorph " + message));
+        SunExpHookRegistry.Before(config, target, action, "Polymorph");
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Polymorph " + message));
+        SunExpHookRegistry.After(config, target, action, "Polymorph");
     }
 
     private static void ClearBattle(string source)

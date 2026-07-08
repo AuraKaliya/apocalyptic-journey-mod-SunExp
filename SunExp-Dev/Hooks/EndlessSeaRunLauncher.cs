@@ -16,10 +16,10 @@ using Witch.UI.Window;
 
 namespace SunExp.Dll.Hooks;
 
-public static class TongtianTowerRunLauncher
+public static class EndlessSeaRunLauncher
 {
     private const string NativeMapModeType = SunExpIds.NativeNormalModeType;
-    private const string PromptName = "SunExp_TongtianTowerContinuePrompt";
+    private const string PromptName = "SunExp_EndlessSeaContinuePrompt";
     private static readonly Color PromptBackdrop = new(0f, 0f, 0f, 0.62f);
     private static readonly Color PromptTint = new(0.02f, 0.018f, 0.08f, 0.98f);
     private static readonly Color PromptTitle = new(1f, 0.84f, 0.42f, 1f);
@@ -30,7 +30,7 @@ public static class TongtianTowerRunLauncher
     {
         try
         {
-            var saveInfo = TongtianTowerRunStateStore.FindLatestUnfinishedRun();
+            var saveInfo = EndlessSeaRunStateStore.FindLatestUnfinishedRun();
             if (saveInfo != null)
             {
                 ShowContinuePrompt(modeChoice, saveInfo);
@@ -41,7 +41,7 @@ public static class TongtianTowerRunLauncher
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Tongtian tower run start failed", ex);
+            SunExpLog.Error("Endless Sea run start failed", ex);
         }
     }
 
@@ -65,7 +65,7 @@ public static class TongtianTowerRunLauncher
             new Vector2(540f, 238f));
         SunExpUiBuilder.ApplyPanelImage(
             window.gameObject,
-            SunExpUiSprites.Panel("[TongtianTowerRunLauncher]"),
+            SunExpUiSprites.Panel("[EndlessSeaRunLauncher]"),
             PromptTint,
             false);
 
@@ -115,16 +115,16 @@ public static class TongtianTowerRunLauncher
     {
         try
         {
-            TongtianTowerRunStateStore.RepairSave(saveInfo, "TongtianTowerRunLauncher.Continue");
-            SunExpLog.Info("[TongtianTowerRunLauncher] continuing run; save="
+            EndlessSeaRunStateStore.RepairSave(saveInfo, "EndlessSeaRunLauncher.Continue");
+            SunExpLog.Info("[EndlessSeaRunLauncher] continuing run; save="
                 + saveInfo.Name
                 + "; floor="
-                + saveInfo.GetValue<int>(SunExpIds.TongtianTowerFloorKey));
+                + saveInfo.GetValue<int>(SunExpIds.EndlessSeaFloorKey));
             LaunchSelectedSave(modeChoice, saveInfo);
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Tongtian tower continue failed", ex);
+            SunExpLog.Error("Endless Sea continue failed", ex);
         }
     }
 
@@ -134,41 +134,41 @@ public static class TongtianTowerRunLauncher
         {
             if (deleteExistingRuns)
             {
-                TongtianTowerRunStateStore.DeleteUnfinishedRuns("TongtianTowerRunLauncher.NewRun");
+                EndlessSeaRunStateStore.DeleteUnfinishedRuns("EndlessSeaRunLauncher.NewRun");
                 ModeChoiceSaveCacheApi.ForgetSelectedSaveIf(
-                    TongtianTowerRunStateStore.IsTongtianSave,
-                    "TongtianTowerRunLauncher.NewRun");
-                TongtianTowerSaveCacheRuntime.ClearNativeNormalCache("TongtianTowerRunLauncher.NewRun");
+                    EndlessSeaRunStateStore.IsEndlessSeaSave,
+                    "EndlessSeaRunLauncher.NewRun");
+                EndlessSeaSaveCacheRuntime.ClearNativeNormalCache("EndlessSeaRunLauncher.NewRun");
             }
 
             var saveInfo = CreateSave();
-            SunExpLog.Info("[TongtianTowerRunLauncher] created new run; save=" + saveInfo.Name + ".");
+            SunExpLog.Info("[EndlessSeaRunLauncher] created new run; save=" + saveInfo.Name + ".");
             LaunchSelectedSave(modeChoice, saveInfo);
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Tongtian tower new run failed", ex);
+            SunExpLog.Error("Endless Sea new run failed", ex);
         }
     }
 
     private static void LaunchSelectedSave(ModeChoiceUI modeChoice, SaveInfo saveInfo)
     {
         CloseContinuePrompt();
-        TongtianTowerRunStateStore.RepairSave(saveInfo, "TongtianTowerRunLauncher.Launch");
+        EndlessSeaRunStateStore.RepairSave(saveInfo, "EndlessSeaRunLauncher.Launch");
         GameSaveManager.Select(saveInfo);
         GameEntryUI.selectedSave = saveInfo;
         LobbyManager.Instance?.SetLobbyModeType(NativeMapModeType);
-        TongtianTowerSaveCacheRuntime.ClearNativeNormalCache("TongtianTowerRunLauncher.Launch");
-        SunExpLog.Info("[TongtianTowerRunLauncher] launching save="
+        EndlessSeaSaveCacheRuntime.ClearNativeNormalCache("EndlessSeaRunLauncher.Launch");
+        SunExpLog.Info("[EndlessSeaRunLauncher] launching save="
             + saveInfo.Name
             + "; saveMode="
             + saveInfo.modeType
             + "; nativeMode="
             + NativeMapModeType
             + "; floor="
-            + saveInfo.GetValue<int>(SunExpIds.TongtianTowerFloorKey)
+            + saveInfo.GetValue<int>(SunExpIds.EndlessSeaFloorKey)
             + "; runId="
-            + saveInfo.GetValue<string>(SunExpIds.TongtianTowerRunIdKey)
+            + saveInfo.GetValue<string>(SunExpIds.EndlessSeaRunIdKey)
             + ".");
 
         if (PlayerManager.Instance == null)
@@ -190,7 +190,7 @@ public static class TongtianTowerRunLauncher
 
     private static void CloseContinuePrompt()
     {
-        SunExpModalHost.Close(ref activePrompt, "TongtianTowerRunLauncher.ClosePrompt", "[TongtianTowerRunLauncher]");
+        SunExpModalHost.Close(ref activePrompt, "EndlessSeaRunLauncher.ClosePrompt", "[EndlessSeaRunLauncher]");
     }
 
     private static RectTransform CreateLayoutObject(string name, Transform parent)
@@ -238,7 +238,7 @@ public static class TongtianTowerRunLauncher
         element.minHeight = 50f;
 
         var image = rect.gameObject.AddComponent<Image>();
-        image.sprite = SunExpUiSprites.Button("[TongtianTowerRunLauncher]");
+        image.sprite = SunExpUiSprites.Button("[EndlessSeaRunLauncher]");
         image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
         image.color = image.sprite != null ? Color.white : new Color(0.08f, 0.065f, 0.16f, 0.98f);
 
@@ -258,7 +258,7 @@ public static class TongtianTowerRunLauncher
             CreatedTime = DateTime.Now.ToString("yyyy-MM-dd,HH:mm"),
             Version = GameConfigManager.Version,
             isCheat = false,
-            Name = "SunExpTongtianTower" + UnityEngine.Random.Range(0, 100000),
+            Name = "SunExpEndlessSea" + UnityEngine.Random.Range(0, 100000),
             roleTable = new Dictionary<string, RoleTable>(),
             mapTree = new MapTree(),
             HardTags = SunExpHardTagRuntime.SelectedRuntimeHardTags(),
@@ -268,7 +268,7 @@ public static class TongtianTowerRunLauncher
         };
 
         saveInfo.ItemOpers.PlayerId = Singleton<GameConfigManager>.Instance.PlayerId;
-        TongtianTowerRunStateStore.InitializeNewRun(saveInfo, seed);
+        EndlessSeaRunStateStore.InitializeNewRun(saveInfo, seed);
         saveInfo.GameVars[GameVar.ExLockDes.ToString()] = "0";
         saveInfo.GameVars[GameVar.ExDeleteDes.ToString()] = "0";
         saveInfo.GameVars["MapScene1"] = (random.Next(0, 100) < 50 ? SceneType.Courtyard : SceneType.Forest).ToString();

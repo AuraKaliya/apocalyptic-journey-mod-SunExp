@@ -68,9 +68,12 @@ public static class AuraSharedRuntime
 
                 if (ReuseLogOwners.Add(ownerModId))
                 {
-                    Debug.Log("[AuraShared] Reusing global core for " + ownerModId
-                              + ", ownerType=" + existing.GetType().Assembly.GetName().Name
-                              + ", root=" + AuraSharedPaths.RootDirectory);
+                    AuraSharedLog.DebugLog(
+                        "AuraShared",
+                        "Reusing global core for " + ownerModId
+                        + ", ownerType=" + existing.GetType().Assembly.GetName().Name
+                        + ", root=" + AuraSharedPaths.RootDirectory,
+                        false);
                 }
 
                 TryInitializeExisting(existing, modConfig, ownerModId, options);
@@ -86,7 +89,7 @@ public static class AuraSharedRuntime
 
         var component = gameObject.AddComponent<AuraSharedComponent>();
         component.InitializeOwner(modConfig, ownerModId, options);
-        Debug.Log("[AuraShared] Created global core, owner=" + ownerModId + ", root=" + AuraSharedPaths.RootDirectory);
+        AuraSharedLog.DebugLog("AuraShared", "Created global core, owner=" + ownerModId + ", root=" + AuraSharedPaths.RootDirectory, false);
         return component;
     }
 
@@ -221,7 +224,7 @@ public static class AuraSharedRuntime
 
                 if (addedOwner)
                 {
-                    Debug.Log("[AuraShared] Owner initialized: " + ownerModId + ", root=" + rootDirectory);
+                    AuraSharedLog.DebugLog("AuraShared", "Owner initialized: " + ownerModId + ", root=" + rootDirectory, false);
                 }
             }
 
@@ -303,7 +306,7 @@ public static class AuraSharedRuntime
                 resources[record.UniqueKey] = record;
                 owners.Add(record.OwnerModId);
             }
-            Debug.Log("[AuraShared] Resource registered: " + record.UniqueKey);
+            AuraSharedLog.DebugLog("AuraShared", "Resource registered: " + record.UniqueKey, false);
             return true;
         }
 

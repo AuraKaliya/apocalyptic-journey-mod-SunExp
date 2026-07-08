@@ -17,11 +17,6 @@ public static class SunExpResourcePreloader
 
     private static void WarmupCoreVisuals()
     {
-        if (SunExpPerformanceSettings.Quality == SunExpPerformanceQuality.UltraLow)
-        {
-            return;
-        }
-
         var start = SunExpPerformanceCounters.Timestamp();
         try
         {

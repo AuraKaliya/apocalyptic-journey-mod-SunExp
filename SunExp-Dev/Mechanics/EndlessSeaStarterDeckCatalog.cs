@@ -6,9 +6,9 @@ using Witch.Core;
 
 namespace SunExp.Dll.Mechanics;
 
-public sealed class TongtianTowerStarterDeckProfile
+public sealed class EndlessSeaStarterDeckProfile
 {
-    public TongtianTowerStarterDeckProfile(
+    public EndlessSeaStarterDeckProfile(
         string id,
         string title,
         string subtitle,
@@ -24,8 +24,8 @@ public sealed class TongtianTowerStarterDeckProfile
         ThemeCardIds = themeCardIds;
         RequiredPackId = requiredPackId ?? "";
         CoverPackId = !string.IsNullOrWhiteSpace(coverPackId) ? coverPackId! : RequiredPackId;
-        CardIds = TongtianTowerStarterDeckCatalog.FixedCardIds.Concat(themeCardIds).ToList();
-        Preview = TongtianTowerStarterDeckCatalog.BuildPreview(themeCardIds);
+        CardIds = EndlessSeaStarterDeckCatalog.FixedCardIds.Concat(themeCardIds).ToList();
+        Preview = EndlessSeaStarterDeckCatalog.BuildPreview(themeCardIds);
     }
 
     public string Id { get; }
@@ -47,7 +47,7 @@ public sealed class TongtianTowerStarterDeckProfile
     public IReadOnlyList<string> CardIds { get; }
 }
 
-public static class TongtianTowerStarterDeckCatalog
+public static class EndlessSeaStarterDeckCatalog
 {
     public const int FixedDeckSize = 11;
     public const int ThemeDeckSize = 4;
@@ -68,7 +68,7 @@ public static class TongtianTowerStarterDeckCatalog
         "burningcard_1"
     };
 
-    private static readonly TongtianTowerStarterDeckProfile[] ProfilesInternal =
+    private static readonly EndlessSeaStarterDeckProfile[] ProfilesInternal =
     {
         new(
             "academy_required",
@@ -148,22 +148,22 @@ public static class TongtianTowerStarterDeckCatalog
             "cardpack_19")
     };
 
-    public static IReadOnlyList<TongtianTowerStarterDeckProfile> Profiles => ProfilesInternal;
+    public static IReadOnlyList<EndlessSeaStarterDeckProfile> Profiles => ProfilesInternal;
 
-    public static IReadOnlyList<TongtianTowerStarterDeckProfile> AvailableProfiles()
+    public static IReadOnlyList<EndlessSeaStarterDeckProfile> AvailableProfiles()
     {
         var enabledPacks = EnabledCardPacks();
         var result = ProfilesInternal
             .Where(profile => IsAvailable(profile, enabledPacks))
             .ToList();
-        SunExpLog.Info("[TongtianStarterDeck] available profiles="
+        SunExpLog.Info("[EndlessSeaStarterDeck] available profiles="
             + result.Count
             + "; selectedPacks="
             + string.Join("|", enabledPacks.OrderBy(id => id, StringComparer.OrdinalIgnoreCase)));
         return result;
     }
 
-    public static TongtianTowerStarterDeckProfile? ProfileById(string id)
+    public static EndlessSeaStarterDeckProfile? ProfileById(string id)
     {
         return ProfilesInternal.FirstOrDefault(profile =>
             string.Equals(profile.Id, id, StringComparison.OrdinalIgnoreCase));
@@ -220,11 +220,11 @@ public static class TongtianTowerStarterDeckCatalog
         return string.Join(" / ", themeCardIds.Select(CardDisplayName));
     }
 
-    private static bool IsAvailable(TongtianTowerStarterDeckProfile profile, HashSet<string> enabledPacks)
+    private static bool IsAvailable(EndlessSeaStarterDeckProfile profile, HashSet<string> enabledPacks)
     {
         if (profile.CardIds.Count != DeckSize)
         {
-            SunExpLog.Warn("[TongtianStarterDeck] hidden profile "
+            SunExpLog.Warn("[EndlessSeaStarterDeck] hidden profile "
                 + profile.Id
                 + ": expected "
                 + DeckSize
@@ -240,7 +240,7 @@ public static class TongtianTowerStarterDeckCatalog
             .ToList();
         if (invalidCards.Count > 0)
         {
-            SunExpLog.Warn("[TongtianStarterDeck] hidden profile "
+            SunExpLog.Warn("[EndlessSeaStarterDeck] hidden profile "
                 + profile.Id
                 + ": invalidCards="
                 + string.Join("|", invalidCards));
@@ -249,14 +249,14 @@ public static class TongtianTowerStarterDeckCatalog
 
         if (string.IsNullOrWhiteSpace(profile.RequiredPackId))
         {
-            SunExpLog.Info("[TongtianStarterDeck] visible profile "
+            SunExpLog.Info("[EndlessSeaStarterDeck] visible profile "
                 + profile.Id
                 + ": default theme.");
             return true;
         }
 
         var available = enabledPacks.Contains(profile.RequiredPackId);
-        SunExpLog.Info("[TongtianStarterDeck] "
+        SunExpLog.Info("[EndlessSeaStarterDeck] "
             + (available ? "visible" : "hidden")
             + " profile "
             + profile.Id
@@ -278,7 +278,7 @@ public static class TongtianTowerStarterDeckCatalog
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[TongtianStarterDeck] failed to read selected card packs: " + ex.Message);
+            SunExpLog.Warn("[EndlessSeaStarterDeck] failed to read selected card packs: " + ex.Message);
             return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         }
     }

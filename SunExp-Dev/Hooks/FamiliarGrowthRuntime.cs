@@ -1,7 +1,6 @@
 using System;
 using System.Linq;
 using System.Reflection;
-using AuraShared.Core;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks.Ui;
 using SunExp.Dll.Infrastructure;
@@ -35,8 +34,11 @@ public static class FamiliarGrowthRuntime
         RegisterAfter(modConfig, "HouseManager.OpenWindowByIndex", EnsureLibraryButton);
         RegisterAfter(modConfig, "HouseManager.OpenLibrary", EnsureLibraryButton);
         RegisterAfter(modConfig, "GameEntryUI.NormalGame", MarkSelectedForRun);
-        RegisterAfter(modConfig, "Fight_Start.Init", ApplySelectedCombatStartEffects);
-        RegisterAfter(modConfig, "Fight_Win.ResetStates", GrantBattleWinExperience);
+        SunExpBattleLifecycleRouter.Register("FamiliarGrowth", new SunExpBattleLifecycleSubscription
+        {
+            FightStarted = ApplySelectedCombatStartEffects,
+            FightEnded = GrantBattleWinExperience
+        });
         SunExpLog.Info(LogPrefix + " runtime initialized.");
     }
 
@@ -47,7 +49,7 @@ public static class FamiliarGrowthRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn(LogPrefix + " " + message));
+        SunExpHookRegistry.After(config, target, action, "FamiliarGrowth");
     }
 
     private static void EnsureLibraryButton(ModHookContext context)

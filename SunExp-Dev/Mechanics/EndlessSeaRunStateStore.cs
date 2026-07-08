@@ -9,7 +9,7 @@ using Witch.Core;
 
 namespace SunExp.Dll.Mechanics;
 
-public static class TongtianTowerRunPhase
+public static class EndlessSeaRunPhase
 {
     public const string Intro = "Intro";
     public const string MapPlanning = "MapPlanning";
@@ -19,7 +19,7 @@ public static class TongtianTowerRunPhase
     public const string Ended = "Ended";
 }
 
-public static class TongtianTowerRunStateStore
+public static class EndlessSeaRunStateStore
 {
     private const string Version = "1";
 
@@ -31,18 +31,18 @@ public static class TongtianTowerRunStateStore
         }
 
         saveInfo.modeType = SunExpIds.NativeNormalModeType;
-        Set(saveInfo, SunExpIds.TongtianTowerModeKey, "1");
-        Set(saveInfo, SunExpIds.TongtianTowerFloorKey, "1");
-        Set(saveInfo, SunExpIds.TongtianTowerGeneratedFloorKey, "0");
-        Set(saveInfo, SunExpIds.TongtianTowerSeedKey, seed ?? "");
-        Set(saveInfo, SunExpIds.TongtianTowerFloorPlanKey, "");
-        Set(saveInfo, SunExpIds.TongtianTowerIntroSeenKey, "0");
-        Set(saveInfo, SunExpIds.TongtianTowerStarterDeckAppliedKey, "0");
-        Set(saveInfo, SunExpIds.TongtianTowerStarterDeckModeKey, "");
-        Set(saveInfo, SunExpIds.TongtianTowerRunIdKey, Guid.NewGuid().ToString("N"));
-        Set(saveInfo, SunExpIds.TongtianTowerRunVersionKey, Version);
-        Set(saveInfo, SunExpIds.TongtianTowerRunPhaseKey, TongtianTowerRunPhase.Intro);
-        Set(saveInfo, SunExpIds.TongtianTowerRunEndedKey, "0");
+        Set(saveInfo, SunExpIds.EndlessSeaModeKey, "1");
+        Set(saveInfo, SunExpIds.EndlessSeaFloorKey, "1");
+        Set(saveInfo, SunExpIds.EndlessSeaGeneratedFloorKey, "0");
+        Set(saveInfo, SunExpIds.EndlessSeaSeedKey, seed ?? "");
+        Set(saveInfo, SunExpIds.EndlessSeaFloorPlanKey, "");
+        Set(saveInfo, SunExpIds.EndlessSeaIntroSeenKey, "0");
+        Set(saveInfo, SunExpIds.EndlessSeaStarterDeckAppliedKey, "0");
+        Set(saveInfo, SunExpIds.EndlessSeaStarterDeckModeKey, "");
+        Set(saveInfo, SunExpIds.EndlessSeaRunIdKey, Guid.NewGuid().ToString("N"));
+        Set(saveInfo, SunExpIds.EndlessSeaRunVersionKey, Version);
+        Set(saveInfo, SunExpIds.EndlessSeaRunPhaseKey, EndlessSeaRunPhase.Intro);
+        Set(saveInfo, SunExpIds.EndlessSeaRunEndedKey, "0");
         EndlessAbyssGazeService.Initialize(saveInfo);
         EndlessAbyssRunLedger.Initialize(saveInfo);
         Touch(saveInfo);
@@ -51,7 +51,8 @@ public static class TongtianTowerRunStateStore
     public static bool RepairCurrentRun(string source)
     {
         var saveInfo = GameSaveManager.GetNowSave();
-        if (!IsTongtianSave(saveInfo))
+        EndlessSeaLegacyMigration.MigrateSaveInfo(saveInfo, source);
+        if (!IsEndlessSeaSave(saveInfo))
         {
             return false;
         }
@@ -61,7 +62,8 @@ public static class TongtianTowerRunStateStore
 
     public static bool RepairSave(SaveInfo? saveInfo, string source)
     {
-        if (!IsTongtianSave(saveInfo) || saveInfo?.GameVars == null)
+        EndlessSeaLegacyMigration.MigrateSaveInfo(saveInfo, source);
+        if (!IsEndlessSeaSave(saveInfo) || saveInfo?.GameVars == null)
         {
             return false;
         }
@@ -72,7 +74,7 @@ public static class TongtianTowerRunStateStore
             var legacyModeType = saveInfo.modeType ?? "";
             saveInfo.modeType = SunExpIds.NativeNormalModeType;
             changed = true;
-            SunExpLog.Info("[TongtianTowerRunState] migrated save mode from "
+            SunExpLog.Info("[EndlessSeaRunState] migrated save mode from "
                 + legacyModeType
                 + " to "
                 + SunExpIds.NativeNormalModeType
@@ -83,18 +85,18 @@ public static class TongtianTowerRunStateStore
                 + ".");
         }
 
-        changed |= Ensure(saveInfo, SunExpIds.TongtianTowerModeKey, "1");
-        changed |= Ensure(saveInfo, SunExpIds.TongtianTowerFloorKey, "1");
-        changed |= Ensure(saveInfo, SunExpIds.TongtianTowerGeneratedFloorKey, "0");
-        changed |= Ensure(saveInfo, SunExpIds.TongtianTowerSeedKey, saveInfo.Seed ?? "");
-        changed |= Ensure(saveInfo, SunExpIds.TongtianTowerFloorPlanKey, "");
-        changed |= Ensure(saveInfo, SunExpIds.TongtianTowerIntroSeenKey, "0");
-        changed |= Ensure(saveInfo, SunExpIds.TongtianTowerStarterDeckAppliedKey, "0");
-        changed |= Ensure(saveInfo, SunExpIds.TongtianTowerStarterDeckModeKey, "");
-        changed |= Ensure(saveInfo, SunExpIds.TongtianTowerRunIdKey, Guid.NewGuid().ToString("N"));
-        changed |= Ensure(saveInfo, SunExpIds.TongtianTowerRunVersionKey, Version);
-        changed |= Ensure(saveInfo, SunExpIds.TongtianTowerRunPhaseKey, DefaultPhase(saveInfo));
-        changed |= Ensure(saveInfo, SunExpIds.TongtianTowerRunEndedKey, "0");
+        changed |= Ensure(saveInfo, SunExpIds.EndlessSeaModeKey, "1");
+        changed |= Ensure(saveInfo, SunExpIds.EndlessSeaFloorKey, "1");
+        changed |= Ensure(saveInfo, SunExpIds.EndlessSeaGeneratedFloorKey, "0");
+        changed |= Ensure(saveInfo, SunExpIds.EndlessSeaSeedKey, saveInfo.Seed ?? "");
+        changed |= Ensure(saveInfo, SunExpIds.EndlessSeaFloorPlanKey, "");
+        changed |= Ensure(saveInfo, SunExpIds.EndlessSeaIntroSeenKey, "0");
+        changed |= Ensure(saveInfo, SunExpIds.EndlessSeaStarterDeckAppliedKey, "0");
+        changed |= Ensure(saveInfo, SunExpIds.EndlessSeaStarterDeckModeKey, "");
+        changed |= Ensure(saveInfo, SunExpIds.EndlessSeaRunIdKey, Guid.NewGuid().ToString("N"));
+        changed |= Ensure(saveInfo, SunExpIds.EndlessSeaRunVersionKey, Version);
+        changed |= Ensure(saveInfo, SunExpIds.EndlessSeaRunPhaseKey, DefaultPhase(saveInfo));
+        changed |= Ensure(saveInfo, SunExpIds.EndlessSeaRunEndedKey, "0");
         changed |= Ensure(saveInfo, SunExpIds.EndlessAbyssGazeLevelKey, EndlessAbyssGazeService.InitialLevel.ToString(CultureInfo.InvariantCulture));
         changed |= Ensure(saveInfo, SunExpIds.EndlessAbyssLedgerKey, "{\"Entries\":[]}");
         changed |= Ensure(saveInfo, SunExpIds.EndlessAbyssPendingShockKey, "");
@@ -102,12 +104,12 @@ public static class TongtianTowerRunStateStore
         if (changed)
         {
             Touch(saveInfo);
-            SunExpLog.Info("[TongtianTowerRunState] repaired save from "
+            SunExpLog.Info("[EndlessSeaRunState] repaired save from "
                 + source
                 + "; name="
                 + saveInfo.Name
                 + "; floor="
-                + Value(saveInfo, SunExpIds.TongtianTowerFloorKey));
+                + Value(saveInfo, SunExpIds.EndlessSeaFloorKey));
         }
 
         return changed;
@@ -116,30 +118,30 @@ public static class TongtianTowerRunStateStore
     public static void MarkPhase(string phase, string source)
     {
         var saveInfo = GameSaveManager.GetNowSave();
-        if (!IsTongtianSave(saveInfo) || saveInfo?.GameVars == null || string.IsNullOrWhiteSpace(phase))
+        if (!IsEndlessSeaSave(saveInfo) || saveInfo?.GameVars == null || string.IsNullOrWhiteSpace(phase))
         {
             return;
         }
 
-        if (Set(saveInfo, SunExpIds.TongtianTowerRunPhaseKey, phase))
+        if (Set(saveInfo, SunExpIds.EndlessSeaRunPhaseKey, phase))
         {
             Touch(saveInfo);
-            SunExpLog.Debug("[TongtianTowerRunState] phase=" + phase + " from " + source);
+            SunExpLog.Debug("[EndlessSeaRunState] phase=" + phase + " from " + source);
         }
     }
 
     public static void MarkEnded(string source)
     {
         var saveInfo = GameSaveManager.GetNowSave();
-        if (!IsTongtianSave(saveInfo) || saveInfo?.GameVars == null)
+        if (!IsEndlessSeaSave(saveInfo) || saveInfo?.GameVars == null)
         {
             return;
         }
 
-        Set(saveInfo, SunExpIds.TongtianTowerRunPhaseKey, TongtianTowerRunPhase.Ended);
-        Set(saveInfo, SunExpIds.TongtianTowerRunEndedKey, "1");
+        Set(saveInfo, SunExpIds.EndlessSeaRunPhaseKey, EndlessSeaRunPhase.Ended);
+        Set(saveInfo, SunExpIds.EndlessSeaRunEndedKey, "1");
         Touch(saveInfo);
-        SunExpLog.Info("[TongtianTowerRunState] marked ended from " + source + ".");
+        SunExpLog.Info("[EndlessSeaRunState] marked ended from " + source + ".");
     }
 
     public static SaveInfo? FindLatestUnfinishedRun()
@@ -147,10 +149,10 @@ public static class TongtianTowerRunStateStore
         try
         {
             return CandidateSaves()
-                .Where(save => IsTongtianSave(save) && !IsEnded(save))
+                .Where(save => IsEndlessSeaSave(save) && !IsEnded(save))
                 .Select(save =>
                 {
-                    RepairSave(save, "TongtianTowerRunStateStore.FindLatestUnfinishedRun");
+                    RepairSave(save, "EndlessSeaRunStateStore.FindLatestUnfinishedRun");
                     return save;
                 })
                 .OrderByDescending(SortStamp)
@@ -158,34 +160,40 @@ public static class TongtianTowerRunStateStore
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[TongtianTowerRunState] find latest run failed: " + ex.Message);
+            SunExpLog.Warn("[EndlessSeaRunState] find latest run failed: " + ex.Message);
             return null;
         }
     }
 
-    public static bool IsTongtianSave(SaveInfo? saveInfo)
+    public static bool IsEndlessSeaSave(SaveInfo? saveInfo)
     {
         if (saveInfo == null)
         {
             return false;
         }
 
+        if (EndlessSeaLegacyMigration.IsLegacySave(saveInfo))
+        {
+            EndlessSeaLegacyMigration.MigrateSaveInfo(saveInfo, "EndlessSeaRunStateStore.IsEndlessSeaSave");
+            return true;
+        }
+
         if (saveInfo.GameVars != null
-            && saveInfo.GameVars.TryGetValue(SunExpIds.TongtianTowerModeKey, out var value)
+            && saveInfo.GameVars.TryGetValue(SunExpIds.EndlessSeaModeKey, out var value)
             && value == "1")
         {
             return true;
         }
 
-        return string.Equals(saveInfo.modeType, SunExpIds.TongtianTowerModeType, StringComparison.Ordinal)
+        return string.Equals(saveInfo.modeType, SunExpIds.EndlessSeaModeType, StringComparison.Ordinal)
             && saveInfo.Name != null
-            && saveInfo.Name.StartsWith("SunExpTongtianTower", StringComparison.Ordinal);
+            && saveInfo.Name.StartsWith("SunExpEndlessSea", StringComparison.Ordinal);
     }
 
     public static int DeleteUnfinishedRuns(string source)
     {
         var deleted = 0;
-        foreach (var save in CandidateSaves().Where(save => IsTongtianSave(save) && !IsEnded(save)).ToList())
+        foreach (var save in CandidateSaves().Where(save => IsEndlessSeaSave(save) && !IsEnded(save)).ToList())
         {
             try
             {
@@ -195,7 +203,7 @@ public static class TongtianTowerRunStateStore
             }
             catch (Exception ex)
             {
-                SunExpLog.Warn("[TongtianTowerRunState] delete unfinished run failed from "
+                SunExpLog.Warn("[EndlessSeaRunState] delete unfinished run failed from "
                     + source
                     + "; save="
                     + save.Name
@@ -206,7 +214,7 @@ public static class TongtianTowerRunStateStore
 
         if (deleted > 0)
         {
-            SunExpLog.Info("[TongtianTowerRunState] deleted unfinished runs from "
+            SunExpLog.Info("[EndlessSeaRunState] deleted unfinished runs from "
                 + source
                 + ": "
                 + deleted
@@ -247,7 +255,7 @@ public static class TongtianTowerRunStateStore
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[TongtianTowerRunState] LoadAll skipped: " + ex.Message);
+            SunExpLog.Debug("[EndlessSeaRunState] LoadAll skipped: " + ex.Message);
         }
 
         return byName.Values;
@@ -273,13 +281,13 @@ public static class TongtianTowerRunStateStore
 
     private static bool IsEnded(SaveInfo saveInfo)
     {
-        return Value(saveInfo, SunExpIds.TongtianTowerRunEndedKey) == "1"
-            || Value(saveInfo, SunExpIds.TongtianTowerRunPhaseKey) == TongtianTowerRunPhase.Ended;
+        return Value(saveInfo, SunExpIds.EndlessSeaRunEndedKey) == "1"
+            || Value(saveInfo, SunExpIds.EndlessSeaRunPhaseKey) == EndlessSeaRunPhase.Ended;
     }
 
     private static long SortStamp(SaveInfo saveInfo)
     {
-        var updated = Value(saveInfo, SunExpIds.TongtianTowerRunUpdatedAtKey);
+        var updated = Value(saveInfo, SunExpIds.EndlessSeaRunUpdatedAtKey);
         if (DateTime.TryParse(updated, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsed))
         {
             return parsed.Ticks;
@@ -290,9 +298,9 @@ public static class TongtianTowerRunStateStore
 
     private static string DefaultPhase(SaveInfo saveInfo)
     {
-        return Value(saveInfo, SunExpIds.TongtianTowerStarterDeckAppliedKey) == "1"
-            ? TongtianTowerRunPhase.MapPlanning
-            : TongtianTowerRunPhase.Intro;
+        return Value(saveInfo, SunExpIds.EndlessSeaStarterDeckAppliedKey) == "1"
+            ? EndlessSeaRunPhase.MapPlanning
+            : EndlessSeaRunPhase.Intro;
     }
 
     private static bool Ensure(SaveInfo saveInfo, string key, string value)
@@ -329,6 +337,6 @@ public static class TongtianTowerRunStateStore
             return;
         }
 
-        saveInfo.GameVars[SunExpIds.TongtianTowerRunUpdatedAtKey] = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+        saveInfo.GameVars[SunExpIds.EndlessSeaRunUpdatedAtKey] = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
     }
 }

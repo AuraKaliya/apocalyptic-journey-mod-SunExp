@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
-using AuraShared.Core;
 using SunExp.Dll.GameApi;
+using SunExp.Dll.Hooks;
 using SunExp.Dll.Infrastructure;
 using UnityEngine;
 using UnityEngine.UI;
@@ -19,13 +19,16 @@ public static class PolymorphCardFaceRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
-        RegisterAfter(modConfig, "ICard.SetCardStyle", ApplyFromSetCardStyle);
-        RegisterAfter(modConfig, "CardItem.Init", context => ApplyFromItemRoot(context, "CardItem.Init"));
-        RegisterAfter(modConfig, "AttackCardItem.Init", context => ApplyFromItemRoot(context, "AttackCardItem.Init"));
-        RegisterAfter(modConfig, "CardItem.DataUpdate", context => ApplyFromItemRoot(context, "CardItem.DataUpdate"));
-        RegisterAfter(modConfig, "FightUI.CreateCardItem", context => RequestActiveCombatCardsReapply("FightUI.CreateCardItem"));
-        RegisterAfter(modConfig, "FightUI.CreateCardItemInternal", ApplyFromFightUiCreateCardItemInternal);
-        RegisterAfter(modConfig, "ScriptExecutor.GetCardFromDeck", context => RequestActiveCombatCardsReapply("ScriptExecutor.GetCardFromDeck"));
+        SunExpCardLifecycleRouter.Register("PolymorphCardFace", new SunExpCardLifecycleSubscription
+        {
+            AfterSetCardStyle = ApplyFromSetCardStyle,
+            AfterCardItemInit = context => ApplyFromItemRoot(context, SunExpHookTargets.CardItemInit),
+            AfterAttackCardItemInit = context => ApplyFromItemRoot(context, SunExpHookTargets.AttackCardItemInit),
+            AfterCardItemDataUpdate = context => ApplyFromItemRoot(context, SunExpHookTargets.CardItemDataUpdate),
+            AfterFightUiCreateCardItem = context => RequestActiveCombatCardsReapply(SunExpHookTargets.FightUiCreateCardItem),
+            AfterFightUiCreateCardItemInternal = ApplyFromFightUiCreateCardItemInternal,
+            AfterScriptExecutorGetCardFromDeck = context => RequestActiveCombatCardsReapply(SunExpHookTargets.ScriptExecutorGetCardFromDeck)
+        });
         SunExpLog.Info("Polymorph card face runtime initialized");
     }
 
@@ -64,11 +67,6 @@ public static class PolymorphCardFaceRuntime
         {
             SunExpPerformanceCounters.RecordDuration("Polymorph.CardFaceReapply", start);
         }
-    }
-
-    private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
-    {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Polymorph card face " + message));
     }
 
     private static void ApplyFromSetCardStyle(ModHookContext context)

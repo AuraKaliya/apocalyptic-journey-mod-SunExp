@@ -8,7 +8,6 @@
   "maxQueueLength": 8,
   "maxRequestAgeSeconds": 6.0,
   "duplicateWindowSeconds": 1.25,
-  "preloadOnFightStart": true,
   "disableAfterFailures": true,
   "maxHookFailures": 3,
   "defaultPresentation": {

@@ -4,42 +4,42 @@ using Witch;
 
 namespace SunExp.Dll.Mechanics;
 
-public static class TongtianTowerSelectableNodeDeckPlanner
+public static class EndlessSeaSelectableNodeDeckPlanner
 {
-    public static IReadOnlyList<TongtianTowerNodeKind> CreateKinds(MapTree tree, int floor, int count)
+    public static IReadOnlyList<EndlessSeaNodeKind> CreateKinds(MapTree tree, int floor, int count)
     {
         var normalizedCount = Math.Max(0, count);
-        var kinds = new List<TongtianTowerNodeKind>(normalizedCount);
+        var kinds = new List<EndlessSeaNodeKind>(normalizedCount);
         if (normalizedCount <= 0)
         {
             return kinds;
         }
 
-        kinds.Add(TongtianTowerNodeKind.Rest);
+        kinds.Add(EndlessSeaNodeKind.Rest);
         if (kinds.Count < normalizedCount)
         {
-            kinds.Add(TongtianTowerNodeKind.Building);
+            kinds.Add(EndlessSeaNodeKind.Building);
         }
 
-        var eliteCount = TongtianTowerRewardPlan.IsEndless(floor)
+        var eliteCount = EndlessSeaRewardPlan.IsEndless(floor)
             ? 2
             : Math.Max(1, floor) >= 3 ? 1 : 0;
         while (eliteCount > 0 && kinds.Count < normalizedCount)
         {
-            kinds.Add(TongtianTowerNodeKind.Elite);
+            kinds.Add(EndlessSeaNodeKind.Elite);
             eliteCount--;
         }
 
         while (kinds.Count < normalizedCount)
         {
-            kinds.Add(TongtianTowerNodeKind.Monster);
+            kinds.Add(EndlessSeaNodeKind.Monster);
         }
 
         Shuffle(tree, floor, kinds);
         return kinds;
     }
 
-    private static void Shuffle(MapTree tree, int floor, IList<TongtianTowerNodeKind> kinds)
+    private static void Shuffle(MapTree tree, int floor, IList<EndlessSeaNodeKind> kinds)
     {
         if (kinds.Count <= 1)
         {

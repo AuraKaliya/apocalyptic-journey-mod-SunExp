@@ -65,7 +65,7 @@ public static class AuraSharedDiagnostics
         }
         else
         {
-            AuraSharedLog.Info(owner, message);
+            AuraSharedLog.DebugLog(owner, message, false);
         }
     }
 }

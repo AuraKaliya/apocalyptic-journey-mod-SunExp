@@ -8,7 +8,7 @@ using Witch.Core;
 
 namespace SunExp.Dll.Mechanics;
 
-public static class TongtianTowerNodePoolService
+public static class EndlessSeaNodePoolService
 {
     private const string MonsterNote = "\u666e\u901a";
     private const string EliteNote = "\u7cbe\u82f1";
@@ -23,7 +23,7 @@ public static class TongtianTowerNodePoolService
         "WithCursor",
         BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
 
-    public static MapTree.Node CreateNode(MapTree tree, int floor, int slot, TongtianTowerNodeKind kind)
+    public static MapTree.Node CreateNode(MapTree tree, int floor, int slot, EndlessSeaNodeKind kind)
     {
         var candidates = Candidates(kind, floor).ToList();
         var source = GameMapSource;
@@ -33,7 +33,7 @@ public static class TongtianTowerNodePoolService
             source = FallbackSource;
         }
 
-        var row = kind == TongtianTowerNodeKind.Building
+        var row = kind == EndlessSeaNodeKind.Building
             ? PickCycledBuildingRow(candidates, floor)
             : DrawRow(tree, candidates);
         var data = row == null
@@ -47,13 +47,13 @@ public static class TongtianTowerNodePoolService
             data = data,
             NodeDice = CreateNodeDice(tree)
         };
-        MapNodeSafetyService.EnsureNodeDice(tree, node, "TongtianTowerNodePoolService.CreateNode");
+        MapNodeSafetyService.EnsureNodeDice(tree, node, "EndlessSeaNodePoolService.CreateNode");
         return node;
     }
 
-    public static IReadOnlyList<Dictionary<string, string>> Candidates(TongtianTowerNodeKind kind, int floor)
+    public static IReadOnlyList<Dictionary<string, string>> Candidates(EndlessSeaNodeKind kind, int floor)
     {
-        var key = "TongtianTower." + kind + ".floor." + Math.Max(1, floor);
+        var key = "EndlessSea." + kind + ".floor." + Math.Max(1, floor);
         return SunExpConfigIndex.FilteredRows(DataType.Map, key, row => IsCandidate(row, kind, floor));
     }
 
@@ -70,7 +70,7 @@ public static class TongtianTowerNodePoolService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[TongtianTowerNodePool] candidate draw failed: " + ex.Message);
+            SunExpLog.Warn("[EndlessSeaNodePool] candidate draw failed: " + ex.Message);
             return candidates
                 .OrderBy(row => DictionaryUtil.Get(row, "Id"), StringComparer.Ordinal)
                 .FirstOrDefault();
@@ -92,43 +92,43 @@ public static class TongtianTowerNodePoolService
         return ordered[index];
     }
 
-    private static bool IsCandidate(Dictionary<string, string> row, TongtianTowerNodeKind kind, int floor)
+    private static bool IsCandidate(Dictionary<string, string> row, EndlessSeaNodeKind kind, int floor)
     {
-        if (!IsUsableMapRow(row, allowBreaks: kind == TongtianTowerNodeKind.Rest) || !FitsFloor(row, floor))
+        if (!IsUsableMapRow(row, allowBreaks: kind == EndlessSeaNodeKind.Rest) || !FitsFloor(row, floor))
         {
             return false;
         }
 
         return kind switch
         {
-            TongtianTowerNodeKind.EndlessBoss => IsEndlessBossCandidate(row, floor),
-            TongtianTowerNodeKind.Boss => IsTongtianBossCandidate(row, floor),
-            TongtianTowerNodeKind.Elite => IsElite(row),
-            TongtianTowerNodeKind.Rest => IsRest(row),
-            TongtianTowerNodeKind.Building => IsBuilding(row),
+            EndlessSeaNodeKind.EndlessBoss => IsEndlessBossCandidate(row, floor),
+            EndlessSeaNodeKind.Boss => IsEndlessSeaBossCandidate(row, floor),
+            EndlessSeaNodeKind.Elite => IsElite(row),
+            EndlessSeaNodeKind.Rest => IsRest(row),
+            EndlessSeaNodeKind.Building => IsBuilding(row),
             _ => IsMonster(row)
         };
     }
 
-    private static List<Dictionary<string, string>> FallbackCandidates(TongtianTowerNodeKind kind)
+    private static List<Dictionary<string, string>> FallbackCandidates(EndlessSeaNodeKind kind)
     {
         return SunExpConfigIndex.FilteredRows(
             DataType.Map,
-            "TongtianTower.Fallback." + kind,
+            "EndlessSea.Fallback." + kind,
             row =>
             {
-                if (!IsUsableMapRow(row, allowBreaks: kind == TongtianTowerNodeKind.Rest))
+                if (!IsUsableMapRow(row, allowBreaks: kind == EndlessSeaNodeKind.Rest))
                 {
                     return false;
                 }
 
                 return kind switch
                 {
-                    TongtianTowerNodeKind.EndlessBoss => IsFight(row),
-                    TongtianTowerNodeKind.Boss => IsFight(row),
-                    TongtianTowerNodeKind.Elite => IsFight(row) && !IsBoss(row),
-                    TongtianTowerNodeKind.Rest => IsRest(row),
-                    TongtianTowerNodeKind.Building => IsBuilding(row),
+                    EndlessSeaNodeKind.EndlessBoss => IsFight(row),
+                    EndlessSeaNodeKind.Boss => IsFight(row),
+                    EndlessSeaNodeKind.Elite => IsFight(row) && !IsBoss(row),
+                    EndlessSeaNodeKind.Rest => IsRest(row),
+                    EndlessSeaNodeKind.Building => IsBuilding(row),
                     _ => IsFight(row) && !IsBoss(row) && !IsElite(row)
                 };
             });
@@ -261,7 +261,7 @@ public static class TongtianTowerNodePoolService
         }
     }
 
-    private static bool IsTongtianBossCandidate(Dictionary<string, string> row, int floor)
+    private static bool IsEndlessSeaBossCandidate(Dictionary<string, string> row, int floor)
     {
         if (!IsBoss(row))
         {
@@ -270,22 +270,22 @@ public static class TongtianTowerNodePoolService
 
         if (floor <= 4)
         {
-            return TongtianTowerEnemyPool.IsNormalBossLevel(row);
+            return EndlessSeaEnemyPool.IsNormalBossLevel(row);
         }
 
         if (floor <= 6)
         {
-            return TongtianTowerEnemyPool.IsSpecialBossLevel(row);
+            return EndlessSeaEnemyPool.IsSpecialBossLevel(row);
         }
 
-        return TongtianTowerEnemyPool.IsSpecialBossLevel(row) || IsBoss(row);
+        return EndlessSeaEnemyPool.IsSpecialBossLevel(row) || IsBoss(row);
     }
 
     private static bool IsEndlessBossCandidate(Dictionary<string, string> row, int floor)
     {
         return IsBoss(row)
-            && (TongtianTowerEnemyPool.IsSpecialBossLevel(row)
-                || TongtianTowerEnemyPool.IsNormalBossLevel(row)
+            && (EndlessSeaEnemyPool.IsSpecialBossLevel(row)
+                || EndlessSeaEnemyPool.IsNormalBossLevel(row)
                 || floor >= 7);
     }
 
@@ -293,7 +293,7 @@ public static class TongtianTowerNodePoolService
         IDictionary<string, string> data,
         int floor,
         int slot,
-        TongtianTowerNodeKind kind,
+        EndlessSeaNodeKind kind,
         string source)
     {
         var id = DictionaryUtil.Get(data, "Id");
@@ -303,45 +303,45 @@ public static class TongtianTowerNodePoolService
         data["Type"] = IsSafeNodeKind(kind) ? "Build" : "Fight";
         data["Note"] = KindNote(kind);
         data["Level"] = DictionaryUtil.Get(data, "Level", "-1");
-        data[SunExpIds.TongtianTowerNodeFloorKey] = Math.Max(1, floor).ToString();
-        data[SunExpIds.TongtianTowerNodeSlotKey] = Math.Max(0, slot).ToString();
-        data[SunExpIds.TongtianTowerNodeKindKey] = kind.ToString();
-        data[SunExpIds.TongtianTowerNodePoolSourceKey] = source;
-        data[SunExpIds.TongtianTowerNodeLockedKey] = IsBossKind(kind) ? "1" : "0";
+        data[SunExpIds.EndlessSeaNodeFloorKey] = Math.Max(1, floor).ToString();
+        data[SunExpIds.EndlessSeaNodeSlotKey] = Math.Max(0, slot).ToString();
+        data[SunExpIds.EndlessSeaNodeKindKey] = kind.ToString();
+        data[SunExpIds.EndlessSeaNodePoolSourceKey] = source;
+        data[SunExpIds.EndlessSeaNodeLockedKey] = IsBossKind(kind) ? "1" : "0";
     }
 
-    private static string KindNote(TongtianTowerNodeKind kind)
+    private static string KindNote(EndlessSeaNodeKind kind)
     {
         return kind switch
         {
-            TongtianTowerNodeKind.EndlessBoss => BossNote,
-            TongtianTowerNodeKind.Boss => BossNote,
-            TongtianTowerNodeKind.Elite => EliteNote,
-            TongtianTowerNodeKind.Rest => RestNote,
-            TongtianTowerNodeKind.Building => BuildingNote,
+            EndlessSeaNodeKind.EndlessBoss => BossNote,
+            EndlessSeaNodeKind.Boss => BossNote,
+            EndlessSeaNodeKind.Elite => EliteNote,
+            EndlessSeaNodeKind.Rest => RestNote,
+            EndlessSeaNodeKind.Building => BuildingNote,
             _ => MonsterNote
         };
     }
 
-    private static bool IsSafeNodeKind(TongtianTowerNodeKind kind)
+    private static bool IsSafeNodeKind(EndlessSeaNodeKind kind)
     {
-        return kind == TongtianTowerNodeKind.Rest || kind == TongtianTowerNodeKind.Building;
+        return kind == EndlessSeaNodeKind.Rest || kind == EndlessSeaNodeKind.Building;
     }
 
-    private static bool IsBossKind(TongtianTowerNodeKind kind)
+    private static bool IsBossKind(EndlessSeaNodeKind kind)
     {
-        return kind == TongtianTowerNodeKind.Boss || kind == TongtianTowerNodeKind.EndlessBoss;
+        return kind == EndlessSeaNodeKind.Boss || kind == EndlessSeaNodeKind.EndlessBoss;
     }
 
-    private static Dictionary<string, string> FallbackData(TongtianTowerNodeKind kind)
+    private static Dictionary<string, string> FallbackData(EndlessSeaNodeKind kind)
     {
         var note = KindNote(kind);
         return new Dictionary<string, string>
         {
-            ["Id"] = kind == TongtianTowerNodeKind.Rest ? "28" : "map_0",
+            ["Id"] = kind == EndlessSeaNodeKind.Rest ? "28" : "map_0",
             ["Type"] = IsSafeNodeKind(kind) ? "Build" : "Fight",
             ["Note"] = note,
-            ["NodeId"] = kind == TongtianTowerNodeKind.Rest ? "Breaks" : "map_0",
+            ["NodeId"] = kind == EndlessSeaNodeKind.Rest ? "Breaks" : "map_0",
             ["Level"] = "-1"
         };
     }
@@ -361,7 +361,7 @@ public static class TongtianTowerNodePoolService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[TongtianTowerNodePool] failed to fork NodeDice: " + ex.Message);
+            SunExpLog.Warn("[EndlessSeaNodePool] failed to fork NodeDice: " + ex.Message);
             return dice;
         }
     }

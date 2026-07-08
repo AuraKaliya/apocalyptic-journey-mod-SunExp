@@ -1,4 +1,3 @@
-using SunExp.Dll.Infrastructure;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -20,7 +19,7 @@ public sealed class FrameImageAnimator : MonoBehaviour
         elapsed = 0f;
         index = 0;
         SetFrame(0);
-        enabled = frames.Length > 1 && SunExpPerformanceSettings.Quality != SunExpPerformanceQuality.UltraLow;
+        enabled = frames.Length > 1;
     }
 
     private void Awake()
@@ -37,12 +36,6 @@ public sealed class FrameImageAnimator : MonoBehaviour
     {
         if (frames.Length <= 1 || image == null)
         {
-            return;
-        }
-
-        if (SunExpPerformanceSettings.Quality == SunExpPerformanceQuality.UltraLow)
-        {
-            enabled = false;
             return;
         }
 

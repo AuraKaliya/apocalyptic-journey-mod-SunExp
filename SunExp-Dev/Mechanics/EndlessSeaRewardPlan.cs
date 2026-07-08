@@ -7,7 +7,7 @@ using Witch.Core;
 
 namespace SunExp.Dll.Mechanics;
 
-public sealed class TongtianTowerRewardSpec
+public sealed class EndlessSeaRewardSpec
 {
     public int CardChoices { get; set; }
 
@@ -16,26 +16,26 @@ public sealed class TongtianTowerRewardSpec
     public IReadOnlyList<int[]> RelicRarityGroups { get; set; } = Array.Empty<int[]>();
 }
 
-public static class TongtianTowerRewardPlan
+public static class EndlessSeaRewardPlan
 {
     public static bool IsEndless(int floor)
     {
         return Math.Max(1, floor) >= 7;
     }
 
-    public static TongtianTowerRewardSpec ForCurrentNode(int floor, bool boss)
+    public static EndlessSeaRewardSpec ForCurrentNode(int floor, bool boss)
     {
         floor = Math.Max(1, floor);
         if (IsEndless(floor))
         {
             return boss
-                ? new TongtianTowerRewardSpec
+                ? new EndlessSeaRewardSpec
                 {
                     CardChoices = 5,
                     BlessingChoices = 1,
                     RelicRarityGroups = new[] { new[] { 3, 4 } }
                 }
-                : new TongtianTowerRewardSpec
+                : new EndlessSeaRewardSpec
                 {
                     CardChoices = 5,
                     RelicRarityGroups = new[] { new[] { 1, 2, 3, 4 }, new[] { 2, 3, 4 } }
@@ -44,7 +44,7 @@ public static class TongtianTowerRewardPlan
 
         if (floor <= 2)
         {
-            return new TongtianTowerRewardSpec
+            return new EndlessSeaRewardSpec
             {
                 CardChoices = 2,
                 BlessingChoices = 1,
@@ -54,7 +54,7 @@ public static class TongtianTowerRewardPlan
 
         if (floor <= 4)
         {
-            return new TongtianTowerRewardSpec
+            return new EndlessSeaRewardSpec
             {
                 CardChoices = 2,
                 BlessingChoices = 1,
@@ -63,13 +63,13 @@ public static class TongtianTowerRewardPlan
         }
 
         return boss
-            ? new TongtianTowerRewardSpec
+            ? new EndlessSeaRewardSpec
             {
                 CardChoices = 5,
                 BlessingChoices = 1,
                 RelicRarityGroups = new[] { new[] { 3, 4 } }
             }
-            : new TongtianTowerRewardSpec
+            : new EndlessSeaRewardSpec
             {
                 CardChoices = 3,
                 BlessingChoices = 1,
@@ -82,35 +82,35 @@ public static class TongtianTowerRewardPlan
         return IsBossKind(CurrentNodeKind());
     }
 
-    public static TongtianTowerNodeKind CurrentNodeKind()
+    public static EndlessSeaNodeKind CurrentNodeKind()
     {
         try
         {
             var data = MapManager.Instance?.MapTree?.currentNode?.data;
             if (data == null)
             {
-                return TongtianTowerNodeKind.Monster;
+                return EndlessSeaNodeKind.Monster;
             }
 
             var note = DictionaryUtil.Get(data, "Note");
-            var kind = DictionaryUtil.Get(data, SunExpIds.TongtianTowerNodeKindKey);
-            if (Enum.TryParse<TongtianTowerNodeKind>(kind, out var parsed))
+            var kind = DictionaryUtil.Get(data, SunExpIds.EndlessSeaNodeKindKey);
+            if (Enum.TryParse<EndlessSeaNodeKind>(kind, out var parsed))
             {
                 return parsed;
             }
 
             return note.Contains("\u9996\u9886")
-                ? TongtianTowerNodeKind.Boss
-                : TongtianTowerNodeKind.Monster;
+                ? EndlessSeaNodeKind.Boss
+                : EndlessSeaNodeKind.Monster;
         }
         catch
         {
-            return TongtianTowerNodeKind.Monster;
+            return EndlessSeaNodeKind.Monster;
         }
     }
 
-    public static bool IsBossKind(TongtianTowerNodeKind kind)
+    public static bool IsBossKind(EndlessSeaNodeKind kind)
     {
-        return kind == TongtianTowerNodeKind.Boss || kind == TongtianTowerNodeKind.EndlessBoss;
+        return kind == EndlessSeaNodeKind.Boss || kind == EndlessSeaNodeKind.EndlessBoss;
     }
 }

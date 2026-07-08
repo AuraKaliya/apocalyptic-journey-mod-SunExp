@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using AuraShared.Core;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
 using Witch;
@@ -9,28 +8,31 @@ using Witch.Mod;
 
 namespace SunExp.Dll.Hooks;
 
-public static class TongtianTowerCombatRuntime
+public static class EndlessSeaCombatRuntime
 {
-    private const string AppliedFloorKey = "SunExpTongtianTowerHpScaledFloor";
+    private const string AppliedFloorKey = "SunExpEndlessSeaHpScaledFloor";
 
     public static void Initialize(ModConfig modConfig)
     {
-        RegisterAfter(modConfig, "Enemy.Init", ScaleEnemyHpAfterInit);
+        SunExpBattleLifecycleRouter.Register("EndlessSeaCombat", new SunExpBattleLifecycleSubscription
+        {
+            FightStarted = ApplyOriginBattleStartEffects
+        });
+        RegisterAfter(modConfig, SunExpHookTargets.EnemyInit, ScaleEnemyHpAfterInit);
         RegisterAfter(modConfig, "FightManager.Init", AddEndlessExtraEnemiesAfterFightInit);
-        RegisterAfter(modConfig, "Fight_Start.Init", ApplyOriginBattleStartEffects);
-        RegisterAfter(modConfig, "Fight_Win.Init", ApplyOriginBattleEndEffects);
+        RegisterAfter(modConfig, SunExpHookTargets.FightWinInit, ApplyOriginBattleEndEffects);
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Tongtian tower combat " + message));
+        SunExpHookRegistry.After(config, target, action, "EndlessSeaCombat");
     }
 
     private static void ScaleEnemyHpAfterInit(ModHookContext context)
     {
         try
         {
-            if (!TongtianTowerModeRuntime.IsTongtianTowerRun()
+            if (!EndlessSeaModeRuntime.IsEndlessSeaRun()
                 || context.Target is not Enemy enemy
                 || enemy.Status is not StatusManager status
                 || AlreadyScaled(status))
@@ -38,7 +40,7 @@ public static class TongtianTowerCombatRuntime
                 return;
             }
 
-            var floor = TongtianTowerModeRuntime.CurrentFloor();
+            var floor = EndlessSeaModeRuntime.CurrentFloor();
             var multiplier = HpMultiplier(floor);
             var oldMaxHp = Math.Max(1, enemy.MaxHp);
             var oldCurHp = Math.Max(1, enemy.CurHp);
@@ -53,7 +55,7 @@ public static class TongtianTowerCombatRuntime
             RefreshStatusTransfer(enemy, status);
             ApplyEndlessAbyssEnemyModifiers(enemy, floor, "Enemy.Init");
 
-            SunExpLog.Info("[TongtianTowerCombat] scaled enemy HP x"
+            SunExpLog.Info("[EndlessSeaCombat] scaled enemy HP x"
                 + multiplier.ToString("0.###")
                 + "; floor="
                 + floor
@@ -69,13 +71,13 @@ public static class TongtianTowerCombatRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Tongtian tower enemy HP scaling failed", ex);
+            SunExpLog.Error("Endless Sea enemy HP scaling failed", ex);
         }
     }
 
     private static void ApplyEndlessAbyssEnemyModifiers(Enemy enemy, int floor, string source)
     {
-        var nodeKind = TongtianTowerRewardPlan.CurrentNodeKind();
+        var nodeKind = EndlessSeaRewardPlan.CurrentNodeKind();
         EndlessAbyssBlessingService.ApplyOpeningStacks(enemy, source);
         EndlessAbyssRewardService.ApplyEvolutionTraits(enemy, source);
         EndlessAbyssEnemyIntentPoolService.TryAddIntent(enemy, floor, nodeKind, source);
@@ -85,21 +87,21 @@ public static class TongtianTowerCombatRuntime
     {
         try
         {
-            if (!TongtianTowerModeRuntime.IsTongtianTowerRun())
+            if (!EndlessSeaModeRuntime.IsEndlessSeaRun())
             {
                 return;
             }
 
-            var floor = TongtianTowerModeRuntime.CurrentFloor();
-            var nodeKind = TongtianTowerRewardPlan.CurrentNodeKind();
+            var floor = EndlessSeaModeRuntime.CurrentFloor();
+            var nodeKind = EndlessSeaRewardPlan.CurrentNodeKind();
             EndlessAbyssEnemyInjectionService.TryInjectAfterFightInit(
                 floor,
                 nodeKind,
-                "TongtianTowerCombatRuntime.FightManager.Init");
+                "EndlessSeaCombatRuntime.FightManager.Init");
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Tongtian tower endless extra enemy injection failed", ex);
+            SunExpLog.Error("Endless Sea endless extra enemy injection failed", ex);
         }
     }
 
@@ -107,15 +109,15 @@ public static class TongtianTowerCombatRuntime
     {
         try
         {
-            if (TongtianTowerModeRuntime.IsTongtianTowerRun())
+            if (EndlessSeaModeRuntime.IsEndlessSeaRun())
             {
-                TongtianTowerRunStateStore.MarkPhase(TongtianTowerRunPhase.InBattle, "Fight_Start.Init");
-                TongtianTowerOriginService.ApplyBattleStartEffects("Fight_Start.Init");
+                EndlessSeaRunStateStore.MarkPhase(EndlessSeaRunPhase.InBattle, "Fight_Start.Init");
+                EndlessSeaOriginService.ApplyBattleStartEffects("Fight_Start.Init");
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Tongtian tower origin battle start failed", ex);
+            SunExpLog.Error("Endless Sea origin battle start failed", ex);
         }
     }
 
@@ -123,15 +125,15 @@ public static class TongtianTowerCombatRuntime
     {
         try
         {
-            if (TongtianTowerModeRuntime.IsTongtianTowerRun())
+            if (EndlessSeaModeRuntime.IsEndlessSeaRun())
             {
-                TongtianTowerRunStateStore.MarkPhase(TongtianTowerRunPhase.Reward, "Fight_Win.Init");
-                TongtianTowerOriginService.ApplyBattleEndEffects("Fight_Win.Init");
+                EndlessSeaRunStateStore.MarkPhase(EndlessSeaRunPhase.Reward, "Fight_Win.Init");
+                EndlessSeaOriginService.ApplyBattleEndEffects("Fight_Win.Init");
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Tongtian tower origin battle end failed", ex);
+            SunExpLog.Error("Endless Sea origin battle end failed", ex);
         }
     }
 
@@ -153,7 +155,7 @@ public static class TongtianTowerCombatRuntime
 
     private static bool AlreadyScaled(StatusManager status)
     {
-        var floor = TongtianTowerModeRuntime.CurrentFloor();
+        var floor = EndlessSeaModeRuntime.CurrentFloor();
         return status.dynamicVariables != null
             && status.dynamicVariables.TryGetValue(AppliedFloorKey, out var value)
             && value >= floor;
@@ -181,7 +183,7 @@ public static class TongtianTowerCombatRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("Tongtian tower enemy HP status transfer refresh failed: " + ex.Message);
+            SunExpLog.Warn("Endless Sea enemy HP status transfer refresh failed: " + ex.Message);
         }
     }
 }

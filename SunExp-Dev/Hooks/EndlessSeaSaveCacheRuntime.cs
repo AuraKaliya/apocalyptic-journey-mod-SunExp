@@ -9,7 +9,7 @@ using Witch.Mod;
 
 namespace SunExp.Dll.Hooks;
 
-public static class TongtianTowerSaveCacheRuntime
+public static class EndlessSeaSaveCacheRuntime
 {
     private static readonly HashSet<string> TemporarilyProtectedSaves = new(StringComparer.Ordinal);
 
@@ -18,29 +18,29 @@ public static class TongtianTowerSaveCacheRuntime
         RegisterAfter(modConfig, "ModeChoiceUI.Init", _ => ClearNativeNormalCache("ModeChoiceUI.Init"));
         RegisterAfter(modConfig, "ModeChoiceUI.DataUpdate", _ => ClearNativeNormalCache("ModeChoiceUI.DataUpdate"));
         RegisterBefore(modConfig, "ModeChoiceUI.NormalMode", _ => ClearNativeNormalCache("ModeChoiceUI.NormalMode"));
-        RegisterBefore(modConfig, "ModeChoiceUI.DeleteExistingSavesForMode", ProtectTowerSavesBeforeNativeDelete);
-        RegisterAfter(modConfig, "ModeChoiceUI.DeleteExistingSavesForMode", RestoreTowerSavesAfterNativeDelete);
+        RegisterBefore(modConfig, "ModeChoiceUI.DeleteExistingSavesForMode", ProtectSeaSavesBeforeNativeDelete);
+        RegisterAfter(modConfig, "ModeChoiceUI.DeleteExistingSavesForMode", RestoreSeaSavesAfterNativeDelete);
     }
 
     public static void ClearNativeNormalCache(string source)
     {
         ModeChoiceSaveCacheApi.ClearCachedSaveIf(
             SunExpIds.NativeNormalModeType,
-            TongtianTowerRunStateStore.IsTongtianSave,
+            EndlessSeaRunStateStore.IsEndlessSeaSave,
             source);
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("tongtian tower save cache " + message));
+        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("endless sea save cache " + message));
     }
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterBefore(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("tongtian tower save cache " + message));
+        AuraSharedHooks.RegisterBefore(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("endless sea save cache " + message));
     }
 
-    private static void ProtectTowerSavesBeforeNativeDelete(ModHookContext context)
+    private static void ProtectSeaSavesBeforeNativeDelete(ModHookContext context)
     {
         try
         {
@@ -52,30 +52,30 @@ public static class TongtianTowerSaveCacheRuntime
             TemporarilyProtectedSaves.Clear();
             foreach (var saveInfo in Singleton<GameRuntimeData>.Instance?.Saves ?? new List<Data.Save.SaveInfo>())
             {
-                if (!TongtianTowerRunStateStore.IsTongtianSave(saveInfo)
+                if (!EndlessSeaRunStateStore.IsEndlessSeaSave(saveInfo)
                     || !string.Equals(saveInfo.modeType, SunExpIds.NativeNormalModeType, StringComparison.Ordinal))
                 {
                     continue;
                 }
 
-                saveInfo.modeType = SunExpIds.TongtianTowerModeType;
+                saveInfo.modeType = SunExpIds.EndlessSeaModeType;
                 TemporarilyProtectedSaves.Add(saveInfo.Name);
             }
 
             if (TemporarilyProtectedSaves.Count > 0)
             {
-                SunExpLog.Debug("[TongtianTowerSaveCache] protected "
+                SunExpLog.Debug("[EndlessSeaSaveCache] protected "
                     + TemporarilyProtectedSaves.Count
-                    + " tower saves from native Normal cleanup.");
+                    + " Endless Sea saves from native Normal cleanup.");
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[TongtianTowerSaveCache] protect before native delete failed: " + ex.Message);
+            SunExpLog.Warn("[EndlessSeaSaveCache] protect before native delete failed: " + ex.Message);
         }
     }
 
-    private static void RestoreTowerSavesAfterNativeDelete(ModHookContext context)
+    private static void RestoreSeaSavesAfterNativeDelete(ModHookContext context)
     {
         try
         {
@@ -94,13 +94,13 @@ public static class TongtianTowerSaveCacheRuntime
                 saveInfo.modeType = SunExpIds.NativeNormalModeType;
             }
 
-            SunExpLog.Debug("[TongtianTowerSaveCache] restored "
+            SunExpLog.Debug("[EndlessSeaSaveCache] restored "
                 + TemporarilyProtectedSaves.Count
-                + " protected tower saves after native Normal cleanup.");
+                + " protected Endless Sea saves after native Normal cleanup.");
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[TongtianTowerSaveCache] restore after native delete failed: " + ex.Message);
+            SunExpLog.Warn("[EndlessSeaSaveCache] restore after native delete failed: " + ex.Message);
         }
         finally
         {

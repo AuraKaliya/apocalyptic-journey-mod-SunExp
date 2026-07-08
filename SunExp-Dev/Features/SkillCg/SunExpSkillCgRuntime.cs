@@ -5,6 +5,7 @@ using System.Linq;
 using AuraCg.Shared;
 using AuraShared.Core;
 using SunExp.Dll.GameApi;
+using SunExp.Dll.Hooks;
 using SunExp.Dll.Infrastructure;
 using UnityEngine;
 using Witch;
@@ -16,6 +17,7 @@ namespace SunExp.Dll.Features.SkillCg;
 public static class SunExpSkillCgRuntime
 {
     private static readonly HashSet<string> DiagnosticKeys = new(StringComparer.OrdinalIgnoreCase);
+    private static int adventurePreloadSequence;
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -29,15 +31,13 @@ public static class SunExpSkillCgRuntime
             BeforeCombatAction,
             SunExpLog.Debug,
             SunExpLog.Warn);
-        RegisterBefore(modConfig, "GameEntryUI.StartGame", OnAdventureStart);
-        RegisterAfter(modConfig, "Fight_Start.Init", OnFightStart);
-        RegisterAfter(modConfig, "FightInit.Init", OnFightStart);
-        RegisterBefore(modConfig, "Fight_Win.ResetStates", OnFightEnding);
-        RegisterBefore(modConfig, "Fight_Escape.ResetStates", OnFightEnding);
-        RegisterBefore(modConfig, "Fight_Loss.Init", OnFightEnding);
-        RegisterAfter(modConfig, "Fight_Win.ResetStates", OnFightEnded);
-        RegisterAfter(modConfig, "Fight_Escape.ResetStates", OnFightEnded);
-        RegisterAfter(modConfig, "Fight_Loss.Init", OnFightEnded);
+        SunExpBattleLifecycleRouter.Register("SkillCG", new SunExpBattleLifecycleSubscription
+        {
+            AdventureStarting = OnAdventureStart,
+            FightStarted = OnFightStart,
+            FightEnding = OnFightEnding,
+            FightEnded = OnFightEnded
+        });
     }
 
     private static void BeforeCombatAction(AuraCombatActionContext context)
@@ -356,22 +356,23 @@ public static class SunExpSkillCgRuntime
     private static void OnFightStart(ModHookContext context)
     {
         SkillCgArbiterRuntime.Clear(SunExpIds.ModId, "fight start");
-        try
-        {
-            SkillCgArbiterRuntime.PreloadRegisteredCardUseCg(SunExpIds.ModId, SunExpIds.ModId);
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Warn("[SkillCG] preload failed: " + ex.Message);
-        }
     }
 
     private static void OnAdventureStart(ModHookContext context)
     {
         try
         {
-            SkillCgArbiterRuntime.PreloadRegisteredCg(SunExpIds.ModId, SunExpIds.ModId);
-            SkillCgArbiterRuntime.PreloadRegisteredCardUseCg(SunExpIds.ModId, SunExpIds.ModId);
+            var key = "SunExp.Adventure." + (++adventurePreloadSequence).ToString();
+            SkillCgArbiterRuntime.EnsureAdventurePreloaded(
+                SunExpIds.ModId,
+                SunExpIds.ModId,
+                key + ".content",
+                new[] { SkillCgArbiterRuntime.SkillCgKind, SkillCgArbiterRuntime.CardUseCgKind });
+            SkillCgArbiterRuntime.EnsureAdventurePreloaded(
+                "AuraToolsExp",
+                SunExpIds.ModId,
+                key + ".auratools",
+                new[] { SkillCgArbiterRuntime.FeastCgKind });
         }
         catch (Exception ex)
         {
@@ -389,13 +390,4 @@ public static class SunExpSkillCgRuntime
         SkillCgArbiterRuntime.Clear(SunExpIds.ModId, "fight ending");
     }
 
-    private static void RegisterBefore(ModConfig modConfig, string target, Action<ModHookContext> action)
-    {
-        AuraSharedHooks.RegisterBefore(modConfig, target, action, SunExpLog.Debug, SunExpLog.Warn);
-    }
-
-    private static void RegisterAfter(ModConfig modConfig, string target, Action<ModHookContext> action)
-    {
-        AuraSharedHooks.RegisterAfter(modConfig, target, action, SunExpLog.Debug, SunExpLog.Warn);
-    }
 }

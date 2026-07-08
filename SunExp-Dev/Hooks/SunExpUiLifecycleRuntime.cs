@@ -1,5 +1,4 @@
 using System;
-using AuraShared.Core;
 using SunExp.Dll.Hooks.Ui;
 using SunExp.Dll.Infrastructure;
 using UnityEngine;
@@ -12,11 +11,13 @@ public static class SunExpUiLifecycleRuntime
 {
     public static void Initialize(ModConfig modConfig)
     {
+        SunExpBattleLifecycleRouter.Register("SunExpUiLifecycle", new SunExpBattleLifecycleSubscription
+        {
+            FightEnding = context => CloseAll("FightEnding")
+        });
         RegisterBefore(modConfig, "Fight_Win.Init", context => CloseAll("Fight_Win.Init"));
         RegisterBefore(modConfig, "Fight_Loss.Init", context => CloseAll("Fight_Loss.Init"));
         RegisterBefore(modConfig, "Fight_Escape.Init", context => CloseAll("Fight_Escape.Init"));
-        RegisterBefore(modConfig, "Fight_Win.ResetStates", context => CloseAll("Fight_Win.ResetStates"));
-        RegisterBefore(modConfig, "Fight_Escape.ResetStates", context => CloseAll("Fight_Escape.ResetStates"));
         RegisterBefore(modConfig, "UIManager.CloseUI", CloseForUiManager);
         RegisterBefore(modConfig, "UIBase.Close", CloseForUiBase);
         RegisterBefore(modConfig, "GameEntryUI.Init", context => CloseAll("GameEntryUI.Init"));
@@ -25,7 +26,7 @@ public static class SunExpUiLifecycleRuntime
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterBefore(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("SunExp UI lifecycle " + message));
+        SunExpHookRegistry.Before(config, target, action, "SunExpUiLifecycle");
     }
 
     private static void CloseForUiManager(ModHookContext context)

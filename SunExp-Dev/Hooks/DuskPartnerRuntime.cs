@@ -1,5 +1,4 @@
 using System;
-using AuraShared.Core;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using Witch.Core;
@@ -17,12 +16,15 @@ public static class DuskPartnerRuntime
     public static void Initialize(ModConfig modConfig)
     {
         RegisterAfter(modConfig, "GameEntryUI.CheckCareer", CleanupPlaceholderBlessing);
-        RegisterAfter(modConfig, "Fight_Start.Init", GrantTraitOnFightStart);
+        SunExpBattleLifecycleRouter.Register("DuskPartner", new SunExpBattleLifecycleSubscription
+        {
+            FightStarted = GrantTraitOnFightStart
+        });
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Dusk partner " + message));
+        SunExpHookRegistry.After(config, target, action, "DuskPartner");
     }
 
     private static void CleanupPlaceholderBlessing(ModHookContext context)

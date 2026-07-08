@@ -128,8 +128,11 @@ public static class AudioArbiterRuntime
 
                 if (ReuseLogOwners.Add(ownerModId))
                 {
-                    Debug.Log("[AudioArbiter] Reusing global arbiter for " + ownerModId
-                        + ", ownerType=" + existing.GetType().Assembly.GetName().Name);
+                    AuraSharedLog.DebugLog(
+                        "AudioArbiter",
+                        "Reusing global arbiter for " + ownerModId
+                        + ", ownerType=" + existing.GetType().Assembly.GetName().Name,
+                        false);
                 }
 
                 TryInitializeExisting(existing, modConfig, ownerModId);
@@ -145,7 +148,7 @@ public static class AudioArbiterRuntime
 
         var component = gameObject.AddComponent<AudioArbiterComponent>();
         component.InitializeOwner(modConfig, ownerModId);
-        Debug.Log("[AudioArbiter] Created global arbiter, owner=" + ownerModId);
+        AuraSharedLog.DebugLog("AudioArbiter", "Created global arbiter, owner=" + ownerModId, false);
         return component;
     }
 
@@ -1815,7 +1818,7 @@ public static class AudioArbiterRuntime
 
         private void Log(string message)
         {
-            Debug.Log("[AudioArbiter] " + message);
+            AuraSharedLog.DebugLog("AudioArbiter", message, false);
         }
 
         private void Warn(string message)
@@ -1996,7 +1999,7 @@ public static class AudioArbiterRuntime
                 if (provider is IDisposable disposable)
                 {
                     disposable.Dispose();
-                    Debug.Log("[AudioArbiter] Sound provider disposed: " + ProviderId + ", reason=" + reason);
+                    AuraSharedLog.DebugLog("AudioArbiter", "Sound provider disposed: " + ProviderId + ", reason=" + reason, false);
                     return;
                 }
 
@@ -2554,7 +2557,7 @@ public sealed class FileSoundProvider : IDisposable
             loadedClip.name = Path.GetFileNameWithoutExtension(audioPath);
             clip = loadedClip;
             loadState = "Ready";
-            Debug.Log("[AudioArbiter] Sound loaded: provider=" + ProviderId + ", clip=" + loadedClip.name);
+            AuraSharedLog.DebugLog("AudioArbiter", "Sound loaded: provider=" + ProviderId + ", clip=" + loadedClip.name, false);
         });
     }
 

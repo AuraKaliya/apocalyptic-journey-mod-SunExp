@@ -17,7 +17,7 @@ public static class EndlessAbyssEnemyIntentPoolService
         SunExpIds.AbyssDeficitEnemyCardId
     };
 
-    public static bool TryAddIntent(Enemy enemy, int floor, TongtianTowerNodeKind nodeKind, string source)
+    public static bool TryAddIntent(Enemy enemy, int floor, EndlessSeaNodeKind nodeKind, string source)
     {
         try
         {
@@ -51,14 +51,14 @@ public static class EndlessAbyssEnemyIntentPoolService
         }
     }
 
-    private static bool ShouldApply(int floor, TongtianTowerNodeKind nodeKind)
+    private static bool ShouldApply(int floor, EndlessSeaNodeKind nodeKind)
     {
-        if (TongtianTowerRewardPlan.IsEndless(floor))
+        if (EndlessSeaRewardPlan.IsEndless(floor))
         {
             return true;
         }
 
-        return nodeKind == TongtianTowerNodeKind.Boss;
+        return nodeKind == EndlessSeaNodeKind.Boss;
     }
 
     private static bool AlreadyApplied(IStatusManager status)

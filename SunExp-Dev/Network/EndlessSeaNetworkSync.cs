@@ -13,7 +13,7 @@ using Witch.UI.Window;
 namespace SunExp.Dll.Network;
 
 [Serializable]
-public sealed class TongtianTowerStateSnapshot
+public sealed class EndlessSeaStateSnapshot
 {
     public string Mode { get; set; } = "";
 
@@ -39,18 +39,18 @@ public sealed class TongtianTowerStateSnapshot
 
     public string Source { get; set; } = "";
 
-    public static TongtianTowerStateSnapshot Capture(string source)
+    public static EndlessSeaStateSnapshot Capture(string source)
     {
-        return new TongtianTowerStateSnapshot
+        return new EndlessSeaStateSnapshot
         {
-            Mode = ReadString(SunExpIds.TongtianTowerModeKey),
-            Floor = Math.Max(1, ReadInt(SunExpIds.TongtianTowerFloorKey)),
-            GeneratedFloor = Math.Max(0, ReadInt(SunExpIds.TongtianTowerGeneratedFloorKey)),
-            FloorPlanJson = ReadString(SunExpIds.TongtianTowerFloorPlanKey),
-            RunId = ReadString(SunExpIds.TongtianTowerRunIdKey),
-            RunPhase = ReadString(SunExpIds.TongtianTowerRunPhaseKey),
-            RunEnded = ReadString(SunExpIds.TongtianTowerRunEndedKey),
-            StarterDeckApplied = ReadString(SunExpIds.TongtianTowerStarterDeckAppliedKey),
+            Mode = ReadString(SunExpIds.EndlessSeaModeKey),
+            Floor = Math.Max(1, ReadInt(SunExpIds.EndlessSeaFloorKey)),
+            GeneratedFloor = Math.Max(0, ReadInt(SunExpIds.EndlessSeaGeneratedFloorKey)),
+            FloorPlanJson = ReadString(SunExpIds.EndlessSeaFloorPlanKey),
+            RunId = ReadString(SunExpIds.EndlessSeaRunIdKey),
+            RunPhase = ReadString(SunExpIds.EndlessSeaRunPhaseKey),
+            RunEnded = ReadString(SunExpIds.EndlessSeaRunEndedKey),
+            StarterDeckApplied = ReadString(SunExpIds.EndlessSeaStarterDeckAppliedKey),
             GazeLevel = Math.Max(0, ReadInt(SunExpIds.EndlessAbyssGazeLevelKey)),
             LedgerJson = ReadString(SunExpIds.EndlessAbyssLedgerKey),
             PendingShockJson = ReadString(SunExpIds.EndlessAbyssPendingShockKey),
@@ -65,14 +65,14 @@ public sealed class TongtianTowerStateSnapshot
             return;
         }
 
-        Set(SunExpIds.TongtianTowerModeKey, "1");
-        Set(SunExpIds.TongtianTowerFloorKey, Math.Max(1, Floor).ToString());
-        Set(SunExpIds.TongtianTowerGeneratedFloorKey, Math.Max(0, GeneratedFloor).ToString());
-        Set(SunExpIds.TongtianTowerFloorPlanKey, FloorPlanJson ?? "");
-        Set(SunExpIds.TongtianTowerRunIdKey, RunId ?? "");
-        Set(SunExpIds.TongtianTowerRunPhaseKey, RunPhase ?? "");
-        Set(SunExpIds.TongtianTowerRunEndedKey, RunEnded ?? "0");
-        Set(SunExpIds.TongtianTowerStarterDeckAppliedKey, StarterDeckApplied ?? "");
+        Set(SunExpIds.EndlessSeaModeKey, "1");
+        Set(SunExpIds.EndlessSeaFloorKey, Math.Max(1, Floor).ToString());
+        Set(SunExpIds.EndlessSeaGeneratedFloorKey, Math.Max(0, GeneratedFloor).ToString());
+        Set(SunExpIds.EndlessSeaFloorPlanKey, FloorPlanJson ?? "");
+        Set(SunExpIds.EndlessSeaRunIdKey, RunId ?? "");
+        Set(SunExpIds.EndlessSeaRunPhaseKey, RunPhase ?? "");
+        Set(SunExpIds.EndlessSeaRunEndedKey, RunEnded ?? "0");
+        Set(SunExpIds.EndlessSeaStarterDeckAppliedKey, StarterDeckApplied ?? "");
         if (GazeLevel > 0)
         {
             Set(SunExpIds.EndlessAbyssGazeLevelKey, GazeLevel.ToString());
@@ -80,7 +80,7 @@ public sealed class TongtianTowerStateSnapshot
 
         Set(SunExpIds.EndlessAbyssLedgerKey, EndlessAbyssRunLedger.MergeRemotePreservingLocalMilestones(LedgerJson ?? ""));
         Set(SunExpIds.EndlessAbyssPendingShockKey, PendingShockJson ?? "");
-        SunExpLog.Info("[TongtianTowerSync] snapshot applied from "
+        SunExpLog.Info("[EndlessSeaSync] snapshot applied from "
             + source
             + "; floor="
             + Math.Max(1, Floor)
@@ -89,11 +89,11 @@ public sealed class TongtianTowerStateSnapshot
             + ".");
 
         SunExpFrameDispatcher.RunOnceNextFrame(
-            "TongtianTowerSync.RefreshMapUi",
+            "EndlessSeaSync.RefreshMapUi",
             () =>
             {
                 RefreshMapUi(source);
-                EndlessAbyssMilestonePromptService.Schedule("TongtianTowerSync:" + source);
+                EndlessAbyssMilestonePromptService.Schedule("EndlessSeaSync:" + source);
             });
     }
 
@@ -110,23 +110,23 @@ public sealed class TongtianTowerStateSnapshot
 
             var floor = Math.Max(1, Floor);
             var manager = MapManager.Instance?.ModeMapManager as NormalMapManager;
-            TongtianTowerMapViewPresenter.SetLayerTitle(mapSelect, floor);
+            EndlessSeaMapViewPresenter.SetLayerTitle(mapSelect, floor);
             if (manager != null)
             {
                 // Snapshots can arrive while the native map card is being dragged.
                 // Keep this refresh fixed-slot only so selectable slots are not rebuilt mid-interaction.
-                TongtianTowerMapViewPresenter.ApplySlots(
+                EndlessSeaMapViewPresenter.ApplySlots(
                     mapSelect,
                     manager,
                     floor,
                     applyAllSlots: false,
                     sync: false,
-                    "TongtianTowerSync:" + source);
+                    "EndlessSeaSync:" + source);
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[TongtianTowerSync] map UI refresh failed: " + ex.Message);
+            SunExpLog.Warn("[EndlessSeaSync] map UI refresh failed: " + ex.Message);
         }
     }
 
@@ -173,36 +173,36 @@ public sealed class TongtianTowerStateSnapshot
 }
 
 [Serializable]
-public sealed class RpcTongtianTowerStateSnapshot : RpcCommandBase
+public sealed class RpcEndlessSeaStateSnapshot : RpcCommandBase
 {
-    public TongtianTowerStateSnapshot Snapshot { get; set; } = new();
+    public EndlessSeaStateSnapshot Snapshot { get; set; } = new();
 
     public string Source { get; set; } = "";
 
-    public RpcTongtianTowerStateSnapshot()
+    public RpcEndlessSeaStateSnapshot()
     {
     }
 
-    public RpcTongtianTowerStateSnapshot(TongtianTowerStateSnapshot snapshot, string source)
+    public RpcEndlessSeaStateSnapshot(EndlessSeaStateSnapshot snapshot, string source)
     {
-        Snapshot = snapshot ?? new TongtianTowerStateSnapshot();
+        Snapshot = snapshot ?? new EndlessSeaStateSnapshot();
         Source = source ?? "";
     }
 
     public override void RpcExecute()
     {
-        Snapshot?.Apply("RpcTongtianTowerStateSnapshot:" + Source);
+        Snapshot?.Apply("RpcEndlessSeaStateSnapshot:" + Source);
     }
 }
 
 [Serializable]
-public sealed class RpcTongtianTowerStateSnapshotRequest : RpcCommandBase, ISunExpServerBoundRpcCommand
+public sealed class RpcEndlessSeaStateSnapshotRequest : RpcCommandBase, ISunExpServerBoundRpcCommand
 {
     private SunExpRpcSender serverSender = SunExpRpcSender.Unbound;
 
     public string Source { get; set; } = "";
 
-    public TongtianTowerStateSnapshot? Snapshot { get; set; }
+    public EndlessSeaStateSnapshot? Snapshot { get; set; }
 
     public void BindServerSender(SunExpRpcSender sender)
     {
@@ -213,28 +213,28 @@ public sealed class RpcTongtianTowerStateSnapshotRequest : RpcCommandBase, ISunE
     {
         if (serverSender.IsAvailable && !serverSender.IsLobbyMember)
         {
-            SunExpLog.Warn("[TongtianTowerSync] rejected snapshot request from outside lobby: " + serverSender.PlayerId);
+            SunExpLog.Warn("[EndlessSeaSync] rejected snapshot request from outside lobby: " + serverSender.PlayerId);
             return;
         }
 
-        if (GameSaveManager.GetValue<string>(SunExpIds.TongtianTowerModeKey) != "1")
+        if (GameSaveManager.GetValue<string>(SunExpIds.EndlessSeaModeKey) != "1")
         {
             return;
         }
 
-        Snapshot = TongtianTowerStateSnapshot.Capture("request:" + Source);
-        SunExpLog.Debug("[TongtianTowerSync] prepared snapshot for request from "
+        Snapshot = EndlessSeaStateSnapshot.Capture("request:" + Source);
+        SunExpLog.Debug("[EndlessSeaSync] prepared snapshot for request from "
             + (serverSender.PlayerId.Length == 0 ? "local" : serverSender.PlayerId)
             + ".");
     }
 
     public override void RpcExecute()
     {
-        Snapshot?.Apply("RpcTongtianTowerStateSnapshotRequest:" + Source);
+        Snapshot?.Apply("RpcEndlessSeaStateSnapshotRequest:" + Source);
     }
 }
 
-public static class TongtianTowerNetworkSync
+public static class EndlessSeaNetworkSync
 {
     private const double SnapshotRequestThrottleSeconds = 1.5d;
     private static string lastSnapshotRequestSource = "";
@@ -250,8 +250,8 @@ public static class TongtianTowerNetworkSync
             return;
         }
 
-        var snapshot = TongtianTowerStateSnapshot.Capture(source);
-        SunExpNetworkRuntime.Send(new RpcTongtianTowerStateSnapshot(snapshot, source), source);
+        var snapshot = EndlessSeaStateSnapshot.Capture(source);
+        SunExpNetworkRuntime.Send(new RpcEndlessSeaStateSnapshot(snapshot, source), source);
     }
 
     public static void RequestSnapshot(string source)
@@ -263,7 +263,7 @@ public static class TongtianTowerNetworkSync
             return;
         }
 
-        SunExpNetworkRuntime.Send(new RpcTongtianTowerStateSnapshotRequest
+        SunExpNetworkRuntime.Send(new RpcEndlessSeaStateSnapshotRequest
         {
             Source = source ?? ""
         }, source ?? "");
@@ -271,13 +271,13 @@ public static class TongtianTowerNetworkSync
 
     private static bool IsSnapshotRequestThrottled(string source)
     {
-        var floor = Math.Max(1, DictionaryUtil.ParseInt(ReadString(SunExpIds.TongtianTowerFloorKey), 1));
+        var floor = Math.Max(1, DictionaryUtil.ParseInt(ReadString(SunExpIds.EndlessSeaFloorKey), 1));
         var now = DateTime.UtcNow;
         if (floor == lastSnapshotRequestFloor
             && string.Equals(source, lastSnapshotRequestSource, StringComparison.Ordinal)
             && (now - lastSnapshotRequestAtUtc).TotalSeconds < SnapshotRequestThrottleSeconds)
         {
-            SunExpLog.Debug("[TongtianTowerSync] snapshot request throttled from " + source + ".");
+            SunExpLog.Debug("[EndlessSeaSync] snapshot request throttled from " + source + ".");
             return true;
         }
 

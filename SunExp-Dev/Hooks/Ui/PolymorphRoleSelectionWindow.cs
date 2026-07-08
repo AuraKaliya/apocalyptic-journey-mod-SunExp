@@ -339,19 +339,12 @@ public static class PolymorphRoleSelectionWindow
 
     private static int ImmediateWarmupCount()
     {
-        return SunExpPerformanceSettings.Quality == SunExpPerformanceQuality.UltraLow ? 4 : 12;
+        return 12;
     }
 
     private static int DeferredWarmupBatchSize()
     {
-        return SunExpPerformanceSettings.Quality switch
-        {
-            SunExpPerformanceQuality.High => 8,
-            SunExpPerformanceQuality.Balanced => 6,
-            SunExpPerformanceQuality.Low => 4,
-            SunExpPerformanceQuality.UltraLow => 2,
-            _ => 6
-        };
+        return 6;
     }
 
     private sealed class RoleCardView : SunExpPooledUiBehaviour

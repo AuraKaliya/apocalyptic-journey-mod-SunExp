@@ -23,7 +23,7 @@ public sealed class RpcEndlessAbyssShockResolution : RpcCommandBase
 {
     public EndlessAbyssShockResolution Resolution { get; set; } = new();
 
-    public TongtianTowerStateSnapshot Snapshot { get; set; } = new();
+    public EndlessSeaStateSnapshot Snapshot { get; set; } = new();
 
     public string Source { get; set; } = "";
 
@@ -33,11 +33,11 @@ public sealed class RpcEndlessAbyssShockResolution : RpcCommandBase
 
     public RpcEndlessAbyssShockResolution(
         EndlessAbyssShockResolution resolution,
-        TongtianTowerStateSnapshot snapshot,
+        EndlessSeaStateSnapshot snapshot,
         string source)
     {
         Resolution = resolution ?? new EndlessAbyssShockResolution();
-        Snapshot = snapshot ?? new TongtianTowerStateSnapshot();
+        Snapshot = snapshot ?? new EndlessSeaStateSnapshot();
         Source = source ?? "";
     }
 

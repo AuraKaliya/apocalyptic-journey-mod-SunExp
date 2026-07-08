@@ -25,6 +25,7 @@ public static class AuraToolsSkillCgRuntime
     private static bool hooksRegistered;
     private static int hookFailureCount;
     private static bool safeModeDisabled;
+    private static int adventurePreloadSequence;
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -214,11 +215,6 @@ public static class AuraToolsSkillCgRuntime
         {
             AuraToolsSkillCgProvider.ClearOwnerRoles();
             SkillCgArbiterRuntime.Clear(AuraToolsIds.ModId, "fight start");
-            if (AuraToolsConfigService.SkillCg.CardUseCg.Enabled
-                && AuraToolsConfigService.SkillCg.PreloadOnFightStart)
-            {
-                SkillCgArbiterRuntime.PreloadRegisteredCardUseCg(AuraToolsIds.ModId);
-            }
         });
     }
 
@@ -234,15 +230,24 @@ public static class AuraToolsSkillCgRuntime
             return;
         }
 
+        var key = "AuraToolsExp.Adventure." + (++adventurePreloadSequence).ToString();
         if (AuraToolsConfigService.SkillCg.Enabled)
         {
-            SkillCgArbiterRuntime.PreloadRegisteredCg(AuraToolsIds.ModId);
+            SkillCgArbiterRuntime.EnsureAdventurePreloaded(
+                AuraToolsIds.ModId,
+                "",
+                key + ".registered",
+                new[] { SkillCgArbiterRuntime.SkillCgKind, SkillCgArbiterRuntime.FeastCgKind });
             SkillCgArbiterRuntime.PreloadCg(AuraToolsIds.ModId, AuraToolsSkillCgProvider.BuildConfiguredPreloadRequests());
         }
 
         if (AuraToolsConfigService.SkillCg.CardUseCg.Enabled)
         {
-            SkillCgArbiterRuntime.PreloadRegisteredCardUseCg(AuraToolsIds.ModId);
+            SkillCgArbiterRuntime.EnsureAdventurePreloaded(
+                AuraToolsIds.ModId,
+                "",
+                key + ".card-use",
+                new[] { SkillCgArbiterRuntime.CardUseCgKind });
         }
     }
 

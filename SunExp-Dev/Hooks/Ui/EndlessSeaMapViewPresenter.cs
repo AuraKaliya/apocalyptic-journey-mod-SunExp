@@ -11,7 +11,7 @@ using Witch.UI.Window;
 
 namespace SunExp.Dll.Hooks.Ui;
 
-public static class TongtianTowerMapViewPresenter
+public static class EndlessSeaMapViewPresenter
 {
     private const string BuildCardTemplatePath = "Icon/CardTemplate/\u5efa\u7b51\u724c";
 
@@ -28,10 +28,10 @@ public static class TongtianTowerMapViewPresenter
             return;
         }
 
-        if (!TongtianTowerFloorPlanStore.TryLoad(floor, out var plan))
+        if (!EndlessSeaFloorPlanStore.TryLoad(floor, out var plan))
         {
-            TongtianTowerMapBuilder.EnsureFloorMapState(manager, floor, source + ":plan-repair");
-            if (!TongtianTowerFloorPlanStore.TryLoad(floor, out plan))
+            EndlessSeaMapBuilder.EnsureFloorMapState(manager, floor, source + ":plan-repair");
+            if (!EndlessSeaFloorPlanStore.TryLoad(floor, out plan))
             {
                 return;
             }
@@ -45,7 +45,7 @@ public static class TongtianTowerMapViewPresenter
 
         var fixedSlots = new HashSet<int>(plan.FixedSlots());
         var changed = applyAllSlots && ClearEditableSlots(mapSelect, nodes, fixedSlots);
-        foreach (var slot in TongtianTowerMapProjectionService.SlotsToApply(plan, applyAllSlots))
+        foreach (var slot in EndlessSeaMapProjectionService.SlotsToApply(plan, applyAllSlots))
         {
             if (slot < 0
                 || slot >= nodes.Length
@@ -64,21 +64,21 @@ public static class TongtianTowerMapViewPresenter
                 changed = true;
             }
 
-            MapNodeSafetyService.EnsureNodeDice(manager.MapTree, node, "TongtianTowerMapViewPresenter.ApplySlots");
-            EnsureTowerSlotVisual(mapSelect, slot, node, node.data, fixedSlots.Contains(slot));
+            MapNodeSafetyService.EnsureNodeDice(manager.MapTree, node, "EndlessSeaMapViewPresenter.ApplySlots");
+            EnsureSeaSlotVisual(mapSelect, slot, node, node.data, fixedSlots.Contains(slot));
         }
 
         if (sync && changed)
         {
             mapSelect.SendNode();
-            SunExpLog.Info("[TongtianTowerMap] slots applied from " + source + "; floor=" + floor + ".");
+            SunExpLog.Info("[EndlessSeaMap] slots applied from " + source + "; floor=" + floor + ".");
         }
     }
 
     private static bool ClearEditableSlots(MapSelectUI mapSelect, MapTree.Node[] nodes, HashSet<int> fixedSlots)
     {
         var changed = false;
-        var count = Math.Min(nodes.Length, SunExpIds.TongtianTowerLayerNodeCount);
+        var count = Math.Min(nodes.Length, SunExpIds.EndlessSeaLayerNodeCount);
         for (var slot = 0; slot < count; slot++)
         {
             if (fixedSlots.Contains(slot) || nodes[slot] == null)
@@ -129,7 +129,7 @@ public static class TongtianTowerMapViewPresenter
 
     public static void SetLayerTitle(MapSelectUI mapSelect, int floor)
     {
-        var title = SunExpIds.TongtianTowerTitle + " \u7b2c" + Math.Max(1, floor) + "\u5c42";
+        var title = SunExpIds.EndlessSeaTitle + " \u7b2c" + Math.Max(1, floor) + "\u5c42";
         SetTmpText(mapSelect.transform.Find("Title/Text/text"), title);
 
         var text = mapSelect.transform.Find("Title/Text/text")?.GetComponent<Text>();
@@ -147,7 +147,7 @@ public static class TongtianTowerMapViewPresenter
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[TongtianTowerMap] skipped slot apply from "
+            SunExpLog.Warn("[EndlessSeaMap] skipped slot apply from "
                 + source
                 + ": map nodes unavailable ("
                 + ex.GetType().Name
@@ -158,7 +158,7 @@ public static class TongtianTowerMapViewPresenter
         }
     }
 
-    private static void EnsureTowerSlotVisual(
+    private static void EnsureSeaSlotVisual(
         MapSelectUI mapSelect,
         int slotIndex,
         MapTree.Node node,
@@ -179,7 +179,7 @@ public static class TongtianTowerMapViewPresenter
         }
 
         var prefabName = PrefabNameForType(Field(data, "Type"));
-        var slotItem = FindReusableTowerSlotItem(content, prefabName, nullSlot);
+        var slotItem = FindReusableSeaSlotItem(content, prefabName, nullSlot);
         foreach (var existing in content.GetComponentsInChildren<MapItem>(true))
         {
             if (existing == null
@@ -197,7 +197,7 @@ public static class TongtianTowerMapViewPresenter
             var template = mapSelect.transform.Find("MapSelect/" + prefabName);
             if (template == null)
             {
-                SunExpLog.Warn("[TongtianTowerMap] missing map prefab: " + prefabName);
+                SunExpLog.Warn("[EndlessSeaMap] missing map prefab: " + prefabName);
                 return;
             }
 
@@ -210,7 +210,7 @@ public static class TongtianTowerMapViewPresenter
         slotItem.SetActive(true);
 
         var item = slotItem.GetComponent<MapItem>() ?? slotItem.AddComponent<MapItem>();
-        var visualState = slotItem.GetComponent<TongtianTowerSlotViewState>() ?? slotItem.AddComponent<TongtianTowerSlotViewState>();
+        var visualState = slotItem.GetComponent<EndlessSeaSlotViewState>() ?? slotItem.AddComponent<EndlessSeaSlotViewState>();
         var mapId = Field(data, "Id");
         var nodeId = Field(data, "NodeId");
         if (!visualState.Matches(mapId, nodeId, prefabName))
@@ -245,7 +245,7 @@ public static class TongtianTowerMapViewPresenter
         return string.Equals(type, "Fight", StringComparison.Ordinal) ? "FightPrefab" : "EventPrefab";
     }
 
-    private static GameObject? FindReusableTowerSlotItem(Transform content, string prefabName, Transform? nullSlot)
+    private static GameObject? FindReusableSeaSlotItem(Transform content, string prefabName, Transform? nullSlot)
     {
         foreach (var existing in content.GetComponentsInChildren<MapItem>(true))
         {
@@ -277,7 +277,7 @@ public static class TongtianTowerMapViewPresenter
             return root.Find("Start");
         }
 
-        if (slotIndex == SunExpIds.TongtianTowerBossSlotIndex)
+        if (slotIndex == SunExpIds.EndlessSeaBossSlotIndex)
         {
             return root.Find("End");
         }
@@ -325,7 +325,7 @@ public static class TongtianTowerMapViewPresenter
         var texture = SunExpResourceCache.Load<Texture>(BuildCardTemplatePath, true);
         if (texture != null && !MapItemApi.ApplyCardBackgroundTexture(item, texture, hideIcon: false, out _))
         {
-            SunExpLog.Warn("[TongtianTowerMap] build card texture skipped, renderer missing.");
+            SunExpLog.Warn("[EndlessSeaMap] build card texture skipped, renderer missing.");
         }
     }
 
@@ -364,7 +364,7 @@ public static class TongtianTowerMapViewPresenter
     }
 }
 
-public sealed class TongtianTowerSlotViewState : MonoBehaviour
+public sealed class EndlessSeaSlotViewState : MonoBehaviour
 {
     private string mapId = "";
     private string nodeId = "";

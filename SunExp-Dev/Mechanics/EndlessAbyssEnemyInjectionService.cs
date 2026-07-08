@@ -10,10 +10,10 @@ public static class EndlessAbyssEnemyInjectionService
 {
     private const string ExtraEnemyAppliedKey = "SunExpEndlessAbyssExtraEnemiesApplied";
 
-    public static int TryInjectAfterFightInit(int floor, TongtianTowerNodeKind nodeKind, string source)
+    public static int TryInjectAfterFightInit(int floor, EndlessSeaNodeKind nodeKind, string source)
     {
         floor = Math.Max(1, floor);
-        if (!TongtianTowerRewardPlan.IsEndless(floor))
+        if (!EndlessSeaRewardPlan.IsEndless(floor))
         {
             return 0;
         }
@@ -65,28 +65,28 @@ public static class EndlessAbyssEnemyInjectionService
         return injected;
     }
 
-    private static IEnumerable<EnemyInjectionRequest> Plan(TongtianTowerNodeKind nodeKind)
+    private static IEnumerable<EnemyInjectionRequest> Plan(EndlessSeaNodeKind nodeKind)
     {
-        if (nodeKind == TongtianTowerNodeKind.EndlessBoss)
+        if (nodeKind == EndlessSeaNodeKind.EndlessBoss)
         {
-            yield return new EnemyInjectionRequest(TongtianTowerEnemyPool.PickSpecialBossEnemy(), "endless-boss-special");
-            yield return new EnemyInjectionRequest(TongtianTowerEnemyPool.PickNormalBossEnemy(), "endless-boss-normal");
+            yield return new EnemyInjectionRequest(EndlessSeaEnemyPool.PickSpecialBossEnemy(), "endless-boss-special");
+            yield return new EnemyInjectionRequest(EndlessSeaEnemyPool.PickNormalBossEnemy(), "endless-boss-normal");
             yield break;
         }
 
-        if (nodeKind == TongtianTowerNodeKind.Boss)
+        if (nodeKind == EndlessSeaNodeKind.Boss)
         {
-            yield return new EnemyInjectionRequest(TongtianTowerEnemyPool.PickSpecialBossEnemy(), "endless-floor-boss");
+            yield return new EnemyInjectionRequest(EndlessSeaEnemyPool.PickSpecialBossEnemy(), "endless-floor-boss");
             yield break;
         }
 
-        if (nodeKind == TongtianTowerNodeKind.Elite)
+        if (nodeKind == EndlessSeaNodeKind.Elite)
         {
-            yield return new EnemyInjectionRequest(TongtianTowerEnemyPool.PickNormalBossEnemy(), "endless-elite");
+            yield return new EnemyInjectionRequest(EndlessSeaEnemyPool.PickNormalBossEnemy(), "endless-elite");
             yield break;
         }
 
-        yield return new EnemyInjectionRequest(TongtianTowerEnemyPool.PickNormalBossEnemy(), "endless-normal");
+        yield return new EnemyInjectionRequest(EndlessSeaEnemyPool.PickNormalBossEnemy(), "endless-normal");
     }
 
     private static bool AlreadyInjected(FightManager manager, int floor)

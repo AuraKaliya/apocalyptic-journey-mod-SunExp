@@ -7,30 +7,30 @@ using Witch.Core;
 
 namespace SunExp.Dll.Mechanics;
 
-public sealed class TongtianTowerFloorPlan
+public sealed class EndlessSeaFloorPlan
 {
     public int Floor { get; set; }
 
     public int BuildingSlot { get; set; }
 
-    public List<TongtianTowerSlotPlan> Slots { get; set; } = new();
+    public List<EndlessSeaSlotPlan> Slots { get; set; } = new();
 
     public bool IsValid =>
         Floor > 0
         && Slots.Count == 2
-        && TryGetSlot(SunExpIds.TongtianTowerStartSlotIndex, out var start)
-        && start.Kind == TongtianTowerNodeKind.Monster
-        && TryGetSlot(SunExpIds.TongtianTowerBossSlotIndex, out var boss)
+        && TryGetSlot(SunExpIds.EndlessSeaStartSlotIndex, out var start)
+        && start.Kind == EndlessSeaNodeKind.Monster
+        && TryGetSlot(SunExpIds.EndlessSeaBossSlotIndex, out var boss)
         && IsBossKind(boss.Kind)
-        && Slots.All(slot => slot.VisualSlot == SunExpIds.TongtianTowerStartSlotIndex
-            || slot.VisualSlot == SunExpIds.TongtianTowerBossSlotIndex);
+        && Slots.All(slot => slot.VisualSlot == SunExpIds.EndlessSeaStartSlotIndex
+            || slot.VisualSlot == SunExpIds.EndlessSeaBossSlotIndex);
 
-    private static bool IsBossKind(TongtianTowerNodeKind kind)
+    private static bool IsBossKind(EndlessSeaNodeKind kind)
     {
-        return kind == TongtianTowerNodeKind.Boss || kind == TongtianTowerNodeKind.EndlessBoss;
+        return kind == EndlessSeaNodeKind.Boss || kind == EndlessSeaNodeKind.EndlessBoss;
     }
 
-    public bool TryGetSlot(int visualSlot, out TongtianTowerSlotPlan slot)
+    public bool TryGetSlot(int visualSlot, out EndlessSeaSlotPlan slot)
     {
         slot = Slots.FirstOrDefault(current => current.VisualSlot == visualSlot)!;
         return slot != null;
@@ -38,8 +38,8 @@ public sealed class TongtianTowerFloorPlan
 
     public IEnumerable<int> FixedSlots()
     {
-        yield return SunExpIds.TongtianTowerStartSlotIndex;
-        yield return SunExpIds.TongtianTowerBossSlotIndex;
+        yield return SunExpIds.EndlessSeaStartSlotIndex;
+        yield return SunExpIds.EndlessSeaBossSlotIndex;
     }
 
     public IEnumerable<string> Summaries()
@@ -58,7 +58,7 @@ public sealed class TongtianTowerFloorPlan
     {
         Floor = Math.Max(1, Floor);
         BuildingSlot = -1;
-        Slots ??= new List<TongtianTowerSlotPlan>();
+        Slots ??= new List<EndlessSeaSlotPlan>();
         foreach (var slot in Slots)
         {
             slot.Normalize();
@@ -66,11 +66,11 @@ public sealed class TongtianTowerFloorPlan
     }
 }
 
-public sealed class TongtianTowerSlotPlan
+public sealed class EndlessSeaSlotPlan
 {
     public int VisualSlot { get; set; }
 
-    public TongtianTowerNodeKind Kind { get; set; }
+    public EndlessSeaNodeKind Kind { get; set; }
 
     public bool Locked { get; set; }
 
@@ -84,21 +84,21 @@ public sealed class TongtianTowerSlotPlan
 
     public string Type => Field("Type", IsSafeNodeKind(Kind) ? "Build" : "Fight");
 
-    public static TongtianTowerSlotPlan FromNode(int visualSlot, TongtianTowerNodeKind kind, MapTree.Node node)
+    public static EndlessSeaSlotPlan FromNode(int visualSlot, EndlessSeaNodeKind kind, MapTree.Node node)
     {
         var data = node.data == null
             ? new Dictionary<string, string>(StringComparer.Ordinal)
             : new Dictionary<string, string>(node.data, StringComparer.Ordinal);
-        data[SunExpIds.TongtianTowerNodeSlotKey] = Math.Max(0, visualSlot).ToString();
-        data[SunExpIds.TongtianTowerNodeKindKey] = kind.ToString();
-        data[SunExpIds.TongtianTowerNodeLockedKey] = IsBossKind(kind) ? "1" : "0";
+        data[SunExpIds.EndlessSeaNodeSlotKey] = Math.Max(0, visualSlot).ToString();
+        data[SunExpIds.EndlessSeaNodeKindKey] = kind.ToString();
+        data[SunExpIds.EndlessSeaNodeLockedKey] = IsBossKind(kind) ? "1" : "0";
 
-        return new TongtianTowerSlotPlan
+        return new EndlessSeaSlotPlan
         {
             VisualSlot = visualSlot,
             Kind = kind,
             Locked = IsBossKind(kind),
-            Source = DictionaryUtil.Get(data, SunExpIds.TongtianTowerNodePoolSourceKey),
+            Source = DictionaryUtil.Get(data, SunExpIds.EndlessSeaNodePoolSourceKey),
             Data = data
         };
     }
@@ -113,7 +113,7 @@ public sealed class TongtianTowerSlotPlan
             data = new Dictionary<string, string>(Data, StringComparer.Ordinal),
             NodeDice = tree?.treedice ?? Dice.Default
         };
-        MapNodeSafetyService.EnsureNodeDice(tree, node, "TongtianTowerSlotPlan.ToNode");
+        MapNodeSafetyService.EnsureNodeDice(tree, node, "EndlessSeaSlotPlan.ToNode");
         return node;
     }
 
@@ -136,19 +136,19 @@ public sealed class TongtianTowerSlotPlan
         }
 
         Data["Type"] = IsSafeNodeKind(Kind) ? "Build" : "Fight";
-        Data[SunExpIds.TongtianTowerNodeSlotKey] = Math.Max(0, VisualSlot).ToString();
-        Data[SunExpIds.TongtianTowerNodeKindKey] = Kind.ToString();
-        Data[SunExpIds.TongtianTowerNodeLockedKey] = Locked ? "1" : "0";
+        Data[SunExpIds.EndlessSeaNodeSlotKey] = Math.Max(0, VisualSlot).ToString();
+        Data[SunExpIds.EndlessSeaNodeKindKey] = Kind.ToString();
+        Data[SunExpIds.EndlessSeaNodeLockedKey] = Locked ? "1" : "0";
     }
 
-    private static bool IsSafeNodeKind(TongtianTowerNodeKind kind)
+    private static bool IsSafeNodeKind(EndlessSeaNodeKind kind)
     {
-        return kind == TongtianTowerNodeKind.Rest || kind == TongtianTowerNodeKind.Building;
+        return kind == EndlessSeaNodeKind.Rest || kind == EndlessSeaNodeKind.Building;
     }
 
-    private static bool IsBossKind(TongtianTowerNodeKind kind)
+    private static bool IsBossKind(EndlessSeaNodeKind kind)
     {
-        return kind == TongtianTowerNodeKind.Boss || kind == TongtianTowerNodeKind.EndlessBoss;
+        return kind == EndlessSeaNodeKind.Boss || kind == EndlessSeaNodeKind.EndlessBoss;
     }
 
     private string Field(string key, string fallback = "")

@@ -1,5 +1,4 @@
 using System;
-using AuraShared.Core;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
@@ -12,12 +11,14 @@ public static class ProjectionRuntime
 {
     public static void Initialize(ModConfig modConfig)
     {
-        RegisterAfter(modConfig, "Fight_Start.Init", context => ClearBattle("Fight_Start.Init"));
-        RegisterBefore(modConfig, "Fight_Win.Init", context => ClearBattle("Fight_Win.Init:before"));
-        RegisterBefore(modConfig, "Fight_Loss.Init", context => ClearBattle("Fight_Loss.Init:before"));
-        RegisterBefore(modConfig, "Fight_Escape.Init", context => ClearBattle("Fight_Escape.Init:before"));
-        RegisterBefore(modConfig, "Fight_Win.ResetStates", context => ClearBattle("Fight_Win.ResetStates:before"));
-        RegisterBefore(modConfig, "Fight_Escape.ResetStates", context => ClearBattle("Fight_Escape.ResetStates:before"));
+        SunExpBattleLifecycleRouter.Register("Projection", new SunExpBattleLifecycleSubscription
+        {
+            FightStarted = context => ClearBattle("Fight_Start.Init"),
+            FightEnding = context => ClearBattle("FightEnding")
+        });
+        RegisterBefore(modConfig, SunExpHookTargets.FightWinInit, context => ClearBattle("Fight_Win.Init:before"));
+        RegisterBefore(modConfig, SunExpHookTargets.FightLossInit, context => ClearBattle("Fight_Loss.Init:before"));
+        RegisterBefore(modConfig, SunExpHookTargets.FightEscapeInit, context => ClearBattle("Fight_Escape.Init:before"));
         RegisterAfter(modConfig, "StatusManager.Hit", RetireProjectionAfterDamage);
         RegisterAfter(modConfig, "StatusManager.set_CurHp", RetireProjectionAfterHpChange);
         RegisterAfter(modConfig, "StatusManager.set_MaxHp", RetireProjectionAfterHpChange);
@@ -26,12 +27,12 @@ public static class ProjectionRuntime
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterBefore(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Projection " + message));
+        SunExpHookRegistry.Before(config, target, action, "Projection");
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Projection " + message));
+        SunExpHookRegistry.After(config, target, action, "Projection");
     }
 
     private static void ClearBattle(string source)

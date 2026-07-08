@@ -8,13 +8,13 @@ using Witch.UI.Window;
 
 namespace SunExp.Dll.Mechanics;
 
-public static class TongtianTowerCardAffixService
+public static class EndlessSeaCardAffixService
 {
     private const string BurnoutTag = "Burnout";
     private static int starterDeckWriteDepth;
     private static readonly CardAttachmentSpec BurnoutSpec = new(
         nativeTags: new[] { BurnoutTag },
-        markers: new[] { SunExpIds.TongtianTowerAutoBurnoutMarker },
+        markers: new[] { SunExpIds.EndlessSeaAutoBurnoutMarker },
         scope: CardAttachmentScope.RunPermanent);
 
     public static bool RunWithStarterDeckSuppressed(Func<bool> action)
@@ -45,7 +45,7 @@ public static class TongtianTowerCardAffixService
         var changed = CardAttachmentService.AttachToConfig(config, BurnoutSpec, source) > 0;
         if (changed)
         {
-            SunExpLog.Debug("[TongtianTowerCardAffix] applied Burnout from " + source);
+            SunExpLog.Debug("[EndlessSeaCardAffix] applied Burnout from " + source);
         }
 
         return changed;
@@ -61,7 +61,7 @@ public static class TongtianTowerCardAffixService
         var changed = CardAttachmentService.AttachToCardItem(card, BurnoutSpec, source) > 0;
         if (changed)
         {
-            SunExpLog.Debug("[TongtianTowerCardAffix] applied Burnout to card item from " + source);
+            SunExpLog.Debug("[EndlessSeaCardAffix] applied Burnout to card item from " + source);
         }
 
         return changed;
@@ -80,7 +80,7 @@ public static class TongtianTowerCardAffixService
         if (changed > 0)
         {
             TryPersistRole(role, source + ":starter-baseline");
-            SunExpLog.Info("[TongtianTowerCardAffix] marked starter deck baseline from "
+            SunExpLog.Info("[EndlessSeaCardAffix] marked starter deck baseline from "
                 + source
                 + ": "
                 + changed
@@ -104,7 +104,7 @@ public static class TongtianTowerCardAffixService
         if (changed > 0)
         {
             TryPersistRole(role, source + ":normalize-owned");
-            SunExpLog.Info("[TongtianTowerCardAffix] normalized owned cards from " + source + ": " + changed + ".");
+            SunExpLog.Info("[EndlessSeaCardAffix] normalized owned cards from " + source + ": " + changed + ".");
         }
 
         return changed;
@@ -125,7 +125,7 @@ public static class TongtianTowerCardAffixService
         if (changed > 0)
         {
             TryPersistRole(role, source + ":normalize-recent-owned");
-            SunExpLog.Info("[TongtianTowerCardAffix] normalized recent owned cards from " + source + ": " + changed + ".");
+            SunExpLog.Info("[EndlessSeaCardAffix] normalized recent owned cards from " + source + ": " + changed + ".");
         }
 
         return changed;
@@ -150,7 +150,7 @@ public static class TongtianTowerCardAffixService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[TongtianTowerCardAffix] role persist skipped from "
+            SunExpLog.Warn("[EndlessSeaCardAffix] role persist skipped from "
                 + source
                 + ": "
                 + ex.Message);
@@ -162,7 +162,7 @@ public static class TongtianTowerCardAffixService
     {
         return config == null
             || starterDeckWriteDepth > 0
-            || CardMutationService.HasRuntimeMarker(config, SunExpIds.TongtianTowerStarterDeckBaselineMarker);
+            || CardMutationService.HasRuntimeMarker(config, SunExpIds.EndlessSeaStarterDeckBaselineMarker);
     }
 
     public static int NormalizeCombatCards(ScriptExecutor? executor, string source)
@@ -240,7 +240,7 @@ public static class TongtianTowerCardAffixService
         var changed = 0;
         foreach (var card in cards)
         {
-            if (CardMutationService.SetRuntimeMarkers(card, SunExpIds.TongtianTowerStarterDeckBaselineMarker))
+            if (CardMutationService.SetRuntimeMarkers(card, SunExpIds.EndlessSeaStarterDeckBaselineMarker))
             {
                 changed++;
             }

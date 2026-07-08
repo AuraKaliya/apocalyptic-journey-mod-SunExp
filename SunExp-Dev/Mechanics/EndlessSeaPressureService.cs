@@ -8,7 +8,7 @@ using Witch.Core;
 
 namespace SunExp.Dll.Mechanics;
 
-public static class TongtianTowerPressureService
+public static class EndlessSeaPressureService
 {
     private const string AnnihilationTag = "Annihilation";
 
@@ -31,7 +31,7 @@ public static class TongtianTowerPressureService
             var relic = role.relicList[index];
             role.relicList.RemoveAt(index);
             GameSaveManager.UpdateRoles(role);
-            SunExpLog.Info("[TongtianPressure] destroyed equipped relic from "
+            SunExpLog.Info("[EndlessSeaPressure] destroyed equipped relic from "
                 + source
                 + ": "
                 + DictionaryUtil.Get(relic?.data, "Id"));
@@ -39,7 +39,7 @@ public static class TongtianTowerPressureService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[TongtianPressure] destroy relic failed from " + source + ": " + ex.Message);
+            SunExpLog.Warn("[EndlessSeaPressure] destroy relic failed from " + source + ": " + ex.Message);
             return false;
         }
     }
@@ -77,7 +77,7 @@ public static class TongtianTowerPressureService
             if (changed > 0)
             {
                 GameSaveManager.UpdateRoles(role);
-                SunExpLog.Info("[TongtianPressure] added Annihilation to "
+                SunExpLog.Info("[EndlessSeaPressure] added Annihilation to "
                     + changed
                     + " deck cards from "
                     + source
@@ -88,7 +88,7 @@ public static class TongtianTowerPressureService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[TongtianPressure] add Annihilation failed from " + source + ": " + ex.Message);
+            SunExpLog.Warn("[EndlessSeaPressure] add Annihilation failed from " + source + ": " + ex.Message);
             return 0;
         }
     }
@@ -121,7 +121,7 @@ public static class TongtianTowerPressureService
             if (changed > 0)
             {
                 GameSaveManager.UpdateRoles(role);
-                SunExpLog.Info("[TongtianPressure] added Crack to "
+                SunExpLog.Info("[EndlessSeaPressure] added Crack to "
                     + changed
                     + " deck cards from "
                     + source
@@ -132,7 +132,7 @@ public static class TongtianTowerPressureService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[TongtianPressure] add Crack failed from " + source + ": " + ex.Message);
+            SunExpLog.Warn("[EndlessSeaPressure] add Crack failed from " + source + ": " + ex.Message);
             return 0;
         }
     }
@@ -141,7 +141,7 @@ public static class TongtianTowerPressureService
     {
         EndlessAbyssShockService.TryEnqueueEndlessBattleShock(
             floor,
-            boss ? TongtianTowerNodeKind.Boss : TongtianTowerNodeKind.Monster,
+            boss ? EndlessSeaNodeKind.Boss : EndlessSeaNodeKind.Monster,
             source);
     }
 
