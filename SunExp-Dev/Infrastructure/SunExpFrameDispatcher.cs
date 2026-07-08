@@ -6,6 +6,7 @@ public static class SunExpFrameDispatcher
 {
     private static readonly object SyncRoot = new();
     private static Func<string, Action, bool>? runOnceNextFrame;
+    private static Func<string, int, Action, bool>? runOnceAfterFrames;
 
     public static void Register(Func<string, Action, bool> dispatcher)
     {
@@ -17,6 +18,19 @@ public static class SunExpFrameDispatcher
         lock (SyncRoot)
         {
             runOnceNextFrame = dispatcher;
+        }
+    }
+
+    public static void RegisterDelayed(Func<string, int, Action, bool> dispatcher)
+    {
+        if (dispatcher == null)
+        {
+            return;
+        }
+
+        lock (SyncRoot)
+        {
+            runOnceAfterFrames = dispatcher;
         }
     }
 
@@ -48,5 +62,26 @@ public static class SunExpFrameDispatcher
         }
 
         return true;
+    }
+
+    public static bool RunOnceAfterFrames(string key, int delayFrames, Action action)
+    {
+        if (action == null)
+        {
+            return false;
+        }
+
+        Func<string, int, Action, bool>? dispatcher;
+        lock (SyncRoot)
+        {
+            dispatcher = runOnceAfterFrames;
+        }
+
+        if (dispatcher != null)
+        {
+            return dispatcher(key, delayFrames, action);
+        }
+
+        return RunOnceNextFrame(key, action);
     }
 }

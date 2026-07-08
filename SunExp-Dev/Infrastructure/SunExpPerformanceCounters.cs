@@ -38,6 +38,11 @@ public static class SunExpPerformanceCounters
         MaybeLogSummary();
     }
 
+    public static double ElapsedMilliseconds(long startTimestamp)
+    {
+        return startTimestamp <= 0L ? 0.0 : TicksToMilliseconds(Stopwatch.GetTimestamp() - startTimestamp);
+    }
+
     public static void MaybeLogSummary()
     {
         if (!SunExpPerformanceSettings.CountersEnabled)
@@ -76,7 +81,7 @@ public static class SunExpPerformanceCounters
             lastSummaryTimestamp = now;
         }
 
-        SunExpLog.Info("[Perf] " + string.Join("; ", lines));
+        SunExpLog.InfoAlways("[Perf] " + string.Join("; ", lines));
     }
 
     private static void Add(string name, long elapsedTicks)

@@ -1,6 +1,6 @@
 using System;
 using System.Collections;
-using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using UnityEngine;
@@ -10,7 +10,9 @@ namespace AuraShared.Core;
 public static class AuraSharedFrameScheduler
 {
     private const string RunnerName = "AuraShared.FrameScheduler";
-    private static readonly ConcurrentQueue<FrameAction> MainThreadActions = new();
+    private static readonly object QueueGate = new();
+    private static readonly Queue<FrameAction> CurrentMainThreadActions = new();
+    private static readonly Queue<FrameAction> NextMainThreadActions = new();
     private static readonly object RunnerGate = new();
     private static FrameSchedulerRunner? runner;
 
@@ -18,7 +20,16 @@ public static class AuraSharedFrameScheduler
 
     public static double FrameBudgetMilliseconds { get; set; } = 2.0d;
 
-    public static int PendingMainThreadActions => MainThreadActions.Count;
+    public static int PendingMainThreadActions
+    {
+        get
+        {
+            lock (QueueGate)
+            {
+                return CurrentMainThreadActions.Count + NextMainThreadActions.Count;
+            }
+        }
+    }
 
     public static bool Enqueue(string source, Action action)
     {
@@ -33,7 +44,11 @@ public static class AuraSharedFrameScheduler
             return false;
         }
 
-        MainThreadActions.Enqueue(new FrameAction(source ?? "", action));
+        lock (QueueGate)
+        {
+            NextMainThreadActions.Enqueue(new FrameAction(source ?? "", action));
+        }
+
         return true;
     }
 
@@ -52,6 +67,25 @@ public static class AuraSharedFrameScheduler
         }
 
         owner.StartManagedCoroutine(DelayFrames(source ?? "", Math.Max(0, frames), action));
+        return true;
+    }
+
+    public static bool RunAfterFramesBudgeted(string source, int frames, Action action)
+    {
+        if (action == null)
+        {
+            return false;
+        }
+
+        var owner = EnsureRunner();
+        if (owner == null)
+        {
+            SafeInvoke(source, action);
+            return false;
+        }
+
+        var safeSource = source ?? "";
+        owner.StartManagedCoroutine(DelayFrames(safeSource, Math.Max(0, frames), () => Enqueue(safeSource, action)));
         return true;
     }
 
@@ -149,8 +183,28 @@ public static class AuraSharedFrameScheduler
         var stopwatch = Stopwatch.StartNew();
         var maxActions = Math.Max(1, MaxActionsPerFrame);
         var budgetMs = Math.Max(0.25d, FrameBudgetMilliseconds);
-        while (processed < maxActions && MainThreadActions.TryDequeue(out var item))
+        lock (QueueGate)
         {
+            while (NextMainThreadActions.Count > 0)
+            {
+                CurrentMainThreadActions.Enqueue(NextMainThreadActions.Dequeue());
+            }
+
+        }
+
+        while (processed < maxActions)
+        {
+            FrameAction item;
+            lock (QueueGate)
+            {
+                if (CurrentMainThreadActions.Count == 0)
+                {
+                    break;
+                }
+
+                item = CurrentMainThreadActions.Dequeue();
+            }
+
             SafeInvoke(item.Source, item.Action);
             processed++;
             if (processed > 0 && stopwatch.Elapsed.TotalMilliseconds >= budgetMs)

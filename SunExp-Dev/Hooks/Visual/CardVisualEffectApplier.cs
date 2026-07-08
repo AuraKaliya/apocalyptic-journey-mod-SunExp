@@ -1,4 +1,5 @@
 using SunExp.Dll.Mechanics;
+using SunExp.Dll.Infrastructure;
 using Witch.Core;
 
 namespace SunExp.Dll.Hooks.Visual;
@@ -9,6 +10,12 @@ internal static class CardVisualEffectApplier
     {
         var faceEffect = CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Face, config);
         var frameEffect = CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, config);
+        SunExpPerformanceCounters.Record(faceEffect == null
+            ? "CardVisualEffect.FaceMiss"
+            : "CardVisualEffect.FaceResolved");
+        SunExpPerformanceCounters.Record(frameEffect == null
+            ? "CardVisualEffect.FrameMiss"
+            : "CardVisualEffect.FrameResolved");
 
         var changed = faceEffect == null
             ? CardFaceEffectApplier.Clear(marker)

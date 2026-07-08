@@ -7,6 +7,8 @@ public sealed class LoneerCombatState
 {
     public string GuidanceCardId { get; set; } = "";
 
+    public PreparedGuidanceCard? PreparedGuidance { get; set; }
+
     public int ClockValue { get; set; }
 
     public int ClockMax { get; set; }
@@ -21,11 +23,14 @@ public sealed class LoneerCombatState
 
     public int SelectionVersion { get; set; }
 
+    public bool SelectionScheduled { get; set; }
+
     public bool Initialized { get; set; }
 
     public void Reset()
     {
         GuidanceCardId = "";
+        PreparedGuidance = null;
         ClockValue = 0;
         ClockMax = 0;
         PrayerCooldown = 0;
@@ -33,7 +38,50 @@ public sealed class LoneerCombatState
         ActionResolving = false;
         SelectionPending = false;
         SelectionVersion = 0;
+        SelectionScheduled = false;
         Initialized = false;
+    }
+}
+
+public sealed class PreparedGuidanceCard
+{
+    public PreparedGuidanceCard(
+        string cardId,
+        string displayName,
+        bool isWitchStarScore,
+        string[] runtimeTags,
+        string[] runtimeMarkers,
+        string[] specialTags)
+    {
+        CardId = cardId ?? "";
+        DisplayName = displayName ?? "";
+        IsWitchStarScore = isWitchStarScore;
+        RuntimeTags = runtimeTags ?? Array.Empty<string>();
+        RuntimeMarkers = runtimeMarkers ?? Array.Empty<string>();
+        SpecialTags = specialTags ?? Array.Empty<string>();
+    }
+
+    public string CardId { get; }
+
+    public string DisplayName { get; }
+
+    public bool IsWitchStarScore { get; }
+
+    public string[] RuntimeTags { get; }
+
+    public string[] RuntimeMarkers { get; }
+
+    public string[] SpecialTags { get; }
+
+    public static PreparedGuidanceCard Create(string cardId, string displayName, bool isWitchStarScore)
+    {
+        return new PreparedGuidanceCard(
+            cardId,
+            displayName,
+            isWitchStarScore,
+            isWitchStarScore ? Array.Empty<string>() : new[] { "Burnout", "Nihility" },
+            new[] { SunExp.Dll.Infrastructure.SunExpIds.LoneerDerivedMarker, SunExp.Dll.Infrastructure.SunExpIds.LoneerGuidanceMarker },
+            new[] { SunExp.Dll.Infrastructure.SunExpIds.LoneerDerivedTag, SunExp.Dll.Infrastructure.SunExpIds.LoneerGuidanceTag });
     }
 }
 

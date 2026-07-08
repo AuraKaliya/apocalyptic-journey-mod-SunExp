@@ -72,6 +72,31 @@ public static class SunExpPerformanceSettings
         return activePulse ? 1f / 30f : 1f / 18f;
     }
 
+    public static string DiagnosticsSummary()
+    {
+        RefreshIfNeeded();
+        return "SunExp diagnostics: "
+            + CountersKey
+            + " raw="
+            + FormatRawValue(ReadGameVarSafe(CountersKey))
+            + " effective="
+            + cachedCountersEnabled
+            + "; SunExpDebug raw="
+            + FormatRawValue(ReadGameVarSafe("SunExpDebug"))
+            + "; "
+            + UiPoolKey
+            + " raw="
+            + FormatRawValue(ReadGameVarSafe(UiPoolKey))
+            + " effective="
+            + cachedUiPoolEnabled
+            + "; "
+            + WunaOrbitFireEnabledKey
+            + " raw="
+            + FormatRawValue(ReadGameVarSafe(WunaOrbitFireEnabledKey))
+            + " effective="
+            + cachedWunaOrbitFireEnabled;
+    }
+
     private static void RefreshIfNeeded()
     {
         var now = Environment.TickCount;
@@ -82,14 +107,14 @@ public static class SunExpPerformanceSettings
 
         try
         {
-            cachedCountersEnabled = ReadFlag(CountersKey, false);
+            cachedCountersEnabled = ReadFlag(CountersKey, true);
             cachedWunaOrbitFireEnabled = ReadFlag(WunaOrbitFireEnabledKey, false)
                 && !ReadFlag(WunaOrbitFireDisabledKey, false);
             cachedUiPoolEnabled = ReadFlag(UiPoolKey, true);
         }
         catch
         {
-            cachedCountersEnabled = false;
+            cachedCountersEnabled = true;
             cachedWunaOrbitFireEnabled = false;
             cachedUiPoolEnabled = true;
         }
@@ -100,15 +125,44 @@ public static class SunExpPerformanceSettings
     private static bool ReadFlag(string key, bool fallback)
     {
         var text = ReadGameVar(key).Trim();
-        if (text.Length == 0)
+        if (text.Length == 0 || text == "0")
         {
             return fallback;
         }
 
-        return text == "1"
+        if (text == "1"
             || string.Equals(text, "true", StringComparison.OrdinalIgnoreCase)
             || string.Equals(text, "yes", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(text, "on", StringComparison.OrdinalIgnoreCase);
+            || string.Equals(text, "on", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (string.Equals(text, "false", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(text, "no", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(text, "off", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return fallback;
+    }
+
+    private static string ReadGameVarSafe(string key)
+    {
+        try
+        {
+            return ReadGameVar(key);
+        }
+        catch
+        {
+            return "<error>";
+        }
+    }
+
+    private static string FormatRawValue(string value)
+    {
+        return "'" + (string.IsNullOrEmpty(value) ? "<empty>" : value) + "'";
     }
 
     private static string ReadGameVar(string key)

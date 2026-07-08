@@ -17,7 +17,10 @@ public static class RuntimeHooks
         RunHookStep("card lifecycle router", () => SunExpCardLifecycleRouter.Initialize(modConfig));
         RunHookStep("combat action router", () => SunExpCombatActionRouter.Initialize(modConfig));
         RunHookStep("status lifecycle router", () => SunExpStatusLifecycleRouter.Initialize(modConfig));
+        RunHookStep("card visual skin", () => CardVisualSkinRuntime.Initialize(modConfig));
         RunHookStep("card presentation bridge", SunExpCardPresentationLifecycleBridge.Initialize);
+        RunHookStep("battle reward card presentation", () => BattleRewardCardPresentationRuntime.Initialize(modConfig));
+        RunHookStep("combat card UI workload", () => SunExpCombatCardUiWorkloadRuntime.Initialize(modConfig));
         RunHookStep("status buff handlers", () =>
         {
             SunExpStatusLifecycleRouter.Register("RuntimeStatusBuff", new SunExpStatusLifecycleSubscription
@@ -52,7 +55,6 @@ public static class RuntimeHooks
         RunHookStep("animated enemy dictionary icons", () => AnimatedEnemyDictIconRuntime.Initialize(modConfig));
         RunHookStep("solar memory map item animation", () => SolarMemoryMapItemAnimationRuntime.Initialize(modConfig));
         RunHookStep("map node card art", () => MapNodeCardArtRuntime.Initialize(modConfig));
-        RunHookStep("card visual skin", () => CardVisualSkinRuntime.Initialize(modConfig));
         RunHookStep("polymorph runtime", () => PolymorphRuntime.Initialize(modConfig));
         RunHookStep("companion intent registry", () => CompanionIntentRegistry.Load(modConfig));
         RunHookStep("companion threat runtime", () => CompanionThreatRuntime.Initialize(modConfig));
@@ -63,12 +65,14 @@ public static class RuntimeHooks
         RunHookStep("star score runtime", () => StarScoreRuntime.Initialize(modConfig));
         RunHookStep("star score HUD", () => StarScoreHudRuntime.Initialize(modConfig));
         RunHookStep("loneer runtime", () => LoneerRuntime.Initialize(modConfig));
-        SunExpLog.Info("Runtime hooks registered");
+        SunExpLog.InfoAlways("Runtime hooks registered");
     }
 
     private static void RunHookStep(string name, Action action)
     {
-        AuraSharedHooks.RunStep(name, action, (step, ex) => SunExpLog.Error("Runtime hook step failed: " + step, ex));
+        SunExpLog.InfoAlways("Runtime hook step start: " + name);
+        var ok = AuraSharedHooks.RunStep(name, action, (step, ex) => SunExpLog.Error("Runtime hook step failed: " + step, ex));
+        SunExpLog.InfoAlways("Runtime hook step " + (ok ? "ok: " : "failed: ") + name);
     }
 
     private static void OnStatusManagerAddBuffBefore(ModHookContext context)

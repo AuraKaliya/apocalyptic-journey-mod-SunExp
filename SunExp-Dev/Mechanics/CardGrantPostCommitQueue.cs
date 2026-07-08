@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks;
 using SunExp.Dll.Infrastructure;
@@ -23,9 +24,11 @@ public sealed class CardGrantPostCommitRequest
 
 public static class CardGrantPostCommitQueue
 {
-    private const int MaterializeRetryBudget = 40;
+    private const bool CombatVisualPostCommitRefreshEnabled = false;
     private static readonly object SyncRoot = new();
     private static readonly Dictionary<string, PendingPostCommit> Pending = new(StringComparer.Ordinal);
+    private static PropertyInfo? frameCountProperty;
+    private static bool frameCountResolved;
     private static int FlushBudgetPerFrame => Math.Max(4, SunExpPerformanceSettings.FrameSchedulerBudget / 2);
 
     public static void Request(CardGrantPostCommitRequest? request)
@@ -36,9 +39,28 @@ public static class CardGrantPostCommitQueue
         }
 
         var key = ConfigKey(request.Config);
+        var requestFrame = FrameCount();
+        if (request.RefreshVisuals)
+        {
+            SunExpPerformanceCounters.Record("CardGrantPostCommitQueue.RequestVisuals");
+        }
+
+        if (request.RefreshTags)
+        {
+            SunExpPerformanceCounters.Record("CardGrantPostCommitQueue.RequestTags");
+        }
+
         if (key.Length == 0)
         {
-            FlushOne(new PendingPostCommit(request.Config, request.Source, request.RefreshTags, request.RefreshVisuals, request.DataUpdate, 0));
+            FlushOne(new PendingPostCommit(
+                request.Config,
+                request.Source,
+                request.RefreshTags,
+                request.RefreshVisuals,
+                request.DataUpdate,
+                0,
+                requestFrame,
+                -1));
             return;
         }
 
@@ -46,7 +68,15 @@ public static class CardGrantPostCommitQueue
         {
             Pending[key] = Pending.TryGetValue(key, out var existing)
                 ? existing.Merge(request)
-                : new PendingPostCommit(request.Config, request.Source, request.RefreshTags, request.RefreshVisuals, request.DataUpdate, 0);
+                : new PendingPostCommit(
+                    request.Config,
+                    request.Source,
+                    request.RefreshTags,
+                    request.RefreshVisuals,
+                    request.DataUpdate,
+                    0,
+                    requestFrame,
+                    -1);
         }
 
         ScheduleFlush();
@@ -153,6 +183,16 @@ public static class CardGrantPostCommitQueue
                 SunExpCardRefreshQueue.RequestConfigTagRefresh(item.Config, "CardGrantPostCommit:" + item.Source);
             }
 
+            if (!item.DataUpdate)
+            {
+                if (item.RefreshVisuals)
+                {
+                    RecordSuppressedVisualRefresh(item);
+                }
+
+                return;
+            }
+
             var root = SunExpCardPresentationRouter.FindCombatCardRoot(item.Config);
             if (root != null)
             {
@@ -164,11 +204,7 @@ public static class CardGrantPostCommitQueue
 
                 if (item.RefreshVisuals)
                 {
-                    SunExpCardPresentationRouter.RequestApply(
-                        root,
-                        item.Config,
-                        "CardGrantPostCommit:" + item.Source,
-                        SunExpCardPresentationSurface.PostCommit);
+                    RecordSuppressedVisualRefresh(item);
                 }
 
                 return;
@@ -176,17 +212,7 @@ public static class CardGrantPostCommitQueue
 
             if (item.RefreshVisuals)
             {
-                if (item.Attempts < MaterializeRetryBudget)
-                {
-                    Requeue(item.NextMaterializeAttempt());
-                    return;
-                }
-
-                SunExpPerformanceCounters.Record("CardGrantPostCommitQueue.VisualRootMiss");
-                SunExpLog.Warn("Card grant post-commit visual root missing: cardId="
-                    + CardConfigApi.Id(item.Config)
-                    + ", source="
-                    + item.Source);
+                RecordSuppressedVisualRefresh(item);
             }
         }
         catch (Exception ex)
@@ -195,22 +221,33 @@ public static class CardGrantPostCommitQueue
         }
     }
 
-    private static void Requeue(PendingPostCommit item)
+    private static void RecordSuppressedVisualRefresh(PendingPostCommit item)
     {
-        var key = ConfigKey(item.Config);
-        if (key.Length == 0)
+        if (!CombatVisualPostCommitRefreshEnabled)
         {
-            return;
+            SunExpPerformanceCounters.Record("CardGrantPostCommitQueue.VisualRefreshSuppressed");
         }
+    }
 
-        lock (SyncRoot)
+    private static int FrameCount()
+    {
+        try
         {
-            Pending[key] = Pending.TryGetValue(key, out var existing)
-                ? existing.Merge(item)
-                : item;
-        }
+            if (!frameCountResolved)
+            {
+                var timeType = Type.GetType("UnityEngine.Time, UnityEngine.CoreModule")
+                    ?? Type.GetType("UnityEngine.Time, UnityEngine");
+                frameCountProperty = timeType?.GetProperty("frameCount", BindingFlags.Public | BindingFlags.Static);
+                frameCountResolved = true;
+            }
 
-        ScheduleFlush();
+            var value = frameCountProperty?.GetValue(null, null);
+            return value == null ? -1 : Convert.ToInt32(value);
+        }
+        catch
+        {
+            return -1;
+        }
     }
 
     private static string ConfigKey(IDataConfig config)
@@ -239,7 +276,15 @@ public static class CardGrantPostCommitQueue
 
     private readonly struct PendingPostCommit
     {
-        public PendingPostCommit(IDataConfig config, string source, bool refreshTags, bool refreshVisuals, bool dataUpdate, int attempts)
+        public PendingPostCommit(
+            IDataConfig config,
+            string source,
+            bool refreshTags,
+            bool refreshVisuals,
+            bool dataUpdate,
+            int attempts,
+            int createdFrame,
+            int lastAttemptFrame)
         {
             Config = config;
             Source = source ?? "";
@@ -247,6 +292,8 @@ public static class CardGrantPostCommitQueue
             RefreshVisuals = refreshVisuals;
             DataUpdate = dataUpdate;
             Attempts = Math.Max(0, attempts);
+            CreatedFrame = createdFrame;
+            LastAttemptFrame = lastAttemptFrame;
         }
 
         public IDataConfig Config { get; }
@@ -261,6 +308,10 @@ public static class CardGrantPostCommitQueue
 
         public int Attempts { get; }
 
+        public int CreatedFrame { get; }
+
+        public int LastAttemptFrame { get; }
+
         public PendingPostCommit Merge(CardGrantPostCommitRequest request)
         {
             return new PendingPostCommit(
@@ -269,23 +320,27 @@ public static class CardGrantPostCommitQueue
                 RefreshTags || request.RefreshTags,
                 RefreshVisuals || request.RefreshVisuals,
                 DataUpdate || request.DataUpdate,
-                Attempts);
+                Attempts,
+                CreatedFrame,
+                LastAttemptFrame);
         }
 
         public PendingPostCommit Merge(PendingPostCommit request)
         {
+            var createdFrame = CreatedFrame < 0
+                ? request.CreatedFrame
+                : request.CreatedFrame < 0
+                    ? CreatedFrame
+                    : Math.Min(CreatedFrame, request.CreatedFrame);
             return new PendingPostCommit(
                 Config,
                 string.IsNullOrWhiteSpace(request.Source) ? Source : request.Source,
                 RefreshTags || request.RefreshTags,
                 RefreshVisuals || request.RefreshVisuals,
                 DataUpdate || request.DataUpdate,
-                Math.Max(Attempts, request.Attempts));
-        }
-
-        public PendingPostCommit NextMaterializeAttempt()
-        {
-            return new PendingPostCommit(Config, Source, false, RefreshVisuals, DataUpdate, Attempts + 1);
+                Math.Max(Attempts, request.Attempts),
+                createdFrame,
+                Math.Max(LastAttemptFrame, request.LastAttemptFrame));
         }
     }
 }

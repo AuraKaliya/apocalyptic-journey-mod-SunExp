@@ -328,6 +328,10 @@ namespace SunExp.Dll.Hooks
         public static void RequestApply(TestCardRoot root, IDataConfig config, string source, SunExpCardPresentationSurface surface)
         {
         }
+
+        public static void RequestActiveCombatCardsReapply(string source, int delayFrames)
+        {
+        }
     }
 }
 
@@ -1693,6 +1697,13 @@ function Invoke-SourceAssertions {
     Assert-True $starStonePouchService.Contains('ExecutorApi.TryAddTokenedEvent(self, "ActionAfter"') "Star Stone Pouch must own its own after-action draw hook."
     Assert-True $loneerService.Contains("StarStonePouchService.Drawn += OnStarStonePouchDrawn") "Loneer must subscribe to Star Stone Pouch draw results instead of owning the pouch."
     Assert-True (-not $loneerService.Contains("private static void DrawStone")) "Loneer miracle logic must not keep a role-owned Star Stone draw flow."
+    $loneerDrawSubscriber = [regex]::Match($loneerService, "private\s+static\s+void\s+OnStarStonePouchDrawn[\s\S]*?private\s+static\s+void\s+QueueStarStonePouchDraw")
+    Assert-True ($loneerDrawSubscriber.Success -and $loneerDrawSubscriber.Value.Contains("QueueStarStonePouchDraw(self, result);")) "Loneer Star Stone draw subscriber must enqueue derived work instead of resolving it inside ActionAfter."
+    Assert-True (-not $loneerDrawSubscriber.Value.Contains("TriggerNaturalMorningStar")) "Loneer Star Stone draw subscriber must not trigger card grants synchronously inside ActionAfter."
+    Assert-True $loneerService.Contains("PendingStarStoneDrawBatch") "Loneer Star Stone draw results must be batchable per owner."
+    Assert-True $loneerService.Contains('"Loneer.StarStonePouchDraw."') "Loneer Star Stone draw batches must use keyed frame scheduling."
+    Assert-True $loneerService.Contains("RequestGuidanceSelectionDeferred") "Loneer miracle guidance UI must be deferred away from card-use hot paths."
+    Assert-True $loneerState.Contains("SelectionScheduled") "Loneer combat state must suppress duplicate deferred guidance selection requests."
     Assert-True $loneerState.Contains("Dictionary<string, LoneerCombatState>") "Loneer combat state must be keyed by owner status instead of ScriptExecutor.Vars."
     Assert-True $loneerService.Contains("LoneerCombatStateStore.GetOrCreate(self.Self)") "Loneer skill and action flows must resolve owner-scoped combat state."
     Assert-True $cardSelectionApi.Contains("Action? onCancelled = null") "Card selection API must expose cancellation separately from empty candidate pools."
@@ -1708,12 +1719,19 @@ function Invoke-SourceAssertions {
     Assert-True (-not $cardGrantRecipes.Contains('AddSpecialTagsMutation(SunExpIds.LoneerDerivedMarker')) "Internal Loneer marker ids must never be written to SpecialTag."
     Assert-True $loneerService.Contains("LoneerCardGrantService.GrantGuidanceCopyToHand") "Loneer must use the shared card-grant recipe for guidance copies."
     Assert-True $wunaScripts.Contains("WunaCardGrantService.GrantCoronationTokenToHand") "Wuna must use the shared card-grant recipe for coronation tokens."
+    Assert-True $wunaScripts.Contains('"WunaRadiance.BurnChanged."') "Wuna enemy burn OnLevelChange work must be merged by owner and hook token."
+    Assert-True $wunaScripts.Contains("SunExpFrameDispatcher.RunOnceNextFrame") "Wuna enemy burn OnLevelChange work must defer aggregate burn scans through the shared frame dispatcher."
+    Assert-True $wunaScripts.Contains("WunaRadiance.BurnChanged.Deduped") "Wuna burn-change batching must expose duplicate suppression counters."
     Assert-True $cardApi.Contains("public static CardGrantResult GrantCardToHand") "Generated cards must go through the structured CardApi grant pipeline."
     Assert-True $cardApi.Contains('self.AddCardByData(resolved, request?.RuntimeTags ?? "");') "Generated cards must receive their runtime tags during DataConfig creation."
     Assert-True $cardApi.Contains("self.GetCardFromDeck(added);") "Generated cards must deliver the exact tagged DataConfig to the hand queue."
     Assert-True $cardApi.Contains("CardGrantPostCommitQueue.Request") "Generated cards must submit SunExp post-commit refresh work after native delivery succeeds."
     Assert-True $cardGrantPostCommitQueue.Contains("SunExpCardRefreshQueue.RequestConfigTagRefresh") "Post-commit card grant refreshes must reuse the card refresh queue."
-    Assert-True $cardGrantPostCommitQueue.Contains("SunExpCardPresentationRouter.RequestApply") "Post-commit card grant visuals must route through the presentation router."
+    Assert-True $cardGrantPostCommitQueue.Contains("VisualRefreshSuppressed") "Post-commit card grant visuals must be explicitly suppressed in stable lifecycle mode."
+    Assert-True (-not $cardGrantPostCommitQueue.Contains("CombatVisualReapplyPasses")) "Stable lifecycle mode must not run combat visual reapply passes."
+    Assert-True (-not $cardGrantPostCommitQueue.Contains("RequestActiveCombatCardsReapply")) "Stable lifecycle mode must not coalesce post-commit visual misses into active combat-card reapply work."
+    Assert-True (-not $cardGrantPostCommitQueue.Contains("MaterializeRetryBudget")) "Post-commit card grant visuals must not restore many per-card materialization retries."
+    Assert-True (-not $cardGrantPostCommitQueue.Contains("SameFrameRetry")) "Post-commit card grant visuals must not retry within the same scheduler frame."
     Assert-True (-not $cardGrantPostCommitQueue.Contains("AddCardByData")) "Post-commit card grant refreshes must not own native card creation."
     Assert-True (-not $cardGrantPostCommitQueue.Contains("GetCardFromDeck")) "Post-commit card grant refreshes must not move cards through the native battle flow."
     Assert-True (-not $cardApi.Contains("LoneerDerivedTag")) "CardApi must not contain Loneer-specific business tags."
@@ -1864,7 +1882,8 @@ function Invoke-SourceAssertions {
     $naturalMorningStar = [regex]::Match($loneerService, "private\s+static\s+void\s+TriggerNaturalMorningStar[\s\S]*?private\s+static\s+void\s+TriggerBorrowedMiracle")
     Assert-True $naturalMorningStar.Success "Could not locate Natural Morning Star for source assertion."
     Assert-True (-not $naturalMorningStar.Value.Contains("AddStarlight")) "Natural Morning Star must not grant Starlight directly."
-    Assert-True $naturalMorningStar.Value.Contains("StarStonePouchService.ResetPouch(self);") "Natural Morning Star must reset the shared Star Stone Pouch."
+    Assert-True $naturalMorningStar.Value.Contains("MiracleClockService.ResetToMaxAndGrantStarlight") "Natural Morning Star must reset Miracle Clock through its buff service."
+    Assert-True (-not $naturalMorningStar.Value.Contains("StarStonePouchService.ResetPouch")) "Natural Morning Star must not reset the independent Star Stone Pouch."
     Assert-True $naturalMorningStar.Value.Contains("RequestGuidanceSelection") "Natural Morning Star must reselect Guidance after copying it."
     $stoneDraw = [regex]::Match($starStonePouchService, "private\s+static\s+void\s+DrawForAction[\s\S]*?private\s+static\s+void\s+PublishDrawn")
     Assert-True $stoneDraw.Success "Could not locate Star Stone Pouch draw flow for source assertion."
@@ -1872,19 +1891,20 @@ function Invoke-SourceAssertions {
     Assert-True $stoneDraw.Value.Contains("var starlightGain = stone == WhiteStone ? blackStonesRemaining : 1;") "Star Stone Pouch must derive black and white stone Starlight gains inside the buff service."
     Assert-True $stoneDraw.Value.Contains("StarScoreService.AddStarlight(self, starlightGain);") "Star Stone Pouch must grant Starlight from the draw result."
     Assert-True $stoneDraw.Value.Contains("PublishDrawn(self, new StarStonePouchDrawResult") "Star Stone Pouch must publish draw results for role-specific reactions."
-    $borrowedMiracle = [regex]::Match($loneerService, "private\s+static\s+void\s+TriggerBorrowedMiracle[\s\S]*?private\s+static\s+void\s+ReduceClock")
+    $borrowedMiracle = [regex]::Match($loneerService, "private\s+static\s+void\s+TriggerBorrowedMiracle[\s\S]*?private\s+static\s+void\s+EnsureInitialized")
     Assert-True $borrowedMiracle.Success "Could not locate Borrowed Miracle for source assertion."
-    Assert-True $borrowedMiracle.Value.Contains("ResetPouchAndClock(self, state, grantStarlight: true);") "Restoring the Miracle Clock must grant Starlight equal to its cap."
+    Assert-True $borrowedMiracle.Value.Contains("MiracleClockService.ReduceMax") "Borrowed Miracle must reduce the Miracle Clock combat cap through its buff service."
+    Assert-True $borrowedMiracle.Value.Contains("MiracleClockService.ResetToMaxAndGrantStarlight") "Restoring the Miracle Clock must grant Starlight equal to its cap."
+    Assert-True (-not $borrowedMiracle.Value.Contains("StarStonePouchService.ResetPouch")) "Borrowed Miracle must not reset the independent Star Stone Pouch."
     Assert-True $borrowedMiracle.Value.Contains("RequestGuidanceSelection") "Borrowed Miracle must reselect Guidance after copying it."
-    $resetPouchAndClock = [regex]::Match($loneerService, "private\s+static\s+void\s+ResetPouchAndClock[\s\S]*?private\s+static\s+void\s+EnsureInitialized")
-    Assert-True $resetPouchAndClock.Success "Could not locate ResetPouchAndClock for source assertion."
-    Assert-True $resetPouchAndClock.Value.Contains("StarStonePouchService.ResetPouch(self);") "Borrowed Miracle must reset the shared Star Stone Pouch through ResetPouchAndClock."
+    Assert-True (-not $loneerService.Contains("ResetPouchAndClock")) "Loneer must not keep a combined pouch-and-clock reset helper."
     Assert-True $loneerCareerText.Contains("When the Star Stone Pouch draws a white stone") "Loneer career text must describe only Loneer's reaction to Star Stone Pouch draws."
     Assert-True $buffText.Contains("When the Miracle Clock is restored to its cap, gain {SunExp_sunexp_starlight} equal to that cap.") "Miracle Clock text must describe its Starlight restoration reward."
     Assert-True $buffText.Contains("After each action, draw one Star Stone.") "Star Stone Pouch text must own the every-action draw rule."
     Assert-True $buffText.Contains("If it is black, gain 1 {SunExp_sunexp_starlight}") "Star Stone Pouch text must describe black-stone Starlight gain."
     Assert-True $buffText.Contains("equal to the current number of black stones.") "Star Stone Pouch text must describe white-stone Starlight gain."
     Assert-True ([regex]::IsMatch($buffData, '(?m)^"star_stone_pouch".*"TRUE"\r?$')) "Star Stone Pouch buff data must allow a zero-layer pouch while the white stone remains."
+    Assert-True ([regex]::IsMatch($buffData, '(?m)^"miracle_clock".*"TRUE"\r?$')) "Miracle Clock buff data must allow a zero-layer clock so depletion can be observed before reset."
     Assert-True $buffData.Contains('BuffScripts.Apply(self, ""star_stone_pouch"")') "Star Stone Pouch buff data must call its apply script."
     Assert-True $buffData.Contains('BuffScripts.Clear(self, ""star_stone_pouch"")') "Star Stone Pouch buff data must call its clear script."
     $buffRows = Import-Csv -LiteralPath (Join-Path $RepoRoot "SunExp\Data\Buff\sunexp.csv")

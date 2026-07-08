@@ -268,7 +268,15 @@ public static class WunaScripts
 
     private static int EnemyBurnTotal(ScriptExecutor self)
     {
-        return ExecutorApi.EnemyTargets(self).Sum(target => ExecutorApi.StatusBuffLevel(target, SunExpIds.Burn));
+        var start = SunExpPerformanceCounters.Timestamp();
+        try
+        {
+            return ExecutorApi.EnemyTargets(self).Sum(target => ExecutorApi.StatusBuffLevel(target, SunExpIds.Burn));
+        }
+        finally
+        {
+            SunExpPerformanceCounters.RecordDuration("WunaRadiance.EnemyBurnTotal", start);
+        }
     }
 
     private static int AllBurnTotal(ScriptExecutor self)
@@ -325,10 +333,32 @@ public static class WunaScripts
 
     private static void OnEnemyBurnChanged(ScriptExecutor self, string token)
     {
-        if (ExecutorApi.IsHookTokenActive(self, "SunExpWunaCareerToken", token))
+        if (self?.Self == null || !ExecutorApi.IsHookTokenActive(self, "SunExpWunaCareerToken", token))
         {
-            TryGainRadianceFromEnemyBurn(self);
+            return;
         }
+
+        var ownerId = self.Self.InstanceId;
+        var enqueued = SunExpFrameDispatcher.RunOnceNextFrame(
+            "WunaRadiance.BurnChanged." + ownerId + "." + token,
+            () =>
+            {
+                var start = SunExpPerformanceCounters.Timestamp();
+                try
+                {
+                    if (ExecutorApi.IsHookTokenActive(self, "SunExpWunaCareerToken", token))
+                    {
+                        TryGainRadianceFromEnemyBurn(self);
+                    }
+                }
+                finally
+                {
+                    SunExpPerformanceCounters.RecordDuration("WunaRadiance.BurnChanged.Action", start);
+                }
+            });
+        SunExpPerformanceCounters.Record(enqueued
+            ? "WunaRadiance.BurnChanged.Enqueued"
+            : "WunaRadiance.BurnChanged.Deduped");
     }
 
     private static int AddEmber(ScriptExecutor self, int amount)
@@ -382,29 +412,46 @@ public static class WunaScripts
 
     private static bool TryGainRadianceFromEnemyBurn(ScriptExecutor self)
     {
-        if (!IsWunaRuntimeActive())
+        var start = SunExpPerformanceCounters.Timestamp();
+        try
         {
-            return false;
-        }
+            if (!IsWunaRuntimeActive())
+            {
+                return false;
+            }
 
-        if (self?.Self == null)
+            if (self?.Self == null)
+            {
+                return false;
+            }
+
+            var current = EnemyBurnTotal(self);
+            var previous = DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "SunExpWunaPrevEnemyBurn", current.ToString()));
+            ExecutorApi.SetVar(self, "SunExpWunaPrevEnemyBurn", current);
+            if (current <= previous
+                || !WunaRoundRadianceState.TryMarkTriggered(self.Self, "WunaScripts.TryGainRadianceFromEnemyBurn"))
+            {
+                return false;
+            }
+
+            self.SetStatus("Self");
+            var addBuffStart = SunExpPerformanceCounters.Timestamp();
+            try
+            {
+                self.AddBuff(SunExpIds.SolarRadiance, "1");
+            }
+            finally
+            {
+                SunExpPerformanceCounters.RecordDuration("WunaRadiance.AddSolarRadiance", addBuffStart);
+            }
+
+            ExecutorApi.SetVar(self, "SunExpWunaRadianceDone", "1");
+            return true;
+        }
+        finally
         {
-            return false;
+            SunExpPerformanceCounters.RecordDuration("WunaRadiance.TryGainRadianceFromEnemyBurn", start);
         }
-
-        var current = EnemyBurnTotal(self);
-        var previous = DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "SunExpWunaPrevEnemyBurn", current.ToString()));
-        ExecutorApi.SetVar(self, "SunExpWunaPrevEnemyBurn", current);
-        if (current <= previous
-            || !WunaRoundRadianceState.TryMarkTriggered(self.Self, "WunaScripts.TryGainRadianceFromEnemyBurn"))
-        {
-            return false;
-        }
-
-        self.SetStatus("Self");
-        self.AddBuff(SunExpIds.SolarRadiance, "1");
-        ExecutorApi.SetVar(self, "SunExpWunaRadianceDone", "1");
-        return true;
     }
 
     private static int SetPersistentEmber(ScriptExecutor self, int value)

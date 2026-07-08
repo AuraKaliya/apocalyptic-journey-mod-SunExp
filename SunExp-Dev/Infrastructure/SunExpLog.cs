@@ -18,6 +18,11 @@ public static class SunExpLog
         AuraSharedLog.DebugLog(SunExpIds.ModLogTag, message, IsDebugEnabled());
     }
 
+    public static void InfoAlways(string message)
+    {
+        AuraSharedLog.Info(SunExpIds.ModLogTag, message);
+    }
+
     public static void Warn(string message)
     {
         AuraSharedLog.Warn(SunExpIds.ModLogTag, message);
@@ -43,6 +48,11 @@ public static class SunExpLog
         AuraSharedLog.DebugOnce(SunExpIds.ModLogTag, "info:" + key, message);
     }
 
+    public static void InfoOnceAlways(string key, string message)
+    {
+        AuraSharedLog.InfoOnce(SunExpIds.ModLogTag, key, message);
+    }
+
     public static void WarnOnce(string key, string message)
     {
         AuraSharedLog.WarnOnce(SunExpIds.ModLogTag, key, message);
@@ -66,14 +76,17 @@ public static class SunExpLog
             }
 
             var value = getDebugVarMethod?.Invoke(null, new object[] { DebugVarKey });
-            var text = Convert.ToString(value);
-            cachedDebugEnabled = text == "1"
+            var text = Convert.ToString(value)?.Trim();
+            cachedDebugEnabled = string.IsNullOrWhiteSpace(text)
+                || text == "0"
+                || text == "1"
                 || string.Equals(text, "true", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(text, "yes", StringComparison.OrdinalIgnoreCase);
+                || string.Equals(text, "yes", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(text, "on", StringComparison.OrdinalIgnoreCase);
         }
         catch
         {
-            cachedDebugEnabled = false;
+            cachedDebugEnabled = true;
         }
 
         lastDebugFlagRefreshTick = now;

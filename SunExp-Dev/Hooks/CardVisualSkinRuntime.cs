@@ -14,6 +14,7 @@ namespace SunExp.Dll.Hooks;
 public static class CardVisualSkinRuntime
 {
     private static readonly HashSet<string> LoggedRootMisses = new(StringComparer.Ordinal);
+    private static readonly HashSet<string> LoggedRootConfigMismatches = new(StringComparer.Ordinal);
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -27,12 +28,12 @@ public static class CardVisualSkinRuntime
             BeforeAttackCardUse = context => SuppressBurnoutFrameEffect(context, SunExpHookTargets.AttackCardItemTrueUse)
         });
 
-        SunExpLog.Info("Card visual skin runtime initialized");
+        SunExpLog.InfoAlways("Card visual skin runtime initialized");
     }
 
     private static void ApplyPresentation(SunExpCardPresentationContext context)
     {
-        ApplySafely(context.Root, context.Config, context.Source);
+        ApplySafely(context);
     }
 
     private static void SuppressBurnoutFrameEffect(ModHookContext context, string source)
@@ -77,9 +78,17 @@ public static class CardVisualSkinRuntime
             || card?.Tags.Contains("Burnout") == true;
     }
 
-    private static void ApplySafely(Transform? root, IDataConfig? config, string source)
+    private static void ApplySafely(SunExpCardPresentationContext context)
     {
+        var root = context.Root;
+        var config = context.Config;
+        var source = context.Source;
         if (config == null)
+        {
+            return;
+        }
+
+        if (IsCombatSurface(context.Surface) && !RootMatchesCombatConfig(root, config, context.Card, source))
         {
             return;
         }
@@ -120,6 +129,85 @@ public static class CardVisualSkinRuntime
         SunExpPerformanceCounters.Record("CardVisualSkin.RootMiss");
         SunExpLog.Warn("Card visual skin root missing: cardId="
             + CardConfigApi.Id(config)
+            + ", source="
+            + source
+            + ", root="
+            + (root == null ? "<null>" : root.name));
+    }
+
+    private static bool IsCombatSurface(SunExpCardPresentationSurface surface)
+    {
+        return surface == SunExpCardPresentationSurface.CombatCard
+            || surface == SunExpCardPresentationSurface.CombatCardInternal
+            || surface == SunExpCardPresentationSurface.PostCommit;
+    }
+
+    private static bool RootMatchesCombatConfig(
+        Transform? root,
+        IDataConfig config,
+        CardItem? knownCard,
+        string source)
+    {
+        var card = knownCard ?? FindCardItem(root);
+        if (card?.dataConfig == null)
+        {
+            return true;
+        }
+
+        if (ReferenceEquals(card.dataConfig, config))
+        {
+            return true;
+        }
+
+        var rootId = CardConfigApi.Id(card.dataConfig);
+        var configId = CardConfigApi.Id(config);
+        if (string.Equals(rootId, configId, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        LogRootConfigMismatch(rootId, configId, source, root);
+        return false;
+    }
+
+    private static CardItem? FindCardItem(Transform? root)
+    {
+        if (root == null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return root.GetComponent<CardItem>()
+                ?? root.GetComponentInParent<CardItem>()
+                ?? root.GetComponentInChildren<CardItem>();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static void LogRootConfigMismatch(string rootId, string configId, string source, Transform? root)
+    {
+        var key = rootId
+            + "|"
+            + configId
+            + "|"
+            + (source ?? "")
+            + "|"
+            + (root == null ? "null" : root.GetInstanceID().ToString());
+        if (LoggedRootConfigMismatches.Count >= 32 || !LoggedRootConfigMismatches.Add(key))
+        {
+            return;
+        }
+
+        SunExpPerformanceCounters.Record("CardVisualSkin.RootConfigMismatch");
+        SunExpLog.Warn("Card visual skin skipped mismatched combat root: rootCardId="
+            + rootId
+            + ", configCardId="
+            + configId
             + ", source="
             + source
             + ", root="

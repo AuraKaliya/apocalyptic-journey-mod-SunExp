@@ -42,9 +42,9 @@ public static class SunExpCardPresentationRouter
 {
     private static readonly object SyncRoot = new();
     private static readonly Dictionary<string, SunExpCardPresentationSubscription> Subscriptions = new(StringComparer.Ordinal);
+    private static readonly HashSet<string> LoggedCombatRootMissDiagnostics = new(StringComparer.Ordinal);
+    private static readonly Dictionary<int, PendingReapply> PendingReapplyByDelay = new();
     private static KeyValuePair<string, SunExpCardPresentationSubscription>[]? cachedSubscriptions;
-    private static string pendingReapplySource = "";
-    private static int pendingReapplyCount;
 
     public static void Register(string id, SunExpCardPresentationSubscription subscription)
     {
@@ -60,6 +60,7 @@ public static class SunExpCardPresentationRouter
         }
 
         SunExpPerformanceCounters.Record("CardPresentation.HandlerRegistered");
+        SunExpLog.InfoAlways("Card presentation handler registered: id=" + id.Trim() + ", count=" + SubscriptionCount());
     }
 
     public static void RequestApply(SunExpCardPresentationContext context)
@@ -85,13 +86,23 @@ public static class SunExpCardPresentationRouter
 
     public static void RequestActiveCombatCardsReapply(string source)
     {
+        RequestActiveCombatCardsReapply(source, 1);
+    }
+
+    public static void RequestActiveCombatCardsReapply(string source, int delayFrames)
+    {
+        var normalizedDelay = Math.Max(1, delayFrames);
         lock (SyncRoot)
         {
-            pendingReapplySource = source;
-            pendingReapplyCount++;
+            PendingReapplyByDelay[normalizedDelay] = PendingReapplyByDelay.TryGetValue(normalizedDelay, out var pending)
+                ? pending.Merge(source)
+                : new PendingReapply(source, 1);
         }
 
-        if (!SunExpFrameScheduler.RunOnceNextFrame("CardPresentation.ReapplyActiveCombatCards", FlushActiveCombatCardsReapply))
+        if (!SunExpFrameScheduler.RunOnceAfterFrames(
+                "CardPresentation.ReapplyActiveCombatCards." + normalizedDelay,
+                normalizedDelay,
+                () => FlushActiveCombatCardsReapply(normalizedDelay)))
         {
             SunExpPerformanceCounters.Record("CardPresentation.ReapplyDeduped");
         }
@@ -107,7 +118,14 @@ public static class SunExpCardPresentationRouter
                 return root;
             }
 
-            return FindCardRoot(FightUI.WaitCard, config);
+            root = FindCardRoot(FightUI.WaitCard, config);
+            if (root != null)
+            {
+                return root;
+            }
+
+            RecordCombatRootMiss(config);
+            return null;
         }
         catch (Exception ex)
         {
@@ -115,6 +133,66 @@ public static class SunExpCardPresentationRouter
         }
 
         return null;
+    }
+
+    private static void RecordCombatRootMiss(IDataConfig config)
+    {
+        if (!SunExpPerformanceSettings.CountersEnabled)
+        {
+            return;
+        }
+
+        try
+        {
+            var cardId = CardConfigApi.Id(config);
+            var total = 0;
+            var idMatches = 0;
+            CountCombatCards(FightUI.cardItemList, cardId, ref total, ref idMatches);
+            CountCombatCards(FightUI.WaitCard, cardId, ref total, ref idMatches);
+            if (idMatches > 0)
+            {
+                SunExpPerformanceCounters.Record("CardPresentation.CombatRootMiss.IdMatch");
+                if (LoggedCombatRootMissDiagnostics.Count < 16 && LoggedCombatRootMissDiagnostics.Add(cardId))
+                {
+                    SunExpLog.Warn("Card presentation combat root lookup missed by IDataConfig reference but found same-id card(s): cardId="
+                        + cardId
+                        + ", sameIdCards="
+                        + idMatches
+                        + ", totalCombatCards="
+                        + total);
+                }
+            }
+            else
+            {
+                SunExpPerformanceCounters.Record("CardPresentation.CombatRootMiss.NoIdMatch");
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Debug("Card presentation combat-root miss diagnostics failed: " + ex.Message);
+        }
+    }
+
+    private static void CountCombatCards(IEnumerable<CardItem>? cards, string cardId, ref int total, ref int idMatches)
+    {
+        if (cards == null)
+        {
+            return;
+        }
+
+        foreach (var item in cards)
+        {
+            if (item?.dataConfig == null)
+            {
+                continue;
+            }
+
+            total++;
+            if (string.Equals(CardConfigApi.Id(item.dataConfig), cardId, StringComparison.Ordinal))
+            {
+                idMatches++;
+            }
+        }
     }
 
     private static Transform? FindCardRoot(IEnumerable<CardItem>? cards, IDataConfig config)
@@ -135,19 +213,22 @@ public static class SunExpCardPresentationRouter
         return null;
     }
 
-    private static void FlushActiveCombatCardsReapply()
+    private static void FlushActiveCombatCardsReapply(int delayFrames)
     {
-        string source;
-        int count;
+        PendingReapply pending;
         lock (SyncRoot)
         {
-            source = pendingReapplySource;
-            count = pendingReapplyCount;
-            pendingReapplySource = "";
-            pendingReapplyCount = 0;
+            if (!PendingReapplyByDelay.TryGetValue(delayFrames, out pending))
+            {
+                return;
+            }
+
+            PendingReapplyByDelay.Remove(delayFrames);
         }
 
-        ReapplyActiveCombatCards(count > 1 ? source + ".merged" + count : source + ".merged");
+        ReapplyActiveCombatCards(pending.Count > 1
+            ? pending.Source + ".d" + delayFrames + ".merged" + pending.Count
+            : pending.Source + ".d" + delayFrames + ".merged");
     }
 
     private static void ReapplyActiveCombatCards(string source)
@@ -204,7 +285,14 @@ public static class SunExpCardPresentationRouter
 
     private static void Dispatch(SunExpCardPresentationContext context)
     {
-        foreach (var pair in SnapshotSubscriptions())
+        var snapshot = SnapshotSubscriptions();
+        if (snapshot.Length == 0)
+        {
+            SunExpPerformanceCounters.Record("CardPresentation.DispatchNoHandlers");
+            return;
+        }
+
+        foreach (var pair in snapshot)
         {
             var action = pair.Value.Apply;
             if (action == null)
@@ -240,6 +328,32 @@ public static class SunExpCardPresentationRouter
             }
 
             return cachedSubscriptions;
+        }
+    }
+
+    private static int SubscriptionCount()
+    {
+        lock (SyncRoot)
+        {
+            return Subscriptions.Count;
+        }
+    }
+
+    private readonly struct PendingReapply
+    {
+        public PendingReapply(string source, int count)
+        {
+            Source = source ?? "";
+            Count = Math.Max(0, count);
+        }
+
+        public string Source { get; }
+
+        public int Count { get; }
+
+        public PendingReapply Merge(string source)
+        {
+            return new PendingReapply(string.IsNullOrWhiteSpace(source) ? Source : source, Count + 1);
         }
     }
 }

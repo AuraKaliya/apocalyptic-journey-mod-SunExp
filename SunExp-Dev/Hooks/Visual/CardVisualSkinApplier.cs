@@ -12,6 +12,7 @@ public static class CardVisualSkinApplier
 {
     private const string LogPrefix = "[CardVisualSkin]";
     private static readonly HashSet<string> LoggedSkins = new();
+    private static readonly HashSet<string> LoggedResolvedSkins = new();
     private static readonly HashSet<string> LoggedUnresolvedCards = new();
 
     public static bool Apply(Transform? cardRoot, IDataConfig? config)
@@ -55,10 +56,12 @@ public static class CardVisualSkinApplier
         var appliedBackground = false;
         if (skin == null)
         {
+            SunExpPerformanceCounters.Record("CardVisualSkin.SkinMiss");
             LogUnresolvedSunExpCard(config);
         }
         else
         {
+            SunExpPerformanceCounters.Record("CardVisualSkin.SkinResolved");
             appliedFrame = ApplySprite(marker, background: false, skin.FramePath, skin.Id, "frame", required: true);
             appliedBackground = ApplySprite(marker, background: true, skin.BackgroundPath, skin.Id, "background", required: false);
             if (appliedFrame || appliedBackground)
@@ -75,6 +78,31 @@ public static class CardVisualSkinApplier
         var effectStart = SunExpPerformanceCounters.Timestamp();
         var appliedEffect = CardVisualEffectApplier.Apply(marker, config);
         SunExpPerformanceCounters.RecordDuration("CardVisualSkin.ApplyEffect", effectStart);
+        if (skin != null)
+        {
+            LogResolvedSkin(marker, config, skin.Id, source, appliedFrame, appliedBackground, appliedEffect);
+        }
+
+        if (appliedFrame)
+        {
+            SunExpPerformanceCounters.Record("CardVisualSkin.FrameApplied");
+        }
+
+        if (appliedBackground)
+        {
+            SunExpPerformanceCounters.Record("CardVisualSkin.BackgroundApplied");
+        }
+
+        if (appliedEffect)
+        {
+            SunExpPerformanceCounters.Record("CardVisualSkin.EffectApplied");
+        }
+
+        if (!appliedFrame && !appliedBackground && !appliedEffect)
+        {
+            SunExpPerformanceCounters.Record("CardVisualSkin.ApplyNoChange");
+        }
+
         marker.LastVisualSignature = visualSignature;
         marker.LastAppliedRootInstanceId = rootInstanceId;
         marker.LastAppliedStage = source ?? "";
@@ -105,6 +133,44 @@ public static class CardVisualSkinApplier
                 + ", icon="
                 + icon);
         }
+    }
+
+    private static void LogResolvedSkin(
+        CardVisualSkinMarker marker,
+        IDataConfig? config,
+        string skinId,
+        string source,
+        bool appliedFrame,
+        bool appliedBackground,
+        bool appliedEffect)
+    {
+        var cardId = DictionaryUtil.Get(config?.data, "Id", "unknown");
+        var key = skinId
+            + "\u001f"
+            + cardId
+            + "\u001f"
+            + (source ?? "");
+        if (LoggedResolvedSkins.Count >= 32 || !LoggedResolvedSkins.Add(key))
+        {
+            return;
+        }
+
+        SunExpLog.Info(LogPrefix
+            + " resolved skin: card="
+            + cardId
+            + ", skin="
+            + skinId
+            + ", source="
+            + source
+            + ", appliedFrame="
+            + appliedFrame
+            + ", appliedBackground="
+            + appliedBackground
+            + ", appliedEffect="
+            + appliedEffect
+            + ", marker={"
+            + marker.FrameEffectDiagnosticSummary()
+            + "}");
     }
 
     private static bool ApplySprite(CardVisualSkinMarker marker, bool background, string path, string skinId, string layerName, bool required)
