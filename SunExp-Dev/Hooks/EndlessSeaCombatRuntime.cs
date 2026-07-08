@@ -18,7 +18,10 @@ public static class EndlessSeaCombatRuntime
         {
             FightStarted = ApplyOriginBattleStartEffects
         });
-        RegisterAfter(modConfig, SunExpHookTargets.EnemyInit, ScaleEnemyHpAfterInit);
+        SunExpStatusLifecycleRouter.Register("EndlessSeaCombat", new SunExpStatusLifecycleSubscription
+        {
+            AfterEnemyInit = ScaleEnemyHpAfterInit
+        });
         RegisterAfter(modConfig, "FightManager.Init", AddEndlessExtraEnemiesAfterFightInit);
         RegisterAfter(modConfig, SunExpHookTargets.FightWinInit, ApplyOriginBattleEndEffects);
     }

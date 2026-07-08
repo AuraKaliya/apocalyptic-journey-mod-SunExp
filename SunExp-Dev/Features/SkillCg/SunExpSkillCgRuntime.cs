@@ -368,11 +368,6 @@ public static class SunExpSkillCgRuntime
                 SunExpIds.ModId,
                 key + ".content",
                 new[] { SkillCgArbiterRuntime.SkillCgKind, SkillCgArbiterRuntime.CardUseCgKind });
-            SkillCgArbiterRuntime.EnsureAdventurePreloaded(
-                "AuraToolsExp",
-                SunExpIds.ModId,
-                key + ".auratools",
-                new[] { SkillCgArbiterRuntime.FeastCgKind });
         }
         catch (Exception ex)
         {

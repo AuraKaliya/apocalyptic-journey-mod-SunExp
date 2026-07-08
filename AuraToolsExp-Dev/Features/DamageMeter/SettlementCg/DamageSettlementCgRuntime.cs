@@ -363,7 +363,7 @@ public static class DamageSettlementCgRuntime
     {
         try
         {
-            return ResourceLoader.Load<Sprite>(resource, true);
+            return AuraToolsResourceCache.Load<Sprite>(resource, true);
         }
         catch
         {

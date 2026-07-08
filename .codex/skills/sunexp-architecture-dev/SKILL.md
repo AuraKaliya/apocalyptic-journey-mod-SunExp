@@ -1,6 +1,6 @@
 ---
 name: sunexp-architecture-dev
-description: Project-local skill for refactoring or reviewing SunExp C# architecture boundaries, including Scripting entry points, GameApi facades and wrappers, Mechanics services, Features runtimes, Hooks and UI/Visual runtimes, Infrastructure ids and performance surfaces, handler registries, Managed compatibility, event registration wrappers, SunExp Network/RPC authority, RPC shape classification, timing and duplicate suppression, architecture tests, and DLL validation for Witch's Apocalyptic Journey.
+description: Project-local skill for refactoring or reviewing SunExp C# architecture boundaries, including Scripting entry points, GameApi facades and wrappers, Mechanics services, Features runtimes, Hooks and UI/Visual runtimes, Infrastructure ids and performance surfaces, handler registries, Managed compatibility, event registration wrappers, SunExp Network/RPC authority, RPC shape classification, timing and duplicate suppression, architecture tests, DLL validation, and checks that SunExp internals do not become AuraToolsExp's implicit shared framework for Witch's Apocalyptic Journey.
 ---
 
 # SunExp Architecture Dev
@@ -53,6 +53,11 @@ content workflow and validation.
   transfer before choosing authority, fields, ordering, and dedupe behavior.
 - Use the established performance surfaces before adding new knobs, frame
   loops, resource caches, or repeated listener registrations.
+- Do not let SunExp internal architecture become the implicit shared framework
+  for AuraToolsExp. If a hook lifecycle, UI primitive, resource preload,
+  logging, object pool, or multiplayer presentation behavior is needed by both
+  content and tool mods, mark the semantic-free part as a shared-runtime
+  candidate and use `sunexp-shared-runtime-dev`.
 - Rebuild `SunExp/Scripts/Entry.dll` after C# changes.
 
 ## Validation

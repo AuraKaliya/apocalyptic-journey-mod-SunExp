@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using AuraShared.Core;
 using SunExp.Dll.Infrastructure;
 using Witch;
 using Witch.Core;
@@ -15,12 +14,10 @@ public static class SolarMemoryCombatRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
-        RegisterAfter(modConfig, "Enemy.Init", ScaleEnemyHpAfterInit);
-    }
-
-    private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
-    {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Solar memory combat " + message));
+        SunExpStatusLifecycleRouter.Register("SolarMemoryCombat", new SunExpStatusLifecycleSubscription
+        {
+            AfterEnemyInit = ScaleEnemyHpAfterInit
+        });
     }
 
     private static void ScaleEnemyHpAfterInit(ModHookContext context)

@@ -21,6 +21,10 @@ $allowed = @(
     "AuraSharedCore\AuraSharedLogStore.cs",
     "AuraLogShared\AuraLogRuntime.cs",
     "AuraToolsExp-Dev\Features\Logging\AuraToolsLogFileWriter.cs",
+    "SunExp-Dev\GameApi\FamiliarGrowthApi.cs",
+    "SunExp-Dev\Mechanics\EndlessAbyssRunLedger.cs",
+    "SunExp-Dev\Mechanics\EndlessAbyssShockService.cs",
+    "SunExp-Dev\Mechanics\EndlessSeaFloorPlanStore.cs",
     "TestMods\ChatExp-Dev\GameApi\AuraChatHostModSyncService.cs",
     "TestMods\LogExp-Dev\Infrastructure\LogFileWriter.cs"
 )

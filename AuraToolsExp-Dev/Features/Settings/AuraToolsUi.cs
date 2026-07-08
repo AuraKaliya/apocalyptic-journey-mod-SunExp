@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraToolsExp.Dll.Infrastructure;
+using AuraUi.Shared;
 using UnityEngine;
 using UnityEngine.UI;
 using UiRaycastSafetyShared;
@@ -52,28 +54,12 @@ internal static class AuraToolsUi
 
     public static GameObject CreateRect(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 sizeDelta)
     {
-        var go = new GameObject(name, typeof(RectTransform));
-        go.transform.SetParent(parent, false);
-        var rect = go.GetComponent<RectTransform>();
-        rect.anchorMin = anchorMin;
-        rect.anchorMax = anchorMax;
-        rect.pivot = pivot;
-        rect.sizeDelta = sizeDelta;
-        rect.anchoredPosition = Vector2.zero;
-        return go;
+        return AuraUiComponents.CreateRect(name, parent, anchorMin, anchorMax, pivot, sizeDelta);
     }
 
     public static GameObject CreateLayout(string name, Transform parent)
     {
-        var go = new GameObject(name, typeof(RectTransform));
-        go.transform.SetParent(parent, false);
-        var rect = go.GetComponent<RectTransform>();
-        rect.anchorMin = Vector2.zero;
-        rect.anchorMax = Vector2.one;
-        rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.sizeDelta = Vector2.zero;
-        rect.anchoredPosition = Vector2.zero;
-        return go;
+        return AuraUiComponents.CreateLayout(name, parent);
     }
 
     public static Image AddImage(GameObject go, Color color)
@@ -110,7 +96,7 @@ internal static class AuraToolsUi
 
     public static LayoutElement EnsureLayoutElement(GameObject go)
     {
-        return go.GetComponent<LayoutElement>() ?? go.AddComponent<LayoutElement>();
+        return AuraUiComponents.EnsureLayoutElement(go);
     }
 
     public static LayoutElement SetFixedHeight(GameObject go, float height)
@@ -557,22 +543,14 @@ internal static class AuraToolsUi
     {
         for (var i = transform.childCount - 1; i >= 0; i--)
         {
+            UiRaycastSafeDestroyRuntime.DisableAndHide(transform.GetChild(i).gameObject, "AuraTools clear children");
             Object.Destroy(transform.GetChild(i).gameObject);
         }
     }
 
     private static Text ConfigureText(GameObject go, string value, int fontSize, TextAnchor anchor, Color color)
     {
-        var text = go.AddComponent<Text>();
-        text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-        text.text = value;
-        text.fontSize = Mathf.Max(fontSize, HintFontSize);
-        text.color = color;
-        text.alignment = anchor;
-        text.horizontalOverflow = HorizontalWrapMode.Wrap;
-        text.verticalOverflow = VerticalWrapMode.Truncate;
-        text.raycastTarget = false;
-        return text;
+        return AuraUiComponents.ConfigureText(go, value, fontSize, HintFontSize, anchor, color);
     }
 
     private static Sprite? GetButtonSprite()
@@ -613,7 +591,7 @@ internal static class AuraToolsUi
     {
         try
         {
-            var source = ResourceLoader.Load<Sprite>(path, true);
+            var source = AuraToolsResourceCache.Load<Sprite>(path, true);
             if (source == null || source.texture == null)
             {
                 return null;

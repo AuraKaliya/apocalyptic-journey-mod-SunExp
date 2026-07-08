@@ -20,7 +20,10 @@ public static class StarClayDollRuntime
         {
             FightStarted = GrantTraitOnFightStart
         });
-        RegisterAfter(modConfig, "StatusManager.Hit", ProtectAfterHit);
+        SunExpStatusLifecycleRouter.Register("StarClayDoll", new SunExpStatusLifecycleSubscription
+        {
+            AfterHit = ProtectAfterHit
+        });
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)

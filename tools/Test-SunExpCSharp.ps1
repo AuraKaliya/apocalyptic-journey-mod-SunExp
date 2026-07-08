@@ -1195,6 +1195,10 @@ function Invoke-SourceAssertions {
     $enemyApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\EnemyApi.cs"))
     $endlessAbyssEnemyInjectionService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssEnemyInjectionService.cs"))
     $runtimeHooks = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\RuntimeHooks.cs"))
+    $sunExpCombatActionRouter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SunExpCombatActionRouter.cs"))
+    $sunExpStatusLifecycleRouter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SunExpStatusLifecycleRouter.cs"))
+    $sunExpCardPresentationRouter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SunExpCardPresentationRouter.cs"))
+    $sunExpCardPresentationLifecycleBridge = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SunExpCardPresentationLifecycleBridge.cs"))
     $polymorphRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\PolymorphRuntime.cs"))
     $projectionRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\ProjectionRuntime.cs"))
     $heartChangeControlRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\HeartChangeControlRuntime.cs"))
@@ -1226,6 +1230,8 @@ function Invoke-SourceAssertions {
     $solarMemoryModeEntryRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryModeEntryRuntime.cs"))
     $solarMemoryMapVisualRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryMapVisualRuntime.cs"))
     $solarMemoryCombatRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryCombatRuntime.cs"))
+    $cardVisualSkinRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\CardVisualSkinRuntime.cs"))
+    $polymorphCardFaceRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Visual\PolymorphCardFaceRuntime.cs"))
     $modeChoiceEntryDefinition = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\ModeChoiceEntryDefinition.cs"))
     $modeChoiceEntryRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\ModeChoiceEntryRegistry.cs"))
     $modeChoiceLayoutRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\ModeChoiceLayoutRuntime.cs"))
@@ -1345,8 +1351,10 @@ function Invoke-SourceAssertions {
     Assert-True $buffOverflowApi.Contains("target.GetBuff(buffId)?.buffConfig?.UpperBound") "Burn upper bound must prefer the live BuffItemConfig.UpperBound."
     Assert-True $buffOverflowApi.Contains('GetOne(DataType.Buff, buffId)') "Burn upper bound must fall back to the current Buff data row."
     Assert-True $buffOverflowApi.Contains("var upperBound = BurnUpperBound(target);") "Burn overflow must use the dynamic burn upper bound."
-    Assert-True $runtimeHooks.Contains('SunExpHookRegistry.Before(modConfig, "StatusManager.AddBuff", OnStatusManagerAddBuffBefore, "RuntimeHooks");') "Burn overflow must hook StatusManager.AddBuff so the real target is known."
-    Assert-True $runtimeHooks.Contains('SunExpHookRegistry.After(modConfig, "StatusManager.AddBuff", OnStatusManagerAddBuffAfter, "RuntimeHooks");') "Solar Radiance cap repair must hook StatusManager.AddBuff after creation so first gains above 12 can be restored for Wuna."
+    Assert-True $sunExpStatusLifecycleRouter.Contains("SunExpHookTargets.StatusManagerAddBuff") "Burn overflow must route StatusManager.AddBuff through the shared status lifecycle router."
+    Assert-True $runtimeHooks.Contains('SunExpStatusLifecycleRouter.Register("RuntimeStatusBuff"') "RuntimeHooks must subscribe burn overflow to the shared StatusManager.AddBuff lifecycle."
+    Assert-True $runtimeHooks.Contains("BeforeAddBuff = OnStatusManagerAddBuffBefore") "Burn overflow must prepare before real StatusManager.AddBuff execution."
+    Assert-True $runtimeHooks.Contains("AfterAddBuff = OnStatusManagerAddBuffAfter") "Solar Radiance cap repair must run after StatusManager.AddBuff creation."
     Assert-True (-not $runtimeHooks.Contains('RegisterBefore(modConfig, "ScriptExecutor.AddBuff", OnScriptExecutorAddBuffBefore);')) "Burn overflow must not hook ScriptExecutor.AddBuff because it can mutate the active target list."
     Assert-True $buffOverflowApi.Contains("target.AddBuff(SunExpIds.BodyBurn, overflow);") "Burn overflow must add body burn directly to the resolved status target."
     Assert-True $buffOverflowApi.Contains("private const int SolarRadianceDefaultUpperBound = 12;") "Solar Radiance default upper bound must be 12."
@@ -1463,7 +1471,8 @@ function Invoke-SourceAssertions {
     Assert-True ([regex]::IsMatch($blazingCrownHeartBlock.Value, 'AddBuff\(SunExpIds\.SolarRadiance, "8"\);[\s\S]*ApplyFieldBuff\(self, "scorching_canopy", 2\);[\s\S]*AddBuff\(SunExpIds\.SolarCrown, "1"\);')) "Blazing Crown Heart must grant Radiance, Canopy, then Crown in order."
     Assert-True (-not $blazingCrownHeartBlock.Value.Contains('TryAddEvent(self, "StartRound"')) "Blazing Crown Heart must not keep the old round-start Burn aura."
     Assert-True ($ashCharmBlock.Success -and $ashCharmBlock.Value.Contains('TryAddEvent(self, "EndRound"') -and $ashCharmBlock.Value.Contains("self.AddBuff(SunExpIds.Ember, burn.ToString());") -and $ashCharmBlock.Value.Contains("self.ChangeDefence(burn.ToString());")) "Ash Charm must grant Ember and Block equal to self Burn at round end."
-    Assert-True $solarMemoryCombatRuntime.Contains('RegisterAfter(modConfig, "Enemy.Init", ScaleEnemyHpAfterInit)') "Solar Memory combat tuning must scale enemies after native Enemy.Init."
+    Assert-True $solarMemoryCombatRuntime.Contains('SunExpStatusLifecycleRouter.Register("SolarMemoryCombat"') "Solar Memory combat tuning must subscribe through the shared status lifecycle router."
+    Assert-True $solarMemoryCombatRuntime.Contains("AfterEnemyInit = ScaleEnemyHpAfterInit") "Solar Memory combat tuning must scale enemies after native Enemy.Init."
     Assert-True $solarMemoryCombatRuntime.Contains("EnemyHpMultiplier = 3") "Solar Memory enemies must use the configured 3x HP multiplier."
     Assert-True $solarMemoryCombatRuntime.Contains("SolarMemoryModeRuntime.IsSolarMemoryRun()") "Solar Memory enemy HP scaling must be gated to Solar Memory runs."
     Assert-True $solarMemoryContentIsolationRuntime.Contains('RegisterAfter(modConfig, "NormalMapManager.GeneratrMap", SanitizeGeneratedMap)') "Solar Memory isolation must sanitize World Simulation map generation."
@@ -1551,7 +1560,8 @@ function Invoke-SourceAssertions {
     Assert-True (-not $duskPartnerRuntime.Contains("StarClay")) "Dusk runtime must not own Star Clay Doll behavior."
     Assert-True $starClayDollRuntime.Contains('SunExpBattleLifecycleRouter.Register("StarClayDoll"') "Star Clay Doll runtime must grant its own trait at fight start through the shared lifecycle router."
     Assert-True $starClayDollRuntime.Contains("status.AddBuff(SunExpIds.StarClayDollTrait, 1)") "Star Clay Doll runtime must grant its own trait."
-    Assert-True $starClayDollRuntime.Contains('"StatusManager.Hit"') "Star Clay Doll runtime must own lethal-hit protection."
+    Assert-True $starClayDollRuntime.Contains('SunExpStatusLifecycleRouter.Register("StarClayDoll"') "Star Clay Doll runtime must route lethal-hit protection through the status lifecycle router."
+    Assert-True $starClayDollRuntime.Contains("AfterHit = ProtectAfterHit") "Star Clay Doll runtime must own lethal-hit protection."
     Assert-True (-not $starScoreRuntime.Contains("LoneerMiracleService")) "Generic star score runtime must not dispatch Loneer role behavior."
     Assert-True (-not $starScoreRuntime.Contains("StarClay")) "Generic star score runtime must not own partner behavior."
     Assert-True $starScoreRuntime.Contains('"CommonCardItem.OnBeginDrag"') "Star Blessing must preview zero cost when a common card begins dragging."
@@ -1651,9 +1661,10 @@ function Invoke-SourceAssertions {
     Assert-True (-not $projectionOtherObj.Contains("return base.DoAction();")) "Projection turns must not use native OtherObj.DoAction because the player model lacks head/Msg."
     Assert-True $projectionStateStore.Contains("ProjectionStatusIdPrefix") "Projection status ids must use the centralized friendly projection prefix."
     Assert-True $projectionStateStore.Contains("removeStatusRecords: false") "Projection retirement must leave status records long enough for native hit queues to settle."
-    Assert-True $projectionRuntime.Contains('RegisterAfter(modConfig, "StatusManager.Hit", RetireProjectionAfterDamage);') "Projection runtime must retire dead projections after full damage resolves."
-    Assert-True $projectionRuntime.Contains('RegisterAfter(modConfig, "StatusManager.set_CurHp", RetireProjectionAfterHpChange);') "Projection runtime must retire dead projections after direct HP changes."
-    Assert-True $projectionRuntime.Contains('RegisterAfter(modConfig, "StatusManager.set_MaxHp", RetireProjectionAfterHpChange);') "Projection runtime must retire projections whose max HP is reduced to zero."
+    Assert-True $projectionRuntime.Contains('SunExpStatusLifecycleRouter.Register("Projection"') "Projection runtime must retire dead projections through the shared status lifecycle router."
+    Assert-True $projectionRuntime.Contains("AfterHit = RetireProjectionAfterDamage") "Projection runtime must retire dead projections after full damage resolves."
+    Assert-True $projectionRuntime.Contains("AfterCurHpChanged = RetireProjectionAfterHpChange") "Projection runtime must retire dead projections after direct HP changes."
+    Assert-True $projectionRuntime.Contains("AfterMaxHpChanged = RetireProjectionAfterHpChange") "Projection runtime must retire projections whose max HP is reduced to zero."
     Assert-True (-not $projectionRuntime.Contains("SetDamageFilter")) "Projection runtime must not use temporary damage filters after protection redirects were removed."
     Assert-True (-not $projectionRuntime.Contains("RedirectThreatBeforeHit")) "Projection runtime must not redirect enemy attacks away from players."
     Assert-True (-not $projectionRuntime.Contains("ProjectionThreatService")) "Projection runtime must not depend on retired threat redirection."

@@ -20,10 +20,16 @@ public static class WunaOrbitFireRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
-        RegisterAfter(modConfig, "StatusManager.InitAnimator", AttachFromStatusContext);
-        RegisterAfter(modConfig, "StatusManager.SetSprite", AttachFromStatusContext);
-        RegisterAfter(modConfig, "FightUI.FadeIn", AttachFromFightUiContext);
-        RegisterAfter(modConfig, SunExpHookTargets.FightUiCallActionAnimation, AttachFromActionContext);
+        SunExpStatusLifecycleRouter.Register("WunaOrbitFire", new SunExpStatusLifecycleSubscription
+        {
+            AfterInitAnimator = AttachFromStatusContext,
+            AfterSetSprite = AttachFromStatusContext,
+            AfterFightUiFadeIn = AttachFromFightUiContext
+        });
+        SunExpCombatActionRouter.Register("WunaOrbitFire", new SunExpCombatActionSubscription
+        {
+            AfterFightUiActionAnimation = AttachFromActionContext
+        });
         SunExpLog.Info(LogPrefix + " runtime initialized");
     }
 
@@ -385,8 +391,4 @@ public static class WunaOrbitFireRuntime
         return string.Join("/", names.ToArray());
     }
 
-    private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
-    {
-        SunExpHookRegistry.After(config, target, action, "WunaOrbitFire");
-    }
 }

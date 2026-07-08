@@ -20,11 +20,17 @@ public static class HeartChangeControlRuntime
         RegisterBefore(modConfig, SunExpHookTargets.FightEscapeInit, context => ClearBattle("Fight_Escape.Init:before"));
         RegisterAfter(modConfig, "ScriptExecutor.SetStatus", RetargetAfterSetStatus);
         RegisterBefore(modConfig, "ScriptExecutor.RunScript", RetargetBeforeRunScript);
-        RegisterBefore(modConfig, SunExpHookTargets.OtherObjDoOneAction, BeginEnemyAction);
-        RegisterAfter(modConfig, SunExpHookTargets.OtherObjDoOneAction, EndEnemyAction);
-        RegisterAfter(modConfig, "StatusManager.Hit", CleanupAfterStatusChanged);
-        RegisterAfter(modConfig, "StatusManager.set_CurHp", CleanupAfterStatusChanged);
-        RegisterAfter(modConfig, "StatusManager.set_MaxHp", CleanupAfterStatusChanged);
+        SunExpCombatActionRouter.Register("HeartChange", new SunExpCombatActionSubscription
+        {
+            BeforeOtherObjAction = BeginEnemyAction,
+            AfterOtherObjAction = EndEnemyAction
+        });
+        SunExpStatusLifecycleRouter.Register("HeartChange", new SunExpStatusLifecycleSubscription
+        {
+            AfterHit = CleanupAfterStatusChanged,
+            AfterCurHpChanged = CleanupAfterStatusChanged,
+            AfterMaxHpChanged = CleanupAfterStatusChanged
+        });
         SunExpLog.Info("Heart change control runtime initialized");
     }
 

@@ -4,6 +4,7 @@ using System.Linq;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using AuraToolsExp.Dll.Features.Settings;
+using AuraToolsExp.Dll.Infrastructure;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -1299,7 +1300,7 @@ internal static class AuraToolsDamageMeterUi
     {
         try
         {
-            var source = ResourceLoader.Load<Sprite>(path, true);
+            var source = AuraToolsResourceCache.Load<Sprite>(path, true);
             if (source == null || source.texture == null)
             {
                 return null;

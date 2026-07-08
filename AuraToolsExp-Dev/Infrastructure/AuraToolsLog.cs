@@ -18,9 +18,24 @@ public static class AuraToolsLog
         AuraSharedLog.DebugLog(Tag, message, IsDebugEnabled());
     }
 
+    public static void DebugOnce(string key, string message)
+    {
+        AuraSharedLog.DebugOnce(Tag, key, message);
+    }
+
+    public static void InfoOnce(string key, string message)
+    {
+        AuraSharedLog.DebugOnce(Tag, "info:" + key, message);
+    }
+
     public static void Warn(string message)
     {
         AuraSharedLog.Warn(Tag, message);
+    }
+
+    public static void WarnOnce(string key, string message)
+    {
+        AuraSharedLog.WarnOnce(Tag, key, message);
     }
 
     public static void Error(string message, Exception? ex = null)

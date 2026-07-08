@@ -70,15 +70,14 @@ public static class EndlessAbyssMilestoneRewardPanel
 
         activePanel = SunExpModalHost.CreateFullscreenRoot(PanelName, parent, new Color(0f, 0f, 0f, 0.68f));
         SunExpTransientUiRegistry.Register("EndlessAbyssMilestone", Close);
-        var window = CreateRect("Window", activePanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), ResolveWindowSize(parent));
-        SunExpUiBuilder.ApplyPanelImage(window, SunExpUiSprites.Panel("[EndlessAbyssMilestone]"), WindowTint, true);
-        var layout = window.AddComponent<VerticalLayoutGroup>();
-        layout.padding = new RectOffset(24, 24, 18, 14);
-        layout.spacing = 12f;
-        layout.childControlWidth = true;
-        layout.childControlHeight = true;
-        layout.childForceExpandWidth = true;
-        layout.childForceExpandHeight = false;
+        var window = SunExpUiComponents.CreateVerticalWindow(
+            "Window",
+            activePanel.transform,
+            ResolveWindowSize(parent),
+            SunExpUiSprites.Panel("[EndlessAbyssMilestone]"),
+            WindowTint,
+            new RectOffset(24, 24, 18, 14),
+            12f);
 
         CreateHeader(window.transform);
         contentRoot = CreateContentRoot(window.transform);
@@ -89,62 +88,55 @@ public static class EndlessAbyssMilestoneRewardPanel
 
     private static void CreateHeader(Transform parent)
     {
-        var header = CreateLayoutObject("Header", parent);
-        var element = header.AddComponent<LayoutElement>();
-        element.minHeight = HeaderHeight;
-        element.preferredHeight = HeaderHeight;
-        SunExpUiBuilder.ApplyPanelImage(header, SunExpUiSprites.Panel("[EndlessAbyssMilestone]"), HeaderTint, true);
-        var layout = header.AddComponent<VerticalLayoutGroup>();
-        layout.padding = new RectOffset(14, 14, 8, 8);
-        layout.spacing = 3f;
-        layout.childControlWidth = true;
-        layout.childControlHeight = true;
-        layout.childForceExpandWidth = true;
-        layout.childForceExpandHeight = false;
+        var header = SunExpUiComponents.CreatePanelSection(
+            "Header",
+            parent,
+            SunExpUiSprites.Panel("[EndlessAbyssMilestone]"),
+            HeaderTint,
+            HeaderHeight,
+            HeaderHeight);
+        SunExpUiComponents.ConfigureVerticalLayout(header, new RectOffset(14, 14, 8, 8), 3f);
 
-        AddTextBlock(header.transform, "\u6df1\u6e0a\u91cc\u7a0b\u7891", 28, TextAnchor.MiddleCenter, Gold, 36f);
-        AddTextBlock(header.transform, "\u7b2c " + activeFloor + " \u5c42\u5956\u52b1\u9009\u62e9", 15, TextAnchor.MiddleCenter, SoftText, 24f);
+        SunExpUiComponents.AddTextBlock(header.transform, "\u6df1\u6e0a\u91cc\u7a0b\u7891", 28, TextAnchor.MiddleCenter, Gold, 36f);
+        SunExpUiComponents.AddTextBlock(header.transform, "\u7b2c " + activeFloor + " \u5c42\u5956\u52b1\u9009\u62e9", 15, TextAnchor.MiddleCenter, SoftText, 24f);
     }
 
     private static Transform CreateContentRoot(Transform parent)
     {
-        var root = CreateLayoutObject("ContentRoot", parent);
-        var element = root.AddComponent<LayoutElement>();
-        element.flexibleHeight = 1f;
-        element.minHeight = 330f;
-        SunExpUiBuilder.ApplyPanelImage(root, SunExpUiSprites.Panel("[EndlessAbyssMilestone]"), new Color(0.01f, 0.014f, 0.03f, 0.9f), true);
-        var layout = root.AddComponent<VerticalLayoutGroup>();
-        layout.padding = new RectOffset(18, 18, 18, 18);
-        layout.spacing = 10f;
-        layout.childControlWidth = true;
-        layout.childControlHeight = true;
-        layout.childForceExpandWidth = true;
-        layout.childForceExpandHeight = true;
+        var root = SunExpUiComponents.CreatePanelSection(
+            "ContentRoot",
+            parent,
+            SunExpUiSprites.Panel("[EndlessAbyssMilestone]"),
+            new Color(0.01f, 0.014f, 0.03f, 0.9f),
+            330f,
+            330f,
+            1f);
+        SunExpUiComponents.ConfigureVerticalLayout(
+            root,
+            new RectOffset(18, 18, 18, 18),
+            10f,
+            childForceExpandHeight: true);
         return root.transform;
     }
 
     private static void CreateFooter(Transform parent)
     {
-        var footer = CreateLayoutObject("Footer", parent);
-        var element = footer.AddComponent<LayoutElement>();
-        element.minHeight = FooterHeight;
-        element.preferredHeight = FooterHeight;
-        var layout = footer.AddComponent<HorizontalLayoutGroup>();
-        layout.padding = new RectOffset(6, 6, 4, 4);
-        layout.spacing = 12f;
-        layout.childControlWidth = true;
-        layout.childControlHeight = true;
-        layout.childForceExpandWidth = false;
-        layout.childForceExpandHeight = false;
-        layout.childAlignment = TextAnchor.MiddleCenter;
-        hintText = AddTextBlock(footer.transform, "", 14, TextAnchor.MiddleLeft, SoftText, 34f, 1f);
+        var footer = SunExpUiComponents.CreateFooterRow(parent, FooterHeight, new RectOffset(6, 6, 4, 4), 12f);
+        hintText = SunExpUiComponents.AddTextBlock(footer.transform, "", 14, TextAnchor.MiddleLeft, SoftText, 34f, 1f);
     }
 
     private static void ShowMainOptions()
     {
         ClearContent();
         ConfigureContentRootLayout(18, 18, 18, 18, 10f, true);
-        var scrollContent = CreateScroll(contentRoot!, "RewardOptions");
+        var scrollContent = SunExpUiComponents.CreateVerticalScrollArea(
+            contentRoot!,
+            "RewardOptions",
+            220f,
+            1f,
+            10f,
+            24f,
+            new Color(0f, 0f, 0f, 0.05f)).Content;
 
         CreateRewardCard(
             scrollContent,
@@ -175,7 +167,7 @@ public static class EndlessAbyssMilestoneRewardPanel
 
     private static void CreateRewardCard(Transform parent, string title, string body, bool enabled, Action action)
     {
-        var go = CreateLayoutObject("RewardCard", parent);
+        var go = SunExpUiComponents.CreateLayoutObject("RewardCard", parent);
         var element = go.AddComponent<LayoutElement>();
         element.minHeight = RewardCardHeight;
         element.preferredHeight = RewardCardHeight;
@@ -270,7 +262,7 @@ public static class EndlessAbyssMilestoneRewardPanel
 
         ConfigureContentRootLayout(18, 18, 16, 18, 10f, true);
 
-        var titleRow = CreateLayoutObject("ListTitle", root);
+        var titleRow = SunExpUiComponents.CreateLayoutObject("ListTitle", root);
         var titleElement = titleRow.AddComponent<LayoutElement>();
         titleElement.minHeight = ButtonHeight;
         titleElement.preferredHeight = ButtonHeight;
@@ -282,9 +274,16 @@ public static class EndlessAbyssMilestoneRewardPanel
         titleLayout.childForceExpandHeight = false;
         titleLayout.childAlignment = TextAnchor.MiddleCenter;
         CreateButton(titleRow.transform, "\u8fd4\u56de", new Vector2(ButtonWidth, ButtonHeight), ShowMainOptions);
-        AddTextBlock(titleRow.transform, title + " (" + options.Count + ")", 18, TextAnchor.MiddleLeft, Gold, 34f, 1f);
+        SunExpUiComponents.AddTextBlock(titleRow.transform, title + " (" + options.Count + ")", 18, TextAnchor.MiddleLeft, Gold, 34f, 1f);
 
-        var scrollContent = CreateScroll(root, "List");
+        var scrollContent = SunExpUiComponents.CreateVerticalScrollArea(
+            root,
+            "List",
+            220f,
+            1f,
+            10f,
+            24f,
+            new Color(0f, 0f, 0f, 0.05f)).Content;
         foreach (var option in options)
         {
             CreateRow(scrollContent, badge(option), name(option), () => select(option));
@@ -293,45 +292,9 @@ public static class EndlessAbyssMilestoneRewardPanel
         SetHint(options.Count == 0 ? "\u5f53\u524d\u6ca1\u6709\u53ef\u9009\u9879\u3002" : "\u4ece\u5217\u8868\u4e2d\u9009\u62e9 1 \u9879\u3002");
     }
 
-    private static Transform CreateScroll(Transform parent, string name)
-    {
-        var root = CreateLayoutObject("Scroll-" + name, parent);
-        var element = root.AddComponent<LayoutElement>();
-        element.flexibleHeight = 1f;
-        element.minHeight = 220f;
-        element.flexibleWidth = 1f;
-
-        var viewport = SunExpUiBuilder.CreateRect("Viewport", root.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-        viewport.offsetMin = Vector2.zero;
-        viewport.offsetMax = Vector2.zero;
-        var viewportImage = viewport.gameObject.AddComponent<Image>();
-        viewportImage.color = new Color(0f, 0f, 0f, 0.05f);
-        viewportImage.raycastTarget = true;
-        viewport.gameObject.AddComponent<Mask>().showMaskGraphic = false;
-
-        var content = SunExpUiBuilder.CreateRect("Rows", viewport, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0.5f, 1f), Vector2.zero);
-        var layout = content.gameObject.AddComponent<VerticalLayoutGroup>();
-        layout.padding = new RectOffset(0, 0, 0, 0);
-        layout.spacing = 10f;
-        layout.childControlWidth = true;
-        layout.childControlHeight = true;
-        layout.childForceExpandWidth = true;
-        layout.childForceExpandHeight = false;
-        content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-        var scroll = root.AddComponent<ScrollRect>();
-        scroll.viewport = viewport;
-        scroll.content = content;
-        scroll.horizontal = false;
-        scroll.vertical = true;
-        scroll.movementType = ScrollRect.MovementType.Clamped;
-        scroll.scrollSensitivity = 24f;
-        return content;
-    }
-
     private static void CreateRow(Transform parent, string badge, string name, Action action)
     {
-        var row = CreateLayoutObject("Row", parent);
+        var row = SunExpUiComponents.CreateLayoutObject("Row", parent);
         var element = row.AddComponent<LayoutElement>();
         element.minHeight = RowHeight;
         element.preferredHeight = RowHeight;
@@ -344,8 +307,8 @@ public static class EndlessAbyssMilestoneRewardPanel
         layout.childForceExpandWidth = false;
         layout.childForceExpandHeight = true;
 
-        AddTextBlock(row.transform, badge, 13, TextAnchor.MiddleCenter, Gold, 40f, 0f, 74f);
-        AddTextBlock(row.transform, name, 15, TextAnchor.MiddleLeft, SoftText, 40f, 1f);
+        SunExpUiComponents.AddTextBlock(row.transform, badge, 13, TextAnchor.MiddleCenter, Gold, 40f, 0f, 74f);
+        SunExpUiComponents.AddTextBlock(row.transform, name, 15, TextAnchor.MiddleLeft, SoftText, 40f, 1f);
         CreateButton(row.transform, "\u9009\u62e9", new Vector2(ButtonWidth, ButtonHeight), action);
     }
 
@@ -366,13 +329,11 @@ public static class EndlessAbyssMilestoneRewardPanel
             return;
         }
 
-        var layout = contentRoot.GetComponent<VerticalLayoutGroup>() ?? contentRoot.gameObject.AddComponent<VerticalLayoutGroup>();
-        layout.padding = new RectOffset(left, right, top, bottom);
-        layout.spacing = spacing;
-        layout.childControlWidth = true;
-        layout.childControlHeight = true;
-        layout.childForceExpandWidth = true;
-        layout.childForceExpandHeight = expandHeight;
+        SunExpUiComponents.ConfigureVerticalLayout(
+            contentRoot.gameObject,
+            new RectOffset(left, right, top, bottom),
+            spacing,
+            childForceExpandHeight: expandHeight);
     }
 
     public static void Close(string source)
@@ -395,23 +356,15 @@ public static class EndlessAbyssMilestoneRewardPanel
 
     private static Button CreateButton(Transform parent, string label, Vector2 size, Action action)
     {
-        var go = CreateLayoutObject("Button-" + label, parent);
-        var element = go.AddComponent<LayoutElement>();
-        element.minWidth = size.x;
-        element.preferredWidth = size.x;
-        element.minHeight = size.y;
-        element.preferredHeight = size.y;
-        element.flexibleWidth = 0f;
-        element.flexibleHeight = 0f;
-        var image = go.AddComponent<Image>();
-        image.sprite = SunExpUiSprites.Button("[EndlessAbyssMilestone]");
-        image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
-        image.color = image.sprite != null ? Color.white : new Color(0.08f, 0.07f, 0.11f, 0.98f);
-        var button = go.AddComponent<Button>();
-        button.targetGraphic = image;
-        button.onClick.AddListener(() => RunAction(action, "Button:" + label));
-        AddTextFill(go.transform, label, ButtonFontSize, TextAnchor.MiddleCenter, SoftText);
-        return button;
+        return SunExpUiComponents.CreateTextButton(
+            parent,
+            label,
+            size,
+            SunExpUiSprites.Button("[EndlessAbyssMilestone]"),
+            new Color(0.08f, 0.07f, 0.11f, 0.98f),
+            SoftText,
+            ButtonFontSize,
+            () => RunAction(action, "Button:" + label));
     }
 
     private static void RunAction(Action action, string source)
@@ -425,55 +378,6 @@ public static class EndlessAbyssMilestoneRewardPanel
             SunExpLog.Error("[EndlessAbyssMilestone] UI action failed: " + source, ex);
             SetHint("\u91cc\u7a0b\u7891\u64cd\u4f5c\u5931\u8d25\uff1a" + ex.Message);
         }
-    }
-
-    private static Text AddTextBlock(Transform parent, string value, int fontSize, TextAnchor anchor, Color color, float preferredHeight, float flexibleWidth = 0f, float preferredWidth = 0f)
-    {
-        var go = CreateLayoutObject("Text", parent);
-        var element = go.AddComponent<LayoutElement>();
-        element.preferredHeight = preferredHeight;
-        element.flexibleWidth = flexibleWidth;
-        if (preferredWidth > 0f)
-        {
-            element.minWidth = preferredWidth;
-            element.preferredWidth = preferredWidth;
-        }
-
-        return ConfigureText(go, value, fontSize, anchor, color);
-    }
-
-    private static Text AddTextFill(Transform parent, string value, int fontSize, TextAnchor anchor, Color color)
-    {
-        var go = CreateRect("Text", parent, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-        return ConfigureText(go, value, fontSize, anchor, color);
-    }
-
-    private static Text ConfigureText(GameObject go, string value, int fontSize, TextAnchor anchor, Color color)
-    {
-        var text = go.AddComponent<Text>();
-        text.text = value;
-        text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-        text.fontSize = fontSize;
-        text.fontStyle = FontStyle.Normal;
-        text.alignment = anchor;
-        text.color = color;
-        text.horizontalOverflow = HorizontalWrapMode.Wrap;
-        text.verticalOverflow = VerticalWrapMode.Truncate;
-        text.resizeTextForBestFit = true;
-        text.resizeTextMinSize = Math.Max(10, fontSize - 5);
-        text.resizeTextMaxSize = fontSize;
-        text.raycastTarget = false;
-        return text;
-    }
-
-    private static GameObject CreateLayoutObject(string name, Transform parent)
-    {
-        return CreateRect(name, parent, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-    }
-
-    private static GameObject CreateRect(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 size)
-    {
-        return SunExpUiBuilder.CreateRect(name, parent, anchorMin, anchorMax, pivot, size).gameObject;
     }
 
     private static Vector2 ResolveWindowSize(Transform parent)

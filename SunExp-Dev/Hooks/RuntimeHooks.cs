@@ -13,13 +13,19 @@ public static class RuntimeHooks
 {
     public static void Initialize(ModConfig modConfig)
     {
-        RunHookStep("status buff hooks", () =>
-        {
-            SunExpHookRegistry.Before(modConfig, "StatusManager.AddBuff", OnStatusManagerAddBuffBefore, "RuntimeHooks");
-            SunExpHookRegistry.After(modConfig, "StatusManager.AddBuff", OnStatusManagerAddBuffAfter, "RuntimeHooks");
-        });
         RunHookStep("battle lifecycle router", () => SunExpBattleLifecycleRouter.Initialize(modConfig));
         RunHookStep("card lifecycle router", () => SunExpCardLifecycleRouter.Initialize(modConfig));
+        RunHookStep("combat action router", () => SunExpCombatActionRouter.Initialize(modConfig));
+        RunHookStep("status lifecycle router", () => SunExpStatusLifecycleRouter.Initialize(modConfig));
+        RunHookStep("card presentation bridge", SunExpCardPresentationLifecycleBridge.Initialize);
+        RunHookStep("status buff handlers", () =>
+        {
+            SunExpStatusLifecycleRouter.Register("RuntimeStatusBuff", new SunExpStatusLifecycleSubscription
+            {
+                BeforeAddBuff = OnStatusManagerAddBuffBefore,
+                AfterAddBuff = OnStatusManagerAddBuffAfter
+            });
+        });
         RunHookStep("dialogue flow", () => DialogueFlowRuntime.Initialize(modConfig));
         RunHookStep("familiar growth", () => FamiliarGrowthRuntime.Initialize(modConfig));
         RunHookStep("dusk partner", () => DuskPartnerRuntime.Initialize(modConfig));

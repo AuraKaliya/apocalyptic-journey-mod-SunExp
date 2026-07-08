@@ -968,7 +968,7 @@ public static class AuraToolsStarterDeckRuntime
             var data = new DataConfig(cardId, DataType.Card).data;
             if (data.TryGetValue("Icon", out var iconPath) && !string.IsNullOrWhiteSpace(iconPath))
             {
-                sprite = ResourceLoader.Load<Sprite>(iconPath, true);
+                sprite = AuraToolsResourceCache.Load<Sprite>(iconPath, true);
             }
         }
         catch (Exception ex)

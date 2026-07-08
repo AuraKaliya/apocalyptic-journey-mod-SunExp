@@ -28,6 +28,7 @@ tools\Test-AuraSharedCore.ps1 # AuraSharedCore or shared protocol
 tools\Test-SharedReleaseGate.ps1 # broad shared release compatibility
 tools\Test-SharedDllPackaging.ps1 # packaged Aura.Shared.dll references or hashes
 tools\Build-AuraToolsExpDll.ps1 # AuraTools shared consumer or Skill CG tool changes
+.codex\skills\sunexp-skill-evolution\scripts\audit-sunexp-skill-staleness.ps1 # skill or architecture-boundary updates
 ```
 
 This checks:

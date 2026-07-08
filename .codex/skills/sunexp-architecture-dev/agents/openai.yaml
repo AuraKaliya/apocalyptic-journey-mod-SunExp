@@ -1,4 +1,4 @@
 interface:
   display_name: "SunExp Architecture Dev"
-  short_description: "Maintain SunExp C# and RPC boundaries."
-  default_prompt: "Use $sunexp-architecture-dev for SunExp C# architecture refactors, GameApi facades, Features and Hooks boundaries, performance surfaces, RPC authority, Managed compatibility, and architecture gates."
+  short_description: "Maintain SunExp C# boundaries without leaking shared foundations."
+  default_prompt: "Use $sunexp-architecture-dev for SunExp C# architecture refactors, GameApi facades, Features and Hooks boundaries, performance surfaces, RPC authority, Managed compatibility, architecture gates, and checks that SunExp internals are not becoming AuraToolsExp's implicit shared framework."

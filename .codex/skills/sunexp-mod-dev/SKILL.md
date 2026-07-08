@@ -11,6 +11,11 @@ Production behavior lives in C# DLL entry points called from CSV. The `luaEnv`
 bridge in `SunExp-Dev/Entry.cs` is a host interop detail, not a production Lua
 implementation path.
 
+SunExp is the content mod in the Aura ecosystem. AuraToolsExp is the tool mod.
+Shared/runtime foundations belong under Aura shared components when both mods
+need the same semantic-free capability; do not make AuraToolsExp depend on
+SunExp internals.
+
 ## Specialist Routing
 
 Use the smallest specialist set that covers the task:
@@ -25,7 +30,8 @@ Use the smallest specialist set that covers the task:
 - `sunexp-shared-runtime-dev`: Aura shared runtimes, shared resources, Journey,
   Skin, Audio, BGM, StarterDeck, CG, UI safety, initialization registration,
   tool-local configuration overrides, cross-mod sync models, RPC authority,
-  shared DLL packaging, or shared release gates.
+  shared DLL packaging, shared release gates, or deciding whether a reusable
+  capability belongs in SunExp, AuraToolsExp, or a shared component.
 - `sunexp-visual-runtime-dev`: `visual.registry.json`, VisualBundles, shaders,
   card visual skins/effects, Skill CG, animated icons, map-node visuals, Star
   Score HUD, Wuna orbit fire, or visual runtime validation.
@@ -87,6 +93,12 @@ tools\Build-SunExpVisualBundle.ps1 # when VisualAssets or VisualBundles change
 - Use full mod IDs when referencing SunExp-defined content.
 - Keep player-facing text, dynamic descriptions, release notes, and behavior in sync when rows or scripts change.
 - Do not write battle-only or run-only state back into base CSV `Data/*` rows.
+- Do not treat retired data-only SunExp workflows, retired repository roots, or
+  renamed mode names as current architecture without verifying them against
+  this repository.
+- Do not expose SunExp internal helpers as the development base for AuraToolsExp.
+  Promote shared hook, UI, resource, logging, pooling, or multiplayer
+  presentation foundations to Aura shared runtimes instead.
 - Do not bind directly to a Managed method whose signature has drifted across supported game versions. Put reflection-based current/legacy dispatch and a deterministic fallback in `GameApi/`.
 - Do not let one independent fight-start or lifecycle action abort later actions. Isolate fragile steps and log each failure with its step name.
 - Only server authority may advance shared multiplayer progression; clients may update local presentation and player-scoped state.

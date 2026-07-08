@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using AuraShared.Core;
 using SunExp.Dll.Infrastructure;
 using Witch.Core;
 using Witch.Mod;
@@ -32,18 +33,19 @@ public static class SunExpBattleLifecycleRouter
         }
 
         initialized = true;
-        SunExpHookRegistry.BeforeRouted(modConfig, SunExpHookTargets.GameEntryStartGame, context => DispatchAdventureStarting(context, SunExpHookTargets.GameEntryStartGame), "BattleLifecycle");
-
-        SunExpHookRegistry.AfterRouted(modConfig, SunExpHookTargets.FightStartInit, context => DispatchFightStarted(context, SunExpHookTargets.FightStartInit), "BattleLifecycle");
-        SunExpHookRegistry.AfterRouted(modConfig, SunExpHookTargets.FightInitInit, context => DispatchFightStarted(context, SunExpHookTargets.FightInitInit), "BattleLifecycle");
-
-        SunExpHookRegistry.BeforeRouted(modConfig, SunExpHookTargets.FightWinResetStates, context => DispatchFightEnding(context, SunExpHookTargets.FightWinResetStates), "BattleLifecycle");
-        SunExpHookRegistry.BeforeRouted(modConfig, SunExpHookTargets.FightEscapeResetStates, context => DispatchFightEnding(context, SunExpHookTargets.FightEscapeResetStates), "BattleLifecycle");
-        SunExpHookRegistry.BeforeRouted(modConfig, SunExpHookTargets.FightLossInit, context => DispatchFightEnding(context, SunExpHookTargets.FightLossInit), "BattleLifecycle");
-
-        SunExpHookRegistry.AfterRouted(modConfig, SunExpHookTargets.FightWinResetStates, context => DispatchFightEnded(context, SunExpHookTargets.FightWinResetStates), "BattleLifecycle");
-        SunExpHookRegistry.AfterRouted(modConfig, SunExpHookTargets.FightEscapeResetStates, context => DispatchFightEnded(context, SunExpHookTargets.FightEscapeResetStates), "BattleLifecycle");
-        SunExpHookRegistry.AfterRouted(modConfig, SunExpHookTargets.FightLossInit, context => DispatchFightEnded(context, SunExpHookTargets.FightLossInit), "BattleLifecycle");
+        AuraBattleLifecycleRouter.Register(
+            modConfig,
+            SunExpIds.ModId,
+            "BattleLifecycle",
+            new AuraBattleLifecycleSubscription
+            {
+                AdventureStarting = context => DispatchAdventureStarting(context, AuraBattleLifecycleRouter.GameEntryStartGame),
+                FightStarted = context => DispatchFightStarted(context, "Fight lifecycle start"),
+                FightEnding = context => DispatchFightEnding(context, "Fight lifecycle ending"),
+                FightEnded = context => DispatchFightEnded(context, "Fight lifecycle ended")
+            },
+            SunExpLog.Debug,
+            SunExpLog.Warn);
     }
 
     public static void Register(string id, SunExpBattleLifecycleSubscription subscription)

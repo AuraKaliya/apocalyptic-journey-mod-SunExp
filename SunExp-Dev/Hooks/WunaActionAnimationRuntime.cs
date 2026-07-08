@@ -26,8 +26,11 @@ public static class WunaActionAnimationRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
-        RegisterBefore(modConfig, SunExpHookTargets.FightUiCallActionAnimation, BeforeCallActionAnimation);
-        RegisterAfter(modConfig, SunExpHookTargets.FightUiCallActionAnimation, AfterCallActionAnimation);
+        SunExpCombatActionRouter.Register("WunaActionAnimation", new SunExpCombatActionSubscription
+        {
+            BeforeFightUiActionAnimation = BeforeCallActionAnimation,
+            AfterFightUiActionAnimation = AfterCallActionAnimation
+        });
     }
 
     private static void BeforeCallActionAnimation(ModHookContext context)
@@ -275,16 +278,6 @@ public static class WunaActionAnimationRuntime
     private static string NormalizeCardId(string value)
     {
         return (value ?? "").Trim();
-    }
-
-    private static void RegisterBefore(ModConfig modConfig, string target, Action<ModHookContext> action)
-    {
-        SunExpHookRegistry.Before(modConfig, target, action, "WunaActionAnimation");
-    }
-
-    private static void RegisterAfter(ModConfig modConfig, string target, Action<ModHookContext> action)
-    {
-        SunExpHookRegistry.After(modConfig, target, action, "WunaActionAnimation");
     }
 
     private readonly struct EffectPatch

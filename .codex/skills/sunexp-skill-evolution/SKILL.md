@@ -1,6 +1,6 @@
 ---
 name: sunexp-skill-evolution
-description: Project-local skill for distilling SunExp development traces into durable Codex skill updates, including analyzing recent commits, test failures, manual debugging lessons, user corrections, validation gaps, architecture drift, reference restructuring, trigger tuning, and iterative improvement of project-local skills under .codex/skills.
+description: Project-local skill for distilling SunExp development traces into durable Codex skill updates, including analyzing recent commits, test failures, manual debugging lessons, user corrections, validation gaps, architecture drift, stale old-repository or retired-workflow anchors, reference restructuring, trigger tuning, and iterative improvement of project-local skills under .codex/skills.
 ---
 
 # SunExp Skill Evolution
@@ -26,6 +26,8 @@ references for detailed context.
    - Reference: detailed explanation loaded only when needed.
    - Script/test: deterministic check for fragile behavior.
    - Asset/template: reusable output resource.
+   - Staleness cleanup: old repository paths, old mode names, retired workflow
+     assumptions, or memory-derived anchors that no longer match this repo.
 3. Choose the smallest durable change:
    - tighten an existing trigger;
    - move verbose body content into `references/`;
@@ -33,17 +35,28 @@ references for detailed context.
    - add or update validation when a rule is easy to check.
 4. Use `references/evolution-log-pattern.md` when drafting a reusable evidence
    packet or patch proposal for a skill update.
-5. Edit skills with progressive disclosure:
+5. Audit for stale SunExp anchors before and after editing:
+   - run `scripts/audit-sunexp-skill-staleness.ps1`;
+   - remove or quarantine references to retired project roots, old mode names,
+     retired data-only workflows, and obsolete implementation assumptions;
+   - preserve compatibility notes only when they are explicitly labeled as
+     historical and cannot trigger current workflow decisions.
+6. Edit skills with progressive disclosure:
    - keep `SKILL.md` short and action-oriented;
    - keep references one hop from `SKILL.md`;
    - avoid duplicated rules across skills; route instead.
-6. Validate skill metadata and representative project checks.
+7. Validate skill metadata and representative project checks.
 
 ## Distillation Rules
 
 - Capture only durable lessons likely to recur.
 - Do not preserve one-off implementation details unless they prevent a known
   regression.
+- Do not promote memory-derived or old-repository facts into current skills
+  without verifying them against this repository.
+- Treat retired data-only SunExp workflows, retired project roots, and renamed
+  mode names as stale by default. Keep them only inside an explicit migration or
+  archaeology note.
 - Put brittle invariants in tests where possible.
 - Put detailed domain explanation in references, not in top-level `SKILL.md`.
 - Keep old skill names stable unless the user explicitly approves a migration
@@ -67,6 +80,7 @@ references for detailed context.
 Run:
 
 ```powershell
+ .codex\skills\sunexp-skill-evolution\scripts\audit-sunexp-skill-staleness.ps1
 python C:\Users\75601\.codex\skills\.system\skill-creator\scripts\quick_validate.py .codex\skills\<skill-name>
 ```
 

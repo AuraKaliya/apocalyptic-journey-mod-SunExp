@@ -159,7 +159,7 @@ internal static class DamageSettlementCgIdleResolver
         }
 
         var idleDirectory = animation.TrimEnd('/', '\\') + "/Idle";
-        var textures = ResourceLoader.LoadAll<Texture2D>(idleDirectory) ?? Array.Empty<Texture2D>();
+        var textures = AuraToolsResourceCache.LoadAll<Texture2D>(idleDirectory);
         var valid = textures.Where(texture => texture != null).ToList();
         if (valid.Count == 0)
         {
@@ -199,7 +199,7 @@ internal static class DamageSettlementCgIdleResolver
         {
             try
             {
-                var asset = ResourceLoader.Load<TextAsset>(path, true);
+                var asset = AuraToolsResourceCache.Load<TextAsset>(path, true);
                 if (asset != null && !string.IsNullOrWhiteSpace(asset.text))
                 {
                     return asset.text;
@@ -252,7 +252,7 @@ internal static class DamageSettlementCgIdleResolver
         var rawResourcePath = SkinPaths.ToRawResourcePath(file);
         try
         {
-            var texture = ResourceLoader.Load<Texture2D>(rawResourcePath, true);
+            var texture = AuraToolsResourceCache.Load<Texture2D>(rawResourcePath, true);
             if (texture != null)
             {
                 return texture;

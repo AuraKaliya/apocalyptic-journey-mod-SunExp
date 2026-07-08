@@ -84,15 +84,19 @@ public static class AuraToolsSkillCgRuntime
             AuraToolsIds.ModId + ".SkillCG",
             BeforeCombatAction,
             warn: AuraToolsLog.Warn));
-        RegisterBefore("GameEntryUI.StartGame", OnAdventureStart);
-        RegisterAfter("Fight_Start.Init", OnFightStart);
-        RegisterAfter("FightInit.Init", OnFightStart);
-        RegisterBefore("Fight_Win.ResetStates", OnFightEnding);
-        RegisterBefore("Fight_Escape.ResetStates", OnFightEnding);
-        RegisterBefore("Fight_Loss.Init", OnFightEnding);
-        RegisterAfter("Fight_Win.ResetStates", OnFightEnded);
-        RegisterAfter("Fight_Escape.ResetStates", OnFightEnded);
-        RegisterAfter("Fight_Loss.Init", OnFightEnded);
+        HookRegistrations.Add(AuraBattleLifecycleRouter.Register(
+            modConfig,
+            AuraToolsIds.ModId,
+            "SkillCG",
+            new AuraBattleLifecycleSubscription
+            {
+                AdventureStarting = OnAdventureStart,
+                FightStarted = OnFightStart,
+                FightEnding = OnFightEnding,
+                FightEnded = OnFightEnded
+            },
+            AuraToolsLog.Debug,
+            AuraToolsLog.Warn));
         hooksRegistered = true;
         AuraToolsLog.Info("[SkillCG] routed hooks enabled.");
     }
@@ -267,36 +271,6 @@ public static class AuraToolsSkillCgRuntime
             SkillCgArbiterRuntime.Clear(AuraToolsIds.ModId, "fight ending");
             AuraToolsSkillCgProvider.ClearOwnerRoles();
         });
-    }
-
-    private static void RegisterBefore(string target, Action<ModHookContext> action)
-    {
-        if (modConfig == null)
-        {
-            return;
-        }
-
-        HookRegistrations.Add(AuraSharedHooks.RegisterBeforeRouted(
-            modConfig,
-            target,
-            action,
-            warn: AuraToolsLog.Warn,
-            safeInvoke: true));
-    }
-
-    private static void RegisterAfter(string target, Action<ModHookContext> action)
-    {
-        if (modConfig == null)
-        {
-            return;
-        }
-
-        HookRegistrations.Add(AuraSharedHooks.RegisterAfterRouted(
-            modConfig,
-            target,
-            action,
-            warn: AuraToolsLog.Warn,
-            safeInvoke: true));
     }
 
     private static void RunHook(string source, Action action)

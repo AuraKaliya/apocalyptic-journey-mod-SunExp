@@ -158,6 +158,10 @@ $requiredFiles = @(
     "SunExp-Dev\Hooks\SunExpHookRegistry.cs",
     "SunExp-Dev\Hooks\SunExpBattleLifecycleRouter.cs",
     "SunExp-Dev\Hooks\SunExpCardLifecycleRouter.cs",
+    "SunExp-Dev\Hooks\SunExpCombatActionRouter.cs",
+    "SunExp-Dev\Hooks\SunExpStatusLifecycleRouter.cs",
+    "SunExp-Dev\Hooks\SunExpCardPresentationRouter.cs",
+    "SunExp-Dev\Hooks\SunExpCardPresentationLifecycleBridge.cs",
     "SunExp-Dev\Hooks\SunExpFrameScheduler.cs",
     "SunExp-Dev\Hooks\SunExpActionEventRouter.cs",
     "SunExp-Dev\Hooks\SunExpResourcePreloader.cs",
@@ -197,7 +201,11 @@ $requiredFiles = @(
     "SunExp-Dev\Hooks\Ui\SunExpUiSafety.cs",
     "SunExp-Dev\Hooks\Ui\SunExpUiLifetimeScope.cs",
     "SunExp-Dev\Hooks\Ui\SunExpUiPool.cs",
+    "SunExp-Dev\Hooks\Ui\SunExpUiComponents.cs",
     "SunExp-Dev\Hooks\Ui\SunExpUiSprites.cs",
+    "SunExp-Dev\Hooks\Ui\EndlessAbyssFramedTextCard.cs",
+    "SunExp-Dev\Hooks\Ui\EndlessAbyssShockPanel.cs",
+    "SunExp-Dev\Hooks\Ui\EndlessAbyssMilestoneRewardPanel.cs",
     "SunExp-Dev\Hooks\Ui\PolymorphRoleSelectionRequest.cs",
     "SunExp-Dev\Hooks\Ui\FamiliarGrowthPanel.cs",
     "SunExp-Dev\Scripting\FamiliarGrowthScripts.cs",
@@ -208,6 +216,7 @@ $requiredFiles = @(
     "SunExp-Dev\Hooks\Visual\EffectTextureCache.cs",
     "SunExp-Dev\Hooks\Visual\FrameImageAnimator.cs",
     "SunExp-Dev\Hooks\Visual\CardVisualSkinApplier.cs",
+    "SunExp-Dev\Hooks\Visual\CardPresentationRootResolver.cs",
     "SunExp-Dev\Hooks\Visual\CardVisualEffectApplier.cs",
     "SunExp-Dev\Hooks\Visual\CardFaceEffectApplier.cs",
     "SunExp-Dev\Hooks\Visual\CardFaceEffectMaterials.cs",
@@ -343,7 +352,12 @@ $runtimeHooks = Read-RepoText "SunExp-Dev\Hooks\RuntimeHooks.cs"
 $sunExpHookTargets = Read-RepoText "SunExp-Dev\Hooks\SunExpHookTargets.cs"
 $sunExpHookRegistry = Read-RepoText "SunExp-Dev\Hooks\SunExpHookRegistry.cs"
 $sunExpBattleLifecycleRouter = Read-RepoText "SunExp-Dev\Hooks\SunExpBattleLifecycleRouter.cs"
+$auraBattleLifecycleRouter = Read-RepoText "AuraSharedCore\AuraBattleLifecycleRouter.cs"
 $sunExpCardLifecycleRouter = Read-RepoText "SunExp-Dev\Hooks\SunExpCardLifecycleRouter.cs"
+$sunExpCombatActionRouter = Read-RepoText "SunExp-Dev\Hooks\SunExpCombatActionRouter.cs"
+$sunExpStatusLifecycleRouter = Read-RepoText "SunExp-Dev\Hooks\SunExpStatusLifecycleRouter.cs"
+$sunExpCardPresentationRouter = Read-RepoText "SunExp-Dev\Hooks\SunExpCardPresentationRouter.cs"
+$sunExpCardPresentationLifecycleBridge = Read-RepoText "SunExp-Dev\Hooks\SunExpCardPresentationLifecycleBridge.cs"
 $emberAdventureStateRuntime = Read-RepoText "SunExp-Dev\Hooks\EmberAdventureStateRuntime.cs"
 $cardVisualSkinSpec = Read-RepoText "SunExp-Dev\Mechanics\CardVisualSkinSpec.cs"
 $cardVisualSkinRule = Read-RepoText "SunExp-Dev\Mechanics\CardVisualSkinRule.cs"
@@ -355,6 +369,11 @@ $cardVisualThemeCatalog = Read-RepoText "SunExp-Dev\Mechanics\CardVisualThemeCat
 $cardMutationService = Read-RepoText "SunExp-Dev\Mechanics\CardMutationService.cs"
 $runtimeCardAttachmentService = Read-RepoText "SunExp-Dev\Mechanics\RuntimeCardAttachmentService.cs"
 $cardVisualSkinRuntime = Read-RepoText "SunExp-Dev\Hooks\CardVisualSkinRuntime.cs"
+$polymorphCardFaceRuntime = Read-RepoText "SunExp-Dev\Hooks\Visual\PolymorphCardFaceRuntime.cs"
+$sunExpUiComponents = Read-RepoText "SunExp-Dev\Hooks\Ui\SunExpUiComponents.cs"
+$endlessAbyssFramedTextCard = Read-RepoText "SunExp-Dev\Hooks\Ui\EndlessAbyssFramedTextCard.cs"
+$endlessAbyssShockPanel = Read-RepoText "SunExp-Dev\Hooks\Ui\EndlessAbyssShockPanel.cs"
+$endlessAbyssMilestoneRewardPanel = Read-RepoText "SunExp-Dev\Hooks\Ui\EndlessAbyssMilestoneRewardPanel.cs"
 $cardVisualSkinMarker = Read-RepoText "SunExp-Dev\Hooks\Visual\CardVisualSkinMarker.cs"
 $cardVisualSkinApplier = Read-RepoText "SunExp-Dev\Hooks\Visual\CardVisualSkinApplier.cs"
 $cardVisualEffectApplier = Read-RepoText "SunExp-Dev\Hooks\Visual\CardVisualEffectApplier.cs"
@@ -480,8 +499,9 @@ Assert-Contains $runtimeHooks "SunExpBattleLifecycleRouter.Initialize(modConfig)
 Assert-Contains $runtimeHooks "SunExpCardLifecycleRouter.Initialize(modConfig)" "RuntimeHooks must initialize the shared card lifecycle router before feature handlers register."
 Assert-Contains $sunExpHookRegistry "RegisterBeforeRouted" "SunExp hook registry must expose routed before-hook registration."
 Assert-Contains $sunExpHookRegistry "RegisterAfterRouted" "SunExp hook registry must expose routed after-hook registration."
-Assert-Contains $sunExpBattleLifecycleRouter "SunExpHookTargets.FightStartInit" "Battle lifecycle router must own fight-start native hooks."
-Assert-Contains $sunExpBattleLifecycleRouter "SunExpHookTargets.FightWinResetStates" "Battle lifecycle router must own fight-ending native hooks."
+Assert-Contains $sunExpBattleLifecycleRouter "AuraBattleLifecycleRouter.Register" "SunExp battle lifecycle router must delegate native hook ownership to Aura shared lifecycle."
+Assert-Contains $auraBattleLifecycleRouter "FightStartInit" "Aura battle lifecycle router must own fight-start native hooks."
+Assert-Contains $auraBattleLifecycleRouter "FightWinResetStates" "Aura battle lifecycle router must own fight-ending native hooks."
 Assert-Contains $sunExpCardLifecycleRouter "SunExpHookTargets.CardItemInit" "Card lifecycle router must own shared card-item init hooks."
 Assert-Contains $sunExpCardLifecycleRouter "SunExpHookTargets.CommonCardItemTrueUse" "Card lifecycle router must own shared common-card use hooks."
 Assert-Contains $sunExpHookTargets "public const string FightStartInit" "Hook target names must be centralized in SunExpHookTargets."
@@ -554,9 +574,10 @@ Assert-Contains $projectionOtherObj "CompanionThreatService.SetPreview" "Project
 Assert-Contains $projectionOtherObj 'RefreshProjectionIntent("InitProjection")' "Projection actors must reveal intent immediately after summon."
 Assert-Contains $projectionOtherObj "FightAction.ActionExecute()" "Projection turns must execute queued actions without native head/Msg announcement UI."
 Assert-NotContains $projectionOtherObj "return base.DoAction();" "Projection turns must not use native OtherObj.DoAction because the player model lacks head/Msg."
-Assert-Contains $projectionRuntime 'RegisterAfter(modConfig, "StatusManager.Hit", RetireProjectionAfterDamage);' "Projection runtime must retire dead projections after full damage resolves."
-Assert-Contains $projectionRuntime 'RegisterAfter(modConfig, "StatusManager.set_CurHp", RetireProjectionAfterHpChange);' "Projection runtime must retire dead projections after direct HP changes."
-Assert-Contains $projectionRuntime 'RegisterAfter(modConfig, "StatusManager.set_MaxHp", RetireProjectionAfterHpChange);' "Projection runtime must retire projections whose max HP is reduced to zero."
+Assert-Contains $projectionRuntime 'SunExpStatusLifecycleRouter.Register("Projection"' "Projection runtime must retire dead projections through the shared status lifecycle router."
+Assert-Contains $projectionRuntime "AfterHit = RetireProjectionAfterDamage" "Projection runtime must retire dead projections after full damage resolves."
+Assert-Contains $projectionRuntime "AfterCurHpChanged = RetireProjectionAfterHpChange" "Projection runtime must retire dead projections after direct HP changes."
+Assert-Contains $projectionRuntime "AfterMaxHpChanged = RetireProjectionAfterHpChange" "Projection runtime must retire projections whose max HP is reduced to zero."
 Assert-NotContains $projectionRuntime "SetDamageFilter" "Projection runtime must not use temporary damage filters after protection redirects were removed."
 Assert-NotContains $projectionRuntime "RedirectThreatBeforeHit" "Projection runtime must not redirect enemy attacks away from players."
 Assert-NotContains $projectionRuntime "ProjectionThreatService" "Projection runtime must not depend on retired threat redirection."
@@ -607,6 +628,31 @@ Assert-NotContains $cardMutationService "FightCardManager.Instance?.RefreshTag" 
 Assert-NotContains $runtimeCardAttachmentService "FightCardManager.Instance?.RefreshTag" "RuntimeCardAttachmentService must not synchronously refresh config tags."
 Assert-Contains $sunExpResourcePreloader "SunExpResourceCache.Preload" "Resource preloader must warm core visual resources through the shared cache."
 Assert-Contains $runtimeHooks "SunExpResourcePreloader.Initialize(modConfig)" "RuntimeHooks must initialize the resource preloader as an isolated hook step."
+Assert-Contains $runtimeHooks "SunExpCombatActionRouter.Initialize(modConfig)" "RuntimeHooks must initialize the shared combat action router before feature runtimes."
+Assert-Contains $runtimeHooks "SunExpStatusLifecycleRouter.Initialize(modConfig)" "RuntimeHooks must initialize the shared status lifecycle router before feature runtimes."
+Assert-Contains $sunExpStatusLifecycleRouter "SunExpHookTargets.StatusManagerAddBuff" "Status lifecycle router must own the StatusManager.AddBuff hook target."
+Assert-Contains $sunExpStatusLifecycleRouter "SunExpHookTargets.StatusManagerHit" "Status lifecycle router must own the StatusManager.Hit hook target."
+Assert-Contains $sunExpStatusLifecycleRouter "SunExpHookTargets.EnemyInit" "Status lifecycle router must own enemy initialization status hot-path hooks."
+Assert-Contains $sunExpCombatActionRouter "SunExpHookTargets.OtherObjDoOneAction" "Combat action router must own OtherObj action hooks."
+Assert-Contains $sunExpCombatActionRouter "SunExpHookTargets.FightUiCallActionAnimation" "Combat action router must own FightUI action animation hooks."
+Assert-NotContains $runtimeHooks 'SunExpHookRegistry.Before(modConfig, "StatusManager.AddBuff"' "RuntimeHooks must not directly register StatusManager.AddBuff."
+Assert-NotContains $projectionRuntime 'RegisterAfter(modConfig, "StatusManager.Hit"' "Projection runtime must not directly register status hot-path hooks."
+Assert-NotContains $cardVisualSkinRuntime "SunExpCardLifecycleRouter.Register(`"CardVisualSkin`"" "Card visual skin runtime must not own card lifecycle hook mapping."
+Assert-Contains $sunExpUiComponents "CreateTextButton" "Repeated text-button construction must live in the shared UI component factory."
+Assert-Contains $sunExpUiComponents "AddTextBlock" "Repeated text block construction must live in the shared UI component factory."
+Assert-Contains $sunExpUiComponents "CreateVerticalWindow" "Modal window shell construction must live in the shared UI component factory."
+Assert-Contains $sunExpUiComponents "CreatePanelSection" "Header/content panel section construction must live in the shared UI component factory."
+Assert-Contains $sunExpUiComponents "CreateFooterRow" "Footer row construction must live in the shared UI component factory."
+Assert-Contains $sunExpUiComponents "CreateVerticalScrollArea" "Repeated ScrollRect construction must live in the shared UI component factory."
+Assert-Contains $endlessAbyssShockPanel "SunExpUiComponents.CreateVerticalWindow" "Endless Abyss shock panel must use the shared modal window component."
+Assert-Contains $endlessAbyssShockPanel "SunExpUiComponents.CreateVerticalScrollArea" "Endless Abyss shock panel must use the shared scroll component."
+Assert-Contains $endlessAbyssMilestoneRewardPanel "SunExpUiComponents.CreateVerticalWindow" "Endless Abyss milestone panel must use the shared modal window component."
+Assert-Contains $endlessAbyssMilestoneRewardPanel "SunExpUiComponents.CreateVerticalScrollArea" "Endless Abyss milestone panel must use the shared scroll component."
+Assert-Contains $endlessAbyssFramedTextCard "SunExpUiComponents.AddTextBlock" "Framed option cards must use shared text block construction."
+Assert-NotContains $endlessAbyssShockPanel "private static Text AddTextBlock" "Endless Abyss shock panel must not keep local text construction wrappers."
+Assert-NotContains $endlessAbyssMilestoneRewardPanel "private static Text AddTextBlock" "Endless Abyss milestone panel must not keep local text construction wrappers."
+Assert-NotContains $endlessAbyssFramedTextCard "private static Text AddTextBlock" "Framed option cards must not keep local text construction wrappers."
+Assert-NotContains $endlessAbyssMilestoneRewardPanel "private static Transform CreateScroll" "Endless Abyss milestone panel must not keep local ScrollRect construction."
 Assert-Contains $sunExpResourceCache "ResourceLoader.Load<T>" "Resource cache must centralize native single-asset resource loading."
 Assert-Contains $sunExpResourceCache "ResourceLoader.LoadAll<T>" "Resource cache must centralize native multi-asset resource loading."
 Assert-Contains $sunExpConfigIndex "public static List<Dictionary<string, string>> Rows" "Config index must own cached table row access."
@@ -644,34 +690,36 @@ Assert-Contains $cardVisualThemeCatalog "SunExpIds.SunThemeExplicitCardIds" "Car
 Assert-Contains $cardVisualSkinApi "SunExpIds.MorningStarCardFramePath" "Card visual skin defaults must attach the Morning Star frame path through the registration API."
 Assert-Contains $cardVisualThemeCatalog "IsStellarOvertureCard" "Card visual themes must expose a Stellar Overture theme predicate."
 Assert-Contains $sunCardThemeCatalog "CardVisualThemeCatalog.Resolve" "Legacy Sun card theme checks must delegate to the generic card visual theme catalog."
-Assert-Contains $cardVisualSkinRuntime "SunExpCardLifecycleRouter.Register(`"CardVisualSkin`"" "Card visual skin runtime must register through the shared card lifecycle router."
-Assert-Contains $cardVisualSkinRuntime "AfterSetCardStyle = ApplyFromSetCardStyle" "Card visual skin runtime must keep a shared card-style fallback hook."
-Assert-Contains $cardVisualSkinRuntime "AfterCardItemInit" "Card visual skin runtime must hook concrete base card initialization."
-Assert-Contains $cardVisualSkinRuntime "AfterAttackCardItemInit" "Card visual skin runtime must hook concrete attack-card initialization."
-Assert-Contains $cardVisualSkinRuntime "AfterCardItemDataUpdate" "Card visual skin runtime must keep a battle-card repaint fallback."
+Assert-Contains $runtimeHooks "SunExpCardPresentationLifecycleBridge.Initialize" "RuntimeHooks must initialize the card lifecycle to presentation bridge."
+Assert-Contains $cardVisualSkinRuntime 'SunExpCardPresentationRouter.Register("CardVisualSkin"' "Card visual skin runtime must subscribe to the shared card presentation router."
+Assert-Contains $polymorphCardFaceRuntime 'SunExpCardPresentationRouter.Register("PolymorphCardFace"' "Polymorph card face runtime must subscribe to the shared card presentation router."
+Assert-Contains $sunExpCardPresentationLifecycleBridge 'AfterSetCardStyle = ApplyFromSetCardStyle' "Card presentation bridge must keep a shared card-style fallback hook."
+Assert-Contains $sunExpCardPresentationLifecycleBridge "AfterCardItemInit" "Card presentation bridge must hook concrete base card initialization."
+Assert-Contains $sunExpCardPresentationLifecycleBridge "AfterAttackCardItemInit" "Card presentation bridge must hook concrete attack-card initialization."
+Assert-Contains $sunExpCardPresentationLifecycleBridge "AfterCardItemDataUpdate" "Card presentation bridge must keep a battle-card repaint fallback."
 Assert-Contains $cardVisualSkinRuntime "BeforeCommonCardUse" "Card visual skin runtime must suppress frame-effect overlays before burnout common-card use animations."
 Assert-Contains $cardVisualSkinRuntime "BeforeAttackCardUse" "Card visual skin runtime must suppress frame-effect overlays before burnout attack-card use animations."
 Assert-Contains $cardVisualSkinRuntime "SuppressBurnoutFrameEffect" "Card visual skin runtime must keep burnout animation suppression isolated from normal card skin application."
 Assert-Contains $cardVisualSkinRuntime "HasBurnoutTag" "Card visual skin runtime must only suppress frame-effect overlays for burnout cards."
-Assert-Contains $cardVisualSkinRuntime "AfterFightUiCreateCardItemInternal = ApplyFromFightUiCreateCardItemInternal" "Card visual skin runtime must reapply generated hand cards after native UI creation."
-Assert-Contains $cardVisualSkinRuntime "AfterScriptExecutorGetCardFromDeck" "Card visual skin runtime must cover dynamic script-delivered cards."
-Assert-Contains $cardVisualSkinRuntime "ReapplyActiveCombatCards" "Card visual skin runtime must centralize active combat-card reapplication."
-Assert-Contains $cardVisualSkinRuntime "RequestActiveCombatCardsReapply" "Card visual skin full-hand reapply requests must be merged before scanning the active hand."
-Assert-Contains $cardVisualSkinRuntime "CardVisualSkin.ReapplyDeduped" "Card visual skin merged reapply requests must be measurable."
+Assert-Contains $sunExpCardPresentationLifecycleBridge "AfterFightUiCreateCardItemInternal = ApplyFromFightUiCreateCardItemInternal" "Card presentation bridge must reapply generated hand cards after native UI creation."
+Assert-Contains $sunExpCardPresentationLifecycleBridge "AfterScriptExecutorGetCardFromDeck" "Card presentation bridge must cover dynamic script-delivered cards."
+Assert-Contains $sunExpCardPresentationRouter "ReapplyActiveCombatCards" "Card presentation router must centralize active combat-card reapplication."
+Assert-Contains $sunExpCardPresentationRouter "RequestActiveCombatCardsReapply" "Card presentation full-hand reapply requests must be merged before scanning the active hand."
+Assert-Contains $sunExpCardPresentationRouter "CardPresentation.ReapplyDeduped" "Card presentation merged reapply requests must be measurable."
 Assert-NotContains $cardVisualSkinRuntime "ReapplyActiveCombatCardsNowAndLater" "Card visual skin runtime must not immediately scan the whole hand before the merged scheduled reapply."
-Assert-Contains $cardVisualSkinRuntime "AfterDictItemInit" "Card visual skin runtime must cover dictionary item cards."
-Assert-Contains $cardVisualSkinRuntime "AfterDictionaryShowItemInit" "Card visual skin runtime must cover dictionary detail cards."
-Assert-Contains $cardVisualSkinRuntime "AfterDisplayCardInit" "Card visual skin runtime must cover display cards."
-Assert-Contains $cardVisualSkinRuntime "AfterShowCardInit" "Card visual skin runtime must cover deck-show full cards."
-Assert-Contains $cardVisualSkinRuntime "AfterSafeBoxItemInit" "Card visual skin runtime must cover safe-box full cards."
-Assert-Contains $cardVisualSkinRuntime "AfterEnchCardItemInit" "Card visual skin runtime must cover enchantment cards."
-Assert-Contains $cardVisualSkinRuntime "AfterCardChoiceItemInitialize" "Card visual skin runtime must cover reward choice cards."
-Assert-Contains $cardVisualSkinRuntime "AfterPackShowItemInit" "Card visual skin runtime must cover card-pack display cards."
-Assert-Contains $cardVisualSkinRuntime "AfterShopItemInit" "Card visual skin runtime must cover shop cards."
-Assert-Contains $cardVisualSkinRuntime "AfterWarehouseItemInit" "Card visual skin runtime must cover warehouse cards."
+Assert-Contains $sunExpCardPresentationLifecycleBridge "AfterDictItemInit" "Card presentation bridge must cover dictionary item cards."
+Assert-Contains $sunExpCardPresentationLifecycleBridge "AfterDictionaryShowItemInit" "Card presentation bridge must cover dictionary detail cards."
+Assert-Contains $sunExpCardPresentationLifecycleBridge "AfterDisplayCardInit" "Card presentation bridge must cover display cards."
+Assert-Contains $sunExpCardPresentationLifecycleBridge "AfterShowCardInit" "Card presentation bridge must cover deck-show full cards."
+Assert-Contains $sunExpCardPresentationLifecycleBridge "AfterSafeBoxItemInit" "Card presentation bridge must cover safe-box full cards."
+Assert-Contains $sunExpCardPresentationLifecycleBridge "AfterEnchCardItemInit" "Card presentation bridge must cover enchantment cards."
+Assert-Contains $sunExpCardPresentationLifecycleBridge "AfterCardChoiceItemInitialize" "Card presentation bridge must cover reward choice cards."
+Assert-Contains $sunExpCardPresentationLifecycleBridge "AfterPackShowItemInit" "Card presentation bridge must cover card-pack display cards."
+Assert-Contains $sunExpCardPresentationLifecycleBridge "AfterShopItemInit" "Card presentation bridge must cover shop cards."
+Assert-Contains $sunExpCardPresentationLifecycleBridge "AfterWarehouseItemInit" "Card presentation bridge must cover warehouse cards."
 Assert-Contains $cardVisualSkinRuntime "CardVisualSkinApplier.Apply" "Card visual hooks must delegate Unity mutation to the generic visual applier."
-Assert-Contains $cardVisualSkinRuntime "CardConfigApi.FromActionPayload(args[index])" "Card visual hooks must resolve dictionary card configs from IDataConfig, card-id strings, or data rows."
-Assert-Contains $cardVisualSkinRuntime "FindCardVisualRoot" "Card visual hooks must search child card roots for dictionary UI containers."
+Assert-Contains $sunExpCardPresentationLifecycleBridge "CardConfigApi.FromActionPayload(args[index])" "Card presentation bridge must resolve dictionary card configs from IDataConfig, card-id strings, or data rows."
+Assert-Contains $cardVisualSkinRuntime "CardPresentationRootResolver.FindCardVisualRoot" "Card visual hooks must use the shared card root resolver."
 Assert-Contains $cardVisualSkinRuntime ".deferred" "Card visual hooks must defer a second pass for dictionary cards populated after Init."
 Assert-Contains $cardConfigApi "payload is IDictionary<string, string> row" "Card config payload parsing must support dictionary table rows used by card dictionaries."
 Assert-Contains $cardConfigApi "payload is string cardId" "Card config payload parsing must support card-id strings used by lightweight UI cards."
@@ -761,8 +809,8 @@ Assert-Contains $cardVisualSkinMarker 'SunExp_CardFaceEffectOverlay' "Card visua
 Assert-Contains $cardFrameOverlay 'SunExp_CardFrameEffectOverlay' "Card frame overlay must create a named card-frame effect overlay."
 Assert-Contains $cardVisualSkinMarker 'raycastTarget = false' "Card-face effect overlays must not intercept card UI input."
 Assert-Contains $cardVisualSkinMarker 'frameOverlay.Clear()' "Card visual skin marker must clean up delegated card-frame effect overlays."
-Assert-Contains $cardVisualSkinRuntime "SunExpFrameScheduler.RunOnceNextFrame" "Card visual skin full reapply must be merged through the performance scheduler."
-Assert-Contains $cardVisualSkinRuntime "CardVisualSkin.ReapplyActiveCombatCards" "Card visual skin reapply must be measured by performance counters."
+Assert-Contains $sunExpCardPresentationRouter "SunExpFrameScheduler.RunOnceNextFrame" "Card presentation full reapply must be merged through the performance scheduler."
+Assert-Contains $sunExpCardPresentationRouter "CardPresentation.ReapplyActiveCombatCards" "Card presentation reapply must be measured by performance counters."
 Assert-Contains $cardVisualSkinSpriteCache "SunExpResourceCache.Load<Sprite>" "Card visual skin sprites must load through the shared resource cache."
 Assert-Contains $cardVisualSkinSpriteCache "private static readonly Dictionary<string, Sprite?> Cache" "Card visual skin sprites must be cached."
 Assert-Contains $sunCardFrameRuntime "CardVisualSkinRuntime.Initialize(modConfig)" "Legacy Sun card frame runtime must delegate to the generic visual skin runtime."

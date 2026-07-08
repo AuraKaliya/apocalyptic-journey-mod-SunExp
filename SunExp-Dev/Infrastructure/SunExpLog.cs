@@ -33,6 +33,21 @@ public static class SunExpLog
         AuraSharedLog.DebugLog(SunExpIds.ModLogTag, message, IsDebugEnabled());
     }
 
+    public static void DebugOnce(string key, string message)
+    {
+        AuraSharedLog.DebugOnce(SunExpIds.ModLogTag, key, message);
+    }
+
+    public static void InfoOnce(string key, string message)
+    {
+        AuraSharedLog.DebugOnce(SunExpIds.ModLogTag, "info:" + key, message);
+    }
+
+    public static void WarnOnce(string key, string message)
+    {
+        AuraSharedLog.WarnOnce(SunExpIds.ModLogTag, key, message);
+    }
+
     private static bool IsDebugEnabled()
     {
         var now = Environment.TickCount;

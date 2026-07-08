@@ -21,6 +21,12 @@
       "enabled": true
     },
     {
+      "id": "content-tool-shared-boundary",
+      "kind": "script",
+      "path": "tools/Test-ContentToolSharedBoundary.ps1",
+      "enabled": true
+    },
+    {
       "id": "network-rpc-authority",
       "kind": "script",
       "path": "tools/Test-NetworkRpcAuthority.ps1",

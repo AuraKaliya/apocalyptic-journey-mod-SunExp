@@ -15,6 +15,7 @@ public static class SunExpHookTargets
     public const string FightUiCreateCardItem = "FightUI.CreateCardItem";
     public const string FightUiCreateCardItemInternal = "FightUI.CreateCardItemInternal";
     public const string FightUiCallActionAnimation = "FightUI.CallActionAnimation";
+    public const string FightUiFadeIn = "FightUI.FadeIn";
 
     public const string ICardSetCardStyle = "ICard.SetCardStyle";
     public const string CardItemInit = "CardItem.Init";
@@ -48,4 +49,11 @@ public static class SunExpHookTargets
     public const string EnemyInit = "Enemy.Init";
     public const string OtherObjDoOneAction = "OtherObj.DoOneAction";
     public const string SkillItemTrueUse = "SkillItem.TrueUse";
+
+    public const string StatusManagerAddBuff = "StatusManager.AddBuff";
+    public const string StatusManagerHit = "StatusManager.Hit";
+    public const string StatusManagerSetCurHp = "StatusManager.set_CurHp";
+    public const string StatusManagerSetMaxHp = "StatusManager.set_MaxHp";
+    public const string StatusManagerInitAnimator = "StatusManager.InitAnimator";
+    public const string StatusManagerSetSprite = "StatusManager.SetSprite";
 }

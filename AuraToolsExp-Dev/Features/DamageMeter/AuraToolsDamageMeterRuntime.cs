@@ -158,15 +158,20 @@ public static class AuraToolsDamageMeterRuntime
         RegisterAfter("BuffItemConfig.set_Level", AfterBuffLevelChanged);
         RegisterAfter("StatusManager.RemoveBuff", AfterRemoveBuff);
 
-        RegisterBefore("FightInit.Init", OnFightInitStarting);
-        RegisterAfter("Fight_Start.Init", OnFightStartFallback);
-        RegisterAfter("Fight_PlayerTurn.Init", OnPlayerRoundStart);
-        RegisterBefore("Fight_Win.ResetStates", OnFightEnding);
-        RegisterBefore("Fight_Escape.ResetStates", OnFightEnding);
-        RegisterBefore("Fight_Loss.Init", OnFightEnding);
-        RegisterAfter("Fight_Win.ResetStates", OnFightEnded);
-        RegisterAfter("Fight_Escape.ResetStates", OnFightEnded);
-        RegisterAfter("Fight_Loss.Init", OnFightEnded);
+        HookRegistrations.Add(AuraBattleLifecycleRouter.Register(
+            modConfig,
+            AuraToolsIds.ModId,
+            "DamageMeter",
+            new AuraBattleLifecycleSubscription
+            {
+                FightStarting = OnFightInitStarting,
+                FightStarted = OnFightStartFallback,
+                PlayerRoundStarted = OnPlayerRoundStart,
+                FightEnding = OnFightEnding,
+                FightEnded = OnFightEnded
+            },
+            AuraToolsLog.Debug,
+            AuraToolsLog.Warn));
 
         hooksRegistered = true;
         AuraToolsLog.Info("[DamageMeter] routed hooks enabled.");
@@ -893,7 +898,7 @@ public static class AuraToolsDamageMeterRuntime
 
         try
         {
-            var sprite = ResourceLoader.Load<Sprite>(resourcePath, true);
+            var sprite = AuraToolsResourceCache.Load<Sprite>(resourcePath, true);
             if (sprite == null || sprite.texture == null)
             {
                 AuraToolsLog.Warn("[DamageMeter] team avatar skipped: resource not found. player="

@@ -13,6 +13,10 @@ Use this reference when changing shared components or their SunExp adapters.
 - Utility helper: stateless or local helper with no shared persistent state.
 
 When adding a shared component, decide which role it has before coding.
+For the SunExp/AuraToolsExp split, also check
+`content-tool-shared-boundary.md`: SunExp is the content mod, AuraToolsExp is
+the tool mod, and shared runtimes are sibling foundations for both, not a
+SunExp-owned base layer.
 
 ## Ownership And Mutability
 

@@ -1,6 +1,6 @@
 ---
 name: sunexp-shared-runtime-dev
-description: Project-local skill for editing or reviewing SunExp integration with Aura shared runtimes and cross-mod components, including AuraSharedCore, shared resources, AuraJourneyShared, AuraSkinShared, AuraAudioShared, BattleBgmArbiterShared, StarterDeckArbiterShared, AuraCgShared, AuraOnlineShared, AuraLogShared, UI safety runtimes, shared DLL packaging, shared release gates, owner ids, initialization registration, tool-local persistent overrides, sync scenario modeling, timing and duplicate suppression, compatibility protocols, RPC sender authority, and multiplayer authority.
+description: Project-local skill for editing or reviewing SunExp and AuraToolsExp integration with Aura shared runtimes and cross-mod components, including the content-mod/tool-mod/shared-foundation boundary, AuraSharedCore, shared resources, AuraJourneyShared, AuraSkinShared, AuraAudioShared, BattleBgmArbiterShared, StarterDeckArbiterShared, AuraCgShared, AuraOnlineShared, AuraLogShared, UI safety runtimes, shared DLL packaging, shared release gates, owner ids, initialization registration, tool-local persistent overrides, sync scenario modeling, timing and duplicate suppression, compatibility protocols, RPC sender authority, and multiplayer authority.
 ---
 
 # SunExp Shared Runtime Dev
@@ -45,6 +45,9 @@ visual resources.
 3. Load `references/shared-boundaries.md` for Core/domain/adapter rules,
    content/tool ownership, shared presentation protocols, and multiplayer
    authority classification. Load
+   `references/content-tool-shared-boundary.md` when deciding whether a
+   reusable runtime belongs in SunExp, AuraToolsExp, or shared infrastructure.
+   Load
    `references/sunexp-shared-integration.md` for SunExp-specific integration
    points. Load `references/sync-scenario-model.md` when the task involves
    initialization registration, tool-local overrides, multi-mod sync, timing,
@@ -74,9 +77,16 @@ visual resources.
   resources plus manifest semantics; tool mods only read shared registries,
   parse them by protocol, register tool-owned extensions, and manage local
   overrides.
+- Keep SunExp and AuraToolsExp as sibling consumers of shared foundations.
+  Shared code must not depend on SunExp content semantics, and AuraToolsExp
+  must not depend on SunExp internal runtime helpers.
 - Keep registered defaults separate from tool-local effective configuration.
   AuraToolsExp local persistence may override or force tool behavior, but must
   not rewrite or re-own a foreign mod's registration source.
+- When both SunExp and AuraToolsExp need the same hook lifecycle, UI primitive,
+  resource preload, logging, pooling, or multiplayer presentation behavior,
+  promote the semantic-free part to a shared component instead of making
+  SunExp the implicit base framework.
 - Put cross-mod presentation protocols, such as Skill CG playback, in the
   shared domain component. Content mods declare resources and trigger requests;
   tool mods configure or override; neither owns private multiplayer relay or

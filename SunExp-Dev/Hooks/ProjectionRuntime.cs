@@ -19,9 +19,12 @@ public static class ProjectionRuntime
         RegisterBefore(modConfig, SunExpHookTargets.FightWinInit, context => ClearBattle("Fight_Win.Init:before"));
         RegisterBefore(modConfig, SunExpHookTargets.FightLossInit, context => ClearBattle("Fight_Loss.Init:before"));
         RegisterBefore(modConfig, SunExpHookTargets.FightEscapeInit, context => ClearBattle("Fight_Escape.Init:before"));
-        RegisterAfter(modConfig, "StatusManager.Hit", RetireProjectionAfterDamage);
-        RegisterAfter(modConfig, "StatusManager.set_CurHp", RetireProjectionAfterHpChange);
-        RegisterAfter(modConfig, "StatusManager.set_MaxHp", RetireProjectionAfterHpChange);
+        SunExpStatusLifecycleRouter.Register("Projection", new SunExpStatusLifecycleSubscription
+        {
+            AfterHit = RetireProjectionAfterDamage,
+            AfterCurHpChanged = RetireProjectionAfterHpChange,
+            AfterMaxHpChanged = RetireProjectionAfterHpChange
+        });
         SunExpLog.Info("Projection runtime initialized");
     }
 

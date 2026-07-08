@@ -76,6 +76,29 @@ top-level `switch (id)`.
 Do not let `Scripting` import `Hooks`. If CSV needs hook-owned behavior, create
 a `GameApi` facade and call that facade.
 
+## Shared Candidate Boundary
+
+SunExp architecture may contain local routers, factories, pools, caches, and
+preloaders when they serve SunExp content. Do not let those local helpers become
+the base framework for AuraToolsExp or other mods.
+
+Promote the semantic-free part to an Aura shared runtime when the same
+capability is needed by both content and tool mods:
+
+- hook registration safety, routed lifecycle dispatch, owner diagnostics, and
+  disposable registration handles;
+- generic UI primitives, modal shells, row pools, raycast cleanup, and
+  transition guards;
+- resource registry access, preload planning, cache contracts, and package
+  resolution;
+- logging gates, InfoOnce/DebugOnce, and throttled diagnostics;
+- multiplayer presentation event authority, duplicate suppression, and cleanup.
+
+Keep SunExp-specific semantics, such as cards, modes, rewards, story, and
+SunExp-owned trigger matching, in SunExp. Keep tool-local configuration,
+preview, import/export, and overrides in AuraToolsExp. Shared components should
+be sibling foundations for both, not SunExp internals exposed outward.
+
 ## Runtime Visual And UI Boundaries
 
 Use `sunexp-visual-runtime-dev` for visual registry, VisualBundle, shader,

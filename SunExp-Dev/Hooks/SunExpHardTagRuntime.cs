@@ -28,7 +28,7 @@ public static class SunExpHardTagRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
-        SunExpActionEventRouter.RegisterHandler(
+        SunExpCombatActionRouter.RegisterActionEventHandler(
             "EndlessAbyssGaze",
             context => EndlessAbyssGazePressureService.OnCardAction(context.Config, "Action"),
             () => EndlessAbyssGazePressureService.OnCardActionAfter("ActionAfter"));
@@ -52,9 +52,15 @@ public static class SunExpHardTagRuntime
             AfterCommonCardUse = OnCardUseAfter,
             AfterAttackCardUse = OnCardUseAfter
         });
+        SunExpStatusLifecycleRouter.Register("HardTag", new SunExpStatusLifecycleSubscription
+        {
+            AfterEnemyInit = OnEnemyInit
+        });
+        SunExpCombatActionRouter.Register("HardTag", new SunExpCombatActionSubscription
+        {
+            BeforeOtherObjAction = OnEnemyDoOneAction
+        });
         RegisterAfter(modConfig, SunExpHookTargets.FightPlayerTurnInit, OnPlayerTurn);
-        RegisterAfter(modConfig, SunExpHookTargets.EnemyInit, OnEnemyInit);
-        RegisterBefore(modConfig, SunExpHookTargets.OtherObjDoOneAction, OnEnemyDoOneAction);
         RegisterBefore(modConfig, SunExpHookTargets.SkillItemTrueUse, OnSkillUseBefore);
         RegisterAfter(modConfig, SunExpHookTargets.SkillItemTrueUse, OnSkillUseAfter);
         SunExpLog.Info("SunExp hard tag runtime initialized");

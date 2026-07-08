@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks.Visual;
 using SunExp.Dll.Infrastructure;
@@ -12,60 +11,24 @@ namespace SunExp.Dll.Hooks;
 
 public static class CardVisualSkinRuntime
 {
-    private static readonly object ReapplySync = new();
-    private static string pendingReapplySource = "";
-    private static int pendingReapplyCount;
-
     public static void Initialize(ModConfig modConfig)
     {
-        SunExpCardLifecycleRouter.Register("CardVisualSkin", new SunExpCardLifecycleSubscription
+        SunExpCardPresentationRouter.Register("CardVisualSkin", new SunExpCardPresentationSubscription
         {
-            AfterSetCardStyle = ApplyFromSetCardStyle,
+            Apply = ApplyPresentation
+        });
+        SunExpCardLifecycleRouter.Register("CardVisualSkin.UseGuards", new SunExpCardLifecycleSubscription
+        {
             BeforeCommonCardUse = context => SuppressBurnoutFrameEffect(context, SunExpHookTargets.CommonCardItemTrueUse),
-            BeforeAttackCardUse = context => SuppressBurnoutFrameEffect(context, SunExpHookTargets.AttackCardItemTrueUse),
-            AfterCardItemInit = context => ApplyFromItemRoot(context, SunExpHookTargets.CardItemInit),
-            AfterAttackCardItemInit = context => ApplyFromItemRoot(context, SunExpHookTargets.AttackCardItemInit),
-            AfterCardItemDataUpdate = context => ApplyFromItemRoot(context, SunExpHookTargets.CardItemDataUpdate),
-            AfterCardItemDrawEffect = context => ApplyFromItemRoot(context, SunExpHookTargets.CardItemDrawEffect),
-            AfterCommonCardItemDrawEffect = context => ApplyFromItemRoot(context, SunExpHookTargets.CommonCardItemDrawEffect),
-            AfterAttackCardItemDrawEffect = context => ApplyFromItemRoot(context, SunExpHookTargets.AttackCardItemDrawEffect),
-            AfterFightUiCreateCardItem = context => RequestActiveCombatCardsReapply(SunExpHookTargets.FightUiCreateCardItem),
-            AfterFightUiCreateCardItemInternal = ApplyFromFightUiCreateCardItemInternal,
-            AfterScriptExecutorGetCardFromDeck = context => RequestActiveCombatCardsReapply(SunExpHookTargets.ScriptExecutorGetCardFromDeck),
-            AfterDictItemInit = context => ApplyFromArgumentRoot(context, 0, null, SunExpHookTargets.DictItemInit),
-            AfterDictionaryShowItemInit = context => ApplyFromArgumentRoot(context, 0, null, SunExpHookTargets.DictionaryShowItemInit),
-            AfterDisplayCardInit = context => ApplyFromArgumentRoot(context, 0, null, SunExpHookTargets.DisplayCardInit),
-            AfterShowCardInit = ApplyFromShowCard,
-            AfterSafeBoxItemInit = ApplyFromSafeBoxItem,
-            AfterEnchCardItemInit = context => ApplyFromArgumentRoot(context, 0, null, SunExpHookTargets.EnchCardItemInit),
-            AfterCardChoiceItemInitialize = ApplyFromCardChoiceItem,
-            AfterPackShowItemInit = context => ApplyFromArgumentRoot(context, 0, "CardItem", SunExpHookTargets.PackShowItemInit),
-            AfterShopItemInit = context => ApplyFromArgumentRoot(context, 0, "CardItem", SunExpHookTargets.ShopItemInit),
-            AfterWarehouseItemInit = context => ApplyFromArgumentRoot(context, 2, "CardItem", SunExpHookTargets.WarehouseItemInit)
+            BeforeAttackCardUse = context => SuppressBurnoutFrameEffect(context, SunExpHookTargets.AttackCardItemTrueUse)
         });
 
         SunExpLog.Info("Card visual skin runtime initialized");
     }
 
-    private static void ApplyFromSetCardStyle(ModHookContext context)
+    private static void ApplyPresentation(SunExpCardPresentationContext context)
     {
-        try
-        {
-            var args = context.Arguments;
-            if (args == null
-                || args.Length < 2
-                || args[0] is not Transform transform
-                || args[1] is not IDataConfig config)
-            {
-                return;
-            }
-
-            ApplySafely(transform, config, "ICard.SetCardStyle");
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Error("Card visual skin SetCardStyle hook failed", ex);
-        }
+        ApplySafely(context.Root, context.Config, context.Source);
     }
 
     private static void SuppressBurnoutFrameEffect(ModHookContext context, string source)
@@ -83,7 +46,7 @@ public static class CardVisualSkinRuntime
                 return;
             }
 
-            var visualRoot = FindCardVisualRoot(item.transform);
+            var visualRoot = CardPresentationRootResolver.FindCardVisualRoot(item.transform);
             var marker = visualRoot == null ? null : visualRoot.GetComponent<CardVisualSkinMarker>();
             if (marker != null && marker.SuppressFrameEffectOverlay(config, source))
             {
@@ -105,265 +68,6 @@ public static class CardVisualSkinRuntime
             || card?.Tags.Contains("Burnout") == true;
     }
 
-    private static void ApplyFromItemRoot(ModHookContext context, string source)
-    {
-        try
-        {
-            if (context.Target is not Item item)
-            {
-                return;
-            }
-
-            ApplySafely(item.transform, item.dataConfig, source);
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Error("Card visual skin " + source + " hook failed", ex);
-        }
-    }
-
-    private static void ApplyFromArgumentRoot(ModHookContext context, int configArgIndex, string? childPath, string source)
-    {
-        try
-        {
-            var config = ConfigFromArgument(context.Arguments, configArgIndex)
-                ?? CardConfigApi.FromActionPayload(context.Target);
-            var root = RootFromTarget(context.Target, childPath);
-            ApplySafely(root, config, source);
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Error("Card visual skin " + source + " hook failed", ex);
-        }
-    }
-
-    private static void ApplyFromShowCard(ModHookContext context)
-    {
-        var args = context.Arguments;
-        if (args != null && args.Length > 1 && args[1] is bool equipped && equipped)
-        {
-            return;
-        }
-
-        ApplyFromArgumentRoot(context, 0, null, "ShowCard.Init");
-    }
-
-    private static void ApplyFromSafeBoxItem(ModHookContext context)
-    {
-        if (context.Target is SafeBoxItem { InBackPack: false })
-        {
-            return;
-        }
-
-        ApplyFromArgumentRoot(context, 0, null, "SafeBoxItem.Init");
-    }
-
-    private static void ApplyFromCardChoiceItem(ModHookContext context)
-    {
-        try
-        {
-            var args = context.Arguments;
-            if (args == null || args.Length < 2)
-            {
-                return;
-            }
-
-            var cardId = Convert.ToString(args[1]);
-            if (string.IsNullOrWhiteSpace(cardId))
-            {
-                return;
-            }
-
-            ApplySafely(RootFromTarget(context.Target, null), new DataConfig(cardId, DataType.Card), "CardChoiceItem.Initialize");
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Error("Card visual skin CardChoiceItem.Initialize hook failed", ex);
-        }
-    }
-
-    private static void ApplyFromFightUiCreateCardItemInternal(ModHookContext context)
-    {
-        try
-        {
-            var config = ConfigFromArgument(context.Arguments, 0);
-            if (config != null)
-            {
-                ApplySafely(FindCombatCardRoot(config), config, "FightUI.CreateCardItemInternal");
-                RequestActiveCombatCardsReapply("FightUI.CreateCardItemInternal");
-            }
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Error("Card visual skin FightUI.CreateCardItemInternal hook failed", ex);
-        }
-    }
-
-    private static IDataConfig? ConfigFromArgument(object[]? args, int index)
-    {
-        if (args == null || index < 0 || args.Length <= index)
-        {
-            return null;
-        }
-
-        return CardConfigApi.FromActionPayload(args[index]);
-    }
-
-    private static Transform? RootFromTarget(object? target, string? childPath)
-    {
-        if (target is not UnityEngine.Component component)
-        {
-            return null;
-        }
-
-        return string.IsNullOrWhiteSpace(childPath)
-            ? component.transform
-            : component.transform.Find(childPath);
-    }
-
-    private static Transform? FindCardVisualRoot(Transform? root)
-    {
-        if (root == null)
-        {
-            return null;
-        }
-
-        if (HasCardVisualNodes(root))
-        {
-            return root;
-        }
-
-        foreach (var path in new[] { "CardItem", "cardItem", "Card", "card", "ShowCard", "DisplayCard", "Item", "Root" })
-        {
-            var child = root.Find(path);
-            if (HasCardVisualNodes(child))
-            {
-                return child;
-            }
-        }
-
-        var queue = new Queue<Transform>();
-        queue.Enqueue(root);
-        var visited = 0;
-        while (queue.Count > 0 && visited++ < 96)
-        {
-            var current = queue.Dequeue();
-            if (!ReferenceEquals(current, root) && HasCardVisualNodes(current))
-            {
-                return current;
-            }
-
-            for (var i = 0; i < current.childCount; i++)
-            {
-                queue.Enqueue(current.GetChild(i));
-            }
-        }
-
-        return root;
-    }
-
-    private static bool HasCardVisualNodes(Transform? root)
-    {
-        return root != null
-            && (root.Find("Front/background") != null || root.Find("Front/FrontBack") != null);
-    }
-
-    private static Transform? FindCombatCardRoot(IDataConfig config)
-    {
-        try
-        {
-            var items = FightUI.cardItemList;
-            if (items == null)
-            {
-                return null;
-            }
-
-            for (var i = items.Count - 1; i >= 0; i--)
-            {
-                var item = items[i];
-                if (item != null && ReferenceEquals(item.dataConfig, config))
-                {
-                    return item.transform;
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Debug("Card visual skin combat-card lookup failed: " + ex.Message);
-        }
-
-        return null;
-    }
-
-    private static void ReapplyActiveCombatCards(string source)
-    {
-        var start = SunExpPerformanceCounters.Timestamp();
-        try
-        {
-            var items = FightUI.cardItemList;
-            if (items == null || items.Count == 0)
-            {
-                return;
-            }
-
-            var applied = 0;
-            foreach (var item in items)
-            {
-                if (item?.dataConfig == null)
-                {
-                    continue;
-                }
-
-                if (CardVisualSkinApplier.Apply(item.transform, item.dataConfig))
-                {
-                    applied++;
-                }
-            }
-
-            if (applied > 0)
-            {
-                SunExpLog.Debug("Card visual skin reapplied from " + source + ": " + applied);
-            }
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Error("Card visual skin active-combat reapply failed from " + source, ex);
-        }
-        finally
-        {
-            SunExpPerformanceCounters.RecordDuration("CardVisualSkin.ReapplyActiveCombatCards", start);
-        }
-    }
-
-    private static void RequestActiveCombatCardsReapply(string source)
-    {
-        lock (ReapplySync)
-        {
-            pendingReapplySource = source;
-            pendingReapplyCount++;
-        }
-
-        if (!SunExpFrameScheduler.RunOnceNextFrame("CardVisualSkinRuntime.ReapplyActiveCombatCards", FlushActiveCombatCardsReapply))
-        {
-            SunExpPerformanceCounters.Record("CardVisualSkin.ReapplyDeduped");
-        }
-    }
-
-    private static void FlushActiveCombatCardsReapply()
-    {
-        string source;
-        int count;
-        lock (ReapplySync)
-        {
-            source = pendingReapplySource;
-            count = pendingReapplyCount;
-            pendingReapplySource = "";
-            pendingReapplyCount = 0;
-        }
-
-        ReapplyActiveCombatCards(count > 1 ? source + ".merged" + count : source + ".merged");
-    }
-
     private static void ApplySafely(Transform? root, IDataConfig? config, string source, bool scheduleDeferred = true)
     {
         if (config == null)
@@ -371,7 +75,7 @@ public static class CardVisualSkinRuntime
             return;
         }
 
-        var visualRoot = FindCardVisualRoot(root);
+        var visualRoot = CardPresentationRootResolver.FindCardVisualRoot(root);
         var applied = CardVisualSkinApplier.Apply(visualRoot, config);
         if (applied)
         {
