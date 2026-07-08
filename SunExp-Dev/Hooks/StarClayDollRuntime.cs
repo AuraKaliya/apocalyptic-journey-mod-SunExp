@@ -54,8 +54,15 @@ public static class StarClayDollRuntime
                 return;
             }
 
-            status.AddBuff(SunExpIds.StarClayDollTrait, 1);
-            SunExpLog.Info("Granted Star Clay Doll trait: owner=" + status.InstanceId);
+            if (BuffApi.TryAddBattleScopedBuffOnce(
+                    status,
+                    SunExpIds.StarClayDollTrait,
+                    1,
+                    "StarClayDoll",
+                    "FightStarted.GrantTrait"))
+            {
+                SunExpLog.Info("Granted Star Clay Doll trait: owner=" + status.InstanceId);
+            }
         }
         catch (Exception ex)
         {

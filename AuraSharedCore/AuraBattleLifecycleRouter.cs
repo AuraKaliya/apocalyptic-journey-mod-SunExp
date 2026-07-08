@@ -34,6 +34,13 @@ public static class AuraBattleLifecycleRouter
     private static readonly Dictionary<string, Handler> Handlers = new(StringComparer.OrdinalIgnoreCase);
     private static bool initialized;
 
+    public static long CurrentBattleSessionId => AuraLifecycleSessionRuntime.CurrentBattleSessionId;
+
+    public static long EnsureBattleSession()
+    {
+        return AuraLifecycleSessionRuntime.EnsureBattleSession();
+    }
+
     public static IDisposable Register(
         ModConfig modConfig,
         string ownerModId,
@@ -69,16 +76,43 @@ public static class AuraBattleLifecycleRouter
         initialized = true;
         var registry = new AuraHookRegistry(modConfig, "AuraBattleLifecycle", info, warn);
         registry.BeforeRouted(GameEntryStartGame, context => Dispatch(context, GameEntryStartGame, h => h.Subscription.AdventureStarting), "AdventureStarting");
-        registry.BeforeRouted(FightInitInit, context => Dispatch(context, FightInitInit, h => h.Subscription.FightStarting), "FightStarting");
-        registry.AfterRouted(FightStartInit, context => Dispatch(context, FightStartInit, h => h.Subscription.FightStarted), "FightStarted");
-        registry.AfterRouted(FightInitInit, context => Dispatch(context, FightInitInit, h => h.Subscription.FightStarted), "FightStarted");
+        registry.BeforeRouted(FightInitInit, context =>
+        {
+            BeginBattleSession();
+            Dispatch(context, FightInitInit, h => h.Subscription.FightStarting);
+        }, "FightStarting");
+        registry.AfterRouted(FightStartInit, context =>
+        {
+            EnsureBattleSession();
+            Dispatch(context, FightStartInit, h => h.Subscription.FightStarted);
+        }, "FightStarted");
+        registry.AfterRouted(FightInitInit, context =>
+        {
+            EnsureBattleSession();
+            Dispatch(context, FightInitInit, h => h.Subscription.FightStarted);
+        }, "FightStarted");
         registry.AfterRouted(FightPlayerTurnInit, context => Dispatch(context, FightPlayerTurnInit, h => h.Subscription.PlayerRoundStarted), "PlayerRoundStarted");
         registry.BeforeRouted(FightWinResetStates, context => Dispatch(context, FightWinResetStates, h => h.Subscription.FightEnding), "FightEnding");
         registry.BeforeRouted(FightEscapeResetStates, context => Dispatch(context, FightEscapeResetStates, h => h.Subscription.FightEnding), "FightEnding");
         registry.BeforeRouted(FightLossInit, context => Dispatch(context, FightLossInit, h => h.Subscription.FightEnding), "FightEnding");
-        registry.AfterRouted(FightWinResetStates, context => Dispatch(context, FightWinResetStates, h => h.Subscription.FightEnded), "FightEnded");
-        registry.AfterRouted(FightEscapeResetStates, context => Dispatch(context, FightEscapeResetStates, h => h.Subscription.FightEnded), "FightEnded");
-        registry.AfterRouted(FightLossInit, context => Dispatch(context, FightLossInit, h => h.Subscription.FightEnded), "FightEnded");
+        registry.AfterRouted(FightWinResetStates, context => DispatchEnded(context, FightWinResetStates), "FightEnded");
+        registry.AfterRouted(FightEscapeResetStates, context => DispatchEnded(context, FightEscapeResetStates), "FightEnded");
+        registry.AfterRouted(FightLossInit, context => DispatchEnded(context, FightLossInit), "FightEnded");
+    }
+
+    private static void BeginBattleSession()
+    {
+        if (AuraLifecycleSessionRuntime.BeginBattleSession())
+        {
+            AuraLifecycleOperationLedger.ClearScopePrefix("battle:");
+        }
+    }
+
+    private static void DispatchEnded(ModHookContext context, string source)
+    {
+        Dispatch(context, source, h => h.Subscription.FightEnded);
+        AuraLifecycleOperationLedger.ClearScopePrefix("battle:");
+        AuraLifecycleSessionRuntime.EndBattleSession();
     }
 
     private static void Dispatch(

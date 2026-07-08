@@ -50,8 +50,15 @@ public static class DuskPartnerRuntime
                 return;
             }
 
-            status.AddBuff(SunExpIds.DuskAfterheatRecoveryTrait, 1);
-            SunExpLog.Info("Granted Dusk afterheat recovery trait: owner=" + status.InstanceId);
+            if (BuffApi.TryAddBattleScopedBuffOnce(
+                    status,
+                    SunExpIds.DuskAfterheatRecoveryTrait,
+                    1,
+                    "DuskPartner",
+                    "FightStarted.GrantTrait"))
+            {
+                SunExpLog.Info("Granted Dusk afterheat recovery trait: owner=" + status.InstanceId);
+            }
         }
         catch (Exception ex)
         {

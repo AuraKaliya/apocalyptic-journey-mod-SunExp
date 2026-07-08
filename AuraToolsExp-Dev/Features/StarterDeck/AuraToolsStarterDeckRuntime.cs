@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraJourney.Shared;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
@@ -36,7 +37,6 @@ public static class AuraToolsStarterDeckRuntime
     public const float CardCostColumnWidth = 56f;
     public const float CardActionColumnWidth = 84f;
     private static readonly Dictionary<string, Sprite?> cardIconCache = new(StringComparer.OrdinalIgnoreCase);
-    private const string SunExpSolarMemoryModeKey = "SunExp_SolarMemoryMode";
     private static StarterDeckPreparationContext? preparationContext;
     private static int lastMultiplayerSkipLogFrame = -100000;
 
@@ -316,7 +316,7 @@ public static class AuraToolsStarterDeckRuntime
     {
         try
         {
-            return GameSaveManager.GetValue<string>(SunExpSolarMemoryModeKey) == "1";
+            return AuraJourneyRuntime.IsJourneyActive("AuraTools", "SunExp", "SunExp.SolarMemory");
         }
         catch
         {

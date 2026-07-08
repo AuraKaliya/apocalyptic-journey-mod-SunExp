@@ -165,6 +165,7 @@ try
 
     TestIdentityContracts();
     TestSecureEnvelopeContracts();
+    TestLifecycleContracts();
     TestJourneyContracts();
     TestOnlineChatContracts();
 
@@ -310,6 +311,27 @@ void TestSecureEnvelopeContracts()
     {
         Assert(true, "secure envelope rejects malformed payload");
     }
+}
+
+void TestLifecycleContracts()
+{
+    AuraFeatureSwitchRuntime.RegisterFeature("OwnerA", "FeatureA", defaultEnabled: true, "test");
+    Assert(AuraFeatureSwitchRuntime.IsEnabled("OwnerA", "FeatureA"), "feature default enabled");
+    AuraFeatureSwitchRuntime.SetLocalOverride("ToolA", "OwnerA", "FeatureA", false);
+    Assert(!AuraFeatureSwitchRuntime.IsEnabled("OwnerA", "FeatureA"), "feature effective override disabled");
+    AuraFeatureSwitchRuntime.SetLocalOverride("ToolA", "OwnerA", "FeatureA", true);
+    Assert(AuraFeatureSwitchRuntime.IsEnabled("OwnerA", "FeatureA"), "feature effective override enabled");
+
+    AuraLifecycleOperationLedger.ClearScopePrefix("test-battle:");
+    Assert(AuraLifecycleOperationLedger.TryClaim("test-battle:1", "OwnerA", "FeatureA", "AddStartBuff", "Status1", "buff", "BuffA"),
+        "first lifecycle operation claim");
+    Assert(!AuraLifecycleOperationLedger.TryClaim("test-battle:1", "OwnerA", "FeatureA", "AddStartBuff", "Status1", "buff", "BuffA"),
+        "duplicate lifecycle operation rejected");
+    Assert(AuraLifecycleOperationLedger.TryClaim("test-battle:1", "OwnerA", "FeatureA", "AddStartBuff", "Status1", "buff", "BuffB"),
+        "different buff effect can claim");
+    Assert(AuraLifecycleOperationLedger.TryClaim("test-battle:1", "OwnerA", "FeatureA", "AddStartBuff", "Status1", "marker", "BuffA"),
+        "different effect category can claim");
+    AuraLifecycleOperationLedger.ClearScopePrefix("test-battle:");
 }
 
 void TestIdentityContracts()

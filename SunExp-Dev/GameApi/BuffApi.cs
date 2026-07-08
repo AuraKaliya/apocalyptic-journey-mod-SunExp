@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraShared.Core;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
 
@@ -38,6 +39,50 @@ public static class BuffApi
     public static bool Has(IStatusManager? status, string buffId)
     {
         return status?.GetBuff(buffId) != null;
+    }
+
+    public static bool TryAddBattleScopedBuffOnce(
+        IStatusManager? status,
+        string buffId,
+        int level,
+        string featureId,
+        string operationId,
+        string effectCategory = "buff")
+    {
+        if (status == null || string.IsNullOrWhiteSpace(buffId) || level <= 0)
+        {
+            return false;
+        }
+
+        if (!AuraFeatureSwitchRuntime.IsEnabled(SunExpIds.ModId, "Battle.StartTraitBuffs"))
+        {
+            return false;
+        }
+
+        var targetId = string.IsNullOrWhiteSpace(status.InstanceId)
+            ? status.GetHashCode().ToString()
+            : status.InstanceId;
+        if (!AuraLifecycleOperationLedger.TryClaimBattleOperation(
+                SunExpIds.ModId,
+                featureId,
+                operationId,
+                targetId,
+                effectCategory,
+                buffId))
+        {
+            SunExpLog.Debug("Skipped duplicate battle-scoped buff: feature="
+                            + featureId
+                            + ", operation="
+                            + operationId
+                            + ", buff="
+                            + buffId
+                            + ", target="
+                            + targetId);
+            return false;
+        }
+
+        status.AddBuff(buffId, level);
+        return true;
     }
 
     public static int NegativeTotal(IStatusManager? status)

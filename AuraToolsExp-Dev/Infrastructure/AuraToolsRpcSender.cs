@@ -1,3 +1,5 @@
+using AuraShared.Core;
+
 namespace AuraToolsExp.Dll.Infrastructure;
 
 public sealed class AuraToolsRpcSender
@@ -31,6 +33,22 @@ public sealed class AuraToolsRpcSender
     public string SourceHook { get; }
 
     public bool IsAvailable { get; }
+
+    internal static AuraToolsRpcSender FromAura(AuraRpcSender sender)
+    {
+        if (sender == null || !sender.IsAvailable)
+        {
+            return Unbound;
+        }
+
+        return new AuraToolsRpcSender(
+            sender.PlayerId,
+            sender.PlayerName,
+            sender.IsLobbyMember,
+            sender.IsLobbyHost,
+            sender.SourceHook,
+            sender.IsAvailable);
+    }
 }
 
 public interface IAuraToolsServerBoundRpcCommand

@@ -16,6 +16,8 @@
              Link="Infrastructure\AuraToolsRpcPayloadGuard.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedJson.cs"
              Link="Shared\AuraSharedJson.cs" />
+    <Compile Include="..\AuraSharedCore\AuraRpcSender.cs"
+             Link="Shared\AuraRpcSender.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Config\AuraToolsConfigModels.cs"
              Link="Config\AuraToolsConfigModels.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\SafeBox\AuraToolsSafeBoxDataCompatibility.cs"

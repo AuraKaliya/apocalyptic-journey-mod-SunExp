@@ -110,6 +110,41 @@ Require-Text $journeyRuntime "LocalJourneyId" "AuraJourneyRuntime must expose Lo
 Require-Text $journeyRuntime "RegisterJourney[\s\S]*QualifyJourneyId" "RegisterJourney must normalize JourneyId through QualifyJourneyId."
 Require-Text $journeyRuntime "TryCommit[\s\S]*QualifyJourneyId" "TryCommit must normalize JourneyId through QualifyJourneyId."
 Require-Text $journeyRuntime "Read legacy unqualified journey" "AuraJourneyRuntime must keep legacy short-id read fallback."
+Require-Text $journeyRuntime "PublishActiveMode" "AuraJourneyRuntime must expose shared active-mode projection for content/tool decoupling."
+Require-Text $journeyRuntime "IsJourneyActive" "AuraJourneyRuntime must expose shared active journey checks for tool consumers."
+
+$battleLifecycleRouter = Read-RepoText "AuraSharedCore\AuraBattleLifecycleRouter.cs"
+Require-Text $battleLifecycleRouter "EnsureBattleSession" "AuraBattleLifecycleRouter must expose a battle session scope for duplicate suppression."
+Require-Text $battleLifecycleRouter "AuraLifecycleOperationLedger\.ClearScopePrefix" "AuraBattleLifecycleRouter must clear battle-scoped operation claims on battle boundaries."
+
+$lifecycleSession = Read-RepoText "AuraSharedCore\AuraLifecycleSessionRuntime.cs"
+Require-Text $lifecycleSession "BeginBattleSession" "Shared lifecycle session runtime must own battle session start."
+Require-Text $lifecycleSession "EndBattleSession" "Shared lifecycle session runtime must own battle session end."
+
+$operationLedger = Read-RepoText "AuraSharedCore\AuraLifecycleOperationLedger.cs"
+Require-Text $operationLedger "TryClaimBattleOperation" "Shared lifecycle ledger must expose battle-scoped operation claiming."
+Require-Text $operationLedger "effectCategory" "Shared lifecycle ledger keys must distinguish different effect categories."
+Require-Text $operationLedger "effectId" "Shared lifecycle ledger keys must distinguish different concrete effects."
+
+$featureSwitch = Read-RepoText "AuraSharedCore\AuraFeatureSwitchRuntime.cs"
+Require-Text $featureSwitch "RegisterFeature" "Shared feature switch runtime must separate registered defaults from tool overrides."
+Require-Text $featureSwitch "SetLocalOverride" "Shared feature switch runtime must support tool-local effective overrides."
+
+$sharedResourceCache = Read-RepoText "AuraSharedCore\AuraSharedResourceCache.cs"
+Require-Text $sharedResourceCache "ResourceLoader\.Load<T>" "Shared resource cache must centralize native single-asset loads."
+Require-Text $sharedResourceCache "ResourceLoader\.LoadAll<T>" "Shared resource cache must centralize native multi-asset loads."
+Require-Text $sharedResourceCache "ClearCategory" "Shared resource cache must support category invalidation."
+
+$sharedRpcAuthority = Read-RepoText "AuraSharedCore\AuraRpcAuthorityRuntime.cs"
+$sharedRpcSender = Read-RepoText "AuraSharedCore\AuraRpcSender.cs"
+Require-Text $sharedRpcAuthority "DefaultReceiveHookTargets" "Shared RPC authority must own receive hook target registration."
+Require-Text $sharedRpcAuthority "CreateLocalServerSender" "Shared RPC authority must expose local host sender creation."
+Require-Text $sharedRpcAuthority "LobbyContains" "Shared RPC authority must bind sender membership centrally."
+Require-Text $sharedRpcSender "public sealed class AuraRpcSender" "Shared RPC sender context must be available without consumer-private sender types."
+
+$sharedModalHost = Read-RepoText "AuraUiShared\AuraUiModalHost.cs"
+Require-Text $sharedModalHost "CreateFullscreenRoot" "Shared UI modal host must own fullscreen modal root creation."
+Require-Text $sharedModalHost "UiRaycastSafeDestroyRuntime" "Shared UI modal host must close transient UI through raycast-safe cleanup."
 
 $sharedRoots = @(
     "AuraAudioShared",
@@ -121,6 +156,7 @@ $sharedRoots = @(
     "AuraOnlineShared",
     "AuraSharedCore",
     "AuraSkinShared",
+    "AuraUiShared",
     "StarterDeckArbiterShared",
     "UiRaycastSafetyShared",
     "UiTransitionGuardShared"

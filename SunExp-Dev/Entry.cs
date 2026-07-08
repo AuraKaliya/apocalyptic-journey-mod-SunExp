@@ -23,6 +23,7 @@ public static class Entry
     {
         RunStep("XLua assembly registration", RegisterLuaVisibleAssembly);
         RunStep("shared core", () => AuraSharedRuntime.Initialize(modConfig, "SunExp"));
+        RunStep("shared feature defaults", RegisterSharedFeatureDefaults);
         RunStep("rpc authority", () => SunExpRpcAuthorityRuntime.Initialize(modConfig));
         RunStep("shared resource package", () => RegisterSharedResourcePackage(modConfig));
         RunStep("shared registry", () => AuraSharedRegistry.RegisterManifest(modConfig, "SunExp"));
@@ -55,6 +56,12 @@ public static class Entry
         {
             SunExpLog.Warn("SunExp bundled skin package was rejected; skin package registration skipped.");
         }
+    }
+
+    private static void RegisterSharedFeatureDefaults()
+    {
+        AuraFeatureSwitchRuntime.RegisterFeature(SunExpIds.ModId, "Battle.StartTraitBuffs", defaultEnabled: true, "SunExp default");
+        AuraFeatureSwitchRuntime.RegisterFeature(SunExpIds.ModId, "SolarMemory", defaultEnabled: true, "SunExp default");
     }
 
     private static void RegisterSharedResourcePackage(ModConfig modConfig)

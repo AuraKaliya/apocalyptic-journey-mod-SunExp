@@ -58,6 +58,7 @@ function Assert-Matches {
 $auraEntry = Read-RepoText "AuraToolsExp-Dev\Entry.cs"
 $auraAuthority = Read-RepoText "AuraToolsExp-Dev\Infrastructure\AuraToolsRpcAuthorityRuntime.cs"
 $auraSender = Read-RepoText "AuraToolsExp-Dev\Infrastructure\AuraToolsRpcSender.cs"
+$sharedAuthority = Read-RepoText "AuraSharedCore\AuraRpcAuthorityRuntime.cs"
 $auraPayloadGuard = Read-RepoText "AuraToolsExp-Dev\Infrastructure\AuraToolsRpcPayloadGuard.cs"
 $auraTransport = Read-RepoText "AuraToolsExp-Dev\Infrastructure\AuraToolsRpcTransport.cs"
 $damageCommands = Read-RepoText "AuraToolsExp-Dev\Features\DamageMeter\Network\DamageMeterCommands.cs"
@@ -75,8 +76,9 @@ $sunSkillCgRuntime = Read-RepoText "SunExp-Dev\Features\SkillCg\SunExpSkillCgRun
 $auraCgRuntime = Read-RepoText "AuraCgShared\AuraCgRuntime.cs"
 
 Assert-Contains $auraEntry "AuraToolsRpcAuthorityRuntime.Initialize(modConfig)" "AuraToolsExp Entry must initialize RPC authority binding."
-Assert-Contains $auraAuthority "PlayerManager.UserCode_CmdReceiveRpcCommand__RpcCommandBase" "AuraTools RPC authority must bind the user-code receive hook."
-Assert-Contains $auraAuthority "PlayerManager.CmdReceiveRpcCommand" "AuraTools RPC authority must bind the generated receive hook."
+Assert-Contains $sharedAuthority "PlayerManager.UserCode_CmdReceiveRpcCommand__RpcCommandBase" "Shared RPC authority must bind the user-code receive hook."
+Assert-Contains $sharedAuthority "PlayerManager.CmdReceiveRpcCommand" "Shared RPC authority must bind the generated receive hook."
+Assert-Contains $auraAuthority "AuraRpcAuthorityRuntime.Register" "AuraTools RPC authority must delegate hook binding to shared RPC authority."
 Assert-Contains $auraAuthority "IAuraToolsServerBoundRpcCommand" "AuraTools RPC authority must only bind server-bound commands."
 Assert-Contains $auraSender "public interface IAuraToolsServerBoundRpcCommand" "AuraTools server-bound command interface must be public for serializable public commands."
 
@@ -143,8 +145,9 @@ Assert-Contains $loggingConfig "MaxRetainedLogFiles" "AuraTools logging settings
 Assert-Contains $fileLogging "PruneOldLogFiles" "AuraTools file logging must prune old log files."
 
 Assert-Contains $sunEntry "SunExpRpcAuthorityRuntime.Initialize(modConfig)" "SunExp Entry must initialize RPC authority binding."
-Assert-Contains $sunAuthority "PlayerManager.UserCode_CmdReceiveRpcCommand__RpcCommandBase" "SunExp RPC authority must bind the user-code receive hook."
-Assert-Contains $sunAuthority "PlayerManager.CmdReceiveRpcCommand" "SunExp RPC authority must bind the generated receive hook."
+Assert-Contains $sharedAuthority "PlayerManager.UserCode_CmdReceiveRpcCommand__RpcCommandBase" "Shared RPC authority must bind the user-code receive hook."
+Assert-Contains $sharedAuthority "PlayerManager.CmdReceiveRpcCommand" "Shared RPC authority must bind the generated receive hook."
+Assert-Contains $sunAuthority "AuraRpcAuthorityRuntime.Register" "SunExp RPC authority must delegate hook binding to shared RPC authority."
 Assert-Contains $sunAuthority "ISunExpServerBoundRpcCommand" "SunExp RPC authority must only bind server-bound commands."
 Assert-Contains $sunAuthority "CreateLocalServerSender" "SunExp RPC authority must expose a local host sender for direct server paths."
 Assert-Contains $sunAuthority "public interface ISunExpServerBoundRpcCommand" "SunExp server-bound command interface must be public for serializable public commands."

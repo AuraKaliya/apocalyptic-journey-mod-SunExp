@@ -126,6 +126,68 @@ public static class AuraJourneyRuntime
         return legacy;
     }
 
+    public static AuraSharedConfigWriteResult PublishActiveMode(
+        string ownerModId,
+        string journeyId,
+        string modeId,
+        bool isActive,
+        string source,
+        bool isAuthority = true)
+    {
+        var owner = (ownerModId ?? "").Trim();
+        var qualifiedJourneyId = QualifyJourneyId(owner, journeyId);
+        var state = new AuraJourneyActiveMode
+        {
+            OwnerModId = owner,
+            JourneyId = qualifiedJourneyId,
+            ModeId = (modeId ?? "").Trim(),
+            IsActive = isActive,
+            Source = (source ?? "").Trim(),
+            UpdatedUtc = DateTime.UtcNow.ToString("O")
+        };
+
+        var result = AuraSharedConfigStore.WriteRuntime(
+            string.IsNullOrWhiteSpace(owner) ? "AuraJourney" : owner,
+            AuraJourneyConstants.SystemName,
+            ActiveModeFileName(),
+            state,
+            expectedRevision: -1,
+            schemaVersion: 1);
+
+        AuraSharedDiagnostics.Write(AuraSharedDiagnostics.Create(
+            AuraJourneyConstants.SystemName,
+            owner,
+            result.Success ? "Info" : "Warn",
+            "PublishActiveMode",
+            result.Success ? "Active journey mode updated: " + qualifiedJourneyId + " active=" + isActive : "Active journey mode update failed: " + result.Message,
+            isAuthority,
+            qualifiedJourneyId));
+        return result;
+    }
+
+    public static AuraSharedConfigSnapshot<AuraJourneyActiveMode> ReadActiveMode(string callerId)
+    {
+        return AuraSharedConfigStore.ReadRuntime(
+            callerId,
+            AuraJourneyConstants.SystemName,
+            ActiveModeFileName(),
+            new AuraJourneyActiveMode());
+    }
+
+    public static bool IsJourneyActive(string callerId, string ownerModId, string journeyId)
+    {
+        var snapshot = ReadActiveMode(callerId);
+        var value = snapshot.Value;
+        if (value == null || !value.IsActive)
+        {
+            return false;
+        }
+
+        var qualifiedJourneyId = QualifyJourneyId(ownerModId, journeyId);
+        return string.Equals(value.OwnerModId, ownerModId, StringComparison.OrdinalIgnoreCase)
+               && string.Equals(value.JourneyId, qualifiedJourneyId, StringComparison.OrdinalIgnoreCase);
+    }
+
     public static AuraJourneyCommitResult TryCommit(AuraJourneyCommitRequest request)
     {
         try
@@ -314,6 +376,11 @@ public static class AuraJourneyRuntime
     private static string StateFileName(string journeyId)
     {
         return AuraSharedIdentity.SafeId(journeyId, "journey") + ".state.json";
+    }
+
+    private static string ActiveModeFileName()
+    {
+        return "active-mode.state.json";
     }
 
     private static AuraJourneyCommitResult Failure(string message)

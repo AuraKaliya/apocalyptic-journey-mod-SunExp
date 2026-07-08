@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Reflection;
+using AuraJourney.Shared;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.DamageMeter.Capture;
@@ -712,7 +713,7 @@ public static class AuraToolsDamageMeterRuntime
     {
         try
         {
-            return GameSaveManager.GetValue<string>("SunExp_SolarMemoryMode") == "1";
+            return AuraJourneyRuntime.IsJourneyActive("AuraTools", "SunExp", "SunExp.SolarMemory");
         }
         catch
         {

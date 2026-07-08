@@ -18,6 +18,9 @@
     <Compile Include="..\AuraSharedCore\AuraSharedPackageModels.cs" Link="Core\AuraSharedPackageModels.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedPackageCoordinator.cs" Link="Core\AuraSharedPackageCoordinator.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedBootstrapResult.cs" Link="Core\AuraSharedBootstrapResult.cs" />
+    <Compile Include="..\AuraSharedCore\AuraFeatureSwitchRuntime.cs" Link="Core\AuraFeatureSwitchRuntime.cs" />
+    <Compile Include="..\AuraSharedCore\AuraLifecycleSessionRuntime.cs" Link="Core\AuraLifecycleSessionRuntime.cs" />
+    <Compile Include="..\AuraSharedCore\AuraLifecycleOperationLedger.cs" Link="Core\AuraLifecycleOperationLedger.cs" />
     <Compile Include="..\AuraJourneyShared\AuraJourneyModels.cs" Link="Journey\AuraJourneyModels.cs" />
     <Compile Include="..\AuraJourneyShared\AuraJourneyRouteModels.cs" Link="Journey\AuraJourneyRouteModels.cs" />
     <Compile Include="..\AuraJourneyShared\AuraJourneyConditionEvaluator.cs" Link="Journey\AuraJourneyConditionEvaluator.cs" />
