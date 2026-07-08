@@ -14,6 +14,7 @@ namespace AuraToolsExp.Dll.Features.Audio;
 public static class AuraToolsAudioRuntime
 {
     public const string AudioSystemVersion = "2.0.0";
+    private static readonly Dictionary<string, bool> PathExistsCache = new(StringComparer.OrdinalIgnoreCase);
     private static ModConfig? modConfig;
     private static bool initialized;
 
@@ -43,6 +44,7 @@ public static class AuraToolsAudioRuntime
 
         try
         {
+            RefreshPathExistsCache();
             RegisterBattleBgmProviders(modConfig);
             RegisterCardUseProviders(modConfig);
         }
@@ -167,13 +169,58 @@ public static class AuraToolsAudioRuntime
             .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
     }
 
+    private static void RefreshPathExistsCache()
+    {
+        PathExistsCache.Clear();
+        RememberPath(AuraToolsConfigService.Audio.BattleBgm.Common.RelativePath);
+        RememberPath(AuraToolsConfigService.Audio.CardUse.Common.RelativePath);
+        foreach (var role in AuraToolsConfigService.Audio.BattleBgm.Roles.Values)
+        {
+            RememberPath(role?.RelativePath);
+        }
+
+        foreach (var role in AuraToolsConfigService.Audio.CardUse.Roles.Values)
+        {
+            RememberPath(role?.RelativePath);
+        }
+    }
+
+    private static void RememberPath(string? relativeOrAbsolute)
+    {
+        var key = (relativeOrAbsolute ?? "").Trim();
+        if (key.Length == 0)
+        {
+            return;
+        }
+
+        PathExistsCache[key] = File.Exists(AuraToolsConfigService.ResolveConfiguredPath(key));
+    }
+
+    private static bool CachedPathExists(string relativeOrAbsolute)
+    {
+        var key = (relativeOrAbsolute ?? "").Trim();
+        if (key.Length == 0)
+        {
+            return false;
+        }
+
+        if (PathExistsCache.TryGetValue(key, out var exists))
+        {
+            return exists;
+        }
+
+        exists = File.Exists(AuraToolsConfigService.ResolveConfiguredPath(key));
+        PathExistsCache[key] = exists;
+        return exists;
+    }
+
     private static bool IsCommonBattleBgmEnabled(object? context)
     {
         var settings = AuraToolsConfigService.Audio.BattleBgm;
         return AuraToolsConfigService.Root.Audio.Enabled
                && settings.Enabled
                && settings.Mode == AudioModes.Common
-               && File.Exists(AuraToolsConfigService.ResolveConfiguredPath(settings.Common.RelativePath));
+               && CachedPathExists(settings.Common.RelativePath);
     }
 
     private static bool IsRoleBattleBgmEnabled(object? context, string roleId)
@@ -186,7 +233,7 @@ public static class AuraToolsAudioRuntime
             || role == null
             || !role.Enabled
             || string.IsNullOrWhiteSpace(role.RelativePath)
-            || !File.Exists(AuraToolsConfigService.ResolveConfiguredPath(role.RelativePath)))
+            || !CachedPathExists(role.RelativePath))
         {
             return false;
         }
@@ -201,7 +248,7 @@ public static class AuraToolsAudioRuntime
                && settings.Enabled
                && settings.Mode == AudioModes.Common
                && IsCardUse(context)
-               && File.Exists(AuraToolsConfigService.ResolveConfiguredPath(settings.Common.RelativePath));
+               && CachedPathExists(settings.Common.RelativePath);
     }
 
     private static bool IsRoleCardUseEnabled(object? context, string roleId)
@@ -215,7 +262,7 @@ public static class AuraToolsAudioRuntime
             || role == null
             || !role.Enabled
             || string.IsNullOrWhiteSpace(role.RelativePath)
-            || !File.Exists(AuraToolsConfigService.ResolveConfiguredPath(role.RelativePath)))
+            || !CachedPathExists(role.RelativePath))
         {
             return false;
         }

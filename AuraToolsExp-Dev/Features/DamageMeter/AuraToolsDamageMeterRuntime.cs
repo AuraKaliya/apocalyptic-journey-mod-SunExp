@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Reflection;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
@@ -43,6 +44,8 @@ public static class AuraToolsDamageMeterRuntime
     private static object? lastRoundUnit;
     private static long nextCallId;
     private static bool uiDirty = true;
+    private static int lastPruneFrame = -1;
+    private static readonly Dictionary<Type, DamageTextAccessor> DamageTextAccessors = new();
 
     public static bool Visible { get; private set; }
 
@@ -1284,8 +1287,7 @@ public static class AuraToolsDamageMeterRuntime
                 return;
             }
 
-            var pure = PureHpFrames.LastOrDefault(frame =>
-                frame.Targets.Any(item => ReferenceEquals(item.Target, target) && !item.Recorded));
+            var pure = FindPureFrameForTarget(target);
             if (pure == null)
             {
                 return;
@@ -1319,8 +1321,8 @@ public static class AuraToolsDamageMeterRuntime
 
             var setter = HpSetterFrames[setterIndex];
             HpSetterFrames.RemoveAt(setterIndex);
-            var pure = PureHpFrames.LastOrDefault(frame => frame.CallId == setter.PureFrameId);
-            var targetFrame = pure?.Targets.FirstOrDefault(item => ReferenceEquals(item.Target, target));
+            var pure = FindPureFrameById(setter.PureFrameId);
+            var targetFrame = pure == null ? null : FindTargetFrame(pure, target);
             if (pure == null || targetFrame == null)
             {
                 return;
@@ -1565,6 +1567,51 @@ public static class AuraToolsDamageMeterRuntime
         return -1;
     }
 
+    private static PureHpFrame? FindPureFrameForTarget(IStatusManager target)
+    {
+        for (var i = PureHpFrames.Count - 1; i >= 0; i--)
+        {
+            var frame = PureHpFrames[i];
+            for (var j = 0; j < frame.Targets.Count; j++)
+            {
+                var item = frame.Targets[j];
+                if (!item.Recorded && ReferenceEquals(item.Target, target))
+                {
+                    return frame;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static PureHpFrame? FindPureFrameById(long callId)
+    {
+        for (var i = PureHpFrames.Count - 1; i >= 0; i--)
+        {
+            if (PureHpFrames[i].CallId == callId)
+            {
+                return PureHpFrames[i];
+            }
+        }
+
+        return null;
+    }
+
+    private static TargetHpFrame? FindTargetFrame(PureHpFrame frame, IStatusManager target)
+    {
+        for (var i = 0; i < frame.Targets.Count; i++)
+        {
+            var item = frame.Targets[i];
+            if (ReferenceEquals(item.Target, target))
+            {
+                return item;
+            }
+        }
+
+        return null;
+    }
+
     private static bool TryReadDamageText(object? value, out DamageTextInfo data)
     {
         data = new DamageTextInfo();
@@ -1575,11 +1622,11 @@ public static class AuraToolsDamageMeterRuntime
 
         try
         {
-            data.From = ReflectionUtil.GetMemberValue(value, "from")?.ToString() ?? "";
-            data.To = ReflectionUtil.GetMemberValue(value, "to")?.ToString() ?? "";
-            data.DamageType = ReflectionUtil.GetMemberValue(value, "damageType")?.ToString() ?? "";
-            var hit = ReflectionUtil.GetMemberValue(value, "hit");
-            data.Hit = hit == null ? 0 : Convert.ToInt32(hit, CultureInfo.InvariantCulture);
+            var accessor = GetDamageTextAccessor(value.GetType());
+            data.From = accessor.ReadString(value, "from");
+            data.To = accessor.ReadString(value, "to");
+            data.DamageType = accessor.ReadString(value, "damageType");
+            data.Hit = accessor.ReadInt(value, "hit");
             return !string.IsNullOrWhiteSpace(data.To);
         }
         catch
@@ -1591,9 +1638,36 @@ public static class AuraToolsDamageMeterRuntime
     private static void PruneFrames()
     {
         var frame = Time.frameCount;
-        HitFrames.RemoveAll(item => frame - item.Frame > 4);
-        PureHpFrames.RemoveAll(item => frame - item.Frame > 4);
-        HpSetterFrames.RemoveAll(item => frame - item.Frame > 4);
+        if (lastPruneFrame == frame)
+        {
+            return;
+        }
+
+        lastPruneFrame = frame;
+        for (var i = HitFrames.Count - 1; i >= 0; i--)
+        {
+            if (frame - HitFrames[i].Frame > 4)
+            {
+                HitFrames.RemoveAt(i);
+            }
+        }
+
+        for (var i = PureHpFrames.Count - 1; i >= 0; i--)
+        {
+            if (frame - PureHpFrames[i].Frame > 4)
+            {
+                PureHpFrames.RemoveAt(i);
+            }
+        }
+
+        for (var i = HpSetterFrames.Count - 1; i >= 0; i--)
+        {
+            if (frame - HpSetterFrames[i].Frame > 4)
+            {
+                HpSetterFrames.RemoveAt(i);
+            }
+        }
+
         for (var i = BuffFrames.Count - 1; i >= 0; i--)
         {
             if (frame - BuffFrames[i].Frame <= 4)
@@ -1614,8 +1688,20 @@ public static class AuraToolsDamageMeterRuntime
         BuffFrames.Clear();
         BuffAttribution.Clear();
         nextCallId = 0;
+        lastPruneFrame = -1;
         lastRoundStartFrame = -10000;
         lastRoundUnit = null;
+    }
+
+    private static DamageTextAccessor GetDamageTextAccessor(Type type)
+    {
+        if (!DamageTextAccessors.TryGetValue(type, out var accessor))
+        {
+            accessor = new DamageTextAccessor(type);
+            DamageTextAccessors[type] = accessor;
+        }
+
+        return accessor;
     }
 
     private static void Limit<T>(List<T> list, int maximum)
@@ -1812,6 +1898,53 @@ public static class AuraToolsDamageMeterRuntime
         public string DamageType { get; set; } = "";
         public string SourceDataId { get; set; } = "";
         public string SourceInstanceId { get; set; } = "";
+    }
+
+    private sealed class DamageTextAccessor
+    {
+        private const BindingFlags Flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+        private readonly Dictionary<string, MemberInfo?> members = new(StringComparer.Ordinal);
+
+        public DamageTextAccessor(Type type)
+        {
+            members["from"] = FindMember(type, "from");
+            members["to"] = FindMember(type, "to");
+            members["damageType"] = FindMember(type, "damageType");
+            members["hit"] = FindMember(type, "hit");
+        }
+
+        public string ReadString(object source, string name)
+        {
+            return Read(source, name)?.ToString() ?? "";
+        }
+
+        public int ReadInt(object source, string name)
+        {
+            var value = Read(source, name);
+            if (value is int typed)
+            {
+                return typed;
+            }
+
+            return value == null ? 0 : Convert.ToInt32(value, CultureInfo.InvariantCulture);
+        }
+
+        private object? Read(object source, string name)
+        {
+            return members.TryGetValue(name, out var member)
+                ? member switch
+                {
+                    PropertyInfo property => property.GetValue(source),
+                    FieldInfo field => field.GetValue(source),
+                    _ => null
+                }
+                : null;
+        }
+
+        private static MemberInfo? FindMember(Type type, string name)
+        {
+            return type.GetProperty(name, Flags) ?? (MemberInfo?)type.GetField(name, Flags);
+        }
     }
 
     private sealed class PureHpFrame

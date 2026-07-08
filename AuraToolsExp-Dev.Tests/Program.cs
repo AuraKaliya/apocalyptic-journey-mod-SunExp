@@ -242,7 +242,7 @@ void TestDamageMeterSettingsNormalization()
     Assert(settings.MaxRows == 6, "DPS row count uses the fixed default");
     Assert(settings.ShowAverageDpt, "average DPT display is always enabled");
     Assert(settings.ShowTeamShare, "team damage share display is always enabled");
-    Assert(settings.UiRefreshIntervalMs == 250, "DPS UI refresh falls back to the bounded default");
+    Assert(settings.UiRefreshIntervalMs == 1000, "DPS UI refresh falls back to the bounded default");
     Assert(settings.SubmitBatchIntervalMs == 250, "DPS network submit batching falls back to the bounded default");
     Assert(settings.MaxEventsPerBatch == 24, "DPS network submit batch size falls back to the bounded default");
     Assert(settings.SettlementCg.Enabled
@@ -593,8 +593,10 @@ void TestRuntimeArchitectureGuards()
         "out-of-run history persistence enforces envelope budgets");
 
     var skillCgRuntime = ReadRepoText("AuraToolsExp-Dev/Features/SkillCg/AuraToolsSkillCgRuntime.cs");
-    Assert(skillCgRuntime.Contains("safeInvoke: true", StringComparison.Ordinal),
-        "SkillCG hooks must be isolated at shared hook dispatch");
+    var actionRouter = ReadRepoText("AuraSharedCore/AuraCombatActionRouter.cs");
+    Assert(skillCgRuntime.Contains("AuraCombatActionRouter.RegisterBefore", StringComparison.Ordinal)
+           && actionRouter.Contains("safeInvoke: true", StringComparison.Ordinal),
+        "SkillCG hooks must route through isolated shared action dispatch");
     Assert(skillCgRuntime.Contains("safeModeDisabled", StringComparison.Ordinal)
            && skillCgRuntime.Contains("RunHook(", StringComparison.Ordinal),
         "SkillCG hooks must have runtime failure isolation");
@@ -604,9 +606,10 @@ void TestRuntimeArchitectureGuards()
     var matchSettings = ReadRepoText("AuraToolsExp/Config/MatchExperienceSettings.json");
     Assert(matchSettings.Contains("\"loadHistoryOnStartup\": false", StringComparison.Ordinal)
            && matchSettings.Contains("\"captureTeamAvatars\": false", StringComparison.Ordinal)
+           && matchSettings.Contains("\"uiRefreshIntervalMs\": 1000", StringComparison.Ordinal)
            && matchSettings.Contains("\"submitBatchIntervalMs\": 250", StringComparison.Ordinal)
            && matchSettings.Contains("\"maxEventsPerBatch\": 24", StringComparison.Ordinal),
-        "packaged damage meter config defaults to lazy history, no hot-path avatar capture, and batched networking");
+        "packaged damage meter config defaults to lazy history, no hot-path avatar capture, throttled UI, and batched networking");
 
     var loggingSettings = ReadRepoText("AuraToolsExp/Config/LoggingSettings.json");
     Assert(loggingSettings.Contains("\"minimumLevel\": \"Info\"", StringComparison.Ordinal)
@@ -615,9 +618,9 @@ void TestRuntimeArchitectureGuards()
         "packaged logging config keeps AuraTools lifecycle logs visible without high-volume mirrors");
 
     var skillCgSettings = ReadRepoText("AuraToolsExp/Config/SkillCgSettings.json");
-    Assert(skillCgSettings.Contains("\"preloadOnFightStart\": false", StringComparison.Ordinal)
+    Assert(skillCgSettings.Contains("\"preloadOnFightStart\": true", StringComparison.Ordinal)
            && skillCgSettings.Contains("\"disableAfterFailures\": true", StringComparison.Ordinal),
-        "packaged SkillCG config defaults to no fight-start preload and failure fuse enabled");
+        "packaged SkillCG config defaults to fight-start preload and failure fuse enabled");
 }
 
 void TestDetailLimit()

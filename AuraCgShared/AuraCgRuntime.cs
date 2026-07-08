@@ -292,6 +292,7 @@ public static class SkillCgArbiterRuntime
         var requests = AuraCgRegistryRuntime.GetRegisteredEntries(ownerModId)
             .Where(entry => IsRegisteredCgEntry(entry, kind))
             .Where(entry => string.IsNullOrWhiteSpace(roleId) || EntryMatchesRole(entry, roleId))
+            .Where(entry => !string.Equals(kind, CardUseCgKind, StringComparison.OrdinalIgnoreCase) || EntryMatchesEnabledRuntimeCardPack(entry))
             .Where(entry => AuraCgActivationRuntime.CanConsumerPlay(entry, consumerModId))
             .Select(entry => CreateRegisteredRequest(entry, ResolveRegisteredImageResource(entry), ResolveImagePath(entry.OwnerModId, ResolveRegisteredImageResource(entry)), new SkillCgTriggerContext
             {
@@ -303,6 +304,62 @@ public static class SkillCgArbiterRuntime
             .Cast<SkillCgRequest>()
             .ToList();
         PreloadCg(consumerModId, requests);
+    }
+
+    private static bool EntryMatchesEnabledRuntimeCardPack(AuraCgRegistryEntry entry)
+    {
+        var enabledPacks = ReadRuntimeCardPacks();
+        if (enabledPacks.Count == 0)
+        {
+            return true;
+        }
+
+        foreach (var cardId in entry.CardIds ?? new List<string>())
+        {
+            var pack = ResolveCardPack(cardId);
+            if (string.IsNullOrWhiteSpace(pack) || enabledPacks.Contains(pack))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static HashSet<string> ReadRuntimeCardPacks()
+    {
+        try
+        {
+            var packs = Singleton<GameRuntimeData>.Instance?.UseCardPack;
+            return packs == null
+                ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                : new HashSet<string>(packs, StringComparer.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    private static string ResolveCardPack(string cardId)
+    {
+        var id = (cardId ?? "").Trim().TrimStart('*');
+        if (id.Length == 0 || string.Equals(id, "*", StringComparison.Ordinal))
+        {
+            return "";
+        }
+
+        try
+        {
+            var row = Singleton<GameConfigManager>.Instance?.GetOne(DataType.Card, id);
+            return row != null && row.TryGetValue("PackBelong", out var pack)
+                ? pack?.Trim() ?? ""
+                : "";
+        }
+        catch
+        {
+            return "";
+        }
     }
 
     private static bool EntryMatchesTrigger(AuraCgRegistryEntry entry, string kind, string consumerModId, SkillCgTriggerContext context)
@@ -856,8 +913,8 @@ public static class SkillCgArbiterRuntime
                 }
 
                 request.Normalize();
-                var key = SequenceCacheKey(request);
-                if (sequenceCache.ContainsKey(key) || !preloadKeys.Add(key))
+                var key = PreloadCacheKey(request);
+                if (IsPreloaded(request) || !preloadKeys.Add(key))
                 {
                     continue;
                 }
@@ -870,6 +927,16 @@ public static class SkillCgArbiterRuntime
         {
             if (!string.Equals(request.MediaType, SkillCgMediaTypes.Sequence, StringComparison.OrdinalIgnoreCase))
             {
+                Sprite? sprite = null;
+                yield return LoadSprite(request.ImagePath, result => sprite = result);
+                if (sprite != null)
+                {
+                    AuraCgLog.InfoOnce(
+                        "image-preloaded:" + key,
+                        "CG image preloaded: provider=" + request.ProviderId
+                        + ", image=" + Path.GetFileName(request.ImagePath));
+                }
+
                 preloadKeys.Remove(key);
                 yield break;
             }
@@ -887,6 +954,27 @@ public static class SkillCgArbiterRuntime
             }
 
             preloadKeys.Remove(key);
+        }
+
+        private bool IsPreloaded(SkillCgRequest request)
+        {
+            if (string.Equals(request.MediaType, SkillCgMediaTypes.Sequence, StringComparison.OrdinalIgnoreCase))
+            {
+                return sequenceCache.ContainsKey(SequenceCacheKey(request));
+            }
+
+            return spriteCache.ContainsKey(SpriteCacheKey(
+                request.ImagePath,
+                SkillCgAlphaModes.None,
+                0.03f,
+                0.08f));
+        }
+
+        private static string PreloadCacheKey(SkillCgRequest request)
+        {
+            return string.Equals(request.MediaType, SkillCgMediaTypes.Sequence, StringComparison.OrdinalIgnoreCase)
+                ? "sequence:" + SequenceCacheKey(request)
+                : "image:" + SpriteCacheKey(request.ImagePath, SkillCgAlphaModes.None, 0.03f, 0.08f);
         }
 
         public void ClearQueue(object? reason)
@@ -3876,5 +3964,3 @@ internal readonly struct QueuedRequest
         return priorityCompare != 0 ? priorityCompare : a.EnqueueSequence.CompareTo(b.EnqueueSequence);
     }
 }
-
-

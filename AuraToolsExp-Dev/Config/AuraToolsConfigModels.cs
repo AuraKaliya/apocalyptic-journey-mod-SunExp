@@ -513,7 +513,7 @@ public sealed class DamageMeterSettings
     private const int DefaultMaxHistoryEnvelopeBytes = 1048576;
     private const int DefaultMaxAvatarEncodePixels = 262144;
     private const int DefaultMaxAvatarPngBytes = 262144;
-    private const int DefaultUiRefreshIntervalMs = 250;
+    private const int DefaultUiRefreshIntervalMs = 1000;
     private const int DefaultSubmitBatchIntervalMs = 250;
     private const int DefaultMaxEventsPerBatch = 24;
 
@@ -670,7 +670,7 @@ public sealed class AuraToolsSkillCgSettings
     public float DuplicateWindowSeconds { get; set; } = 0.2f;
 
     [JsonProperty("preloadOnFightStart")]
-    public bool PreloadOnFightStart { get; set; }
+    public bool PreloadOnFightStart { get; set; } = true;
 
     [JsonProperty("disableAfterFailures")]
     public bool DisableAfterFailures { get; set; } = true;

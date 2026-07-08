@@ -336,9 +336,16 @@ foreach ($required in @("AuraSharedIdentity.SelectRoleId", "activation-skip:", "
 }
 
 $sunSkillCgRuntimeText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Features\SkillCg\SunExpSkillCgRuntime.cs")
-foreach ($required in @("BuildRequests(trigger)", "BuildRegisteredCardUseRequests", "AuraSharedIdentity.SelectRoleId", "TrimStart('*')", "ignored runtime owner id", "no CG request matched")) {
+foreach ($required in @("AuraCombatActionRouter.RegisterBefore", "BuildRequests(trigger)", "BuildRegisteredCardUseRequests", "TrimStart('*')", "no CG request matched")) {
     if (-not $sunSkillCgRuntimeText.Contains($required)) {
         throw "SunExp SkillCG runtime is missing trigger diagnostics/role fallback: $required"
+    }
+}
+
+$combatActionRouterText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraCombatActionRouter.cs")
+foreach ($required in @("AuraSharedIdentity.SelectRoleId", "ReadStatusRoleId", "BuildEventToken", '"FightUI.CallActionAnimation"', "safeInvoke: true")) {
+    if (-not $combatActionRouterText.Contains($required)) {
+        throw "Shared combat action router is missing trigger diagnostics/role fallback: $required"
     }
 }
 

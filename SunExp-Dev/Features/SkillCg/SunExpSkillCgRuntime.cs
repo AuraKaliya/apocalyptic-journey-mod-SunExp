@@ -10,13 +10,11 @@ using UnityEngine;
 using Witch;
 using Witch.Core;
 using Witch.Mod;
-using Witch.UI.Window;
 
 namespace SunExp.Dll.Features.SkillCg;
 
 public static class SunExpSkillCgRuntime
 {
-    private static long actionSequence;
     private static readonly HashSet<string> DiagnosticKeys = new(StringComparer.OrdinalIgnoreCase);
 
     public static void Initialize(ModConfig modConfig)
@@ -25,7 +23,13 @@ public static class SunExpSkillCgRuntime
         {
             DuplicateWindowSeconds = 1.25f
         });
-        RegisterBefore(modConfig, "FightUI.CallActionAnimation", BeforeCallActionAnimation);
+        AuraCombatActionRouter.RegisterBefore(
+            modConfig,
+            SunExpIds.ModId + ".SkillCG",
+            BeforeCombatAction,
+            SunExpLog.Debug,
+            SunExpLog.Warn);
+        RegisterBefore(modConfig, "GameEntryUI.StartGame", OnAdventureStart);
         RegisterAfter(modConfig, "Fight_Start.Init", OnFightStart);
         RegisterAfter(modConfig, "FightInit.Init", OnFightStart);
         RegisterBefore(modConfig, "Fight_Win.ResetStates", OnFightEnding);
@@ -36,19 +40,16 @@ public static class SunExpSkillCgRuntime
         RegisterAfter(modConfig, "Fight_Loss.Init", OnFightEnded);
     }
 
-    private static void BeforeCallActionAnimation(ModHookContext context)
+    private static void BeforeCombatAction(AuraCombatActionContext context)
     {
         try
         {
-            var trigger = BuildTriggerContext(context.Arguments != null && context.Arguments.Length > 0
-                ? context.Arguments[0] as IScriptExecutor
-                : null);
+            var trigger = BuildTriggerContext(context);
             if (trigger == null || !ShouldEmitLocalRequest(trigger))
             {
                 return;
             }
 
-            PrepareTriggerPlayback(trigger);
             foreach (var request in BuildRequests(trigger))
             {
                 SkillCgArbiterRuntime.RequestCg(SunExpIds.ModId, request, syncRemote: true);
@@ -70,50 +71,23 @@ public static class SunExpSkillCgRuntime
         }
     }
 
-    private static SkillCgTriggerContext? BuildTriggerContext(IScriptExecutor? scriptExecutor)
+    private static SkillCgTriggerContext? BuildTriggerContext(AuraCombatActionContext context)
     {
-        var dataConfig = scriptExecutor?.dataConfig;
-        if (dataConfig == null || dataConfig.Type != DataType.Card || dataConfig.data == null)
+        if (!context.IsCardAction || string.IsNullOrWhiteSpace(context.CardId))
         {
             return null;
         }
 
-        var cardId = ReadData(dataConfig, "Id");
-        if (string.IsNullOrWhiteSpace(cardId))
-        {
-            cardId = dataConfig.InstanceID ?? "";
-        }
-
-        if (string.IsNullOrWhiteSpace(cardId))
-        {
-            return null;
-        }
-
-        var owner = scriptExecutor?.Self as StatusManager;
         return new SkillCgTriggerContext
         {
-            Action = ReadData(dataConfig, "Action"),
-            CardId = cardId,
-            OwnerInstanceId = owner?.InstanceId ?? "",
-            OwnerRoleId = ReadStatusRoleId(owner),
-            CreatedAt = Time.unscaledTime
+            ActionSequence = context.ActionSequence,
+            EventToken = context.EventToken,
+            Action = context.Action,
+            CardId = context.CardId,
+            OwnerInstanceId = context.OwnerInstanceId,
+            OwnerRoleId = context.OwnerRoleId,
+            CreatedAt = context.CreatedAt
         };
-    }
-
-    private static void PrepareTriggerPlayback(SkillCgTriggerContext trigger)
-    {
-        var sequence = ++actionSequence;
-        trigger.ActionSequence = sequence;
-        trigger.EventToken = BuildEventToken(trigger.OwnerInstanceId, trigger.CardId, sequence);
-    }
-
-    private static string BuildEventToken(string ownerInstanceId, string cardId, long sequence)
-    {
-        return (string.IsNullOrWhiteSpace(ownerInstanceId) ? "local" : ownerInstanceId.Trim())
-               + ":"
-               + (string.IsNullOrWhiteSpace(cardId) ? "*" : cardId.Trim())
-               + ":"
-               + sequence.ToString();
     }
 
     private static IEnumerable<SkillCgRequest> BuildRequests(SkillCgTriggerContext trigger)
@@ -348,64 +322,6 @@ public static class SunExpSkillCgRuntime
         return File.Exists(path);
     }
 
-    private static string ReadData(IDataConfig dataConfig, string key)
-    {
-        try
-        {
-            return dataConfig.data.TryGetValue(key, out var value) ? value ?? "" : "";
-        }
-        catch
-        {
-            return "";
-        }
-    }
-
-    private static string ReadStatusRoleId(StatusManager? status)
-    {
-        var current = ReadCurrentCareerId();
-        var fatherId = "";
-        try
-        {
-            var father = status?.fatherObject;
-            fatherId = AuraSharedReflection.ReadString(father, "Id", "id");
-        }
-        catch
-        {
-        }
-
-        var selected = AuraSharedIdentity.SelectRoleId(fatherId, current);
-        if (!string.IsNullOrWhiteSpace(fatherId)
-            && !string.Equals(selected, AuraSharedIdentity.NormalizeRoleId(fatherId), StringComparison.OrdinalIgnoreCase))
-        {
-            LogDiagnostic("role-fallback:" + fatherId + ":" + selected,
-                "[SkillCG] ignored runtime owner id while resolving role: ownerId=" + fatherId
-                + ", fallbackRole=" + selected);
-        }
-
-        return selected;
-    }
-
-    private static string ReadCurrentCareerId()
-    {
-        return ReadDataId(RoleTable.Instance?.Career ?? GameEntryUI.career);
-    }
-
-    private static string ReadDataId(IDataConfig? data)
-    {
-        try
-        {
-            if (data?.data != null && data.data.TryGetValue("Id", out var id))
-            {
-                return id ?? "";
-            }
-        }
-        catch
-        {
-        }
-
-        return "";
-    }
-
     private static string NormalizeId(string value)
     {
         return (value ?? "").Trim();
@@ -439,7 +355,6 @@ public static class SunExpSkillCgRuntime
 
     private static void OnFightStart(ModHookContext context)
     {
-        actionSequence = 0;
         SkillCgArbiterRuntime.Clear(SunExpIds.ModId, "fight start");
         try
         {
@@ -448,6 +363,19 @@ public static class SunExpSkillCgRuntime
         catch (Exception ex)
         {
             SunExpLog.Warn("[SkillCG] preload failed: " + ex.Message);
+        }
+    }
+
+    private static void OnAdventureStart(ModHookContext context)
+    {
+        try
+        {
+            SkillCgArbiterRuntime.PreloadRegisteredCg(SunExpIds.ModId, SunExpIds.ModId);
+            SkillCgArbiterRuntime.PreloadRegisteredCardUseCg(SunExpIds.ModId, SunExpIds.ModId);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[SkillCG] adventure preload failed: " + ex.Message);
         }
     }
 

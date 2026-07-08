@@ -8,7 +8,19 @@ public sealed class DamageLedger
 {
     private readonly Dictionary<string, CombatantDamageStat> combatants =
         new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<CombatantDamageStat> visibleRowsCache = new();
     private DamageBestHitRecord? bestHit;
+    private long version;
+    private long visibleRowsCacheVersion = -1;
+    private bool visibleRowsCacheFriendlyOnly;
+    private bool visibleRowsCacheIncludeUnknown;
+    private bool visibleRowsCacheCountShield;
+    private int visibleRowsCacheMaxRows;
+    private long grandTotalCacheVersion = -1;
+    private bool grandTotalCacheCountShield;
+    private bool grandTotalCacheFriendlyOnly;
+    private bool grandTotalCacheIncludeUnknown;
+    private long grandTotalCache;
 
     public string SessionId { get; private set; } = "";
 
@@ -37,6 +49,7 @@ public sealed class DamageLedger
         ServerSequence = 0;
         bestHit = null;
         combatants.Clear();
+        MarkDirty();
     }
 
     public void StartRound(int roundIndex)
@@ -52,6 +65,7 @@ public sealed class DamageLedger
         }
 
         CurrentRoundIndex = roundIndex;
+        MarkDirty();
     }
 
     public void EndFight()
@@ -67,6 +81,7 @@ public sealed class DamageLedger
         }
 
         InFight = false;
+        MarkDirty();
     }
 
     public bool Apply(DamageEvent damage)
@@ -119,6 +134,7 @@ public sealed class DamageLedger
         stat.CurrentRoundShieldDamage += shield;
         AddDetail(stat, damage, hp, shield);
         TrackBestHit(damage, hp + shield);
+        MarkDirty();
         return true;
     }
 
@@ -182,6 +198,7 @@ public sealed class DamageLedger
             combatants[clone.InstanceId] = clone;
         }
 
+        MarkDirty();
         return true;
     }
 
@@ -191,34 +208,79 @@ public sealed class DamageLedger
         bool countShield,
         int maxRows)
     {
-        IEnumerable<CombatantDamageStat> query = combatants.Values
-            .Where(stat => stat.DisplayTotal(countShield) > 0);
-        if (friendlyOnly)
+        maxRows = Math.Max(1, maxRows);
+        if (visibleRowsCacheVersion == version
+            && visibleRowsCacheFriendlyOnly == friendlyOnly
+            && visibleRowsCacheIncludeUnknown == includeUnknown
+            && visibleRowsCacheCountShield == countShield
+            && visibleRowsCacheMaxRows == maxRows)
         {
-            query = query.Where(stat => stat.Team == DamageTeam.Friendly
-                                        || includeUnknown && stat.Team == DamageTeam.Unknown);
-        }
-        else if (!includeUnknown)
-        {
-            query = query.Where(stat => stat.Team != DamageTeam.Unknown);
+            return visibleRowsCache;
         }
 
-        return query
-            .OrderByDescending(stat => stat.DisplayTotal(countShield))
-            .ThenByDescending(stat => stat.DisplayCurrentRound(countShield))
-            .ThenBy(stat => stat.DisplayName, StringComparer.OrdinalIgnoreCase)
-            .Take(Math.Max(1, maxRows))
-            .ToList();
+        visibleRowsCache.Clear();
+        foreach (var stat in combatants.Values)
+        {
+            if (stat.DisplayTotal(countShield) <= 0 || !ShouldDisplay(stat, friendlyOnly, includeUnknown))
+            {
+                continue;
+            }
+
+            visibleRowsCache.Add(stat);
+        }
+
+        visibleRowsCache.Sort((left, right) =>
+        {
+            var total = right.DisplayTotal(countShield).CompareTo(left.DisplayTotal(countShield));
+            if (total != 0)
+            {
+                return total;
+            }
+
+            var round = right.DisplayCurrentRound(countShield).CompareTo(left.DisplayCurrentRound(countShield));
+            return round != 0
+                ? round
+                : string.Compare(left.DisplayName, right.DisplayName, StringComparison.OrdinalIgnoreCase);
+        });
+
+        if (visibleRowsCache.Count > maxRows)
+        {
+            visibleRowsCache.RemoveRange(maxRows, visibleRowsCache.Count - maxRows);
+        }
+
+        visibleRowsCacheVersion = version;
+        visibleRowsCacheFriendlyOnly = friendlyOnly;
+        visibleRowsCacheIncludeUnknown = includeUnknown;
+        visibleRowsCacheCountShield = countShield;
+        visibleRowsCacheMaxRows = maxRows;
+        return visibleRowsCache;
     }
 
     public long DisplayGrandTotal(bool countShield, bool friendlyOnly, bool includeUnknown)
     {
-        return combatants.Values
-            .Where(stat => !friendlyOnly
-                           || stat.Team == DamageTeam.Friendly
-                           || includeUnknown && stat.Team == DamageTeam.Unknown)
-            .Where(stat => includeUnknown || stat.Team != DamageTeam.Unknown)
-            .Sum(stat => stat.DisplayTotal(countShield));
+        if (grandTotalCacheVersion == version
+            && grandTotalCacheCountShield == countShield
+            && grandTotalCacheFriendlyOnly == friendlyOnly
+            && grandTotalCacheIncludeUnknown == includeUnknown)
+        {
+            return grandTotalCache;
+        }
+
+        long total = 0;
+        foreach (var stat in combatants.Values)
+        {
+            if (ShouldDisplay(stat, friendlyOnly, includeUnknown))
+            {
+                total += stat.DisplayTotal(countShield);
+            }
+        }
+
+        grandTotalCacheVersion = version;
+        grandTotalCacheCountShield = countShield;
+        grandTotalCacheFriendlyOnly = friendlyOnly;
+        grandTotalCacheIncludeUnknown = includeUnknown;
+        grandTotalCache = total;
+        return total;
     }
 
     public DamageBestHitRecord? BestHit()
@@ -246,6 +308,22 @@ public sealed class DamageLedger
         }
 
         CompletedRoundCount++;
+        MarkDirty();
+    }
+
+    private static bool ShouldDisplay(CombatantDamageStat stat, bool friendlyOnly, bool includeUnknown)
+    {
+        if (friendlyOnly)
+        {
+            return stat.Team == DamageTeam.Friendly || includeUnknown && stat.Team == DamageTeam.Unknown;
+        }
+
+        return includeUnknown || stat.Team != DamageTeam.Unknown;
+    }
+
+    private void MarkDirty()
+    {
+        version++;
     }
 
     private static void AddDetail(CombatantDamageStat stat, DamageEvent damage, int hp, int shield)

@@ -20,7 +20,6 @@ namespace AuraToolsExp.Dll.Features.SkillCg;
 public static class AuraToolsSkillCgRuntime
 {
     private static readonly List<IDisposable> HookRegistrations = new();
-    private static long actionSequence;
     private static readonly HashSet<string> DiagnosticKeys = new(StringComparer.OrdinalIgnoreCase);
     private static ModConfig? modConfig;
     private static bool hooksRegistered;
@@ -79,7 +78,12 @@ public static class AuraToolsSkillCgRuntime
             return;
         }
 
-        RegisterBefore("FightUI.CallActionAnimation", BeforeCallActionAnimation);
+        HookRegistrations.Add(AuraCombatActionRouter.RegisterBefore(
+            modConfig,
+            AuraToolsIds.ModId + ".SkillCG",
+            BeforeCombatAction,
+            warn: AuraToolsLog.Warn));
+        RegisterBefore("GameEntryUI.StartGame", OnAdventureStart);
         RegisterAfter("Fight_Start.Init", OnFightStart);
         RegisterAfter("FightInit.Init", OnFightStart);
         RegisterBefore("Fight_Win.ResetStates", OnFightEnding);
@@ -117,26 +121,19 @@ public static class AuraToolsSkillCgRuntime
         AuraToolsLog.Info("[SkillCG] routed hooks disabled.");
     }
 
-    private static void BeforeCallActionAnimation(ModHookContext context)
+    private static void BeforeCombatAction(AuraCombatActionContext context)
     {
         RunHook("card action", () =>
         {
             if (!AuraToolsConfigService.Root.SkillCg.Enabled
-                || (!AuraToolsConfigService.SkillCg.Enabled && !AuraToolsConfigService.SkillCg.CardUseCg.Enabled))
+                || (!AuraToolsConfigService.SkillCg.Enabled && !AuraToolsConfigService.SkillCg.CardUseCg.Enabled)
+                || !context.IsCardAction)
             {
                 return;
             }
 
-            var scriptExecutor = context.Arguments != null && context.Arguments.Length > 0
-                ? context.Arguments[0] as IScriptExecutor
-                : null;
-            var trigger = BuildTriggerContext(scriptExecutor);
-            if (trigger == null)
-            {
-                return;
-            }
-
-            if (!ShouldEmitLocalRequest(trigger))
+            var trigger = BuildTriggerContext(context);
+            if (trigger == null || !ShouldEmitLocalRequest(trigger))
             {
                 return;
             }
@@ -145,41 +142,23 @@ public static class AuraToolsSkillCgRuntime
         });
     }
 
-    private static SkillCgTriggerContext? BuildTriggerContext(IScriptExecutor? scriptExecutor)
+    private static SkillCgTriggerContext? BuildTriggerContext(AuraCombatActionContext context)
     {
-        var dataConfig = scriptExecutor?.dataConfig;
-        if (dataConfig == null || dataConfig.Type != DataType.Card || dataConfig.data == null)
+        if (!context.IsCardAction || string.IsNullOrWhiteSpace(context.CardId))
         {
             return null;
         }
 
-        var cardId = ReadData(dataConfig, "Id");
-        if (string.IsNullOrWhiteSpace(cardId))
-        {
-            cardId = dataConfig.InstanceID ?? "";
-        }
-
-        if (string.IsNullOrWhiteSpace(cardId))
-        {
-            return null;
-        }
-
-        var action = ReadData(dataConfig, "Action");
-        var owner = scriptExecutor?.Self as StatusManager;
-        var ownerInstanceId = owner?.InstanceId ?? "";
-        var ownerRoleId = ReadStatusRoleId(owner);
-        AuraToolsSkillCgProvider.RememberOwnerRole(ownerInstanceId, ownerRoleId);
-        var sequence = ++actionSequence;
-
+        AuraToolsSkillCgProvider.RememberOwnerRole(context.OwnerInstanceId, context.OwnerRoleId);
         return new SkillCgTriggerContext
         {
-            ActionSequence = sequence,
-            EventToken = BuildEventToken(ownerInstanceId, cardId, sequence),
-            Action = action,
-            CardId = cardId,
-            OwnerInstanceId = ownerInstanceId,
-            OwnerRoleId = ownerRoleId,
-            CreatedAt = Time.unscaledTime
+            ActionSequence = context.ActionSequence,
+            EventToken = context.EventToken,
+            Action = context.Action,
+            CardId = context.CardId,
+            OwnerInstanceId = context.OwnerInstanceId,
+            OwnerRoleId = context.OwnerRoleId,
+            CreatedAt = context.CreatedAt
         };
     }
 
@@ -208,52 +187,6 @@ public static class AuraToolsSkillCgRuntime
         return false;
     }
 
-    private static string BuildEventToken(string ownerInstanceId, string cardId, long sequence)
-    {
-        return (string.IsNullOrWhiteSpace(ownerInstanceId) ? "local" : ownerInstanceId.Trim())
-               + ":"
-               + (string.IsNullOrWhiteSpace(cardId) ? "*" : cardId.Trim())
-               + ":"
-               + sequence.ToString();
-    }
-
-    private static string ReadData(IDataConfig dataConfig, string key)
-    {
-        try
-        {
-            return dataConfig.data.TryGetValue(key, out var value) ? value ?? "" : "";
-        }
-        catch
-        {
-            return "";
-        }
-    }
-
-    private static string ReadStatusRoleId(StatusManager? status)
-    {
-        var current = ReadCurrentCareerId();
-        var fatherId = "";
-        try
-        {
-            var father = status?.fatherObject;
-            fatherId = ReflectionUtil.ReadString(father, "Id", "id");
-        }
-        catch
-        {
-        }
-
-        var selected = AuraSharedIdentity.SelectRoleId(fatherId, current);
-        if (!string.IsNullOrWhiteSpace(fatherId)
-            && !string.Equals(selected, AuraSharedIdentity.NormalizeRoleId(fatherId), StringComparison.OrdinalIgnoreCase))
-        {
-            LogDiagnostic("role-fallback:" + fatherId + ":" + selected,
-                "[SkillCG] ignored runtime owner id while resolving role: ownerId=" + fatherId
-                + ", fallbackRole=" + selected);
-        }
-
-        return selected;
-    }
-
     internal static string ReadCurrentCareerId()
     {
         return ReadDataId(RoleTable.Instance?.Career ?? GameEntryUI.career);
@@ -279,7 +212,6 @@ public static class AuraToolsSkillCgRuntime
     {
         RunHook("fight start", () =>
         {
-            actionSequence = 0;
             AuraToolsSkillCgProvider.ClearOwnerRoles();
             SkillCgArbiterRuntime.Clear(AuraToolsIds.ModId, "fight start");
             if (AuraToolsConfigService.SkillCg.CardUseCg.Enabled
@@ -288,6 +220,30 @@ public static class AuraToolsSkillCgRuntime
                 SkillCgArbiterRuntime.PreloadRegisteredCardUseCg(AuraToolsIds.ModId);
             }
         });
+    }
+
+    private static void OnAdventureStart(ModHookContext context)
+    {
+        RunHook("adventure preload", PreloadAdventureCg);
+    }
+
+    private static void PreloadAdventureCg()
+    {
+        if (!AuraToolsConfigService.Root.SkillCg.Enabled)
+        {
+            return;
+        }
+
+        if (AuraToolsConfigService.SkillCg.Enabled)
+        {
+            SkillCgArbiterRuntime.PreloadRegisteredCg(AuraToolsIds.ModId);
+            SkillCgArbiterRuntime.PreloadCg(AuraToolsIds.ModId, AuraToolsSkillCgProvider.BuildConfiguredPreloadRequests());
+        }
+
+        if (AuraToolsConfigService.SkillCg.CardUseCg.Enabled)
+        {
+            SkillCgArbiterRuntime.PreloadRegisteredCardUseCg(AuraToolsIds.ModId);
+        }
     }
 
     private static void OnFightEnded(ModHookContext context)
@@ -413,6 +369,58 @@ public sealed class AuraToolsSkillCgProvider
     public static void ClearPathCache()
     {
         ImagePathCache.Clear();
+    }
+
+    public static IReadOnlyList<SkillCgRequest> BuildConfiguredPreloadRequests()
+    {
+        var requests = new List<SkillCgRequest>();
+        foreach (var role in AuraToolsConfigService.SkillCg.Roles.Values)
+        {
+            if (role == null || !role.Enabled)
+            {
+                continue;
+            }
+
+            foreach (var rule in role.Rules)
+            {
+                if (rule == null || !rule.Enabled || string.IsNullOrWhiteSpace(rule.Image))
+                {
+                    continue;
+                }
+
+                var imagePath = AuraToolsConfigService.ResolveConfiguredPath(rule.Image);
+                if (!File.Exists(imagePath))
+                {
+                    AuraToolsLog.Warn("[SkillCG] preload image missing: " + rule.Image);
+                    continue;
+                }
+
+                var presentation = rule.EffectivePresentation;
+                requests.Add(new SkillCgRequest
+                {
+                    ProviderId = string.IsNullOrWhiteSpace(rule.ProviderId)
+                        ? AuraToolsIds.ModId + ".SkillCG." + role.RoleId + "." + (string.IsNullOrWhiteSpace(rule.CardId) ? "*" : rule.CardId)
+                        : rule.ProviderId,
+                    OwnerModId = AuraToolsIds.ModId,
+                    CardId = string.IsNullOrWhiteSpace(rule.CardId) ? "*" : rule.CardId,
+                    ImagePath = imagePath,
+                    ImageResource = rule.Image,
+                    Priority = rule.Priority,
+                    FadeIn = presentation.FadeIn,
+                    Hold = presentation.Hold,
+                    FadeOut = presentation.FadeOut,
+                    PresentationMode = presentation.Mode,
+                    FitMode = presentation.Fit,
+                    FocusX = presentation.FocusX,
+                    FocusY = presentation.FocusY,
+                    SafeScale = presentation.SafeScale,
+                    CreatedAt = Time.unscaledTime,
+                    DisableSync = true
+                });
+            }
+        }
+
+        return requests;
     }
 
     public IEnumerable<SkillCgRequest> BuildRequests(object context)

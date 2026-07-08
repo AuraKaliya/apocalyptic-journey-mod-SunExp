@@ -54,7 +54,7 @@
     "maxHistoryEnvelopeBytes": 1048576,
     "maxAvatarEncodePixels": 262144,
     "maxAvatarPngBytes": 262144,
-    "uiRefreshIntervalMs": 250,
+    "uiRefreshIntervalMs": 1000,
     "submitBatchIntervalMs": 250,
     "maxEventsPerBatch": 24
   }

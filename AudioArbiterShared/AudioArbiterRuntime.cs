@@ -250,6 +250,9 @@ public static class AudioArbiterRuntime
         private readonly Dictionary<string, float> lastHpRatioByStatus = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, float> lowHealthNoProviderUntil = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<int, float> suppressNarrationUntil = new();
+        private static readonly Dictionary<string, MemberInfo?> IntMemberCache = new(StringComparer.Ordinal);
+        private LowHealthProviderIndex lowHealthProviderIndex = LowHealthProviderIndex.Empty;
+        private bool lowHealthProviderIndexDirty = true;
         private string ownerModId = "";
         private string lastAnnouncedCareerSelectionId = "";
         private bool hooksRegistered;
@@ -274,7 +277,12 @@ public static class AudioArbiterRuntime
             RegisterBefore(modConfig, "Fight_Start.Init", OnFightStartBefore);
             RegisterAfter(modConfig, "Fight_Start.Init", OnFightStartAfter);
             RegisterAfter(modConfig, "GameEntryUI.ShowDetail", OnCareerDetailShown);
-            RegisterBefore(modConfig, "FightUI.CallActionAnimation", OnActionAnimationBefore);
+            AuraCombatActionRouter.RegisterBefore(
+                modConfig,
+                ownerModId + ".Audio",
+                OnCombatActionBefore,
+                Log,
+                Warn);
             RegisterBefore(modConfig, "EffectSound.Start", OnEffectSoundBefore);
             RegisterAfter(modConfig, "BuffItem.Init", OnBuffInitAfter);
             RegisterAfter(modConfig, "StatusManager.PlayVocal", OnStatusVocalAfter);
@@ -314,6 +322,7 @@ public static class AudioArbiterRuntime
                 soundProviders.RemoveAll(item => string.Equals(item.QualifiedProviderId, handle.QualifiedProviderId, StringComparison.OrdinalIgnoreCase));
                 soundProviders.Add(handle);
                 lowHealthNoProviderUntil.Clear();
+                lowHealthProviderIndexDirty = true;
                 soundProviders.Sort((a, b) =>
                 {
                     var priority = b.Priority.CompareTo(a.Priority);
@@ -1150,6 +1159,41 @@ public static class AudioArbiterRuntime
             }, syncRemote: true);
         }
 
+        private void OnCombatActionBefore(AuraCombatActionContext context)
+        {
+            if (!context.IsCardAction)
+            {
+                return;
+            }
+
+            var roleId = string.IsNullOrWhiteSpace(context.OwnerRoleId)
+                ? context.CurrentRoleId
+                : context.OwnerRoleId;
+            RequestSoundInternal(new SoundPlaybackRequest
+            {
+                Kind = SoundEventKinds.CardUse,
+                CardId = context.CardId,
+                CareerId = context.CurrentRoleId,
+                RoleId = roleId,
+                StatusInstanceId = context.OwnerInstanceId,
+                EffectName = context.Effects,
+                ActionName = context.Action,
+                SourceName = "FightUI.CallActionAnimation"
+            }, syncRemote: true);
+
+            RequestSoundInternal(new SoundPlaybackRequest
+            {
+                Kind = SoundEventKinds.SkillVoice,
+                CardId = context.CardId,
+                CareerId = context.CurrentRoleId,
+                RoleId = roleId,
+                StatusInstanceId = context.OwnerInstanceId,
+                EffectName = context.Effects,
+                ActionName = context.Action,
+                SourceName = "FightUI.CallActionAnimation"
+            }, syncRemote: true);
+        }
+
         private void OnEffectSoundBefore(ModHookContext context)
         {
             if (pendingReplacement == null || Time.unscaledTime > pendingReplacement.Value.UntilTime || pendingReplacement.Value.Remaining <= 0)
@@ -1281,7 +1325,13 @@ public static class AudioArbiterRuntime
             }
 
             TryRequestLowHealthVoice(executor.Self as StatusManager, "ScriptExecutor.HpChanged.Self");
-            foreach (var target in executor.Object ?? new List<IStatusManager>())
+            var targets = executor.Object;
+            if (targets == null || targets.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var target in targets)
             {
                 TryRequestLowHealthVoice(target as StatusManager, "ScriptExecutor.HpChanged.Target");
             }
@@ -1396,11 +1446,39 @@ public static class AudioArbiterRuntime
 
         private bool ShouldAttemptLowHealthRequest(SoundPlaybackRequest request)
         {
+            var index = GetLowHealthProviderIndex();
+            if (index.ExplicitCandidates > 0)
+            {
+                return index.ThresholdCandidates < index.ExplicitCandidates
+                       || index.CrossedThreshold(request.PreviousHpRatio, request.HpRatio);
+            }
+
+            if (!index.HasUnknownProvider)
+            {
+                return false;
+            }
+
+            return request.PreviousHpRatio > LegacyLowHealthFallbackThreshold
+                   && request.HpRatio <= LegacyLowHealthFallbackThreshold;
+        }
+
+        private float LowestConfiguredLowHealthThreshold()
+        {
+            return GetLowHealthProviderIndex().LowestThreshold;
+        }
+
+        private LowHealthProviderIndex GetLowHealthProviderIndex()
+        {
+            if (!lowHealthProviderIndexDirty)
+            {
+                return lowHealthProviderIndex;
+            }
+
             var hasUnknownProvider = false;
             var explicitCandidates = 0;
             var thresholdCandidates = 0;
-            var crossedThreshold = false;
-
+            var threshold = -1f;
+            var thresholds = new List<float>();
             foreach (var provider in soundProviders)
             {
                 if (string.IsNullOrWhiteSpace(provider.Kind))
@@ -1415,49 +1493,26 @@ public static class AudioArbiterRuntime
                 }
 
                 explicitCandidates++;
-                var threshold = provider.LowHealthCrossDownThreshold;
-                if (threshold < 0f)
-                {
-                    return true;
-                }
-
-                thresholdCandidates++;
-                if (request.PreviousHpRatio > threshold && request.HpRatio <= threshold)
-                {
-                    crossedThreshold = true;
-                }
-            }
-
-            if (explicitCandidates > 0)
-            {
-                return thresholdCandidates < explicitCandidates || crossedThreshold;
-            }
-
-            if (!hasUnknownProvider)
-            {
-                return false;
-            }
-
-            return request.PreviousHpRatio > LegacyLowHealthFallbackThreshold
-                   && request.HpRatio <= LegacyLowHealthFallbackThreshold;
-        }
-
-        private float LowestConfiguredLowHealthThreshold()
-        {
-            var threshold = -1f;
-            foreach (var provider in soundProviders)
-            {
-                if (!IsLowHealthProvider(provider) || provider.LowHealthCrossDownThreshold < 0f)
+                if (provider.LowHealthCrossDownThreshold < 0f)
                 {
                     continue;
                 }
 
+                thresholdCandidates++;
+                thresholds.Add(provider.LowHealthCrossDownThreshold);
                 threshold = threshold < 0f
                     ? provider.LowHealthCrossDownThreshold
                     : Math.Min(threshold, provider.LowHealthCrossDownThreshold);
             }
 
-            return threshold;
+            lowHealthProviderIndex = new LowHealthProviderIndex(
+                hasUnknownProvider,
+                explicitCandidates,
+                thresholdCandidates,
+                threshold,
+                thresholds.ToArray());
+            lowHealthProviderIndexDirty = false;
+            return lowHealthProviderIndex;
         }
 
         private static bool IsLowHealthProvider(SoundProviderHandle provider)
@@ -1603,17 +1658,10 @@ public static class AudioArbiterRuntime
         {
             try
             {
-                var father = status.fatherObject;
-                var idProperty = father?.GetType().GetProperty("Id", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                if (idProperty?.GetValue(father) is string id && !string.IsNullOrWhiteSpace(id))
+                var id = AuraSharedReflection.ReadString(status.fatherObject, "Id", "id");
+                if (!string.IsNullOrWhiteSpace(id))
                 {
                     return id;
-                }
-
-                var idField = father?.GetType().GetField("Id", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                if (idField?.GetValue(father) is string fieldId && !string.IsNullOrWhiteSpace(fieldId))
-                {
-                    return fieldId;
                 }
             }
             catch
@@ -1669,10 +1717,20 @@ public static class AudioArbiterRuntime
             try
             {
                 var type = source.GetType();
-                var value = type.GetProperty(memberName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                    ?.GetValue(source)
-                    ?? type.GetField(memberName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                        ?.GetValue(source);
+                var key = type.FullName + "|" + memberName;
+                if (!IntMemberCache.TryGetValue(key, out var member))
+                {
+                    member = type.GetProperty(memberName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                             ?? (MemberInfo?)type.GetField(memberName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                    IntMemberCache[key] = member;
+                }
+
+                var value = member switch
+                {
+                    PropertyInfo property => property.GetValue(source),
+                    FieldInfo field => field.GetValue(source),
+                    _ => null
+                };
                 if (value is int typed)
                 {
                     return typed;
@@ -1683,6 +1741,49 @@ public static class AudioArbiterRuntime
             catch
             {
                 return 0;
+            }
+        }
+
+        private readonly struct LowHealthProviderIndex
+        {
+            public static readonly LowHealthProviderIndex Empty = new(false, 0, 0, -1f, Array.Empty<float>());
+
+            public LowHealthProviderIndex(
+                bool hasUnknownProvider,
+                int explicitCandidates,
+                int thresholdCandidates,
+                float lowestThreshold,
+                float[] thresholds)
+            {
+                HasUnknownProvider = hasUnknownProvider;
+                ExplicitCandidates = explicitCandidates;
+                ThresholdCandidates = thresholdCandidates;
+                LowestThreshold = lowestThreshold;
+                Thresholds = thresholds ?? Array.Empty<float>();
+            }
+
+            public bool HasUnknownProvider { get; }
+
+            public int ExplicitCandidates { get; }
+
+            public int ThresholdCandidates { get; }
+
+            public float LowestThreshold { get; }
+
+            private float[] Thresholds { get; }
+
+            public bool CrossedThreshold(float previousRatio, float ratio)
+            {
+                for (var i = 0; i < Thresholds.Length; i++)
+                {
+                    var threshold = Thresholds[i];
+                    if (previousRatio > threshold && ratio <= threshold)
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
             }
         }
 
