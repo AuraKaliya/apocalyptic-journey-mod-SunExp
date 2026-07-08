@@ -205,12 +205,14 @@ internal static class DamageMeterNetworkRuntime
             if (LedgerInstance.Apply(damage))
             {
                 RunAggregateInstance.Apply(damage);
+                DamageMeterPerformanceCounters.RecordSubmitted(localApplied: true);
                 NotifyChanged();
             }
 
             return;
         }
 
+        DamageMeterPerformanceCounters.RecordSubmitted(localApplied: false);
         EnqueueSubmit(damage);
     }
 
@@ -223,23 +225,38 @@ internal static class DamageMeterNetworkRuntime
             return;
         }
 
-        var events = PendingSubmitBatch.ToList();
-        PendingSubmitBatch.Clear();
+        var startedAt = DamageMeterPerformanceCounters.StartSample();
+        var eventCount = PendingSubmitBatch.Count;
         nextSubmitBatchFlushAtMs = 0;
         var maximum = Math.Max(1, AuraToolsConfigService.MatchExperience.DamageMeter.MaxEventsPerBatch);
-        for (var offset = 0; offset < events.Count; offset += maximum)
+        var commandCount = 0;
+        for (var offset = 0; offset < PendingSubmitBatch.Count; offset += maximum)
         {
-            var count = Math.Min(maximum, events.Count - offset);
+            var count = Math.Min(maximum, PendingSubmitBatch.Count - offset);
+            var candidates = new List<DamageEvent>(count);
+            for (var i = 0; i < count; i++)
+            {
+                candidates.Add(PendingSubmitBatch[offset + i]);
+            }
+
             Send(new DamageMeterSubmitBatchCommand
             {
-                Candidates = events.GetRange(offset, count)
+                Candidates = candidates
             }, deferSubmit: !immediate);
+            commandCount++;
         }
+
+        PendingSubmitBatch.Clear();
+        DamageMeterPerformanceCounters.RecordBatchFlush(
+            eventCount,
+            commandCount,
+            DamageMeterPerformanceCounters.ElapsedMs(startedAt));
     }
 
     private static void EnqueueSubmit(DamageEvent damage)
     {
         PendingSubmitBatch.Add(damage.Copy());
+        DamageMeterPerformanceCounters.RecordPendingBatch(PendingSubmitBatch.Count);
         var now = NowMs();
         if (nextSubmitBatchFlushAtMs <= 0)
         {
@@ -531,10 +548,18 @@ internal static class DamageMeterNetworkRuntime
 
     private static DamageMeterSnapshot CreateNetworkSnapshot(string source)
     {
+        var startedAt = DamageMeterPerformanceCounters.StartSample();
         var snapshot = LedgerInstance.CreateSnapshot();
         snapshot.History = new List<DamageFightRecord>();
         snapshot.RunAggregate = RunAggregateInstance.CreateSnapshot();
+        var beforeBytes = EstimateSnapshotBytes(snapshot);
         CompactNetworkSnapshot(snapshot, source);
+        var afterBytes = EstimateSnapshotBytes(snapshot);
+        DamageMeterPerformanceCounters.RecordSnapshot(
+            DamageMeterPerformanceCounters.ElapsedMs(startedAt),
+            beforeBytes,
+            afterBytes,
+            afterBytes > 0 && beforeBytes > 0 && afterBytes < beforeBytes);
         return snapshot;
     }
 

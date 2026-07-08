@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace AuraToolsExp.Dll.Features.DamageMeter.Model;
 
@@ -31,20 +30,26 @@ public static class DamageAllocation
             return Array.Empty<int>();
         }
 
-        var result = new int[weights.Count];
+        var count = weights.Count;
+        var result = new int[count];
         amount = Math.Max(0, amount);
-        var normalizedWeights = weights
-            .Select(weight => Math.Max(0, weight))
-            .ToArray();
-        var totalWeight = normalizedWeights.Aggregate(0L, (total, weight) => total + weight);
+        var normalizedWeights = new int[count];
+        var totalWeight = 0L;
+        for (var i = 0; i < count; i++)
+        {
+            var weight = Math.Max(0, weights[i]);
+            normalizedWeights[i] = weight;
+            totalWeight += weight;
+        }
+
         if (totalWeight <= 0)
         {
             return result;
         }
 
         var assigned = 0;
-        var remainders = new long[weights.Count];
-        for (var i = 0; i < weights.Count; i++)
+        var remainders = new long[count];
+        for (var i = 0; i < count; i++)
         {
             var weightedAmount = (long)amount * normalizedWeights[i];
             result[i] = (int)(weightedAmount / totalWeight);
@@ -52,13 +57,32 @@ public static class DamageAllocation
             assigned += result[i];
         }
 
-        foreach (var index in Enumerable.Range(0, weights.Count)
-                     .Where(index => normalizedWeights[index] > 0)
-                     .OrderByDescending(index => remainders[index])
-                     .ThenBy(index => index)
-                     .Take(amount - assigned))
+        var extra = amount - assigned;
+        for (var step = 0; step < extra; step++)
         {
-            result[index]++;
+            var bestIndex = -1;
+            var bestRemainder = -1L;
+            for (var i = 0; i < count; i++)
+            {
+                if (normalizedWeights[i] <= 0 || remainders[i] < 0)
+                {
+                    continue;
+                }
+
+                if (bestIndex < 0 || remainders[i] > bestRemainder)
+                {
+                    bestIndex = i;
+                    bestRemainder = remainders[i];
+                }
+            }
+
+            if (bestIndex < 0)
+            {
+                break;
+            }
+
+            result[bestIndex]++;
+            remainders[bestIndex] = -1;
         }
 
         return result;

@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 using System.Reflection;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
+using AuraToolsExp.Dll.Features.DamageMeter.Capture;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using AuraToolsExp.Dll.Features.DamageMeter.Network;
 using AuraToolsExp.Dll.Features.DamageMeter.Resolution;
@@ -22,13 +22,18 @@ namespace AuraToolsExp.Dll.Features.DamageMeter;
 public static class AuraToolsDamageMeterRuntime
 {
     private static readonly List<IDisposable> HookRegistrations = new();
-    private static readonly List<HitFrame> HitFrames = new();
-    private static readonly List<PureHpFrame> PureHpFrames = new();
-    private static readonly List<HpSetterFrame> HpSetterFrames = new();
-    private static readonly List<BuffApplicationFrame> BuffFrames = new();
+    private static readonly DamageFrameWindow<HitFrame> HitFrames = new(256);
+    private static readonly DamageFrameWindow<PureHpFrame> PureHpFrames = new(128, ReleasePureFrameTargets);
+    private static readonly DamageFrameWindow<HpSetterFrame> HpSetterFrames = new(128);
+    private static readonly DamageFrameWindow<BuffApplicationFrame> BuffFrames = new(128);
+    private static readonly Stack<List<TargetHpFrame>> TargetFrameListPool = new();
+    private static readonly Stack<TargetHpFrame> TargetFramePool = new();
+    private static readonly List<TargetHpFrame> EmptyTargetFrames = new();
     private static readonly Dictionary<string, byte[]> AvatarPngCache = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly BuffDamageAttributionTracker BuffAttribution = new();
+    private static readonly BuffAttributionEngine BuffAttribution = new();
     private const int MaxAvatarCacheEntries = 32;
+    private const int MaxTargetFrameListPool = 32;
+    private const int MaxTargetFramePool = 256;
     private static ModConfig? modConfig;
     private static bool initialized;
     private static bool hooksRegistered;
@@ -204,6 +209,7 @@ public static class AuraToolsDamageMeterRuntime
         DamageMeterNetworkRuntime.Tick();
         ReconcileAvailabilitySafe();
         RefreshUiSafe();
+        DamageMeterPerformanceCounters.MaybeLog();
     }
 
     private static void HideDisabledUiSafe()
@@ -245,6 +251,7 @@ public static class AuraToolsDamageMeterRuntime
 
         try
         {
+            var startedAt = DamageMeterPerformanceCounters.StartSample();
             nextRefreshAt = now + refreshInterval;
             uiDirty = false;
             AuraToolsDamageMeterUi.Refresh(
@@ -253,6 +260,10 @@ public static class AuraToolsDamageMeterRuntime
                 History,
                 AuraToolsConfigService.MatchExperience.DamageMeter,
                 NetworkStatus);
+            DamageMeterPerformanceCounters.RecordUiRefresh(
+                DamageMeterPerformanceCounters.ElapsedMs(startedAt),
+                Ledger.Combatants.Count,
+                Ledger.InFight);
         }
         catch (Exception ex)
         {
@@ -367,6 +378,7 @@ public static class AuraToolsDamageMeterRuntime
             }
 
             ResetCaptureState();
+            DamageMeterFightIndex.BeginFight();
             endingSent = false;
             DamageMeterNetworkRuntime.StartFight(Enabled);
             AuraToolsDamageMeterUi.CloseDetails();
@@ -386,6 +398,7 @@ public static class AuraToolsDamageMeterRuntime
                 }
 
                 ResetCaptureState();
+                DamageMeterFightIndex.BeginFight();
                 endingSent = false;
                 DamageMeterNetworkRuntime.StartFight(Enabled);
                 uiDirty = true;
@@ -797,10 +810,20 @@ public static class AuraToolsDamageMeterRuntime
         try
         {
             var players = GameServer.Instance?.LobbyInfo?.AddedPlayers;
-            var lobbyName = players?
-                .FirstOrDefault(player => player != null
-                                          && string.Equals(player.Id, playerId, StringComparison.OrdinalIgnoreCase))
-                ?.Name;
+            var lobbyName = "";
+            if (players != null)
+            {
+                for (var i = 0; i < players.Count; i++)
+                {
+                    var player = players[i];
+                    if (player != null && string.Equals(player.Id, playerId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        lobbyName = player.Name;
+                        break;
+                    }
+                }
+            }
+
             if (!string.IsNullOrWhiteSpace(lobbyName))
             {
                 return (lobbyName ?? "").Trim();
@@ -1121,21 +1144,19 @@ public static class AuraToolsDamageMeterRuntime
                 return;
             }
 
+            DamageMeterPerformanceCounters.RecordHitHook();
             PruneFrames();
             var arguments = context.Arguments ?? Array.Empty<object>();
-            HitFrames.Add(new HitFrame
-            {
-                CallId = ++nextCallId,
-                Frame = Time.frameCount,
-                Target = target,
-                TargetId = SafeStatusId(target),
-                BeforeHp = SafeHp(target),
-                BeforeShield = SafeDefend(target),
-                DamageType = ArgumentString(arguments, 1),
-                SourceDataId = ArgumentString(arguments, 2),
-                SourceInstanceId = ArgumentString(arguments, 3)
-            });
-            Limit(HitFrames, 256);
+            var frame = HitFrames.Rent(Time.frameCount);
+            frame.CallId = ++nextCallId;
+            frame.Target = target;
+            frame.TargetId = SafeStatusId(target);
+            frame.BeforeHp = SafeHp(target);
+            frame.BeforeShield = SafeDefend(target);
+            frame.DamageType = ArgumentString(arguments, 1);
+            frame.SourceDataId = ArgumentString(arguments, 2);
+            frame.SourceInstanceId = ArgumentString(arguments, 3);
+            HitFrames.Add(frame);
         });
     }
 
@@ -1151,6 +1172,7 @@ public static class AuraToolsDamageMeterRuntime
                 return;
             }
 
+            DamageMeterPerformanceCounters.RecordDamageTextHook();
             var frameIndex = FindHitFrame(data);
             if (frameIndex < 0)
             {
@@ -1158,20 +1180,24 @@ public static class AuraToolsDamageMeterRuntime
             }
 
             var frame = HitFrames[frameIndex];
-            HitFrames.RemoveAt(frameIndex);
-            var hpDamage = Math.Max(0, frame.BeforeHp - SafeHp(frame.Target));
-            var shieldDamage = Math.Max(0, frame.BeforeShield - SafeDefend(frame.Target));
+            var target = frame.Target;
+            var sourceInstanceId = frame.SourceInstanceId;
+            var sourceDataId = frame.SourceDataId;
+            var damageType = string.IsNullOrWhiteSpace(data.DamageType) ? frame.DamageType : data.DamageType;
+            var hpDamage = Math.Max(0, frame.BeforeHp - SafeHp(target));
+            var shieldDamage = Math.Max(0, frame.BeforeShield - SafeDefend(target));
             var finalDamage = Math.Max(0, data.Hit);
+            HitFrames.RemoveAt(frameIndex);
             if (hpDamage <= 0 && shieldDamage <= 0)
             {
                 return;
             }
 
             SubmitResolvedDamage(
-                frame.Target,
-                frame.SourceInstanceId,
-                frame.SourceDataId,
-                string.IsNullOrWhiteSpace(data.DamageType) ? frame.DamageType : data.DamageType,
+                target,
+                sourceInstanceId,
+                sourceDataId,
+                damageType,
                 hpDamage,
                 shieldDamage,
                 finalDamage,
@@ -1189,9 +1215,18 @@ public static class AuraToolsDamageMeterRuntime
             }
 
             var targetId = SafeStatusId(target);
-            var index = HitFrames.FindLastIndex(frame =>
-                ReferenceEquals(frame.Target, target)
-                || !string.IsNullOrWhiteSpace(targetId) && frame.TargetId == targetId);
+            var index = -1;
+            for (var i = HitFrames.Count - 1; i >= 0; i--)
+            {
+                var frame = HitFrames[i];
+                if (ReferenceEquals(frame.Target, target)
+                    || !string.IsNullOrWhiteSpace(targetId) && frame.TargetId == targetId)
+                {
+                    index = i;
+                    break;
+                }
+            }
+
             if (index >= 0)
             {
                 HitFrames.RemoveAt(index);
@@ -1210,25 +1245,24 @@ public static class AuraToolsDamageMeterRuntime
                 return;
             }
 
+            DamageMeterPerformanceCounters.RecordPureHpHook();
             PruneFrames();
             var source = executor.Self;
             var targets = CaptureTargetHpFrames(executor);
             if (targets.Count == 0)
             {
+                ReleaseTargetFrameList(targets);
                 return;
             }
 
-            PureHpFrames.Add(new PureHpFrame
-            {
-                CallId = ++nextCallId,
-                Frame = Time.frameCount,
-                Executor = executor,
-                Source = source,
-                SourceId = SafeStatusId(source),
-                SourceDataId = SafeDataId(executor.dataConfig),
-                Targets = targets
-            });
-            Limit(PureHpFrames, 128);
+            var frame = PureHpFrames.Rent(Time.frameCount);
+            frame.CallId = ++nextCallId;
+            frame.Executor = executor;
+            frame.Source = source;
+            frame.SourceId = SafeStatusId(source);
+            frame.SourceDataId = SafeDataId(executor.dataConfig);
+            frame.Targets = targets;
+            PureHpFrames.Add(frame);
         });
     }
 
@@ -1241,14 +1275,22 @@ public static class AuraToolsDamageMeterRuntime
                 return;
             }
 
-            var index = PureHpFrames.FindLastIndex(frame => ReferenceEquals(frame.Executor, executor));
+            var index = -1;
+            for (var i = PureHpFrames.Count - 1; i >= 0; i--)
+            {
+                if (ReferenceEquals(PureHpFrames[i].Executor, executor))
+                {
+                    index = i;
+                    break;
+                }
+            }
+
             if (index < 0)
             {
                 return;
             }
 
             var frame = PureHpFrames[index];
-            PureHpFrames.RemoveAt(index);
             foreach (var target in frame.Targets)
             {
                 if (target.Recorded)
@@ -1275,6 +1317,8 @@ public static class AuraToolsDamageMeterRuntime
                         ? DamageAttributionConfidence.Unknown
                         : DamageAttributionConfidence.Exact);
             }
+
+            PureHpFrames.RemoveAt(index);
         });
     }
 
@@ -1293,14 +1337,12 @@ public static class AuraToolsDamageMeterRuntime
                 return;
             }
 
-            HpSetterFrames.Add(new HpSetterFrame
-            {
-                Frame = Time.frameCount,
-                Target = target,
-                BeforeHp = SafeHp(target),
-                PureFrameId = pure.CallId
-            });
-            Limit(HpSetterFrames, 128);
+            DamageMeterPerformanceCounters.RecordHpSetterHook();
+            var frame = HpSetterFrames.Rent(Time.frameCount);
+            frame.Target = target;
+            frame.BeforeHp = SafeHp(target);
+            frame.PureFrameId = pure.CallId;
+            HpSetterFrames.Add(frame);
         });
     }
 
@@ -1313,15 +1355,26 @@ public static class AuraToolsDamageMeterRuntime
                 return;
             }
 
-            var setterIndex = HpSetterFrames.FindLastIndex(frame => ReferenceEquals(frame.Target, target));
+            var setterIndex = -1;
+            for (var i = HpSetterFrames.Count - 1; i >= 0; i--)
+            {
+                if (ReferenceEquals(HpSetterFrames[i].Target, target))
+                {
+                    setterIndex = i;
+                    break;
+                }
+            }
+
             if (setterIndex < 0)
             {
                 return;
             }
 
             var setter = HpSetterFrames[setterIndex];
+            var beforeHp = setter.BeforeHp;
+            var pureFrameId = setter.PureFrameId;
             HpSetterFrames.RemoveAt(setterIndex);
-            var pure = FindPureFrameById(setter.PureFrameId);
+            var pure = FindPureFrameById(pureFrameId);
             var targetFrame = pure == null ? null : FindTargetFrame(pure, target);
             if (pure == null || targetFrame == null)
             {
@@ -1329,7 +1382,7 @@ public static class AuraToolsDamageMeterRuntime
             }
 
             targetFrame.Recorded = true;
-            var hpDamage = Math.Max(0, setter.BeforeHp - SafeHp(target));
+            var hpDamage = Math.Max(0, beforeHp - SafeHp(target));
             if (hpDamage <= 0)
             {
                 return;
@@ -1359,6 +1412,7 @@ public static class AuraToolsDamageMeterRuntime
                 return;
             }
 
+            DamageMeterPerformanceCounters.RecordBuffHook();
             var trackerId = BuffAttribution.BeginApplication(
                 executor,
                 ArgumentString(context.Arguments, 0),
@@ -1368,13 +1422,10 @@ public static class AuraToolsDamageMeterRuntime
                 return;
             }
 
-            BuffFrames.Add(new BuffApplicationFrame
-            {
-                Executor = executor,
-                TrackerId = trackerId,
-                Frame = Time.frameCount
-            });
-            Limit(BuffFrames, 128);
+            var frame = BuffFrames.Rent(Time.frameCount);
+            frame.Executor = executor;
+            frame.TrackerId = trackerId;
+            BuffFrames.Add(frame);
         });
     }
 
@@ -1387,15 +1438,25 @@ public static class AuraToolsDamageMeterRuntime
                 return;
             }
 
-            var index = BuffFrames.FindLastIndex(frame => ReferenceEquals(frame.Executor, executor));
+            var index = -1;
+            for (var i = BuffFrames.Count - 1; i >= 0; i--)
+            {
+                if (ReferenceEquals(BuffFrames[i].Executor, executor))
+                {
+                    index = i;
+                    break;
+                }
+            }
+
             if (index < 0)
             {
                 return;
             }
 
             var frame = BuffFrames[index];
+            var trackerId = frame.TrackerId;
             BuffFrames.RemoveAt(index);
-            BuffAttribution.CompleteApplication(frame.TrackerId);
+            BuffAttribution.CompleteApplication(trackerId);
         });
     }
 
@@ -1434,30 +1495,29 @@ public static class AuraToolsDamageMeterRuntime
         int finalDamage,
         DamageAttributionConfidence confidence)
     {
-        var buffParts = BuffAttribution.Split(
+        var emittedBuffParts = BuffAttribution.EmitSplit(
             target,
             sourceDataId,
             hpDamage,
             shieldDamage,
-            finalDamage);
-        if (buffParts.Count > 0)
-        {
-            foreach (var part in buffParts)
+            finalDamage,
+            (partSourceId, partSourceName, partSourceTeam, partHp, partShield, partFinal, partConfidence) =>
             {
                 SubmitDirectDamage(
                     target,
-                    CombatantTeamResolver.ResolveStatus(part.SourceId),
-                    part.SourceId,
+                    CombatantTeamResolver.ResolveStatus(partSourceId),
+                    partSourceId,
                     sourceDataId,
                     damageType,
-                    part.HpDamage,
-                    part.ShieldDamage,
-                    part.FinalDamage,
-                    part.Confidence,
-                    part.SourceName,
-                    part.SourceTeam);
-            }
-
+                    partHp,
+                    partShield,
+                    partFinal,
+                    partConfidence,
+                    partSourceName,
+                    partSourceTeam);
+            });
+        if (emittedBuffParts)
+        {
             return;
         }
 
@@ -1644,29 +1704,9 @@ public static class AuraToolsDamageMeterRuntime
         }
 
         lastPruneFrame = frame;
-        for (var i = HitFrames.Count - 1; i >= 0; i--)
-        {
-            if (frame - HitFrames[i].Frame > 4)
-            {
-                HitFrames.RemoveAt(i);
-            }
-        }
-
-        for (var i = PureHpFrames.Count - 1; i >= 0; i--)
-        {
-            if (frame - PureHpFrames[i].Frame > 4)
-            {
-                PureHpFrames.RemoveAt(i);
-            }
-        }
-
-        for (var i = HpSetterFrames.Count - 1; i >= 0; i--)
-        {
-            if (frame - HpSetterFrames[i].Frame > 4)
-            {
-                HpSetterFrames.RemoveAt(i);
-            }
-        }
+        HitFrames.PruneOlderThan(frame, 4);
+        PureHpFrames.PruneOlderThan(frame, 4);
+        HpSetterFrames.PruneOlderThan(frame, 4);
 
         for (var i = BuffFrames.Count - 1; i >= 0; i--)
         {
@@ -1687,6 +1727,7 @@ public static class AuraToolsDamageMeterRuntime
         HpSetterFrames.Clear();
         BuffFrames.Clear();
         BuffAttribution.Clear();
+        DamageMeterFightIndex.Clear();
         nextCallId = 0;
         lastPruneFrame = -1;
         lastRoundStartFrame = -10000;
@@ -1702,14 +1743,6 @@ public static class AuraToolsDamageMeterRuntime
         }
 
         return accessor;
-    }
-
-    private static void Limit<T>(List<T> list, int maximum)
-    {
-        if (list.Count > maximum)
-        {
-            list.RemoveRange(0, list.Count - maximum);
-        }
     }
 
     private static IEnumerable<IStatusManager> ResolveTargets(IScriptExecutor executor)
@@ -1741,7 +1774,7 @@ public static class AuraToolsDamageMeterRuntime
 
     private static List<TargetHpFrame> CaptureTargetHpFrames(IScriptExecutor executor)
     {
-        var frames = new List<TargetHpFrame>();
+        var frames = RentTargetFrameList();
         foreach (var target in ResolveTargets(executor))
         {
             if (target == null || ContainsTarget(frames, target))
@@ -1749,14 +1782,55 @@ public static class AuraToolsDamageMeterRuntime
                 continue;
             }
 
-            frames.Add(new TargetHpFrame
-            {
-                Target = target,
-                BeforeHp = SafeHp(target)
-            });
+            var frame = RentTargetFrame();
+            frame.Target = target;
+            frame.BeforeHp = SafeHp(target);
+            frames.Add(frame);
         }
 
         return frames;
+    }
+
+    private static List<TargetHpFrame> RentTargetFrameList()
+    {
+        return TargetFrameListPool.Count > 0
+            ? TargetFrameListPool.Pop()
+            : new List<TargetHpFrame>(4);
+    }
+
+    private static TargetHpFrame RentTargetFrame()
+    {
+        return TargetFramePool.Count > 0 ? TargetFramePool.Pop() : new TargetHpFrame();
+    }
+
+    private static void ReleasePureFrameTargets(PureHpFrame frame)
+    {
+        ReleaseTargetFrameList(frame.Targets);
+        frame.Targets = EmptyTargetFrames;
+    }
+
+    private static void ReleaseTargetFrameList(List<TargetHpFrame>? frames)
+    {
+        if (frames == null || ReferenceEquals(frames, EmptyTargetFrames))
+        {
+            return;
+        }
+
+        for (var i = frames.Count - 1; i >= 0; i--)
+        {
+            var frame = frames[i];
+            frame.Reset();
+            if (TargetFramePool.Count < MaxTargetFramePool)
+            {
+                TargetFramePool.Push(frame);
+            }
+        }
+
+        frames.Clear();
+        if (TargetFrameListPool.Count < MaxTargetFrameListPool)
+        {
+            TargetFrameListPool.Push(frames);
+        }
     }
 
     private static bool ContainsTarget(List<TargetHpFrame> frames, IStatusManager target)
@@ -1887,7 +1961,7 @@ public static class AuraToolsDamageMeterRuntime
         }
     }
 
-    private sealed class HitFrame
+    private sealed class HitFrame : IDamageCaptureFrame
     {
         public long CallId { get; set; }
         public int Frame { get; set; }
@@ -1898,6 +1972,19 @@ public static class AuraToolsDamageMeterRuntime
         public string DamageType { get; set; } = "";
         public string SourceDataId { get; set; } = "";
         public string SourceInstanceId { get; set; } = "";
+
+        public void Reset()
+        {
+            CallId = 0;
+            Frame = 0;
+            Target = null!;
+            TargetId = "";
+            BeforeHp = 0;
+            BeforeShield = 0;
+            DamageType = "";
+            SourceDataId = "";
+            SourceInstanceId = "";
+        }
     }
 
     private sealed class DamageTextAccessor
@@ -1947,7 +2034,7 @@ public static class AuraToolsDamageMeterRuntime
         }
     }
 
-    private sealed class PureHpFrame
+    private sealed class PureHpFrame : IDamageCaptureFrame
     {
         public long CallId { get; set; }
         public int Frame { get; set; }
@@ -1956,6 +2043,17 @@ public static class AuraToolsDamageMeterRuntime
         public string SourceId { get; set; } = "";
         public string SourceDataId { get; set; } = "";
         public List<TargetHpFrame> Targets { get; set; } = new();
+
+        public void Reset()
+        {
+            CallId = 0;
+            Frame = 0;
+            Executor = null!;
+            Source = null;
+            SourceId = "";
+            SourceDataId = "";
+            Targets = EmptyTargetFrames;
+        }
     }
 
     private sealed class TargetHpFrame
@@ -1963,13 +2061,27 @@ public static class AuraToolsDamageMeterRuntime
         public IStatusManager Target { get; set; } = null!;
         public int BeforeHp { get; set; }
         public bool Recorded { get; set; }
+
+        public void Reset()
+        {
+            Target = null!;
+            BeforeHp = 0;
+            Recorded = false;
+        }
     }
 
-    private sealed class BuffApplicationFrame
+    private sealed class BuffApplicationFrame : IDamageCaptureFrame
     {
         public int Frame { get; set; }
         public IScriptExecutor Executor { get; set; } = null!;
         public long TrackerId { get; set; }
+
+        public void Reset()
+        {
+            Frame = 0;
+            Executor = null!;
+            TrackerId = 0;
+        }
     }
 
     private sealed class DamageTextInfo
@@ -1980,11 +2092,19 @@ public static class AuraToolsDamageMeterRuntime
         public string DamageType { get; set; } = "";
     }
 
-    private sealed class HpSetterFrame
+    private sealed class HpSetterFrame : IDamageCaptureFrame
     {
         public int Frame { get; set; }
         public IStatusManager Target { get; set; } = null!;
         public int BeforeHp { get; set; }
         public long PureFrameId { get; set; }
+
+        public void Reset()
+        {
+            Frame = 0;
+            Target = null!;
+            BeforeHp = 0;
+            PureFrameId = 0;
+        }
     }
 }

@@ -577,15 +577,55 @@ void TestRuntimeArchitectureGuards()
         "team avatar capture has pixel and byte budgets");
     Assert(damageMeterRuntime.Contains("UiRefreshIntervalMs", StringComparison.Ordinal),
         "damage meter UI refresh is config-throttled");
+    Assert(damageMeterRuntime.Contains("DamageMeterPerformanceCounters.RecordHitHook", StringComparison.Ordinal)
+           && damageMeterRuntime.Contains("DamageMeterPerformanceCounters.MaybeLog", StringComparison.Ordinal),
+        "damage meter hot hooks must be observable through aggregated performance counters");
+    Assert(damageMeterRuntime.Contains("DamageFrameWindow<HitFrame>", StringComparison.Ordinal)
+           && damageMeterRuntime.Contains("ReleaseTargetFrameList", StringComparison.Ordinal),
+        "damage meter capture frames must use bounded pooled frame windows");
 
     var damageMeterNetwork = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/Network/DamageMeterNetworkRuntime.cs");
     var damageMeterCommands = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/Network/DamageMeterCommands.cs");
     Assert(damageMeterNetwork.Contains("FlushPendingSubmissions", StringComparison.Ordinal)
            && damageMeterCommands.Contains("DamageMeterSubmitBatchCommand", StringComparison.Ordinal),
         "damage meter networking batches submissions through the common pipeline");
+    Assert(!damageMeterNetwork.Contains("PendingSubmitBatch.ToList", StringComparison.Ordinal)
+           && !damageMeterNetwork.Contains("GetRange(offset, count)", StringComparison.Ordinal)
+           && damageMeterNetwork.Contains("new List<DamageEvent>(count)", StringComparison.Ordinal),
+        "damage meter batch flushing must avoid whole-batch and GetRange list copies");
     Assert(!damageMeterRuntime.Contains("Endless", StringComparison.OrdinalIgnoreCase)
            && !damageMeterNetwork.Contains("Endless", StringComparison.OrdinalIgnoreCase),
         "damage meter performance path must not special-case endless modes");
+
+    var damageMeterCounters = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/DamageMeterPerformanceCounters.cs");
+    Assert(damageMeterCounters.Contains("[DamageMeter:perf]", StringComparison.Ordinal)
+           && damageMeterCounters.Contains("LogIntervalMs = 10000", StringComparison.Ordinal),
+        "damage meter performance counters must aggregate before logging");
+
+    var damageMeterFightIndex = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/Resolution/DamageMeterFightIndex.cs");
+    var damageMeterResolvers = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/Resolution/DamageMeterResolvers.cs");
+    Assert(damageMeterFightIndex.Contains("ResolveLabel", StringComparison.Ordinal)
+           && damageMeterFightIndex.Contains("BuffFlags", StringComparison.Ordinal)
+           && damageMeterResolvers.Contains("DamageMeterFightIndex.ResolveTeam", StringComparison.Ordinal),
+        "damage meter resolver hot paths must route through the fight index cache");
+
+    var buffAttribution = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/Resolution/BuffAttributionEngine.cs");
+    Assert(buffAttribution.Contains("class BuffAttributionEngine", StringComparison.Ordinal)
+           && buffAttribution.Contains("EmitSplit", StringComparison.Ordinal)
+           && buffAttribution.Contains("AddUnknown", StringComparison.Ordinal)
+           && !buffAttribution.Contains("using System.Linq", StringComparison.Ordinal),
+        "buff attribution must use the transaction/state-slot engine without LINQ hot-path allocation");
+
+    var damageMeterUi = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/AuraToolsDamageMeterUi.cs");
+    Assert(damageMeterUi.Contains("SetTextIfChanged", StringComparison.Ordinal)
+           && damageMeterUi.Contains("ShowCurrentDetails", StringComparison.Ordinal)
+           && !damageMeterUi.Contains("details.onClick.AddListener(()", StringComparison.Ordinal),
+        "damage meter UI rows must refresh by diff and bind click listeners once");
+
+    var damageRunLedger = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/Model/DamageRunLedger.cs");
+    Assert(damageRunLedger.Contains("grandTotalCacheVersion", StringComparison.Ordinal)
+           && damageRunLedger.Contains("hasDamageCacheVersion", StringComparison.Ordinal),
+        "damage run aggregate totals must be cached for UI refreshes");
 
     var historyPersistence = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/Network/OutOfRunDamageHistoryPersistence.cs");
     Assert(historyPersistence.Contains("NormalizeMaxEnvelopeBytes", StringComparison.Ordinal)

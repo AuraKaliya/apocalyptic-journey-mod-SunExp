@@ -11,6 +11,14 @@ public sealed class DamageRunLedger
     private readonly HashSet<string> completedSessionIds =
         new(StringComparer.Ordinal);
     private DamageBestHitRecord? bestHit;
+    private long version;
+    private long hasDamageCacheVersion = -1;
+    private bool hasDamageCache;
+    private long grandTotalCacheVersion = -1;
+    private bool grandTotalCacheCountShield;
+    private bool grandTotalCacheFriendlyOnly;
+    private bool grandTotalCacheIncludeUnknown;
+    private long grandTotalCache;
 
     public string AdventureId { get; private set; } = "";
 
@@ -30,16 +38,55 @@ public sealed class DamageRunLedger
 
     public IReadOnlyCollection<CombatantDamageStat> Combatants => combatants.Values;
 
-    public bool HasDamage => combatants.Values.Any(stat => stat.TotalHpDamage > 0 || stat.TotalShieldDamage > 0);
+    public bool HasDamage
+    {
+        get
+        {
+            if (hasDamageCacheVersion == version)
+            {
+                return hasDamageCache;
+            }
+
+            hasDamageCache = false;
+            foreach (var stat in combatants.Values)
+            {
+                if (stat.TotalHpDamage > 0 || stat.TotalShieldDamage > 0)
+                {
+                    hasDamageCache = true;
+                    break;
+                }
+            }
+
+            hasDamageCacheVersion = version;
+            return hasDamageCache;
+        }
+    }
 
     public long DisplayGrandTotal(bool countShield, bool friendlyOnly, bool includeUnknown)
     {
-        return combatants.Values
-            .Where(stat => !friendlyOnly
-                           || stat.Team == DamageTeam.Friendly
-                           || includeUnknown && stat.Team == DamageTeam.Unknown)
-            .Where(stat => includeUnknown || stat.Team != DamageTeam.Unknown)
-            .Sum(stat => stat.DisplayTotal(countShield));
+        if (grandTotalCacheVersion == version
+            && grandTotalCacheCountShield == countShield
+            && grandTotalCacheFriendlyOnly == friendlyOnly
+            && grandTotalCacheIncludeUnknown == includeUnknown)
+        {
+            return grandTotalCache;
+        }
+
+        long total = 0;
+        foreach (var stat in combatants.Values)
+        {
+            if (ShouldDisplay(stat, friendlyOnly, includeUnknown))
+            {
+                total += stat.DisplayTotal(countShield);
+            }
+        }
+
+        grandTotalCacheVersion = version;
+        grandTotalCacheCountShield = countShield;
+        grandTotalCacheFriendlyOnly = friendlyOnly;
+        grandTotalCacheIncludeUnknown = includeUnknown;
+        grandTotalCache = total;
+        return total;
     }
 
     public void BeginAdventure(string adventureId, string startedUtc)
@@ -55,6 +102,7 @@ public sealed class DamageRunLedger
         bestHit = null;
         combatants.Clear();
         completedSessionIds.Clear();
+        MarkDirty();
     }
 
     public bool Apply(DamageEvent damage)
@@ -101,6 +149,7 @@ public sealed class DamageRunLedger
         stat.TotalShieldDamage += shield;
         AddDetail(stat, damage, hp, shield);
         TrackBestHit(damage, hp + shield);
+        MarkDirty();
         return true;
     }
 
@@ -119,6 +168,7 @@ public sealed class DamageRunLedger
         EncounterCount++;
         TotalRounds += Math.Max(0, snapshot.CompletedRoundCount);
         UpdatedUtc = DateTime.UtcNow.ToString("O");
+        MarkDirty();
         return true;
     }
 
@@ -182,7 +232,23 @@ public sealed class DamageRunLedger
             combatants[clone.InstanceId] = clone;
         }
 
+        MarkDirty();
         return true;
+    }
+
+    private static bool ShouldDisplay(CombatantDamageStat stat, bool friendlyOnly, bool includeUnknown)
+    {
+        if (friendlyOnly)
+        {
+            return stat.Team == DamageTeam.Friendly || includeUnknown && stat.Team == DamageTeam.Unknown;
+        }
+
+        return includeUnknown || stat.Team != DamageTeam.Unknown;
+    }
+
+    private void MarkDirty()
+    {
+        version++;
     }
 
     private void EnsureAdventure()

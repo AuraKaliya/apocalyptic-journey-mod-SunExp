@@ -43,6 +43,7 @@ internal static class AuraToolsDamageMeterUi
     private static bool buttonSpriteLoadAttempted;
     private static bool panelSpriteLoadAttempted;
     private static Vector2 savedButtonPosition = new(-24f, 88f);
+    private static float lastPanelHeight = -1f;
 
     public static void EnsureDriver()
     {
@@ -72,7 +73,7 @@ internal static class AuraToolsDamageMeterUi
         EnsureShell();
         if (toggleButton != null)
         {
-            toggleButton.SetActive(available);
+            SetActiveIfChanged(toggleButton, available);
             if (available)
             {
                 toggleButton.transform.SetAsLastSibling();
@@ -81,7 +82,7 @@ internal static class AuraToolsDamageMeterUi
 
         if (!available)
         {
-            panel?.SetActive(false);
+            SetActiveIfChanged(panel, false);
             CloseDetails();
             CloseHistory();
         }
@@ -126,25 +127,36 @@ internal static class AuraToolsDamageMeterUi
         var height = inFight
             ? Math.Min(720f, 132f + Math.Max(1, settings.MaxRows) * 48f)
             : 250f;
-        panelRect.sizeDelta = new Vector2(PanelWidth, height);
-        UpdatePanelPosition();
-
-        title.text = inFight
-            ? "DPS统计（按回合/DPT）  回合 " + ledger.CurrentRoundIndex
-            : "DPS统计（世界推演）";
-        if (historyButton != null)
+        if (Math.Abs(lastPanelHeight - height) > 0.1f
+            || Math.Abs(panelRect.sizeDelta.x - PanelWidth) > 0.1f)
         {
-            historyButton.interactable = history.Records.Count > 0;
+            panelRect.sizeDelta = new Vector2(PanelWidth, height);
+            lastPanelHeight = height;
+            UpdatePanelPosition();
         }
 
-        columns.SetActive(inFight);
-        rows.gameObject.SetActive(inFight);
-        emptyState.SetActive(!inFight);
+        SetTextIfChanged(
+            title,
+            inFight
+                ? "DPS统计（按回合/DPT）  回合 " + ledger.CurrentRoundIndex
+                : "DPS统计（世界推演）");
+        if (historyButton != null)
+        {
+            var hasHistory = history.Records.Count > 0;
+            if (historyButton.interactable != hasHistory)
+            {
+                historyButton.interactable = hasHistory;
+            }
+        }
+
+        SetActiveIfChanged(columns, inFight);
+        SetActiveIfChanged(rows.gameObject, inFight);
+        SetActiveIfChanged(emptyState, !inFight);
 
         if (!inFight)
         {
             HideAllRows();
-            emptyText.text = history.Records.Count > 0
+            var emptyMessage = history.Records.Count > 0
                 ? "当前没有进行中的战斗。\n可通过“查看历史”回顾本轮冒险的输出记录。"
                 : "等待下一场战斗开始。\n悬浮球会在世界推演的备战、地图和战斗界面保持可用。";
             var idleRunTotal = runAggregate.DisplayGrandTotal(
@@ -153,12 +165,13 @@ internal static class AuraToolsDamageMeterUi
                 settings.IncludeUnknownTeam);
             if (runAggregate.HasDamage)
             {
-                emptyText.text = "本轮冒险累计伤害 " + idleRunTotal
-                                 + "\n战斗 " + runAggregate.EncounterCount
-                                 + " 场 / 回合 " + runAggregate.TotalRounds;
+                emptyMessage = "本轮冒险累计伤害 " + idleRunTotal
+                               + "\n战斗 " + runAggregate.EncounterCount
+                               + " 场 / 回合 " + runAggregate.TotalRounds;
             }
 
-            footer.text = networkStatus + "  /  拖动悬浮球可调整位置";
+            SetTextIfChanged(emptyText, emptyMessage);
+            SetTextIfChanged(footer, networkStatus + "  /  拖动悬浮球可调整位置");
             return;
         }
 
@@ -176,7 +189,7 @@ internal static class AuraToolsDamageMeterUi
         {
             if (i >= visibleRows.Count || i >= settings.MaxRows)
             {
-                RowPool[i].Root.SetActive(false);
+                RowPool[i].SetVisible(false);
                 continue;
             }
 
@@ -188,14 +201,16 @@ internal static class AuraToolsDamageMeterUi
                 ShowDetails);
         }
 
-        footer.text = "本场合计 " + grandTotal
-                      + "  /  Run total " + runAggregate.DisplayGrandTotal(
-                          settings.CountShieldLoss,
-                          settings.FriendlyOnly,
-                          settings.IncludeUnknownTeam)
-                      + "  /  已完成 " + ledger.CompletedRoundCount + " 回合"
-                      + "  /  " + networkStatus
-                      + "  /  拖动悬浮球可调整位置";
+        SetTextIfChanged(
+            footer,
+            "本场合计 " + grandTotal
+            + "  /  Run total " + runAggregate.DisplayGrandTotal(
+                settings.CountShieldLoss,
+                settings.FriendlyOnly,
+                settings.IncludeUnknownTeam)
+            + "  /  已完成 " + ledger.CompletedRoundCount + " 回合"
+            + "  /  " + networkStatus
+            + "  /  拖动悬浮球可调整位置");
     }
 
     public static void CloseDetails()
@@ -389,7 +404,7 @@ internal static class AuraToolsDamageMeterUi
         var panelVisible = available && AuraToolsDamageMeterRuntime.Visible;
         if (toggleButton != null)
         {
-            toggleButton.SetActive(available);
+            SetActiveIfChanged(toggleButton, available);
             if (available)
             {
                 toggleButton.transform.SetAsLastSibling();
@@ -398,7 +413,7 @@ internal static class AuraToolsDamageMeterUi
 
         if (panel != null)
         {
-            panel.SetActive(panelVisible);
+            SetActiveIfChanged(panel, panelVisible);
             if (panelVisible)
             {
                 panel.transform.SetAsLastSibling();
@@ -438,6 +453,30 @@ internal static class AuraToolsDamageMeterUi
         panelRect.anchoredPosition = ClampToParent(abovePosition, panelRect, new Vector2(PanelWidth, panelRect.sizeDelta.y));
     }
 
+    private static void SetActiveIfChanged(GameObject? value, bool active)
+    {
+        if (value != null && value.activeSelf != active)
+        {
+            value.SetActive(active);
+        }
+    }
+
+    private static void SetTextIfChanged(Text? value, string text)
+    {
+        if (value != null && !string.Equals(value.text, text, StringComparison.Ordinal))
+        {
+            value.text = text;
+        }
+    }
+
+    private static void SetColorIfChanged(Graphic? value, Color color)
+    {
+        if (value != null && value.color != color)
+        {
+            value.color = color;
+        }
+    }
+
     private static void EnsureRows(int count)
     {
         if (rows == null)
@@ -456,7 +495,7 @@ internal static class AuraToolsDamageMeterUi
     {
         foreach (var row in RowPool)
         {
-            row.Root.SetActive(false);
+            row.SetVisible(false);
         }
     }
 
@@ -1380,6 +1419,10 @@ internal static class AuraToolsDamageMeterUi
         private readonly Text average;
         private readonly Text share;
         private readonly Button details;
+        private string currentInstanceId = "";
+        private DamageLedger? currentLedger;
+        private DamageMeterSettings? currentSettings;
+        private Action<string, DamageLedger, DamageMeterSettings>? currentShowDetails;
 
         public DamageMeterRowView(
             GameObject root,
@@ -1401,9 +1444,16 @@ internal static class AuraToolsDamageMeterUi
             this.average = average;
             this.share = share;
             this.details = details;
+            this.details.onClick.RemoveAllListeners();
+            this.details.onClick.AddListener(ShowCurrentDetails);
         }
 
         public GameObject Root { get; }
+
+        public void SetVisible(bool visible)
+        {
+            SetActiveIfChanged(Root, visible);
+        }
 
         public void Bind(
             CombatantDamageStat stat,
@@ -1412,41 +1462,62 @@ internal static class AuraToolsDamageMeterUi
             long grandTotal,
             Action<string, DamageLedger, DamageMeterSettings> showDetails)
         {
-            Root.SetActive(true);
-            background.color = stat.Team switch
-            {
-                DamageTeam.Friendly => new Color(0.08f, 0.11f, 0.08f, 0.86f),
-                DamageTeam.Enemy => new Color(0.12f, 0.07f, 0.07f, 0.86f),
-                _ => new Color(0.10f, 0.09f, 0.12f, 0.86f)
-            };
-            team.text = stat.Team switch
-            {
-                DamageTeam.Friendly => "友",
-                DamageTeam.Enemy => "敌",
-                _ => "?"
-            };
-            team.color = stat.Team switch
-            {
-                DamageTeam.Friendly => AuraToolsUi.SuccessText,
-                DamageTeam.Enemy => AuraToolsUi.WarningText,
-                _ => AuraToolsUi.MutedText
-            };
-            name.text = TrimName(stat.DisplayName);
-            name.color = stat.IsDead ? AuraToolsUi.MutedText : AuraToolsUi.Text;
-            round.text = stat.DisplayCurrentRound(settings.CountShieldLoss).ToString();
+            SetVisible(true);
+            SetColorIfChanged(
+                background,
+                stat.Team switch
+                {
+                    DamageTeam.Friendly => new Color(0.08f, 0.11f, 0.08f, 0.86f),
+                    DamageTeam.Enemy => new Color(0.12f, 0.07f, 0.07f, 0.86f),
+                    _ => new Color(0.10f, 0.09f, 0.12f, 0.86f)
+                });
+            SetTextIfChanged(
+                team,
+                stat.Team switch
+                {
+                    DamageTeam.Friendly => "友",
+                    DamageTeam.Enemy => "敌",
+                    _ => "?"
+                });
+            SetColorIfChanged(
+                team,
+                stat.Team switch
+                {
+                    DamageTeam.Friendly => AuraToolsUi.SuccessText,
+                    DamageTeam.Enemy => AuraToolsUi.WarningText,
+                    _ => AuraToolsUi.MutedText
+                });
+            SetTextIfChanged(name, TrimName(stat.DisplayName));
+            SetColorIfChanged(name, stat.IsDead ? AuraToolsUi.MutedText : AuraToolsUi.Text);
+            SetTextIfChanged(round, stat.DisplayCurrentRound(settings.CountShieldLoss).ToString());
             var totalValue = stat.DisplayTotal(settings.CountShieldLoss);
-            total.text = totalValue.ToString();
-            average.text = settings.ShowAverageDpt
-                ? stat.AveragePerCompletedRound(
-                    settings.CountShieldLoss,
-                    Math.Max(1, ledger.AveragingRoundCount)).ToString("0.0")
-                : "-";
-            share.text = settings.ShowTeamShare
-                ? grandTotal <= 0 ? "0%" : ((double)totalValue / grandTotal).ToString("P0")
-                : "-";
-            details.onClick.RemoveAllListeners();
-            var id = stat.InstanceId;
-            details.onClick.AddListener(() => showDetails(id, ledger, settings));
+            SetTextIfChanged(total, totalValue.ToString());
+            SetTextIfChanged(
+                average,
+                settings.ShowAverageDpt
+                    ? stat.AveragePerCompletedRound(
+                        settings.CountShieldLoss,
+                        Math.Max(1, ledger.AveragingRoundCount)).ToString("0.0")
+                    : "-");
+            SetTextIfChanged(
+                share,
+                settings.ShowTeamShare
+                    ? grandTotal <= 0 ? "0%" : ((double)totalValue / grandTotal).ToString("P0")
+                    : "-");
+            currentInstanceId = stat.InstanceId;
+            currentLedger = ledger;
+            currentSettings = settings;
+            currentShowDetails = showDetails;
+        }
+
+        private void ShowCurrentDetails()
+        {
+            if (!string.IsNullOrWhiteSpace(currentInstanceId)
+                && currentLedger != null
+                && currentSettings != null)
+            {
+                currentShowDetails?.Invoke(currentInstanceId, currentLedger, currentSettings);
+            }
         }
     }
 
