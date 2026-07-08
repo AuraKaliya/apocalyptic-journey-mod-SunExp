@@ -54,7 +54,7 @@ public sealed class ModuleFileConfig
 public sealed class AuraToolsAudioSettings
 {
     [JsonProperty("schemaVersion")]
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } = 2;
 
     [JsonProperty("audioSystemVersion")]
     public string AudioSystemVersion { get; set; } = "2.0.0";
@@ -67,7 +67,7 @@ public sealed class AuraToolsAudioSettings
 
     public void Normalize()
     {
-        SchemaVersion = Math.Max(1, SchemaVersion);
+        SchemaVersion = Math.Max(2, SchemaVersion);
         AudioSystemVersion = string.IsNullOrWhiteSpace(AudioSystemVersion) ? "2.0.0" : AudioSystemVersion.Trim();
         BattleBgm ??= AudioFeatureSettings.CreateBattleBgmDefault();
         CardUse ??= AudioFeatureSettings.CreateCardUseDefault();
@@ -94,6 +94,9 @@ public sealed class AudioFeatureSettings
     [JsonProperty("mode")]
     public string Mode { get; set; } = AudioModes.Common;
 
+    [JsonProperty("syncRemote")]
+    public bool SyncRemote { get; set; }
+
     [JsonProperty("common")]
     public AudioCommonSettings Common { get; set; } = new();
 
@@ -106,6 +109,7 @@ public sealed class AudioFeatureSettings
         {
             Enabled = true,
             Mode = AudioModes.Common,
+            SyncRemote = false,
             Common = new AudioCommonSettings
             {
                 RelativePath = "Audio/AuraToolsExp/Common/battle_bgm.mp3",
@@ -123,6 +127,7 @@ public sealed class AudioFeatureSettings
         {
             Enabled = true,
             Mode = AudioModes.Common,
+            SyncRemote = false,
             Common = new AudioCommonSettings
             {
                 RelativePath = "Audio/AuraToolsExp/Common/card_use.mp3",
@@ -667,7 +672,7 @@ public sealed class AuraToolsSkillCgSettings
     public float MaxRequestAgeSeconds { get; set; } = 6f;
 
     [JsonProperty("duplicateWindowSeconds")]
-    public float DuplicateWindowSeconds { get; set; } = 0.2f;
+    public float DuplicateWindowSeconds { get; set; } = 1.25f;
 
     [JsonProperty("preloadOnFightStart")]
     public bool PreloadOnFightStart { get; set; } = true;

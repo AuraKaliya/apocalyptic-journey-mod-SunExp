@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "audioSystemVersion": "2.0.0",
   "battleBgm": {
     "enabled": true,
@@ -16,6 +16,7 @@
   "cardUse": {
     "enabled": true,
     "mode": "Common",
+    "syncRemote": false,
     "common": {
       "relativePath": "Audio/AuraToolsExp/Common/card_use.mp3",
       "priority": -1000,

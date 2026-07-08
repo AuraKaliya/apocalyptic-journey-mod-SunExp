@@ -86,15 +86,15 @@ public static class SolarMemoryModeRuntime
                 return;
             }
 
-            if (!SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryDeckConfiguredKey))
+            if (!SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryDeckConfiguredKey)
+                || !SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryStarterDeckAppliedKey))
             {
-                ClearSolarMemoryReservePool();
-            }
-            else
-            {
-                SanitizeSolarMemoryRoleCards(RoleTable.Instance, "OpenDeckWindow");
+                SunExpLog.Info("[SolarMemoryMode] deck window requested before starter deck completion; resuming preparation.");
+                SolarMemoryPreparationRuntime.StartOrResume();
+                return;
             }
 
+            SanitizeSolarMemoryRoleCards(RoleTable.Instance, "OpenDeckWindow");
             var ui = UIManager.Instance.ShowUI<OutDeckUI>("OutDeckUI", true);
             ui.SetRole(new OutDeckUIData(RoleTable.Instance));
         }

@@ -2179,6 +2179,8 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemoryStarterDeckRuntime.Contains('SanitizeSolarMemoryRoleCards(roleTable, "ApplyStarterDeck")') "Solar memory custom starter deck application must sanitize the final deck."
     Assert-True $solarMemoryStarterDeckRuntime.Contains('SanitizeSolarMemoryRoleCards(roleTable, "KeepOfficialDeck")') "Solar memory official starter deck path must sanitize before continuing."
     Assert-True $solarMemoryStarterDeckRuntime.Contains("!SolarMemoryModeRuntime.IsSolarMemoryEventCard(id)") "Solar memory starter deck candidates must exclude event cards."
+    Assert-True ([regex]::IsMatch($solarMemoryModeRuntime, 'public\s+static\s+void\s+OpenDeckWindow\(\)[\s\S]*SolarMemoryStarterDeckAppliedKey[\s\S]*SolarMemoryPreparationRuntime\.StartOrResume\(\);[\s\S]*return;[\s\S]*SanitizeSolarMemoryRoleCards\(RoleTable\.Instance,\s*"OpenDeckWindow"\)')) "Solar memory deck option must resume starter-deck preparation before opening the native deck window."
+    Assert-True (-not [regex]::IsMatch($solarMemoryModeRuntime, 'public\s+static\s+void\s+OpenDeckWindow\(\)[\s\S]*?if\s*\([^)]*SolarMemoryDeckConfiguredKey[\s\S]*?ClearSolarMemoryReservePool\(\);')) "Solar memory deck option must not mark the deck configured before starter-deck selection is applied."
     Assert-True $solarMemoryRunLauncher.Contains('saveInfo.GameVars[SunExpIds.SolarMemoryOriginPointsKey] = "50"') "Solar memory must initialize origin setup with 50 points."
     Assert-True $sunExpIds.Contains("SolarMemoryPrepStepKey") "Solar memory preparation must persist an explicit preparation step."
     Assert-True $solarMemoryRunLauncher.Contains("SolarMemoryPrepStep.DeckSelection") "Solar memory saves must initialize the preparation state machine."

@@ -34,8 +34,8 @@ public static class SkillCgArbiterRuntime
     private const string MaskedInvertShaderName = "AuraCg/MaskedInvertFlash";
     private const string LumaKeyShaderName = "AuraCg/LumaKeyUI";
     private const string ScreenBwFlashShaderName = "AuraCg/ScreenBwFlash";
-    public const string CurrentBuildId = "aura-cg-shared-2026-07-07-v9";
-    public const int CurrentProtocolVersion = 7;
+    public const string CurrentBuildId = "aura-cg-shared-2026-07-08-v10";
+    public const int CurrentProtocolVersion = 8;
     public const int MinimumSupportedProtocolVersion = 1;
     private const string DefaultNetworkOwner = "AuraCgShared";
     private static readonly HashSet<string> ReuseLogOwners = new(StringComparer.OrdinalIgnoreCase);
@@ -589,7 +589,11 @@ public static class SkillCgArbiterRuntime
         }
 
         var existing = FindArbiterComponent(gameObject);
-        Invoke(existing, "ClearQueue", reason);
+        var clearRequest = new SkillCgClearRequest(ownerModId, reason);
+        if (!Invoke(existing, "ClearOwner", clearRequest))
+        {
+            Invoke(existing, "ClearQueue", reason);
+        }
     }
 
     internal static void ApplyServerPlaybackRequest(SkillCgPlaybackSnapshot playback, AuraCgRpcSender sender)
@@ -727,22 +731,43 @@ public static class SkillCgArbiterRuntime
         return null;
     }
 
-    private static void Invoke(object? target, string methodName, object? argument)
+    private static bool Invoke(object? target, string methodName, object? argument)
     {
         if (target == null)
         {
-            return;
+            return false;
         }
 
-        target.GetType()
-            .GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public)
-            ?.Invoke(target, new[] { argument });
+        var method = target.GetType()
+            .GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public);
+        if (method == null)
+        {
+            return false;
+        }
+
+        method.Invoke(target, new[] { argument });
+        return true;
+    }
+
+    private sealed class SkillCgClearRequest
+    {
+        public SkillCgClearRequest(string ownerModId, string? reason)
+        {
+            OwnerModId = (ownerModId ?? "").Trim();
+            var normalizedReason = reason?.Trim() ?? "";
+            Reason = string.IsNullOrWhiteSpace(normalizedReason) ? "<none>" : normalizedReason;
+        }
+
+        public string OwnerModId { get; }
+
+        public string Reason { get; }
     }
 
     public sealed class SkillCgArbiterComponent : MonoBehaviour
     {
         private const int MaxPlaybackPoolEntries = 512;
-        private const float LocalActionReuseSeconds = 0.35f;
+        private const float MinimumLocalActionReuseSeconds = 0.35f;
+        private const float ClearDeduplicateSeconds = 1.0f;
         private readonly List<ProviderHandle> providers = new();
         private readonly List<QueuedRequest> queue = new();
         private readonly Dictionary<string, float> recentKeys = new(StringComparer.Ordinal);
@@ -774,6 +799,8 @@ public static class SkillCgArbiterRuntime
         private int playGeneration;
         private long localPlaybackCounter;
         private string fightToken = "";
+        private string lastClearKind = "";
+        private float lastClearAt = -999f;
 
         public int ProtocolVersion => CurrentProtocolVersion;
 
@@ -793,7 +820,7 @@ public static class SkillCgArbiterRuntime
             {
                 MaxQueueLength = Mathf.Max(options.MaxQueueLength, normalized.MaxQueueLength),
                 MaxRequestAgeSeconds = Mathf.Max(options.MaxRequestAgeSeconds, normalized.MaxRequestAgeSeconds),
-                DuplicateWindowSeconds = Mathf.Min(options.DuplicateWindowSeconds, normalized.DuplicateWindowSeconds)
+                DuplicateWindowSeconds = Mathf.Max(options.DuplicateWindowSeconds, normalized.DuplicateWindowSeconds)
             }.Normalized();
             AuraCgLog.InfoOnce(
                 "arbiter-configured",
@@ -979,6 +1006,27 @@ public static class SkillCgArbiterRuntime
 
         public void ClearQueue(object? reason)
         {
+            ClearTransientPlayback(reason as string ?? "<none>");
+        }
+
+        public void ClearOwner(object? value)
+        {
+            if (value is SkillCgClearRequest request)
+            {
+                ClearTransientPlayback(request.Reason);
+                return;
+            }
+
+            ClearTransientPlayback(value as string ?? "<none>");
+        }
+
+        private void ClearTransientPlayback(string reason)
+        {
+            if (ShouldSkipDuplicateClear(reason))
+            {
+                return;
+            }
+
             playGeneration++;
             queue.Clear();
             recentKeys.Clear();
@@ -987,11 +1035,47 @@ public static class SkillCgArbiterRuntime
             playbackKeys.Clear();
             playbackOrder.Clear();
             fightToken = "";
-            StopAllCoroutines();
             HideOverlay();
             playing = false;
 
-            AuraCgLog.DebugLog("CG queue cleared: " + (reason as string ?? "<none>"));
+            AuraCgLog.DebugLog("CG queue cleared: " + reason);
+        }
+
+        private bool ShouldSkipDuplicateClear(string reason)
+        {
+            var kind = NormalizeClearKind(reason);
+            var now = Time.unscaledTime;
+            if (string.Equals(kind, lastClearKind, StringComparison.Ordinal)
+                && now - lastClearAt <= ClearDeduplicateSeconds)
+            {
+                AuraCgLog.DebugLog("Duplicate CG clear skipped: " + reason);
+                return true;
+            }
+
+            lastClearKind = kind;
+            lastClearAt = now;
+            return false;
+        }
+
+        private static string NormalizeClearKind(string reason)
+        {
+            var value = (reason ?? "").Trim().ToLowerInvariant();
+            if (value.Contains("fight start"))
+            {
+                return "fight-start";
+            }
+
+            if (value.Contains("fight ended") || value.Contains("fight ending"))
+            {
+                return "fight-end";
+            }
+
+            if (value.Contains("disabled"))
+            {
+                return "disabled";
+            }
+
+            return string.IsNullOrWhiteSpace(value) ? "unknown" : value;
         }
 
         private void HideOverlay()
@@ -1075,7 +1159,7 @@ public static class SkillCgArbiterRuntime
             }
 
             var accepted = EnqueueBatch(batch);
-            if (accepted <= 0)
+            if (accepted <= 0 && playback == null)
             {
                 return false;
             }
@@ -1085,12 +1169,12 @@ public static class SkillCgArbiterRuntime
                 RelayPlayback(playback);
             }
 
-            if (!playing)
+            if (accepted > 0 && !playing)
             {
                 StartCoroutine(PlayQueue(playGeneration));
             }
 
-            return true;
+            return accepted > 0 || playback != null;
         }
 
         private int EnqueueBatch(IEnumerable<SkillCgRequest> requests)
@@ -1193,7 +1277,7 @@ public static class SkillCgArbiterRuntime
             var key = LocalActionKey(ownerInstanceId, cardId);
             if (recentLocalPlayIds.TryGetValue(key, out var existing)
                 && recentLocalPlayTimes.TryGetValue(key, out var lastTime)
-                && Time.unscaledTime - lastTime <= LocalActionReuseSeconds)
+                && Time.unscaledTime - lastTime <= LocalActionReuseWindow())
             {
                 recentLocalPlayTimes[key] = Time.unscaledTime;
                 return existing;
@@ -1221,14 +1305,23 @@ public static class SkillCgArbiterRuntime
             }
 
             var now = Time.unscaledTime;
+            var reuseWindow = LocalActionReuseWindow();
             foreach (var key in recentLocalPlayTimes
-                         .Where(pair => now - pair.Value > LocalActionReuseSeconds)
+                         .Where(pair => now - pair.Value > reuseWindow)
                          .Select(pair => pair.Key)
                          .ToList())
             {
                 recentLocalPlayTimes.Remove(key);
                 recentLocalPlayIds.Remove(key);
             }
+        }
+
+        private float LocalActionReuseWindow()
+        {
+            return Mathf.Clamp(
+                Mathf.Max(MinimumLocalActionReuseSeconds, options.DuplicateWindowSeconds),
+                MinimumLocalActionReuseSeconds,
+                2f);
         }
 
         private static string LocalActionKey(string ownerInstanceId, string cardId)
@@ -1769,7 +1862,7 @@ public static class SkillCgArbiterRuntime
             {
                 sprites = result;
                 spritesReady = true;
-            });
+            }, () => generation == playGeneration);
 
             if (!spritesReady || sprites.Count == 0)
             {
@@ -2500,7 +2593,10 @@ public static class SkillCgArbiterRuntime
             screenBwFlashMaterialResolved = false;
         }
 
-        private IEnumerator LoadSequenceSprites(SkillCgRequest request, Action<List<Sprite>> onLoaded)
+        private IEnumerator LoadSequenceSprites(
+            SkillCgRequest request,
+            Action<List<Sprite>> onLoaded,
+            Func<bool>? keepLoading = null)
         {
             var cacheKey = SequenceCacheKey(request);
             if (sequenceCache.TryGetValue(cacheKey, out var cached) && cached.Count > 0)
@@ -2512,7 +2608,13 @@ public static class SkillCgArbiterRuntime
             var result = new List<Sprite>();
             if (!string.IsNullOrWhiteSpace(request.BundlePath))
             {
-                yield return LoadBundleSequenceSprites(request, result);
+                yield return LoadBundleSequenceSprites(request, result, keepLoading);
+                if (!ShouldContinueLoading(keepLoading))
+                {
+                    onLoaded(new List<Sprite>());
+                    yield break;
+                }
+
                 if (result.Count > 0)
                 {
                     sequenceCache[cacheKey] = result;
@@ -2523,6 +2625,12 @@ public static class SkillCgArbiterRuntime
 
             foreach (var framePath in ResolveSequenceFramePaths(request.ImagePath))
             {
+                if (!ShouldContinueLoading(keepLoading))
+                {
+                    onLoaded(new List<Sprite>());
+                    yield break;
+                }
+
                 Sprite? frame = null;
                 yield return LoadSprite(
                     framePath,
@@ -2530,6 +2638,12 @@ public static class SkillCgArbiterRuntime
                     request.KeyThreshold,
                     request.KeySoftness,
                     sprite => frame = sprite);
+                if (!ShouldContinueLoading(keepLoading))
+                {
+                    onLoaded(new List<Sprite>());
+                    yield break;
+                }
+
                 if (frame != null)
                 {
                     result.Add(frame);
@@ -2549,7 +2663,10 @@ public static class SkillCgArbiterRuntime
             onLoaded(result);
         }
 
-        private IEnumerator LoadBundleSequenceSprites(SkillCgRequest request, List<Sprite> result)
+        private IEnumerator LoadBundleSequenceSprites(
+            SkillCgRequest request,
+            List<Sprite> result,
+            Func<bool>? keepLoading = null)
         {
             var bundle = ResolveAssetBundle(request.BundlePath);
             if (bundle == null)
@@ -2574,14 +2691,29 @@ public static class SkillCgArbiterRuntime
 
             foreach (var assetName in assetNames)
             {
+                if (!ShouldContinueLoading(keepLoading))
+                {
+                    yield break;
+                }
+
                 Sprite? sprite = null;
                 var spriteRequest = bundle.LoadAssetAsync<Sprite>(assetName);
                 yield return spriteRequest;
+                if (!ShouldContinueLoading(keepLoading))
+                {
+                    yield break;
+                }
+
                 sprite = spriteRequest.asset as Sprite;
                 if (sprite == null)
                 {
                     var textureRequest = bundle.LoadAssetAsync<Texture2D>(assetName);
                     yield return textureRequest;
+                    if (!ShouldContinueLoading(keepLoading))
+                    {
+                        yield break;
+                    }
+
                     if (textureRequest.asset is Texture2D texture)
                     {
                         sprite = Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f);
@@ -2603,6 +2735,11 @@ public static class SkillCgArbiterRuntime
                     + ", prefix=" + request.BundleAssetPrefix
                     + ", frames=" + result.Count);
             }
+        }
+
+        private static bool ShouldContinueLoading(Func<bool>? keepLoading)
+        {
+            return keepLoading == null || keepLoading();
         }
 
         private static bool IsBundleSequenceAsset(string assetName, string prefix)
@@ -3213,7 +3350,22 @@ public sealed class SkillCgRequest
 
     public bool DisableSync { get; set; }
 
-    public string DuplicateKey => ProviderId + "|" + OwnerInstanceId + "|" + CardId + "|" + EventToken + "|" + SkillCgPlayId + "|" + (string.IsNullOrWhiteSpace(ImageResource) ? ImagePath : ImageResource) + "|" + BundlePath + "|" + BundleAssetPrefix + "|" + MediaType + "|" + FrameSeconds.ToString("0.###") + "|" + AlphaMode + "|" + FlashMode + "|" + FlashAtSeconds.ToString("0.###") + "|" + FlashStartFrame + "|" + FlashEndFrame + "|" + FlashPulseEveryFrames + "|" + PresentationMode + "|" + FitMode + "|" + FocusX.ToString("0.###") + "|" + FocusY.ToString("0.###") + "|" + SafeScale.ToString("0.###");
+    public string DuplicateKey => OwnerInstanceId
+                                  + "|" + CardId
+                                  + "|" + CanonicalMediaKey()
+                                  + "|" + MediaType
+                                  + "|" + FrameSeconds.ToString("0.###")
+                                  + "|" + AlphaMode
+                                  + "|" + FlashMode
+                                  + "|" + FlashAtSeconds.ToString("0.###")
+                                  + "|" + FlashStartFrame
+                                  + "|" + FlashEndFrame
+                                  + "|" + FlashPulseEveryFrames
+                                  + "|" + PresentationMode
+                                  + "|" + FitMode
+                                  + "|" + FocusX.ToString("0.###")
+                                  + "|" + FocusY.ToString("0.###")
+                                  + "|" + SafeScale.ToString("0.###");
 
     public string QualifiedProviderId => QualifyProviderId(OwnerModId, ProviderId);
 
@@ -3368,6 +3520,14 @@ public sealed class SkillCgRequest
             .Trim('"')
             .Replace('\\', '/')
             .TrimStart('/');
+    }
+
+    private string CanonicalMediaKey()
+    {
+        var image = string.IsNullOrWhiteSpace(ImageResource) ? ImagePath : ImageResource;
+        return NormalizeRequestRelativePath(image).ToLowerInvariant()
+               + "|" + NormalizeBundlePath(BundlePath).ToLowerInvariant()
+               + "|" + NormalizeRequestRelativePath(BundleAssetPrefix).ToLowerInvariant();
     }
 
     private static int ReadInt(Type type, object source, string name, int fallback)
