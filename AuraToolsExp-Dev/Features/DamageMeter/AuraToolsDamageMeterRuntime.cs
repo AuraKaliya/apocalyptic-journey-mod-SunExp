@@ -53,6 +53,7 @@ public static class AuraToolsDamageMeterRuntime
     private static bool uiDirty = true;
     private static int lastPruneFrame = -1;
     private static readonly Dictionary<Type, DamageTextAccessor> DamageTextAccessors = new();
+    private static readonly Action<string, ISourceData> BuffBroadcastListener = OnBroadcastEventWithParam;
 
     public static bool Visible { get; private set; }
 
@@ -159,6 +160,8 @@ public static class AuraToolsDamageMeterRuntime
         RegisterAfter("ScriptExecutor.AddBuff", AfterScriptAddBuff);
         RegisterAfter("BuffItemConfig.set_Level", AfterBuffLevelChanged);
         RegisterAfter("StatusManager.RemoveBuff", AfterRemoveBuff);
+        RegisterAfter("FightManager.OnEnable", AttachBuffBroadcastListener);
+        RegisterBefore("FightManager.OnDisable", DetachBuffBroadcastListener);
 
         HookRegistrations.Add(AuraBattleLifecycleRouter.Register(
             modConfig,
@@ -199,6 +202,7 @@ public static class AuraToolsDamageMeterRuntime
 
         HookRegistrations.Clear();
         hooksRegistered = false;
+        DetachBuffBroadcastListener(null);
         ResetCaptureState();
         DamageMeterNetworkRuntime.EndFight("disabled");
         AuraToolsLog.Info("[DamageMeter] routed hooks disabled.");
@@ -392,6 +396,7 @@ public static class AuraToolsDamageMeterRuntime
 
             ResetCaptureState();
             DamageMeterFightIndex.BeginFight();
+            AttachBuffBroadcastListener(context);
             endingSent = false;
             DamageMeterNetworkRuntime.StartFight(Enabled);
             AuraToolsDamageMeterUi.CloseDetails();
@@ -412,6 +417,7 @@ public static class AuraToolsDamageMeterRuntime
 
                 ResetCaptureState();
                 DamageMeterFightIndex.BeginFight();
+                AttachBuffBroadcastListener(context);
                 endingSent = false;
                 DamageMeterNetworkRuntime.StartFight(Enabled);
                 uiDirty = true;
@@ -1507,6 +1513,46 @@ public static class AuraToolsDamageMeterRuntime
                     ParseInt(ArgumentString(context.Arguments, 0)),
                     Time.frameCount);
             }
+        });
+    }
+
+    private static void AttachBuffBroadcastListener(ModHookContext? context)
+    {
+        RunHook("buff broadcast listener", () =>
+        {
+            EventCenter.OnBroadcastEventWithParam -= BuffBroadcastListener;
+            EventCenter.OnBroadcastEventWithParam += BuffBroadcastListener;
+        });
+    }
+
+    private static void DetachBuffBroadcastListener(ModHookContext? context)
+    {
+        try
+        {
+            EventCenter.OnBroadcastEventWithParam -= BuffBroadcastListener;
+        }
+        catch
+        {
+        }
+    }
+
+    private static void OnBroadcastEventWithParam(string eventName, ISourceData param)
+    {
+        RunHook("buff broadcast attribution", () =>
+        {
+            if (!CaptureEnabled
+                || param is not AddBuffData data
+                || string.IsNullOrWhiteSpace(eventName)
+                || !eventName.StartsWith("AddBuff", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            BuffAttribution.RefinePendingApplication(
+                data.dataId,
+                data.fromId,
+                data.toId,
+                Time.frameCount);
         });
     }
 

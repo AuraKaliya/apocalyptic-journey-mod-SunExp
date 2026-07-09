@@ -141,6 +141,50 @@ internal sealed class BuffAttributionEngine
         ReleasePending(item);
     }
 
+    public bool RefinePendingApplication(
+        string buffId,
+        string sourceId,
+        string targetId,
+        int frame)
+    {
+        buffId = buffId?.Trim() ?? "";
+        sourceId = sourceId?.Trim() ?? "";
+        targetId = targetId?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(buffId)
+            || string.IsNullOrWhiteSpace(sourceId)
+            || string.IsNullOrWhiteSpace(targetId))
+        {
+            return false;
+        }
+
+        Prune(frame);
+        var target = CombatantTeamResolver.ResolveStatus(targetId);
+        if (target == null)
+        {
+            return false;
+        }
+
+        var index = FindPending(buffId, sourceId, frame);
+        if (index < 0)
+        {
+            return false;
+        }
+
+        var item = pending[index];
+        for (var i = item.Targets.Count - 1; i >= 0; i--)
+        {
+            ReleaseTarget(item.Targets[i]);
+        }
+
+        item.Targets.Clear();
+        item.SourceId = sourceId;
+        var source = CombatantTeamResolver.ResolveStatus(sourceId);
+        item.SourceName = CombatantTeamResolver.DisplayName(source, sourceId);
+        item.SourceTeam = CombatantTeamResolver.Resolve(source, sourceId);
+        AppendTarget(target, buffId, item.Targets);
+        return item.Targets.Count > 0;
+    }
+
     public void RemoveBuff(IStatusManager? target, string buffId)
     {
         var key = Key(SafeStatusId(target), buffId);
@@ -426,8 +470,34 @@ internal sealed class BuffAttributionEngine
         return -1;
     }
 
+    private int FindPending(string buffId, string sourceId, int frame)
+    {
+        for (var i = pending.Count - 1; i >= 0; i--)
+        {
+            var item = pending[i];
+            if (frame - item.Frame > PendingWindowFrames)
+            {
+                continue;
+            }
+
+            if (string.Equals(item.BuffId, buffId, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(item.SourceId, sourceId, StringComparison.Ordinal))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
     private void CaptureTargets(IScriptExecutor executor, string buffId, List<PendingBuffTarget> targets)
     {
+        if (executor.status != null)
+        {
+            AppendTarget(executor.status, buffId, targets);
+            return;
+        }
+
         if (executor.Object != null && executor.Object.Count > 0)
         {
             foreach (var target in executor.Object)
@@ -436,11 +506,6 @@ internal sealed class BuffAttributionEngine
             }
 
             return;
-        }
-
-        if (executor.status != null)
-        {
-            AppendTarget(executor.status, buffId, targets);
         }
     }
 
@@ -602,7 +667,7 @@ internal sealed class BuffAttributionEngine
                 owner.SourceTeam = sourceTeam;
             }
 
-            if (confidence > owner.Confidence)
+            if (ConfidenceRank(confidence) < ConfidenceRank(owner.Confidence))
             {
                 owner.Confidence = confidence;
             }
@@ -649,6 +714,17 @@ internal sealed class BuffAttributionEngine
             }
 
             return null;
+        }
+
+        private static int ConfidenceRank(DamageAttributionConfidence confidence)
+        {
+            return confidence switch
+            {
+                DamageAttributionConfidence.Exact => 0,
+                DamageAttributionConfidence.Derived => 1,
+                DamageAttributionConfidence.Mixed => 2,
+                _ => 3
+            };
         }
     }
 

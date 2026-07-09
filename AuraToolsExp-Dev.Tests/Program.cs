@@ -618,8 +618,14 @@ void TestRuntimeArchitectureGuards()
     Assert(buffAttribution.Contains("class BuffAttributionEngine", StringComparison.Ordinal)
            && buffAttribution.Contains("EmitSplit", StringComparison.Ordinal)
            && buffAttribution.Contains("AddUnknown", StringComparison.Ordinal)
+           && buffAttribution.Contains("RefinePendingApplication", StringComparison.Ordinal)
+           && buffAttribution.Contains("AppendTarget(executor.status", StringComparison.Ordinal)
+           && buffAttribution.Contains("ConfidenceRank", StringComparison.Ordinal)
            && !buffAttribution.Contains("using System.Linq", StringComparison.Ordinal),
         "buff attribution must use the transaction/state-slot engine without LINQ hot-path allocation");
+    Assert(damageMeterRuntime.Contains("EventCenter.OnBroadcastEventWithParam", StringComparison.Ordinal)
+           && damageMeterRuntime.Contains("param is not AddBuffData", StringComparison.Ordinal),
+        "buff attribution must refine applications from native AddBuffData broadcasts");
 
     var damageMeterUi = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/AuraToolsDamageMeterUi.cs");
     Assert(damageMeterUi.Contains("SetTextIfChanged", StringComparison.Ordinal)
