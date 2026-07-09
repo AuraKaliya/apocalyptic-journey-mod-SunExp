@@ -7,23 +7,36 @@ using UnityEngine;
 
 namespace AuraShared.Core;
 
+public enum AuraSharedFramePhase
+{
+    CriticalLifecycle = 0,
+    GameplayMutation = 100,
+    Reconcile = 200,
+    Presentation = 300,
+    Background = 400
+}
+
 public static class AuraSharedFrameScheduler
 {
     private const string RunnerName = "AuraShared.FrameScheduler";
+    private const string DefaultOwnerId = "AuraShared";
     private static readonly object QueueGate = new();
     private static readonly Queue<FrameAction> CurrentMainThreadActions = new();
     private static readonly Queue<FrameAction> NextMainThreadActions = new();
-    private static readonly Queue<KeyedFrameAction> CurrentKeyedActions = new();
     private static readonly Queue<KeyedFrameAction> NextKeyedActions = new();
     private static readonly List<KeyedFrameAction> DelayedKeyedActions = new();
+    private static readonly SortedDictionary<int, SortedDictionary<int, ReadyKeyedBucket>> ReadyKeyedActions = new();
     private static readonly HashSet<string> PendingKeyedActionKeys = new(StringComparer.Ordinal);
     private static readonly object RunnerGate = new();
     private static FrameSchedulerRunner? runner;
     private static bool isDraining;
+    private static long nextSequence;
 
     public static int MaxActionsPerFrame { get; set; } = 32;
 
     public static double FrameBudgetMilliseconds { get; set; } = 2.0d;
+
+    public static int OwnerQuantum { get; set; } = 8;
 
     public static int PendingMainThreadActions
     {
@@ -42,7 +55,7 @@ public static class AuraSharedFrameScheduler
         {
             lock (QueueGate)
             {
-                return CurrentKeyedActions.Count + NextKeyedActions.Count + DelayedKeyedActions.Count;
+                return ReadyKeyedActionCountNoLock() + NextKeyedActions.Count + DelayedKeyedActions.Count;
             }
         }
     }
@@ -134,6 +147,7 @@ public static class AuraSharedFrameScheduler
                 request,
                 SafeFrameCount(),
                 SafeFrameCount(),
+                0,
                 false),
                 immediate: true);
             return true;
@@ -157,6 +171,9 @@ public static class AuraSharedFrameScheduler
                     TargetFrame = targetFrame,
                     ExecuteFrame = SafeFrameCount(),
                     DelayFrames = 0,
+                    Phase = NormalizePhase(request.Phase),
+                    Priority = NormalizePriority(request.Priority),
+                    EstimatedCost = NormalizeEstimatedCost(request.EstimatedCost),
                     EnqueuedDuringDrain = enqueuedDuringDrain,
                     Deduplicated = true
                 });
@@ -169,6 +186,7 @@ public static class AuraSharedFrameScheduler
                 request,
                 enqueuedFrame,
                 targetFrame,
+                ++nextSequence,
                 enqueuedDuringDrain);
             NextKeyedActions.Enqueue(scheduled);
         }
@@ -334,21 +352,62 @@ public static class AuraSharedFrameScheduler
 
     private static bool TryDequeueKeyedAction(out KeyedFrameAction item)
     {
+        item = default;
         lock (QueueGate)
         {
-            if (CurrentKeyedActions.Count > 0)
+            var emptyPhaseKey = int.MinValue;
+            var emptyPriorityKey = int.MinValue;
+            var removeEmptyBucket = false;
+            var foundAction = false;
+
+            foreach (var phasePair in ReadyKeyedActions)
             {
-                item = CurrentKeyedActions.Dequeue();
-                if (item.ScopedKey.Length > 0)
+                foreach (var priorityPair in phasePair.Value)
                 {
-                    PendingKeyedActionKeys.Remove(item.ScopedKey);
+                    var bucket = priorityPair.Value;
+                    if (bucket.TryDequeue(out item))
+                    {
+                        if (item.ScopedKey.Length > 0)
+                        {
+                            PendingKeyedActionKeys.Remove(item.ScopedKey);
+                        }
+
+                        if (bucket.Count == 0)
+                        {
+                            emptyPhaseKey = phasePair.Key;
+                            emptyPriorityKey = priorityPair.Key;
+                            removeEmptyBucket = true;
+                        }
+
+                        foundAction = true;
+                        break;
+                    }
+
+                    if (bucket.Count == 0 && !removeEmptyBucket)
+                    {
+                        emptyPhaseKey = phasePair.Key;
+                        emptyPriorityKey = priorityPair.Key;
+                        removeEmptyBucket = true;
+                    }
                 }
 
+                if (foundAction)
+                {
+                    break;
+                }
+            }
+
+            if (removeEmptyBucket)
+            {
+                RemoveReadyBucketNoLock(emptyPhaseKey, emptyPriorityKey);
+            }
+
+            if (foundAction)
+            {
                 return true;
             }
         }
 
-        item = default;
         return false;
     }
 
@@ -359,30 +418,151 @@ public static class AuraSharedFrameScheduler
             var scheduled = NextKeyedActions.Dequeue();
             if (IsKeyedActionReady(scheduled, frame))
             {
-                CurrentKeyedActions.Enqueue(scheduled);
+                EnqueueReadyKeyedActionNoLock(scheduled);
             }
             else
             {
-                DelayedKeyedActions.Add(scheduled);
+                PushDelayedKeyedActionNoLock(scheduled);
             }
         }
 
-        for (var i = DelayedKeyedActions.Count - 1; i >= 0; i--)
+        while (DelayedKeyedActions.Count > 0)
         {
-            var scheduled = DelayedKeyedActions[i];
+            var scheduled = DelayedKeyedActions[0];
             if (!IsKeyedActionReady(scheduled, frame))
             {
-                continue;
+                break;
             }
 
-            DelayedKeyedActions.RemoveAt(i);
-            CurrentKeyedActions.Enqueue(scheduled);
+            PopDelayedKeyedActionNoLock();
+            EnqueueReadyKeyedActionNoLock(scheduled);
         }
+    }
+
+    private static void EnqueueReadyKeyedActionNoLock(KeyedFrameAction scheduled)
+    {
+        var phaseKey = (int)NormalizePhase(scheduled.Request.Phase);
+        var priorityKey = -NormalizePriority(scheduled.Request.Priority);
+        if (!ReadyKeyedActions.TryGetValue(phaseKey, out var priorities))
+        {
+            priorities = new SortedDictionary<int, ReadyKeyedBucket>();
+            ReadyKeyedActions[phaseKey] = priorities;
+        }
+
+        if (!priorities.TryGetValue(priorityKey, out var bucket))
+        {
+            bucket = new ReadyKeyedBucket();
+            priorities[priorityKey] = bucket;
+        }
+
+        bucket.Enqueue(scheduled);
+    }
+
+    private static void RemoveReadyBucketNoLock(int phaseKey, int priorityKey)
+    {
+        if (!ReadyKeyedActions.TryGetValue(phaseKey, out var priorities))
+        {
+            return;
+        }
+
+        priorities.Remove(priorityKey);
+        if (priorities.Count == 0)
+        {
+            ReadyKeyedActions.Remove(phaseKey);
+        }
+    }
+
+    private static int ReadyKeyedActionCountNoLock()
+    {
+        var count = 0;
+        foreach (var phase in ReadyKeyedActions.Values)
+        {
+            foreach (var bucket in phase.Values)
+            {
+                count += bucket.Count;
+            }
+        }
+
+        return count;
+    }
+
+    private static void PushDelayedKeyedActionNoLock(KeyedFrameAction item)
+    {
+        DelayedKeyedActions.Add(item);
+        var index = DelayedKeyedActions.Count - 1;
+        while (index > 0)
+        {
+            var parent = (index - 1) / 2;
+            if (CompareDelayed(DelayedKeyedActions[parent], item) <= 0)
+            {
+                break;
+            }
+
+            DelayedKeyedActions[index] = DelayedKeyedActions[parent];
+            index = parent;
+        }
+
+        DelayedKeyedActions[index] = item;
+    }
+
+    private static KeyedFrameAction PopDelayedKeyedActionNoLock()
+    {
+        var result = DelayedKeyedActions[0];
+        var last = DelayedKeyedActions[DelayedKeyedActions.Count - 1];
+        DelayedKeyedActions.RemoveAt(DelayedKeyedActions.Count - 1);
+        if (DelayedKeyedActions.Count == 0)
+        {
+            return result;
+        }
+
+        var index = 0;
+        while (true)
+        {
+            var left = index * 2 + 1;
+            if (left >= DelayedKeyedActions.Count)
+            {
+                break;
+            }
+
+            var right = left + 1;
+            var child = right < DelayedKeyedActions.Count
+                        && CompareDelayed(DelayedKeyedActions[right], DelayedKeyedActions[left]) < 0
+                ? right
+                : left;
+            if (CompareDelayed(last, DelayedKeyedActions[child]) <= 0)
+            {
+                break;
+            }
+
+            DelayedKeyedActions[index] = DelayedKeyedActions[child];
+            index = child;
+        }
+
+        DelayedKeyedActions[index] = last;
+        return result;
     }
 
     private static bool IsKeyedActionReady(KeyedFrameAction scheduled, int frame)
     {
         return scheduled.TargetFrame < 0 || frame < 0 || scheduled.TargetFrame <= frame;
+    }
+
+    private static int CompareDelayed(KeyedFrameAction left, KeyedFrameAction right)
+    {
+        var frame = left.TargetFrame.CompareTo(right.TargetFrame);
+        if (frame != 0)
+        {
+            return frame;
+        }
+
+        var phase = ((int)NormalizePhase(left.Request.Phase)).CompareTo((int)NormalizePhase(right.Request.Phase));
+        if (phase != 0)
+        {
+            return phase;
+        }
+
+        var priority = NormalizePriority(right.Request.Priority).CompareTo(NormalizePriority(left.Request.Priority));
+        return priority != 0 ? priority : left.Sequence.CompareTo(right.Sequence);
     }
 
     private static IEnumerator DelayFrames(string source, int frames, Action action)
@@ -488,6 +668,38 @@ public static class AuraSharedFrameScheduler
         return normalizedOwner.Length == 0 ? normalizedKey : normalizedOwner + ":" + normalizedKey;
     }
 
+    private static AuraSharedFramePhase NormalizePhase(AuraSharedFramePhase phase)
+    {
+        return Enum.IsDefined(typeof(AuraSharedFramePhase), phase)
+            ? phase
+            : AuraSharedFramePhase.Presentation;
+    }
+
+    private static int NormalizePriority(int priority)
+    {
+        if (priority < -1000)
+        {
+            return -1000;
+        }
+
+        return priority > 1000 ? 1000 : priority;
+    }
+
+    private static int NormalizeEstimatedCost(int estimatedCost)
+    {
+        if (estimatedCost <= 0)
+        {
+            return 1;
+        }
+
+        return estimatedCost > 64 ? 64 : estimatedCost;
+    }
+
+    private static string NormalizeOwnerId(string ownerId)
+    {
+        return string.IsNullOrWhiteSpace(ownerId) ? DefaultOwnerId : ownerId.Trim();
+    }
+
     private readonly struct FrameAction
     {
         public FrameAction(string source, Action action)
@@ -509,6 +721,7 @@ public static class AuraSharedFrameScheduler
             AuraSharedFrameActionRequest request,
             int enqueuedFrame,
             int targetFrame,
+            long sequence,
             bool enqueuedDuringDrain)
         {
             ScopedKey = scopedKey ?? "";
@@ -516,6 +729,7 @@ public static class AuraSharedFrameScheduler
             Request = request;
             EnqueuedFrame = enqueuedFrame;
             TargetFrame = targetFrame;
+            Sequence = sequence;
             EnqueuedDuringDrain = enqueuedDuringDrain;
         }
 
@@ -528,6 +742,8 @@ public static class AuraSharedFrameScheduler
         public int EnqueuedFrame { get; }
 
         public int TargetFrame { get; }
+
+        public long Sequence { get; }
 
         public bool EnqueuedDuringDrain { get; }
 
@@ -543,11 +759,112 @@ public static class AuraSharedFrameScheduler
                 TargetFrame = TargetFrame,
                 ExecuteFrame = executeFrame,
                 DelayFrames = EnqueuedFrame < 0 || executeFrame < 0 ? -1 : executeFrame - EnqueuedFrame,
+                Phase = NormalizePhase(Request.Phase),
+                Priority = NormalizePriority(Request.Priority),
+                EstimatedCost = NormalizeEstimatedCost(Request.EstimatedCost),
                 EnqueuedDuringDrain = EnqueuedDuringDrain,
                 Scheduled = !immediate,
                 Immediate = immediate
             };
         }
+    }
+
+    private sealed class ReadyKeyedBucket
+    {
+        private readonly Dictionary<string, OwnerLane> lanes = new(StringComparer.Ordinal);
+        private readonly List<string> ownerOrder = new();
+        private int nextOwnerIndex;
+
+        public int Count { get; private set; }
+
+        public void Enqueue(KeyedFrameAction action)
+        {
+            var owner = NormalizeOwnerId(action.Request.OwnerId);
+            if (!lanes.TryGetValue(owner, out var lane))
+            {
+                lane = new OwnerLane();
+                lanes[owner] = lane;
+                ownerOrder.Add(owner);
+            }
+
+            lane.Actions.Enqueue(action);
+            Count++;
+        }
+
+        public bool TryDequeue(out KeyedFrameAction action)
+        {
+            action = default;
+            if (Count <= 0 || ownerOrder.Count == 0)
+            {
+                Count = 0;
+                return false;
+            }
+
+            var attempts = Math.Max(1, ownerOrder.Count * 2);
+            for (var i = 0; i < attempts && Count > 0 && ownerOrder.Count > 0; i++)
+            {
+                if (nextOwnerIndex >= ownerOrder.Count)
+                {
+                    nextOwnerIndex = 0;
+                }
+
+                var owner = ownerOrder[nextOwnerIndex];
+                if (!lanes.TryGetValue(owner, out var lane) || lane.Actions.Count == 0)
+                {
+                    RemoveCurrentLane(owner);
+                    continue;
+                }
+
+                lane.Deficit += Math.Max(1, OwnerQuantum);
+                var next = lane.Actions.Peek();
+                var cost = NormalizeEstimatedCost(next.Request.EstimatedCost);
+                if (lane.Deficit < cost)
+                {
+                    nextOwnerIndex++;
+                    continue;
+                }
+
+                action = lane.Actions.Dequeue();
+                lane.Deficit -= cost;
+                Count--;
+                if (lane.Actions.Count == 0)
+                {
+                    RemoveCurrentLane(owner);
+                }
+                else
+                {
+                    nextOwnerIndex++;
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+
+        private void RemoveCurrentLane(string owner)
+        {
+            lanes.Remove(owner);
+            if (nextOwnerIndex >= 0 && nextOwnerIndex < ownerOrder.Count)
+            {
+                ownerOrder.RemoveAt(nextOwnerIndex);
+            }
+            else
+            {
+                ownerOrder.Remove(owner);
+                if (nextOwnerIndex > ownerOrder.Count)
+                {
+                    nextOwnerIndex = ownerOrder.Count;
+                }
+            }
+        }
+    }
+
+    private sealed class OwnerLane
+    {
+        public Queue<KeyedFrameAction> Actions { get; } = new();
+
+        public int Deficit { get; set; }
     }
 
     private sealed class FrameSchedulerRunner : MonoBehaviour
@@ -582,6 +899,12 @@ public sealed class AuraSharedFrameActionRequest
 
     public int DelayFrames { get; set; } = 1;
 
+    public AuraSharedFramePhase Phase { get; set; } = AuraSharedFramePhase.Presentation;
+
+    public int Priority { get; set; }
+
+    public int EstimatedCost { get; set; } = 1;
+
     public Action? Action { get; set; }
 
     public Action<AuraSharedFrameActionReport>? OnScheduled { get; set; }
@@ -612,6 +935,12 @@ public sealed class AuraSharedFrameActionReport
     public int ExecuteFrame { get; set; }
 
     public int DelayFrames { get; set; }
+
+    public AuraSharedFramePhase Phase { get; set; } = AuraSharedFramePhase.Presentation;
+
+    public int Priority { get; set; }
+
+    public int EstimatedCost { get; set; } = 1;
 
     public bool EnqueuedDuringDrain { get; set; }
 

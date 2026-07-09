@@ -49,6 +49,23 @@ foreach ($required in @("SelectRoleId", "IsRuntimeNumericId", "IsUsableRoleId", 
     }
 }
 
+$frameSchedulerText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedFrameScheduler.cs")
+foreach ($required in @("AuraSharedFramePhase", "ReadyKeyedBucket", "OwnerQuantum", "CompareDelayed", "NormalizeEstimatedCost", "SortedDictionary<int, SortedDictionary<int, ReadyKeyedBucket>>")) {
+    if (-not $frameSchedulerText.Contains($required)) {
+        throw "AuraShared frame scheduler phased/fair-queue contract is missing: $required"
+    }
+}
+if ($frameSchedulerText.Contains("CurrentKeyedActions")) {
+    throw "AuraShared frame scheduler must not regress to a single FIFO keyed queue."
+}
+
+$frameStepText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedFrameStepRunner.cs")
+foreach ($required in @("AuraSharedFrameStepResult", "ContinueNextFrame", "WaitFrames", "OwnerId", "Phase", "EstimatedCost")) {
+    if (-not $frameStepText.Contains($required)) {
+        throw "AuraShared frame step runner cooperative-step contract is missing: $required"
+    }
+}
+
 $jsonText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedJson.cs")
 if (-not $jsonText.Contains("public static class AuraSharedJson")) {
     throw "AuraSharedJson must be public because product Mods now consume it through Aura.Shared.dll."

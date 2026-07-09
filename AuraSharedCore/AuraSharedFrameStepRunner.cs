@@ -9,11 +9,53 @@ public sealed class AuraSharedFrameStep
 
     public int DelayFrames { get; set; } = 1;
 
+    public AuraSharedFramePhase? Phase { get; set; }
+
+    public int? Priority { get; set; }
+
+    public int? EstimatedCost { get; set; }
+
     public Action? Action { get; set; }
+
+    public Func<AuraSharedFrameStepResult>? Work { get; set; }
+}
+
+public enum AuraSharedFrameStepStatus
+{
+    Complete,
+    ContinueNextFrame,
+    WaitFrames,
+    Cancel
+}
+
+public sealed class AuraSharedFrameStepResult
+{
+    public static readonly AuraSharedFrameStepResult Complete = new(AuraSharedFrameStepStatus.Complete, 0);
+
+    public static readonly AuraSharedFrameStepResult ContinueNextFrame = new(AuraSharedFrameStepStatus.ContinueNextFrame, 1);
+
+    public static readonly AuraSharedFrameStepResult Cancel = new(AuraSharedFrameStepStatus.Cancel, 0);
+
+    private AuraSharedFrameStepResult(AuraSharedFrameStepStatus status, int waitFrames)
+    {
+        Status = status;
+        WaitFrames = waitFrames;
+    }
+
+    public AuraSharedFrameStepStatus Status { get; }
+
+    public int WaitFrames { get; }
+
+    public static AuraSharedFrameStepResult Wait(int frames)
+    {
+        return new AuraSharedFrameStepResult(AuraSharedFrameStepStatus.WaitFrames, Math.Max(1, frames));
+    }
 }
 
 public sealed class AuraSharedFrameStepSequence
 {
+    public string OwnerId { get; set; } = "";
+
     public string Source { get; set; } = "";
 
     public string DeduplicateKey { get; set; } = "";
@@ -21,6 +63,12 @@ public sealed class AuraSharedFrameStepSequence
     public int InitialDelayFrames { get; set; } = 1;
 
     public int DefaultStepDelayFrames { get; set; } = 1;
+
+    public AuraSharedFramePhase Phase { get; set; } = AuraSharedFramePhase.Presentation;
+
+    public int Priority { get; set; }
+
+    public int EstimatedCost { get; set; } = 1;
 
     public IReadOnlyList<AuraSharedFrameStep> Steps { get; set; } = Array.Empty<AuraSharedFrameStep>();
 
@@ -63,8 +111,23 @@ public static class AuraSharedFrameStepRunner
 
     private static bool ScheduleStep(SequenceState state, int index, int delayFrames)
     {
-        var source = state.Source + "." + index;
-        var scheduled = AuraSharedFrameScheduler.RunAfterFramesBudgeted(source, Math.Max(1, delayFrames), () => RunStep(state, index));
+        var step = index >= 0 && index < state.Sequence.Steps.Count
+            ? state.Sequence.Steps[index]
+            : null;
+        var stepName = string.IsNullOrWhiteSpace(step?.Name) ? index.ToString() : step!.Name.Trim();
+        var source = state.Source + "." + stepName;
+        var key = state.Key.Length == 0 ? "" : state.Key + "." + index;
+        var scheduled = AuraSharedFrameScheduler.RunOnceAfterFrames(new AuraSharedFrameActionRequest
+        {
+            OwnerId = state.Sequence.OwnerId ?? "",
+            Key = key,
+            Source = source,
+            DelayFrames = Math.Max(1, delayFrames),
+            Phase = step?.Phase ?? state.Sequence.Phase,
+            Priority = step?.Priority ?? state.Sequence.Priority,
+            EstimatedCost = step?.EstimatedCost ?? state.Sequence.EstimatedCost,
+            Action = () => RunStep(state, index)
+        });
         if (!scheduled)
         {
             ReleaseKey(state.Key);
@@ -90,7 +153,24 @@ public static class AuraSharedFrameStepRunner
             }
 
             var step = state.Sequence.Steps[index];
-            step.Action?.Invoke();
+            var result = RunStepWork(step);
+            if (result.Status == AuraSharedFrameStepStatus.Cancel)
+            {
+                Complete(state);
+                return;
+            }
+
+            if (result.Status == AuraSharedFrameStepStatus.ContinueNextFrame)
+            {
+                ScheduleStep(state, index, 1);
+                return;
+            }
+
+            if (result.Status == AuraSharedFrameStepStatus.WaitFrames)
+            {
+                ScheduleStep(state, index, Math.Max(1, result.WaitFrames));
+                return;
+            }
 
             var next = index + 1;
             if (next >= state.Sequence.Steps.Count)
@@ -119,6 +199,17 @@ public static class AuraSharedFrameStepRunner
                 ReleaseKey(state.Key);
             }
         }
+    }
+
+    private static AuraSharedFrameStepResult RunStepWork(AuraSharedFrameStep step)
+    {
+        if (step.Work != null)
+        {
+            return step.Work() ?? AuraSharedFrameStepResult.Complete;
+        }
+
+        step.Action?.Invoke();
+        return AuraSharedFrameStepResult.Complete;
     }
 
     private static void Complete(SequenceState state)
