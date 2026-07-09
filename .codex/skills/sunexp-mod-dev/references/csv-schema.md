@@ -9,7 +9,7 @@ Use this reference when adding or editing Data/Text rows. The first row is the s
 - For role-specific files such as `wuna.csv`, the full runtime ID uses the file stem, for example `SunExp_wuna_<Id>`.
 - Use full IDs when scripts reference SunExp content.
 - An ID starting with `*` is normally excluded from random pools. Prefer this
-  for generated, retired, or hidden reward-pool rows that still need a data row.
+  for generated, removed, or hidden reward-pool rows that still need a data row.
 - Do not hide Card, Relic, Buff, Blessing, or EnchTag rows by changing
   `Rarity`; these rows enter UI tooltip paths that expect display-valid rarity
   values.

@@ -4,7 +4,7 @@ description: >-
   Project-local skill for designing, adding, reviewing, or fixing SunExp
   EventList rows, Text/EventList localization, card-pack story event chains,
   non-Solar-Memory map-visible events, random-pool isolation, event
-  retired-event cleanup, reward/progress behavior, EventScripts entry points, and CSV/Text alignment
+  cleanup, reward/progress behavior, EventScripts entry points, and CSV/Text alignment
   for Witch's Apocalyptic Journey. Use sunexp-solar-memory-dev for Solar Memory
   mode, fixed bosses, finale routing, preparation, and multiplayer role commit.
 ---
@@ -23,7 +23,7 @@ Use this skill inside the SunExp repository for event work. Pair it with
    - Map-visible special event: needs `Data/Map`, `Text/Map`, runtime selection handling, and narrow selection sync repair.
    - Mode-exclusive event or boss: use `sunexp-solar-memory-dev` if the mode is Solar Memory; otherwise exclude it from every global map pool and admit it only by that mode's guarded factory.
    - Repeat event: must be entered only by explicit progress logic.
-   - Retired event: remove Data/Text rows and any stale C# entry points or tests.
+   - Removed event: remove Data/Text rows and any stale C# entry points or tests.
 2. Inspect the current rows and C# behavior before editing:
    - `SunExp/Data/EventList/sunexp.csv`
    - `SunExp/Text/EventList/sunexp.csv`
@@ -47,9 +47,8 @@ Use this skill inside the SunExp repository for event work. Pair it with
 - Do not invent a custom `Text/Map.Note` merely to isolate content. Native map weighting expects known Note keys and may select unknown keys before crashing.
 - Keep `Data/EventList` option scripts aligned with `Text/EventList` option descriptions.
 - Do not expand Solar Memory preparation, finale, fixed-boss, or role-commit logic here; route to `sunexp-solar-memory-dev`.
-- Do not restore retired `wuna_event_`, `Sub_solar_finale_`, or
-  `Sub_solar_memory_start` rows unless the mode design is intentionally
-  reopened with new tests.
+- Do not restore removed historical rows unless the mode or story design is
+  intentionally reopened with new tests.
 - Dialogue flow, battle reward adjustment, and runtime map/card visuals belong
   in their dedicated C# runtimes; route there unless Data/EventList or Data/Map
   rows are the actual changed surface.

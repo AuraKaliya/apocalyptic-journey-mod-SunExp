@@ -2,7 +2,9 @@
 
 Use this reference when a shared-runtime task touches multiplayer sync,
 multi-mod sync, initialization registration, tool-local configuration
-overrides, timing, payload limits, or duplicate suppression.
+overrides, timing, payload limits, RPC authority, event-shape fields, or
+duplicate suppression. Keep detailed RPC/authority/dedupe rules here instead
+of duplicating them in top-level skills.
 
 ## Scenario Model
 
@@ -25,9 +27,11 @@ the short operational memory.
   AuraToolsExp may register official-content or tool-owned extensions. SunExp
   may register MOD roles and MOD-unique content extensions. Registered content
   keeps the registering mod's owner identity.
-- Tool configuration is local effective state. SunExp-owned content defaults to
-  enabled. AuraToolsExp reads its persistent local configuration and may
-  override or force tool behavior without rewriting foreign registrations.
+- Tool configuration is local effective state. SunExp-owned content declarations
+  default to enabled when SunExp configures a shared feature by itself.
+  AuraToolsExp reads its persistent local configuration and may override or
+  force tool behavior when both SunExp and AuraToolsExp configure the same
+  shared feature, without rewriting foreign registrations.
 - Endless Abyss map, monster, route, and gameplay-level effects are
   host/server-authoritative in multiplayer. Clients may display the result but
   must not independently calculate or initiate shared progression mutations.
@@ -51,24 +55,28 @@ the short operational memory.
   Ember ownership is generic; healing, max-HP growth, and other Wuna passive
   rewards are applied only when Wuna's activation condition is true.
 - Card-pack behavior should follow the current repository files as source of
-  truth during cleanup. Do not reconstruct package placement from stale chat
-  history.
+  truth during cleanup. Do not reconstruct package placement from memory-derived
+  anchors without verifying the current files.
 - Lonaire has no current sync/design conflict requiring special handling.
 
 ## Effective Configuration Model
 
 Keep three layers separate:
 
-1. Registered default: the registering mod declares the default state, usually
-   enabled for its own shipped content.
+1. Registered default: the registering mod declares the default state. Content
+   mods should default their own shared-feature declarations to enabled unless
+   the manifest says otherwise.
 2. Tool shipped default: AuraToolsExp may provide tool-owned defaults for
    official content or tool-managed features.
 3. Local persistent override: AuraToolsExp may force the effective state for
    local tool behavior.
 
 The precedence is `registered default -> tool shipped default -> local
-persistent override`. The override changes effective tool state only; it must
-not edit another mod's manifest, package, or registry source.
+persistent override`. When a content mod is the only participant, its registered
+default is the effective state. When AuraToolsExp also manages the same feature,
+AuraToolsExp's local effective configuration wins for tool-managed behavior.
+The override changes effective tool state only; it must not edit another mod's
+manifest, package, or registry source.
 
 ## Sync Parameter Model
 

@@ -12,9 +12,10 @@ bridge in `SunExp-Dev/Entry.cs` is a host interop detail, not a production Lua
 implementation path.
 
 SunExp is the content mod in the Aura ecosystem. AuraToolsExp is the tool mod.
-Shared/runtime foundations belong under Aura shared components when both mods
-need the same semantic-free capability; do not make AuraToolsExp depend on
-SunExp internals.
+Both are sibling consumers of Aura shared/core layers. SunExp registers
+SunExp-owned content into shared data; AuraToolsExp configures and manages
+shared feature modules through shared protocols. Do not make either mod depend
+on the other.
 
 ## Specialist Routing
 
@@ -53,7 +54,13 @@ Use the smallest specialist set that covers the task:
    - release-facing docs only when behavior, counts, or user-facing claims change.
 2. Load only the relevant reference:
    - Card, Buff, Relic, CardPack fields: `references/csv-schema.md`
-   - C# boundaries, Managed signature drift, hook containment, multiplayer authority, player-scoped rewards, presentation events, and decompiled-reference routes: `references/csharp-authoring-boundaries.md`
+   - C# boundaries, Managed signature drift, hook containment, multiplayer
+     routing, and game-reference index routing:
+     `references/csharp-authoring-boundaries.md`
+   - Decompiled game reference search index:
+     `references/game-reference-index.md`
+   - External Unity or mature-project best-practice links:
+     `references/external-best-practice-index.md`
    - Role, dialogue, and event expansion: `references/expansion-role-dialogue-event.md`
    - Map-event authoring checklist: `references/solar-event-expansion.md`
    - Validation expectations: `references/validation-rules.md`
@@ -67,7 +74,11 @@ Use the smallest specialist set that covers the task:
 3. Keep behavior in C# by default:
    - CSV script columns should call `CS.SunExp.Dll.Scripting.*` entry points.
    - Put card, buff, relic, role, boss, and event behavior in the matching `SunExp-Dev/Scripting/*Scripts.cs` file.
-   - Put shared game-facing wrappers in `SunExp-Dev/GameApi/`, reusable implementation code in `SunExp-Dev/Mechanics/`, and IDs/utilities in `SunExp-Dev/Infrastructure/`.
+   - Put shared game-facing wrappers in `SunExp-Dev/GameApi/`, reusable
+     implementation code in `SunExp-Dev/Mechanics/`, and IDs/utilities in
+     `SunExp-Dev/Infrastructure/`.
+   - Treat `SunExp-Dev/Mechanics` as a mostly flat service/model directory
+     unless the current repository already has a stable sub-domain grouping.
    - Put runtime hook and UI integration code in `SunExp-Dev/Hooks/`.
    - Put feature runtimes that are not CSV entry points under `SunExp-Dev/Features/`.
 4. Keep Data and Text rows synchronized. Any new card, buff, relic, card pack, role, dialogue, map, or event needs both config and localized text when the template has both sides.
@@ -93,21 +104,18 @@ tools\Build-SunExpVisualBundle.ps1 # when VisualAssets or VisualBundles change
 - Use full mod IDs when referencing SunExp-defined content.
 - Keep player-facing text, dynamic descriptions, release notes, and behavior in sync when rows or scripts change.
 - Do not write battle-only or run-only state back into base CSV `Data/*` rows.
-- Do not treat retired data-only SunExp workflows, retired repository roots, or
-  renamed mode names as current architecture without verifying them against
-  this repository.
+- Keep historical anchors out of operational skills. Record them only through
+  `sunexp-skill-evolution` archaeology or staleness notes.
 - Do not expose SunExp internal helpers as the development base for AuraToolsExp.
+  Tool and content mods must depend on shared/core layers, not on each other.
   Promote shared hook, UI, resource, logging, pooling, or multiplayer
   presentation foundations to Aura shared runtimes instead.
 - Do not bind directly to a Managed method whose signature has drifted across supported game versions. Put reflection-based current/legacy dispatch and a deterministic fallback in `GameApi/`.
 - Do not let one independent fight-start or lifecycle action abort later actions. Isolate fragile steps and log each failure with its step name.
-- Only server authority may advance shared multiplayer progression; clients may update local presentation and player-scoped state.
-- Do not model player-independent rewards as shared host rewards. If each
-  player should choose and receive a reward independently, use player-scoped
-  UI/application and record only that player's result.
-- Treat synchronized visual effects, projections, skins, and temporary UI as
-  presentation events with explicit duplicate suppression and lifecycle cleanup;
-  do not let remote observation hooks become event originators.
+- For shared multiplayer progression, player-scoped state, presentation events,
+  RPC authority, and duplicate suppression, route to
+  `sunexp-shared-runtime-dev` and its sync scenario reference instead of
+  duplicating the protocol rules here.
 - Leave `Text/Relic.Tag` blank unless a visible relic label is intentionally needed; it is separate from `Data/Relic.PackBelong`.
 - Do not run `tools\Build-SunExpDll.ps1` and `tools\Test-SunExpCSharp.ps1` in parallel; both can write the same DLL output.
 

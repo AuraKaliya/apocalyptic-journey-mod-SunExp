@@ -21,16 +21,12 @@ chains. Pair it with the `sunexp-event-dev` skill for event-specific checks.
 - Put shared event behavior in `EventScripts.cs` or a supporting C# helper.
 - Put map-generation or selection hooks under `SunExp-Dev/Hooks/` after verifying the target game method in the decompiled reference.
 
-## Decompiled Reference Searches
+## Game Reference Searches
 
-```powershell
-rg -n "EventList|Choice1|Choice2|EndEvent|ContinueEvent" "开发参考资料\反编译文件夹v1.0.23693118\AllScripts" "开发参考资料\反编译文件夹v1.0.23693118\Witch"
-rg -n "MapSelectUI|NormalMapManager|MapManager|SelectNode" "开发参考资料\反编译文件夹v1.0.23693118"
-```
-
-Use the results to confirm method names, argument shape, and likely hook
-location. Keep those findings in the current task context instead of adding
-feature notes to the skill.
+Load `references/game-reference-index.md` before searching the decompiled game
+reference. Use its event and map search routes to confirm method names,
+argument shape, and likely hook location. Keep feature-specific findings in the
+current task context; record only versioned corrections in the index.
 
 ## Validation
 

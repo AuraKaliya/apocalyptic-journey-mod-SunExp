@@ -21,6 +21,35 @@ SunExp routers, UI factories, object pools, and preloaders remain SunExp-local
 implementation details. If AuraToolsExp also needs the capability, extract the
 semantic-free part to shared infrastructure.
 
+## Non-Negotiable Dependency Model
+
+Treat this as the highest-priority boundary rule:
+
+- Core/shared layers are the foundation libraries. They provide common services,
+  shared storage, registries, resource/package protocols, domain arbiters, UI
+  safety, RPC authority, and other reusable features.
+- AuraToolsExp is a tool mod. It depends on the core/shared layers and uses
+  them to enable, disable, configure, inspect, import, preview, or override
+  shared feature modules.
+- SunExp is a content mod. It depends on the core/shared layers and registers
+  SunExp-owned content, resources, manifests, providers, and declarations into
+  shared data.
+- Tool mods and content mods do not depend on each other. They are sibling
+  consumers of the shared foundation.
+- A content mod must separate content it owns from shared feature declarations
+  it consumes. Keep content semantics local; use shared protocols for reusable
+  feature behavior.
+
+Default configuration policy:
+
+- When a content mod configures a shared feature by itself, the content-owned
+  declaration is enabled by default unless its manifest says otherwise.
+- When a tool mod and a content mod both configure the same shared feature, the
+  tool mod's local effective configuration wins for tool-managed behavior.
+- A tool-local override changes only the effective tool state. It must not
+  mutate the content mod's registration source or claim ownership of foreign
+  artifacts.
+
 ## Keep In SunExp
 
 Keep behavior in SunExp when it depends on SunExp-owned content semantics:
@@ -33,6 +62,8 @@ Keep behavior in SunExp when it depends on SunExp-owned content semantics:
   visual effects.
 - SunExp-only lifecycle routers when their subscribers are SunExp features and
   the target lifecycle is not needed by other mods.
+- Content-owned use of shared feature declarations, keeping SunExp-specific
+  rules separate from semantic-free shared machinery.
 
 SunExp may wrap shared services with SunExp-specific facades, but the wrapper
 must not become a dependency for AuraToolsExp.
@@ -47,6 +78,8 @@ Keep behavior in AuraToolsExp when it is tool-local:
   `ownerModId` identities.
 - Effective-state overrides using the precedence:
   `registered default -> tool shipped default -> local persistent override`.
+- Feature-module enablement and local configuration over shared declarations,
+  without editing the declaration owner.
 
 AuraToolsExp may reference foreign registered resources by shared protocol. It
 must not scan SunExp private folders as a substitute for registration, mutate a

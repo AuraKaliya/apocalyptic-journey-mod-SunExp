@@ -24,6 +24,15 @@ Use this reference when deciding where a C# change belongs.
 - `SunExp-Dev/Network/*`: explicit multiplayer RPC commands and SunExp RPC
   sender authority binding.
 
+## Current Mechanics Layout
+
+`SunExp-Dev/Mechanics` is currently a mostly flat directory of focused
+services, models, registries, and catalogs. Prefer following the existing flat
+file pattern and clear type names when adding a new mechanic. Create a new
+subdirectory only when the current repository already has a stable sub-domain
+layout or when several closely related files would otherwise become harder to
+scan as flat siblings.
+
 ## Current GameApi Split
 
 `ExecutorApi` should remain a facade that delegates to focused wrappers. The
@@ -92,7 +101,8 @@ capability is needed by both content and tool mods:
 - resource registry access, preload planning, cache contracts, and package
   resolution;
 - logging gates, InfoOnce/DebugOnce, and throttled diagnostics;
-- multiplayer presentation event authority, duplicate suppression, and cleanup.
+- multiplayer presentation event foundations. Put authority fields, duplicate
+  suppression, and cleanup rules in the shared sync scenario model.
 
 Keep SunExp-specific semantics, such as cards, modes, rewards, story, and
 SunExp-owned trigger matching, in SunExp. Keep tool-local configuration,
@@ -119,3 +129,7 @@ bound sender before applying.
 For Solar Memory role commit, reject remote submissions whose sender is missing,
 outside the lobby, or mismatched with `Role.Id`. Local host direct paths should
 use the same sender model through `CreateLocalServerSender`.
+
+For synchronized event shapes, payload fields, timing, and duplicate
+suppression, load
+`sunexp-shared-runtime-dev/references/sync-scenario-model.md`.

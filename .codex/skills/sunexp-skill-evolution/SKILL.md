@@ -34,7 +34,9 @@ references for detailed context.
    - add a focused sub-skill when one domain has its own workflow;
    - add or update validation when a rule is easy to check.
 4. Use `references/evolution-log-pattern.md` when drafting a reusable evidence
-   packet or patch proposal for a skill update.
+   packet or patch proposal for a skill update. Use
+   `references/stale-anchor-registry.md` when recording old repository roots,
+   old decompile folders, retired content ids, or other historical anchors.
 5. Audit for stale SunExp anchors before and after editing:
    - run `scripts/audit-sunexp-skill-staleness.ps1`;
    - remove or quarantine references to retired project roots, old mode names,
@@ -57,6 +59,9 @@ references for detailed context.
 - Treat retired data-only SunExp workflows, retired project roots, and renamed
   mode names as stale by default. Keep them only inside an explicit migration or
   archaeology note.
+- Keep old docs, old content ids, old decompile-folder versions, and historical
+  corrections out of operational skills. Record them only in evolution
+  references or deterministic validation scripts.
 - Put brittle invariants in tests where possible.
 - Put detailed domain explanation in references, not in top-level `SKILL.md`.
 - Keep old skill names stable unless the user explicitly approves a migration

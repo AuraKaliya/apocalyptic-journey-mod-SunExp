@@ -52,12 +52,11 @@ Use a deterministic native fallback row for old saves. Do not mutate global map
 rows and do not generate a replacement independently from unsynchronized random
 state on each client.
 
-## Decompiled Reference Searches
+## Game Reference Searches
 
-```powershell
-rg -n "MapSelectUI|NormalMapManager|MapManager|SelectNode" "开发参考资料\反编译文件夹v1.0.23693118"
-rg -n "EventList|Choice1|Choice2|EndEvent|ContinueEvent" "开发参考资料\反编译文件夹v1.0.23693118\AllScripts" "开发参考资料\反编译文件夹v1.0.23693118\Witch"
-```
+Load `sunexp-mod-dev/references/game-reference-index.md` before searching the
+decompiled game reference. Use the map selection and event script search routes
+from that index instead of hard-coding a decompile folder version here.
 
 ## Validation
 

@@ -46,12 +46,14 @@ visual resources.
    content/tool ownership, shared presentation protocols, and multiplayer
    authority classification. Load
    `references/content-tool-shared-boundary.md` when deciding whether a
-   reusable runtime belongs in SunExp, AuraToolsExp, or shared infrastructure.
+   reusable runtime belongs in SunExp, AuraToolsExp, or shared infrastructure,
+   or when applying the content/tool configuration precedence model.
    Load
    `references/sunexp-shared-integration.md` for SunExp-specific integration
    points. Load `references/sync-scenario-model.md` when the task involves
-   initialization registration, tool-local overrides, multi-mod sync, timing,
-   duplicate suppression, or payload/chunk transfer semantics. Load
+   initialization registration, tool-local overrides, multi-mod sync, RPC
+   authority, timing, duplicate suppression, or payload/chunk transfer
+   semantics. Load
    `references/shared-dll-and-release-gates.md` when shared DLL packaging,
    release gates, or consumer compatibility are involved.
 4. Add or adjust shared release checks when a new cross-mod boundary must stay
@@ -70,6 +72,9 @@ visual resources.
   and delegate; domain arbiters validate and resolve.
 - Keep the shared runtime DLL compatible with all consumers listed in shared
   release checks, not only SunExp.
+- Keep SunExp and AuraToolsExp as sibling consumers of shared foundations.
+  Shared code must not depend on SunExp content semantics, and AuraToolsExp
+  must not depend on SunExp internal runtime helpers.
 - Initialization registration is not content-mod-exclusive. SunExp and
   AuraToolsExp may both register extension declarations they own; identity must
   still be `ownerModId` plus stable domain id.
@@ -77,12 +82,11 @@ visual resources.
   resources plus manifest semantics; tool mods only read shared registries,
   parse them by protocol, register tool-owned extensions, and manage local
   overrides.
-- Keep SunExp and AuraToolsExp as sibling consumers of shared foundations.
-  Shared code must not depend on SunExp content semantics, and AuraToolsExp
-  must not depend on SunExp internal runtime helpers.
 - Keep registered defaults separate from tool-local effective configuration.
-  AuraToolsExp local persistence may override or force tool behavior, but must
-  not rewrite or re-own a foreign mod's registration source.
+  Content-owned shared declarations default to enabled when used alone.
+  AuraToolsExp local persistence wins for tool-managed effective behavior when
+  a tool and content mod both configure the same shared feature, but must not
+  rewrite or re-own a foreign mod's registration source.
 - When both SunExp and AuraToolsExp need the same hook lifecycle, UI primitive,
   resource preload, logging, pooling, or multiplayer presentation behavior,
   promote the semantic-free part to a shared component instead of making
@@ -91,11 +95,9 @@ visual resources.
   shared domain component. Content mods declare resources and trigger requests;
   tool mods configure or override; neither owns private multiplayer relay or
   de-duplication for the shared feature.
-- Classify every synchronized shared event as `command`, `snapshot`,
-  `presentation-event`, or `bulk-transfer` before choosing fields, authority,
-  timing, and duplicate suppression.
-- Do not authorize cross-mod server-bound RPC from payload-provided identity.
-  Bind sender context at the server receive boundary and validate it centrally.
+- Use `references/sync-scenario-model.md` as the source of truth for
+  synchronized event shape, RPC authority, payload fields, timing, and
+  duplicate suppression.
 - Keep all packaged `Aura.Shared.dll` copies hash-identical after shared runtime
   builds.
 

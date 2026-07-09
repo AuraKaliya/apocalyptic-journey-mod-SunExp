@@ -8,7 +8,7 @@ Use this reference when adding or reviewing SunExp event chains.
 - Story chain event: a controlled sequence. Use ids like `Sub_pack_event_01` so the ordinary event pool does not draw later chapters.
 - Map-visible special event: a map card that displays as a custom event and enters a controlled `EventList` row.
 - Repeat event: an explicit post-chain event, usually `Sub_pack_event_repeat`.
-- Retired event: a previously shipped chain or mode bootstrap row that should
+- Removed event: a previously shipped chain or mode bootstrap row that should
   not be present in current Data/Text rows.
 
 ## Naming
@@ -22,9 +22,10 @@ Sub_pack_event_03
 Sub_pack_event_repeat
 ```
 
-Do not use current retired ids such as `wuna_event_*`,
-`Sub_wuna_event_*`, `Sub_solar_finale_*`, or `Sub_solar_memory_start` unless
-the design is deliberately reopened and tests are updated first.
+Do not restore removed historical ids unless the design is deliberately
+reopened and tests are updated first. Keep concrete old-id lists in
+`sunexp-skill-evolution` notes or deterministic validation scripts, not in this
+authoring reference.
 
 Recommended CSV script calls:
 
@@ -74,4 +75,5 @@ Style:
   reward adjustment in `BattleRewardAdjustmentRuntime` /
   `BattleRewardAdjustmentService`, and runtime visual behavior in
   `sunexp-visual-runtime-dev` surfaces.
-- Check official event script examples in `开发参考资料/反编译文件夹v1.0.23693118/AllScripts/AllScripts.cs` when the CSV field or API shape is unclear.
+- Load `sunexp-mod-dev/references/game-reference-index.md` and use its event
+  script routes when the CSV field or API shape is unclear.

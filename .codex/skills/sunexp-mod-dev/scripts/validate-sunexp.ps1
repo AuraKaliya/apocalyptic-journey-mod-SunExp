@@ -294,7 +294,7 @@ function Test-EventListTexts {
     }
 }
 
-function Test-RetiredSunExpEventIds {
+function Test-RemovedSunExpEventIds {
     param([object[]]$EventRows)
     foreach ($event in $EventRows) {
         $id = Normalize-Id $event.Id
@@ -302,7 +302,7 @@ function Test-RetiredSunExpEventIds {
             continue
         }
         if ($id -match '^(Sub_)?wuna_event_' -or $id -match '^Sub_solar_finale_' -or $id -eq 'Sub_solar_memory_start') {
-            Add-Failure "EventList '$id' is retired and must not be shipped."
+            Add-Failure "EventList '$id' is removed historical content and must not be shipped."
         }
     }
 }
@@ -539,7 +539,7 @@ foreach ($kind in $optionalKinds) {
         Test-ResourcePaths $kind $dataRows $repoRoot
         if ($kind -eq "EventList") {
             Test-EventListTexts $dataRows $textRows
-            Test-RetiredSunExpEventIds $dataRows
+            Test-RemovedSunExpEventIds $dataRows
         }
         if ($kind -eq "Map") {
             Test-MapTextNotes $textRows

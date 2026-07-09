@@ -36,11 +36,17 @@ $patterns = @(
         Key = "old-card-balance-anchor"
         Regex = "Solar Radiance|Gathered Flame|Crown Manifestation"
         Note = "old card-pack balance session anchor"
+    },
+    [pscustomobject]@{
+        Key = "old-decompile-folder"
+        Regex = "反编译文件夹v1\.0\.23693118"
+        Note = "old decompile folder version; route through game-reference-index"
     }
 )
 
 $allowedRelative = @(
     "sunexp-skill-evolution\SKILL.md",
+    "sunexp-skill-evolution\references\stale-anchor-registry.md",
     "sunexp-skill-evolution\scripts\audit-sunexp-skill-staleness.ps1"
 )
 

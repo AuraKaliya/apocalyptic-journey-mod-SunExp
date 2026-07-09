@@ -38,8 +38,7 @@ This checks:
 - Data/Text ID pairing for matching SunExp CSV files under `Data/` and `Text/`, including role-specific files such as `wuna.csv`.
 - Data/Text ID pairing for Map when present. Tables with no Text side, such as current `Data/Level`, are allowed.
 - EventList text shape for `TotalDescribe` and scripted option descriptions.
-- Retired event ids such as `wuna_event_`, `Sub_wuna_event_`,
-  `Sub_solar_finale_`, and `Sub_solar_memory_start`.
+- Removed historical event ids guarded by the validation script.
 - `PackBelong` references for cards and relics.
 - Mod resource paths that point to missing files.
 - Enemy animation folders that need `Map/*.png` or `Map/*.jpg` frames for map icons.
