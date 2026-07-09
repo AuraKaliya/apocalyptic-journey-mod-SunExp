@@ -45,8 +45,8 @@
 | SunExpIds | SunExp 常量 | SunExp 中集中定义的卡牌、Buff、模式、标签等 ID。 |
 | SunExpResourceCache | SunExp 资源 | 统一的资源加载入口和缓存层，是 `ResourceLoader.Load/LoadAll` 的集中使用点。 |
 | SunExpConfigIndex | SunExp 性能 | 热路径配置索引，用于替代重复表扫描。 |
-| SunExpPerformanceSettings | SunExp 性能 | 质量档位和性能预算配置，例如 High、Balanced、Low、UltraLow。 |
-| SunExpFrameScheduler | SunExp 性能 | 按帧预算执行下一帧任务的调度器，支持 keyed work 去重。 |
+| SunExpPerformanceSettings | SunExp 性能 | 统一性能开关和固定预算配置，不再按视觉效果质量分档。 |
+| SunExpFrameScheduler | SunExp 性能 | SunExp 的调度门面，把 keyed work 去重委托给 AuraSharedFrameScheduler。 |
 | SunExpActionEventRouter | SunExp 性能 | 集中路由原生 Action/ActionAfter 事件，减少重复监听。 |
 | SunExpCardRefreshQueue | SunExp 性能 | 合并卡牌刷新和 `DataUpdate`，降低同帧重复刷新。 |
 | SunExpResourcePreloader | SunExp 性能 | 在预算允许时预热核心视觉资源。 |
@@ -97,4 +97,3 @@
 | MustSame | Mod 配置 | `ModConfig.json` 中要求联机双方 Mod 一致的配置项。 |
 | Architecture Gate | 验证 | 架构门禁脚本，例如 `Test-SunExpArchitecture.ps1`。 |
 | Shared Release Gate | 验证 | 共享运行时发布门禁，检查协议、规则、DLL 打包和主要消费者。 |
-

@@ -159,7 +159,9 @@ $requiredFiles = @(
     "SunExp-Dev\Hooks\DialogueFlowRuntime.cs",
     "SunExp-Dev\Hooks\SunExpHookTargets.cs",
     "SunExp-Dev\Hooks\SunExpHookRegistry.cs",
+    "AuraSharedCore\AuraCombatCardZoneSnapshot.cs",
     "AuraSharedCore\AuraCardLifecycleRouter.cs",
+    "AuraSharedCore\AuraSharedFrameScheduler.cs",
     "SunExp-Dev\Hooks\SunExpBattleLifecycleRouter.cs",
     "SunExp-Dev\Hooks\SunExpCardLifecycleRouter.cs",
     "SunExp-Dev\Hooks\SunExpCombatActionRouter.cs",
@@ -312,6 +314,8 @@ $battleRewardAdjustmentService = Read-RepoText "SunExp-Dev\Mechanics\BattleRewar
 $solarMemoryStoryGateService = Read-RepoText "SunExp-Dev\Mechanics\SolarMemoryStoryGateService.cs"
 $dialogueFlowRuntime = Read-RepoText "SunExp-Dev\Hooks\DialogueFlowRuntime.cs"
 $sunExpFrameScheduler = Read-RepoText "SunExp-Dev\Hooks\SunExpFrameScheduler.cs"
+$auraSharedFrameScheduler = Read-RepoText "AuraSharedCore\AuraSharedFrameScheduler.cs"
+$auraCombatCardZoneSnapshot = Read-RepoText "AuraSharedCore\AuraCombatCardZoneSnapshot.cs"
 $sunExpActionEventRouter = Read-RepoText "SunExp-Dev\Hooks\SunExpActionEventRouter.cs"
 $sunExpCardRefreshQueue = Read-RepoText "SunExp-Dev\Mechanics\SunExpCardRefreshQueue.cs"
 $cardGrantPostCommitQueue = Read-RepoText "SunExp-Dev\Mechanics\CardGrantPostCommitQueue.cs"
@@ -532,7 +536,7 @@ Assert-Contains $starScoreRuntime "HasCardUseInterest" "Star score card-use hook
 Assert-Contains $sunExpHardTagRuntime "SunExpCardLifecycleRouter.Register(`"HardTag`"" "Hard-tag runtime must register card hot-path hooks through the shared card lifecycle router."
 Assert-Contains $sunExpHardTagRuntime "EnsureCardLifecycleRegistered()" "Hard-tag runtime must delay card hot-path hook registration until a SunExp hard tag is active."
 Assert-Contains $entrySource 'RunStep("performance runtime", () => SunExpFrameScheduler.Initialize(modConfig))' "Entry must initialize the performance scheduler before gameplay hooks."
-Assert-NotContains $performanceSettings "SunExpPerformanceQuality" "Performance quality tiers must not re-enter unified runtime settings."
+Assert-NotContains $performanceSettings "SunExpPerformanceQuality" "Visual effect quality tiers must not re-enter unified runtime settings."
 Assert-NotContains $performanceSettings "SunExpLowSpec" "Performance settings must not keep legacy high/low config keys."
 Assert-Contains $performanceSettings 'typeof(ScriptExecutor).GetNestedType("PlayerInfo"' "Performance settings must read game variables without depending on GameApi."
 Assert-NotContains $performanceSettings "using UnityEngine" "Performance settings must stay out of Unity lifecycle concerns."
@@ -543,10 +547,17 @@ Assert-Contains $dirtyState "public sealed class SunExpDirtyState" "Dirty-state 
 Assert-Contains $dirtyState 'SunExpPerformanceCounters.Record("DirtyState.Skipped")' "Dirty-state skips must be measurable when counters are enabled."
 Assert-Contains $sunExpFrameScheduler "public static bool RunOnceNextFrame" "Frame scheduler must expose a keyed next-frame merge API."
 Assert-Contains $sunExpFrameScheduler "public static bool RunOnceAfterFrames" "Frame scheduler must expose a keyed delayed-frame merge API."
-Assert-Contains $sunExpFrameScheduler "currentQueue" "Frame scheduler must isolate the active drain queue from newly scheduled work."
-Assert-Contains $sunExpFrameScheduler "delayedActions" "Frame scheduler must gate multi-frame delayed work by target frame."
-Assert-Contains $sunExpFrameScheduler "MonoBehaviour" "Frame scheduler must keep Unity lifecycle ownership inside Hooks."
-Assert-Contains $sunExpFrameScheduler "SunExpPerformanceSettings.FrameSchedulerBudget" "Frame scheduler must respect the performance quality budget."
+Assert-Contains $sunExpFrameScheduler "AuraSharedFrameScheduler.RunOnceAfterFrames" "SunExp frame scheduler facade must delegate keyed scheduling to AuraShared."
+Assert-Contains $sunExpFrameScheduler "OwnerId = SunExpIds.ModId" "SunExp frame scheduler keys must be owner-qualified before entering shared runtime."
+Assert-Contains $auraSharedFrameScheduler "CurrentKeyedActions" "Shared frame scheduler must isolate the active keyed drain queue from newly scheduled work."
+Assert-Contains $auraSharedFrameScheduler "DelayedKeyedActions" "Shared frame scheduler must gate multi-frame keyed work by target frame."
+Assert-Contains $auraSharedFrameScheduler "FrameSchedulerRunner : MonoBehaviour" "Shared frame scheduler must own the Unity lifecycle runner."
+Assert-Contains $auraSharedFrameScheduler "PendingKeyedActionKeys" "Shared frame scheduler must deduplicate owner-qualified keyed work."
+Assert-Contains $auraCombatCardZoneSnapshot "public sealed class AuraCombatCardZoneSnapshot" "Shared combat card-zone scans must live in AuraShared."
+Assert-Contains $runtimeCardAttachmentService "AuraCombatCardZoneSnapshot.Capture" "Runtime hand attachment must use the shared combat card-zone snapshot."
+Assert-Contains $endlessSeaCardAffixService "AuraCombatCardZoneSnapshot.Capture" "Endless Sea combat-card normalization must use the shared combat card-zone snapshot."
+Assert-Contains $sunExpHardTagRuntime "AuraCombatCardZoneSnapshot.Capture" "Hard-tag combat-card normalization must use the shared combat card-zone snapshot."
+Assert-Contains $sunExpCardPresentationRouter "AuraCombatCardZoneSnapshot.Capture" "Card presentation combat-card reapply must use the shared combat card-zone snapshot."
 Assert-Contains $sunExpActionEventRouter 'AddEventListener("Action" + statusId' "SunExp Action listeners must be centralized in SunExpActionEventRouter."
 Assert-Contains $sunExpActionEventRouter 'AddEventListener("ActionAfter" + statusId' "SunExp ActionAfter listeners must be centralized in SunExpActionEventRouter."
 Assert-Contains $sunExpActionEventRouter "CardConfigApi.FromActionPayload(payload)" "The Action router must parse card payloads once before handler fanout."
@@ -851,7 +862,7 @@ Assert-Contains $cardFrameEffectMaterials "CreateOwnedMaterial" "Card-frame effe
 Assert-Contains $cardFrameEffectMaterials "ApplyIntegratedMode" "Card-frame effect materials must separate integrated frame-skin and fallback overlay material modes."
 Assert-Contains $cardFrameEffectMaterials "material.SetFloat(CardFrameEffectShaderIds.OverlayMode, enabled ? 0f : 1f)" "Integrated card-frame materials must render as native frame skins while fallback overlays stay transparent."
 Assert-Contains $cardFrameEffectMaterials "material.SetFloat(CardFrameEffectShaderIds.FrameOnlyOverlay, 0f)" "Integrated card-frame materials must not use overlay-only frame masking."
-Assert-Contains $cardFrameEffectMaterials "material.SetFloat(CardFrameEffectShaderIds.QualityScale, 1f)" "Card-frame effect materials must stay visually consistent across performance quality settings."
+Assert-Contains $cardFrameEffectMaterials "material.SetFloat(CardFrameEffectShaderIds.QualityScale, 1f)" "Card-frame effect materials must stay visually consistent under unified performance settings."
 Assert-NotContains $cardFrameEffectApplier "frameOnlyOverlay" "Card-frame effects must not use dictionary background frame-masking fallbacks."
 Assert-Contains $cardFrameEffectMaterials 'ShaderName = "SunExp/CardFaceEffect"' "Card-frame effects must use the shared card-effect shader declared by the visual registry."
 Assert-Contains $cardFaceEffectApplier "marker.FaceImage" "Card-face effects must target the card-face UI image when available."
@@ -860,7 +871,7 @@ Assert-Contains $cardFaceEffectApplier "ApplyFaceImageEffectOverlay" "Card-face 
 Assert-Contains $cardFaceEffectApplier "marker.FaceMesh" "Card-face effects must support mesh-rendered card faces as a fallback."
 Assert-Contains $cardFaceEffectMaterials "EffectMaterialFactory.CreateMaterial" "Card-face effect materials must be created through the private visual effect factory."
 Assert-Contains $cardFaceEffectMaterials "OverlayMode" "Card-face effect materials must control shader overlay mode explicitly."
-Assert-Contains $performanceSettings "CardFaceEffectsEnabled" "Card-face effects must obey performance quality settings."
+Assert-Contains $performanceSettings "CardFaceEffectsEnabled" "Card-face effects must obey unified performance settings."
 Assert-Contains $cardVisualSkinMarker 'Front/FrontBack' "Card visual skin marker must replace the card-frame layer."
 Assert-Contains $cardVisualSkinMarker 'Front/background' "Card visual skin marker must support the optional card-background layer."
 Assert-Contains $cardVisualSkinMarker 'SunExp_CardFaceEffectOverlay' "Card visual skin marker must create a named card-face effect overlay."
@@ -1257,7 +1268,7 @@ Assert-Contains $solarMemoryStarterDeckRuntime "SunExpResourceCache.Load<Sprite>
 Assert-Contains $solarMemoryBlessingPickerRuntime "SunExpConfigIndex.Rows(DataType.Bless)" "Blessing picker pools must use cached blessing rows before native CardPackCheck."
 Assert-Contains $solarMemoryBlessingPickerRuntime "SunExpResourceCache.Load<Sprite>" "Blessing picker icons must use the shared resource cache."
 Assert-Contains $wunaOrbitFireController "SunExpPerformanceSettings.WunaOrbitFireEnabled" "Wuna orbit fire visuals must support performance-tier disabling."
-Assert-Contains $wunaOrbitFireController "SunExpPerformanceSettings.WunaGeometryInterval" "Wuna orbit fire geometry rebuilds must be throttled by performance quality."
+Assert-Contains $wunaOrbitFireController "SunExpPerformanceSettings.WunaGeometryInterval" "Wuna orbit fire geometry rebuilds must be throttled by unified performance settings."
 Assert-Contains $wunaOrbitFireController "SunExpPerformanceSettings.WunaCoreSections" "Wuna orbit fire geometry density must be quality-controlled."
 Assert-Contains $wunaOrbitFireController "WunaOrbitFire.BuildGeometry" "Wuna orbit fire geometry rebuilds must be measured by performance counters."
 Assert-NotContains $sunExpHardTagRuntime "WhiteRadiance.ScanFightZones" "White Radiance Court must not retain the retired fight-zone scan performance counter."

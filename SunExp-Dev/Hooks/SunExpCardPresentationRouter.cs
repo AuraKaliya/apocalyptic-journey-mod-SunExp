@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using AuraShared.Core;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using UnityEngine;
@@ -112,16 +113,12 @@ public static class SunExpCardPresentationRouter
     {
         try
         {
-            var root = FindCardRoot(FightUI.cardItemList, config);
-            if (root != null)
+            foreach (var reference in ActiveCombatCardSnapshot().Cards)
             {
-                return root;
-            }
-
-            root = FindCardRoot(FightUI.WaitCard, config);
-            if (root != null)
-            {
-                return root;
+                if (reference.Root != null && ReferenceEquals(reference.Config, config))
+                {
+                    return reference.Root;
+                }
             }
 
             RecordCombatRootMiss(config);
@@ -147,8 +144,20 @@ public static class SunExpCardPresentationRouter
             var cardId = CardConfigApi.Id(config);
             var total = 0;
             var idMatches = 0;
-            CountCombatCards(FightUI.cardItemList, cardId, ref total, ref idMatches);
-            CountCombatCards(FightUI.WaitCard, cardId, ref total, ref idMatches);
+            foreach (var reference in ActiveCombatCardSnapshot().Cards)
+            {
+                if (reference.Config == null)
+                {
+                    continue;
+                }
+
+                total++;
+                if (string.Equals(reference.CardId, cardId, StringComparison.Ordinal))
+                {
+                    idMatches++;
+                }
+            }
+
             if (idMatches > 0)
             {
                 SunExpPerformanceCounters.Record("CardPresentation.CombatRootMiss.IdMatch");
@@ -171,46 +180,6 @@ public static class SunExpCardPresentationRouter
         {
             SunExpLog.Debug("Card presentation combat-root miss diagnostics failed: " + ex.Message);
         }
-    }
-
-    private static void CountCombatCards(IEnumerable<CardItem>? cards, string cardId, ref int total, ref int idMatches)
-    {
-        if (cards == null)
-        {
-            return;
-        }
-
-        foreach (var item in cards)
-        {
-            if (item?.dataConfig == null)
-            {
-                continue;
-            }
-
-            total++;
-            if (string.Equals(CardConfigApi.Id(item.dataConfig), cardId, StringComparison.Ordinal))
-            {
-                idMatches++;
-            }
-        }
-    }
-
-    private static Transform? FindCardRoot(IEnumerable<CardItem>? cards, IDataConfig config)
-    {
-        if (cards == null)
-        {
-            return null;
-        }
-
-        foreach (var item in cards)
-        {
-            if (item != null && ReferenceEquals(item.dataConfig, config))
-            {
-                return item.transform;
-            }
-        }
-
-        return null;
     }
 
     private static void FlushActiveCombatCardsReapply(int delayFrames)
@@ -236,9 +205,7 @@ public static class SunExpCardPresentationRouter
         var start = SunExpPerformanceCounters.Timestamp();
         try
         {
-            var count = 0;
-            count += ApplyCards(FightUI.cardItemList, source + ":fight-ui");
-            count += ApplyCards(FightUI.WaitCard, source + ":wait-ui");
+            var count = ApplyCards(ActiveCombatCardSnapshot(), source);
             if (count > 0)
             {
                 SunExpLog.Debug("Card presentation reapplied from " + source + ": " + count);
@@ -254,33 +221,44 @@ public static class SunExpCardPresentationRouter
         }
     }
 
-    private static int ApplyCards(IEnumerable<CardItem>? cards, string source)
+    private static int ApplyCards(AuraCombatCardZoneSnapshot snapshot, string source)
     {
-        if (cards == null)
-        {
-            return 0;
-        }
-
         var count = 0;
-        foreach (var item in cards)
+        foreach (var reference in snapshot.Cards)
         {
-            if (item?.dataConfig == null)
+            if (reference.Config == null)
             {
                 continue;
             }
 
             RequestApply(new SunExpCardPresentationContext
             {
-                Root = item.transform,
-                Config = item.dataConfig,
-                Card = item,
-                Source = source,
+                Root = reference.Root,
+                Config = reference.Config,
+                Card = reference.Card,
+                Source = source + ":" + PresentationSourceSuffix(reference.Zone),
                 Surface = SunExpCardPresentationSurface.CombatCard
             });
             count++;
         }
 
         return count;
+    }
+
+    private static AuraCombatCardZoneSnapshot ActiveCombatCardSnapshot()
+    {
+        return AuraCombatCardZoneSnapshot.Capture(null, new AuraCombatCardZoneSnapshotOptions
+        {
+            IncludeFightUiActive = true,
+            IncludeFightUiWait = true,
+            IncludeExecutorHand = false,
+            IncludeExecutorWait = false
+        });
+    }
+
+    private static string PresentationSourceSuffix(AuraCombatCardZoneKind zone)
+    {
+        return zone == AuraCombatCardZoneKind.FightUiWait ? "wait-ui" : "fight-ui";
     }
 
     private static void Dispatch(SunExpCardPresentationContext context)

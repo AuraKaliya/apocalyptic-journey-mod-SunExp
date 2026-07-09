@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using AuraShared.Core;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using Witch.UI.Window;
@@ -163,62 +164,45 @@ public static class RuntimeCardAttachmentService
         var seenCards = new HashSet<CardItem>();
         var seenConfigs = new HashSet<IDataConfig>();
 
-        try
+        var handSnapshot = AuraCombatCardZoneSnapshot.Capture(executor, new AuraCombatCardZoneSnapshotOptions
         {
-            foreach (var card in FightUI.cardItemList ?? new List<CardItem>())
-            {
-                result.UiCards++;
-                AttachToCardItem(card, attachment, result, seenCards, seenConfigs);
-            }
+            IncludeFightUiActive = true,
+            IncludeFightUiWait = true,
+            IncludeExecutorHand = executor != null,
+            IncludeExecutorWait = executor != null
+        });
 
-            foreach (var card in FightUI.WaitCard ?? new List<CardItem>())
-            {
-                result.UiWaitCards++;
-                AttachToCardItem(card, attachment, result, seenCards, seenConfigs);
-            }
-        }
-        catch (Exception ex)
+        result.UiCards = handSnapshot.Count(AuraCombatCardZoneKind.FightUiActive);
+        result.UiWaitCards = handSnapshot.Count(AuraCombatCardZoneKind.FightUiWait);
+        result.ExecutorHandCards = handSnapshot.Count(AuraCombatCardZoneKind.ExecutorHand);
+        result.ExecutorWaitCards = handSnapshot.Count(AuraCombatCardZoneKind.ExecutorWait);
+
+        foreach (var reference in handSnapshot.Cards)
         {
-            SunExpLog.Debug("Runtime card attachment UI hand scan skipped: " + ex.Message);
-        }
-
-        if (executor != null)
-        {
-            try
+            if (reference.Card != null)
             {
-                foreach (var card in executor.HandCard ?? Enumerable.Empty<CardItem>())
-                {
-                    result.ExecutorHandCards++;
-                    AttachToCardItem(card, attachment, result, seenCards, seenConfigs);
-                }
-
-                foreach (var card in executor.WaitCard ?? Enumerable.Empty<CardItem>())
-                {
-                    result.ExecutorWaitCards++;
-                    AttachToCardItem(card, attachment, result, seenCards, seenConfigs);
-                }
-            }
-            catch (Exception ex)
-            {
-                SunExpLog.Debug("Runtime card attachment executor hand scan skipped: " + ex.Message);
+                AttachToCardItem(reference.Card, attachment, result, seenCards, seenConfigs);
             }
         }
 
-        try
+        if (result.TouchedCardItems == 0)
         {
-            var manager = FightCardManager.Instance;
-            if (manager != null && result.TouchedCardItems == 0)
+            var managerSnapshot = AuraCombatCardZoneSnapshot.Capture(null, new AuraCombatCardZoneSnapshotOptions
             {
-                foreach (var config in manager.cardList ?? Enumerable.Empty<DataConfig>())
+                IncludeFightUiActive = false,
+                IncludeFightUiWait = false,
+                IncludeExecutorHand = false,
+                IncludeExecutorWait = false,
+                IncludeManagerDraw = true
+            });
+            foreach (var reference in managerSnapshot.Cards)
+            {
+                if (reference.Zone == AuraCombatCardZoneKind.ManagerDraw)
                 {
                     result.ManagerFallbackCards++;
-                    AttachToConfig(config, attachment, result, seenConfigs);
+                    AttachToConfig(reference.Config, attachment, result, seenConfigs);
                 }
             }
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Debug("Runtime card attachment manager fallback skipped: " + ex.Message);
         }
 
         SunExpPerformanceCounters.RecordDuration("RuntimeCardAttachment.AttachToCurrentHand", start);
@@ -232,37 +216,36 @@ public static class RuntimeCardAttachmentService
         var seenConfigs = new HashSet<IDataConfig>();
         var seenVars = new HashSet<IDictionary<string, string>>();
 
-        try
+        var uiSnapshot = AuraCombatCardZoneSnapshot.Capture(null, new AuraCombatCardZoneSnapshotOptions
         {
-            foreach (var card in FightUI.cardItemList ?? new List<CardItem>())
-            {
-                changed += ClearCardItem(card, seenCards, seenConfigs, seenVars);
-            }
+            IncludeFightUiActive = true,
+            IncludeFightUiWait = true,
+            IncludeExecutorHand = false,
+            IncludeExecutorWait = false
+        });
 
-            foreach (var card in FightUI.WaitCard ?? new List<CardItem>())
-            {
-                changed += ClearCardItem(card, seenCards, seenConfigs, seenVars);
-            }
-        }
-        catch (Exception ex)
+        foreach (var reference in uiSnapshot.Cards)
         {
-            SunExpLog.Debug("Runtime card attachment UI cleanup skipped: " + ex.Message);
+            if (reference.Card != null)
+            {
+                changed += ClearCardItem(reference.Card, seenCards, seenConfigs, seenVars);
+            }
         }
 
-        try
+        var managerSnapshot = AuraCombatCardZoneSnapshot.Capture(null, new AuraCombatCardZoneSnapshotOptions
         {
-            var manager = FightCardManager.Instance;
-            if (manager != null)
+            IncludeFightUiActive = false,
+            IncludeFightUiWait = false,
+            IncludeExecutorHand = false,
+            IncludeExecutorWait = false,
+            IncludeManagerDraw = true
+        });
+        foreach (var reference in managerSnapshot.Cards)
+        {
+            if (reference.Config != null)
             {
-                foreach (var config in manager.cardList ?? Enumerable.Empty<DataConfig>())
-                {
-                    changed += ClearConfig(config, seenConfigs, seenVars);
-                }
+                changed += ClearConfig(reference.Config, seenConfigs, seenVars);
             }
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Debug("Runtime card attachment fight deck cleanup skipped: " + ex.Message);
         }
 
         changed += ClearRoleTableCards(seenConfigs, seenVars);

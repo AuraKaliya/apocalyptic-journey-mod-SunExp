@@ -30,6 +30,7 @@ function New-ProjectXml {
 
     $dictionaryUtil = Join-Path $RepoRoot "SunExp-Dev\Infrastructure\DictionaryUtil.cs"
     $auraSharedDictionary = Join-Path $RepoRoot "AuraSharedCore\AuraSharedDictionary.cs"
+    $auraCombatCardZoneSnapshot = Join-Path $RepoRoot "AuraSharedCore\AuraCombatCardZoneSnapshot.cs"
     $sunExpIds = Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpIds.cs"
     $sunExpFrameDispatcher = Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpFrameDispatcher.cs"
     $sunExpPerformanceSettings = Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpPerformanceSettings.cs"
@@ -73,6 +74,7 @@ function New-ProjectXml {
   <ItemGroup>
     <Compile Include="$SourceDir\Stubs.cs" />
     <Compile Include="$auraSharedDictionary" />
+    <Compile Include="$auraCombatCardZoneSnapshot" />
     <Compile Include="$dictionaryUtil" />
     <Compile Include="$sunExpIds" />
     <Compile Include="$sunExpFrameDispatcher" />
@@ -115,6 +117,13 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+
+namespace UnityEngine
+{
+    public sealed class Transform
+    {
+    }
+}
 
 namespace Witch.Core
 {
@@ -174,6 +183,10 @@ public sealed class ScriptExecutor
 
     public List<CardItem> WaitCard { get; } = new();
 
+    public List<DataConfig> DeckCard { get; } = new();
+
+    public List<DataConfig> UsedCard { get; } = new();
+
     public void SetStatus(string status)
     {
     }
@@ -209,6 +222,8 @@ public sealed class FightCardManager
 
     public List<DataConfig> cardList { get; } = new();
 
+    public List<DataConfig> usedCardList { get; } = new();
+
     public void RefreshTag(IDataConfig config)
     {
     }
@@ -225,6 +240,8 @@ public sealed class CardItem
     public IDictionary<string, string> Vars { get; set; } = new Dictionary<string, string>();
 
     public List<string> Tags { get; } = new();
+
+    public UnityEngine.Transform transform { get; } = new();
 
     public void RefreshTag()
     {

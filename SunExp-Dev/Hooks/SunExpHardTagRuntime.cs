@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraShared.Core;
 using Data.Save;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
@@ -549,22 +550,35 @@ public static class SunExpHardTagRuntime
         }
 
         var changed = 0;
-        changed += ApplyMorningStarDimmedToCardItems(FightUI.cardItemList, source + ":fight-ui");
-        changed += ApplyMorningStarDimmedToCardItems(FightUI.WaitCard, source + ":wait-ui");
-
-        var manager = FightCardManager.Instance;
-        if (manager != null)
+        var snapshot = AuraCombatCardZoneSnapshot.Capture(executor, new AuraCombatCardZoneSnapshotOptions
         {
-            changed += ApplyMorningStarDimmedToConfigs(manager.cardList, source + ":draw");
-            changed += ApplyMorningStarDimmedToConfigs(manager.usedCardList, source + ":discard");
-        }
+            IncludeFightUiActive = true,
+            IncludeFightUiWait = true,
+            IncludeExecutorHand = executor != null,
+            IncludeExecutorWait = executor != null,
+            IncludeExecutorDeck = executor != null,
+            IncludeExecutorUsed = executor != null,
+            IncludeManagerDraw = true,
+            IncludeManagerUsed = true
+        });
 
-        if (executor != null)
+        foreach (var reference in snapshot.Cards)
         {
-            changed += ApplyMorningStarDimmedToCardItems(executor.HandCard, source + ":hand");
-            changed += ApplyMorningStarDimmedToCardItems(executor.WaitCard, source + ":wait");
-            changed += ApplyMorningStarDimmedToConfigs(executor.DeckCard, source + ":deck");
-            changed += ApplyMorningStarDimmedToConfigs(executor.UsedCard, source + ":used");
+            var referenceSource = source + ":" + MorningStarSourceSuffix(reference.Zone);
+            if (reference.Card != null)
+            {
+                if (ApplyMorningStarDimmedToCard(reference.Card, referenceSource))
+                {
+                    changed++;
+                }
+
+                continue;
+            }
+
+            if (ApplyMorningStarDimmedToConfig(reference.Config, referenceSource))
+            {
+                changed++;
+            }
         }
 
         if (changed > 0)
@@ -628,6 +642,22 @@ public static class SunExpHardTagRuntime
         }
 
         return changed;
+    }
+
+    private static string MorningStarSourceSuffix(AuraCombatCardZoneKind zone)
+    {
+        return zone switch
+        {
+            AuraCombatCardZoneKind.FightUiActive => "fight-ui",
+            AuraCombatCardZoneKind.FightUiWait => "wait-ui",
+            AuraCombatCardZoneKind.ExecutorHand => "hand",
+            AuraCombatCardZoneKind.ExecutorWait => "wait",
+            AuraCombatCardZoneKind.ExecutorDeck => "deck",
+            AuraCombatCardZoneKind.ExecutorUsed => "used",
+            AuraCombatCardZoneKind.ManagerDraw => "draw",
+            AuraCombatCardZoneKind.ManagerUsed => "discard",
+            _ => "combat"
+        };
     }
 
     private static bool ApplyMorningStarDimmedToCard(CardItem? card, string source)

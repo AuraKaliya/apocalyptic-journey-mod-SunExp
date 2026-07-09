@@ -301,7 +301,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
             + renderer.sortingOrder
             + ", visible="
             + SunExpPerformanceSettings.WunaOrbitFireEnabled
-            + ", quality=Unified"
+            + ", performance=Unified"
             + ", frontShader="
             + (frontDetailMaterial?.shader?.name ?? "<none>")
             + ", backShader="

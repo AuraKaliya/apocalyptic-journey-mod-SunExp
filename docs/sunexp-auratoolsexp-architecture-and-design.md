@@ -260,10 +260,9 @@ SunExp 的视觉系统以 `visual.registry.json` 为入口，注册：
 
 SunExp 对低帧率和重复 Hook 工作有专门的基础设施：
 
-- `SunExpPerformanceSettings`：定义 High、Balanced、Low、UltraLow 等质量档位和
-  各类预算。
+- `SunExpPerformanceSettings`：定义统一性能开关和固定预算，不再按视觉效果质量分档。
 - `SunExpPerformanceCounters`：记录关键路径计数。
-- `SunExpFrameScheduler`：按帧预算执行下一帧任务，支持 keyed work 去重。
+- `SunExpFrameScheduler`：保留 SunExp 门面，把 keyed work 去重委托给共享调度器。
 - `SunExpActionEventRouter`：集中路由 Action/ActionAfter 事件，减少重复监听。
 - `SunExpCardRefreshQueue`：把卡牌刷新和 `DataUpdate` 合并到下一帧。
 - `SunExpResourcePreloader`：在预算允许时预热核心视觉资源。
@@ -462,4 +461,3 @@ AuraToolsExp 读取这些注册产物，用工具配置决定是否启用、如�
 - 发送统一通过 transport。
 - payload 身份只作数据，不作权威来源。
 - 大对象使用快照压缩、摘要或分片，不传完整运行历史。
-

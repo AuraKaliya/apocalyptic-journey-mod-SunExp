@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraShared.Core;
 using Data.Save;
 using SunExp.Dll.Infrastructure;
 using Witch.Core;
@@ -168,12 +169,20 @@ public static class EndlessSeaCardAffixService
     public static int NormalizeCombatCards(ScriptExecutor? executor, string source)
     {
         var changed = 0;
-        changed += ApplyToCardItems(FightUI.cardItemList, source + ":fight-ui");
-        changed += ApplyToCardItems(FightUI.WaitCard, source + ":wait-ui");
-        if (executor != null)
+        var snapshot = AuraCombatCardZoneSnapshot.Capture(executor, new AuraCombatCardZoneSnapshotOptions
         {
-            changed += ApplyToCardItems(executor.HandCard, source + ":hand");
-            changed += ApplyToCardItems(executor.WaitCard, source + ":wait");
+            IncludeFightUiActive = true,
+            IncludeFightUiWait = true,
+            IncludeExecutorHand = executor != null,
+            IncludeExecutorWait = executor != null
+        });
+
+        foreach (var reference in snapshot.Cards)
+        {
+            if (reference.Card != null && ApplyBurnout(reference.Card, source + ":" + SourceSuffix(reference.Zone)))
+            {
+                changed++;
+            }
         }
 
         return changed;
@@ -266,5 +275,17 @@ public static class EndlessSeaCardAffixService
         }
 
         return changed;
+    }
+
+    private static string SourceSuffix(AuraCombatCardZoneKind zone)
+    {
+        return zone switch
+        {
+            AuraCombatCardZoneKind.FightUiActive => "fight-ui",
+            AuraCombatCardZoneKind.FightUiWait => "wait-ui",
+            AuraCombatCardZoneKind.ExecutorHand => "hand",
+            AuraCombatCardZoneKind.ExecutorWait => "wait",
+            _ => "combat"
+        };
     }
 }

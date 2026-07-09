@@ -17,7 +17,7 @@ namespace SunExp.Dll.Features.SkillCg;
 public static class SunExpSkillCgRuntime
 {
     private static readonly HashSet<string> DiagnosticKeys = new(StringComparer.OrdinalIgnoreCase);
-    private static int adventurePreloadSequence;
+    private const string AdventurePreloadContentKey = "SunExp.Adventure.SkillCg.content";
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -362,11 +362,10 @@ public static class SunExpSkillCgRuntime
     {
         try
         {
-            var key = "SunExp.Adventure." + (++adventurePreloadSequence).ToString();
             SkillCgArbiterRuntime.EnsureAdventurePreloaded(
                 SunExpIds.ModId,
                 SunExpIds.ModId,
-                key + ".content",
+                AdventurePreloadContentKey,
                 new[] { SkillCgArbiterRuntime.SkillCgKind, SkillCgArbiterRuntime.CardUseCgKind });
         }
         catch (Exception ex)
