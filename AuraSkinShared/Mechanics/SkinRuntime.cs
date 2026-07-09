@@ -96,6 +96,17 @@ public static class SkinRuntime
         LocalSelectionChanged?.Invoke(CreateLocalSelectionSnapshot(career, "", ""));
     }
 
+    public static bool TryRemapSelection(string careerId, string oldSkinId, string newSkinId)
+    {
+        var changed = SkinSelectionStore.TryRemapSelection(careerId, oldSkinId, newSkinId);
+        if (changed)
+        {
+            ApplyAllKnownSelections();
+        }
+
+        return changed;
+    }
+
     public static void EnsureAnimation(DataConfig? career)
     {
         if (FeatureEnabled && career != null)

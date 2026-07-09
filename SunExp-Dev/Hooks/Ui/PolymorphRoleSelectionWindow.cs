@@ -283,45 +283,17 @@ public static class PolymorphRoleSelectionWindow
 
     private static Text ConfigureText(GameObject go, string value, int fontSize, TextAnchor anchor, Color color)
     {
-        var text = go.AddComponent<Text>();
-        text.text = value;
-        text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-        text.fontSize = fontSize;
-        text.alignment = anchor;
-        text.color = color;
-        text.horizontalOverflow = HorizontalWrapMode.Wrap;
-        text.verticalOverflow = VerticalWrapMode.Truncate;
-        text.resizeTextForBestFit = true;
-        text.resizeTextMinSize = Math.Max(10, fontSize - 5);
-        text.resizeTextMaxSize = fontSize;
-        text.raycastTarget = false;
-        return text;
+        return SunExpUiComponents.ConfigureText(go, value, fontSize, anchor, color);
     }
 
     private static GameObject CreateLayoutObject(string name, Transform parent)
     {
-        var go = new GameObject(name, typeof(RectTransform));
-        go.transform.SetParent(parent, false);
-        var rect = go.GetComponent<RectTransform>();
-        rect.anchorMin = Vector2.zero;
-        rect.anchorMax = Vector2.one;
-        rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.sizeDelta = Vector2.zero;
-        rect.anchoredPosition = Vector2.zero;
-        return go;
+        return SunExpUiComponents.CreateLayoutObject(name, parent);
     }
 
     private static RectTransform CreateRect(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 sizeDelta)
     {
-        var go = new GameObject(name, typeof(RectTransform));
-        go.transform.SetParent(parent, false);
-        var rect = go.GetComponent<RectTransform>();
-        rect.anchorMin = anchorMin;
-        rect.anchorMax = anchorMax;
-        rect.pivot = pivot;
-        rect.sizeDelta = sizeDelta;
-        rect.anchoredPosition = Vector2.zero;
-        return rect;
+        return SunExpUiComponents.CreateRectTransform(name, parent, anchorMin, anchorMax, pivot, sizeDelta);
     }
 
     private static Vector2 ResolveWindowSize(Transform parent)

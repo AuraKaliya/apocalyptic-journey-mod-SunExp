@@ -4010,7 +4010,15 @@ public sealed class RpcSkillCgEvent : RpcCommandBase
 
     public override void RpcExecute()
     {
-        var ownerModId = string.IsNullOrWhiteSpace(Event.OwnerModId) ? "AuraToolsExp" : Event.OwnerModId;
+        var ownerModId = (Event.OwnerModId ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(ownerModId))
+        {
+            AuraCgLog.WarnOnce(
+                "legacy-skill-cg-event-missing-owner",
+                "Legacy Skill CG event skipped: OwnerModId is required for shared resource resolution.");
+            return;
+        }
+
         SkillCgArbiterRuntime.Initialize(null, ownerModId);
         SkillCgArbiterRuntime.RequestCg(ownerModId, new SkillCgRequest
         {

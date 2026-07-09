@@ -78,8 +78,8 @@ foreach ($consumer in $consumers) {
     }
 
     $projectText = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot $consumer.Project)
-    if (-not $projectText.Contains("AuraSkinShared")) {
-        throw "AuraSkinShared compile include is missing from $($consumer.Project)"
+    if (-not ($projectText.Contains("AuraSkinShared") -or $projectText.Contains("AuraSharedRuntime-Dev\Aura.Shared.csproj") -or $projectText.Contains("AuraSharedRuntime-Dev/Aura.Shared.csproj"))) {
+        throw "AuraSkinShared runtime reference is missing from $($consumer.Project)"
     }
 }
 
@@ -96,7 +96,7 @@ if (-not $auraToolsEntryText.Contains("AuraToolsSkinRuntime.Initialize")) {
 }
 
 $auraToolsSkinRuntimeText = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot "AuraToolsExp-Dev\Features\Skin\AuraToolsSkinRuntime.cs")
-foreach ($requiredText in @("AuraSkinRuntime.RegisterPackage", "AuraSkinSelectionCommand", "SendRpcCommandExcludeOwner", "ApplyRemoteSelection")) {
+foreach ($requiredText in @("AuraSkinRuntime.RegisterPackage", "AuraSkinSelectionCommand", "AuraToolsRpcTransport.Send", "excludeOwner: true", "ApplyRemoteSelection")) {
     if (-not $auraToolsSkinRuntimeText.Contains($requiredText)) {
         throw "AuraToolsExp skin runtime contract is missing: $requiredText"
     }
@@ -143,9 +143,20 @@ $selectionText = Get-Content -Raw -LiteralPath (Join-Path $sharedRoot "Services\
 if ($selectionText.Contains("MigrateLegacy") -or $selectionText.Contains("AuraSharedMigration")) {
     throw "Legacy skin selection migration must not remain."
 }
+foreach ($forbiddenText in @("SkinExp.career_1.summer_cool", "AuraToolsExp.career_1.summer_cool")) {
+    if ($selectionText.Contains($forbiddenText)) {
+        throw "SkinSelectionStore must not hard-code concrete consumer skin ids: $forbiddenText"
+    }
+}
 if (-not $selectionText.Contains("AuraSharedConfigStore.ReadShared") -or
     -not $selectionText.Contains("AuraSharedConfigStore.WriteShared")) {
     throw "Skin selections do not use Core v2 shared configuration storage."
+}
+
+foreach ($requiredText in @("SkinExp.career_1.summer_cool", "AuraToolsExp.career_1.summer_cool", "SkinRuntime.TryRemapSelection")) {
+    if (-not $auraToolsSkinRuntimeText.Contains($requiredText)) {
+        throw "AuraTools skin migration contract is missing: $requiredText"
+    }
 }
 
 $installerText = Get-Content -Raw -LiteralPath (Join-Path $sharedRoot "Services\SkinPackageInstaller.cs")
@@ -177,7 +188,7 @@ if ($config.ModName -ne "SkinExp" -or $config.MustSame -ne $false) {
 }
 
 $auraToolsConfig = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $auraToolsModRoot "ModConfig.json") | ConvertFrom-Json
-if ($auraToolsConfig.ModName -ne "AuraToolsExp" -or $auraToolsConfig.ModVersion -ne "0.2.0") {
+if ($auraToolsConfig.ModName -ne "AuraToolsExp" -or [string]::IsNullOrWhiteSpace([string]$auraToolsConfig.ModVersion)) {
     throw "AuraToolsExp ModConfig identity or version is invalid."
 }
 

@@ -211,6 +211,7 @@ $requiredFiles = @(
     "SunExp-Dev\Hooks\Ui\EndlessAbyssShockPanel.cs",
     "SunExp-Dev\Hooks\Ui\EndlessAbyssMilestoneRewardPanel.cs",
     "SunExp-Dev\Hooks\Ui\PolymorphRoleSelectionRequest.cs",
+    "SunExp-Dev\Hooks\Ui\PolymorphRoleSelectionWindow.cs",
     "SunExp-Dev\Hooks\Ui\FamiliarGrowthPanel.cs",
     "SunExp-Dev\Scripting\FamiliarGrowthScripts.cs",
     "SunExp-Dev\Scripting\ProjectionScripts.cs",
@@ -452,6 +453,7 @@ $sunExpUiSafety = Read-RepoText "SunExp-Dev\Hooks\Ui\SunExpUiSafety.cs"
 $sunExpUiLifetimeScope = Read-RepoText "SunExp-Dev\Hooks\Ui\SunExpUiLifetimeScope.cs"
 $sunExpUiPool = Read-RepoText "SunExp-Dev\Hooks\Ui\SunExpUiPool.cs"
 $sunExpUiSprites = Read-RepoText "SunExp-Dev\Hooks\Ui\SunExpUiSprites.cs"
+$polymorphRoleSelectionWindow = Read-RepoText "SunExp-Dev\Hooks\Ui\PolymorphRoleSelectionWindow.cs"
 $sunExpHardTagRuntime = Read-RepoText "SunExp-Dev\Hooks\SunExpHardTagRuntime.cs"
 $sourceFiles = Get-ChildItem -LiteralPath (Join-Path $RepoRoot "SunExp-Dev") -Recurse -File -Filter "*.cs"
 $scriptingSource = [string]::Join("`n", (Get-ChildItem -LiteralPath (Join-Path $RepoRoot "SunExp-Dev\Scripting") -File -Filter "*.cs" | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }))
@@ -1225,6 +1227,18 @@ Assert-Contains $sunExpUiPool "SunExpPerformanceSettings.UiPoolCapacityPerKey" "
 Assert-Contains $sunExpUiPool "button.onClick.RemoveAllListeners()" "SunExp UI pool must scrub button listeners before reuse."
 Assert-Contains $sunExpUiSprites "private static readonly Dictionary<string, Sprite?> Cache" "SunExp UI sprites must be cached instead of loaded per window."
 Assert-Contains $sunExpUiSprites "Sprite.Create(" "SunExp UI sprite helper must own nine-slice sprite creation."
+Assert-Contains $sunExpUiComponents "CreateRectTransform" "SunExp UI components must expose RectTransform creation for reusable windows."
+Assert-Contains $sunExpUiComponents "AuraUiComponents.ConfigureText" "SunExp UI components must delegate shared text setup to AuraUiShared."
+Assert-Contains $familiarGrowthPanel "SunExpUiComponents.ConfigureText" "Familiar growth panel text setup must delegate to shared SunExp UI components."
+Assert-Contains $familiarGrowthPanel "SunExpUiComponents.CreateLayoutObject" "Familiar growth panel layout creation must delegate to shared SunExp UI components."
+Assert-Contains $familiarGrowthPanel "SunExpUiComponents.CreateRect" "Familiar growth panel rect creation must delegate to shared SunExp UI components."
+Assert-NotContains $familiarGrowthPanel "Resources.GetBuiltinResource<Font>" "Familiar growth panel must not duplicate text font setup."
+Assert-NotContains $familiarGrowthPanel "new GameObject(name, typeof(RectTransform))" "Familiar growth panel must not duplicate rect object creation."
+Assert-Contains $polymorphRoleSelectionWindow "SunExpUiComponents.ConfigureText" "Polymorph role selection text setup must delegate to shared SunExp UI components."
+Assert-Contains $polymorphRoleSelectionWindow "SunExpUiComponents.CreateLayoutObject" "Polymorph role selection layout creation must delegate to shared SunExp UI components."
+Assert-Contains $polymorphRoleSelectionWindow "SunExpUiComponents.CreateRectTransform" "Polymorph role selection rect creation must delegate to shared SunExp UI components."
+Assert-NotContains $polymorphRoleSelectionWindow "Resources.GetBuiltinResource<Font>" "Polymorph role selection must not duplicate text font setup."
+Assert-NotContains $polymorphRoleSelectionWindow "new GameObject(name, typeof(RectTransform))" "Polymorph role selection must not duplicate rect object creation."
 Assert-Contains $solarMemoryStarterDeckRuntime "SunExpModalHost.Close(ref activePanel" "Starter deck modal close must use SunExpModalHost."
 Assert-Contains $solarMemorySetupFlowRuntime "SunExpModalHost.Close(ref activeOriginRoot" "Origin setup modal close must use SunExpModalHost."
 Assert-Contains $solarMemorySetupFlowRuntime "SunExpModalHost.Close(ref activeBlessingChrome" "Blessing setup chrome close must use SunExpModalHost."

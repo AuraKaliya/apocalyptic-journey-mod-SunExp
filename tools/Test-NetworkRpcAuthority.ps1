@@ -164,6 +164,8 @@ Assert-Contains $auraCgRuntime "BindServerSender" "Shared Skill CG playback requ
 Assert-Contains $auraCgRuntime "ApplyServerPlaybackRequest(Playback, serverSender)" "Shared Skill CG playback request must pass bound sender into server validation."
 Assert-Contains $auraCgRuntime "SenderOwnsStatus(sender.PlayerId, playback.OwnerStatusId)" "Shared Skill CG host relay must validate that the sender owns the owner status."
 Assert-Matches $auraCgRuntime "playback\s*\.\s*IssuerPlayerId\s*=\s*sender\.PlayerId" "Shared Skill CG host relay must bind issuer identity from sender instead of trusting payload identity."
+Assert-Contains $auraCgRuntime "legacy-skill-cg-event-missing-owner" "Legacy Skill CG event must fail closed when OwnerModId is missing."
+Assert-NotContains $auraCgRuntime '? "AuraToolsExp"' "Shared Skill CG legacy event must not fall back to AuraToolsExp ownership."
 Assert-NotContains $auraCgRuntime "SendRpcCommandExcludeOwner(new RpcSkillCgEvent" "Shared Skill CG synchronized playback must not bypass host relay with the legacy direct broadcast path."
 Assert-Contains $sunSkillCgRuntime "SkillCgArbiterRuntime.RequestCg(SunExpIds.ModId, request, syncRemote: true)" "SunExp Skill CG must delegate synchronized playback to the shared Skill CG runtime."
 

@@ -95,6 +95,9 @@ Assert-NoMatches $auraToolsFiles "SunExp-Dev|SunExp\.Dll|using\s+SunExp|CS\.SunE
 Assert-NoMatches $sharedFiles "SunExpIds|SunExp\.Dll|CS\.SunExp|晨星|EndlessSea|SolarMemory|TongtianTower" `
     "Shared runtimes must not contain SunExp content semantics."
 
+Assert-NoMatches $sharedFiles '"(?:AuraToolsExp|SunExp|SkinExp|SanGuoShaExp)\.' `
+    "Shared runtimes must not hard-code concrete consumer content owner ids."
+
 $sunExpSkillCg = Read-RepoText "SunExp-Dev\Features\SkillCg\SunExpSkillCgRuntime.cs"
 Assert-NotContains $sunExpSkillCg '"AuraToolsExp"' "SunExp SkillCG preload must not hard-code AuraToolsExp ownership."
 Assert-Contains $sunExpSkillCg "SunExpIds.ModId" "SunExp SkillCG must keep SunExp-owned preload registration."

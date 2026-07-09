@@ -13,6 +13,9 @@ namespace AuraToolsExp.Dll.Features.Skin;
 
 public static class AuraToolsSkinRuntime
 {
+    private const string OfficialCareerId = "career_1";
+    private const string LegacyOfficialSummerSkinId = "SkinExp.career_1.summer_cool";
+    private const string OfficialSummerSkinId = "AuraToolsExp.career_1.summer_cool";
     private static ModConfig? currentConfig;
     private static bool initialized;
     private static string lastInstallStatus = "Skin package not installed yet.";
@@ -55,6 +58,13 @@ public static class AuraToolsSkinRuntime
         if (!registered)
         {
             AuraToolsLog.Warn("[Skin] bundled skin package was rejected.");
+            return;
+        }
+
+        if (SkinRuntime.TryRemapSelection(OfficialCareerId, LegacyOfficialSummerSkinId, OfficialSummerSkinId))
+        {
+            AuraToolsLog.Info("[Skin] migrated legacy official summer skin selection to AuraToolsExp ownership.");
+            BroadcastLocalSelection();
         }
     }
 

@@ -10,8 +10,6 @@ public static class SkinSelectionStore
 {
     private const string AuthorityId = "AuraSkin";
     private const string ConfigFileName = "selections.json";
-    private const string LegacyOfficialSummerSkinId = "SkinExp.career_1.summer_cool";
-    private const string OfficialSummerSkinId = "AuraToolsExp.career_1.summer_cool";
 
     private sealed class SelectionFile
     {
@@ -71,6 +69,48 @@ public static class SkinSelectionStore
         Save();
     }
 
+    public static bool TryRemapSelection(string careerId, string oldSkinId, string newSkinId)
+    {
+        var normalizedCareerId = CareerConfigApi.NormalizeId(careerId);
+        var oldId = NormalizeSkinId(oldSkinId);
+        var newId = NormalizeSkinId(newSkinId);
+        if (string.IsNullOrWhiteSpace(normalizedCareerId)
+            || string.IsNullOrWhiteSpace(oldId)
+            || string.IsNullOrWhiteSpace(newId)
+            || string.Equals(oldId, newId, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (state.Selections == null)
+        {
+            state.Selections = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            return false;
+        }
+
+        if (!state.Selections.TryGetValue(normalizedCareerId, out var current)
+            || !string.Equals(NormalizeSkinId(current), oldId, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        state.Selections[normalizedCareerId] = newId;
+        if (Save())
+        {
+            return true;
+        }
+
+        Load();
+        if (!state.Selections.TryGetValue(normalizedCareerId, out current)
+            || !string.Equals(NormalizeSkinId(current), oldId, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        state.Selections[normalizedCareerId] = newId;
+        return Save();
+    }
+
     private static void NormalizeSelectionKeys()
     {
         if (state.Selections == null)
@@ -118,9 +158,7 @@ public static class SkinSelectionStore
 
     private static string NormalizeSkinId(string skinId)
     {
-        return string.Equals(skinId?.Trim(), LegacyOfficialSummerSkinId, StringComparison.OrdinalIgnoreCase)
-            ? OfficialSummerSkinId
-            : (skinId ?? "").Trim();
+        return (skinId ?? "").Trim();
     }
 
     private static bool Save()

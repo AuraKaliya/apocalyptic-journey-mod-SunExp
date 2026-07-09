@@ -37,6 +37,17 @@ public static class SunExpUiComponents
         return SunExpUiBuilder.CreateRect(name, parent, anchorMin, anchorMax, pivot, size).gameObject;
     }
 
+    public static RectTransform CreateRectTransform(
+        string name,
+        Transform parent,
+        Vector2 anchorMin,
+        Vector2 anchorMax,
+        Vector2 pivot,
+        Vector2 size)
+    {
+        return SunExpUiBuilder.CreateRect(name, parent, anchorMin, anchorMax, pivot, size);
+    }
+
     public static GameObject CreateFillRect(string name, Transform parent)
     {
         return CreateRect(name, parent, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
@@ -252,16 +263,24 @@ public static class SunExpUiComponents
         return button;
     }
 
-    public static Text ConfigureText(GameObject go, string value, int fontSize, TextAnchor anchor, Color color)
+    public static Text ConfigureText(
+        GameObject go,
+        string value,
+        int fontSize,
+        TextAnchor anchor,
+        Color color,
+        int minimumFontSize = 0,
+        bool supportRichText = true)
     {
         var text = AuraUiComponents.ConfigureText(
             go,
             value,
             fontSize,
-            Math.Max(10, fontSize - 5),
+            minimumFontSize > 0 ? minimumFontSize : Math.Max(10, fontSize - 5),
             anchor,
             color,
             resizeForBestFit: true);
+        text.supportRichText = supportRichText;
         text.fontStyle = FontStyle.Normal;
         return text;
     }
