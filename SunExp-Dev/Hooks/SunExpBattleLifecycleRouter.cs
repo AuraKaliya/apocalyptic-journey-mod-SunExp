@@ -11,6 +11,12 @@ public sealed class SunExpBattleLifecycleSubscription
 {
     public Action<ModHookContext>? AdventureStarting { get; set; }
 
+    public Action<ModHookContext>? FightInitializing { get; set; }
+
+    public Action<ModHookContext>? FightInitialized { get; set; }
+
+    public Action<ModHookContext>? FightOpening { get; set; }
+
     public Action<ModHookContext>? FightStarted { get; set; }
 
     public Action<ModHookContext>? FightEnding { get; set; }
@@ -40,6 +46,9 @@ public static class SunExpBattleLifecycleRouter
             new AuraBattleLifecycleSubscription
             {
                 AdventureStarting = context => DispatchAdventureStarting(context, AuraBattleLifecycleRouter.GameEntryStartGame),
+                FightInitializing = context => DispatchFightInitializing(context, AuraBattleLifecycleRouter.FightInitInit),
+                FightInitialized = context => DispatchFightInitialized(context, AuraBattleLifecycleRouter.FightInitInit),
+                FightOpening = context => DispatchFightOpening(context, AuraBattleLifecycleRouter.FightStartInit),
                 FightStarted = context => DispatchFightStarted(context, "Fight lifecycle start"),
                 FightEnding = context => DispatchFightEnding(context, "Fight lifecycle ending"),
                 FightEnded = context => DispatchFightEnded(context, "Fight lifecycle ended")
@@ -67,6 +76,21 @@ public static class SunExpBattleLifecycleRouter
     private static void DispatchAdventureStarting(ModHookContext context, string source)
     {
         Dispatch(context, source, subscription => subscription.AdventureStarting);
+    }
+
+    private static void DispatchFightInitializing(ModHookContext context, string source)
+    {
+        Dispatch(context, source, subscription => subscription.FightInitializing);
+    }
+
+    private static void DispatchFightInitialized(ModHookContext context, string source)
+    {
+        Dispatch(context, source, subscription => subscription.FightInitialized);
+    }
+
+    private static void DispatchFightOpening(ModHookContext context, string source)
+    {
+        Dispatch(context, source, subscription => subscription.FightOpening);
     }
 
     private static void DispatchFightStarted(ModHookContext context, string source)

@@ -20,6 +20,7 @@ internal sealed class BuffAttributionEngine
 {
     private const int PendingWindowFrames = 4;
     private const int MaxPending = 128;
+    private const int MaxRecentBroadcasts = 256;
     private const int MaxPooledPending = 64;
     private const int MaxPooledTargets = 256;
 
@@ -32,6 +33,7 @@ internal sealed class BuffAttributionEngine
     private readonly List<PendingBuffApplication> pending = new();
     private readonly Stack<PendingBuffApplication> pendingPool = new();
     private readonly Stack<PendingBuffTarget> targetPool = new();
+    private readonly List<RecentBuffBroadcast> recentBroadcasts = new();
     private readonly List<IBuffItemConfig> configsToRemove = new();
     private readonly List<OwnerSlot> activeOwners = new();
     private int[] hpParts = Array.Empty<int>();
@@ -51,6 +53,7 @@ internal sealed class BuffAttributionEngine
 
         pending.Clear();
         activeOwners.Clear();
+        recentBroadcasts.Clear();
     }
 
     public long BeginApplication(IScriptExecutor? executor, string buffId, int frame)
@@ -109,7 +112,9 @@ internal sealed class BuffAttributionEngine
         {
             var target = item.Targets[i];
             var targetId = SafeStatusId(target.Target);
-            var added = Math.Max(0, BuffLevel(target.Target, item.BuffId) - target.BeforeLevel);
+            var added = Math.Max(
+                0,
+                BuffLevel(target.Target, item.BuffId) - target.BeforeLevel - target.CommittedUnits);
             if (added <= 0 || string.IsNullOrWhiteSpace(targetId))
             {
                 continue;
@@ -185,6 +190,79 @@ internal sealed class BuffAttributionEngine
         return item.Targets.Count > 0;
     }
 
+    public bool ObserveBroadcast(
+        string buffId,
+        string sourceId,
+        string targetId,
+        string sourceDataId,
+        int frame)
+    {
+        buffId = buffId?.Trim() ?? "";
+        sourceId = sourceId?.Trim() ?? "";
+        targetId = targetId?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(buffId)
+            || string.IsNullOrWhiteSpace(sourceId)
+            || string.IsNullOrWhiteSpace(targetId))
+        {
+            return false;
+        }
+
+        Prune(frame);
+        var refined = RefinePendingApplication(buffId, sourceId, targetId, frame);
+        recentBroadcasts.Add(new RecentBuffBroadcast
+        {
+            Frame = frame,
+            BuffId = buffId,
+            SourceId = sourceId,
+            TargetId = targetId,
+            SourceDataId = sourceDataId?.Trim() ?? ""
+        });
+
+        while (recentBroadcasts.Count > MaxRecentBroadcasts)
+        {
+            recentBroadcasts.RemoveAt(0);
+        }
+
+        return refined;
+    }
+
+    public bool RecordObservedApplication(
+        IStatusManager? target,
+        string buffId,
+        int added,
+        int frame)
+    {
+        buffId = buffId?.Trim() ?? "";
+        added = Math.Max(0, added);
+        var targetId = SafeStatusId(target);
+        if (target == null
+            || added <= 0
+            || string.IsNullOrWhiteSpace(buffId)
+            || string.IsNullOrWhiteSpace(targetId))
+        {
+            return false;
+        }
+
+        Prune(frame);
+        var broadcast = TakeRecentBroadcast(targetId, buffId, frame);
+        if (broadcast == null)
+        {
+            return false;
+        }
+
+        MarkPendingCommitted(targetId, buffId, added, frame);
+        var source = CombatantTeamResolver.ResolveStatus(broadcast.SourceId);
+        var state = GetState(targetId, buffId);
+        state.Add(
+            broadcast.SourceId,
+            CombatantTeamResolver.DisplayName(source, broadcast.SourceId),
+            CombatantTeamResolver.Resolve(source, broadcast.SourceId),
+            added,
+            DamageAttributionConfidence.Derived);
+        TryBindConfig(target, buffId, state.Key);
+        return true;
+    }
+
     public void RemoveBuff(IStatusManager? target, string buffId)
     {
         var key = Key(SafeStatusId(target), buffId);
@@ -197,7 +275,7 @@ internal sealed class BuffAttributionEngine
     public void OnLevelChanged(IBuffItemConfig? config, int newLevel, int frame)
     {
         Prune(frame);
-        if (pending.Count > 0 || config == null || !configKeys.TryGetValue(config, out var key))
+        if (config == null || !configKeys.TryGetValue(config, out var key))
         {
             return;
         }
@@ -213,7 +291,11 @@ internal sealed class BuffAttributionEngine
             return;
         }
 
-        ReconcileLevel(state, newLevel);
+        var trackedLevel = state.TotalUnits();
+        if (newLevel < trackedLevel)
+        {
+            state.ConsumeOldest(trackedLevel - newLevel);
+        }
     }
 
     public bool EmitSplit(
@@ -235,6 +317,7 @@ internal sealed class BuffAttributionEngine
             return false;
         }
 
+        ReconcileForEmission(state, target, buffId);
         BuildActiveOwners(state);
         var count = activeOwners.Count;
         if (count == 0)
@@ -274,46 +357,23 @@ internal sealed class BuffAttributionEngine
         return emitted;
     }
 
-    private void ReconcileLevel(BuffAttributionState state, int newLevel)
+    private static void ReconcileForEmission(
+        BuffAttributionState state,
+        IStatusManager? target,
+        string buffId)
     {
+        var newLevel = target == null ? state.TotalUnits() : BuffLevel(target, buffId);
         var oldTotal = state.TotalUnits();
-        if (oldTotal <= 0)
-        {
-            state.AddUnknown(newLevel);
-            return;
-        }
-
-        if (newLevel == oldTotal)
-        {
-            return;
-        }
-
         if (newLevel > oldTotal)
         {
             state.AddUnknown(newLevel - oldTotal);
             return;
         }
 
-        BuildActiveOwners(state);
-        var count = activeOwners.Count;
-        if (count == 0)
+        if (newLevel < oldTotal)
         {
-            state.AddUnknown(newLevel);
-            return;
+            state.ConsumeOldest(oldTotal - newLevel);
         }
-
-        EnsureSplitCapacity(count);
-        SplitInto(newLevel, count, hpParts);
-        for (var i = 0; i < count; i++)
-        {
-            activeOwners[i].Units = hpParts[i];
-            if (count > 1 && activeOwners[i].Confidence < DamageAttributionConfidence.Derived)
-            {
-                activeOwners[i].Confidence = DamageAttributionConfidence.Derived;
-            }
-        }
-
-        state.RemoveEmptyOwners();
     }
 
     private BuffAttributionState GetState(string targetId, string buffId)
@@ -449,12 +509,68 @@ internal sealed class BuffAttributionEngine
             ReleasePending(item);
         }
 
+        for (var i = recentBroadcasts.Count - 1; i >= 0; i--)
+        {
+            if (frame - recentBroadcasts[i].Frame > PendingWindowFrames)
+            {
+                recentBroadcasts.RemoveAt(i);
+            }
+        }
+
         while (pending.Count > MaxPending)
         {
             var item = pending[0];
             pending.RemoveAt(0);
             ReleasePending(item);
         }
+    }
+
+    private void MarkPendingCommitted(string targetId, string buffId, int added, int frame)
+    {
+        if (added <= 0)
+        {
+            return;
+        }
+
+        for (var i = pending.Count - 1; i >= 0; i--)
+        {
+            var item = pending[i];
+            if (frame - item.Frame > PendingWindowFrames
+                || !string.Equals(item.BuffId, buffId, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            for (var j = 0; j < item.Targets.Count; j++)
+            {
+                var pendingTargetId = SafeStatusId(item.Targets[j].Target);
+                if (string.Equals(pendingTargetId, targetId, StringComparison.Ordinal))
+                {
+                    item.Targets[j].CommittedUnits += added;
+                }
+            }
+        }
+    }
+
+    private RecentBuffBroadcast? TakeRecentBroadcast(string targetId, string buffId, int frame)
+    {
+        for (var i = recentBroadcasts.Count - 1; i >= 0; i--)
+        {
+            var item = recentBroadcasts[i];
+            if (frame - item.Frame > PendingWindowFrames)
+            {
+                continue;
+            }
+
+            if (string.Equals(item.TargetId, targetId, StringComparison.Ordinal)
+                && string.Equals(item.BuffId, buffId, StringComparison.OrdinalIgnoreCase))
+            {
+                recentBroadcasts.RemoveAt(i);
+                return item;
+            }
+        }
+
+        return null;
     }
 
     private int FindPending(long pendingId)
@@ -624,6 +740,11 @@ internal sealed class BuffAttributionEngine
 
     private sealed class BuffAttributionState
     {
+        private const int MaxLotsPerState = 128;
+        private const int CompactHeadThreshold = 32;
+        private readonly List<AttributionLot> lots = new();
+        private int lotHead;
+
         public BuffAttributionState(string key, string targetId, string buffId)
         {
             Key = key;
@@ -672,6 +793,7 @@ internal sealed class BuffAttributionEngine
                 owner.Confidence = confidence;
             }
 
+            AppendLot(owner, units);
             owner.Units += units;
         }
 
@@ -691,7 +813,96 @@ internal sealed class BuffAttributionEngine
             return total;
         }
 
-        public void RemoveEmptyOwners()
+        public void ConsumeOldest(int units)
+        {
+            var remaining = Math.Max(0, units);
+            while (remaining > 0 && lotHead < lots.Count)
+            {
+                var lot = lots[lotHead];
+                var consumed = Math.Min(remaining, Math.Max(0, lot.Units));
+                lot.Units -= consumed;
+                lot.Owner.Units = Math.Max(0, lot.Owner.Units - consumed);
+                remaining -= consumed;
+
+                if (lot.Units <= 0)
+                {
+                    lotHead++;
+                    continue;
+                }
+
+                lots[lotHead] = lot;
+            }
+
+            RemoveEmptyOwners();
+            CompactLotsIfNeeded();
+        }
+
+        private void AppendLot(OwnerSlot owner, int units)
+        {
+            if (units <= 0)
+            {
+                return;
+            }
+
+            if (lots.Count > lotHead)
+            {
+                var tailIndex = lots.Count - 1;
+                var tail = lots[tailIndex];
+                if (ReferenceEquals(tail.Owner, owner))
+                {
+                    tail.Units += units;
+                    lots[tailIndex] = tail;
+                    return;
+                }
+            }
+
+            CompactLotsIfNeeded();
+            if (lots.Count - lotHead >= MaxLotsPerState)
+            {
+                CollapseLots();
+            }
+
+            lots.Add(new AttributionLot
+            {
+                Owner = owner,
+                Units = units
+            });
+        }
+
+        private void CollapseLots()
+        {
+            lots.Clear();
+            lotHead = 0;
+            for (var i = 0; i < Owners.Count; i++)
+            {
+                var owner = Owners[i];
+                if (owner.Units <= 0)
+                {
+                    continue;
+                }
+
+                lots.Add(new AttributionLot
+                {
+                    Owner = owner,
+                    Units = owner.Units
+                });
+            }
+        }
+
+        private void CompactLotsIfNeeded()
+        {
+            if (lotHead <= 0
+                || lotHead < CompactHeadThreshold
+                && lotHead * 2 < lots.Count)
+            {
+                return;
+            }
+
+            lots.RemoveRange(0, lotHead);
+            lotHead = 0;
+        }
+
+        private void RemoveEmptyOwners()
         {
             for (var i = Owners.Count - 1; i >= 0; i--)
             {
@@ -725,6 +936,12 @@ internal sealed class BuffAttributionEngine
                 DamageAttributionConfidence.Mixed => 2,
                 _ => 3
             };
+        }
+
+        private struct AttributionLot
+        {
+            public OwnerSlot Owner;
+            public int Units;
         }
     }
 
@@ -763,12 +980,23 @@ internal sealed class BuffAttributionEngine
     {
         public IStatusManager Target { get; set; } = null!;
         public int BeforeLevel { get; set; }
+        public int CommittedUnits { get; set; }
 
         public void Reset()
         {
             Target = null!;
             BeforeLevel = 0;
+            CommittedUnits = 0;
         }
+    }
+
+    private sealed class RecentBuffBroadcast
+    {
+        public int Frame { get; set; }
+        public string BuffId { get; set; } = "";
+        public string SourceId { get; set; } = "";
+        public string TargetId { get; set; } = "";
+        public string SourceDataId { get; set; } = "";
     }
 
     private sealed class ReferenceComparer<T> : IEqualityComparer<T> where T : class

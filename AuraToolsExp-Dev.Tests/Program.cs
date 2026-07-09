@@ -588,6 +588,10 @@ void TestRuntimeArchitectureGuards()
     Assert(damageMeterRuntime.Contains("DamageFrameWindow<HitFrame>", StringComparison.Ordinal)
            && damageMeterRuntime.Contains("ReleaseTargetFrameList", StringComparison.Ordinal),
         "damage meter capture frames must use bounded pooled frame windows");
+    Assert(damageMeterRuntime.Contains("RegisterBefore(\"StatusManager.AddBuff\"", StringComparison.Ordinal)
+           && damageMeterRuntime.Contains("DamageFrameWindow<StatusBuffFrame>", StringComparison.Ordinal)
+           && damageMeterRuntime.Contains("RecordObservedApplication", StringComparison.Ordinal),
+        "damage meter must capture direct StatusManager.AddBuff applications for broadcast-backed DoT attribution");
 
     var damageMeterNetwork = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/Network/DamageMeterNetworkRuntime.cs");
     var damageMeterCommands = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/Network/DamageMeterCommands.cs");
@@ -619,6 +623,18 @@ void TestRuntimeArchitectureGuards()
            && buffAttribution.Contains("EmitSplit", StringComparison.Ordinal)
            && buffAttribution.Contains("AddUnknown", StringComparison.Ordinal)
            && buffAttribution.Contains("RefinePendingApplication", StringComparison.Ordinal)
+           && buffAttribution.Contains("ObserveBroadcast", StringComparison.Ordinal)
+           && buffAttribution.Contains("RecentBuffBroadcast", StringComparison.Ordinal)
+           && buffAttribution.Contains("TakeRecentBroadcast", StringComparison.Ordinal)
+           && buffAttribution.Contains("MarkPendingCommitted", StringComparison.Ordinal)
+           && buffAttribution.Contains("CommittedUnits", StringComparison.Ordinal)
+           && !buffAttribution.Contains("HasPendingApplication", StringComparison.Ordinal)
+           && buffAttribution.Contains("MaxLotsPerState = 128", StringComparison.Ordinal)
+           && buffAttribution.Contains("ConsumeOldest", StringComparison.Ordinal)
+           && buffAttribution.Contains("AppendLot", StringComparison.Ordinal)
+           && buffAttribution.Contains("CollapseLots", StringComparison.Ordinal)
+           && buffAttribution.Contains("ReconcileForEmission", StringComparison.Ordinal)
+           && !buffAttribution.Contains("ReconcileLevel", StringComparison.Ordinal)
            && buffAttribution.Contains("AppendTarget(executor.status", StringComparison.Ordinal)
            && buffAttribution.Contains("ConfidenceRank", StringComparison.Ordinal)
            && !buffAttribution.Contains("using System.Linq", StringComparison.Ordinal),

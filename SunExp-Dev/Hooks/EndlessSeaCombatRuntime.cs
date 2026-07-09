@@ -16,7 +16,7 @@ public static class EndlessSeaCombatRuntime
     {
         SunExpBattleLifecycleRouter.Register("EndlessSeaCombat", new SunExpBattleLifecycleSubscription
         {
-            FightStarted = ApplyOriginBattleStartEffects
+            FightInitialized = ApplyOriginBattleStartEffects
         });
         SunExpStatusLifecycleRouter.Register("EndlessSeaCombat", new SunExpStatusLifecycleSubscription
         {
@@ -114,8 +114,8 @@ public static class EndlessSeaCombatRuntime
         {
             if (EndlessSeaModeRuntime.IsEndlessSeaRun())
             {
-                EndlessSeaRunStateStore.MarkPhase(EndlessSeaRunPhase.InBattle, "Fight_Start.Init");
-                EndlessSeaOriginService.ApplyBattleStartEffects("Fight_Start.Init");
+                EndlessSeaRunStateStore.MarkPhase(EndlessSeaRunPhase.InBattle, "FightInit.Init");
+                EndlessSeaOriginService.ApplyBattleStartEffects("FightInit.Init");
             }
         }
         catch (Exception ex)

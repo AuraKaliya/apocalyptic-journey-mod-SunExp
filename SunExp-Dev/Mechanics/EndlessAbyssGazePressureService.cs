@@ -232,14 +232,14 @@ public static class EndlessAbyssGazePressureService
         if (stacks >= 10 && !state.Threshold10Triggered)
         {
             state.Threshold10Triggered = true;
-            EndlessAbyssCurseService.AddRandomCurseToLocalDeck(source + ":10");
+            EndlessAbyssCurseService.AddRandomCurseToCombatDeck(executor, source + ":10");
             SunExpLog.Info("[EndlessAbyssGaze] threshold 10 triggered owner=" + state.Owner + " from " + source + ".");
         }
 
         if (hardLevel >= 2 && stacks >= 15 && !state.Threshold15Triggered)
         {
             state.Threshold15Triggered = true;
-            EndlessAbyssCurseService.AddRandomCurseToLocalDeck(source + ":15");
+            EndlessAbyssCurseService.AddRandomCurseToCombatDeck(executor, source + ":15");
             state.CostPending = true;
             SunExpLog.Info("[EndlessAbyssGaze] threshold 15 triggered owner=" + state.Owner + " from " + source + ".");
         }

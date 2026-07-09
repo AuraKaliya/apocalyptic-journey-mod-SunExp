@@ -10,6 +10,8 @@ namespace SunExp.Dll.Mechanics;
 
 public static class EndlessAbyssRewardService
 {
+    private const string EvolutionTraitsAppliedKey = "SunExpEndlessAbyssEvolutionTraitsApplied";
+
     private static readonly string[] OriginKeys =
     {
         EndlessSeaOriginService.Strength,
@@ -116,11 +118,39 @@ public static class EndlessAbyssRewardService
             return;
         }
 
-        for (var i = 0; i < stacks; i++)
+        var applied = AppliedEvolutionTraits(enemy.Status);
+        if (applied >= stacks)
+        {
+            return;
+        }
+
+        for (var i = applied; i < stacks; i++)
         {
             var id = EvolutionTraitPool[PickIndex(EvolutionTraitPool.Length, source + ":" + enemy.InstanceId + ":" + i)];
             enemy.Status.AddBuff(id, 1);
         }
+
+        MarkEvolutionTraitsApplied(enemy.Status, stacks);
+    }
+
+    private static int AppliedEvolutionTraits(IStatusManager status)
+    {
+        return status is StatusManager concrete
+               && concrete.dynamicVariables != null
+               && concrete.dynamicVariables.TryGetValue(EvolutionTraitsAppliedKey, out var value)
+            ? Math.Max(0, (int)value)
+            : 0;
+    }
+
+    private static void MarkEvolutionTraitsApplied(IStatusManager status, int stacks)
+    {
+        if (status is not StatusManager concrete)
+        {
+            return;
+        }
+
+        concrete.dynamicVariables ??= new Dictionary<string, float>();
+        concrete.dynamicVariables[EvolutionTraitsAppliedKey] = Math.Max(0, stacks);
     }
 
     private static List<string> NonHiddenCards()

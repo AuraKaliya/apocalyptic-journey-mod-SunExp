@@ -1400,9 +1400,13 @@ function Invoke-SourceAssertions {
     $endlessSeaCombatRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\EndlessSeaCombatRuntime.cs"))
     $endlessAbyssConfig = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssConfig.cs"))
     $endlessAbyssConfigJson = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\endless_abyss.config.json"))
+    $endlessAbyssCurseService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssCurseService.cs"))
+    $endlessAbyssGazePressureService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssGazePressureService.cs"))
     $endlessAbyssRewardPoolService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssRewardPoolService.cs"))
     $endlessAbyssMilestoneRewardService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssMilestoneRewardService.cs"))
     $endlessAbyssRunLedger = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssRunLedger.cs"))
+    $morningStarDimmedService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\MorningStarDimmedService.cs"))
+    $playerPowerApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\PlayerPowerApi.cs"))
     $endlessAbyssMilestoneRewardPanel = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\EndlessAbyssMilestoneRewardPanel.cs"))
     $endlessAbyssShockPanel = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\EndlessAbyssShockPanel.cs"))
     $endlessSeaRunStateStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessSeaRunStateStore.cs"))
@@ -2258,7 +2262,7 @@ function Invoke-SourceAssertions {
     Assert-True $gameCompatibilityApi.Contains("GetItemsByPackFallback") "Card-pack compatibility lookup must retain a table-scan fallback."
     Assert-True (-not $solarMemoryStarterDeckRuntime.Contains(".GetPackItems(")) "Solar memory starter deck must not bind directly to the unstable GetPackItems signature."
     Assert-True (-not $solarMemoryModeRuntime.Contains(".GetPackItems(")) "Solar memory setup UI must not bind directly to the unstable GetPackItems signature."
-    $sunsetExpedition = [regex]::Match($sunExpHardTagRuntime, "private\s+static\s+void\s+ApplySunsetExpedition\(\)[\s\S]*?private\s+static\s+int\s+ApplyMorningStarDimmedToCombatCards")
+    $sunsetExpedition = [regex]::Match($sunExpHardTagRuntime, "private\s+static\s+void\s+ApplySunsetExpedition\(\)[\s\S]*?(?=private\s+static\s+)")
     Assert-True $sunsetExpedition.Success "Could not locate ApplySunsetExpedition for source assertion."
     Assert-True (-not $sunsetExpedition.Value.Contains("MirrorSc")) "Sunset Expedition must not borrow the player's generic MirrorSc executor."
     Assert-True (-not $sunsetExpedition.Value.Contains("ChangeHp")) "Sunset Expedition must not call ChangeHp without a dataConfig Id."
@@ -2270,10 +2274,23 @@ function Invoke-SourceAssertions {
     Assert-True $sunExpHardTagRuntime.Contains("CombatVarApi.AddInt(AbyssalShockHpStacksKey, 1)") "Abyssal Shock HP option must add one stack every time it triggers."
     Assert-True $sunExpHardTagRuntime.Contains("while (applied < stacks)") "Abyssal Shock enemy HP scaling must catch enemies up to every triggered HP stack."
     Assert-True $sunExpHardTagRuntime.Contains("Math.Ceiling(Math.Max(1, value) * 1.3)") "Abyssal Shock HP scaling must multiply MaxHp/CurHp by 1.3 each stack."
-    Assert-True $sunExpHardTagRuntime.Contains("MorningStarDimmedCostMarker") "Morning Star Dimmed must mark cards after applying the combat cost increase."
+    Assert-True $sunExpHardTagRuntime.Contains("SunExpLifecycleStepRunner.RunBattleOnce") "Hard-tag fight-start work must route through the lifecycle frame-step service."
+    Assert-True $sunExpHardTagRuntime.Contains('"FightInitialized"') "Hard-tag fight-start work must target the FightInitialized lifecycle."
+    Assert-True $sunExpHardTagRuntime.Contains('new SunExpFrameStep("MorningStarDimmed", () => MorningStarDimmedService.OnFightStarted') "Morning Star Dimmed fight-start work must be split as a lifecycle step."
+    Assert-True $morningStarDimmedService.Contains("public const string CostMarker") "Morning Star Dimmed service must mark cards after applying the combat cost increase."
+    Assert-True $morningStarDimmedService.Contains("SunExpLifecycleStepRunner.RunBattleOnce") "Morning Star Dimmed must split fight-start work through the SunExp lifecycle runner."
+    Assert-True $morningStarDimmedService.Contains("TryClaimBattleOperation") "Morning Star Dimmed max power must be idempotent per battle."
+    Assert-True $morningStarDimmedService.Contains("PlayerPowerApi.TryChangeMaxPower(1)") "Morning Star Dimmed must add only one max power through the player power API."
+    Assert-True (-not $morningStarDimmedService.Contains("executor.ChangeMaxPower(")) "Morning Star Dimmed must not call the ForEachObject ScriptExecutor max-power method from a mirror executor."
+    Assert-True $playerPowerApi.Contains("player.MaxPowerCount = expected") "Player power API must use the native max-power property so the fight UI refreshes."
+    Assert-True $endlessAbyssGazePressureService.Contains("AddRandomCurseToCombatDeck") "Abyssal Gaze pressure must add temporary curses to the combat deck."
+    Assert-True (-not $endlessAbyssGazePressureService.Contains("AddRandomCurseToLocalDeck(executor")) "Abyssal Gaze pressure must not add curses to the adventure deck."
+    Assert-True $endlessAbyssCurseService.Contains("TemporaryCombatCurseMarker") "Abyssal Gaze temporary curses must carry a cleanup marker."
+    Assert-True $endlessAbyssCurseService.Contains("FightCardManager.Instance?.cardList") "Abyssal Gaze temporary curses must enter the combat card list."
+    Assert-True $sunExpHardTagRuntime.Contains('CleanupTemporaryCombatCurses("FightEnding")') "Abyssal Gaze temporary curses must be cleaned at fight ending."
     Assert-True $sunExpHardTagRuntime.Contains('RegisterBefore(modConfig, SunExpHookTargets.SkillItemTrueUse, OnSkillUseBefore)') "Stagnant Water must hook skill use before native cooldown is set."
     Assert-True $sunExpHardTagRuntime.Contains('RegisterAfter(modConfig, SunExpHookTargets.SkillItemTrueUse, OnSkillUseAfter)') "Stagnant Water must hook skill use after native cooldown is set."
-    Assert-True $sunExpHardTagRuntime.Contains('RunFightStartStep("BlackSunListener"') "A Sunset Expedition failure must not prevent Black Sun listener registration."
+    Assert-True $sunExpHardTagRuntime.Contains('new SunExpFrameStep("BlackSunListener"') "A Sunset Expedition failure must not prevent Black Sun listener registration."
     Assert-True $solarMemoryModeRuntime.Contains("SunExpIds.SolarMemoryMapIds[eventIndex]") "Solar memory sync repair must use the fixed story map id array."
     Assert-True $solarMemoryModeRuntime.Contains("SunExpIds.SolarMemoryFullEventIds[eventIndex]") "Solar memory sync repair must use the fixed story event id array."
     Assert-True $eventScripts.Contains("public static void InitSolarMemoryNode") "Solar memory fixed story events must expose an init method."

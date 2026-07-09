@@ -9,7 +9,13 @@ public sealed class AuraBattleLifecycleSubscription
 {
     public Action<ModHookContext>? AdventureStarting { get; set; }
 
+    public Action<ModHookContext>? FightInitializing { get; set; }
+
     public Action<ModHookContext>? FightStarting { get; set; }
+
+    public Action<ModHookContext>? FightInitialized { get; set; }
+
+    public Action<ModHookContext>? FightOpening { get; set; }
 
     public Action<ModHookContext>? FightStarted { get; set; }
 
@@ -79,18 +85,21 @@ public static class AuraBattleLifecycleRouter
         registry.BeforeRouted(FightInitInit, context =>
         {
             BeginBattleSession();
+            Dispatch(context, FightInitInit, h => h.Subscription.FightInitializing);
             Dispatch(context, FightInitInit, h => h.Subscription.FightStarting);
-        }, "FightStarting");
+        }, "FightInitializing");
         registry.AfterRouted(FightStartInit, context =>
         {
             EnsureBattleSession();
+            Dispatch(context, FightStartInit, h => h.Subscription.FightOpening);
             Dispatch(context, FightStartInit, h => h.Subscription.FightStarted);
-        }, "FightStarted");
+        }, "FightOpening");
         registry.AfterRouted(FightInitInit, context =>
         {
             EnsureBattleSession();
+            Dispatch(context, FightInitInit, h => h.Subscription.FightInitialized);
             Dispatch(context, FightInitInit, h => h.Subscription.FightStarted);
-        }, "FightStarted");
+        }, "FightInitialized");
         registry.AfterRouted(FightPlayerTurnInit, context => Dispatch(context, FightPlayerTurnInit, h => h.Subscription.PlayerRoundStarted), "PlayerRoundStarted");
         registry.BeforeRouted(FightWinResetStates, context => Dispatch(context, FightWinResetStates, h => h.Subscription.FightEnding), "FightEnding");
         registry.BeforeRouted(FightEscapeResetStates, context => Dispatch(context, FightEscapeResetStates, h => h.Subscription.FightEnding), "FightEnding");

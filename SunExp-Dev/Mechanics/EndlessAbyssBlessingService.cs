@@ -7,6 +7,8 @@ namespace SunExp.Dll.Mechanics;
 
 public static class EndlessAbyssBlessingService
 {
+    private const string OpeningStacksAppliedKey = "SunExpEndlessAbyssBlessingOpeningStacksApplied";
+
     private static readonly (string BuffId, int Amount)[] BlessingPool =
     {
         ("buff_resilient", 1),
@@ -38,12 +40,13 @@ public static class EndlessAbyssBlessingService
     public static void ApplyOpeningStacks(Enemy enemy, string source)
     {
         var stacks = Math.Max(0, EndlessAbyssGazeService.CurrentLevel());
-        if (stacks <= 0 || enemy?.Status == null)
+        if (stacks <= 0 || enemy?.Status == null || AlreadyApplied(enemy.Status, stacks))
         {
             return;
         }
 
         enemy.Status.AddBuff(SunExpIds.AbyssBlessingBuff, stacks);
+        MarkApplied(enemy.Status, stacks);
         SunExpLog.Debug("[EndlessAbyssBlessing] applied "
             + stacks
             + " to enemy "
@@ -51,6 +54,25 @@ public static class EndlessAbyssBlessingService
             + " from "
             + source
             + ".");
+    }
+
+    private static bool AlreadyApplied(IStatusManager status, int stacks)
+    {
+        return status is StatusManager concrete
+            && concrete.dynamicVariables != null
+            && concrete.dynamicVariables.TryGetValue(OpeningStacksAppliedKey, out var value)
+            && value >= stacks;
+    }
+
+    private static void MarkApplied(IStatusManager status, int stacks)
+    {
+        if (status is not StatusManager concrete)
+        {
+            return;
+        }
+
+        concrete.dynamicVariables ??= new System.Collections.Generic.Dictionary<string, float>();
+        concrete.dynamicVariables[OpeningStacksAppliedKey] = stacks;
     }
 
     private static void ResolveStartRound(ScriptExecutor self)

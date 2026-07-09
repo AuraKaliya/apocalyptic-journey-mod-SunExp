@@ -1,15 +1,21 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Fight.ActionCommand;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using Witch;
 using Witch.Core;
+using Witch.UI;
+using Witch.UI.Window;
 
 namespace SunExp.Dll.Mechanics;
 
 public static class EndlessAbyssCurseService
 {
+    public const string TemporaryCombatCurseMarker = "SunExpTemporaryAbyssCurse";
+    private const string TemporaryCombatCardMarker = "SunExpTemporaryCombatCard";
+    private const string TemporaryCombatSourceKey = "SunExpTemporarySource";
     private static int suppressGazeCardGain;
     private static IReadOnlyList<string>? randomCursePoolCache;
 
@@ -124,6 +130,18 @@ public static class EndlessAbyssCurseService
         return TryAddCurseToLocalDeck(id, source);
     }
 
+    public static bool AddRandomCurseToCombatDeck(ScriptExecutor? self, string source)
+    {
+        var pool = RandomCursePool();
+        if (pool.Count == 0)
+        {
+            return false;
+        }
+
+        var id = pool[PickIndex(pool.Count, source)];
+        return TryAddCurseToCombatDeck(self, id, source);
+    }
+
     public static bool AddRandomCurseToLocalDeck(string source)
     {
         var pool = RandomCursePool();
@@ -134,6 +152,27 @@ public static class EndlessAbyssCurseService
 
         var id = pool[PickIndex(pool.Count, source)];
         return TryAddCurseToLocalDeck(id, source);
+    }
+
+    public static int CleanupTemporaryCombatCurses(string source)
+    {
+        var removed = 0;
+        try
+        {
+            removed += RemoveTemporaryCurses(FightCardManager.Instance?.cardList);
+            removed += RemoveTemporaryCurses(FightCardManager.Instance?.usedCardList);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[EndlessAbyssCurse] temporary curse cleanup failed from " + source + ": " + ex.Message);
+        }
+
+        if (removed > 0)
+        {
+            SunExpLog.Info("[EndlessAbyssCurse] cleaned temporary combat curses: " + removed + " from " + source + ".");
+        }
+
+        return removed;
     }
 
     private static bool TryAddCurseToLocalDeck(string cardId, string source)
@@ -166,6 +205,112 @@ public static class EndlessAbyssCurseService
         {
             suppressGazeCardGain = Math.Max(0, suppressGazeCardGain - 1);
         }
+    }
+
+    private static bool TryAddCurseToCombatDeck(ScriptExecutor? self, string cardId, string source)
+    {
+        try
+        {
+            suppressGazeCardGain++;
+            var resolved = CardApi.ResolveCardId(cardId);
+            if (string.IsNullOrWhiteSpace(resolved))
+            {
+                return false;
+            }
+
+            var config = new DataConfig(resolved, DataType.Card);
+            CardMutationService.SetRuntimeMarkers(config, TemporaryCombatCardMarker, TemporaryCombatCurseMarker);
+            DictionaryUtil.Set(config.Vars, TemporaryCombatSourceKey, "AbyssGaze");
+            DictionaryUtil.Set(config.Vars, "SunExpRuntimeCreatedAt", source);
+
+            var drawPile = FightCardManager.Instance?.cardList;
+            if (drawPile == null)
+            {
+                SunExpLog.Warn("[EndlessAbyssCurse] combat draw pile missing from " + source + ".");
+                return false;
+            }
+
+            drawPile.Add(config);
+            RandomizeLastCardIntoDrawPile(drawPile, source);
+            TryPlayCombatDeckAddAnimation(config);
+            SunExpLog.Info("[EndlessAbyssCurse] added temporary curse to combat deck: "
+                + resolved
+                + " from "
+                + source
+                + ".");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[EndlessAbyssCurse] add temporary curse to combat deck failed from " + source + ": " + ex.Message);
+            return false;
+        }
+        finally
+        {
+            suppressGazeCardGain = Math.Max(0, suppressGazeCardGain - 1);
+        }
+    }
+
+    private static void RandomizeLastCardIntoDrawPile(IList<DataConfig> drawPile, string source)
+    {
+        if (drawPile.Count <= 1)
+        {
+            return;
+        }
+
+        var lastIndex = drawPile.Count - 1;
+        var targetIndex = PickIndex(drawPile.Count, source);
+        if (targetIndex == lastIndex)
+        {
+            return;
+        }
+
+        (drawPile[lastIndex], drawPile[targetIndex]) = (drawPile[targetIndex], drawPile[lastIndex]);
+    }
+
+    private static void TryPlayCombatDeckAddAnimation(DataConfig config)
+    {
+        try
+        {
+            var ui = UIManager.Instance?.GetUI<FightUI>("FightUI");
+            if (ui == null)
+            {
+                return;
+            }
+
+            ui.DoCardUseAnimation(new UseCard.CardUseData
+            {
+                cardData = config,
+                isBurning = false
+            }, false, true);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Debug("[EndlessAbyssCurse] temporary curse animation skipped: " + ex.Message);
+        }
+    }
+
+    private static int RemoveTemporaryCurses(IList<DataConfig>? cards)
+    {
+        if (cards == null)
+        {
+            return 0;
+        }
+
+        var removed = 0;
+        for (var i = cards.Count - 1; i >= 0; i--)
+        {
+            var config = cards[i];
+            if (!CardMutationService.HasRuntimeMarker(config, TemporaryCombatCurseMarker))
+            {
+                continue;
+            }
+
+            cards.RemoveAt(i);
+            removed++;
+        }
+
+        return removed;
     }
 
     private static IReadOnlyList<string> RandomCursePool()

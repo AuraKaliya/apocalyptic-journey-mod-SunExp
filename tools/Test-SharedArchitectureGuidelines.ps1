@@ -116,6 +116,14 @@ Require-Text $journeyRuntime "IsJourneyActive" "AuraJourneyRuntime must expose s
 $battleLifecycleRouter = Read-RepoText "AuraSharedCore\AuraBattleLifecycleRouter.cs"
 Require-Text $battleLifecycleRouter "EnsureBattleSession" "AuraBattleLifecycleRouter must expose a battle session scope for duplicate suppression."
 Require-Text $battleLifecycleRouter "AuraLifecycleOperationLedger\.ClearScopePrefix" "AuraBattleLifecycleRouter must clear battle-scoped operation claims on battle boundaries."
+Require-Text $battleLifecycleRouter "FightInitializing" "AuraBattleLifecycleRouter must expose the FightInit.Init before phase."
+Require-Text $battleLifecycleRouter "FightInitialized" "AuraBattleLifecycleRouter must expose the FightInit.Init after phase."
+Require-Text $battleLifecycleRouter "FightOpening" "AuraBattleLifecycleRouter must expose the Fight_Start.Init opening phase."
+
+$lifecycleStepRunner = Read-RepoText "AuraSharedCore\AuraSharedLifecycleStepRunner.cs"
+Require-Text $lifecycleStepRunner "AuraSharedLifecycleDeduplicateScope" "AuraSharedLifecycleStepRunner must expose reusable lifecycle dedupe scopes."
+Require-Text $lifecycleStepRunner "AuraSharedLifecycleStepRequest" "AuraSharedLifecycleStepRunner must expose a reusable request model."
+Require-Text $lifecycleStepRunner "AuraSharedFrameStepRunner\.Run" "AuraSharedLifecycleStepRunner must delegate frame splitting to the shared frame step runner."
 
 $cardLifecycleRouter = Read-RepoText "AuraSharedCore\AuraCardLifecycleRouter.cs"
 Require-Text $cardLifecycleRouter "AuraCardLifecyclePhase" "AuraCardLifecycleRouter must expose shared card lifecycle phase markers."

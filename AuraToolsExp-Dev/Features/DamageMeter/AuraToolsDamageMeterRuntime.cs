@@ -27,6 +27,7 @@ public static class AuraToolsDamageMeterRuntime
     private static readonly DamageFrameWindow<PureHpFrame> PureHpFrames = new(128, ReleasePureFrameTargets);
     private static readonly DamageFrameWindow<HpSetterFrame> HpSetterFrames = new(128);
     private static readonly DamageFrameWindow<BuffApplicationFrame> BuffFrames = new(128);
+    private static readonly DamageFrameWindow<StatusBuffFrame> StatusBuffFrames = new(128);
     private static readonly Stack<List<TargetHpFrame>> TargetFrameListPool = new();
     private static readonly Stack<TargetHpFrame> TargetFramePool = new();
     private static readonly List<TargetHpFrame> EmptyTargetFrames = new();
@@ -158,6 +159,8 @@ public static class AuraToolsDamageMeterRuntime
         RegisterAfter("StatusManager.set_CurHp", AfterSetCurHp);
         RegisterBefore("ScriptExecutor.AddBuff", BeforeScriptAddBuff);
         RegisterAfter("ScriptExecutor.AddBuff", AfterScriptAddBuff);
+        RegisterBefore("StatusManager.AddBuff", BeforeStatusAddBuff);
+        RegisterAfter("StatusManager.AddBuff", AfterStatusAddBuff);
         RegisterAfter("BuffItemConfig.set_Level", AfterBuffLevelChanged);
         RegisterAfter("StatusManager.RemoveBuff", AfterRemoveBuff);
         RegisterAfter("FightManager.OnEnable", AttachBuffBroadcastListener);
@@ -1491,6 +1494,66 @@ public static class AuraToolsDamageMeterRuntime
         });
     }
 
+    private static void BeforeStatusAddBuff(ModHookContext context)
+    {
+        RunHook("before status add buff", () =>
+        {
+            if (!CaptureEnabled || context.Target is not IStatusManager target)
+            {
+                return;
+            }
+
+            var buffId = StatusAddBuffId(context.Arguments);
+            if (string.IsNullOrWhiteSpace(buffId))
+            {
+                return;
+            }
+
+            DamageMeterPerformanceCounters.RecordBuffHook();
+            PruneFrames();
+            var frame = StatusBuffFrames.Rent(Time.frameCount);
+            frame.Target = target;
+            frame.TargetId = SafeStatusId(target);
+            frame.BuffId = buffId;
+            frame.BeforeLevel = SafeBuffLevel(target, buffId);
+            StatusBuffFrames.Add(frame);
+        });
+    }
+
+    private static void AfterStatusAddBuff(ModHookContext context)
+    {
+        RunHook("after status add buff", () =>
+        {
+            if (context.Target is not IStatusManager target)
+            {
+                return;
+            }
+
+            var buffId = StatusAddBuffId(context.Arguments);
+            var index = FindStatusBuffFrame(target, buffId);
+            if (index < 0)
+            {
+                return;
+            }
+
+            var frame = StatusBuffFrames[index];
+            var recordedBuffId = frame.BuffId;
+            var beforeLevel = frame.BeforeLevel;
+            StatusBuffFrames.RemoveAt(index);
+            var added = Math.Max(0, SafeBuffLevel(target, recordedBuffId) - beforeLevel);
+            if (added <= 0)
+            {
+                return;
+            }
+
+            BuffAttribution.RecordObservedApplication(
+                target,
+                recordedBuffId,
+                added,
+                Time.frameCount);
+        });
+    }
+
     private static void AfterRemoveBuff(ModHookContext context)
     {
         RunHook("remove buff", () =>
@@ -1548,10 +1611,11 @@ public static class AuraToolsDamageMeterRuntime
                 return;
             }
 
-            BuffAttribution.RefinePendingApplication(
+            BuffAttribution.ObserveBroadcast(
                 data.dataId,
                 data.fromId,
                 data.toId,
+                data.dataFromid,
                 Time.frameCount);
         });
     }
@@ -1778,6 +1842,7 @@ public static class AuraToolsDamageMeterRuntime
         HitFrames.PruneOlderThan(frame, 4);
         PureHpFrames.PruneOlderThan(frame, 4);
         HpSetterFrames.PruneOlderThan(frame, 4);
+        StatusBuffFrames.PruneOlderThan(frame, 4);
 
         for (var i = BuffFrames.Count - 1; i >= 0; i--)
         {
@@ -1797,6 +1862,7 @@ public static class AuraToolsDamageMeterRuntime
         PureHpFrames.Clear();
         HpSetterFrames.Clear();
         BuffFrames.Clear();
+        StatusBuffFrames.Clear();
         BuffAttribution.Clear();
         DamageMeterFightIndex.Clear();
         nextCallId = 0;
@@ -1924,6 +1990,55 @@ public static class AuraToolsDamageMeterRuntime
             : "";
     }
 
+    private static string StatusAddBuffId(object[]? arguments)
+    {
+        if (arguments == null || arguments.Length == 0 || arguments[0] == null)
+        {
+            return "";
+        }
+
+        if (arguments[0] is string text)
+        {
+            return text.Trim();
+        }
+
+        if (arguments[0] is IBuffItemConfig config)
+        {
+            return config.BuffId?.Trim() ?? "";
+        }
+
+        if (arguments[0] is IDataConfig dataConfig)
+        {
+            return SafeDataId(dataConfig);
+        }
+
+        return "";
+    }
+
+    private static int FindStatusBuffFrame(IStatusManager target, string buffId)
+    {
+        buffId = buffId?.Trim() ?? "";
+        var targetId = SafeStatusId(target);
+        for (var i = StatusBuffFrames.Count - 1; i >= 0; i--)
+        {
+            var frame = StatusBuffFrames[i];
+            if (!string.IsNullOrWhiteSpace(buffId)
+                && !string.Equals(frame.BuffId, buffId, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (ReferenceEquals(frame.Target, target)
+                || !string.IsNullOrWhiteSpace(targetId)
+                && string.Equals(frame.TargetId, targetId, StringComparison.Ordinal))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
     private static int ParseInt(string value)
     {
         return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
@@ -1936,6 +2051,18 @@ public static class AuraToolsDamageMeterRuntime
         try
         {
             return status.CurHp;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    private static int SafeBuffLevel(IStatusManager status, string buffId)
+    {
+        try
+        {
+            return status.GetBuff(buffId)?.buffConfig?.Level ?? 0;
         }
         catch
         {
@@ -2152,6 +2279,24 @@ public static class AuraToolsDamageMeterRuntime
             Frame = 0;
             Executor = null!;
             TrackerId = 0;
+        }
+    }
+
+    private sealed class StatusBuffFrame : IDamageCaptureFrame
+    {
+        public int Frame { get; set; }
+        public IStatusManager Target { get; set; } = null!;
+        public string TargetId { get; set; } = "";
+        public string BuffId { get; set; } = "";
+        public int BeforeLevel { get; set; }
+
+        public void Reset()
+        {
+            Frame = 0;
+            Target = null!;
+            TargetId = "";
+            BuffId = "";
+            BeforeLevel = 0;
         }
     }
 

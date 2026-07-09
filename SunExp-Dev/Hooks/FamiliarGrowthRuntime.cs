@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Reflection;
+using AuraShared.Core;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks.Ui;
 using SunExp.Dll.Infrastructure;
@@ -36,7 +37,7 @@ public static class FamiliarGrowthRuntime
         RegisterAfter(modConfig, "GameEntryUI.NormalGame", MarkSelectedForRun);
         SunExpBattleLifecycleRouter.Register("FamiliarGrowth", new SunExpBattleLifecycleSubscription
         {
-            FightStarted = ApplySelectedCombatStartEffects,
+            FightInitialized = ApplySelectedCombatStartEffects,
             FightEnded = GrantBattleWinExperience
         });
         SunExpLog.Info(LogPrefix + " runtime initialized.");
@@ -138,9 +139,16 @@ public static class FamiliarGrowthRuntime
             }
 
             var applied = 0;
-            foreach (var effect in FamiliarGrowthService.BlessingsFor(selected).SelectMany(blessing => blessing.Effects))
+            foreach (var blessing in FamiliarGrowthService.BlessingsFor(selected))
             {
-                applied += ApplyCombatStartEffect(status, effect) ? 1 : 0;
+                for (var i = 0; i < blessing.Effects.Count; i++)
+                {
+                    var effect = blessing.Effects[i];
+                    if (TryClaimCombatStartEffect(status, selected, blessing, effect, i))
+                    {
+                        applied += ApplyCombatStartEffect(status, effect) ? 1 : 0;
+                    }
+                }
             }
 
             if (applied > 0)
@@ -152,6 +160,34 @@ public static class FamiliarGrowthRuntime
         {
             SunExpLog.Warn(LogPrefix + " failed to apply combat start effects: " + ex.Message);
         }
+    }
+
+    private static bool TryClaimCombatStartEffect(
+        IStatusManager status,
+        FamiliarInstance selected,
+        FamiliarBlessingDefinition blessing,
+        FamiliarBlessingEffect effect,
+        int index)
+    {
+        var statusId = string.IsNullOrWhiteSpace(status.InstanceId) ? "local" : status.InstanceId;
+        var familiarId = string.IsNullOrWhiteSpace(selected.InstanceId) ? selected.SpeciesId : selected.InstanceId;
+        var blessingId = string.IsNullOrWhiteSpace(blessing.Id) ? "unknown-blessing" : blessing.Id;
+        var effectId = blessingId
+                       + ":"
+                       + Math.Max(0, index)
+                       + ":"
+                       + (effect.Kind ?? "")
+                       + ":"
+                       + (effect.Value ?? "")
+                       + ":"
+                       + Math.Max(0, effect.Amount);
+        return AuraLifecycleOperationLedger.TryClaimBattleOperation(
+            SunExpIds.ModId,
+            "FamiliarGrowth",
+            "CombatStartEffect",
+            statusId + ":" + familiarId,
+            effect.Kind ?? "effect",
+            effectId);
     }
 
     private static bool ApplyCombatStartEffect(IStatusManager status, FamiliarBlessingEffect effect)
