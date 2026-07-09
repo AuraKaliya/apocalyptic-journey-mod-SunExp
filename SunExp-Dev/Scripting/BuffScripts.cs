@@ -242,84 +242,24 @@ public static class BuffScripts
             return;
         }
 
-        ExecutorApi.SetActiveField(self, SunExpFieldId.ScorchingCanopy);
-
-        var token = ExecutorApi.RegisterHook(self, "SunExpField_scorching_canopyHook", "SunExpField_scorching_canopyToken");
-        ExecutorApi.SyncFieldStacks(self, SunExpFieldId.ScorchingCanopy);
-        SunExpLog.Debug("Scorching canopy carrier applied: carrierStacks="
-            + ExecutorApi.SelfBuffLevel(self, SunExpIds.ScorchingCanopy)
-            + ", fieldStacks=" + ExecutorApi.FieldStacks(SunExpFieldId.ScorchingCanopy));
-        if (token == null)
+        var intercepted = ExecutorApi.TryConsumePendingFieldBuffCarrier(SunExpFieldId.ScorchingCanopy);
+        var carrierStacks = Math.Max(1, ExecutorApi.SelfBuffLevel(self, SunExpIds.ScorchingCanopy));
+        if (!intercepted)
         {
-            return;
+            ExecutorApi.ActivateField(self, SunExpFieldId.ScorchingCanopy, carrierStacks, "BuffScripts.ApplyScorchingCanopy");
         }
 
-        var epoch = DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "SunExpActiveFieldEpoch", "0"));
-        ExecutorApi.TryAddTokenedEvent(self, SunExpIds.ScorchingCanopy + "OnLevelChange",
-            "SunExpField_scorching_canopyToken", token, new Action(() =>
-        {
-            ExecutorApi.SyncFieldStacks(self, SunExpFieldId.ScorchingCanopy);
-        }), "scorching_canopy");
-        ExecutorApi.TryAddEvent(self, "StartRound", new Action(() =>
-        {
-            if (!ExecutorApi.IsActiveField(self, SunExpFieldId.ScorchingCanopy, epoch, token))
-            {
-                return;
-            }
-
-            FieldStartRound(self, SunExpFieldId.ScorchingCanopy);
-        }), "scorching_canopy");
+        self.SetStatus("Self");
+        self.RemoveBuff(SunExpIds.ScorchingCanopy);
+        SunExpLog.Debug("Scorching canopy carrier converted to field: carrierStacks="
+            + carrierStacks
+            + ", intercepted=" + intercepted
+            + ", fieldStacks=" + ExecutorApi.FieldStacks(SunExpFieldId.ScorchingCanopy));
     }
 
     private static void ClearScorchingCanopy(ScriptExecutor self)
     {
-        var externalClear = ExecutorApi.GetVar(self, "SunExpFieldInternalClear", "0") != "1";
-        var wasActive = ExecutorApi.GetVar(self, "SunExpActiveFieldId") == "scorching_canopy";
-        var stacks = DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "SunExpActiveFieldStacks", "1"));
-
-        ExecutorApi.ClearHook(self, "SunExpField_scorching_canopyHook", "SunExpField_scorching_canopyToken");
-        if (!externalClear || stacks <= 0)
-        {
-            ExecutorApi.SyncFieldStacks(self, SunExpFieldId.ScorchingCanopy);
-            SunExpLog.Debug("Scorching canopy carrier cleared internally: wasActive=" + wasActive + ", stacks=" + stacks);
-            return;
-        }
-
-        if (!wasActive)
-        {
-            ExecutorApi.SyncFieldStacks(self, SunExpFieldId.ScorchingCanopy);
-            return;
-        }
-
-        SunExpLog.Debug("Scorching canopy carrier restored after external clear: stacks=" + stacks);
-        self.SetStatus("Self");
-        self.AddBuff(SunExpIds.ScorchingCanopy, stacks.ToString());
-        ExecutorApi.SyncFieldStacks(self, SunExpFieldId.ScorchingCanopy);
-    }
-
-    private static bool FieldStartRound(ScriptExecutor self, SunExpFieldId fieldId)
-    {
-        if (fieldId != SunExpFieldId.ScorchingCanopy)
-        {
-            return false;
-        }
-
-        var count = ExecutorApi.SyncFieldStacks(self, fieldId);
-        if (count <= 0)
-        {
-            count = ExecutorApi.CombatIntGet(ExecutorApi.FieldCombatKey(fieldId, "Stacks"));
-        }
-
-        if (count <= 0 || !ExecutorApi.BeginSharedFieldStartRound(self, fieldId))
-        {
-            return false;
-        }
-
-        self.SetStatus("All");
-        self.AddBuff(SunExpIds.Burn, count.ToString());
-        ExecutorApi.ClearSelfBurnIfProtected(self, true);
-        SunExpLog.Debug("Scorching canopy round trigger: stacks=" + count);
-        return true;
+        SunExpLog.Debug("Scorching canopy carrier clear ignored; field state is cleared only through FieldApi.TryClearActiveField.");
     }
 
     private static void ApplyBodyBurn(ScriptExecutor self)

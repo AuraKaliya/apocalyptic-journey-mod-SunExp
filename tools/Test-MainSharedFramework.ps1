@@ -61,6 +61,31 @@ if (-not ($auraToolsStarterDeckRuntime.Contains("correcting stale starter deck")
 if (-not ($auraToolsStarterDeckRuntime.Contains("StarterDeckEditorSession"))) {
     throw "AuraTools starter deck editor must use per-window edit sessions."
 }
+if (-not ($auraToolsStarterDeckRuntime.Contains("BuildCandidateCardPackGroups")) -or -not ($auraToolsStarterDeckRuntime.Contains("StarterDeckCardPackGroup"))) {
+    throw "AuraTools starter deck editor must group candidate cards by existing card packs."
+}
+if (-not ($auraToolsStarterDeckRuntime.Contains("StarterDeckCardCatalogSnapshot")) -or -not ($auraToolsStarterDeckRuntime.Contains("WarmStarterDeckCardCatalog"))) {
+    throw "AuraTools starter deck editor must cache the registered card catalog after the game/mod card tables are ready."
+}
+if (-not ($auraToolsStarterDeckRuntime.Contains('"GameEntryUI.Init"')) -or -not ($auraToolsStarterDeckRuntime.Contains('"GameEntryUI.ShowCareer"'))) {
+    throw "AuraTools starter deck card catalog must warm up from post-game-entry hooks instead of ModInitialize-time scanning."
+}
+if (-not ($auraToolsStarterDeckRuntime.Contains("BuildRegisteredExplicitCardIds")) -or -not ($auraToolsStarterDeckRuntime.Contains("BuildRegisteredHiddenCardIds")) -or -not ($auraToolsStarterDeckRuntime.Contains("BuildRegisteredSkillCardIds")) -or -not ($auraToolsStarterDeckRuntime.Contains("SystemSkillCardIds"))) {
+    throw "AuraTools starter deck card catalog must keep explicit, hidden, skill, and system skill card tables."
+}
+if (-not ($auraToolsStarterDeckRuntime.Contains("expandedCandidateGroups")) -or -not ($auraToolsStarterDeckRuntime.Contains("RefreshCandidateGroups")) -or -not ($auraToolsStarterDeckRuntime.Contains("ToggleCandidateGroup"))) {
+    throw "AuraTools starter deck pack groups must render as default-collapsed foldouts."
+}
+if ($auraToolsStarterDeckRuntime.Contains('.Where(id => !string.IsNullOrWhiteSpace(id) && !id.StartsWith("*", StringComparison.Ordinal))')) {
+    throw "AuraTools custom starter deck candidates must not filter special * cards."
+}
+if (-not ($auraToolsStarterDeckRuntime.Contains("CardDisplayNameWithSpecialMarker")) -or -not ($auraToolsStarterDeckRuntime.Contains("\u3010*\u3011"))) {
+    throw "AuraTools starter deck editor must visibly mark special * cards."
+}
+$packGroupedSelectionTitleText = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("5oyJ5Y2h5YyF6YCJ5oup"))
+if (-not ($auraToolsStarterDeckRuntime.Contains('"' + $packGroupedSelectionTitleText + '"')) -or -not ($auraToolsStarterDeckRuntime.Contains("\u5176\u5b83"))) {
+    throw "AuraTools starter deck editor must expose pack-grouped selection with an Other bucket."
+}
 if ($auraToolsStarterDeckRuntime.Contains("private static StarterDeckLocalProfileSettings? editingProfile")) {
     throw "AuraTools starter deck editor must not keep a static editing profile."
 }

@@ -29,6 +29,7 @@ public static class Entry
         RunStep("shared registry", () => AuraSharedRegistry.RegisterManifest(modConfig, "SunExp"));
         RunStep("visual registry", () => VisualRegistry.Load(modConfig));
         RunStep("endless abyss config", () => EndlessAbyssConfigStore.Load(modConfig));
+        RunStep("endless abyss evolution traits", () => EndlessAbyssEvolutionTraitRegistry.Load(modConfig));
         RunStep("card visual skin registry", CardVisualSkinApi.RegisterSunExpDefaults);
         RunStep("card visual effect registry", CardVisualEffectApi.RegisterSunExpDefaults);
         RunStep("CG registry", () => AuraCgRegistryRuntime.RegisterManifest(modConfig, "SunExp"));

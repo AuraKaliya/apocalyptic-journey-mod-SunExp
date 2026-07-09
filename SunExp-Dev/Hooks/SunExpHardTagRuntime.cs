@@ -148,7 +148,6 @@ public static class SunExpHardTagRuntime
                 "FightInitialized",
                 new[]
                 {
-                    new SunExpFrameStep("ScorchedWorld", ApplyScorchedWorld),
                     new SunExpFrameStep("SunsetExpedition", ApplySunsetExpedition),
                     new SunExpFrameStep("MorningStarDimmed", () => MorningStarDimmedService.OnFightStarted(CurrentPlayerExecutor(), "FightInit.Init")),
                     new SunExpFrameStep("AbyssGazeReset", () => EndlessAbyssGazePressureService.ResetPlayerTurn(CurrentPlayerExecutor(), "FightInit.Init")),
@@ -483,37 +482,6 @@ public static class SunExpHardTagRuntime
         {
             AnnihilateRandomLocalCard(executor);
         }
-    }
-
-    private static void ApplyScorchedWorld()
-    {
-        var level = Math.Max(0, Math.Min(4, SunExpHardTagState.Level(SunExpHardTagIds.ScorchedWorld)));
-        if (level <= 0)
-        {
-            return;
-        }
-
-        var status = FightPlayer.Instance?.Status;
-        if (status == null)
-        {
-            return;
-        }
-
-        var statusId = string.IsNullOrWhiteSpace(status.InstanceId) ? "local" : status.InstanceId;
-        if (!AuraLifecycleOperationLedger.TryClaimBattleOperation(
-                SunExpIds.ModId,
-                "HardTag",
-                "ScorchedWorld",
-                statusId,
-                "buff",
-                SunExpIds.ScorchingCanopy + ":" + level))
-        {
-            return;
-        }
-
-        status.AddBuff(SunExpIds.ScorchingCanopy, level);
-        var executor = status.MirrorSc as ScriptExecutor;
-        ExecutorApi.SyncFieldStacks(executor, SunExpFieldId.ScorchingCanopy);
     }
 
     private static void ApplySunsetExpedition()

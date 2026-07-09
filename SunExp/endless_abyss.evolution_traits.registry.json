@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "pools": [
+    {
+      "id": "endless_abyss.evolution.advanced_traits",
+      "entries": [
+        { "buffId": "SpecialBuff_Law:Supreme", "weight": 1 },
+        { "buffId": "SpecialBuff_BlessedByHeaven", "weight": 1 },
+        { "buffId": "SpecialBuff_Snitch", "weight": 1 },
+        { "buffId": "SpecialBuff_AllogeneicConcentric", "weight": 1 },
+        { "buffId": "SpecialBuff_Phoenix", "weight": 1 },
+        { "buffId": "SpecialBuff_ManInTheMirror", "weight": 1 },
+        { "buffId": "SpecialBuff_believer", "weight": 1 },
+        { "buffId": "SpecialBuff_hunting", "weight": 1 },
+        { "buffId": "SpecialBuff_ThievesKing", "weight": 1 },
+        { "buffId": "SpecialBuff_Law:Judgment", "weight": 1 },
+        { "buffId": "SpecialBuff_Musician", "weight": 1 },
+        { "buffId": "SpecialBuff_ThirstForBlood", "weight": 1 },
+        { "buffId": "SpecialBuff_Twins", "weight": 1 },
+        { "buffId": "SpecialBuff_CAR_HeroBlessing", "weight": 1 },
+        { "buffId": "SpecialBuff_Dragon'sBlood", "weight": 1 },
+        { "buffId": "SpecialBuff_Restrain", "weight": 1 },
+        { "buffId": "SpecialBuff_Irritable", "weight": 1 },
+        { "buffId": "SpecialBuff_CAR_Momentum", "weight": 1 },
+        { "buffId": "SpecialBuff_DesireWitch", "weight": 1 },
+        { "buffId": "SpecialBuff_Joker:King", "weight": 1 },
+        { "buffId": "SpecialBuff_Priest", "weight": 1 },
+        { "buffId": "SpecialBuff_FortuneBoy", "weight": 1 },
+        { "buffId": "SpecialBuff_Hysteresis", "weight": 1 },
+        { "buffId": "SpecialBuff_TrialsOfWisdom", "weight": 1 },
+        { "buffId": "SpecialBuff_BackToBasics", "weight": 1 },
+        { "buffId": "SpecialBuff_Transcendent", "weight": 1 },
+        { "buffId": "SunExp_sunexp_boss_trait_mirror_array", "weight": 1 }
+      ]
+    }
+  ]
+}

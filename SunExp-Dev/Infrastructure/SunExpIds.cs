@@ -98,6 +98,8 @@ public static class SunExpIds
     public const string AbyssLifeTheftEnemyCardId = "SunExp_sunexp_enemycard_abyss_life_theft";
     public const string AbyssDeficitEnemyCardId = "SunExp_sunexp_enemycard_abyss_deficit";
     public const string EndlessAbyssEvolutionLevelKey = "SunExp_EndlessAbyssEvolutionLevel";
+    public const string EndlessAbyssEvolutionTraitRegistryFile = "endless_abyss.evolution_traits.registry.json";
+    public const string EndlessAbyssEvolutionTraitPoolId = "endless_abyss.evolution.advanced_traits";
 
     public const string TempWhiteRadiance = "SunExpTempWhiteRadiance";
     public const string TempWhiteRadianceLockId = "SunExpTempWhiteRadianceLockId";

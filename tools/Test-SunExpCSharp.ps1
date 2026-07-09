@@ -1317,6 +1317,15 @@ function Invoke-SourceAssertions {
     $buffApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\BuffApi.cs"))
     $scriptEventApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\ScriptEventApi.cs"))
     $fieldApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\FieldApi.cs"))
+    $fieldRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\FieldRuntime.cs"))
+    $fieldBuffHudRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\FieldBuffHudRuntime.cs"))
+    $fieldBuffHudView = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\FieldBuffHudView.cs"))
+    $fieldBuffHudHoverProbe = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\FieldBuffHudHoverProbe.cs"))
+    $fieldBuffHudTooltipView = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\FieldBuffHudTooltipView.cs"))
+    $fieldEffectHandlers = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\FieldEffectHandlers.cs"))
+    $fieldStartSourceService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\FieldStartSourceService.cs"))
+    $endlessAbyssEvolutionTraitRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssEvolutionTraitRegistry.cs"))
+    $endlessAbyssEvolutionTraitRegistryJson = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\endless_abyss.evolution_traits.registry.json"))
     $buffOverflowApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\BuffOverflowApi.cs"))
     $eventScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\EventScripts.cs"))
     $bossScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\BossScripts.cs"))
@@ -1402,6 +1411,7 @@ function Invoke-SourceAssertions {
     $endlessAbyssConfigJson = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\endless_abyss.config.json"))
     $endlessAbyssCurseService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssCurseService.cs"))
     $endlessAbyssGazePressureService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssGazePressureService.cs"))
+    $endlessAbyssRewardService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssRewardService.cs"))
     $endlessAbyssRewardPoolService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssRewardPoolService.cs"))
     $endlessAbyssMilestoneRewardService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssMilestoneRewardService.cs"))
     $endlessAbyssRunLedger = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssRunLedger.cs"))
@@ -1474,15 +1484,63 @@ function Invoke-SourceAssertions {
     Assert-True $executorApi.Contains("public static bool TryAddTempEvent") "ExecutorApi must expose a safe temporary event registration wrapper."
     Assert-True (-not [regex]::IsMatch($scriptingSource, '\.\s*Add(?:Temp)?Event\s*\(')) "Scripting modules must route event registration through ExecutorApi wrappers."
     Assert-True $executorApi.Contains("public static bool ClearFieldBuff") "ExecutorApi.ClearFieldBuff is missing."
+    Assert-True $executorApi.Contains("public static void ActivateField") "ExecutorApi must expose field activation without a player-carrier buff."
+    Assert-True $executorApi.Contains("public static bool TryClearActiveField") "ExecutorApi must expose an explicit field clear interface."
     Assert-True $sunExpFieldId.Contains("public enum SunExpFieldId") "SunExpFieldId must define enum-like field ids."
     Assert-True $sunExpFieldId.Contains("ScorchingCanopy") "SunExpFieldId must include ScorchingCanopy."
-    Assert-True $fieldApi.Contains("private static int TotalFieldBuffStacks") "Field stacks must be recomputed from combat statuses."
-    Assert-True $fieldApi.Contains("foreach (var status in FightManager.Instance.statuses.Values)") "Field sync must scan FightManager statuses."
-    Assert-True $fieldApi.Contains('CombatVarApi.AddInt(FieldCombatKey(field, "Epoch"), 1);') "Field state changes must advance a shared epoch."
+    Assert-True $fieldApi.Contains("ActiveFieldIdKey") "FieldApi must keep one battle-wide active field id."
+    Assert-True $fieldApi.Contains("ActiveFieldStacksKey") "FieldApi must keep battle-wide field stacks outside player status buffs."
+    Assert-True $fieldApi.Contains("MaxStacksFor") "FieldApi must clamp field stacks through the configured buff upper bound."
+    Assert-True $fieldApi.Contains("GetOne(DataType.Buff, buffId)") "Field stack caps must read the current Buff data row."
+    Assert-True $fieldApi.Contains("CombatVarApi.AddInt(ActiveFieldEpochKey, 1);") "Field state changes must advance a shared epoch."
     Assert-True $fieldApi.Contains("SyncFieldStacks(ScriptExecutor? executor, SunExpFieldId field)") "Field sync must expose the enum-based overload."
-    Assert-True (-not [regex]::IsMatch($fieldApi, 'ClearFieldBuff[\s\S]*?SetSharedFieldState\(fieldId,\s*0\)')) "ClearFieldBuff must resync field state instead of blindly clearing shared stacks."
-    Assert-True $buffScripts.Contains("ExecutorApi.TryAddTokenedEvent(self, SunExpIds.ScorchingCanopy + ""OnLevelChange""") "Scorching Canopy must resync when its carrier buff level changes through the shared event wrapper."
-    Assert-True $buffScripts.Contains("ExecutorApi.SyncFieldStacks(self, SunExpFieldId.ScorchingCanopy);") "Scorching Canopy apply/clear must use enum-based field sync."
+    Assert-True $fieldApi.Contains("TryClearActiveField") "FieldApi must clear fields only through an explicit interface."
+    Assert-True $fieldApi.Contains("IsFieldBuffId") "FieldApi must classify buff rows that are actually field buffs."
+    Assert-True $fieldApi.Contains("TryRedirectStatusFieldBuffAdd") "Status AddBuff attempts for field buffs must be redirected into FieldApi."
+    Assert-True $fieldApi.Contains("PendingCarrierFieldKey") "FieldApi must prevent intercepted carrier buff apply scripts from double stacking."
+    Assert-True $fieldApi.Contains("RemoveFieldBuffCarrier") "FieldApi must remove field buff carriers from player/enemy status lists."
+    Assert-True $fieldRuntime.Contains("SunExpHookTargets.FightPlayerTurnInit") "Field runtime must resolve field effects from the round-start hook."
+    Assert-True $fieldRuntime.Contains("FieldApi.ResolveRoundStart") "Field runtime must delegate round-start field settlement to FieldApi."
+    Assert-True $fieldRuntime.Contains("FightInitialized = OnFightInitialized") "Field runtime must replay fight-start field sources after FightInit for battle reset support."
+    Assert-True $fieldRuntime.Contains("FieldStartSourceService.ApplyFightStartSources") "Field runtime must delegate fight-start field source replay to Mechanics."
+    Assert-True $fieldBuffHudRuntime.Contains('SunExpFrameScheduler.RunOnceNextFrame("FieldBuffHud.Refresh"') "Field HUD refresh must be deferred through the frame scheduler."
+    Assert-True $fieldBuffHudView.Contains("FieldBuffHudTooltipView.Create") "Field HUD must create a hover tooltip."
+    Assert-True $fieldBuffHudView.Contains("FieldBuffHudHoverProbe") "Field HUD must use pointer events for hover."
+    Assert-True $fieldBuffHudView.Contains("private const float RootWidth = 136f") "Field HUD must use a compact vertical badge layout."
+    Assert-True $fieldBuffHudView.Contains('"NameBar"') "Field HUD must keep the field buff name inside the HUD panel."
+    Assert-True $fieldBuffHudView.Contains("group.blocksRaycasts = true") "Field HUD must allow its local hotspot to receive hover raycasts."
+    Assert-True $fieldBuffHudHoverProbe.Contains("IPointerEnterHandler") "Field HUD hover probe must use Unity pointer enter events."
+    Assert-True $fieldBuffHudHoverProbe.Contains("IPointerExitHandler") "Field HUD hover probe must use Unity pointer exit events."
+    Assert-True $fieldBuffHudTooltipView.Contains('Localize("Description")') "Field HUD tooltip must use Buff CSV description text."
+    Assert-True $fieldBuffHudTooltipView.Contains('Localize("Tips")') "Field HUD tooltip must keep Tips as a legacy fallback."
+    Assert-True $fieldBuffHudTooltipView.Contains("group.blocksRaycasts = false") "Field HUD tooltip must not block battle controls."
+    Assert-True $fieldStartSourceService.Contains("SunExpHardTagIds.ScorchedWorld") "Field start sources must replay Scorched World after battle reset."
+    Assert-True $fieldStartSourceService.Contains('"blazing_crown_heart"') "Field start sources must replay Blazing Crown Heart after battle reset."
+    Assert-True $fieldStartSourceService.Contains("status.AddBuff(SunExpIds.SolarRadiance, 8);") "Blazing Crown Heart start replay must grant Solar Radiance directly to the rebuilt player status."
+    Assert-True $fieldStartSourceService.Contains("FieldApi.ActivateField(executor, SunExpFieldId.ScorchingCanopy, 2") "Blazing Crown Heart start replay must restore Scorching Canopy through FieldApi."
+    Assert-True $fieldStartSourceService.Contains("status.AddBuff(SunExpIds.SolarCrown, 1);") "Blazing Crown Heart start replay must grant Solar Crown after restoring the field."
+    Assert-True $fieldStartSourceService.Contains("TryClaimBattleOperation") "Field start source replay must be idempotent within a battle session."
+    Assert-True $fieldEffectHandlers.Contains("TriggerScorchingCanopyRoundStart") "Scorching Canopy field effect must live outside carrier buff scripts."
+    Assert-True $fieldEffectHandlers.Contains("ExecutorApi.FriendlyTargets(executor, includeSelf: true)") "Scorching Canopy field effect must include friendly combatants without using ScriptExecutor AddBuff."
+    Assert-True $fieldEffectHandlers.Contains("ExecutorApi.EnemyTargets(executor)") "Scorching Canopy field effect must include enemy combatants without using ScriptExecutor AddBuff."
+    Assert-True $fieldEffectHandlers.Contains("target.AddBuff(SunExpIds.Burn, count);") "Scorching Canopy field effect must apply burn directly to combat statuses."
+    Assert-True (-not $fieldEffectHandlers.Contains("executor.AddBuff(SunExpIds.Burn")) "Scorching Canopy field effect must not use ScriptExecutor.AddBuff because round-start hook executors may lack dataConfig Id."
+    Assert-True (-not $buffScripts.Contains('TryAddEvent(self, "StartRound"')) "Scorching Canopy carrier buff must not own round-start settlement."
+    Assert-True $buffScripts.Contains("ExecutorApi.ActivateField(self, SunExpFieldId.ScorchingCanopy") "Scorching Canopy carrier apply must convert legacy carrier adds into field state."
+    Assert-True $buffScripts.Contains("TryConsumePendingFieldBuffCarrier") "Scorching Canopy carrier apply must not double stack intercepted field buff adds."
+    Assert-True $buffScripts.Contains("self.RemoveBuff(SunExpIds.ScorchingCanopy);") "Scorching Canopy legacy carrier apply must immediately remove the player-mounted carrier buff."
+    Assert-True $buffData.Contains('"scorching_canopy","","CS.SunExp.Dll.Scripting.BuffScripts.Apply(self, ""scorching_canopy"");') "Scorching Canopy buff data row is missing."
+    $fieldBuffTypeText = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("5Zy65Zyw"))
+    Assert-True $buffData.Contains('"Mods/SunExp/ModResource/Images/Buff/SunExp/scorching_canopy","' + $fieldBuffTypeText + '"') "Scorching Canopy must be typed as a field buff so native random positive/negative/ability pools do not select it."
+    Assert-True $endlessAbyssRewardService.Contains("EndlessAbyssEvolutionTraitRegistry.EvolutionTraitBuffIds()") "Endless Abyss evolution rewards must read the advanced trait pool from the registry."
+    Assert-True (-not $endlessAbyssRewardService.Contains("EvolutionTraitPool")) "Endless Abyss evolution traits must not use the old hardcoded pool."
+    Assert-True $entry.Contains("EndlessAbyssEvolutionTraitRegistry.Load(modConfig)") "SunExp entry must load the evolution trait registry during initialization."
+    Assert-True $endlessAbyssEvolutionTraitRegistry.Contains("SunExpIds.EndlessAbyssEvolutionTraitPoolId") "Evolution trait registry must resolve the named advanced trait pool."
+    Assert-True $endlessAbyssEvolutionTraitRegistryJson.Contains('"SpecialBuff_Law:Supreme"') "Evolution trait registry must include Liquid Body."
+    Assert-True $endlessAbyssEvolutionTraitRegistryJson.Contains('"SpecialBuff_Transcendent"') "Evolution trait registry must include Colossus."
+    Assert-True $endlessAbyssEvolutionTraitRegistryJson.Contains('"SunExp_sunexp_boss_trait_mirror_array"') "Evolution trait registry must include Three-Thousand Ring Sun Mirror."
+    Assert-True (-not $endlessAbyssEvolutionTraitRegistryJson.Contains("SunExp_sunexp_boss_trait_merciless_daylight")) "Evolution trait registry must exclude the removed Merciless Daylight boss trait."
+    Assert-True (-not $endlessAbyssEvolutionTraitRegistryJson.Contains("SunExp_sunexp_boss_trait_white_radiance_saint")) "Evolution trait registry must exclude the removed White Radiance Saint boss trait."
     Assert-True $executorApi.Contains("public static int BurnUpperBound(IStatusManager? target)") "ExecutorApi must expose a dynamic burn upper bound helper."
     Assert-True $buffOverflowApi.Contains("private const int BurnUpperBoundFallback = 1;") "Invalid burn upper bounds must fall back to the minimum valid stack count."
     Assert-True $buffOverflowApi.Contains("target.GetBuff(buffId)?.buffConfig?.UpperBound") "Burn upper bound must prefer the live BuffItemConfig.UpperBound."
@@ -1492,6 +1550,9 @@ function Invoke-SourceAssertions {
     Assert-True $runtimeHooks.Contains('SunExpStatusLifecycleRouter.Register("RuntimeStatusBuff"') "RuntimeHooks must subscribe burn overflow to the shared StatusManager.AddBuff lifecycle."
     Assert-True $runtimeHooks.Contains("BeforeAddBuff = OnStatusManagerAddBuffBefore") "Burn overflow must prepare before real StatusManager.AddBuff execution."
     Assert-True $runtimeHooks.Contains("AfterAddBuff = OnStatusManagerAddBuffAfter") "Solar Radiance cap repair must run after StatusManager.AddBuff creation."
+    Assert-True $runtimeHooks.Contains("FieldApi.TryRedirectStatusFieldBuffAdd") "Status AddBuff hooks must redirect field buffs before native status effects persist."
+    Assert-True $runtimeHooks.Contains("FieldApi.RemoveFieldBuffCarrier") "Status AddBuff hooks must remove field buff carriers after native status effects run."
+    Assert-True $buffApi.Contains("FieldApi.IsFieldBuffId") "BuffApi positive/negative buff scans must exclude all field buffs through FieldApi."
     Assert-True (-not $runtimeHooks.Contains('RegisterBefore(modConfig, "ScriptExecutor.AddBuff", OnScriptExecutorAddBuffBefore);')) "Burn overflow must not hook ScriptExecutor.AddBuff because it can mutate the active target list."
     Assert-True $buffOverflowApi.Contains("target.AddBuff(SunExpIds.BodyBurn, overflow);") "Burn overflow must add body burn directly to the resolved status target."
     Assert-True $buffOverflowApi.Contains("private const int SolarRadianceDefaultUpperBound = 12;") "Solar Radiance default upper bound must be 12."
@@ -1605,7 +1666,8 @@ function Invoke-SourceAssertions {
     Assert-True ($sunOrbitMirrorBlock.Success -and $sunOrbitMirrorBlock.Value.Contains('self.AddBuff(SunExpIds.GatheredFlame, "1");') -and $sunOrbitMirrorBlock.Value.Contains("ExecutorApi.AddBurnToRandomEnemy(self, 3);")) "Sun-Orbit Mirror must gain Gathered Flame and apply 3 Burn every third action."
     Assert-True ($miniatureSunwheelBlock.Success -and $miniatureSunwheelBlock.Value.Contains("BuffApi.NegativeTotal(self.Self)") -and $miniatureSunwheelBlock.Value.Contains("ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, burn);")) "Miniature Sunwheel must convert negative stacks into Gathered Flame and add Solar Radiance as Burn to all enemies."
     Assert-True ($miniatureSunwheelBlock.Success -and -not $miniatureSunwheelBlock.Value.Contains("ScorchingCanopy")) "Miniature Sunwheel must not require Scorching Canopy."
-    Assert-True ([regex]::IsMatch($blazingCrownHeartBlock.Value, 'AddBuff\(SunExpIds\.SolarRadiance, "8"\);[\s\S]*ApplyFieldBuff\(self, "scorching_canopy", 2\);[\s\S]*AddBuff\(SunExpIds\.SolarCrown, "1"\);')) "Blazing Crown Heart must grant Radiance, Canopy, then Crown in order."
+    Assert-True (-not $blazingCrownHeartBlock.Value.Contains('TryAddEvent(self, "FightStart"')) "Blazing Crown Heart must not register a legacy FightStart event that is lost during battle reset."
+    Assert-True ([regex]::IsMatch($fieldStartSourceService, 'AddBuff\(SunExpIds\.SolarRadiance, 8\);[\s\S]*ActivateField\(executor, SunExpFieldId\.ScorchingCanopy, 2[\s\S]*AddBuff\(SunExpIds\.SolarCrown, 1\);')) "Blazing Crown Heart must grant Radiance, Canopy, then Crown through fight-start source replay."
     Assert-True (-not $blazingCrownHeartBlock.Value.Contains('TryAddEvent(self, "StartRound"')) "Blazing Crown Heart must not keep the old round-start Burn aura."
     Assert-True ($ashCharmBlock.Success -and $ashCharmBlock.Value.Contains('TryAddEvent(self, "EndRound"') -and $ashCharmBlock.Value.Contains("self.AddBuff(SunExpIds.Ember, burn.ToString());") -and $ashCharmBlock.Value.Contains("self.ChangeDefence(burn.ToString());")) "Ash Charm must grant Ember and Block equal to self Burn at round end."
     Assert-True $solarMemoryCombatRuntime.Contains('SunExpStatusLifecycleRouter.Register("SolarMemoryCombat"') "Solar Memory combat tuning must subscribe through the shared status lifecycle router."

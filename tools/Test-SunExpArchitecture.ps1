@@ -205,6 +205,9 @@ $requiredFiles = @(
     "SunExp-Dev\Hooks\Ui\StarScoreHudShaderMaterials.cs",
     "SunExp-Dev\Hooks\Ui\StarScoreHudView.cs",
     "SunExp-Dev\Hooks\Ui\StarScoreHudTooltipView.cs",
+    "SunExp-Dev\Hooks\Ui\FieldBuffHudView.cs",
+    "SunExp-Dev\Hooks\Ui\FieldBuffHudHoverProbe.cs",
+    "SunExp-Dev\Hooks\Ui\FieldBuffHudTooltipView.cs",
     "SunExp-Dev\Hooks\Ui\SunExpModalHost.cs",
     "SunExp-Dev\Hooks\Ui\SunExpUiSafety.cs",
     "SunExp-Dev\Hooks\Ui\SunExpUiLifetimeScope.cs",
@@ -250,6 +253,7 @@ $requiredFiles = @(
     "SunExp-Dev\Mechanics\StarScoreCadenceCatalog.cs",
     "SunExp-Dev\Mechanics\StarScoreDisplaySnapshot.cs",
     "SunExp-Dev\Mechanics\StarScoreNote.cs",
+    "SunExp-Dev\Mechanics\FieldStartSourceService.cs",
     "SunExp-Dev\Network\RpcEmberAdventureStateCommit.cs",
     "SunExp\visual.registry.json",
     "SunExp\familiar.blessing.registry.json"
@@ -261,6 +265,8 @@ foreach ($file in $requiredFiles) {
 
 $executorApi = Read-RepoText "SunExp-Dev\GameApi\ExecutorApi.cs"
 $fieldApi = Read-RepoText "SunExp-Dev\GameApi\FieldApi.cs"
+$fieldStartSourceService = Read-RepoText "SunExp-Dev\Mechanics\FieldStartSourceService.cs"
+$buffApi = Read-RepoText "SunExp-Dev\GameApi\BuffApi.cs"
 $buffOverflowApi = Read-RepoText "SunExp-Dev\GameApi\BuffOverflowApi.cs"
 $mapItemApi = Read-RepoText "SunExp-Dev\GameApi\MapItemApi.cs"
 $cardVisualSkinApi = Read-RepoText "SunExp-Dev\GameApi\CardVisualSkinApi.cs"
@@ -444,6 +450,9 @@ $starScoreHudAssets = Read-RepoText "SunExp-Dev\Hooks\Ui\StarScoreHudAssets.cs"
 $starScoreHudShaderController = Read-RepoText "SunExp-Dev\Hooks\Ui\StarScoreHudShaderController.cs"
 $starScoreHudShaderMaterials = Read-RepoText "SunExp-Dev\Hooks\Ui\StarScoreHudShaderMaterials.cs"
 $starScoreHudTooltipView = Read-RepoText "SunExp-Dev\Hooks\Ui\StarScoreHudTooltipView.cs"
+$fieldBuffHudView = Read-RepoText "SunExp-Dev\Hooks\Ui\FieldBuffHudView.cs"
+$fieldBuffHudHoverProbe = Read-RepoText "SunExp-Dev\Hooks\Ui\FieldBuffHudHoverProbe.cs"
+$fieldBuffHudTooltipView = Read-RepoText "SunExp-Dev\Hooks\Ui\FieldBuffHudTooltipView.cs"
 $starScoreCadenceCatalog = Read-RepoText "SunExp-Dev\Mechanics\StarScoreCadenceCatalog.cs"
 $sunExpIds = Read-RepoText "SunExp-Dev\Infrastructure\SunExpIds.cs"
 $entrySource = Read-RepoText "SunExp-Dev\Entry.cs"
@@ -474,10 +483,20 @@ Assert-Contains $executorApi "return TargetApi.EnemyTargets(executor);" "Executo
 Assert-Contains $executorApi "return DamageApi.DealDamage(executor, amount, damageType);" "ExecutorApi must delegate damage to DamageApi."
 Assert-Contains $executorApi "return SolarCombatApi.SolarKeywordDamage(executor, baseDamage, target, coefficientScale);" "ExecutorApi must delegate solar keyword math to SolarCombatApi."
 Assert-Contains $executorApi "FieldApi.ApplyFieldBuff(executor, fieldId, amount);" "ExecutorApi must delegate field application to FieldApi."
+Assert-Contains $executorApi "FieldApi.TryConsumePendingCarrier(field)" "ExecutorApi must expose pending field-buff carrier consumption for legacy Apply scripts."
 Assert-Contains $executorApi "BuffOverflowApi.HandleBurnOverflow(target, buffId, amount);" "ExecutorApi must delegate overflow conversion to BuffOverflowApi."
 Assert-NotMatches $executorApi "private\s+static\s+.*(ConfiguredBuffUpperBound|TotalFieldBuffStacks|ApplySolarRadianceUpperBound|ReadIntProperty)" "ExecutorApi must remain a compatibility facade, not retain moved private implementations."
 
 Assert-Contains $fieldApi "public static class FieldApi" "FieldApi must own field state behavior."
+Assert-Contains $fieldApi "public static bool IsFieldBuffId" "FieldApi must expose field-buff id classification."
+Assert-Contains $fieldApi "TryRedirectStatusFieldBuffAdd" "FieldApi must redirect status AddBuff attempts into the field module."
+Assert-Contains $fieldApi "PendingCarrierFieldKey" "FieldApi must prevent redirected carrier Buff Apply scripts from double stacking fields."
+Assert-Contains $fieldApi "RemoveFieldBuffCarrier" "FieldApi must remove field-buff carriers from player/enemy status lists."
+Assert-Contains $fieldStartSourceService "public static class FieldStartSourceService" "Fight-start field source replay must live in Mechanics."
+Assert-Contains $fieldStartSourceService "ApplyFightStartSources" "Field start source replay must expose one runtime entry point."
+Assert-Contains $fieldStartSourceService "FieldApi.ActivateField" "Field start source replay must route field creation through FieldApi."
+Assert-NotContains $fieldStartSourceService "SunExp.Dll.Hooks" "Field start source service must not depend on Hooks."
+Assert-Contains $buffApi "FieldApi.IsFieldBuffId" "BuffApi must exclude field buffs from ordinary positive/negative buff scans."
 Assert-Contains $buffOverflowApi "public static class BuffOverflowApi" "BuffOverflowApi must own buff upper-bound and overflow behavior."
 Assert-Contains $mapItemApi "public static class MapItemApi" "MapItemApi must own Unity MapItem icon access."
 Assert-Contains $mapItemApi "MapNodeTextureFitService.Fit" "MapItemApi must delegate node-card geometry to Mechanics."
@@ -720,6 +739,8 @@ Assert-Contains $sunExpStatusLifecycleRouter "SunExpHookTargets.StatusManagerHit
 Assert-Contains $sunExpStatusLifecycleRouter "SunExpHookTargets.EnemyInit" "Status lifecycle router must own enemy initialization status hot-path hooks."
 Assert-Contains $sunExpCombatActionRouter "SunExpHookTargets.OtherObjDoOneAction" "Combat action router must own OtherObj action hooks."
 Assert-Contains $sunExpCombatActionRouter "SunExpHookTargets.FightUiCallActionAnimation" "Combat action router must own FightUI action animation hooks."
+Assert-Contains $runtimeHooks "FieldApi.TryRedirectStatusFieldBuffAdd" "RuntimeHooks must redirect field buff AddBuff attempts through FieldApi."
+Assert-Contains $runtimeHooks "FieldApi.RemoveFieldBuffCarrier" "RuntimeHooks must remove field buff carriers after native AddBuff attempts."
 Assert-NotContains $runtimeHooks 'SunExpHookRegistry.Before(modConfig, "StatusManager.AddBuff"' "RuntimeHooks must not directly register StatusManager.AddBuff."
 Assert-NotContains $projectionRuntime 'RegisterAfter(modConfig, "StatusManager.Hit"' "Projection runtime must not directly register status hot-path hooks."
 Assert-NotContains $cardVisualSkinRuntime "SunExpCardLifecycleRouter.Register(`"CardVisualSkin`"" "Card visual skin runtime must not own card lifecycle hook mapping."
@@ -1045,6 +1066,19 @@ Assert-Contains $starScoreHudTooltipView "group.blocksRaycasts = false" "StarSco
 Assert-Contains $starScoreHudTooltipView "image.raycastTarget = false" "StarScoreHudTooltipView images must not intercept pointer input."
 Assert-Contains $starScoreHudTooltipView "SunExpUiPool.AcquireComponent" "StarScoreHudTooltipView must reuse tooltip rows through the shared UI pool."
 Assert-Contains $starScoreHudTooltipView "SunExpUiPool.ReleaseOrDestroyChildren" "StarScoreHudTooltipView must clear row rebuilds through pooled UI teardown."
+Assert-Contains $fieldBuffHudView "FieldBuffHudTooltipView.Create" "FieldBuffHudView must own the field buff hover tooltip."
+Assert-Contains $fieldBuffHudView "FieldBuffHudHoverProbe" "FieldBuffHudView must expose a focused hover hotspot."
+Assert-Contains $fieldBuffHudView "private const float RootWidth = 136f" "FieldBuffHudView must render as a compact vertical badge instead of a wide horizontal strip."
+Assert-Contains $fieldBuffHudView "group.blocksRaycasts = true" "FieldBuffHudView must allow its small hover hotspot to receive pointer events."
+Assert-Contains $fieldBuffHudView "image.raycastTarget = true" "FieldBuffHudView must have exactly scoped raycast hit-area support."
+Assert-Contains $fieldBuffHudView "icon.raycastTarget = false" "FieldBuffHudView icon must not intercept pointer input outside the hotspot."
+Assert-Contains $fieldBuffHudHoverProbe "IPointerEnterHandler" "FieldBuffHudHoverProbe must receive hover entry through Unity UI events."
+Assert-Contains $fieldBuffHudHoverProbe "IPointerExitHandler" "FieldBuffHudHoverProbe must receive hover exit through Unity UI events."
+Assert-Contains $fieldBuffHudTooltipView 'Localize("Description")' "FieldBuffHudTooltipView must display the Buff CSV description."
+Assert-Contains $fieldBuffHudTooltipView 'Localize("Tips")' "FieldBuffHudTooltipView must keep Tips as a legacy fallback."
+Assert-Contains $fieldBuffHudTooltipView "DataType.Buff" "FieldBuffHudTooltipView must read field display data from the Buff row."
+Assert-Contains $fieldBuffHudTooltipView "group.blocksRaycasts = false" "FieldBuffHudTooltipView must not block native battle controls."
+Assert-Contains $fieldBuffHudTooltipView "image.raycastTarget = false" "FieldBuffHudTooltipView images must not intercept pointer input."
 Assert-NotContains $starScoreHudTooltipView "Destroy(child.gameObject)" "StarScoreHudTooltipView must not directly destroy tooltip rows."
 Assert-Contains $starScoreHudAssets "StarScoreNote.Opening => Load(OpeningIconPath)" "StarScoreHudAssets must map typed notes to icon sprites."
 Assert-NotContains $sunExpProject "UnityEngine.InputLegacyModule" "Star score hover detection must not depend on the legacy input module."

@@ -98,7 +98,7 @@ Source: `SunExp/Data/Buff/sunexp.csv`, `SunExp/Text/Buff/sunexp.csv`
 | SunExp_sunexp_solar_radiance | 日耀 | Solar Radiance | 能力 | 12 | 0 | FALSE | 每次行动时，获得等同于5倍日耀层数的超凡。 |
 | SunExp_sunexp_solar_coefficient | 日耀系数 | Solar Coefficient | 能力 | 1 | 0 | FALSE | 等于自身{SunExp_sunexp_solar_radiance}层数*2+{SunExp_sunexp_gathered_flame}层数/3+{buff_burn}层数/2。 |
 | SunExp_sunexp_gathered_flame | 聚炎 | Gathered Flame | 能力 | 999 | 0 | FALSE | 回合开始时，自己获得等同于聚炎层数的灼烧和10倍层数的超凡。 |
-| SunExp_sunexp_scorching_canopy | 灼热天幕 | Scorching Canopy | 能力 | 9 | 0 | FALSE | 场地。每轮回合开始时，全体获得等同于灼热天幕层数的灼烧；场上存在天幕时，任何目标被施加的灼烧超过上限部分会转化为等量焚身。 |
+| SunExp_sunexp_scorching_canopy | 灼热天幕 | Scorching Canopy | 场地 | 9 | 0 | FALSE | 场地。每轮回合开始时，全体获得等同于灼热天幕层数的灼烧；场上存在天幕时，任何目标被施加的灼烧超过上限部分会转化为等量焚身。 |
 | SunExp_sunexp_body_burn | 焚身 | Body Burn | 负面 | 999 | 0 | FALSE | 回合开始时，每层受到最大生命值1%+1点真实伤害，随后移除此状态。 |
 | SunExp_sunexp_ember | 余烬 | Ember | 能力 | 99 | 0 | FALSE | 每层使自身造成的伤害提高1%。灼烧结算前，消耗等量余烬抵消同等层数的灼烧。 |
 | SunExp_sunexp_ember_cloak | 烬衣 | Ember Cloak | 能力 | 1 | 1 | FALSE | 获得时清除自身灼烧和焚身，下回合开始时再次清除自身灼烧和焚身，然后移除此状态。 |

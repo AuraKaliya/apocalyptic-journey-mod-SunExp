@@ -20,14 +20,6 @@ public static class EndlessAbyssRewardService
         EndlessSeaOriginService.Perceive
     };
 
-    private static readonly string[] EvolutionTraitPool =
-    {
-        SunExpIds.BossTraitMirrorArray,
-        SunExpIds.BossTraitMercilessDaylight,
-        SunExpIds.BossTraitWhiteRadianceSaint,
-        "SpecialBuff_CAR_Momentum"
-    };
-
     public static int GrantRandomCards(int count, string source)
     {
         var pool = NonHiddenCards();
@@ -124,9 +116,16 @@ public static class EndlessAbyssRewardService
             return;
         }
 
+        var pool = EndlessAbyssEvolutionTraitRegistry.EvolutionTraitBuffIds();
+        if (pool.Count == 0)
+        {
+            SunExpLog.Warn("[EndlessAbyssReward] evolution trait pool is empty.");
+            return;
+        }
+
         for (var i = applied; i < stacks; i++)
         {
-            var id = EvolutionTraitPool[PickIndex(EvolutionTraitPool.Length, source + ":" + enemy.InstanceId + ":" + i)];
+            var id = pool[PickIndex(pool.Count, source + ":" + enemy.InstanceId + ":" + i)];
             enemy.Status.AddBuff(id, 1);
         }
 

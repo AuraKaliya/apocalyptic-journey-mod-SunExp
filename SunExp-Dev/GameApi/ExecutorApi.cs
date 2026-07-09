@@ -330,9 +330,39 @@ public static class ExecutorApi
         FieldApi.ApplyFieldBuff(executor, fieldId, amount);
     }
 
+    public static void ActivateField(ScriptExecutor? executor, string fieldId, int amount, string source = "")
+    {
+        FieldApi.ActivateField(executor, fieldId, amount, source);
+    }
+
+    public static void ActivateField(ScriptExecutor? executor, SunExpFieldId field, int amount, string source = "")
+    {
+        FieldApi.ActivateField(executor, field, amount, source);
+    }
+
+    public static bool TryConsumePendingFieldBuffCarrier(SunExpFieldId field)
+    {
+        return FieldApi.TryConsumePendingCarrier(field);
+    }
+
     public static bool ClearFieldBuff(ScriptExecutor? executor, string fieldId)
     {
         return FieldApi.ClearFieldBuff(executor, fieldId);
+    }
+
+    public static bool TryClearActiveField(ScriptExecutor? executor, string fieldId, string source = "")
+    {
+        return FieldApi.TryClearActiveField(source, fieldId);
+    }
+
+    public static bool TryClearActiveField(ScriptExecutor? executor, SunExpFieldId field, string source = "")
+    {
+        return FieldApi.TryClearActiveField(source, field);
+    }
+
+    public static FieldBuffSnapshot ActiveFieldSnapshot()
+    {
+        return FieldApi.ActiveFieldSnapshot();
     }
 
     public static string FieldBuffId(string fieldId)

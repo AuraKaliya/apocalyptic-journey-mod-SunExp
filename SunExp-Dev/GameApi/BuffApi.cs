@@ -361,6 +361,14 @@ public static class BuffApi
         }
 
         var level = Math.Max(0, nextLevel);
+        var field = FieldApi.FieldIdFromBuffId(buffId);
+        if (field != SunExpFieldId.None)
+        {
+            FieldApi.SetSharedFieldState(field, level);
+            RemoveFieldCarrierIfPresent(status, buffId, "BuffApi.SetExactLevel");
+            return;
+        }
+
         var buff = status.GetBuff(buffId);
         if (level <= 0)
         {
@@ -395,6 +403,14 @@ public static class BuffApi
         }
 
         var level = Math.Max(0, nextLevel);
+        var field = FieldApi.FieldIdFromBuffId(buffId);
+        if (field != SunExpFieldId.None)
+        {
+            FieldApi.SetSharedFieldState(field, level);
+            RemoveFieldCarrierIfPresent(status, buffId, "BuffApi.SetExactLevelKeepZero");
+            return;
+        }
+
         var buff = status.GetBuff(buffId);
         if (buff?.buffConfig == null)
         {
@@ -673,12 +689,22 @@ public static class BuffApi
             return false;
         }
 
+        if (FieldApi.IsFieldBuffId(buffId))
+        {
+            return true;
+        }
+
         const string prefix = "SunExp_sunexp_";
         var id = buffId ?? "";
         var normalized = id.StartsWith(prefix, StringComparison.Ordinal)
             ? id.Substring(prefix.Length)
             : id;
         return PositiveExcludeIds.Contains(id) || PositiveExcludeIds.Contains(normalized);
+    }
+
+    private static void RemoveFieldCarrierIfPresent(IStatusManager status, string buffId, string source)
+    {
+        FieldApi.RemoveFieldBuffCarrier(status, buffId, source);
     }
 
     public static bool IsWunaPlayerStatus(IStatusManager? status)

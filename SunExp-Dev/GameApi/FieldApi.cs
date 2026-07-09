@@ -1,52 +1,173 @@
 using System;
-using System.Collections.Generic;
 using SunExp.Dll.Infrastructure;
+using SunExp.Dll.Mechanics;
+using Witch.Core;
 
 namespace SunExp.Dll.GameApi;
 
+public sealed class FieldBuffSnapshot
+{
+    public static readonly FieldBuffSnapshot Empty = new(SunExpFieldId.None, "", "", 0, 0, 0);
+
+    public FieldBuffSnapshot(SunExpFieldId field, string slug, string buffId, int stacks, int maxStacks, int epoch)
+    {
+        Field = field;
+        Slug = slug;
+        BuffId = buffId;
+        Stacks = stacks;
+        MaxStacks = maxStacks;
+        Epoch = epoch;
+    }
+
+    public SunExpFieldId Field { get; }
+
+    public string Slug { get; }
+
+    public string BuffId { get; }
+
+    public int Stacks { get; }
+
+    public int MaxStacks { get; }
+
+    public int Epoch { get; }
+
+    public bool IsActive => Field != SunExpFieldId.None && Stacks > 0;
+}
+
 public static class FieldApi
 {
-    private static readonly HashSet<string> SeenStatusKeys = new(StringComparer.Ordinal);
+    private const string ActiveFieldIdKey = "SunExpField_ActiveId";
+    private const string ActiveFieldStacksKey = "SunExpField_ActiveStacks";
+    private const string ActiveFieldEpochKey = "SunExpField_ActiveEpoch";
+    private const string LastRoundStartKey = "SunExpField_LastRoundStart";
+    private const string TriggerLockKey = "SunExpField_TriggerLock";
+    private const string PendingCarrierFieldKey = "SunExpField_PendingCarrierField";
+    private const string PendingCarrierCountKey = "SunExpField_PendingCarrierCount";
+    private const int ScorchingCanopyFallbackMaxStacks = 9;
+
+    public static event Action<FieldBuffSnapshot>? Changed;
 
     public static void ApplyFieldBuff(ScriptExecutor? executor, string fieldId, int amount)
     {
-        var field = ParseFieldId(fieldId);
-        if (executor == null || field == SunExpFieldId.None || amount <= 0)
+        ActivateField(executor, fieldId, amount, "FieldApi.ApplyFieldBuff");
+    }
+
+    public static void ActivateField(ScriptExecutor? executor, string fieldId, int amount, string source = "")
+    {
+        ActivateField(executor, ParseFieldId(fieldId), amount, source);
+    }
+
+    public static void ActivateField(ScriptExecutor? executor, SunExpFieldId field, int amount, string source = "")
+    {
+        if (field == SunExpFieldId.None || amount <= 0)
         {
             return;
         }
 
-        SetActiveField(executor, field);
-        executor.SetStatus("Self");
-        executor.AddBuff(FieldBuffId(field), amount.ToString());
-        SyncFieldStacks(executor, field);
-        SunExpLog.Debug("Field applied: id=" + FieldSlug(field) + ", add=" + amount + ", stacks=" + FieldStacks(field));
+        var current = ActiveFieldId();
+        var currentStacks = ActiveFieldStacks();
+        var maxStacks = MaxStacksFor(field);
+        var nextStacks = Math.Min(maxStacks, Math.Max(1, current == field ? currentStacks + amount : amount));
+        SetActiveFieldState(field, nextStacks, source);
+        SunExpLog.Debug("[FieldApi] activated field id=" + FieldSlug(field)
+            + ", add=" + amount
+            + ", stacks=" + nextStacks
+            + ", max=" + maxStacks
+            + ", source=" + (source ?? ""));
     }
 
-    public static bool ClearFieldBuff(ScriptExecutor? executor, string fieldId)
+    public static bool TryRedirectStatusFieldBuffAdd(IStatusManager? target, string buffId, int amount, string source, bool expectCarrierApply = true)
     {
-        var field = ParseFieldId(fieldId);
-        var buffId = FieldBuffId(field);
-        if (executor == null || string.IsNullOrWhiteSpace(buffId))
+        var field = FieldIdFromBuffId(buffId);
+        if (target == null || field == SunExpFieldId.None || amount <= 0)
         {
             return false;
         }
 
-        ScriptVarApi.SetVar(executor, "SunExpFieldInternalClear", "1");
-        try
+        ActivateField(null, field, amount, source);
+        if (expectCarrierApply)
         {
-            executor.SetStatus("Self");
-            executor.RemoveBuff(buffId);
-            ScriptVarApi.SetVar(executor, "SunExpActiveFieldId", "");
-            ScriptVarApi.SetVar(executor, "SunExpActiveFieldStacks", "0");
-            SyncFieldStacks(executor, field);
-            SunExpLog.Debug("Field cleared internally: id=" + FieldSlug(field));
-            return true;
+            MarkPendingCarrier(field);
         }
-        finally
+
+        SunExpLog.Debug("[FieldApi] redirected status buff add to field module: buff="
+            + buffId
+            + ", amount=" + amount
+            + ", target=" + (target.InstanceId ?? "")
+            + ", source=" + (source ?? ""));
+        return true;
+    }
+
+    public static bool TryConsumePendingCarrier(SunExpFieldId field)
+    {
+        if (field == SunExpFieldId.None || CombatVarApi.GetInt(PendingCarrierFieldKey) != (int)field)
         {
-            ScriptVarApi.SetVar(executor, "SunExpFieldInternalClear", "0");
+            return false;
         }
+
+        var count = Math.Max(0, CombatVarApi.GetInt(PendingCarrierCountKey));
+        if (count <= 0)
+        {
+            CombatVarApi.SetInt(PendingCarrierFieldKey, 0);
+            return false;
+        }
+
+        count--;
+        CombatVarApi.SetInt(PendingCarrierCountKey, count);
+        if (count <= 0)
+        {
+            CombatVarApi.SetInt(PendingCarrierFieldKey, 0);
+        }
+
+        return true;
+    }
+
+    public static bool RemoveFieldBuffCarrier(IStatusManager? target, string buffId, string source)
+    {
+        if (target == null || !IsFieldBuffId(buffId) || target.GetBuff(buffId) == null)
+        {
+            return false;
+        }
+
+        target.RemoveBuff(buffId);
+        SunExpLog.Debug("[FieldApi] removed field buff carrier from status: buff="
+            + buffId
+            + ", target=" + (target.InstanceId ?? "")
+            + ", source=" + (source ?? ""));
+        return true;
+    }
+
+    public static bool ClearFieldBuff(ScriptExecutor? executor, string fieldId)
+    {
+        return TryClearActiveField("FieldApi.ClearFieldBuff", fieldId);
+    }
+
+    public static bool TryClearActiveField(string source, string fieldId = "")
+    {
+        var requested = string.IsNullOrWhiteSpace(fieldId) ? SunExpFieldId.None : ParseFieldId(fieldId);
+        var active = ActiveFieldId();
+        if (active == SunExpFieldId.None || (requested != SunExpFieldId.None && requested != active))
+        {
+            return false;
+        }
+
+        ClearActiveFieldState(source);
+        return true;
+    }
+
+    public static bool TryClearActiveField(string source, SunExpFieldId field)
+    {
+        return TryClearActiveField(source, FieldSlug(field));
+    }
+
+    public static void ClearAllFields(string source)
+    {
+        if (ActiveFieldId() == SunExpFieldId.None && ActiveFieldStacks() <= 0)
+        {
+            return;
+        }
+
+        ClearActiveFieldState(source);
     }
 
     public static string FieldBuffId(string fieldId)
@@ -57,6 +178,25 @@ public static class FieldApi
     public static string FieldBuffId(SunExpFieldId field)
     {
         return field == SunExpFieldId.ScorchingCanopy ? SunExpIds.ScorchingCanopy : "";
+    }
+
+    public static bool IsFieldBuffId(string? buffId)
+    {
+        return FieldIdFromBuffId(buffId) != SunExpFieldId.None;
+    }
+
+    public static SunExpFieldId FieldIdFromBuffId(string? buffId)
+    {
+        if (string.IsNullOrWhiteSpace(buffId))
+        {
+            return SunExpFieldId.None;
+        }
+
+        var id = buffId!.Trim();
+        return string.Equals(id, SunExpIds.ScorchingCanopy, StringComparison.Ordinal)
+               || string.Equals(id, "scorching_canopy", StringComparison.Ordinal)
+            ? SunExpFieldId.ScorchingCanopy
+            : SunExpFieldId.None;
     }
 
     public static string FieldCombatKey(string fieldId, string name)
@@ -76,7 +216,9 @@ public static class FieldApi
 
     public static SunExpFieldId ParseFieldId(string fieldId)
     {
-        return fieldId == "scorching_canopy" ? SunExpFieldId.ScorchingCanopy : SunExpFieldId.None;
+        return string.Equals(fieldId, "scorching_canopy", StringComparison.Ordinal)
+            ? SunExpFieldId.ScorchingCanopy
+            : SunExpFieldId.None;
     }
 
     public static void SetSharedFieldState(string fieldId, int stacks)
@@ -91,21 +233,13 @@ public static class FieldApi
             return;
         }
 
-        var count = Math.Max(0, stacks);
-        var active = count > 0 ? 1 : 0;
-        var activeKey = FieldCombatKey(field, "Active");
-        var stacksKey = FieldCombatKey(field, "Stacks");
-        if (CombatVarApi.GetInt(activeKey) != active || CombatVarApi.GetInt(stacksKey) != count)
+        if (stacks <= 0)
         {
-            CombatVarApi.AddInt(FieldCombatKey(field, "Epoch"), 1);
+            TryClearActiveField("FieldApi.SetSharedFieldState", field);
+            return;
         }
 
-        CombatVarApi.SetInt(activeKey, active);
-        CombatVarApi.SetInt(stacksKey, count);
-        if (count <= 0)
-        {
-            CombatVarApi.SetInt(FieldCombatKey(field, "TriggerLock"), 0);
-        }
+        SetActiveFieldState(field, Math.Min(MaxStacksFor(field), stacks), "FieldApi.SetSharedFieldState");
     }
 
     public static bool IsSharedFieldActive(string fieldId)
@@ -115,9 +249,7 @@ public static class FieldApi
 
     public static bool IsSharedFieldActive(SunExpFieldId field)
     {
-        return field != SunExpFieldId.None
-            && CombatVarApi.GetInt(FieldCombatKey(field, "Active")) == 1
-            && CombatVarApi.GetInt(FieldCombatKey(field, "Stacks")) > 0;
+        return ActiveFieldId() == field && ActiveFieldStacks() > 0;
     }
 
     public static int FieldStacks(string fieldId)
@@ -127,7 +259,7 @@ public static class FieldApi
 
     public static int FieldStacks(SunExpFieldId field)
     {
-        return field == SunExpFieldId.None ? 0 : CombatVarApi.GetInt(FieldCombatKey(field, "Stacks"));
+        return IsSharedFieldActive(field) ? ActiveFieldStacks() : 0;
     }
 
     public static int SyncFieldStacks(ScriptExecutor? executor, string fieldId)
@@ -137,28 +269,7 @@ public static class FieldApi
 
     public static int SyncFieldStacks(ScriptExecutor? executor, SunExpFieldId field)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
-        try
-        {
-            var buffId = FieldBuffId(field);
-            if (field == SunExpFieldId.None || string.IsNullOrWhiteSpace(buffId))
-            {
-                return 0;
-            }
-
-            var total = TotalFieldBuffStacks(executor, buffId);
-            SetSharedFieldState(field, total);
-            if (executor != null && ScriptVarApi.GetVar(executor, "SunExpActiveFieldId") == FieldSlug(field))
-            {
-                ScriptVarApi.SetVar(executor, "SunExpActiveFieldStacks", BuffApi.Level(executor.Self, buffId));
-            }
-
-            return total;
-        }
-        finally
-        {
-            SunExpPerformanceCounters.RecordDuration("FieldApi.SyncFieldStacks", start);
-        }
+        return FieldStacks(field);
     }
 
     public static int SetActiveField(ScriptExecutor? executor, string fieldId)
@@ -168,28 +279,18 @@ public static class FieldApi
 
     public static int SetActiveField(ScriptExecutor? executor, SunExpFieldId field)
     {
-        if (executor == null)
+        if (field == SunExpFieldId.None)
         {
             return 0;
         }
 
-        var fieldId = FieldSlug(field);
-        if (string.IsNullOrWhiteSpace(fieldId))
+        if (ActiveFieldId() == field)
         {
-            return 0;
+            return ActiveFieldEpoch();
         }
 
-        var current = ScriptVarApi.GetVar(executor, "SunExpActiveFieldId");
-        if (current == fieldId)
-        {
-            return DictionaryUtil.ParseInt(ScriptVarApi.GetVar(executor, "SunExpActiveFieldEpoch", "0"));
-        }
-
-        var epoch = DictionaryUtil.ParseInt(ScriptVarApi.GetVar(executor, "SunExpActiveFieldEpoch", "0")) + 1;
-        ScriptVarApi.SetVar(executor, "SunExpActiveFieldId", fieldId);
-        ScriptVarApi.SetVar(executor, "SunExpActiveFieldEpoch", epoch);
-        ScriptVarApi.SetVar(executor, "SunExpActiveFieldStacks", "0");
-        return epoch;
+        SetActiveFieldState(field, Math.Min(1, MaxStacksFor(field)), "FieldApi.SetActiveField");
+        return ActiveFieldEpoch();
     }
 
     public static bool BeginSharedFieldStartRound(ScriptExecutor? executor, string fieldId)
@@ -199,28 +300,36 @@ public static class FieldApi
 
     public static bool BeginSharedFieldStartRound(ScriptExecutor? executor, SunExpFieldId field)
     {
-        if (field == SunExpFieldId.None)
+        if (!IsSharedFieldActive(field) || CombatVarApi.GetInt(TriggerLockKey) == 1)
         {
             return false;
         }
 
-        var lockKey = FieldCombatKey(field, "TriggerLock");
-        if (CombatVarApi.GetInt(lockKey) == 1)
-        {
-            return false;
-        }
-
-        CombatVarApi.SetInt(lockKey, 1);
-        try
-        {
-            executor?.AddTempEvent("StartRoundEnd", new Action(() => CombatVarApi.SetInt(lockKey, 0)));
-        }
-        catch
-        {
-            CombatVarApi.SetInt(lockKey, 0);
-        }
-
+        CombatVarApi.SetInt(TriggerLockKey, 1);
         return true;
+    }
+
+    public static bool ResolveRoundStart(ScriptExecutor? executor, string roundKey, string source)
+    {
+        var snapshot = ActiveFieldSnapshot();
+        if (!snapshot.IsActive)
+        {
+            return false;
+        }
+
+        var key = StableRoundKey(roundKey);
+        if (key != 0 && CombatVarApi.GetInt(LastRoundStartKey) == key)
+        {
+            return false;
+        }
+
+        if (key != 0)
+        {
+            CombatVarApi.SetInt(LastRoundStartKey, key);
+        }
+
+        CombatVarApi.SetInt(TriggerLockKey, 0);
+        return FieldEffectHandlers.ResolveRoundStart(executor, snapshot, source);
     }
 
     public static bool IsActiveField(ScriptExecutor? executor, string fieldId, int? epoch = null, string? token = null)
@@ -230,109 +339,152 @@ public static class FieldApi
 
     public static bool IsActiveField(ScriptExecutor? executor, SunExpFieldId field, int? epoch = null, string? token = null)
     {
-        if (executor == null || field == SunExpFieldId.None)
+        if (!IsSharedFieldActive(field))
         {
             return false;
         }
 
-        var fieldId = FieldSlug(field);
-        var localActive = ScriptVarApi.GetVar(executor, "SunExpActiveFieldId") == fieldId;
-        var sharedActive = IsSharedFieldActive(field);
-        if (epoch == null && token == null && sharedActive)
-        {
-            return true;
-        }
-
-        if (epoch == null && token == null && localActive)
-        {
-            return LocalFieldStacks(executor, field) > 0;
-        }
-
-        if (!localActive)
-        {
-            return false;
-        }
-
-        if (epoch != null && DictionaryUtil.ParseInt(ScriptVarApi.GetVar(executor, "SunExpActiveFieldEpoch", "0")) != epoch.Value)
-        {
-            return false;
-        }
-
-        if (token != null && !ScriptEventApi.IsHookTokenActive(executor, "SunExpField_" + fieldId + "Token", token))
-        {
-            return false;
-        }
-
-        return epoch != null || token != null ? sharedActive : true;
+        return epoch == null || ActiveFieldEpoch() == epoch.Value;
     }
 
-    private static int LocalFieldStacks(ScriptExecutor? executor, SunExpFieldId field)
+    public static FieldBuffSnapshot ActiveFieldSnapshot()
     {
+        var field = ActiveFieldId();
+        if (field == SunExpFieldId.None)
+        {
+            return FieldBuffSnapshot.Empty;
+        }
+
+        var stacks = ActiveFieldStacks();
+        if (stacks <= 0)
+        {
+            return FieldBuffSnapshot.Empty;
+        }
+
+        return new FieldBuffSnapshot(
+            field,
+            FieldSlug(field),
+            FieldBuffId(field),
+            stacks,
+            MaxStacksFor(field),
+            ActiveFieldEpoch());
+    }
+
+    public static int MaxStacksFor(string fieldId)
+    {
+        return MaxStacksFor(ParseFieldId(fieldId));
+    }
+
+    public static int MaxStacksFor(SunExpFieldId field)
+    {
+        var fallback = field == SunExpFieldId.ScorchingCanopy ? ScorchingCanopyFallbackMaxStacks : 1;
         var buffId = FieldBuffId(field);
-        return executor?.Self == null || string.IsNullOrWhiteSpace(buffId)
-            ? 0
-            : Math.Max(0, BuffApi.Level(executor.Self, buffId));
-    }
-
-    private static int TotalFieldBuffStacks(ScriptExecutor? executor, string buffId)
-    {
-        var start = SunExpPerformanceCounters.Timestamp();
-        lock (SeenStatusKeys)
+        if (string.IsNullOrWhiteSpace(buffId))
         {
-            SeenStatusKeys.Clear();
-            var total = 0;
-            foreach (var status in AllCombatStatuses(executor))
-            {
-                if (status == null)
-                {
-                    continue;
-                }
+            return fallback;
+        }
 
-                var key = status.InstanceId ?? status.GetHashCode().ToString();
-                if (SeenStatusKeys.Add(key))
-                {
-                    total += Math.Max(0, BuffApi.Level(status, buffId));
-                }
-            }
-
-            SeenStatusKeys.Clear();
-            SunExpPerformanceCounters.RecordDuration("FieldApi.TotalFieldBuffStacks", start);
-            return total;
+        try
+        {
+            var data = Singleton<GameConfigManager>.Instance.GetOne(DataType.Buff, buffId);
+            var configured = DictionaryUtil.ParseInt(DictionaryUtil.Get(data, "UpperBound"));
+            return configured > 0 ? configured : fallback;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Debug("[FieldApi] field max stack fallback used: id=" + buffId + ", error=" + ex.Message);
+            return fallback;
         }
     }
 
-    private static IEnumerable<IStatusManager> AllCombatStatuses(ScriptExecutor? executor)
+    private static SunExpFieldId ActiveFieldId()
     {
-        if (FightManager.Instance?.statuses != null)
+        return Enum.IsDefined(typeof(SunExpFieldId), CombatVarApi.GetInt(ActiveFieldIdKey))
+            ? (SunExpFieldId)CombatVarApi.GetInt(ActiveFieldIdKey)
+            : SunExpFieldId.None;
+    }
+
+    private static int ActiveFieldStacks()
+    {
+        return Math.Max(0, CombatVarApi.GetInt(ActiveFieldStacksKey));
+    }
+
+    private static int ActiveFieldEpoch()
+    {
+        return Math.Max(0, CombatVarApi.GetInt(ActiveFieldEpochKey));
+    }
+
+    private static void SetActiveFieldState(SunExpFieldId field, int stacks, string source)
+    {
+        var nextStacks = Math.Min(MaxStacksFor(field), Math.Max(0, stacks));
+        var previous = ActiveFieldSnapshot();
+        CombatVarApi.SetInt(ActiveFieldIdKey, (int)field);
+        CombatVarApi.SetInt(ActiveFieldStacksKey, nextStacks);
+        CombatVarApi.SetInt(TriggerLockKey, 0);
+        if (previous.Field != field || previous.Stacks != nextStacks)
         {
-            foreach (var status in FightManager.Instance.statuses.Values)
+            CombatVarApi.AddInt(ActiveFieldEpochKey, 1);
+            NotifyChanged(source);
+        }
+    }
+
+    private static void ClearActiveFieldState(string source)
+    {
+        CombatVarApi.SetInt(ActiveFieldIdKey, (int)SunExpFieldId.None);
+        CombatVarApi.SetInt(ActiveFieldStacksKey, 0);
+        CombatVarApi.SetInt(TriggerLockKey, 0);
+        CombatVarApi.SetInt(LastRoundStartKey, 0);
+        CombatVarApi.SetInt(PendingCarrierFieldKey, 0);
+        CombatVarApi.SetInt(PendingCarrierCountKey, 0);
+        CombatVarApi.AddInt(ActiveFieldEpochKey, 1);
+        NotifyChanged(source);
+        SunExpLog.Debug("[FieldApi] cleared active field from " + (source ?? ""));
+    }
+
+    private static void MarkPendingCarrier(SunExpFieldId field)
+    {
+        if (field == SunExpFieldId.None)
+        {
+            return;
+        }
+
+        if (CombatVarApi.GetInt(PendingCarrierFieldKey) != (int)field)
+        {
+            CombatVarApi.SetInt(PendingCarrierFieldKey, (int)field);
+            CombatVarApi.SetInt(PendingCarrierCountKey, 0);
+        }
+
+        CombatVarApi.AddInt(PendingCarrierCountKey, 1);
+    }
+
+    private static void NotifyChanged(string source)
+    {
+        try
+        {
+            Changed?.Invoke(ActiveFieldSnapshot());
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[FieldApi] field changed handler failed from " + (source ?? "") + ": " + ex.Message);
+        }
+    }
+
+    private static int StableRoundKey(string roundKey)
+    {
+        if (string.IsNullOrWhiteSpace(roundKey))
+        {
+            return 0;
+        }
+
+        unchecked
+        {
+            var hash = 17;
+            foreach (var ch in roundKey)
             {
-                if (status != null)
-                {
-                    yield return status;
-                }
+                hash = hash * 31 + ch;
             }
-        }
 
-        if (executor?.Self != null)
-        {
-            yield return executor.Self;
-        }
-
-        if (executor?.Object != null)
-        {
-            foreach (var target in executor.Object)
-            {
-                if (target != null)
-                {
-                    yield return target;
-                }
-            }
-        }
-
-        if (executor?.Target != null)
-        {
-            yield return executor.Target;
+            return hash == 0 ? 1 : hash;
         }
     }
 }

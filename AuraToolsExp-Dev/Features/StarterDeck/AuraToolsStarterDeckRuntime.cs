@@ -37,11 +37,19 @@ public static class AuraToolsStarterDeckRuntime
     public const float CardCostColumnWidth = 56f;
     public const float CardActionColumnWidth = 84f;
     private static readonly Dictionary<string, Sprite?> cardIconCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly object cardCatalogSync = new();
+    private static StarterDeckCardCatalogSnapshot? cardCatalogSnapshot;
     private static StarterDeckPreparationContext? preparationContext;
     private static int lastForeignRoleTableSkipLogFrame = -100000;
 
     public static void Initialize(ModConfig modConfig)
     {
+        RegisterAfter(modConfig, "GameEntryUI.Init", _ =>
+        {
+            InvalidateStarterDeckCardCatalog("GameEntryUI.Init");
+            WarmStarterDeckCardCatalog("GameEntryUI.Init");
+        });
+        RegisterAfter(modConfig, "GameEntryUI.ShowCareer", _ => WarmStarterDeckCardCatalog("GameEntryUI.ShowCareer"));
         RegisterAfter(modConfig, "GameEntryUI.ChangeRole", CaptureRoleSelectionContext);
         RegisterBefore(modConfig, "GameEntryUI.StartGame", CapturePreparationContext);
         RegisterBefore(modConfig, "PlayerManager.RpcSyncRoleTables", ApplyStarterDeckBeforeRoleSync);
@@ -50,19 +58,96 @@ public static class AuraToolsStarterDeckRuntime
 
     public static List<string> BuildAllCandidateCardIds()
     {
-        return BuildCandidateCardIds(BuildSelectablePacks());
+        return GetCardCatalogSnapshot("all-candidates").SelectableCardIds.ToList();
     }
 
     public static List<string> BuildCandidateCardIds(IEnumerable<string> packIds)
     {
-        return (packIds ?? Array.Empty<string>())
-            .Where(IsValidPackForCurrentLobby)
+        var requestedPacks = new HashSet<string>(
+            (packIds ?? Array.Empty<string>())
+            .Where(id => string.Equals(id, StarterDeckCardPackGroup.OtherGroupId, StringComparison.OrdinalIgnoreCase)
+                         || IsValidPackForCurrentLobby(id))
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .SelectMany(CardIdsFromPack)
-            .Where(id => !string.IsNullOrWhiteSpace(id) && !id.StartsWith("*", StringComparison.Ordinal))
+            .Select(id => id.Trim()),
+            StringComparer.OrdinalIgnoreCase);
+        if (requestedPacks.Count == 0)
+        {
+            return new List<string>();
+        }
+
+        return GetCardCatalogSnapshot("pack-candidates")
+            .SelectableGroups
+            .Where(group => requestedPacks.Contains(group.PackId))
+            .SelectMany(group => group.CardIds)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(CardSortKey)
             .ToList();
+    }
+
+    public static List<StarterDeckCardPackGroup> BuildCandidateCardPackGroups()
+    {
+        return GetCardCatalogSnapshot("pack-groups").CloneSelectableGroups();
+    }
+
+    public static List<string> BuildRegisteredCardIds(bool includeSystemSkillCards = false)
+    {
+        return GetCardCatalogSnapshot("registered-cards")
+            .AllCards
+            .Where(card => includeSystemSkillCards || !card.IsSystemSkillCard)
+            .Select(card => card.Id)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(CardSortKey)
+            .ToList();
+    }
+
+    public static List<string> BuildRegisteredExplicitCardIds(bool includeSystemSkillCards = false)
+    {
+        return GetCardCatalogSnapshot("explicit-cards")
+            .AllCards
+            .Where(card => !card.IsHidden)
+            .Where(card => includeSystemSkillCards || !card.IsSystemSkillCard)
+            .Select(card => card.Id)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(CardSortKey)
+            .ToList();
+    }
+
+    public static List<string> BuildRegisteredHiddenCardIds(bool includeSystemSkillCards = false)
+    {
+        return GetCardCatalogSnapshot("hidden-cards")
+            .AllCards
+            .Where(card => card.IsHidden)
+            .Where(card => includeSystemSkillCards || !card.IsSystemSkillCard)
+            .Select(card => card.Id)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(CardSortKey)
+            .ToList();
+    }
+
+    public static List<string> BuildRegisteredSkillCardIds()
+    {
+        return GetCardCatalogSnapshot("skill-cards").SkillCardIds.ToList();
+    }
+
+    public static List<string> BuildRegisteredSystemSkillCardIds()
+    {
+        return GetCardCatalogSnapshot("system-skill-cards").SystemSkillCardIds.ToList();
+    }
+
+    internal static void WarmStarterDeckCardCatalog(string source)
+    {
+        _ = GetCardCatalogSnapshot(source);
+    }
+
+    internal static void InvalidateStarterDeckCardCatalog(string source)
+    {
+        lock (cardCatalogSync)
+        {
+            cardCatalogSnapshot = null;
+            cardIconCache.Clear();
+        }
+
+        AuraToolsLog.Info("[StarterDeck] invalidated card catalog from " + source);
     }
 
     private static void ApplyStarterDeckAfterRoleInit(ModHookContext context)
@@ -418,8 +503,9 @@ public static class AuraToolsStarterDeckRuntime
     internal static List<string> BuildDeckFromProfile(StarterDeckProfile profile)
     {
         var deck = profile.CardIds
-            .Where(id => !string.IsNullOrWhiteSpace(id) && !id.StartsWith("*", StringComparison.Ordinal))
+            .Where(id => !string.IsNullOrWhiteSpace(id))
             .Where(IsValidCard)
+            .Where(id => !IsSystemSkillCard(id))
             .Take(profile.DeckSize)
             .ToList();
 
@@ -856,6 +942,243 @@ public static class AuraToolsStarterDeckRuntime
         };
     }
 
+    private static StarterDeckCardCatalogSnapshot GetCardCatalogSnapshot(string source)
+    {
+        lock (cardCatalogSync)
+        {
+            if (cardCatalogSnapshot != null)
+            {
+                return cardCatalogSnapshot;
+            }
+
+            cardCatalogSnapshot = BuildCardCatalogSnapshot(source);
+            return cardCatalogSnapshot;
+        }
+    }
+
+    private static StarterDeckCardCatalogSnapshot BuildCardCatalogSnapshot(string source)
+    {
+        try
+        {
+            var packDisplayNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var existingPacks = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var selectablePacks = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var row in Singleton<GameConfigManager>.Instance.GetTable(DataType.CardPack).Getlines())
+            {
+                if (!row.TryGetValue("Id", out var packId) || string.IsNullOrWhiteSpace(packId) || !IsValidPackForCurrentLobby(packId))
+                {
+                    continue;
+                }
+
+                packId = packId.Trim();
+                existingPacks.Add(packId);
+                packDisplayNames[packId] = RowDisplayName(row, packId);
+                if (!IsRuntimeLocked(packId))
+                {
+                    selectablePacks.Add(packId);
+                }
+            }
+
+            var groupCards = selectablePacks
+                .ToDictionary(packId => packId, _ => new List<string>(), StringComparer.OrdinalIgnoreCase);
+            var allCards = new List<StarterDeckCardCatalogEntry>();
+            var hiddenCards = new List<string>();
+            var skillCards = new List<string>();
+            var systemSkillCards = new List<string>();
+            var otherCards = new List<string>();
+
+            foreach (var row in Singleton<GameConfigManager>.Instance.GetTable(DataType.Card).Getlines())
+            {
+                if (!row.TryGetValue("Id", out var id) || string.IsNullOrWhiteSpace(id))
+                {
+                    continue;
+                }
+
+                id = id.Trim();
+                row.TryGetValue("PackBelong", out var rawPackId);
+                row.TryGetValue("Action", out var action);
+                row.TryGetValue("Icon", out var iconPath);
+                row.TryGetValue("Rarity", out var rarity);
+                row.TryGetValue("Expend", out var cost);
+
+                var packId = (rawPackId ?? "").Trim();
+                var isHidden = IsSpecialCardId(id);
+                var isSkillCard = IsSkillLikeCard(id, packId, action, iconPath);
+                var isSystemSkillCard = IsSystemSkillCard(id, packId, action, iconPath);
+                var isLocked = IsRuntimeLocked(id);
+                var displayName = RowDisplayName(row, id);
+
+                var entry = new StarterDeckCardCatalogEntry(
+                    id,
+                    packId,
+                    displayName,
+                    rarity ?? "",
+                    cost ?? "",
+                    iconPath ?? "",
+                    action ?? "",
+                    isHidden,
+                    isSkillCard,
+                    isSystemSkillCard,
+                    isLocked);
+                allCards.Add(entry);
+
+                if (isHidden)
+                {
+                    hiddenCards.Add(id);
+                }
+
+                if (isSkillCard)
+                {
+                    skillCards.Add(id);
+                }
+
+                if (isSystemSkillCard)
+                {
+                    systemSkillCards.Add(id);
+                    continue;
+                }
+
+                if (isLocked)
+                {
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(packId) && groupCards.TryGetValue(packId, out var group))
+                {
+                    group.Add(id);
+                }
+                else if (string.IsNullOrWhiteSpace(packId) || !existingPacks.Contains(packId))
+                {
+                    otherCards.Add(id);
+                }
+            }
+
+            var groups = groupCards
+                .Select(pair => new StarterDeckCardPackGroup(pair.Key, PackDisplayName(packDisplayNames, pair.Key), SortedDistinctCards(pair.Value)))
+                .Where(group => group.CardIds.Count > 0)
+                .OrderBy(group => group.DisplayName)
+                .ThenBy(group => group.PackId)
+                .ToList();
+            var sortedOtherCards = SortedDistinctCards(otherCards);
+            if (sortedOtherCards.Count > 0)
+            {
+                groups.Add(new StarterDeckCardPackGroup(StarterDeckCardPackGroup.OtherGroupId, "\u5176\u5b83", sortedOtherCards));
+            }
+
+            var selectableCards = groups
+                .SelectMany(group => group.CardIds)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(CardSortKey)
+                .ToList();
+            var snapshot = new StarterDeckCardCatalogSnapshot(
+                allCards
+                    .GroupBy(card => card.Id, StringComparer.OrdinalIgnoreCase)
+                    .Select(group => group.First())
+                    .OrderBy(card => CardSortKey(card.Id))
+                    .ToList(),
+                groups,
+                selectableCards,
+                SortedDistinctCards(hiddenCards),
+                SortedDistinctCards(skillCards),
+                SortedDistinctCards(systemSkillCards));
+            AuraToolsLog.Info(
+                "[StarterDeck] built card catalog from " + source
+                + ": cards=" + snapshot.AllCards.Count
+                + ", selectable=" + snapshot.SelectableCardIds.Count
+                + ", groups=" + snapshot.SelectableGroups.Count
+                + ", skills=" + snapshot.SkillCardIds.Count
+                + ", systemSkills=" + snapshot.SystemSkillCardIds.Count);
+            return snapshot;
+        }
+        catch (Exception ex)
+        {
+            AuraToolsLog.Warn("[StarterDeck] failed to build card catalog from " + source + ": " + ex.Message);
+            return StarterDeckCardCatalogSnapshot.Empty;
+        }
+    }
+
+    private static string PackDisplayName(Dictionary<string, string> packDisplayNames, string packId)
+    {
+        return packDisplayNames.TryGetValue(packId, out var displayName) && !string.IsNullOrWhiteSpace(displayName)
+            ? displayName
+            : CardPackDisplayName(packId);
+    }
+
+    private static string RowDisplayName(Dictionary<string, string> row, string fallback)
+    {
+        try
+        {
+            var localized = row.Localize("Name");
+            if (!string.IsNullOrWhiteSpace(localized) && localized != "Name")
+            {
+                return localized;
+            }
+        }
+        catch
+        {
+            // Fall back to the raw row value below.
+        }
+
+        return row.TryGetValue("Name", out var name) && !string.IsNullOrWhiteSpace(name) ? name : fallback;
+    }
+
+    private static bool IsSkillLikeCard(string id, string packId, string? action, string? iconPath)
+    {
+        var normalizedIcon = (iconPath ?? "").Replace('\\', '/');
+        return string.Equals((action ?? "").Trim(), "Skill", StringComparison.OrdinalIgnoreCase)
+               || normalizedIcon.IndexOf("/Skill/", StringComparison.OrdinalIgnoreCase) >= 0
+               || normalizedIcon.StartsWith("Images/Skill/", StringComparison.OrdinalIgnoreCase)
+               || IsSystemSkillCard(id, packId, action, iconPath);
+    }
+
+    private static bool IsSystemSkillCard(string id, string packId, string? action, string? iconPath)
+    {
+        var normalizedId = NormalizeLocalCardId(id);
+        var normalizedIcon = (iconPath ?? "").Replace('\\', '/');
+        var hasSkillAction = string.Equals((action ?? "").Trim(), "Skill", StringComparison.OrdinalIgnoreCase);
+        var hasSkillIcon = normalizedIcon.IndexOf("/Skill/", StringComparison.OrdinalIgnoreCase) >= 0
+                           || normalizedIcon.StartsWith("Images/Skill/", StringComparison.OrdinalIgnoreCase);
+        return string.IsNullOrWhiteSpace(packId) && (hasSkillAction || hasSkillIcon)
+               || normalizedId.StartsWith("*wuna_", StringComparison.OrdinalIgnoreCase)
+               || normalizedId.StartsWith("*loneer_", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSystemSkillCard(string cardId)
+    {
+        return GetCardCatalogSnapshot("system-skill-check").IsSystemSkillCard(cardId);
+    }
+
+    private static string NormalizeLocalCardId(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return "";
+        }
+
+        var normalized = id.Trim();
+        var slash = normalized.LastIndexOf('/');
+        if (slash >= 0 && slash + 1 < normalized.Length)
+        {
+            normalized = normalized.Substring(slash + 1);
+        }
+
+        var marker = normalized.IndexOf("_*", StringComparison.Ordinal);
+        return marker >= 0 && marker + 1 < normalized.Length ? normalized.Substring(marker + 1) : normalized;
+    }
+
+    private static bool IsRuntimeLocked(string id)
+    {
+        try
+        {
+            return Singleton<GameRuntimeData>.Instance.IsLocked(id);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private static List<string> BuildSelectablePacks()
     {
         try
@@ -875,6 +1198,51 @@ public static class AuraToolsStarterDeckRuntime
             AuraToolsLog.Warn("[StarterDeck] failed to list card packs: " + ex.Message);
             return new List<string>();
         }
+    }
+
+    private static string CardPackDisplayName(string packId)
+    {
+        try
+        {
+            var data = new DataConfig(packId, DataType.CardPack).data;
+            var localized = data.Localize("Name");
+            if (!string.IsNullOrWhiteSpace(localized) && localized != "Name")
+            {
+                return localized;
+            }
+
+            return data.TryGetValue("Name", out var name) && !string.IsNullOrWhiteSpace(name) ? name : packId;
+        }
+        catch
+        {
+            return packId;
+        }
+    }
+
+    private static bool IsExistingCardPack(string packId)
+    {
+        if (string.IsNullOrWhiteSpace(packId) || !IsValidPackForCurrentLobby(packId))
+        {
+            return false;
+        }
+
+        try
+        {
+            return new DataConfig(packId, DataType.CardPack).data != null;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static List<string> SortedDistinctCards(IEnumerable<string> cardIds)
+    {
+        return (cardIds ?? Array.Empty<string>())
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(CardSortKey)
+            .ToList();
     }
 
     private static IEnumerable<string> CardIdsFromPack(string packId)
@@ -915,7 +1283,18 @@ public static class AuraToolsStarterDeckRuntime
         }
     }
 
-    private static string CardSortKey(string cardId)
+    private static bool TryGetCatalogCard(string cardId, out StarterDeckCardCatalogEntry? card)
+    {
+        card = null;
+        if (string.IsNullOrWhiteSpace(cardId))
+        {
+            return false;
+        }
+
+        return GetCardCatalogSnapshot("card-lookup").TryGetCard(cardId, out card);
+    }
+
+    public static string CardSortKey(string cardId)
     {
         try
         {
@@ -932,6 +1311,11 @@ public static class AuraToolsStarterDeckRuntime
 
     public static string CardDisplayName(string cardId)
     {
+        if (TryGetCatalogCard(cardId, out var card) && card != null)
+        {
+            return string.IsNullOrWhiteSpace(card.DisplayName) ? cardId : card.DisplayName;
+        }
+
         try
         {
             var data = new DataConfig(cardId, DataType.Card).data;
@@ -949,8 +1333,28 @@ public static class AuraToolsStarterDeckRuntime
         }
     }
 
+    public static string CardDisplayNameWithSpecialMarker(string cardId)
+    {
+        var name = CardDisplayName(cardId);
+        return IsSpecialCardId(cardId) ? "\u3010*\u3011 " + name : name;
+    }
+
+    public static bool IsSpecialCardId(string cardId)
+    {
+        return !string.IsNullOrWhiteSpace(cardId)
+               && (cardId.StartsWith("*", StringComparison.Ordinal)
+                   || cardId.IndexOf("_*", StringComparison.Ordinal) >= 0);
+    }
+
     public static string CardShortInfo(string cardId)
     {
+        if (TryGetCatalogCard(cardId, out var card) && card != null)
+        {
+            var rarity = string.IsNullOrWhiteSpace(card.Rarity) ? "?" : "R" + card.Rarity;
+            var cost = string.IsNullOrWhiteSpace(card.Cost) ? "?" : card.Cost;
+            return rarity + " / Cost" + cost + " / " + cardId;
+        }
+
         try
         {
             var data = new DataConfig(cardId, DataType.Card).data;
@@ -966,6 +1370,11 @@ public static class AuraToolsStarterDeckRuntime
 
     public static string CardRarity(string cardId)
     {
+        if (TryGetCatalogCard(cardId, out var card) && card != null)
+        {
+            return string.IsNullOrWhiteSpace(card.Rarity) ? "?" : "R" + card.Rarity;
+        }
+
         try
         {
             var data = new DataConfig(cardId, DataType.Card).data;
@@ -979,6 +1388,11 @@ public static class AuraToolsStarterDeckRuntime
 
     public static string CardCost(string cardId)
     {
+        if (TryGetCatalogCard(cardId, out var card) && card != null)
+        {
+            return string.IsNullOrWhiteSpace(card.Cost) ? "?" : card.Cost;
+        }
+
         try
         {
             var data = new DataConfig(cardId, DataType.Card).data;
@@ -1000,8 +1414,21 @@ public static class AuraToolsStarterDeckRuntime
         Sprite? sprite = null;
         try
         {
-            var data = new DataConfig(cardId, DataType.Card).data;
-            if (data.TryGetValue("Icon", out var iconPath) && !string.IsNullOrWhiteSpace(iconPath))
+            var iconPath = "";
+            if (TryGetCatalogCard(cardId, out var card) && card != null)
+            {
+                iconPath = card.IconPath;
+            }
+            else
+            {
+                var data = new DataConfig(cardId, DataType.Card).data;
+                if (data.TryGetValue("Icon", out var rawIconPath))
+                {
+                    iconPath = rawIconPath;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(iconPath))
             {
                 sprite = AuraToolsResourceCache.Load<Sprite>(iconPath, true);
             }
@@ -1027,6 +1454,144 @@ internal sealed class StarterDeckResolvedProfile
     public StarterDeckProfile Profile { get; }
 
     public string Reason { get; }
+}
+
+public sealed class StarterDeckCardPackGroup
+{
+    public const string OtherGroupId = "__other__";
+
+    public StarterDeckCardPackGroup(string packId, string displayName, List<string> cardIds)
+    {
+        PackId = packId ?? "";
+        DisplayName = string.IsNullOrWhiteSpace(displayName) ? PackId : displayName;
+        CardIds = cardIds ?? new List<string>();
+    }
+
+    public string PackId { get; }
+
+    public string DisplayName { get; }
+
+    public List<string> CardIds { get; }
+
+    public StarterDeckCardPackGroup WithCards(List<string> cardIds)
+    {
+        return new StarterDeckCardPackGroup(PackId, DisplayName, cardIds);
+    }
+}
+
+internal sealed class StarterDeckCardCatalogSnapshot
+{
+    public static readonly StarterDeckCardCatalogSnapshot Empty = new(
+        new List<StarterDeckCardCatalogEntry>(),
+        new List<StarterDeckCardPackGroup>(),
+        new List<string>(),
+        new List<string>(),
+        new List<string>(),
+        new List<string>());
+
+    private readonly Dictionary<string, StarterDeckCardCatalogEntry> cardsById;
+    private readonly HashSet<string> systemSkillCardIds;
+
+    public StarterDeckCardCatalogSnapshot(
+        List<StarterDeckCardCatalogEntry> allCards,
+        List<StarterDeckCardPackGroup> selectableGroups,
+        List<string> selectableCardIds,
+        List<string> hiddenCardIds,
+        List<string> skillCardIds,
+        List<string> systemSkillCardIds)
+    {
+        AllCards = allCards ?? new List<StarterDeckCardCatalogEntry>();
+        SelectableGroups = selectableGroups ?? new List<StarterDeckCardPackGroup>();
+        SelectableCardIds = selectableCardIds ?? new List<string>();
+        HiddenCardIds = hiddenCardIds ?? new List<string>();
+        SkillCardIds = skillCardIds ?? new List<string>();
+        SystemSkillCardIds = systemSkillCardIds ?? new List<string>();
+        cardsById = AllCards
+            .GroupBy(card => card.Id, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+        this.systemSkillCardIds = new HashSet<string>(SystemSkillCardIds, StringComparer.OrdinalIgnoreCase);
+    }
+
+    public List<StarterDeckCardCatalogEntry> AllCards { get; }
+
+    public List<StarterDeckCardPackGroup> SelectableGroups { get; }
+
+    public List<string> SelectableCardIds { get; }
+
+    public List<string> HiddenCardIds { get; }
+
+    public List<string> SkillCardIds { get; }
+
+    public List<string> SystemSkillCardIds { get; }
+
+    public bool TryGetCard(string cardId, out StarterDeckCardCatalogEntry? card)
+    {
+        card = null;
+        return !string.IsNullOrWhiteSpace(cardId) && cardsById.TryGetValue(cardId, out card);
+    }
+
+    public bool IsSystemSkillCard(string cardId)
+    {
+        return !string.IsNullOrWhiteSpace(cardId) && systemSkillCardIds.Contains(cardId);
+    }
+
+    public List<StarterDeckCardPackGroup> CloneSelectableGroups()
+    {
+        return SelectableGroups
+            .Select(group => new StarterDeckCardPackGroup(group.PackId, group.DisplayName, group.CardIds.ToList()))
+            .ToList();
+    }
+}
+
+internal sealed class StarterDeckCardCatalogEntry
+{
+    public StarterDeckCardCatalogEntry(
+        string id,
+        string packId,
+        string displayName,
+        string rarity,
+        string cost,
+        string iconPath,
+        string action,
+        bool isHidden,
+        bool isSkillCard,
+        bool isSystemSkillCard,
+        bool isLocked)
+    {
+        Id = id ?? "";
+        PackId = packId ?? "";
+        DisplayName = displayName ?? Id;
+        Rarity = rarity ?? "";
+        Cost = cost ?? "";
+        IconPath = iconPath ?? "";
+        Action = action ?? "";
+        IsHidden = isHidden;
+        IsSkillCard = isSkillCard;
+        IsSystemSkillCard = isSystemSkillCard;
+        IsLocked = isLocked;
+    }
+
+    public string Id { get; }
+
+    public string PackId { get; }
+
+    public string DisplayName { get; }
+
+    public string Rarity { get; }
+
+    public string Cost { get; }
+
+    public string IconPath { get; }
+
+    public string Action { get; }
+
+    public bool IsHidden { get; }
+
+    public bool IsSkillCard { get; }
+
+    public bool IsSystemSkillCard { get; }
+
+    public bool IsLocked { get; }
 }
 
 internal sealed class StarterDeckPreparationContext
@@ -1115,8 +1680,12 @@ public static class AuraToolsStarterDeckEditor
     private sealed class StarterDeckEditorSession
     {
         private readonly List<string> editingDeck = new();
+        private readonly List<string> autoFillCandidates = new();
+        private readonly List<StarterDeckCardPackGroup> candidateGroups = new();
+        private readonly HashSet<string> expandedCandidateGroups = new(StringComparer.OrdinalIgnoreCase);
         private readonly StarterDeckLocalProfileSettings profile;
         private readonly string editingRoleId;
+        private Transform? candidateContent;
         private Transform? selectedContent;
         private Text? counterText;
         private Text? hintText;
@@ -1130,7 +1699,14 @@ public static class AuraToolsStarterDeckEditor
 
         public void Build(Transform window)
         {
-            var candidates = AuraToolsStarterDeckRuntime.BuildAllCandidateCardIds();
+            candidateGroups.Clear();
+            candidateGroups.AddRange(AuraToolsStarterDeckRuntime.BuildCandidateCardPackGroups());
+            autoFillCandidates.Clear();
+            autoFillCandidates.AddRange(candidateGroups
+                .SelectMany(group => group.CardIds)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(AuraToolsStarterDeckRuntime.CardSortKey)
+                .ToList());
 
             var body = Settings.AuraToolsUi.CreateLayout("Body", window);
             var bodyElement = body.AddComponent<LayoutElement>();
@@ -1143,11 +1719,9 @@ public static class AuraToolsStarterDeckEditor
             bodyLayout.childForceExpandWidth = true;
             bodyLayout.childForceExpandHeight = true;
 
-            var candidatePanel = CreateColumn(body.transform, "全部可选卡牌", out _);
-            foreach (var cardId in candidates)
-            {
-                CreateCandidateRow(candidatePanel, cardId);
-            }
+            var candidatePanel = CreateColumn(body.transform, "按卡包选择", out _);
+            candidateContent = candidatePanel;
+            RefreshCandidateGroups();
 
             var selectedPanel = CreateColumn(body.transform, "当前预设", out counterText);
             selectedContent = selectedPanel;
@@ -1164,7 +1738,7 @@ public static class AuraToolsStarterDeckEditor
             Settings.AuraToolsUi.AddButton(footer.transform, "自动填充", () =>
             {
                 editingDeck.Clear();
-                editingDeck.AddRange(candidates.Take(CurrentDeckSize()));
+                editingDeck.AddRange(autoFillCandidates.Take(CurrentDeckSize()));
                 RefreshSelected();
             });
             Settings.AuraToolsUi.AddButton(footer.transform, "清空", () =>
@@ -1203,11 +1777,67 @@ public static class AuraToolsStarterDeckEditor
             return Settings.AuraToolsUi.CreateScroll(column.transform, title);
         }
 
+        private void RefreshCandidateGroups()
+        {
+            if (candidateContent == null)
+            {
+                return;
+            }
+
+            Settings.AuraToolsUi.ClearChildren(candidateContent);
+            foreach (var group in candidateGroups)
+            {
+                CreateCandidateGroup(candidateContent, group);
+            }
+        }
+
+        private void CreateCandidateGroup(Transform parent, StarterDeckCardPackGroup group)
+        {
+            var expanded = expandedCandidateGroups.Contains(group.PackId);
+            var header = Settings.AuraToolsUi.CreateLayout("Pack-" + group.PackId, parent);
+            Settings.AuraToolsUi.SetFixedHeight(header, 34f);
+            var image = Settings.AuraToolsUi.AddImage(header, Settings.AuraToolsUi.Header);
+            var button = header.AddComponent<Button>();
+            button.targetGraphic = image;
+            button.onClick.AddListener(() => ToggleCandidateGroup(group.PackId));
+            var layout = header.AddComponent<HorizontalLayoutGroup>();
+            layout.padding = new RectOffset(10, 10, 2, 2);
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandHeight = false;
+            Settings.AuraToolsUi.AddText(header.transform, (expanded ? "\u25be " : "\u25b8 ") + group.DisplayName, Settings.AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, Settings.AuraToolsUi.Accent, Settings.AuraToolsUi.TextMinHeight, 1f);
+            Settings.AuraToolsUi.AddText(header.transform, group.CardIds.Count.ToString(), Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleRight, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 0f, 52f);
+
+            if (!expanded)
+            {
+                return;
+            }
+
+            foreach (var cardId in group.CardIds)
+            {
+                CreateCandidateRow(parent, cardId);
+            }
+        }
+
+        private void ToggleCandidateGroup(string packId)
+        {
+            if (expandedCandidateGroups.Contains(packId))
+            {
+                expandedCandidateGroups.Remove(packId);
+            }
+            else
+            {
+                expandedCandidateGroups.Add(packId);
+            }
+
+            RefreshCandidateGroups();
+        }
+
         private void CreateCandidateRow(Transform parent, string cardId)
         {
             var row = CreateRow(parent, "Candidate-" + cardId);
             CreateCardIconCell(row.transform, cardId, AuraToolsStarterDeckRuntime.CardCost(cardId));
-            Settings.AuraToolsUi.AddText(row.transform, AuraToolsStarterDeckRuntime.CardDisplayName(cardId), Settings.AuraToolsUi.BodyFontSize, TextAnchor.MiddleCenter, Settings.AuraToolsUi.Text, Settings.AuraToolsUi.TextMinHeight, 1f);
+            Settings.AuraToolsUi.AddText(row.transform, AuraToolsStarterDeckRuntime.CardDisplayNameWithSpecialMarker(cardId), Settings.AuraToolsUi.BodyFontSize, TextAnchor.MiddleCenter, Settings.AuraToolsUi.Text, Settings.AuraToolsUi.TextMinHeight, 1f);
             Settings.AuraToolsUi.AddText(row.transform, AuraToolsStarterDeckRuntime.CardRarity(cardId), Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 0f, AuraToolsStarterDeckRuntime.CardRarityColumnWidth);
             Settings.AuraToolsUi.AddText(row.transform, AuraToolsStarterDeckRuntime.CardCost(cardId), Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 0f, AuraToolsStarterDeckRuntime.CardCostColumnWidth);
             Settings.AuraToolsUi.AddButton(row.transform, "添加", () =>
@@ -1237,7 +1867,7 @@ public static class AuraToolsStarterDeckEditor
                 var cardId = editingDeck[i];
                 var row = CreateRow(selectedContent, "Selected-" + index);
                 CreateCardIconCell(row.transform, cardId, (index + 1).ToString());
-                Settings.AuraToolsUi.AddText(row.transform, AuraToolsStarterDeckRuntime.CardDisplayName(cardId), Settings.AuraToolsUi.BodyFontSize, TextAnchor.MiddleCenter, Settings.AuraToolsUi.Text, Settings.AuraToolsUi.TextMinHeight, 1f);
+                Settings.AuraToolsUi.AddText(row.transform, AuraToolsStarterDeckRuntime.CardDisplayNameWithSpecialMarker(cardId), Settings.AuraToolsUi.BodyFontSize, TextAnchor.MiddleCenter, Settings.AuraToolsUi.Text, Settings.AuraToolsUi.TextMinHeight, 1f);
                 Settings.AuraToolsUi.AddText(row.transform, AuraToolsStarterDeckRuntime.CardRarity(cardId), Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 0f, AuraToolsStarterDeckRuntime.CardRarityColumnWidth);
                 Settings.AuraToolsUi.AddText(row.transform, AuraToolsStarterDeckRuntime.CardCost(cardId), Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 0f, AuraToolsStarterDeckRuntime.CardCostColumnWidth);
                 Settings.AuraToolsUi.AddButton(row.transform, "移除", () =>

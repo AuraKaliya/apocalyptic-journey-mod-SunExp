@@ -17,6 +17,7 @@ public static class RuntimeHooks
         RunHookStep("card lifecycle router", () => SunExpCardLifecycleRouter.Initialize(modConfig));
         RunHookStep("combat action router", () => SunExpCombatActionRouter.Initialize(modConfig));
         RunHookStep("status lifecycle router", () => SunExpStatusLifecycleRouter.Initialize(modConfig));
+        RunHookStep("field runtime", () => FieldRuntime.Initialize(modConfig));
         RunHookStep("card visual skin", () => CardVisualSkinRuntime.Initialize(modConfig));
         RunHookStep("card presentation bridge", SunExpCardPresentationLifecycleBridge.Initialize);
         RunHookStep("battle reward card presentation", () => BattleRewardCardPresentationRuntime.Initialize(modConfig));
@@ -88,6 +89,11 @@ public static class RuntimeHooks
             }
 
             var amount = BuffAmountFromArgs(args);
+            if (FieldApi.TryRedirectStatusFieldBuffAdd(target, buffId, amount, "StatusManager.AddBuff:before"))
+            {
+                return;
+            }
+
             ExecutorApi.PrepareSolarRadianceUpperBound(target, buffId);
             if (buffId != SunExpIds.Burn || amount <= 0)
             {
@@ -110,6 +116,11 @@ public static class RuntimeHooks
             var args = context.Arguments;
             var buffId = BuffIdFromArgs(args);
             var amount = BuffAmountFromArgs(args);
+            if (FieldApi.RemoveFieldBuffCarrier(target, buffId, "StatusManager.AddBuff:after"))
+            {
+                return;
+            }
+
             ExecutorApi.FinalizeSolarRadianceUpperBound(target, buffId, amount);
         }
         catch (Exception ex)

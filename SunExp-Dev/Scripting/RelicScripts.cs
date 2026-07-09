@@ -160,14 +160,7 @@ public static class RelicScripts
 
     private static void RegisterBlazingCrownHeart(ScriptExecutor self)
     {
-        ExecutorApi.TryAddEvent(self, "FightStart", new Action(() =>
-        {
-            self.SetStatus("Self");
-            self.AddBuff(SunExpIds.SolarRadiance, "8");
-            ExecutorApi.ApplyFieldBuff(self, "scorching_canopy", 2);
-            self.SetStatus("Self");
-            self.AddBuff(SunExpIds.SolarCrown, "1");
-        }), "blazing_crown_heart");
+        // Fight-start and fight-reset replay is owned by FieldStartSourceService.
     }
 
     private static void RegisterSolarPrism(ScriptExecutor self)
