@@ -577,6 +577,11 @@ void TestRuntimeArchitectureGuards()
         "team avatar capture has pixel and byte budgets");
     Assert(damageMeterRuntime.Contains("UiRefreshIntervalMs", StringComparison.Ordinal),
         "damage meter UI refresh is config-throttled");
+    Assert(damageMeterRuntime.Contains("!Available || !Visible", StringComparison.Ordinal)
+           && damageMeterRuntime.Contains("RestoreAdventureHistoryOnce", StringComparison.Ordinal)
+           && !damageMeterRuntime.Contains("uiDirty = true;\r\n            return;", StringComparison.Ordinal)
+           && !damageMeterRuntime.Contains("uiDirty = true;\n            return;", StringComparison.Ordinal),
+        "damage meter idle UI and adventure-history work must be suppressed when unchanged");
     Assert(damageMeterRuntime.Contains("DamageMeterPerformanceCounters.RecordHitHook", StringComparison.Ordinal)
            && damageMeterRuntime.Contains("DamageMeterPerformanceCounters.MaybeLog", StringComparison.Ordinal),
         "damage meter hot hooks must be observable through aggregated performance counters");

@@ -40,6 +40,7 @@ public static class AuraToolsDamageMeterRuntime
     private static bool hooksRegistered;
     private static bool endingSent;
     private static bool adventureSettlementRecorded;
+    private static bool adventureHistoryRestoreAttempted;
     private static bool outOfRunHistoryLoaded;
     private static float nextRefreshAt;
     private static float uiRetryBlockedUntil;
@@ -255,6 +256,13 @@ public static class AuraToolsDamageMeterRuntime
             return;
         }
 
+        if (!Available || !Visible)
+        {
+            nextRefreshAt = now + refreshInterval;
+            uiDirty = false;
+            return;
+        }
+
         try
         {
             var startedAt = DamageMeterPerformanceCounters.StartSample();
@@ -305,7 +313,6 @@ public static class AuraToolsDamageMeterRuntime
         if (Available == available)
         {
             AuraToolsDamageMeterUi.SetAvailable(available && Enabled);
-            uiDirty = true;
             return;
         }
 
@@ -490,6 +497,7 @@ public static class AuraToolsDamageMeterRuntime
                 DamageMeterNetworkRuntime.BeginAdventure();
                 DamageSettlementCgRuntime.BeginAdventure();
                 adventureSettlementRecorded = false;
+                adventureHistoryRestoreAttempted = false;
                 AuraToolsDamageMeterUi.CloseHistory();
                 preparationUiActive = true;
                 SetAvailable(true, "GameEntryUI.StartGame");
@@ -507,10 +515,21 @@ public static class AuraToolsDamageMeterRuntime
             }
 
             preparationUiActive = false;
-            DamageMeterNetworkRuntime.RestoreAdventureHistory();
+            RestoreAdventureHistoryOnce();
             SetAvailable(true, GetHookName(context));
             PrepareSettlementCgAssets(GetHookName(context));
         });
+    }
+
+    private static void RestoreAdventureHistoryOnce()
+    {
+        if (adventureHistoryRestoreAttempted)
+        {
+            return;
+        }
+
+        adventureHistoryRestoreAttempted = true;
+        DamageMeterNetworkRuntime.RestoreAdventureHistory();
     }
 
     private static void PrepareSettlementCgAssets(string source)
