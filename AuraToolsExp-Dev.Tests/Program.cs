@@ -643,6 +643,17 @@ void TestRuntimeArchitectureGuards()
     Assert(!skillCgRuntime.Contains("PreloadOnFightStart", StringComparison.Ordinal),
         "SkillCG must not preload registered CG during fight start");
 
+    var starterDeckRuntime = ReadRepoText("AuraToolsExp-Dev/Features/StarterDeck/AuraToolsStarterDeckRuntime.cs");
+    Assert(starterDeckRuntime.Contains("RegisterBefore(modConfig, \"PlayerManager.RpcSyncRoleTables\"", StringComparison.Ordinal)
+           && starterDeckRuntime.Contains("ApplyStarterDeckBeforeRoleSync", StringComparison.Ordinal),
+        "starter deck must apply before each player submits their own role table");
+    Assert(starterDeckRuntime.Contains("IsLocalPlayerRoleTable", StringComparison.Ordinal)
+           && starterDeckRuntime.Contains("playerManager.PlayerId", StringComparison.Ordinal)
+           && starterDeckRuntime.Contains("ReflectionUtil.ReadString(roleTable, \"Id\", \"id\")", StringComparison.Ordinal),
+        "starter deck multiplayer path must guard by local player role-table ownership");
+    Assert(!starterDeckRuntime.Contains("multiplayer world-simulation keeps native per-player decks", StringComparison.Ordinal),
+        "starter deck must not skip the whole feature for multiplayer world-simulation runs");
+
     var matchSettings = ReadRepoText("AuraToolsExp/Config/MatchExperienceSettings.json");
     Assert(matchSettings.Contains("\"loadHistoryOnStartup\": false", StringComparison.Ordinal)
            && matchSettings.Contains("\"captureTeamAvatars\": false", StringComparison.Ordinal)

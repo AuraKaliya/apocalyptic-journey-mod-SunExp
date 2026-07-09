@@ -38,12 +38,13 @@ public static class AuraToolsStarterDeckRuntime
     public const float CardActionColumnWidth = 84f;
     private static readonly Dictionary<string, Sprite?> cardIconCache = new(StringComparer.OrdinalIgnoreCase);
     private static StarterDeckPreparationContext? preparationContext;
-    private static int lastMultiplayerSkipLogFrame = -100000;
+    private static int lastForeignRoleTableSkipLogFrame = -100000;
 
     public static void Initialize(ModConfig modConfig)
     {
         RegisterAfter(modConfig, "GameEntryUI.ChangeRole", CaptureRoleSelectionContext);
         RegisterBefore(modConfig, "GameEntryUI.StartGame", CapturePreparationContext);
+        RegisterBefore(modConfig, "PlayerManager.RpcSyncRoleTables", ApplyStarterDeckBeforeRoleSync);
         RegisterAfter(modConfig, "NormalMapManager.InitRoleTable", ApplyStarterDeckAfterRoleInit);
     }
 
@@ -97,6 +98,18 @@ public static class AuraToolsStarterDeckRuntime
         }
     }
 
+    private static void ApplyStarterDeckBeforeRoleSync(ModHookContext context)
+    {
+        try
+        {
+            ApplyStarterDeck(RoleTable.Instance, context, "PlayerManager.RpcSyncRoleTables", allowNormalMapHookFallback: false);
+        }
+        catch (Exception ex)
+        {
+            AuraToolsLog.Error("[StarterDeck] failed to reconcile preset before role sync", ex);
+        }
+    }
+
     private static void ApplyStarterDeck(
         RoleTable? roleTable,
         ModHookContext context,
@@ -116,9 +129,8 @@ public static class AuraToolsStarterDeckRuntime
             return;
         }
 
-        if (IsMultiplayerSession())
+        if (!IsLocalPlayerRoleTable(roleTable, source))
         {
-            LogMultiplayerStarterDeckSkipped(source);
             return;
         }
 
@@ -202,28 +214,51 @@ public static class AuraToolsStarterDeckRuntime
         return allowNormalMapHookFallback;
     }
 
-    private static bool IsMultiplayerSession()
+    private static bool IsLocalPlayerRoleTable(RoleTable roleTable, string source)
     {
         try
         {
-            return PlayerManager.Instance != null;
+            var playerManager = PlayerManager.Instance;
+            if (playerManager == null)
+            {
+                return true;
+            }
+
+            var localPlayerId = (playerManager.PlayerId ?? "").Trim();
+            var roleTableId = (ReflectionUtil.ReadString(roleTable, "Id", "id") ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(localPlayerId) || string.IsNullOrWhiteSpace(roleTableId))
+            {
+                return true;
+            }
+
+            if (string.Equals(localPlayerId, roleTableId, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            LogForeignRoleTableSkipped(source, localPlayerId, roleTableId);
+            return false;
         }
         catch
         {
-            return false;
+            return true;
         }
     }
 
-    private static void LogMultiplayerStarterDeckSkipped(string source)
+    private static void LogForeignRoleTableSkipped(string source, string localPlayerId, string roleTableId)
     {
         var frame = SafeFrameCount();
-        if (frame - lastMultiplayerSkipLogFrame < 300)
+        if (frame - lastForeignRoleTableSkipLogFrame < 300)
         {
             return;
         }
 
-        lastMultiplayerSkipLogFrame = frame;
-        AuraToolsLog.Info("[StarterDeck] skipped: multiplayer world-simulation keeps native per-player decks; source="
+        lastForeignRoleTableSkipLogFrame = frame;
+        AuraToolsLog.Info("[StarterDeck] skipped: role table belongs to another player; local="
+                          + localPlayerId
+                          + ", roleTable="
+                          + roleTableId
+                          + ", source="
                           + source + ".");
     }
 

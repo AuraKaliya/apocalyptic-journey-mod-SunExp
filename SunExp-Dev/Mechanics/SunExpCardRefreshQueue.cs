@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using SunExp.Dll.Infrastructure;
 using Witch.Core;
 using Witch.UI.Window;
@@ -8,10 +9,11 @@ namespace SunExp.Dll.Mechanics;
 
 public static class SunExpCardRefreshQueue
 {
+    private const double SlowRefreshWarningMilliseconds = 8.0;
     private static readonly object SyncRoot = new();
     private static readonly Dictionary<string, PendingCardRefresh> PendingCards = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, PendingConfigRefresh> PendingConfigs = new(StringComparer.Ordinal);
-    private static int RefreshBudgetPerFrame => Math.Max(4, SunExpPerformanceSettings.FrameSchedulerBudget / 2);
+    private static int RefreshBudgetPerFrame => Math.Max(2, Math.Min(4, SunExpPerformanceSettings.FrameSchedulerBudget / 8));
 
     public static void RequestDataUpdate(CardItem? card, string source)
     {
@@ -184,21 +186,31 @@ public static class SunExpCardRefreshQueue
 
     private static void RefreshNow(CardItem card, string source, bool refreshTags, bool dataUpdate)
     {
+        var start = SunExpPerformanceCounters.Timestamp();
         try
         {
             if (refreshTags)
             {
+                var tagStart = SunExpPerformanceCounters.Timestamp();
                 card.RefreshTag();
+                SunExpPerformanceCounters.RecordDuration("CardRefreshQueue.Card.RefreshTag", tagStart);
             }
 
             if (dataUpdate)
             {
+                var dataStart = SunExpPerformanceCounters.Timestamp();
                 card.DataUpdate();
+                SunExpPerformanceCounters.RecordDuration("CardRefreshQueue.Card.DataUpdate", dataStart);
             }
         }
         catch (Exception ex)
         {
             SunExpLog.Debug("Queued card refresh skipped from " + source + ": " + ex.Message);
+        }
+        finally
+        {
+            SunExpPerformanceCounters.RecordDuration("CardRefreshQueue.Card.Refresh", start);
+            LogSlowRefresh("card", source, start);
         }
     }
 
@@ -216,7 +228,34 @@ public static class SunExpCardRefreshQueue
         finally
         {
             SunExpPerformanceCounters.RecordDuration("FightCardManager.RefreshTag", start);
+            LogSlowRefresh("config", source, start);
         }
+    }
+
+    private static void LogSlowRefresh(string kind, string source, long startTimestamp)
+    {
+        if (!SunExpPerformanceSettings.CountersEnabled)
+        {
+            return;
+        }
+
+        if (startTimestamp <= 0L)
+        {
+            return;
+        }
+
+        var elapsed = (Stopwatch.GetTimestamp() - startTimestamp) * 1000.0 / Stopwatch.Frequency;
+        if (elapsed < SlowRefreshWarningMilliseconds)
+        {
+            return;
+        }
+
+        SunExpLog.Warn("Slow SunExp card refresh: kind="
+            + kind
+            + ", elapsedMs="
+            + elapsed.ToString("0.###")
+            + ", source="
+            + source);
     }
 
     private static string CardKey(CardItem card)

@@ -106,13 +106,18 @@ public static class LoneerMiracleService
 
     private static void OnStarStonePouchDrawn(ScriptExecutor self, StarStonePouchDrawResult result)
     {
-        if (!IsActive() || self?.Self == null || result.OwnerStatusId != self.Self.InstanceId)
+        if (self?.Self == null || result.OwnerStatusId != self.Self.InstanceId)
         {
             return;
         }
 
         var state = LoneerCombatStateStore.Get(self.Self);
         if (state == null || state.ActionResolving)
+        {
+            return;
+        }
+
+        if (!IsActiveOwner(self.Self, state))
         {
             return;
         }
@@ -152,11 +157,14 @@ public static class LoneerMiracleService
     private static void FlushStarStonePouchDraws(string ownerId)
     {
         var start = SunExpPerformanceCounters.Timestamp();
+        var segment = start;
         var scheduleNextDelay = 1;
         var hasMore = false;
         try
         {
-            if (SunExpCombatUiWorkload.IsBusy)
+            var combatUiBusy = SunExpCombatUiWorkload.IsBusy;
+            segment = RecordLoneerSegment("Loneer.FlushStarStonePouchDraws.UiBusyCheck", segment);
+            if (combatUiBusy)
             {
                 var delay = Math.Max(1, SunExpCombatUiWorkload.BusyFramesRemaining + 1);
                 SunExpPerformanceCounters.Record("Loneer.StarStonePouchDraw.DeferredForCardUi");
@@ -167,6 +175,7 @@ public static class LoneerMiracleService
                     + ", uiSource="
                     + SunExpCombatUiWorkload.LastSource);
                 ScheduleStarStonePouchDrawFlush(ownerId, delay);
+                RecordLoneerSegment("Loneer.FlushStarStonePouchDraws.CardUiDeferral", segment);
                 return;
             }
 
@@ -189,27 +198,42 @@ public static class LoneerMiracleService
                     PendingStarStoneDraws.Remove(ownerId);
                 }
             }
+            segment = RecordLoneerSegment("Loneer.FlushStarStonePouchDraws.DequeuePending", segment);
 
-            if (!IsActive() || self?.Self == null || self.Self.InstanceId != ownerId)
+            if (self?.Self == null || self.Self.InstanceId != ownerId)
             {
+                RecordLoneerSegment("Loneer.FlushStarStonePouchDraws.ValidateOwner", segment);
                 return;
             }
+            segment = RecordLoneerSegment("Loneer.FlushStarStonePouchDraws.ValidateOwner", segment);
 
             var state = LoneerCombatStateStore.Get(self.Self);
             if (state == null || state.ActionResolving)
             {
+                RecordLoneerSegment("Loneer.FlushStarStonePouchDraws.StateLookup", segment);
                 return;
             }
+            segment = RecordLoneerSegment("Loneer.FlushStarStonePouchDraws.StateLookup", segment);
+
+            if (!IsActiveOwner(self.Self, state))
+            {
+                RecordLoneerSegment("Loneer.FlushStarStonePouchDraws.ValidateActiveOwner", segment);
+                return;
+            }
+            segment = RecordLoneerSegment("Loneer.FlushStarStonePouchDraws.ValidateActiveOwner", segment);
 
             EnsureInitialized(self, state);
+            segment = RecordLoneerSegment("Loneer.FlushStarStonePouchDraws.EnsureInitialized", segment);
             state.ActionResolving = true;
             try
             {
                 scheduleNextDelay = ResolveStarStoneDrawStep(self, state, result) ? 2 : 1;
+                segment = RecordLoneerSegment("Loneer.FlushStarStonePouchDraws.ResolveStep", segment);
             }
             finally
             {
                 state.ActionResolving = false;
+                RecordLoneerSegment("Loneer.FlushStarStonePouchDraws.ClearResolving", segment);
             }
         }
         finally
@@ -224,30 +248,47 @@ public static class LoneerMiracleService
 
     private static bool ResolveStarStoneDrawStep(ScriptExecutor self, LoneerCombatState state, StarStonePouchDrawResult result)
     {
-        if (self?.Self == null || state == null || result.OwnerStatusId != self.Self.InstanceId)
+        var start = SunExpPerformanceCounters.Timestamp();
+        var segment = start;
+        try
         {
-            return false;
-        }
+            if (self?.Self == null || state == null || result.OwnerStatusId != self.Self.InstanceId)
+            {
+                RecordLoneerSegment("Loneer.ResolveStarStoneDrawStep.Validate", segment);
+                return false;
+            }
+            segment = RecordLoneerSegment("Loneer.ResolveStarStoneDrawStep.Validate", segment);
 
-        if (result.IsWhite)
-        {
-            ScheduleNaturalMorningStar(self, "StarStonePouch.White");
+            if (result.IsWhite)
+            {
+                ScheduleNaturalMorningStar(self, "StarStonePouch.White");
+                RecordLoneerSegment("Loneer.ResolveStarStoneDrawStep.White", segment);
+                return true;
+            }
+            segment = RecordLoneerSegment("Loneer.ResolveStarStoneDrawStep.WhiteCheck", segment);
+
+            if (!result.IsBlack)
+            {
+                RecordLoneerSegment("Loneer.ResolveStarStoneDrawStep.BlackCheck", segment);
+                return false;
+            }
+            segment = RecordLoneerSegment("Loneer.ResolveStarStoneDrawStep.BlackCheck", segment);
+
+            var change = MiracleClockService.ReduceBy(self, state, 1, "StarStonePouch.Black");
+            segment = RecordLoneerSegment("Loneer.ResolveStarStoneDrawStep.ReduceClock", segment);
+            if (!change.Depleted)
+            {
+                return false;
+            }
+
+            ScheduleBorrowedMiracle(self);
+            RecordLoneerSegment("Loneer.ResolveStarStoneDrawStep.ScheduleBorrowedMiracle", segment);
             return true;
         }
-
-        if (!result.IsBlack)
+        finally
         {
-            return false;
+            SunExpPerformanceCounters.RecordDuration("Loneer.ResolveStarStoneDrawStep", start);
         }
-
-        var change = MiracleClockService.ReduceBy(self, state, 1, "StarStonePouch.Black");
-        if (!change.Depleted)
-        {
-            return false;
-        }
-
-        ScheduleBorrowedMiracle(self);
-        return true;
     }
 
     private static void ScheduleNaturalMorningStar(ScriptExecutor self, string source)
@@ -270,29 +311,49 @@ public static class LoneerMiracleService
 
     private static void FlushNaturalMorningStar(string ownerId, string source)
     {
+        var start = SunExpPerformanceCounters.Timestamp();
+        var segment = start;
         ScriptExecutor self;
         lock (PendingStarStoneDrawSync)
         {
             if (!PendingNaturalMorningStars.TryGetValue(ownerId, out self))
             {
+                SunExpPerformanceCounters.RecordDuration("Loneer.FlushNaturalMorningStar", start);
                 return;
             }
 
             PendingNaturalMorningStars.Remove(ownerId);
         }
+        segment = RecordLoneerSegment("Loneer.FlushNaturalMorningStar.DequeuePending", segment);
 
-        if (!IsActive() || self?.Self == null || self.Self.InstanceId != ownerId)
+        if (self?.Self == null || self.Self.InstanceId != ownerId)
         {
+            RecordLoneerSegment("Loneer.FlushNaturalMorningStar.ValidateOwner", segment);
+            SunExpPerformanceCounters.RecordDuration("Loneer.FlushNaturalMorningStar", start);
             return;
         }
+        segment = RecordLoneerSegment("Loneer.FlushNaturalMorningStar.ValidateOwner", segment);
 
         var state = LoneerCombatStateStore.Get(self.Self);
         if (state == null)
         {
+            RecordLoneerSegment("Loneer.FlushNaturalMorningStar.StateLookup", segment);
+            SunExpPerformanceCounters.RecordDuration("Loneer.FlushNaturalMorningStar", start);
             return;
         }
+        segment = RecordLoneerSegment("Loneer.FlushNaturalMorningStar.StateLookup", segment);
+
+        if (!IsActiveOwner(self.Self, state))
+        {
+            RecordLoneerSegment("Loneer.FlushNaturalMorningStar.ValidateActiveOwner", segment);
+            SunExpPerformanceCounters.RecordDuration("Loneer.FlushNaturalMorningStar", start);
+            return;
+        }
+        segment = RecordLoneerSegment("Loneer.FlushNaturalMorningStar.ValidateActiveOwner", segment);
 
         TriggerNaturalMorningStar(self, state, source);
+        RecordLoneerSegment("Loneer.FlushNaturalMorningStar.Trigger", segment);
+        SunExpPerformanceCounters.RecordDuration("Loneer.FlushNaturalMorningStar", start);
     }
 
     private static void ScheduleBorrowedMiracle(ScriptExecutor self)
@@ -315,29 +376,49 @@ public static class LoneerMiracleService
 
     private static void FlushBorrowedMiracle(string ownerId)
     {
+        var start = SunExpPerformanceCounters.Timestamp();
+        var segment = start;
         ScriptExecutor self;
         lock (PendingStarStoneDrawSync)
         {
             if (!PendingBorrowedMiracles.TryGetValue(ownerId, out self))
             {
+                SunExpPerformanceCounters.RecordDuration("Loneer.FlushBorrowedMiracle", start);
                 return;
             }
 
             PendingBorrowedMiracles.Remove(ownerId);
         }
+        segment = RecordLoneerSegment("Loneer.FlushBorrowedMiracle.DequeuePending", segment);
 
-        if (!IsActive() || self?.Self == null || self.Self.InstanceId != ownerId)
+        if (self?.Self == null || self.Self.InstanceId != ownerId)
         {
+            RecordLoneerSegment("Loneer.FlushBorrowedMiracle.ValidateOwner", segment);
+            SunExpPerformanceCounters.RecordDuration("Loneer.FlushBorrowedMiracle", start);
             return;
         }
+        segment = RecordLoneerSegment("Loneer.FlushBorrowedMiracle.ValidateOwner", segment);
 
         var state = LoneerCombatStateStore.Get(self.Self);
         if (state == null)
         {
+            RecordLoneerSegment("Loneer.FlushBorrowedMiracle.StateLookup", segment);
+            SunExpPerformanceCounters.RecordDuration("Loneer.FlushBorrowedMiracle", start);
             return;
         }
+        segment = RecordLoneerSegment("Loneer.FlushBorrowedMiracle.StateLookup", segment);
+
+        if (!IsActiveOwner(self.Self, state))
+        {
+            RecordLoneerSegment("Loneer.FlushBorrowedMiracle.ValidateActiveOwner", segment);
+            SunExpPerformanceCounters.RecordDuration("Loneer.FlushBorrowedMiracle", start);
+            return;
+        }
+        segment = RecordLoneerSegment("Loneer.FlushBorrowedMiracle.ValidateActiveOwner", segment);
 
         TriggerBorrowedMiracle(self, state);
+        RecordLoneerSegment("Loneer.FlushBorrowedMiracle.Trigger", segment);
+        SunExpPerformanceCounters.RecordDuration("Loneer.FlushBorrowedMiracle", start);
     }
 
     public static void UseMorningStarPrayer(ScriptExecutor self)
@@ -436,14 +517,14 @@ public static class LoneerMiracleService
                 {
                     new SunExpFrameStep("GrantGuidanceCopy", () =>
                     {
-                        if (IsCurrentLoneerState(owner, state))
+                        if (IsActiveOwner(owner, state))
                         {
                             copied = TryAddGuidedCard(self, state, "natural");
                         }
                     }),
                     new SunExpFrameStep("ResetClock", () =>
                     {
-                        if (!IsCurrentLoneerState(owner, state))
+                        if (!IsActiveOwner(owner, state))
                         {
                             return;
                         }
@@ -454,13 +535,13 @@ public static class LoneerMiracleService
                     }),
                     new SunExpFrameStep("RequestGuidanceSelection", () =>
                     {
-                        if (IsCurrentLoneerState(owner, state))
+                        if (IsActiveOwner(owner, state))
                         {
                             RequestGuidanceSelectionDeferred(self, state, "\u91cd\u65b0\u9009\u62e9\u3010\u6307\u5f15\u724c\u3011", "NaturalMorningStar");
                         }
                     })
                 },
-                () => !IsActive() || !IsCurrentLoneerState(owner, state));
+                () => !IsActiveOwner(owner, state));
         }
         finally
         {
@@ -489,14 +570,14 @@ public static class LoneerMiracleService
                 {
                     new SunExpFrameStep("GrantGuidanceCopy", () =>
                     {
-                        if (IsCurrentLoneerState(owner, state))
+                        if (IsActiveOwner(owner, state))
                         {
                             copied = TryAddGuidedCard(self, state, "borrowed");
                         }
                     }),
                     new SunExpFrameStep("ResetClock", () =>
                     {
-                        if (!IsCurrentLoneerState(owner, state))
+                        if (!IsActiveOwner(owner, state))
                         {
                             return;
                         }
@@ -508,13 +589,13 @@ public static class LoneerMiracleService
                     }),
                     new SunExpFrameStep("RequestGuidanceSelection", () =>
                     {
-                        if (IsCurrentLoneerState(owner, state))
+                        if (IsActiveOwner(owner, state))
                         {
                             RequestGuidanceSelectionDeferred(self, state, "\u91cd\u65b0\u9009\u62e9\u3010\u6307\u5f15\u724c\u3011", "BorrowedMiracle");
                         }
                     })
                 },
-                () => !IsActive() || !IsCurrentLoneerState(owner, state));
+                () => !IsActiveOwner(owner, state));
         }
         finally
         {
@@ -547,24 +628,29 @@ public static class LoneerMiracleService
     private static void RequestGuidanceSelection(ScriptExecutor self, LoneerCombatState state, string caption)
     {
         var start = SunExpPerformanceCounters.Timestamp();
+        var segment = start;
         try
         {
             if (state.SelectionPending || self?.Self == null)
             {
+                RecordLoneerSegment("Loneer.RequestGuidanceSelection.EntryCheck", segment);
                 return;
             }
+            segment = RecordLoneerSegment("Loneer.RequestGuidanceSelection.EntryCheck", segment);
 
             state.SelectionScheduled = false;
             var owner = self.Self;
             state.SelectionPending = true;
             var selectionVersion = ++state.SelectionVersion;
             var source = CardSelectionApi.CombatDrawAndDiscardCards(self, card => !IsExcludedActionCard(card));
+            segment = RecordLoneerSegment("Loneer.RequestGuidanceSelection.CollectCandidates", segment);
             if (source.Count == 0)
             {
                 state.SelectionPending = false;
                 SetGuidance(state, SunExpIds.WitchStarScoreCardId, "\u9b54\u5973\u7684\u661f\u8c31");
                 PlayerApi.ShowCaption("\u6307\u5f15\u724c\uff1a\u9b54\u5973\u7684\u661f\u8c31");
                 SunExpLog.Info("Loneer guidance fallback to Witch Star Score: owner=" + owner.InstanceId + ", version=" + selectionVersion);
+                RecordLoneerSegment("Loneer.RequestGuidanceSelection.EmptyFallback", segment);
                 return;
             }
 
@@ -575,6 +661,7 @@ public static class LoneerMiracleService
                 card => ApplyGuidanceSelection(owner, state, selectionVersion, card, "selected"),
                 caption,
                 () => ResolveRandomGuidanceFallback(owner, state, selectionVersion, source, "cancelled"));
+            segment = RecordLoneerSegment("Loneer.RequestGuidanceSelection.OpenSelectionUi", segment);
 
             if (opened)
             {
@@ -582,6 +669,7 @@ public static class LoneerMiracleService
             }
 
             ResolveRandomGuidanceFallback(owner, state, selectionVersion, source, "ui_unavailable");
+            RecordLoneerSegment("Loneer.RequestGuidanceSelection.UiUnavailableFallback", segment);
         }
         finally
         {
@@ -696,6 +784,21 @@ public static class LoneerMiracleService
         return ReferenceEquals(current, state);
     }
 
+    private static bool IsActiveOwner(IStatusManager owner, LoneerCombatState state)
+    {
+        if (owner == null || state == null)
+        {
+            return false;
+        }
+
+        if (PolymorphStateStore.IsRoleSuppressedFor(owner, SunExpIds.LoneerCareerId))
+        {
+            return false;
+        }
+
+        return IsCurrentLoneerState(owner, state);
+    }
+
     private static IDataConfig? RandomGuidanceCard(IReadOnlyList<IDataConfig> candidates)
     {
         var pool = candidates?
@@ -790,6 +893,12 @@ public static class LoneerMiracleService
             || value == SunExpIds.WitchStarScoreCardId
             || value == "loneer_morning_star_prayer"
             || value == SunExpIds.LoneerMorningPrayerSkillCardId;
+    }
+
+    private static long RecordLoneerSegment(string name, long segmentStart)
+    {
+        SunExpPerformanceCounters.RecordDuration(name, segmentStart);
+        return SunExpPerformanceCounters.Timestamp();
     }
 
     private static void SyncBuffs(ScriptExecutor self, LoneerCombatState state)

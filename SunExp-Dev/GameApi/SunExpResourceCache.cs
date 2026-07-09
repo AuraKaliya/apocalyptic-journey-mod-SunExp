@@ -8,13 +8,16 @@ namespace SunExp.Dll.GameApi;
 
 public static class SunExpResourceCache
 {
+    private const double SlowLoadWarningMilliseconds = 16.0;
+
     public static T? Load<T>(string path, bool loadFromMod = true, string category = "")
         where T : UnityEngine.Object
     {
         var start = SunExpPerformanceCounters.Timestamp();
+        T? loaded = null;
         try
         {
-            var loaded = AuraSharedResourceCache.Load<T>(
+            loaded = AuraSharedResourceCache.Load<T>(
                 SunExpIds.ModId,
                 path,
                 loadFromMod,
@@ -37,6 +40,7 @@ public static class SunExpResourceCache
         finally
         {
             SunExpPerformanceCounters.RecordDuration("ResourceCache.Load", start);
+            LogSlowLoad("Load", typeof(T).Name, path, category, loaded != null, start);
         }
     }
 
@@ -44,9 +48,10 @@ public static class SunExpResourceCache
         where T : UnityEngine.Object
     {
         var start = SunExpPerformanceCounters.Timestamp();
+        T[]? loaded = null;
         try
         {
-            var loaded = AuraSharedResourceCache.LoadAll<T>(
+            loaded = AuraSharedResourceCache.LoadAll<T>(
                 SunExpIds.ModId,
                 path,
                 category,
@@ -70,6 +75,7 @@ public static class SunExpResourceCache
         finally
         {
             SunExpPerformanceCounters.RecordDuration("ResourceCache.LoadAll", start);
+            LogSlowLoad("LoadAll", typeof(T).Name, path, category, (loaded?.Length ?? 0) > 0, start);
         }
     }
 
@@ -94,5 +100,37 @@ public static class SunExpResourceCache
                 Load<T>(path, true, category);
             }
         }
+    }
+
+    private static void LogSlowLoad(
+        string operation,
+        string typeName,
+        string path,
+        string category,
+        bool hit,
+        long startTimestamp)
+    {
+        if (!SunExpPerformanceSettings.CountersEnabled)
+        {
+            return;
+        }
+
+        var elapsed = SunExpPerformanceCounters.ElapsedMilliseconds(startTimestamp);
+        if (elapsed < SlowLoadWarningMilliseconds)
+        {
+            return;
+        }
+
+        SunExpLog.Warn("Slow SunExp resource " + operation
+            + ": type="
+            + typeName
+            + ", elapsedMs="
+            + elapsed.ToString("0.###")
+            + ", hit="
+            + hit
+            + ", category="
+            + (string.IsNullOrWhiteSpace(category) ? "<empty>" : category)
+            + ", path="
+            + path);
     }
 }

@@ -35,7 +35,6 @@ public static class SunExpPerformanceCounters
         }
 
         Add(name, Stopwatch.GetTimestamp() - startTimestamp);
-        MaybeLogSummary();
     }
 
     public static double ElapsedMilliseconds(long startTimestamp)

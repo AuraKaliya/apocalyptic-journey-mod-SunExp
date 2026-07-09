@@ -177,6 +177,7 @@ public static class SunExpFrameScheduler
 
                     RecordFrameDiagnostics(scheduled);
                     var start = SunExpPerformanceCounters.Timestamp();
+                    double actionElapsed;
                     try
                     {
                         scheduled.Action();
@@ -187,9 +188,12 @@ public static class SunExpFrameScheduler
                     }
                     finally
                     {
+                        actionElapsed = SunExpPerformanceCounters.ElapsedMilliseconds(start);
+                        var instrumentationStart = SunExpPerformanceCounters.Timestamp();
                         SunExpPerformanceCounters.RecordDuration("FrameScheduler.Action", start);
                         SunExpPerformanceCounters.RecordDuration("FrameScheduler.Action." + CounterKeyFor(scheduled.Key), start);
-                        LogSlowAction(scheduled.Key, start);
+                        LogSlowAction(scheduled.Key, actionElapsed);
+                        SunExpPerformanceCounters.RecordDuration("FrameScheduler.Instrumentation", instrumentationStart);
                     }
                 }
             }
@@ -298,14 +302,13 @@ public static class SunExpFrameScheduler
             return value.Length <= 80 ? value : value.Substring(0, 80);
         }
 
-        private static void LogSlowAction(string key, long startTimestamp)
+        private static void LogSlowAction(string key, double elapsed)
         {
             if (!SunExpPerformanceSettings.CountersEnabled)
             {
                 return;
             }
 
-            var elapsed = SunExpPerformanceCounters.ElapsedMilliseconds(startTimestamp);
             if (elapsed < SlowActionWarningMilliseconds)
             {
                 return;

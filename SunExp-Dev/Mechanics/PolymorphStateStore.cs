@@ -63,6 +63,12 @@ public static class PolymorphStateStore
         return active != null && !RoleMatches(active.RoleId, roleId);
     }
 
+    public static bool IsRoleSuppressedFor(IStatusManager? ownerStatus, string roleId)
+    {
+        var active = ActiveFor(ownerStatus);
+        return active != null && !RoleMatches(active.RoleId, roleId);
+    }
+
     public static PolymorphState? ActiveFor(IStatusManager? ownerStatus)
     {
         var owner = OwnerKey(ownerStatus);

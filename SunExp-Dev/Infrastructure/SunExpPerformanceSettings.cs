@@ -83,6 +83,8 @@ public static class SunExpPerformanceSettings
             + cachedCountersEnabled
             + "; SunExpDebug raw="
             + FormatRawValue(ReadGameVarSafe("SunExpDebug"))
+            + " effective="
+            + ReadFlagSafe("SunExpDebug", false)
             + "; "
             + UiPoolKey
             + " raw="
@@ -157,6 +159,18 @@ public static class SunExpPerformanceSettings
         catch
         {
             return "<error>";
+        }
+    }
+
+    private static bool ReadFlagSafe(string key, bool fallback)
+    {
+        try
+        {
+            return ReadFlag(key, fallback);
+        }
+        catch
+        {
+            return fallback;
         }
     }
 

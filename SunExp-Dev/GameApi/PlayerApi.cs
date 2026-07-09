@@ -10,7 +10,25 @@ namespace SunExp.Dll.GameApi;
 
 public static class PlayerApi
 {
-    private static object? PlayerInfo => typeof(ScriptExecutor).GetNestedType("PlayerInfo", BindingFlags.Public | BindingFlags.NonPublic);
+    private static readonly object TypeCacheSync = new();
+    private static readonly Dictionary<string, Type> TypeCache = new(StringComparer.Ordinal);
+    private static Type? playerInfoType;
+    private static bool playerInfoResolved;
+
+    private static object? PlayerInfo
+    {
+        get
+        {
+            if (playerInfoResolved)
+            {
+                return playerInfoType;
+            }
+
+            playerInfoType = typeof(ScriptExecutor).GetNestedType("PlayerInfo", BindingFlags.Public | BindingFlags.NonPublic);
+            playerInfoResolved = true;
+            return playerInfoType;
+        }
+    }
 
     public static int GetSkillTime(string key)
     {
@@ -364,6 +382,19 @@ public static class PlayerApi
 
     private static Type? FindType(string name)
     {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        lock (TypeCacheSync)
+        {
+            if (TypeCache.TryGetValue(name, out var cached))
+            {
+                return cached;
+            }
+        }
+
         foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
         {
             try
@@ -372,6 +403,11 @@ public static class PlayerApi
                 {
                     if (type.Name == name || type.FullName == name)
                     {
+                        lock (TypeCacheSync)
+                        {
+                            TypeCache[name] = type;
+                        }
+
                         return type;
                     }
                 }

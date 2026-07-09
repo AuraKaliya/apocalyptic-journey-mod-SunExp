@@ -77,16 +77,14 @@ public static class SunExpLog
 
             var value = getDebugVarMethod?.Invoke(null, new object[] { DebugVarKey });
             var text = Convert.ToString(value)?.Trim();
-            cachedDebugEnabled = string.IsNullOrWhiteSpace(text)
-                || text == "0"
-                || text == "1"
+            cachedDebugEnabled = text == "1"
                 || string.Equals(text, "true", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(text, "yes", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(text, "on", StringComparison.OrdinalIgnoreCase);
         }
         catch
         {
-            cachedDebugEnabled = true;
+            cachedDebugEnabled = false;
         }
 
         lastDebugFlagRefreshTick = now;
