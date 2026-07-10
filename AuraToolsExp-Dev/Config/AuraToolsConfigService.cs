@@ -206,7 +206,18 @@ public static class AuraToolsConfigService
 
     private static bool ImportRegisteredSkillCgDefaultsNoLock()
     {
-        return false;
+        var changed = 0;
+        foreach (var entry in AuraCgRegistryRuntime.GetRegisteredEntries())
+        {
+            if (!string.Equals(entry.Kind, SkillCgArbiterRuntime.SkillCgKind, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            changed += ImportRegisteredSkillCgEntryNoLock(entry);
+        }
+
+        return changed > 0;
     }
 
     private static int ImportRegisteredSkillCgEntryNoLock(AuraCgRegistryEntry entry)
@@ -430,13 +441,7 @@ public static class AuraToolsConfigService
 
     private static string RegisteredProviderId(AuraCgRegistryEntry entry, int index)
     {
-        return AuraToolsIds.ModId
-               + ".RegisteredCG."
-               + SafeProviderSegment(entry.OwnerModId)
-               + "."
-               + SafeProviderSegment(entry.CgId)
-               + "."
-               + (index + 1);
+        return entry.OwnerModId + ".SkillCG." + entry.CgId;
     }
 
     private static string SafeProviderSegment(string value)

@@ -54,13 +54,16 @@ public static class CardVisualSkinApplier
         var skin = CardVisualThemeCatalog.Resolve(config);
         var appliedFrame = false;
         var appliedBackground = false;
+        var clearedSkin = false;
         if (skin == null)
         {
+            clearedSkin = marker.ClearSkinVisuals();
             SunExpPerformanceCounters.Record("CardVisualSkin.SkinMiss");
             LogUnresolvedSunExpCard(config);
         }
         else
         {
+            marker.CaptureSkinBaseline();
             SunExpPerformanceCounters.Record("CardVisualSkin.SkinResolved");
             appliedFrame = ApplySprite(marker, background: false, skin.FramePath, skin.Id, "frame", required: true);
             appliedBackground = ApplySprite(marker, background: true, skin.BackgroundPath, skin.Id, "background", required: false);
@@ -98,7 +101,7 @@ public static class CardVisualSkinApplier
             SunExpPerformanceCounters.Record("CardVisualSkin.EffectApplied");
         }
 
-        if (!appliedFrame && !appliedBackground && !appliedEffect)
+        if (!appliedFrame && !appliedBackground && !appliedEffect && !clearedSkin)
         {
             SunExpPerformanceCounters.Record("CardVisualSkin.ApplyNoChange");
         }
@@ -133,6 +136,17 @@ public static class CardVisualSkinApplier
                 + ", icon="
                 + icon);
         }
+    }
+
+    public static bool ClearForUnmatchedCard(Transform? cardRoot)
+    {
+        if (cardRoot == null)
+        {
+            return false;
+        }
+
+        var marker = cardRoot.GetComponent<CardVisualSkinMarker>();
+        return marker != null && marker.ClearAllVisualOverrides();
     }
 
     private static void LogResolvedSkin(

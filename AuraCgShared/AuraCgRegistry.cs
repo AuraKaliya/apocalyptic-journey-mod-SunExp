@@ -19,6 +19,24 @@ public static class AuraCgRegistryRuntime
     private static long cachedRevision = -1;
     private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(2);
 
+    // Same-process consumers use this notification to invalidate local derived
+    // state. It is deliberately revision-based: no consumer depends on being
+    // loaded before or after another mod.
+    public static event Action<long>? Changed;
+
+    public static AuraCgRegistrySnapshot GetSnapshot(string ownerModId = "")
+    {
+        var document = GetCachedDocument();
+        var owner = (ownerModId ?? "").Trim();
+        var entries = document.Entries
+            .Where(entry => entry.Enabled
+                            && (string.IsNullOrWhiteSpace(owner)
+                                || string.Equals(entry.OwnerModId, owner, StringComparison.OrdinalIgnoreCase)))
+            .ToList()
+            .AsReadOnly();
+        return new AuraCgRegistrySnapshot(Math.Max(0, cachedRevision), entries);
+    }
+
     public static bool RegisterManifest(ModConfig? modConfig, string ownerModId, string manifestRelativePath = "SharedResources/cg.registry.json")
     {
         AuraSharedRuntime.Initialize(modConfig, ownerModId);
@@ -98,6 +116,7 @@ public static class AuraCgRegistryRuntime
             {
                 InvalidateCache();
                 AuraCgActivationRuntime.ApplyManifestDefaults(manifest.OwnerModId, accepted);
+                NotifyChanged(result.Revision);
                 AuraCgLog.InfoOnce(
                     "cg-manifest-registered:" + manifest.OwnerModId,
                     "CG registry manifest registered. owner=" + manifest.OwnerModId + ", entries=" + accepted.Count);
@@ -168,6 +187,32 @@ public static class AuraCgRegistryRuntime
             return document;
         }
     }
+
+    private static void NotifyChanged(long revision)
+    {
+        try
+        {
+            Changed?.Invoke(Math.Max(0, revision));
+        }
+        catch
+        {
+            // Registry observers are consumers, never part of registration
+            // durability or compatibility.
+        }
+    }
+}
+
+public sealed class AuraCgRegistrySnapshot
+{
+    public AuraCgRegistrySnapshot(long revision, IReadOnlyList<AuraCgRegistryEntry> entries)
+    {
+        Revision = Math.Max(0, revision);
+        Entries = entries ?? Array.Empty<AuraCgRegistryEntry>();
+    }
+
+    public long Revision { get; }
+
+    public IReadOnlyList<AuraCgRegistryEntry> Entries { get; }
 }
 
 public sealed class AuraCgRegistryDocument

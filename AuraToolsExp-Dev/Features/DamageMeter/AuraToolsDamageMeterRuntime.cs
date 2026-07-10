@@ -32,6 +32,7 @@ public static class AuraToolsDamageMeterRuntime
     private static readonly Stack<TargetHpFrame> TargetFramePool = new();
     private static readonly List<TargetHpFrame> EmptyTargetFrames = new();
     private static readonly Dictionary<string, byte[]> AvatarPngCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly List<OutOfRunTeamMemberSnapshot> AdventureTeamMembers = new();
     private static readonly BuffAttributionEngine BuffAttribution = new();
     private const int MaxAvatarCacheEntries = 32;
     private const int MaxTargetFrameListPool = 32;
@@ -398,6 +399,7 @@ public static class AuraToolsDamageMeterRuntime
             }
 
             ResetCaptureState();
+            DamageMeterFightIndex.SetFriendlyIdentitySnapshots(AdventureTeamMembers);
             DamageMeterFightIndex.BeginFight();
             AttachBuffBroadcastListener(context);
             endingSent = false;
@@ -419,6 +421,7 @@ public static class AuraToolsDamageMeterRuntime
                 }
 
                 ResetCaptureState();
+                DamageMeterFightIndex.SetFriendlyIdentitySnapshots(AdventureTeamMembers);
                 DamageMeterFightIndex.BeginFight();
                 AttachBuffBroadcastListener(context);
                 endingSent = false;
@@ -504,6 +507,7 @@ public static class AuraToolsDamageMeterRuntime
             if (IsSupportedDamageMeterContext(context, allowMapManagerFallback: false))
             {
                 DamageMeterNetworkRuntime.BeginAdventure();
+                CaptureAdventureTeamMembers();
                 DamageSettlementCgRuntime.BeginAdventure();
                 adventureSettlementRecorded = false;
                 adventureHistoryRestoreAttempted = false;
@@ -596,7 +600,7 @@ public static class AuraToolsDamageMeterRuntime
                     ? OutOfRunDamageHistoryStatus.Completed
                     : OutOfRunDamageHistoryStatus.Failed,
                 EndedUtc = DateTime.UtcNow.ToString("O"),
-                TeamMembers = CollectTeamMembers(AuraToolsConfigService.MatchExperience.DamageMeter.CaptureTeamAvatars)
+                TeamMembers = CollectSettlementTeamMembers(AuraToolsConfigService.MatchExperience.DamageMeter.CaptureTeamAvatars)
             };
             var record = RunAggregate.HasDamage
                 ? OutOfRunDamageHistoryBuilder.Build(aggregate, request, countShield: true)
@@ -777,6 +781,124 @@ public static class AuraToolsDamageMeterRuntime
         }
 
         return result;
+    }
+
+    private static void CaptureAdventureTeamMembers()
+    {
+        AdventureTeamMembers.Clear();
+        foreach (var member in CollectTeamMembers(captureAvatars: false))
+        {
+            AdventureTeamMembers.Add(CloneTeamMember(member));
+        }
+
+        DamageMeterFightIndex.SetFriendlyIdentitySnapshots(AdventureTeamMembers);
+    }
+
+    private static IReadOnlyList<OutOfRunTeamMemberSnapshot> CollectSettlementTeamMembers(bool captureAvatars)
+    {
+        var current = CollectTeamMembers(captureAvatars);
+        var result = new List<OutOfRunTeamMemberSnapshot>();
+        foreach (var member in current)
+        {
+            var stable = FindAdventureTeamMember(member);
+            result.Add(MergeTeamMember(stable, member));
+        }
+
+        foreach (var stable in AdventureTeamMembers)
+        {
+            if (FindTeamMember(result, stable) == null)
+            {
+                result.Add(CloneTeamMember(stable));
+            }
+        }
+
+        return result;
+    }
+
+    private static OutOfRunTeamMemberSnapshot? FindAdventureTeamMember(OutOfRunTeamMemberSnapshot? member)
+    {
+        return FindTeamMember(AdventureTeamMembers, member);
+    }
+
+    private static OutOfRunTeamMemberSnapshot? FindTeamMember(
+        IEnumerable<OutOfRunTeamMemberSnapshot> members,
+        OutOfRunTeamMemberSnapshot? candidate)
+    {
+        if (candidate == null)
+        {
+            return null;
+        }
+
+        foreach (var member in members)
+        {
+            if (member == null)
+            {
+                continue;
+            }
+
+            if (SameNonEmpty(member.PlayerId, candidate.PlayerId)
+                || SameNonEmpty(member.InstanceId, candidate.InstanceId)
+                || SameNonEmpty(member.PlayerId, candidate.InstanceId)
+                || SameNonEmpty(member.InstanceId, candidate.PlayerId))
+            {
+                return member;
+            }
+        }
+
+        return null;
+    }
+
+    private static OutOfRunTeamMemberSnapshot MergeTeamMember(
+        OutOfRunTeamMemberSnapshot? stable,
+        OutOfRunTeamMemberSnapshot current)
+    {
+        stable ??= new OutOfRunTeamMemberSnapshot();
+        current ??= new OutOfRunTeamMemberSnapshot();
+        return new OutOfRunTeamMemberSnapshot
+        {
+            InstanceId = FirstNonEmpty(current.InstanceId, stable.InstanceId),
+            PlayerId = FirstNonEmpty(current.PlayerId, stable.PlayerId),
+            PlayerDisplayName = FirstNonEmpty(stable.PlayerDisplayName, current.PlayerDisplayName),
+            RoleId = FirstNonEmpty(current.RoleId, stable.RoleId),
+            RoleDisplayName = FirstNonEmpty(current.RoleDisplayName, stable.RoleDisplayName),
+            DisplayName = FirstNonEmpty(stable.PlayerDisplayName, current.PlayerDisplayName, stable.DisplayName, current.DisplayName),
+            AvatarPngBase64 = FirstNonEmpty(current.AvatarPngBase64, stable.AvatarPngBase64),
+            AvatarSha256 = FirstNonEmpty(current.AvatarSha256, stable.AvatarSha256)
+        };
+    }
+
+    private static OutOfRunTeamMemberSnapshot CloneTeamMember(OutOfRunTeamMemberSnapshot source)
+    {
+        return new OutOfRunTeamMemberSnapshot
+        {
+            InstanceId = source?.InstanceId ?? "",
+            PlayerId = source?.PlayerId ?? "",
+            PlayerDisplayName = source?.PlayerDisplayName ?? "",
+            RoleId = source?.RoleId ?? "",
+            RoleDisplayName = source?.RoleDisplayName ?? "",
+            DisplayName = source?.DisplayName ?? "",
+            AvatarPngBase64 = source?.AvatarPngBase64 ?? "",
+            AvatarSha256 = source?.AvatarSha256 ?? ""
+        };
+    }
+
+    private static bool SameNonEmpty(string? left, string? right)
+    {
+        return !string.IsNullOrWhiteSpace(left)
+               && string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string FirstNonEmpty(params string?[] values)
+    {
+        foreach (var value in values)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value!.Trim();
+            }
+        }
+
+        return "";
     }
 
     private static void AddTeamMember(List<OutOfRunTeamMemberSnapshot> result, RoleTable? role, bool captureAvatars)

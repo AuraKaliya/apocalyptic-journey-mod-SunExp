@@ -102,7 +102,8 @@ sender into validation.
 Use this order unless a feature has a stronger local reason:
 
 1. Startup: initialize shared core, install packages, register manifests and
-   providers, then apply tool-local effective configuration.
+   providers, then apply tool-local effective configuration. Do not freeze that
+   result at startup: re-resolve it when a registry revision changes.
 2. Lobby or entry: discover host/client state, request missing authoritative
    snapshots, and avoid client-side host misidentification.
 3. Adventure or mode entry: initialize route, starter deck, role setup, map,
@@ -118,6 +119,15 @@ Use this order unless a feature has a stronger local reason:
 
 UI and Unity object work may need a frame scheduler. Do not assume a remote
 packet arrives when the native UI tree or resource cache is ready.
+
+### StarterDeck client submission
+
+Content mods register starter-deck profiles; AuraToolsExp resolves the local
+effective profile without changing its registration owner. In multiplayer each
+client must apply that result to its own `RoleTable` immediately before the
+native `CmdSyncRoleTable` serialization/submission path. Do not rely only on a
+server RPC wrapper such as `RpcSyncRoleTables`, and do not introduce a parallel
+deck gameplay RPC when the native role-table submission already carries it.
 
 ## Duplicate Suppression Model
 

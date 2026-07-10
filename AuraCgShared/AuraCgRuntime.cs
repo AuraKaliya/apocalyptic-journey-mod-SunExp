@@ -483,7 +483,7 @@ public static class SkillCgArbiterRuntime
     }
 
     // Network playback carries registered ids only. Every peer resolves its own local resource declaration.
-    private static bool TryBuildRegisteredNetworkRequest(SkillCgNetworkEvent? item, out SkillCgRequest? request)
+    private static bool TryBuildRegisteredNetworkRequest(SkillCgNetworkEvent? item, bool requireLocalActivation, out SkillCgRequest? request)
     {
         request = null;
         if (item == null
@@ -503,6 +503,14 @@ public static class SkillCgArbiterRuntime
             || !IsRegisteredCgEntry(entry, SkillCgKind) && !IsRegisteredCgEntry(entry, CardUseCgKind)
             || !EntryMatchesCard(entry, item.CardId)
             || !string.Equals(item.ProviderId.Trim(), entry.OwnerModId + ".SkillCG." + entry.CgId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        // Activation is a local effective-state overlay.  It lets a tool mod
+        // suppress a registered content CG on this recipient without changing
+        // the content manifest or the network identity.
+        if (requireLocalActivation && !AuraCgActivationRuntime.GetEffectiveState(entry).Enabled)
         {
             return false;
         }
@@ -1410,7 +1418,7 @@ public static class SkillCgArbiterRuntime
                 return false;
             }
 
-            var playId = ReuseOrCreateLocalPlayId(issuerPlayerId, first.OwnerInstanceId, first.CardId);
+            var playId = ReuseOrCreateLocalPlayId(issuerPlayerId, first.OwnerInstanceId, first.CardId, first.ActionSequence, first.EventToken);
             if (!TryClaimPlayback(issuerPlayerId, playId, "local"))
             {
                 return false;
@@ -1467,10 +1475,10 @@ public static class SkillCgArbiterRuntime
             return true;
         }
 
-        private string ReuseOrCreateLocalPlayId(string issuerPlayerId, string ownerInstanceId, string cardId)
+        private string ReuseOrCreateLocalPlayId(string issuerPlayerId, string ownerInstanceId, string cardId, long actionSequence, string eventToken)
         {
             PruneRecentLocalPlayIds();
-            var key = LocalActionKey(ownerInstanceId, cardId);
+            var key = LocalActionKey(ownerInstanceId, cardId, actionSequence, eventToken);
             if (recentLocalPlayIds.TryGetValue(key, out var existing)
                 && recentLocalPlayTimes.TryGetValue(key, out var lastTime)
                 && Time.unscaledTime - lastTime <= LocalActionReuseWindow())
@@ -1520,9 +1528,12 @@ public static class SkillCgArbiterRuntime
                 2f);
         }
 
-        private static string LocalActionKey(string ownerInstanceId, string cardId)
+        private static string LocalActionKey(string ownerInstanceId, string cardId, long actionSequence, string eventToken)
         {
-            return (ownerInstanceId ?? "").Trim() + "|" + (cardId ?? "").Trim();
+            return (ownerInstanceId ?? "").Trim()
+                   + "|" + (cardId ?? "").Trim()
+                   + "|" + actionSequence.ToString()
+                   + "|" + (eventToken ?? "").Trim();
         }
 
         private SkillCgPlaybackSnapshot CreatePlaybackSnapshot(
@@ -1651,7 +1662,7 @@ public static class SkillCgArbiterRuntime
             var requests = new List<SkillCgRequest>();
             foreach (var item in playback.Events)
             {
-                if (!TryBuildRegisteredNetworkRequest(item, out var request) || request == null)
+                if (!TryBuildRegisteredNetworkRequest(item, requireLocalActivation: true, out var request) || request == null)
                 {
                     AuraCgLog.WarnOnce("network-playback-unregistered:" + playback.SkillCgPlayId, "Skill CG network playback skipped: unregistered event identity.");
                     return false;
@@ -1721,7 +1732,7 @@ public static class SkillCgArbiterRuntime
                 return "payload budget exceeded";
             }
 
-            if (playback.Events.Any(item => !TryBuildRegisteredNetworkRequest(item, out _)))
+            if (playback.Events.Any(item => !TryBuildRegisteredNetworkRequest(item, requireLocalActivation: false, out _)))
             {
                 return "unregistered event identity";
             }

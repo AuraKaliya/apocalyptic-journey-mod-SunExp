@@ -23,6 +23,11 @@ SunExp is a content owner. It installs files, registers CG manifests, and
 provides machine-readable semantics. AuraTools consumes the shared declarations
 and may create local tool rules or overrides.
 
+When AuraToolsExp is installed, its local effective CG configuration gates the
+registered entry on that machine, including received multiplayer playback. It
+must not replace a SunExp CG request with a private AuraTools provider; the
+network identity remains the content owner's registered `ownerModId + cgId`.
+
 Do not make AuraTools guess SunExp folder layout, scan private content folders,
 or copy foreign CG files into a tool-owned default directory unless the user is
 explicitly creating a local override.

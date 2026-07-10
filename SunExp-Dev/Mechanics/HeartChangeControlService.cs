@@ -12,6 +12,17 @@ public static class HeartChangeControlService
 {
     private const int ExistingTargetWeight = 100;
     private const int ControlledTargetWeight = 90;
+    private const string ReasonNoCaster = "NoCaster";
+    private const string ReasonCombatOnly = "CombatOnly";
+    private const string ReasonChooseEnemy = "ChooseEnemy";
+    private const string ReasonTargetDead = "TargetDead";
+    private const string ReasonAlreadyControlled = "AlreadyControlled";
+    private const string ReasonNeedTwoEnemies = "NeedTwoEnemies";
+    private const string ReasonNoFriendlySlot = "NoFriendlySlot";
+    private const string ReasonTargetMissing = "TargetMissing";
+    private const string ReasonMissingSender = "MissingSender";
+    private const string ReasonSenderOutsideLobby = "SenderOutsideLobby";
+    private const string ReasonOwnerMismatch = "OwnerMismatch";
 
     private static readonly object SyncRoot = new();
     private static readonly Dictionary<string, HeartChangeState> Active = new(StringComparer.Ordinal);
@@ -24,7 +35,7 @@ public static class HeartChangeControlService
         var target = ExecutorApi.PrimaryTarget(self);
         if (!CanControlFromCard(self, target, out var reason))
         {
-            PlayerApi.ShowCaption("Heart Change: " + reason);
+            ShowFailureCaption(reason);
             RestoreCardTarget(self, target);
             return false;
         }
@@ -35,14 +46,14 @@ public static class HeartChangeControlService
             SunExpNetworkRuntime.Send(
                 new RpcHeartChangeControlRequest(StatusId(target), StatusId(self.Self), token),
                 "HeartChangeControlService.TryControlFromCard");
-            PlayerApi.ShowCaption("Heart Change: syncing control.");
+            PlayerApi.ShowCaption("心变：正在同步控制结果。");
             RestoreCardTarget(self, target);
             return true;
         }
 
         if (!ExecutorApi.AddStatusBuff(self, target, SunExpIds.HeartChangeBuffId, 1, "Target"))
         {
-            PlayerApi.ShowCaption("Heart Change: failed to apply control.");
+            PlayerApi.ShowCaption("心变：控制效果施加失败。");
             RestoreCardTarget(self, target);
             return false;
         }
@@ -56,7 +67,7 @@ public static class HeartChangeControlService
         var status = executor?.Self;
         if (!TryCreateState(status, out var state, out var reason))
         {
-            PlayerApi.ShowCaption("Heart Change: " + reason);
+            ShowFailureCaption(reason);
             RemoveHeartChangeBuff(status, "ApplyFailed");
             return;
         }
@@ -117,7 +128,7 @@ public static class HeartChangeControlService
         var rejection = ValidateNetworkSender(sender, ownerStatusId);
         if (target == null)
         {
-            rejection = "target missing";
+            rejection = ReasonTargetMissing;
         }
         else if (!CanControlNetworkTarget(target, out var reason))
         {
@@ -136,7 +147,7 @@ public static class HeartChangeControlService
         if (slotIndex == null)
         {
             SunExpNetworkRuntime.Send(
-                new RpcHeartChangeControlState(targetStatusId, token, -1, active: false, accepted: false, "no open friendly slot"),
+                new RpcHeartChangeControlState(targetStatusId, token, -1, active: false, accepted: false, ReasonNoFriendlySlot),
                 "HeartChangeControlService.ResolveNetworkControl.NoSlot");
             return;
         }
@@ -175,7 +186,7 @@ public static class HeartChangeControlService
 
         if (!command.Accepted)
         {
-            PlayerApi.ShowCaption("Heart Change: " + command.RejectionReason);
+            ShowFailureCaption(command.RejectionReason);
             return;
         }
 
@@ -330,43 +341,43 @@ public static class HeartChangeControlService
         reason = "";
         if (executor?.Self == null)
         {
-            reason = "no caster.";
+            reason = ReasonNoCaster;
             return false;
         }
 
         if (FightManager.Instance == null || FightManager.Instance.fightType == FightType.None)
         {
-            reason = "can only be used in combat.";
+            reason = ReasonCombatOnly;
             return false;
         }
 
         if (target == null || target.fatherObject is not Enemy)
         {
-            reason = "choose an enemy.";
+            reason = ReasonChooseEnemy;
             return false;
         }
 
         if (!IsAlive(target))
         {
-            reason = "target is not alive.";
+            reason = ReasonTargetDead;
             return false;
         }
 
         if (IsControlled(target))
         {
-            reason = "target is already controlled.";
+            reason = ReasonAlreadyControlled;
             return false;
         }
 
         if (AliveEnemyStatuses().Count(status => !IsControlled(status)) < 2)
         {
-            reason = "needs at least two uncontrolled enemies.";
+            reason = ReasonNeedTwoEnemies;
             return false;
         }
 
         if (CompanionSlotService.FindOpenPlayerSlot() == null)
         {
-            reason = "no open friendly slot.";
+            reason = ReasonNoFriendlySlot;
             return false;
         }
 
@@ -378,31 +389,31 @@ public static class HeartChangeControlService
         reason = "";
         if (FightManager.Instance == null || FightManager.Instance.fightType == FightType.None)
         {
-            reason = "can only be used in combat.";
+            reason = ReasonCombatOnly;
             return false;
         }
 
         if (target == null || target.fatherObject is not Enemy)
         {
-            reason = "choose an enemy.";
+            reason = ReasonChooseEnemy;
             return false;
         }
 
         if (!IsAlive(target))
         {
-            reason = "target is not alive.";
+            reason = ReasonTargetDead;
             return false;
         }
 
         if (IsControlled(target))
         {
-            reason = "target is already controlled.";
+            reason = ReasonAlreadyControlled;
             return false;
         }
 
         if (AliveEnemyStatuses().Count(status => !IsControlled(status)) < 2)
         {
-            reason = "needs at least two uncontrolled enemies.";
+            reason = ReasonNeedTwoEnemies;
             return false;
         }
 
@@ -448,32 +459,32 @@ public static class HeartChangeControlService
         reason = "";
         if (status == null || status.fatherObject is not Enemy enemy)
         {
-            reason = "target is not an enemy.";
+            reason = ReasonChooseEnemy;
             return false;
         }
 
         if (!IsAlive(status))
         {
-            reason = "target is not alive.";
+            reason = ReasonTargetDead;
             return false;
         }
 
         if (IsControlled(status))
         {
-            reason = "target is already controlled.";
+            reason = ReasonAlreadyControlled;
             return false;
         }
 
         if (AliveEnemyStatuses().Count(candidate => !IsControlled(candidate)) < 2)
         {
-            reason = "needs at least two uncontrolled enemies.";
+            reason = ReasonNeedTwoEnemies;
             return false;
         }
 
         var slotIndex = TakeReservedSlot(StatusId(status)) ?? CompanionSlotService.FindOpenPlayerSlot();
         if (slotIndex == null)
         {
-            reason = "no open friendly slot.";
+            reason = ReasonNoFriendlySlot;
             return false;
         }
 
@@ -1153,15 +1164,35 @@ public static class HeartChangeControlService
 
         if (!sender.IsAvailable)
         {
-            return "missing sender";
+            return ReasonMissingSender;
         }
 
         if (!sender.IsLobbyMember)
         {
-            return "sender outside lobby";
+            return ReasonSenderOutsideLobby;
         }
 
-        return SenderOwnsStatus(sender.PlayerId, ownerStatusId) ? "" : "owner mismatch";
+        return SenderOwnsStatus(sender.PlayerId, ownerStatusId) ? "" : ReasonOwnerMismatch;
+    }
+
+    private static void ShowFailureCaption(string reason)
+    {
+        var message = reason switch
+        {
+            ReasonNoCaster => "施放者状态无效。",
+            ReasonCombatOnly => "只能在战斗中使用。",
+            ReasonChooseEnemy => "请选择一名敌人。",
+            ReasonTargetDead => "目标已无法行动。",
+            ReasonAlreadyControlled => "该目标已处于心变控制中。",
+            ReasonNeedTwoEnemies => "敌方至少需要两名未被控制的存活敌人。",
+            ReasonNoFriendlySlot => "己方没有可用空位。",
+            ReasonTargetMissing => "目标已离开战场。",
+            ReasonMissingSender => "无法确认操作玩家。",
+            ReasonSenderOutsideLobby => "操作玩家不在当前房间中。",
+            ReasonOwnerMismatch => "该目标不属于当前玩家。",
+            _ => "控制失败，请稍后重试。"
+        };
+        PlayerApi.ShowCaption("心变：" + message);
     }
 
     private static bool SenderOwnsStatus(string playerId, string ownerStatusId)

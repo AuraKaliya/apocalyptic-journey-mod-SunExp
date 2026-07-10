@@ -188,18 +188,29 @@ public static class OutOfRunDamageHistoryBuilder
             }
 
             var total = stat.DisplayTotal(countShield);
+            var fallbackDisplayName = FallbackDisplayName(stat);
             result.Add(new OutOfRunTeamMemberSnapshot
             {
                 InstanceId = stat.InstanceId ?? "",
                 PlayerId = stat.InstanceId ?? "",
-                PlayerDisplayName = stat.InstanceId ?? "",
-                RoleDisplayName = stat.DisplayName ?? "",
-                DisplayName = stat.DisplayName ?? "",
+                PlayerDisplayName = fallbackDisplayName,
+                RoleDisplayName = fallbackDisplayName,
+                DisplayName = fallbackDisplayName,
                 TotalDamage = total,
                 Dps = total / (double)Math.Max(1, rounds)
             });
         }
 
         return result;
+    }
+
+    private static string FallbackDisplayName(CombatantDamageStat stat)
+    {
+        var instanceId = stat?.InstanceId?.Trim() ?? "";
+        var displayName = stat?.DisplayName?.Trim() ?? "";
+        return string.IsNullOrWhiteSpace(displayName)
+               || string.Equals(displayName, instanceId, StringComparison.OrdinalIgnoreCase)
+            ? "未知玩家"
+            : displayName;
     }
 }

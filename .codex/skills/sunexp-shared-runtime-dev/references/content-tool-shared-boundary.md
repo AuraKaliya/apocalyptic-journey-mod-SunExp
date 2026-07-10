@@ -49,6 +49,13 @@ Default configuration policy:
 - A tool-local override changes only the effective tool state. It must not
   mutate the content mod's registration source or claim ownership of foreign
   artifacts.
+- Apply that precedence at the feature's execution/receive entry, not only in
+  an editor or import pass. A content declaration stays default-enabled when
+  no tool is installed; with AuraToolsExp installed, its local effective state
+  gates both local execution and synchronized presentation reception.
+- Do not depend on a global "all mods loaded" phase. Registrations must be
+  idempotent and revisioned; consumers refresh derived effective state when the
+  shared registry snapshot changes, including after late loading.
 
 ## Keep In SunExp
 
@@ -119,6 +126,8 @@ Treat these as drift:
   an effective local setting.
 - Multiplayer presentation relay, duplicate suppression, or authority policy is
   implemented separately in each consumer for the same shared feature.
+- AuraToolsExp emits a private provider for a foreign registered content
+  artifact instead of applying a local effective override to that artifact.
 
 ## Review Questions
 

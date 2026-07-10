@@ -671,9 +671,24 @@ void TestRuntimeArchitectureGuards()
         "SkillCG must not preload registered CG during fight start");
 
     var starterDeckRuntime = ReadRepoText("AuraToolsExp-Dev/Features/StarterDeck/AuraToolsStarterDeckRuntime.cs");
-    Assert(starterDeckRuntime.Contains("RegisterBefore(modConfig, \"PlayerManager.RpcSyncRoleTables\"", StringComparison.Ordinal)
-           && starterDeckRuntime.Contains("ApplyStarterDeckBeforeRoleSync", StringComparison.Ordinal),
-        "starter deck must apply before each player submits their own role table");
+    Assert(starterDeckRuntime.Contains("RegisterBefore(modConfig, \"PlayerManager.CmdSyncRoleTable\"", StringComparison.Ordinal)
+           && starterDeckRuntime.Contains("ApplyStarterDeckBeforeRoleSubmit", StringComparison.Ordinal)
+           && starterDeckRuntime.Contains("context.Arguments?.OfType<RoleTable>().FirstOrDefault()", StringComparison.Ordinal),
+        "starter deck must apply the local role-table argument before each client submits it natively");
+    var registryAwareSkillCgRuntime = ReadRepoText("AuraToolsExp-Dev/Features/SkillCg/AuraToolsSkillCgRuntime.cs");
+    Assert(registryAwareSkillCgRuntime.Contains("AuraCgRegistryRuntime.Changed += OnRegistryChanged", StringComparison.Ordinal)
+           && registryAwareSkillCgRuntime.Contains("EnsureRegistryStateCurrent", StringComparison.Ordinal)
+           && registryAwareSkillCgRuntime.Contains("AuraCgRegistryRuntime.GetSnapshot()", StringComparison.Ordinal),
+        "Skill CG effective configuration must refresh from the current shared registry revision, not a fixed load phase");
+    var sharedCgRuntime = ReadRepoText("AuraCgShared/AuraCgRuntime.cs");
+    Assert(sharedCgRuntime.Contains("requireLocalActivation: false", StringComparison.Ordinal)
+           && sharedCgRuntime.Contains("requireLocalActivation: true", StringComparison.Ordinal),
+        "Skill CG server validation must be independent of the host visual toggle while recipients apply local activation");
+    Assert(!starterDeckRuntime.Contains("NormalMapManager.InitRoleTable", StringComparison.Ordinal),
+        "starter deck must not write a provisional deck during early role-table initialization");
+    Assert(starterDeckRuntime.Contains("ReadDataId(roleTable.Career)", StringComparison.Ordinal)
+           && !starterDeckRuntime.Contains("GameEntryUI.career", StringComparison.Ordinal),
+        "starter deck multiplayer role resolution must use the owned role table instead of global lobby selection state");
     Assert(starterDeckRuntime.Contains("IsLocalPlayerRoleTable", StringComparison.Ordinal)
            && starterDeckRuntime.Contains("playerManager.PlayerId", StringComparison.Ordinal)
            && starterDeckRuntime.Contains("ReflectionUtil.ReadString(roleTable, \"Id\", \"id\")", StringComparison.Ordinal),
@@ -852,6 +867,26 @@ void TestOutOfRunHistoryBuilder()
            && restored.Records[0].TeamMembers[0].PlayerDisplayName == "PlayerAlphaLongName"
            && restored.Records[0].TeamMembers[0].RoleDisplayName == "AlphaLongNameForTrim",
         "out-of-run history store file round-trips");
+
+    var unresolved = OutOfRunDamageHistoryBuilder.Build(
+        new DamageRunAggregateSnapshot
+        {
+            AdventureId = "fallback",
+            TotalRounds = 1,
+            Combatants = new List<CombatantDamageStat>
+            {
+                new()
+                {
+                    InstanceId = "76561198000000000",
+                    DisplayName = "76561198000000000",
+                    Team = DamageTeam.Friendly,
+                    TotalHpDamage = 1
+                }
+            }
+        },
+        new OutOfRunDamageHistoryBuildRequest { AdventureId = "fallback" });
+    Assert(unresolved.TeamMembers.Single().PlayerDisplayName == "未知玩家",
+        "unresolved combatant ids are not shown as player display names");
 }
 
 void TestDeterministicAllocation()

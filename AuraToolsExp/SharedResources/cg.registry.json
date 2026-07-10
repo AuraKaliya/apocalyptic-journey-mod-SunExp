@@ -7,6 +7,46 @@
   },
   "entries": [
     {
+      "cgId": "official.career_1.careercard_1",
+      "displayName": "Official career_1 - Skill CG",
+      "kind": "skill",
+      "targetRoleIds": ["career_1"],
+      "cardIds": ["careercard_1"],
+      "media": {
+        "type": "image",
+        "resource": "CG/AuraToolsExp/Roles/1/skill_cg.png",
+        "fallbackImage": "CG/AuraToolsExp/Roles/1/skill_cg.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade", "fit": "contain", "fadeIn": 0.35, "hold": 1.5, "fadeOut": 0.5,
+        "focusX": 0.5, "focusY": 0.5, "safeScale": 1.0
+      },
+      "defaultActivation": { "enabled": true, "consumerMode": "contentOwned" },
+      "priority": 10,
+      "tags": ["skill-cg", "official-role"],
+      "enabled": true
+    },
+    {
+      "cgId": "official.career_3.careercard_4",
+      "displayName": "Official career_3 - Skill CG",
+      "kind": "skill",
+      "targetRoleIds": ["career_3"],
+      "cardIds": ["careercard_4"],
+      "media": {
+        "type": "image",
+        "resource": "CG/AuraToolsExp/Roles/_3/skill_cg.png",
+        "fallbackImage": "CG/AuraToolsExp/Roles/_3/skill_cg.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade", "fit": "contain", "fadeIn": 0.35, "hold": 1.5, "fadeOut": 0.5,
+        "focusX": 0.5, "focusY": 0.5, "safeScale": 1.0
+      },
+      "defaultActivation": { "enabled": true, "consumerMode": "contentOwned" },
+      "priority": 10,
+      "tags": ["skill-cg", "official-role"],
+      "enabled": true
+    },
+    {
       "cgId": "official.career_1.feast",
       "displayName": "官方角色 career_1 - 美餐",
       "kind": "feast",
@@ -304,6 +344,66 @@
       },
       "priority": 10,
       "tags": ["feast-cg", "mod-role", "saya"],
+      "enabled": true
+    },
+    {
+      "cgId": "pw_chiha.jk_chiha.feast",
+      "displayName": "Taki Chiha (Academy Freshman) - Feast",
+      "kind": "feast",
+      "targetRoleIds": ["PW_Chiha_career_time_JK_Chiha", "JK_Chiha"],
+      "cardIds": ["*"],
+      "media": {
+        "type": "image",
+        "resource": "CG/AuraToolsExp/Feast/Roles/pw_chiha_career_time_jk_chiha/feast_cg.png",
+        "fallbackImage": "CG/AuraToolsExp/Feast/Roles/pw_chiha_career_time_jk_chiha/feast_cg.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1.0
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 10,
+      "tags": ["feast-cg", "mod-role", "pw-chiha", "jk-chiha"],
+      "enabled": true
+    },
+    {
+      "cgId": "pw_chiha.mg_chiha.feast",
+      "displayName": "Taki Chiha (Magical Girl) - Feast",
+      "kind": "feast",
+      "targetRoleIds": ["PW_Chiha_career_time_MG_Chiha", "MG_Chiha"],
+      "cardIds": ["*"],
+      "media": {
+        "type": "image",
+        "resource": "CG/AuraToolsExp/Feast/Roles/pw_chiha_career_time_mg_chiha/feast_cg.png",
+        "fallbackImage": "CG/AuraToolsExp/Feast/Roles/pw_chiha_career_time_mg_chiha/feast_cg.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1.0
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 10,
+      "tags": ["feast-cg", "mod-role", "pw-chiha", "mg-chiha"],
       "enabled": true
     }
   ]

@@ -40,22 +40,28 @@ $auraToolsSkinRuntime = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path 
 if (-not ($auraToolsStarterDeckRuntime.Contains("IsWorldSimulationRun"))) {
     throw "AuraTools starter deck must guard application to confirmed World Simulation runs."
 }
-if (-not ($auraToolsStarterDeckRuntime.Contains("!IsWorldSimulationRun(context, allowNormalMapHookFallback)"))) {
+if (-not ($auraToolsStarterDeckRuntime.Contains("!IsWorldSimulationRun()"))) {
     throw "AuraTools starter deck must skip non-World-Simulation role initialization."
 }
-if (-not ($auraToolsStarterDeckRuntime.Contains('"GameEntryUI.StartGame"')) -or -not ($auraToolsStarterDeckRuntime.Contains("CapturePreparationContext"))) {
-    throw "AuraTools starter deck must capture the final GameEntryUI.StartGame role context before applying decks."
+if (-not ($auraToolsStarterDeckRuntime.Contains('"GameEntryUI.StartGame"')) -or -not ($auraToolsStarterDeckRuntime.Contains("ApplyStarterDeckBeforeGameStart"))) {
+    throw "AuraTools starter deck must apply the host deck immediately before GameEntryUI.StartGame."
 }
-if (-not ($auraToolsStarterDeckRuntime.Contains('"GameEntryUI.ChangeRole"')) -or -not ($auraToolsStarterDeckRuntime.Contains("CaptureRoleSelectionContext"))) {
-    throw "AuraTools starter deck must track role changes before RoleTable initialization."
+if (-not ($auraToolsStarterDeckRuntime.Contains('"PlayerManager.CmdSyncRoleTable"')) -or -not ($auraToolsStarterDeckRuntime.Contains("ApplyStarterDeckBeforeRoleSubmit")) -or -not ($auraToolsStarterDeckRuntime.Contains("context.Arguments?.OfType<RoleTable>().FirstOrDefault()"))) {
+    throw "AuraTools starter deck must apply each client's owned role-table argument before its native submission."
 }
-if (-not ($auraToolsStarterDeckRuntime.Contains("ReadDataId(GameEntryUI.career)")) -or -not ($auraToolsStarterDeckRuntime.Contains("ResolveRuntimeRole"))) {
-    throw "AuraTools starter deck must prefer the selected GameEntryUI career over stale RoleTable.Career data."
+if ($auraToolsStarterDeckRuntime.Contains('"NormalMapManager.InitRoleTable"')) {
+    throw "AuraTools starter deck must not write a provisional deck during early role-table initialization."
+}
+if ($auraToolsStarterDeckRuntime.Contains("GameEntryUI.career")) {
+    throw "AuraTools starter deck must not resolve multiplayer decks through global lobby career state."
+}
+if (-not ($auraToolsStarterDeckRuntime.Contains("ReadDataId(roleTable.Career)")) -or -not ($auraToolsStarterDeckRuntime.Contains("ResolveRuntimeRole"))) {
+    throw "AuraTools starter deck must resolve the final deck from the owned RoleTable.Career."
 }
 if (-not ($auraToolsStarterDeckRuntime.Contains("AppliedRoleKey")) -or -not ($auraToolsStarterDeckRuntime.Contains("WriteAppliedRoleMetadata"))) {
     throw "AuraTools starter deck must persist the applied role id for stale-role correction."
 }
-if (-not ($auraToolsStarterDeckRuntime.Contains("correcting stale starter deck")) -or -not ($auraToolsStarterDeckRuntime.Contains("HasSelectedRoleConflict"))) {
+if (-not ($auraToolsStarterDeckRuntime.Contains("correcting stale starter deck")) -or -not ($auraToolsStarterDeckRuntime.Contains("AppliedRoleKey"))) {
     throw "AuraTools starter deck must allow correction when a stale role deck was already applied."
 }
 if (-not ($auraToolsStarterDeckRuntime.Contains("StarterDeckEditorSession"))) {

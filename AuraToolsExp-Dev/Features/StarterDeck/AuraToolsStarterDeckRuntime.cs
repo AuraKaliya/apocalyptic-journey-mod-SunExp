@@ -29,7 +29,6 @@ public static class AuraToolsStarterDeckRuntime
     private const string Scope = "AuraTools.WorldSimulation";
     private const string Mode = "AuraTools.WorldSimulation";
     private const string LegacyMode = "aura-world-simulation";
-    private static readonly TimeSpan PreparationContextTtl = TimeSpan.FromMinutes(2);
     public const float CardInfoHeaderHeight = 40f;
     public const float CardImageColumnWidth = 44f;
     public const float CardIconSize = 34f;
@@ -39,7 +38,6 @@ public static class AuraToolsStarterDeckRuntime
     private static readonly Dictionary<string, Sprite?> cardIconCache = new(StringComparer.OrdinalIgnoreCase);
     private static readonly object cardCatalogSync = new();
     private static StarterDeckCardCatalogSnapshot? cardCatalogSnapshot;
-    private static StarterDeckPreparationContext? preparationContext;
     private static int lastForeignRoleTableSkipLogFrame = -100000;
 
     public static void Initialize(ModConfig modConfig)
@@ -50,10 +48,11 @@ public static class AuraToolsStarterDeckRuntime
             WarmStarterDeckCardCatalog("GameEntryUI.Init");
         });
         RegisterAfter(modConfig, "GameEntryUI.ShowCareer", _ => WarmStarterDeckCardCatalog("GameEntryUI.ShowCareer"));
-        RegisterAfter(modConfig, "GameEntryUI.ChangeRole", CaptureRoleSelectionContext);
-        RegisterBefore(modConfig, "GameEntryUI.StartGame", CapturePreparationContext);
-        RegisterBefore(modConfig, "PlayerManager.RpcSyncRoleTables", ApplyStarterDeckBeforeRoleSync);
-        RegisterAfter(modConfig, "NormalMapManager.InitRoleTable", ApplyStarterDeckAfterRoleInit);
+        RegisterBefore(modConfig, "GameEntryUI.StartGame", ApplyStarterDeckBeforeGameStart);
+        // Clients submit their own RoleTable through this native command after the
+        // server asks for role tables.  The Rpc wrapper is not the client-side
+        // serialization point, so applying there leaves non-host decks unchanged.
+        RegisterBefore(modConfig, "PlayerManager.CmdSyncRoleTable", ApplyStarterDeckBeforeRoleSubmit);
     }
 
     public static List<string> BuildAllCandidateCardIds()
@@ -150,32 +149,11 @@ public static class AuraToolsStarterDeckRuntime
         AuraToolsLog.Info("[StarterDeck] invalidated card catalog from " + source);
     }
 
-    private static void ApplyStarterDeckAfterRoleInit(ModHookContext context)
+    private static void ApplyStarterDeckBeforeGameStart(ModHookContext context)
     {
         try
         {
-            var roleTable = context.Arguments != null && context.Arguments.Length > 0
-                ? context.Arguments[0] as RoleTable
-                : RoleTable.Instance;
-            ApplyStarterDeck(roleTable, context, "NormalMapManager.InitRoleTable", allowNormalMapHookFallback: true);
-        }
-        catch (Exception ex)
-        {
-            AuraToolsLog.Error("[StarterDeck] failed to apply preset", ex);
-        }
-    }
-
-    private static void CaptureRoleSelectionContext(ModHookContext context)
-    {
-        CaptureSelectedRoleContext(context, "GameEntryUI.ChangeRole");
-    }
-
-    private static void CapturePreparationContext(ModHookContext context)
-    {
-        try
-        {
-            CaptureSelectedRoleContext(context, "GameEntryUI.StartGame");
-            ApplyStarterDeck(RoleTable.Instance, context, "GameEntryUI.StartGame", allowNormalMapHookFallback: false);
+            ApplyStarterDeck(RoleTable.Instance, context, "GameEntryUI.StartGame");
         }
         catch (Exception ex)
         {
@@ -183,23 +161,23 @@ public static class AuraToolsStarterDeckRuntime
         }
     }
 
-    private static void ApplyStarterDeckBeforeRoleSync(ModHookContext context)
+    private static void ApplyStarterDeckBeforeRoleSubmit(ModHookContext context)
     {
         try
         {
-            ApplyStarterDeck(RoleTable.Instance, context, "PlayerManager.RpcSyncRoleTables", allowNormalMapHookFallback: false);
+            var roleTable = context.Arguments?.OfType<RoleTable>().FirstOrDefault() ?? RoleTable.Instance;
+            ApplyStarterDeck(roleTable, context, "PlayerManager.CmdSyncRoleTable");
         }
         catch (Exception ex)
         {
-            AuraToolsLog.Error("[StarterDeck] failed to reconcile preset before role sync", ex);
+            AuraToolsLog.Error("[StarterDeck] failed to reconcile preset before local role submission", ex);
         }
     }
 
     private static void ApplyStarterDeck(
         RoleTable? roleTable,
         ModHookContext context,
-        string source,
-        bool allowNormalMapHookFallback)
+        string source)
     {
         if (!AuraToolsConfigService.Root.MatchExperience.Enabled
             || !AuraToolsConfigService.MatchExperience.StarterDeck.Enabled
@@ -208,7 +186,7 @@ public static class AuraToolsStarterDeckRuntime
             return;
         }
 
-        if (!IsWorldSimulationRun(context, allowNormalMapHookFallback))
+        if (!IsWorldSimulationRun())
         {
             AuraToolsLog.Info("[StarterDeck] skipped: not a confirmed world-simulation run. source=" + source + ".");
             return;
@@ -225,6 +203,16 @@ public static class AuraToolsStarterDeckRuntime
         }
 
         var role = ResolveRuntimeRole(roleTable);
+        if (string.IsNullOrWhiteSpace(role.RoleId))
+        {
+            AuraToolsLog.Warn("[StarterDeck] skipped: local role table has no career. source="
+                              + source
+                              + ", roleTable="
+                              + ReadRoleTableId(roleTable)
+                              + ".");
+            return;
+        }
+
         if (IsApplied(roleTable, role))
         {
             return;
@@ -254,12 +242,8 @@ public static class AuraToolsStarterDeckRuntime
         }
 
         WriteAppliedRoleMetadata(roleTable, role, selection.Profile);
-        if (ReferenceEquals(preparationContext, role.PreparationContext))
-        {
-            preparationContext = null;
-        }
 
-        AuraToolsLog.Info("[StarterDeck] applied world-simulation profile; role="
+        AuraToolsLog.Info("[StarterDeck] applied local role-table profile; role="
                           + role.RoleId
                           + ", roleSource=" + role.Source
                           + ", roleTableRole=" + role.RoleTableRoleId
@@ -272,17 +256,12 @@ public static class AuraToolsStarterDeckRuntime
                           + ", cards=" + string.Join("|", deck));
     }
 
-    private static bool IsWorldSimulationRun(ModHookContext context, bool allowNormalMapHookFallback)
+    private static bool IsWorldSimulationRun()
     {
         var modeType = ReadLobbyModeType();
         if (!string.IsNullOrWhiteSpace(modeType))
         {
             return string.Equals(modeType, "Normal", StringComparison.OrdinalIgnoreCase);
-        }
-
-        if (IsNormalMapManager(context.Target))
-        {
-            return true;
         }
 
         try
@@ -296,7 +275,7 @@ public static class AuraToolsStarterDeckRuntime
         {
         }
 
-        return allowNormalMapHookFallback;
+        return false;
     }
 
     private static bool IsLocalPlayerRoleTable(RoleTable roleTable, string source)
@@ -310,7 +289,7 @@ public static class AuraToolsStarterDeckRuntime
             }
 
             var localPlayerId = (playerManager.PlayerId ?? "").Trim();
-            var roleTableId = (ReflectionUtil.ReadString(roleTable, "Id", "id") ?? "").Trim();
+            var roleTableId = ReadRoleTableId(roleTable);
             if (string.IsNullOrWhiteSpace(localPlayerId) || string.IsNullOrWhiteSpace(roleTableId))
             {
                 return true;
@@ -364,38 +343,9 @@ public static class AuraToolsStarterDeckRuntime
         return string.Equals(value?.GetType().Name, "NormalMapManager", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static void CaptureSelectedRoleContext(ModHookContext context, string source)
+    private static string ReadRoleTableId(RoleTable roleTable)
     {
-        var selectedRole = RoleCatalog.NormalizeRoleId(ReadDataId(GameEntryUI.career));
-        if (string.IsNullOrWhiteSpace(selectedRole))
-        {
-            return;
-        }
-
-        var modeType = ReadLobbyModeType();
-        var capturedUtc = DateTime.UtcNow;
-        var previous = preparationContext;
-        preparationContext = new StarterDeckPreparationContext
-        {
-            RoleId = selectedRole,
-            ModeType = modeType,
-            Source = source,
-            CapturedUtc = capturedUtc
-        };
-
-        if (previous != null
-            && capturedUtc - previous.CapturedUtc < TimeSpan.FromSeconds(3)
-            && string.Equals(previous.RoleId, selectedRole, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(previous.ModeType, modeType, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(previous.Source, source, StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
-        AuraToolsLog.Info("[StarterDeck] role context captured; role="
-                          + selectedRole
-                          + ", mode=" + modeType
-                          + ", source=" + source + ".");
+        return (ReflectionUtil.ReadString(roleTable, "Id", "id") ?? "").Trim();
     }
 
     private static bool ShouldSkipForExternalOwner(RoleTable roleTable)
@@ -451,7 +401,7 @@ public static class AuraToolsStarterDeckRuntime
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterBefore(config, target, action, warn: AuraToolsLog.Warn);
+        AuraSharedHooks.RegisterBefore(config, target, action, message => AuraToolsLog.Info(message), AuraToolsLog.Warn);
     }
 
     internal static StarterDeckResolvedProfile? ResolveEffectiveProfileForPreview(string roleId)
@@ -771,62 +721,11 @@ public static class AuraToolsStarterDeckRuntime
     private static StarterDeckRuntimeRole ResolveRuntimeRole(RoleTable roleTable)
     {
         var roleTableRole = RoleCatalog.NormalizeRoleId(ReadDataId(roleTable.Career));
-        if (string.IsNullOrWhiteSpace(roleTableRole))
-        {
-            roleTableRole = RoleCatalog.NormalizeRoleId(ReflectionUtil.ReadString(roleTable, "Id", "id"));
-        }
-
-        var selectedRole = RoleCatalog.NormalizeRoleId(ReadDataId(GameEntryUI.career));
-        var prepared = GetFreshPreparationContext();
-        if (prepared != null)
-        {
-            return new StarterDeckRuntimeRole(
-                prepared.RoleId,
-                roleTableRole,
-                selectedRole,
-                "preparation-context:" + prepared.Source,
-                prepared);
-        }
-
-        if (!string.IsNullOrWhiteSpace(selectedRole))
-        {
-            return new StarterDeckRuntimeRole(
-                selectedRole,
-                roleTableRole,
-                selectedRole,
-                "GameEntryUI.career",
-                null);
-        }
-
         return new StarterDeckRuntimeRole(
             roleTableRole,
             roleTableRole,
-            selectedRole,
-            string.IsNullOrWhiteSpace(roleTableRole) ? "unknown" : "RoleTable.Career",
-            null);
-    }
-
-    private static StarterDeckPreparationContext? GetFreshPreparationContext()
-    {
-        var context = preparationContext;
-        if (context == null)
-        {
-            return null;
-        }
-
-        if (DateTime.UtcNow - context.CapturedUtc > PreparationContextTtl)
-        {
-            preparationContext = null;
-            return null;
-        }
-
-        if (!string.IsNullOrWhiteSpace(context.ModeType)
-            && !string.Equals(context.ModeType, "Normal", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        return string.IsNullOrWhiteSpace(context.RoleId) ? null : context;
+            "",
+            string.IsNullOrWhiteSpace(roleTableRole) ? "missing-role-table-career" : "RoleTable.Career");
     }
 
     private static string ReadLobbyModeType()
@@ -928,7 +827,9 @@ public static class AuraToolsStarterDeckRuntime
         var registered = profile.SourceKind == StarterDeckProfileSourceKind.Registered;
         return new StarterDeckClaim
         {
-            Owner = registered ? profile.OwnerModId + ".StarterDeckProfile" : Owner,
+            // The profile remains owned by its registering content mod.  This
+            // claim records the AuraTools effective overlay that applies it.
+            Owner = Owner,
             Scope = Scope,
             ModeId = Mode,
             Source = (registered ? "registered:" : "local:") + profile.QualifiedProfileId,
@@ -1594,31 +1495,18 @@ internal sealed class StarterDeckCardCatalogEntry
     public bool IsLocked { get; }
 }
 
-internal sealed class StarterDeckPreparationContext
-{
-    public string RoleId { get; set; } = "";
-
-    public string ModeType { get; set; } = "";
-
-    public string Source { get; set; } = "";
-
-    public DateTime CapturedUtc { get; set; }
-}
-
 internal sealed class StarterDeckRuntimeRole
 {
     public StarterDeckRuntimeRole(
         string roleId,
         string roleTableRoleId,
         string selectedRoleId,
-        string source,
-        StarterDeckPreparationContext? preparationContext)
+        string source)
     {
         RoleId = RoleCatalog.NormalizeRoleId(roleId);
         RoleTableRoleId = RoleCatalog.NormalizeRoleId(roleTableRoleId);
         SelectedRoleId = RoleCatalog.NormalizeRoleId(selectedRoleId);
         Source = source;
-        PreparationContext = preparationContext;
     }
 
     public string RoleId { get; }
@@ -1628,8 +1516,6 @@ internal sealed class StarterDeckRuntimeRole
     public string SelectedRoleId { get; }
 
     public string Source { get; }
-
-    public StarterDeckPreparationContext? PreparationContext { get; }
 
     public bool HasSelectedRoleConflict =>
         !string.IsNullOrWhiteSpace(SelectedRoleId)

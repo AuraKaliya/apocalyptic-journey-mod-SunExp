@@ -26,6 +26,8 @@ public static class AuraToolsSkillCgRuntime
     private static int hookFailureCount;
     private static bool safeModeDisabled;
     private static int adventurePreloadSequence;
+    private static bool reconcilingRegistry;
+    private static long observedRegistryRevision = -1;
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -39,6 +41,8 @@ public static class AuraToolsSkillCgRuntime
         SkillCgArbiterRuntime.RegisterProvider(modConfig, AuraToolsIds.ModId, new AuraToolsSkillCgProvider());
 
         AuraToolsConfigService.Changed += Reconfigure;
+        AuraCgRegistryRuntime.Changed += OnRegistryChanged;
+        EnsureRegistryStateCurrent();
         EnsureHooksMatchConfig();
     }
 
@@ -53,6 +57,7 @@ public static class AuraToolsSkillCgRuntime
             MaxRequestAgeSeconds = AuraToolsConfigService.SkillCg.MaxRequestAgeSeconds,
             DuplicateWindowSeconds = AuraToolsConfigService.SkillCg.DuplicateWindowSeconds
         });
+        EnsureRegistryStateCurrent(force: true);
         EnsureHooksMatchConfig();
     }
 
@@ -130,6 +135,7 @@ public static class AuraToolsSkillCgRuntime
     {
         RunHook("card action", () =>
         {
+            EnsureRegistryStateCurrent();
             if (!AuraToolsConfigService.Root.SkillCg.Enabled
                 || (!AuraToolsConfigService.SkillCg.Enabled && !AuraToolsConfigService.SkillCg.CardUseCg.Enabled)
                 || !context.IsCardAction)
@@ -219,12 +225,84 @@ public static class AuraToolsSkillCgRuntime
         {
             AuraToolsSkillCgProvider.ClearOwnerRoles();
             SkillCgArbiterRuntime.Clear(AuraToolsIds.ModId, "fight start");
+            EnsureRegistryStateCurrent();
         });
     }
 
     private static void OnAdventureStart(ModHookContext context)
     {
-        RunHook("adventure preload", PreloadAdventureCg);
+        RunHook("adventure preload", () =>
+        {
+            EnsureRegistryStateCurrent();
+            PreloadAdventureCg();
+        });
+    }
+
+    private static void OnRegistryChanged(long revision)
+    {
+        if (revision != observedRegistryRevision)
+        {
+            EnsureRegistryStateCurrent();
+        }
+    }
+
+    private static void EnsureRegistryStateCurrent(bool force = false)
+    {
+        if (reconcilingRegistry)
+        {
+            return;
+        }
+
+        var snapshot = AuraCgRegistryRuntime.GetSnapshot();
+        if (!force && snapshot.Revision == observedRegistryRevision)
+        {
+            return;
+        }
+
+        reconcilingRegistry = true;
+        try
+        {
+            // Legacy settings are mapped only after every currently loaded
+            // content/tool manifest is visible. New registrations notify us,
+            // so late loading and late joining use the same path.
+            AuraToolsConfigService.ImportRegisteredSkillCgDefaults();
+            SynchronizeRegisteredEffectiveState(snapshot);
+            observedRegistryRevision = snapshot.Revision;
+        }
+        finally
+        {
+            reconcilingRegistry = false;
+        }
+    }
+
+    private static void SynchronizeRegisteredEffectiveState(AuraCgRegistrySnapshot snapshot)
+    {
+        var globallyEnabled = AuraToolsConfigService.Root.SkillCg.Enabled
+                              && AuraToolsConfigService.SkillCg.Enabled;
+        foreach (var entry in snapshot.Entries.Where(entry => string.Equals(entry.Kind, SkillCgArbiterRuntime.SkillCgKind, StringComparison.OrdinalIgnoreCase)))
+        {
+            var configured = AuraToolsConfigService.SkillCg.Roles.Values
+                .Where(role => role != null && role.Enabled)
+                .SelectMany(role => role.Rules ?? Enumerable.Empty<SkillCgRuleSettings>())
+                .Where(rule => rule != null
+                               && string.Equals(rule.SourceOwnerModId, entry.OwnerModId, StringComparison.OrdinalIgnoreCase)
+                               && string.Equals(rule.SourceCgId, entry.CgId, StringComparison.OrdinalIgnoreCase))
+                .Any(rule => rule.Enabled);
+
+            // Imported entries default to enabled. Once a tool rule exists, its
+            // local enabled state is the effective state for this machine.
+            var hasConfiguredRule = AuraToolsConfigService.SkillCg.Roles.Values
+                .Where(role => role != null)
+                .SelectMany(role => role.Rules ?? Enumerable.Empty<SkillCgRuleSettings>())
+                .Any(rule => rule != null
+                             && string.Equals(rule.SourceOwnerModId, entry.OwnerModId, StringComparison.OrdinalIgnoreCase)
+                             && string.Equals(rule.SourceCgId, entry.CgId, StringComparison.OrdinalIgnoreCase));
+            AuraCgActivationRuntime.SetEnabledOverride(
+                entry.OwnerModId,
+                entry.CgId,
+                globallyEnabled && (!hasConfiguredRule || configured),
+                AuraToolsIds.ModId);
+        }
     }
 
     private static void PreloadAdventureCg()
@@ -454,6 +532,15 @@ public sealed class AuraToolsSkillCgProvider
                         + ", consumer=" + AuraToolsIds.ModId
                         + ", role=" + roleId
                         + ", card=" + trigger.CardId);
+                    continue;
+                }
+
+                // Foreign content remains responsible for semantic trigger
+                // matching and requests. AuraTools only supplies its local
+                // effective enablement/override for that registered entry.
+                if (!string.IsNullOrWhiteSpace(rule.SourceOwnerModId)
+                    && !string.Equals(rule.SourceOwnerModId, AuraToolsIds.ModId, StringComparison.OrdinalIgnoreCase))
+                {
                     continue;
                 }
 

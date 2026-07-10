@@ -17,12 +17,36 @@ internal static class DamageMeterFightIndex
     private static readonly Dictionary<string, bool> BuffFlags =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private static readonly Dictionary<string, string> FriendlyDisplayNames =
+        new(StringComparer.OrdinalIgnoreCase);
+
     private static bool combatantsBuilt;
 
     public static void BeginFight()
     {
         ClearCombatants();
         BuildCombatants();
+    }
+
+    public static void SetFriendlyIdentitySnapshots(IEnumerable<OutOfRunTeamMemberSnapshot>? members)
+    {
+        FriendlyDisplayNames.Clear();
+        foreach (var member in members ?? Array.Empty<OutOfRunTeamMemberSnapshot>())
+        {
+            if (member == null)
+            {
+                continue;
+            }
+
+            var displayName = FirstNonEmpty(member.RoleDisplayName, member.PlayerDisplayName, member.DisplayName);
+            if (string.IsNullOrWhiteSpace(displayName))
+            {
+                continue;
+            }
+
+            RegisterFriendlyDisplayName(member.InstanceId, displayName);
+            RegisterFriendlyDisplayName(member.PlayerId, displayName);
+        }
     }
 
     public static void Clear()
@@ -104,6 +128,12 @@ internal static class DamageMeterFightIndex
         if (!string.IsNullOrWhiteSpace(id))
         {
             EnsureCombatants();
+            var knownFriendlyName = KnownFriendlyDisplayName(id);
+            if (!string.IsNullOrWhiteSpace(knownFriendlyName))
+            {
+                return knownFriendlyName;
+            }
+
             if (Combatants.TryGetValue(id, out var indexed)
                 && !string.IsNullOrWhiteSpace(indexed.DisplayName))
             {
@@ -240,15 +270,19 @@ internal static class DamageMeterFightIndex
             var roleStatusMap = Singleton<TempDataManager>.Instance?.RoleStatusMap;
             if (roleStatusMap != null)
             {
-                foreach (var values in roleStatusMap.Values)
+                foreach (var pair in roleStatusMap)
                 {
+                    var values = pair.Value;
                     if (values == null)
                     {
                         continue;
                     }
 
+                    var playerDisplayName = KnownFriendlyDisplayName(pair.Key);
+
                     foreach (var id in values)
                     {
+                        RegisterFriendlyDisplayName(id, playerDisplayName);
                         MarkFriendlyIfUnknown(id);
                     }
                 }
@@ -285,7 +319,9 @@ internal static class DamageMeterFightIndex
         var team = preferredTeam == DamageTeam.Unknown
             ? ResolveTeamUncached(status, instanceId)
             : preferredTeam;
-        var displayName = SafeDisplayName(status, instanceId);
+        var displayName = team == DamageTeam.Friendly
+            ? FirstNonEmpty(KnownFriendlyDisplayName(instanceId), SafeDisplayName(status, instanceId))
+            : SafeDisplayName(status, instanceId);
         if (Combatants.TryGetValue(instanceId, out var existing))
         {
             existing.Status ??= status;
@@ -331,9 +367,40 @@ internal static class DamageMeterFightIndex
         Combatants[instanceId] = new IndexedCombatant
         {
             Status = ResolveStatus(instanceId),
-            DisplayName = instanceId,
+            DisplayName = FirstNonEmpty(KnownFriendlyDisplayName(instanceId), "未命名友方单位"),
             Team = DamageTeam.Friendly
         };
+    }
+
+    private static void RegisterFriendlyDisplayName(string? id, string? displayName)
+    {
+        id = id?.Trim() ?? "";
+        displayName = displayName?.Trim() ?? "";
+        if (id.Length > 0 && displayName.Length > 0)
+        {
+            FriendlyDisplayNames[id] = displayName;
+        }
+    }
+
+    private static string KnownFriendlyDisplayName(string? id)
+    {
+        id = id?.Trim() ?? "";
+        return id.Length > 0 && FriendlyDisplayNames.TryGetValue(id, out var displayName)
+            ? displayName
+            : "";
+    }
+
+    private static string FirstNonEmpty(params string?[] values)
+    {
+        foreach (var value in values)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value!.Trim();
+            }
+        }
+
+        return "";
     }
 
     private static DamageTeam ResolveTeamUncached(IStatusManager? status, string instanceId)

@@ -22,6 +22,11 @@ internal sealed class CardVisualSkinMarker : MonoBehaviour
     private Material? originalFaceMeshMaterial;
     private Material? originalFrameImageMaterial;
     private Material? originalFrameMeshMaterial;
+    private Sprite? originalFrameSprite;
+    private Sprite? originalBackgroundSprite;
+    private Texture? originalFrameTexture;
+    private Texture? originalBackgroundTexture;
+    private bool skinBaselineCaptured;
     private Material? frameEffectOwnedMaterial;
     private Material? faceEffectOwnedMaterial;
     private bool originalFaceImageMaterialCaptured;
@@ -107,6 +112,82 @@ internal sealed class CardVisualSkinMarker : MonoBehaviour
             + ", backgroundMesh=" + MeshSummary(BackgroundMesh)
             + ", lastFrameSprite=" + ObjectName(LastFrameSprite)
             + ", lastFrameTexture=" + ObjectName(LastFrameTexture);
+    }
+
+    public void CaptureSkinBaseline()
+    {
+        if (skinBaselineCaptured)
+        {
+            return;
+        }
+
+        originalFrameSprite = FrameImage?.sprite;
+        originalBackgroundSprite = BackgroundImage?.sprite;
+        originalFrameTexture = FrameMaterial?.mainTexture;
+        originalBackgroundTexture = BackgroundMaterial?.mainTexture;
+        skinBaselineCaptured = true;
+    }
+
+    public bool ClearSkinVisuals()
+    {
+        if (!skinBaselineCaptured)
+        {
+            LastSkinId = "";
+            return false;
+        }
+
+        var changed = false;
+        var frameImage = FrameImage;
+        if (frameImage != null && !ReferenceEquals(frameImage.sprite, originalFrameSprite))
+        {
+            frameImage.sprite = originalFrameSprite;
+            changed = true;
+        }
+
+        var backgroundImage = BackgroundImage;
+        if (backgroundImage != null && !ReferenceEquals(backgroundImage.sprite, originalBackgroundSprite))
+        {
+            backgroundImage.sprite = originalBackgroundSprite;
+            changed = true;
+        }
+
+        var frameMaterialValue = FrameMaterial;
+        if (frameMaterialValue != null && !ReferenceEquals(frameMaterialValue.mainTexture, originalFrameTexture))
+        {
+            frameMaterialValue.mainTexture = originalFrameTexture;
+            changed = true;
+        }
+
+        var backgroundMaterialValue = BackgroundMaterial;
+        if (backgroundMaterialValue != null && !ReferenceEquals(backgroundMaterialValue.mainTexture, originalBackgroundTexture))
+        {
+            backgroundMaterialValue.mainTexture = originalBackgroundTexture;
+            changed = true;
+        }
+
+        LastSkinId = "";
+        LastFrameSprite = originalFrameSprite;
+        LastFrameTexture = originalFrameSprite?.texture ?? originalFrameTexture;
+        LastFaceTexture = originalBackgroundSprite?.texture ?? originalBackgroundTexture;
+        LastFrameTextureId = LastFrameTexture == null ? 0 : LastFrameTexture.GetInstanceID();
+        LastBackgroundTextureId = LastFaceTexture == null ? 0 : LastFaceTexture.GetInstanceID();
+        skinBaselineCaptured = false;
+        originalFrameSprite = null;
+        originalBackgroundSprite = null;
+        originalFrameTexture = null;
+        originalBackgroundTexture = null;
+        return changed;
+    }
+
+    public bool ClearAllVisualOverrides()
+    {
+        var changed = ClearFaceEffectMaterial();
+        changed = ClearFrameEffectMaterial() || changed;
+        changed = ClearSkinVisuals() || changed;
+        LastVisualSignature = "";
+        LastAppliedRootInstanceId = 0;
+        LastAppliedStage = "";
+        return changed;
     }
 
     public bool ApplyFaceImageEffectOverlay(Material material)

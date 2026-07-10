@@ -93,16 +93,21 @@ public static class CardVisualSkinRuntime
             return;
         }
 
-        if (!CardVisualInterestIndex.MayAffect(config))
-        {
-            SunExpPerformanceCounters.Record("CardVisualSkin.InterestMiss");
-            return;
-        }
-
         var visualRoot = CardPresentationRootResolver.FindCardVisualRoot(root);
         if (visualRoot == null)
         {
-            LogRootMiss(config, source, root);
+            if (CardVisualInterestIndex.MayAffect(config))
+            {
+                LogRootMiss(config, source, root);
+            }
+
+            return;
+        }
+
+        if (!CardVisualInterestIndex.MayAffect(config))
+        {
+            SunExpPerformanceCounters.Record("CardVisualSkin.InterestMiss");
+            CardVisualSkinApplier.ClearForUnmatchedCard(visualRoot);
             return;
         }
 
