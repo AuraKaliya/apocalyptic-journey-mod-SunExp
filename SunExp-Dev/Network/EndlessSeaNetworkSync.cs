@@ -1,12 +1,13 @@
 using System;
-using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
+using AuraShared.Core;
 using Data.Save;
 using Network.Command;
-using SunExp.Dll.Hooks;
+using Newtonsoft.Json;
 using SunExp.Dll.Hooks.Ui;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
-using UnityEngine;
 using Witch;
 using Witch.UI.Window;
 
@@ -15,119 +16,87 @@ namespace SunExp.Dll.Network;
 [Serializable]
 public sealed class EndlessSeaStateSnapshot
 {
+    public const int CurrentProtocolVersion = 2;
+
+    public int ProtocolVersion { get; set; } = CurrentProtocolVersion;
+    public string HostSession { get; set; } = "";
+    public int Generation { get; set; }
     public string Mode { get; set; } = "";
-
     public int Floor { get; set; }
-
     public int GeneratedFloor { get; set; }
-
-    public string FloorPlanJson { get; set; } = "";
-
     public string RunId { get; set; } = "";
-
     public string RunPhase { get; set; } = "";
-
     public string RunEnded { get; set; } = "";
-
     public string StarterDeckApplied { get; set; } = "";
-
     public int GazeLevel { get; set; }
-
-    public string LedgerJson { get; set; } = "";
-
     public string PendingShockJson { get; set; } = "";
-
-    public string Source { get; set; } = "";
+    public string FloorPlanHash { get; set; } = "";
+    public string FloorPlanJson { get; set; } = "";
 
     public static EndlessSeaStateSnapshot Capture(string source)
     {
+        return EndlessSeaNetworkSync.CaptureAuthoritative(includePlan: true);
+    }
+
+    public static EndlessSeaStateSnapshot Capture(string hostSession, int generation, bool includePlan)
+    {
+        var floorPlan = includePlan ? ReadString(SunExpIds.EndlessSeaFloorPlanKey) : "";
+        var canonicalPlan = string.IsNullOrWhiteSpace(floorPlan)
+            ? ReadString(SunExpIds.EndlessSeaFloorPlanKey)
+            : floorPlan;
         return new EndlessSeaStateSnapshot
         {
+            HostSession = hostSession ?? "",
+            Generation = Math.Max(0, generation),
             Mode = ReadString(SunExpIds.EndlessSeaModeKey),
             Floor = Math.Max(1, ReadInt(SunExpIds.EndlessSeaFloorKey)),
             GeneratedFloor = Math.Max(0, ReadInt(SunExpIds.EndlessSeaGeneratedFloorKey)),
-            FloorPlanJson = ReadString(SunExpIds.EndlessSeaFloorPlanKey),
             RunId = ReadString(SunExpIds.EndlessSeaRunIdKey),
             RunPhase = ReadString(SunExpIds.EndlessSeaRunPhaseKey),
             RunEnded = ReadString(SunExpIds.EndlessSeaRunEndedKey),
             StarterDeckApplied = ReadString(SunExpIds.EndlessSeaStarterDeckAppliedKey),
             GazeLevel = Math.Max(0, ReadInt(SunExpIds.EndlessAbyssGazeLevelKey)),
-            LedgerJson = ReadString(SunExpIds.EndlessAbyssLedgerKey),
             PendingShockJson = ReadString(SunExpIds.EndlessAbyssPendingShockKey),
-            Source = source ?? ""
+            FloorPlanHash = Hash(canonicalPlan),
+            FloorPlanJson = floorPlan
         };
+    }
+
+    internal static EndlessSeaFloorPlan? ParsePlan(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return null;
+        }
+
+        try
+        {
+            var plan = JsonConvert.DeserializeObject<EndlessSeaFloorPlan>(json);
+            plan?.Normalize();
+            return plan != null && plan.IsValid ? plan : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     public void Apply(string source)
     {
-        if (Mode != "1")
-        {
-            return;
-        }
-
-        Set(SunExpIds.EndlessSeaModeKey, "1");
-        Set(SunExpIds.EndlessSeaFloorKey, Math.Max(1, Floor).ToString());
-        Set(SunExpIds.EndlessSeaGeneratedFloorKey, Math.Max(0, GeneratedFloor).ToString());
-        Set(SunExpIds.EndlessSeaFloorPlanKey, FloorPlanJson ?? "");
-        Set(SunExpIds.EndlessSeaRunIdKey, RunId ?? "");
-        Set(SunExpIds.EndlessSeaRunPhaseKey, RunPhase ?? "");
-        Set(SunExpIds.EndlessSeaRunEndedKey, RunEnded ?? "0");
-        Set(SunExpIds.EndlessSeaStarterDeckAppliedKey, StarterDeckApplied ?? "");
-        if (GazeLevel > 0)
-        {
-            Set(SunExpIds.EndlessAbyssGazeLevelKey, GazeLevel.ToString());
-        }
-
-        Set(SunExpIds.EndlessAbyssLedgerKey, EndlessAbyssRunLedger.MergeRemotePreservingLocalMilestones(LedgerJson ?? ""));
-        Set(SunExpIds.EndlessAbyssPendingShockKey, PendingShockJson ?? "");
-        SunExpLog.Info("[EndlessSeaSync] snapshot applied from "
-            + source
-            + "; floor="
-            + Math.Max(1, Floor)
-            + "; gaze="
-            + GazeLevel
-            + ".");
-
-        SunExpFrameDispatcher.RunOnceNextFrame(
-            "EndlessSeaSync.RefreshMapUi",
-            () =>
-            {
-                RefreshMapUi(source);
-                EndlessAbyssMilestonePromptService.Schedule("EndlessSeaSync:" + source);
-            });
+        EndlessSeaNetworkSync.AcceptRemoteSnapshot(this, source ?? "EndlessSeaStateSnapshot.Apply");
     }
 
-    private void RefreshMapUi(string source)
+    internal static string Hash(string value)
     {
-        try
+        using var sha = SHA256.Create();
+        var hash = sha.ComputeHash(Encoding.UTF8.GetBytes(value ?? ""));
+        var builder = new StringBuilder(hash.Length * 2);
+        foreach (var item in hash)
         {
-            var mapSelect = Resources.FindObjectsOfTypeAll<MapSelectUI>()
-                .FirstOrDefault(item => item != null && item.gameObject.scene.IsValid());
-            if (mapSelect == null)
-            {
-                return;
-            }
+            builder.Append(item.ToString("x2"));
+        }
 
-            var floor = Math.Max(1, Floor);
-            var manager = MapManager.Instance?.ModeMapManager as NormalMapManager;
-            EndlessSeaMapViewPresenter.SetLayerTitle(mapSelect, floor);
-            if (manager != null)
-            {
-                // Snapshots can arrive while the native map card is being dragged.
-                // Keep this refresh fixed-slot only so selectable slots are not rebuilt mid-interaction.
-                EndlessSeaMapViewPresenter.ApplySlots(
-                    mapSelect,
-                    manager,
-                    floor,
-                    applyAllSlots: false,
-                    sync: false,
-                    "EndlessSeaSync:" + source);
-            }
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Warn("[EndlessSeaSync] map UI refresh failed: " + ex.Message);
-        }
+        return builder.ToString();
     }
 
     private static string ReadString(string key)
@@ -138,8 +107,7 @@ public sealed class EndlessSeaStateSnapshot
         }
         catch
         {
-            var save = GameSaveManager.GetNowSave();
-            return save?.GameVars != null && save.GameVars.TryGetValue(key, out var value) ? value ?? "" : "";
+            return GameSaveManager.GetNowSave()?.GameVars?.TryGetValue(key, out var value) == true ? value ?? "" : "";
         }
     }
 
@@ -147,62 +115,16 @@ public sealed class EndlessSeaStateSnapshot
     {
         return DictionaryUtil.ParseInt(ReadString(key));
     }
-
-    private static void Set(string key, string value)
-    {
-        try
-        {
-            GameSaveManager.SetValue(key, value ?? "");
-        }
-        catch
-        {
-            try
-            {
-                GameSaveManager.GetNowSave()?.SetValue(key, value ?? "");
-            }
-            catch
-            {
-                var save = GameSaveManager.GetNowSave();
-                if (save?.GameVars != null)
-                {
-                    save.GameVars[key] = value ?? "";
-                }
-            }
-        }
-    }
 }
 
 [Serializable]
-public sealed class RpcEndlessSeaStateSnapshot : RpcCommandBase
-{
-    public EndlessSeaStateSnapshot Snapshot { get; set; } = new();
-
-    public string Source { get; set; } = "";
-
-    public RpcEndlessSeaStateSnapshot()
-    {
-    }
-
-    public RpcEndlessSeaStateSnapshot(EndlessSeaStateSnapshot snapshot, string source)
-    {
-        Snapshot = snapshot ?? new EndlessSeaStateSnapshot();
-        Source = source ?? "";
-    }
-
-    public override void RpcExecute()
-    {
-        Snapshot?.Apply("RpcEndlessSeaStateSnapshot:" + Source);
-    }
-}
-
-[Serializable]
-public sealed class RpcEndlessSeaStateSnapshotRequest : RpcCommandBase, ISunExpServerBoundRpcCommand
+public sealed class RpcEndlessSeaStateSnapshot : RpcCommandBase, ISunExpServerBoundRpcCommand
 {
     private SunExpRpcSender serverSender = SunExpRpcSender.Unbound;
 
-    public string Source { get; set; } = "";
-
-    public EndlessSeaStateSnapshot? Snapshot { get; set; }
+    public EndlessSeaStateSnapshot Snapshot { get; set; } = new();
+    public bool Accepted { get; set; }
+    public string RejectionReason { get; set; } = "";
 
     public void BindServerSender(SunExpRpcSender sender)
     {
@@ -211,35 +133,117 @@ public sealed class RpcEndlessSeaStateSnapshotRequest : RpcCommandBase, ISunExpS
 
     public override void CmdExecute()
     {
-        if (serverSender.IsAvailable && !serverSender.IsLobbyMember)
+        if (!serverSender.IsAvailable || !serverSender.IsLobbyMember || !serverSender.IsLobbyHost)
         {
-            SunExpLog.Warn("[EndlessSeaSync] rejected snapshot request from outside lobby: " + serverSender.PlayerId);
+            RejectionReason = "host snapshot publisher required";
+            Accepted = false;
             return;
         }
 
-        if (GameSaveManager.GetValue<string>(SunExpIds.EndlessSeaModeKey) != "1")
+        Snapshot = EndlessSeaNetworkSync.CaptureAuthoritative(includePlan: true);
+        if (!AuraSharedPayloadBudget.FitsSoftLimit(Snapshot, AuraSharedPayloadBudget.DefaultSoftLimitBytes, out _, out var payloadError))
         {
+            RejectionReason = "snapshot payload budget exceeded: " + payloadError;
+            Accepted = false;
             return;
         }
 
-        Snapshot = EndlessSeaStateSnapshot.Capture("request:" + Source);
-        SunExpLog.Debug("[EndlessSeaSync] prepared snapshot for request from "
-            + (serverSender.PlayerId.Length == 0 ? "local" : serverSender.PlayerId)
-            + ".");
+        Accepted = Snapshot.Mode == "1";
     }
 
     public override void RpcExecute()
     {
-        Snapshot?.Apply("RpcEndlessSeaStateSnapshotRequest:" + Source);
+        if (Accepted)
+        {
+            EndlessSeaNetworkSync.AcceptRemoteSnapshot(Snapshot, "RpcEndlessSeaStateSnapshot");
+        }
+    }
+}
+
+[Serializable]
+public sealed class RpcEndlessSeaStateSnapshotRequest : RpcCommandBase, ISunExpServerBoundRpcCommand
+{
+    private SunExpRpcSender serverSender = SunExpRpcSender.Unbound;
+
+    public int ProtocolVersion { get; set; } = EndlessSeaStateSnapshot.CurrentProtocolVersion;
+    public int Token { get; set; }
+    public string KnownRunId { get; set; } = "";
+    public int KnownGeneration { get; set; }
+    public string KnownFloorPlanHash { get; set; } = "";
+    public EndlessSeaStateSnapshot? Snapshot { get; set; }
+    public bool Accepted { get; set; }
+    public string RejectionReason { get; set; } = "";
+
+    public void BindServerSender(SunExpRpcSender sender)
+    {
+        serverSender = sender ?? SunExpRpcSender.Unbound;
+    }
+
+    public override void CmdExecute()
+    {
+        if (ProtocolVersion != EndlessSeaStateSnapshot.CurrentProtocolVersion
+            || !serverSender.IsAvailable
+            || !serverSender.IsLobbyMember)
+        {
+            RejectionReason = "invalid repair request sender or protocol";
+            return;
+        }
+
+        if (!EndlessSeaNetworkSync.TryAcceptRepairRequest(serverSender.PlayerId, Token))
+        {
+            RejectionReason = "repair request throttled or duplicated";
+            return;
+        }
+
+        var current = EndlessSeaNetworkSync.CaptureAuthoritative(includePlan: false);
+        if (current.Mode != "1")
+        {
+            RejectionReason = "endless sea inactive";
+            return;
+        }
+
+        var includePlan = !string.Equals(KnownRunId, current.RunId, StringComparison.Ordinal)
+                          || KnownGeneration != current.Generation
+                          || !string.Equals(KnownFloorPlanHash, current.FloorPlanHash, StringComparison.Ordinal);
+        Snapshot = EndlessSeaNetworkSync.CaptureAuthoritative(includePlan);
+        if (!AuraSharedPayloadBudget.FitsSoftLimit(Snapshot, AuraSharedPayloadBudget.DefaultSoftLimitBytes, out _, out var payloadError))
+        {
+            RejectionReason = "snapshot payload budget exceeded: " + payloadError;
+            Accepted = false;
+            return;
+        }
+
+        Accepted = true;
+    }
+
+    public override void RpcExecute()
+    {
+        if (Accepted && Snapshot != null)
+        {
+            EndlessSeaNetworkSync.AcceptRemoteSnapshot(Snapshot, "RpcEndlessSeaStateSnapshotRequest");
+        }
     }
 }
 
 public static class EndlessSeaNetworkSync
 {
+    private const string DomainId = "EndlessSeaState";
     private const double SnapshotRequestThrottleSeconds = 1.5d;
-    private static string lastSnapshotRequestSource = "";
-    private static int lastSnapshotRequestFloor;
-    private static DateTime lastSnapshotRequestAtUtc = DateTime.MinValue;
+    private static readonly AuraAuthoritativeSyncDomain SyncDomain =
+        AuraAuthoritativeSyncRuntime.RegisterDomain(new AuraAuthoritativeSyncDomainOptions
+        {
+            OwnerModId = SunExpIds.ModId,
+            DomainId = DomainId,
+            SnapshotRequestThrottleSeconds = SnapshotRequestThrottleSeconds,
+            MaxResolvedTokens = 512
+        });
+    private static readonly string HostSession = Guid.NewGuid().ToString("N");
+    private static int hostGeneration;
+    private static string remoteSession = "";
+    private static int remoteGeneration = -1;
+    private static EndlessSeaStateSnapshot? pendingProjection;
+    private static EndlessSeaFloorPlan? cachedRemotePlan;
+    private static string cachedRemotePlanHash = "";
 
     public static void BroadcastSnapshot(string source)
     {
@@ -250,52 +254,131 @@ public static class EndlessSeaNetworkSync
             return;
         }
 
-        var snapshot = EndlessSeaStateSnapshot.Capture(source);
-        SunExpNetworkRuntime.Send(new RpcEndlessSeaStateSnapshot(snapshot, source), source);
+        hostGeneration++;
+        var command = new RpcEndlessSeaStateSnapshot();
+        command.BindServerSender(SunExpRpcAuthorityRuntime.CreateLocalServerSender(source));
+        SunExpNetworkRuntime.Send(command, source ?? "EndlessSeaNetworkSync.BroadcastSnapshot");
     }
 
     public static void RequestSnapshot(string source)
     {
         if (!SunExpNetworkRuntime.HasRemotePlayers()
             || !SunExpNetworkRuntime.IsClientOnly()
-            || IsSnapshotRequestThrottled(source ?? ""))
+            || !SyncDomain.TryBeginSnapshotRequest())
         {
             return;
         }
 
+        var snapshot = pendingProjection;
         SunExpNetworkRuntime.Send(new RpcEndlessSeaStateSnapshotRequest
         {
-            Source = source ?? ""
-        }, source ?? "");
+            Token = SyncDomain.NextToken(),
+            KnownRunId = snapshot?.RunId ?? "",
+            KnownGeneration = Math.Max(0, snapshot?.Generation ?? remoteGeneration),
+            KnownFloorPlanHash = cachedRemotePlanHash
+        }, source ?? "EndlessSeaNetworkSync.RequestSnapshot");
     }
 
-    private static bool IsSnapshotRequestThrottled(string source)
+    internal static bool TryAcceptRepairRequest(string senderId, int token)
     {
-        var floor = Math.Max(1, DictionaryUtil.ParseInt(ReadString(SunExpIds.EndlessSeaFloorKey), 1));
-        var now = DateTime.UtcNow;
-        if (floor == lastSnapshotRequestFloor
-            && string.Equals(source, lastSnapshotRequestSource, StringComparison.Ordinal)
-            && (now - lastSnapshotRequestAtUtc).TotalSeconds < SnapshotRequestThrottleSeconds)
+        return SyncDomain.TryClaimToken(senderId, token);
+    }
+
+    internal static EndlessSeaStateSnapshot CaptureAuthoritative(bool includePlan)
+    {
+        return EndlessSeaStateSnapshot.Capture(HostSession, Math.Max(1, hostGeneration), includePlan);
+    }
+
+    internal static void AcceptRemoteSnapshot(EndlessSeaStateSnapshot? snapshot, string source)
+    {
+        if (snapshot == null
+            || snapshot.ProtocolVersion != EndlessSeaStateSnapshot.CurrentProtocolVersion
+            || snapshot.Mode != "1"
+            || string.IsNullOrWhiteSpace(snapshot.HostSession))
         {
-            SunExpLog.Debug("[EndlessSeaSync] snapshot request throttled from " + source + ".");
-            return true;
+            return;
         }
 
-        lastSnapshotRequestFloor = floor;
-        lastSnapshotRequestSource = source;
-        lastSnapshotRequestAtUtc = now;
-        return false;
+        if (string.Equals(remoteSession, snapshot.HostSession, StringComparison.Ordinal)
+            && snapshot.Generation < remoteGeneration)
+        {
+            return;
+        }
+
+        if (!string.Equals(remoteSession, snapshot.HostSession, StringComparison.Ordinal))
+        {
+            remoteSession = snapshot.HostSession;
+            remoteGeneration = -1;
+            cachedRemotePlan = null;
+            cachedRemotePlanHash = "";
+        }
+
+        remoteGeneration = Math.Max(remoteGeneration, snapshot.Generation);
+        Set(SunExpIds.EndlessSeaModeKey, "1");
+        Set(SunExpIds.EndlessSeaFloorKey, Math.Max(1, snapshot.Floor).ToString());
+        Set(SunExpIds.EndlessSeaGeneratedFloorKey, Math.Max(0, snapshot.GeneratedFloor).ToString());
+        Set(SunExpIds.EndlessSeaRunIdKey, snapshot.RunId ?? "");
+        Set(SunExpIds.EndlessSeaRunPhaseKey, snapshot.RunPhase ?? "");
+        Set(SunExpIds.EndlessSeaRunEndedKey, snapshot.RunEnded ?? "0");
+        Set(SunExpIds.EndlessSeaStarterDeckAppliedKey, snapshot.StarterDeckApplied ?? "");
+        Set(SunExpIds.EndlessAbyssGazeLevelKey, Math.Max(0, snapshot.GazeLevel).ToString());
+        Set(SunExpIds.EndlessAbyssPendingShockKey, snapshot.PendingShockJson ?? "");
+
+        if (!string.IsNullOrWhiteSpace(snapshot.FloorPlanJson)
+            && string.Equals(EndlessSeaStateSnapshot.Hash(snapshot.FloorPlanJson), snapshot.FloorPlanHash, StringComparison.Ordinal)
+            && EndlessSeaStateSnapshot.ParsePlan(snapshot.FloorPlanJson) is { } plan
+            && plan.Floor == snapshot.Floor)
+        {
+            cachedRemotePlan = plan;
+            cachedRemotePlanHash = snapshot.FloorPlanHash;
+        }
+
+        pendingProjection = snapshot;
+        SunExpLog.Debug("[EndlessSeaSync] accepted host snapshot; floor=" + snapshot.Floor
+            + "; generation=" + snapshot.Generation
+            + "; source=" + source + ".");
     }
 
-    private static string ReadString(string key)
+    public static bool TryGetCachedPlan(int floor, out EndlessSeaFloorPlan plan)
+    {
+        plan = cachedRemotePlan!;
+        return cachedRemotePlan != null && cachedRemotePlan.Floor == Math.Max(1, floor) && cachedRemotePlan.IsValid;
+    }
+
+    public static void ApplyPendingProjection(MapSelectUI? mapSelect, NormalMapManager? manager, string source)
+    {
+        var snapshot = pendingProjection;
+        if (snapshot == null || mapSelect == null || manager == null || snapshot.Floor != ReadCurrentFloor())
+        {
+            return;
+        }
+
+        EndlessSeaMapViewPresenter.SetLayerTitle(mapSelect, snapshot.Floor);
+        EndlessSeaMapViewPresenter.ApplySlots(mapSelect, manager, snapshot.Floor, applyAllSlots: false, sync: false, source);
+        pendingProjection = null;
+    }
+
+    private static int ReadCurrentFloor()
     {
         try
         {
-            return GameSaveManager.GetValue<string>(key) ?? "";
+            return Math.Max(1, GameSaveManager.GetValue<int>(SunExpIds.EndlessSeaFloorKey));
         }
         catch
         {
-            return "";
+            return 1;
+        }
+    }
+
+    private static void Set(string key, string value)
+    {
+        try
+        {
+            GameSaveManager.SetValue(key, value ?? "");
+        }
+        catch
+        {
+            GameSaveManager.GetNowSave()?.SetValue(key, value ?? "");
         }
     }
 }

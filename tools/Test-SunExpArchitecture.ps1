@@ -488,7 +488,7 @@ Assert-Contains $executorApi "return ScriptEventApi.TryAddEvent(executor, eventN
 Assert-Contains $executorApi "return TargetApi.EnemyTargets(executor);" "ExecutorApi must delegate target selection to TargetApi."
 Assert-Contains $executorApi "return DamageApi.DealDamage(executor, amount, damageType);" "ExecutorApi must delegate damage to DamageApi."
 Assert-Contains $executorApi "return SolarCombatApi.SolarKeywordDamage(executor, baseDamage, target, coefficientScale);" "ExecutorApi must delegate solar keyword math to SolarCombatApi."
-Assert-Contains $executorApi "FieldApi.ApplyFieldBuff(executor, fieldId, amount);" "ExecutorApi must delegate field application to FieldApi."
+Assert-Contains $executorApi "FieldApi.ApplyFieldBuff(executor, fieldId, amount, intentId);" "ExecutorApi must delegate field application and its server-resolved intent to FieldApi."
 Assert-Contains $executorApi "return TargetApi.AllCombatTargets(executor, includeSelf);" "ExecutorApi must delegate all-combatant field target selection to TargetApi."
 Assert-Contains $executorApi "return BuffOverflowApi.HandleBurnOverflow(target, buffId, amount);" "ExecutorApi must delegate overflow conversion to BuffOverflowApi."
 Assert-NotMatches $executorApi "private\s+static\s+.*(ConfiguredBuffUpperBound|TotalFieldBuffStacks|ApplySolarRadianceUpperBound|ReadIntProperty)" "ExecutorApi must remain a compatibility facade, not retain moved private implementations."

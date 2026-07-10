@@ -94,6 +94,10 @@ as SunExp should install and register CG resources, match local trigger
 semantics, and submit playback requests to the shared runtime. Tool mods such
 as AuraTools should configure enablement, local rules, overrides, and imported
 registry entries without creating a second network playback path.
+The multiplayer payload is limited to registered owner/provider/CG identities,
+owner/action/session ids, and bounded sequencing data. Each peer resolves the
+same local registry and resource package; raw media bytes, paths, bundle data,
+and presentation parameters are not a transport contract.
 
 When building UI for tool-managed shared entries:
 
@@ -165,6 +169,17 @@ ambiguous event.
 Payload transports should enforce byte budgets before Mirror serialization.
 Large shared payloads should use a bounded chunked-transfer path with checksum,
 expiration, and a cap on active receiver buffers.
+
+## Background Work
+
+`AuraSharedFrameScheduler` is a main-thread scheduler. Its actions may touch
+Unity, Witch, Mirror, UI, or game state and must not be moved to worker threads.
+Use `AuraSharedBackgroundWorkScheduler` only for immutable snapshots, pure CPU
+transforms, and file work. It has local CPU/IO concurrency and owner-pending
+caps; do not change the process-wide CLR ThreadPool limits. Worker results must
+return through the scheduler completion queue, then apply on the main thread
+after a current-generation check. Coroutines split main-thread work across
+frames; they are not a replacement for background CPU work.
 
 ## Tests
 

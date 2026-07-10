@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using AuraCg.Shared;
 using Newtonsoft.Json;
-using SkillCGExp.Dll.Hooks;
 using SkillCGExp.Dll.Infrastructure;
 using UnityEngine;
 
@@ -13,7 +13,6 @@ namespace SkillCGExp.Dll.Config;
 public sealed class SkillCgConfig
 {
     public bool enabled = true;
-    public bool syncRemote = true;
     public int maxQueueLength = 8;
     public float maxRequestAgeSeconds = 6f;
     public float duplicateWindowSeconds = 0.2f;
@@ -75,7 +74,6 @@ public sealed class SkillCgConfig
         return new SkillCgConfig
         {
             enabled = true,
-            syncRemote = true,
             maxQueueLength = 8,
             maxRequestAgeSeconds = 6f,
             duplicateWindowSeconds = 0.2f,
@@ -181,12 +179,9 @@ public sealed class SkillCgRule
 public sealed class ConfigSkillCgProvider
 {
     private readonly List<SkillCgRule> rules;
-    private readonly bool syncRemote;
-
-    public ConfigSkillCgProvider(IEnumerable<SkillCgRule> rules, bool syncRemote)
+    public ConfigSkillCgProvider(IEnumerable<SkillCgRule> rules)
     {
         this.rules = new List<SkillCgRule>(rules);
-        this.syncRemote = syncRemote;
     }
 
     public string ProviderId => "SkillCGExp.ConfigProvider";
@@ -223,7 +218,8 @@ public sealed class ConfigSkillCgProvider
                 FadeOut = rule.fadeOut,
                 CreatedAt = Time.unscaledTime,
                 ActionSequence = trigger.ActionSequence,
-                DisableSync = !syncRemote
+                // This prototype has no shared registry manifest, so its file-backed rules remain local-only.
+                DisableSync = true
             };
         }
     }

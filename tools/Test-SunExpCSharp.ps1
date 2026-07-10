@@ -1690,7 +1690,8 @@ function Invoke-SourceAssertions {
     Assert-True $sunOrbitMirrorTextRow.Description_en.Contains("Every 3 actions, gain 1 stack") "Sun-Orbit Mirror text must describe Gathered Flame gain."
     Assert-True $miniatureSunwheelTextRow.Description_en.Contains("All enemies gain {buff_burn} equal to your {SunExp_sunexp_solar_radiance} stacks.") "Miniature Sunwheel text must describe party-wide Burn."
     Assert-True $blazingCrownHeartTextRow.Description_en.Contains("gain 8 stacks of {SunExp_sunexp_solar_radiance}") "Blazing Crown Heart text must describe 8 Solar Radiance at combat start."
-    Assert-True $blazingCrownHeartTextRow.Description.Contains("为场地铺上2层{SunExp_sunexp_scorching_canopy}") "Blazing Crown Heart Chinese text must describe laying 2 Scorching Canopy stacks over the battlefield."
+    $blazingCrownHeartChineseDescription = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("5Li65Zy65Zyw6ZO65LiKMuWxgntTdW5FeHBfc3VuZXhwX3Njb3JjaGluZ19jYW5vcHl9"))
+    Assert-True $blazingCrownHeartTextRow.Description.Contains($blazingCrownHeartChineseDescription) "Blazing Crown Heart Chinese text must describe laying 2 Scorching Canopy stacks over the battlefield."
     Assert-True $ashCharmTextRow.Description_en.Contains("At round end") "Ash Charm text must trigger at round end."
     $sunOrbitMirrorBlock = [regex]::Match($relicScripts, "private\s+static\s+void\s+RegisterSunOrbitMirror[\s\S]*?private\s+static\s+void\s+RegisterSolarPhaseDial")
     $miniatureSunwheelBlock = [regex]::Match($relicScripts, "private\s+static\s+void\s+RegisterMiniatureSunwheel[\s\S]*?private\s+static\s+void\s+RegisterSunOrbitMirror")

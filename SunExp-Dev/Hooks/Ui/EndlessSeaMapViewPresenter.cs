@@ -4,6 +4,7 @@ using System.Linq;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
+using SunExp.Dll.Network;
 using UnityEngine;
 using UnityEngine.UI;
 using Witch;
@@ -28,8 +29,15 @@ public static class EndlessSeaMapViewPresenter
             return;
         }
 
-        if (!EndlessSeaFloorPlanStore.TryLoad(floor, out var plan))
+        if (!EndlessSeaFloorPlanStore.TryLoad(floor, out var plan)
+            && !EndlessSeaNetworkSync.TryGetCachedPlan(floor, out plan))
         {
+            if (SunExpNetworkRuntime.IsClientOnly())
+            {
+                EndlessSeaNetworkSync.RequestSnapshot(source + ":missing-plan");
+                return;
+            }
+
             EndlessSeaMapBuilder.EnsureFloorMapState(manager, floor, source + ":plan-repair");
             if (!EndlessSeaFloorPlanStore.TryLoad(floor, out plan))
             {

@@ -29,6 +29,7 @@ public static class AuraSharedFrameScheduler
     private static readonly HashSet<string> PendingKeyedActionKeys = new(StringComparer.Ordinal);
     private static readonly object RunnerGate = new();
     private static FrameSchedulerRunner? runner;
+    private static int mainThreadId;
     private static bool isDraining;
     private static long nextSequence;
 
@@ -83,20 +84,7 @@ public static class AuraSharedFrameScheduler
 
     public static bool RunAfterFrames(string source, int frames, Action action)
     {
-        if (action == null)
-        {
-            return false;
-        }
-
-        var owner = EnsureRunner();
-        if (owner == null)
-        {
-            SafeInvoke(source, action);
-            return false;
-        }
-
-        owner.StartManagedCoroutine(DelayFrames(source ?? "", Math.Max(0, frames), action));
-        return true;
+        return RunAfterFramesBudgeted(source, frames, action);
     }
 
     public static bool RunAfterFramesBudgeted(string source, int frames, Action action)
@@ -218,43 +206,30 @@ public static class AuraSharedFrameScheduler
         Action<T>? onCompleted = null,
         Action<Exception>? onFailed = null)
     {
-        if (work == null)
+        return AuraSharedBackgroundWorkScheduler.Queue(new AuraSharedBackgroundWorkRequest<T>
         {
-            return false;
-        }
-
-        if (EnsureRunner() == null)
-        {
-            try
-            {
-                var result = work();
-                onCompleted?.Invoke(result);
-            }
-            catch (Exception ex)
-            {
-                onFailed?.Invoke(ex);
-            }
-
-            return false;
-        }
-
-        ThreadPool.QueueUserWorkItem(_ =>
-        {
-            try
-            {
-                var result = work();
-                Enqueue(source + ":complete", () => onCompleted?.Invoke(result));
-            }
-            catch (Exception ex)
-            {
-                Enqueue(source + ":failed", () => onFailed?.Invoke(ex));
-            }
+            OwnerId = DefaultOwnerId,
+            Key = source ?? "",
+            Source = source ?? "AuraShared.RunBackground",
+            Kind = AuraSharedBackgroundWorkKind.Cpu,
+            Work = _ => work(),
+            ApplyOnMainThread = result => onCompleted?.Invoke(result),
+            OnFailedOnMainThread = error => onFailed?.Invoke(error)
         });
-        return true;
+    }
+
+    internal static bool EnsureMainThreadRunner()
+    {
+        return IsMainThreadOrUninitialized() && EnsureRunner() != null;
     }
 
     private static FrameSchedulerRunner? EnsureRunner()
     {
+        if (!IsMainThreadOrUninitialized())
+        {
+            return null;
+        }
+
         if (runner != null)
         {
             return runner;
@@ -281,6 +256,12 @@ public static class AuraSharedFrameScheduler
                 return null;
             }
         }
+    }
+
+    private static bool IsMainThreadOrUninitialized()
+    {
+        var knownMainThread = Volatile.Read(ref mainThreadId);
+        return knownMainThread == 0 || Thread.CurrentThread.ManagedThreadId == knownMainThread;
     }
 
     private static void Pump()
@@ -869,6 +850,11 @@ public static class AuraSharedFrameScheduler
 
     private sealed class FrameSchedulerRunner : MonoBehaviour
     {
+        private void Awake()
+        {
+            Interlocked.CompareExchange(ref mainThreadId, Thread.CurrentThread.ManagedThreadId, 0);
+        }
+
         public void StartManagedCoroutine(IEnumerator routine)
         {
             StartCoroutine(routine);
@@ -876,6 +862,7 @@ public static class AuraSharedFrameScheduler
 
         private void Update()
         {
+            AuraSharedBackgroundWorkScheduler.PumpMainThreadCompletions();
             Pump();
         }
 

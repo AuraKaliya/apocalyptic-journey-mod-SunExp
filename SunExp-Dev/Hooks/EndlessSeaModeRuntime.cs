@@ -135,6 +135,7 @@ public static class EndlessSeaModeRuntime
             }
 
             var manager = MapManager.Instance?.ModeMapManager as NormalMapManager;
+            EndlessSeaNetworkSync.ApplyPendingProjection(mapSelect, manager, "MapSelectUI.ShowMap");
             EndlessSeaMapViewPresenter.ApplySlots(mapSelect, manager, CurrentFloor(), applyAllSlots: false, sync: false, "MapSelectUI.ShowMap");
             EndlessSeaMapViewPresenter.SetLayerTitle(mapSelect, CurrentFloor());
         }

@@ -58,6 +58,21 @@ foreach ($required in @("AuraSharedFramePhase", "ReadyKeyedBucket", "OwnerQuantu
 if ($frameSchedulerText.Contains("CurrentKeyedActions")) {
     throw "AuraShared frame scheduler must not regress to a single FIFO keyed queue."
 }
+foreach ($required in @("mainThreadId", "EnsureMainThreadRunner", "IsMainThreadOrUninitialized", "AuraSharedBackgroundWorkScheduler.PumpMainThreadCompletions")) {
+    if (-not $frameSchedulerText.Contains($required)) {
+        throw "AuraShared frame scheduler must retain its main-thread completion boundary: $required"
+    }
+}
+
+$backgroundWorkText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedBackgroundWorkScheduler.cs")
+foreach ($required in @("AuraSharedBackgroundWorkScheduler", "AuraSharedBackgroundWorkRequest", "MaxCpuConcurrency", "MaxIoConcurrency", "MaxPendingPerOwner", "ConcurrentQueue<Completion>", "CancellationToken", "PumpMainThreadCompletions")) {
+    if (-not $backgroundWorkText.Contains($required)) {
+        throw "AuraShared bounded background-work contract is missing: $required"
+    }
+}
+if ($backgroundWorkText.Contains("ThreadPool.SetMinThreads") -or $backgroundWorkText.Contains("ThreadPool.SetMaxThreads")) {
+    throw "AuraShared background work must not mutate the process-wide CLR thread-pool limits."
+}
 
 $frameStepText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedFrameStepRunner.cs")
 foreach ($required in @("AuraSharedFrameStepResult", "ContinueNextFrame", "WaitFrames", "OwnerId", "Phase", "EstimatedCost")) {

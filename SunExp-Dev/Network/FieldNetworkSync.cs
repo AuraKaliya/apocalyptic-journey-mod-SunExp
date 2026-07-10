@@ -3,21 +3,20 @@ using AuraShared.Core;
 using Network.Command;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
+using Witch.Core;
 
 namespace SunExp.Dll.Network;
 
 public enum FieldNetworkCommandKind
 {
     Activate = 1,
-    Set = 2,
-    Clear = 3,
     SnapshotRequest = 4
 }
 
 [Serializable]
 public sealed class FieldStateSnapshot
 {
-    public const int CurrentProtocolVersion = 1;
+    public const int CurrentProtocolVersion = 2;
 
     public int ProtocolVersion { get; set; } = CurrentProtocolVersion;
 
@@ -31,6 +30,8 @@ public sealed class FieldStateSnapshot
 
     public int BattleSerial { get; set; }
 
+    public string BattleSessionId { get; set; } = "";
+
     public static FieldStateSnapshot Capture()
     {
         var snapshot = FieldApi.ActiveFieldSnapshot();
@@ -40,15 +41,20 @@ public sealed class FieldStateSnapshot
             Stacks = Math.Max(0, snapshot.Stacks),
             MaxStacks = Math.Max(0, snapshot.MaxStacks),
             Epoch = Math.Max(0, snapshot.Epoch),
-            BattleSerial = FieldNetworkSync.CurrentBattleSerial
+            BattleSerial = FieldNetworkSync.CurrentBattleSerial,
+            BattleSessionId = FieldNetworkSync.HostBattleSessionId
         };
     }
 }
 
 [Serializable]
-public sealed class RpcFieldStateSnapshot : RpcCommandBase
+public sealed class RpcFieldStateSnapshot : RpcCommandBase, ISunExpServerBoundRpcCommand
 {
+    private SunExpRpcSender serverSender = SunExpRpcSender.Unbound;
+
     public FieldStateSnapshot Snapshot { get; set; } = new();
+
+    public bool Accepted { get; set; }
 
     public RpcFieldStateSnapshot()
     {
@@ -59,9 +65,29 @@ public sealed class RpcFieldStateSnapshot : RpcCommandBase
         Snapshot = snapshot ?? new FieldStateSnapshot();
     }
 
+    public void BindServerSender(SunExpRpcSender sender)
+    {
+        serverSender = sender ?? SunExpRpcSender.Unbound;
+    }
+
+    public override void CmdExecute()
+    {
+        if (!serverSender.IsAvailable || !serverSender.IsLobbyMember || !serverSender.IsLobbyHost)
+        {
+            Accepted = false;
+            return;
+        }
+
+        Snapshot = FieldStateSnapshot.Capture();
+        Accepted = true;
+    }
+
     public override void RpcExecute()
     {
-        FieldNetworkSync.ApplySnapshot(Snapshot, "RpcFieldStateSnapshot");
+        if (Accepted)
+        {
+            FieldNetworkSync.ApplySnapshot(Snapshot, "RpcFieldStateSnapshot");
+        }
     }
 }
 
@@ -82,6 +108,13 @@ public sealed class RpcFieldStateRequest : RpcCommandBase, ISunExpServerBoundRpc
 
     public int BattleSerial { get; set; }
 
+    public string BattleSessionId { get; set; } = "";
+
+    // Intent is a small, server-resolved capability; it is never a caller-controlled effect description.
+    public string IntentId { get; set; } = "";
+
+    public string OwnerStatusId { get; set; } = "";
+
     public int RejectionCode { get; set; }
 
     public FieldStateSnapshot Snapshot { get; set; } = new();
@@ -100,6 +133,9 @@ public sealed class RpcFieldStateRequest : RpcCommandBase, ISunExpServerBoundRpc
             Amount,
             Token,
             BattleSerial,
+            BattleSessionId,
+            IntentId,
+            OwnerStatusId,
             serverSender,
             out var rejectionCode);
         RejectionCode = rejectionCode;
@@ -128,22 +164,21 @@ public static class FieldNetworkSync
             SnapshotRequestThrottleSeconds = 1.0d,
             MaxResolvedTokens = 256
         });
+    private static string hostBattleSessionId = Guid.NewGuid().ToString("N");
+    private static string remoteBattleSessionId = "";
 
     public static int CurrentBattleSerial => SyncDomain.CurrentSession;
 
-    public static bool RequestActivate(SunExpFieldId field, int amount, string source)
-    {
-        return SendRequest(FieldNetworkCommandKind.Activate, field, amount, source);
-    }
+    internal static string HostBattleSessionId => hostBattleSessionId;
 
-    public static bool RequestSet(SunExpFieldId field, int stacks, string source)
+    public static bool RequestActivate(ScriptExecutor? executor, SunExpFieldId field, int amount, string intentId)
     {
-        return SendRequest(FieldNetworkCommandKind.Set, field, stacks, source);
-    }
-
-    public static bool RequestClear(SunExpFieldId field, string source)
-    {
-        return SendRequest(FieldNetworkCommandKind.Clear, field, 0, source);
+        return SendRequest(
+            FieldNetworkCommandKind.Activate,
+            field,
+            amount,
+            intentId,
+            executor?.Self?.InstanceId ?? "");
     }
 
     public static void RequestSnapshot(string source)
@@ -155,7 +190,7 @@ public static class FieldNetworkSync
             return;
         }
 
-        SendRequest(FieldNetworkCommandKind.SnapshotRequest, SunExpFieldId.None, 0, source);
+        SendRequest(FieldNetworkCommandKind.SnapshotRequest, SunExpFieldId.None, 0, source, "");
     }
 
     public static void BroadcastSnapshot(string source)
@@ -167,7 +202,9 @@ public static class FieldNetworkSync
             return;
         }
 
-        SunExpNetworkRuntime.Send(new RpcFieldStateSnapshot(FieldStateSnapshot.Capture()), source ?? "FieldNetworkSync.BroadcastSnapshot");
+        var command = new RpcFieldStateSnapshot();
+        command.BindServerSender(SunExpRpcAuthorityRuntime.CreateLocalServerSender(source));
+        SunExpNetworkRuntime.Send(command, source ?? "FieldNetworkSync.BroadcastSnapshot");
     }
 
     public static FieldStateSnapshot ResolveRequest(
@@ -177,10 +214,13 @@ public static class FieldNetworkSync
         int amount,
         int token,
         int requestBattleSerial,
+        string requestBattleSessionId,
+        string intentId,
+        string ownerStatusId,
         SunExpRpcSender sender,
         out int rejectionCode)
     {
-        rejectionCode = ValidateRequest(protocolVersion, commandKind, field, amount, token, requestBattleSerial, sender);
+        rejectionCode = ValidateRequest(protocolVersion, commandKind, field, amount, token, requestBattleSerial, requestBattleSessionId, intentId, ownerStatusId, sender);
         if (rejectionCode != 0)
         {
             return FieldStateSnapshot.Capture();
@@ -189,13 +229,7 @@ public static class FieldNetworkSync
         switch (commandKind)
         {
             case FieldNetworkCommandKind.Activate:
-                FieldApi.ActivateFieldAuthoritative(field, amount, "FieldNetworkSync.ResolveRequest", broadcast: false);
-                break;
-            case FieldNetworkCommandKind.Set:
-                FieldApi.SetSharedFieldStateAuthoritative(field, amount, "FieldNetworkSync.ResolveRequest", broadcast: false);
-                break;
-            case FieldNetworkCommandKind.Clear:
-                FieldApi.TryClearActiveFieldAuthoritative("FieldNetworkSync.ResolveRequest", field, broadcast: false);
+                ResolveActivateIntent(field, intentId, ownerStatusId, sender.PlayerId);
                 break;
         }
 
@@ -206,9 +240,15 @@ public static class FieldNetworkSync
     {
         if (snapshot == null
             || snapshot.ProtocolVersion != FieldStateSnapshot.CurrentProtocolVersion
+            || string.IsNullOrWhiteSpace(snapshot.BattleSessionId)
             || !SyncDomain.AcceptRemoteSnapshotSession(snapshot.BattleSerial))
         {
             return;
+        }
+
+        if (!string.Equals(remoteBattleSessionId, snapshot.BattleSessionId, StringComparison.Ordinal))
+        {
+            remoteBattleSessionId = snapshot.BattleSessionId;
         }
 
         FieldApi.ApplyNetworkSnapshot((SunExpFieldId)snapshot.FieldId, snapshot.Stacks, snapshot.Epoch, source);
@@ -217,6 +257,14 @@ public static class FieldNetworkSync
     public static void ResetFightState()
     {
         SyncDomain.ResetSession();
+        if (SunExpNetworkRuntime.IsClientOnly())
+        {
+            remoteBattleSessionId = "";
+            return;
+        }
+
+        hostBattleSessionId = Guid.NewGuid().ToString("N");
+        remoteBattleSessionId = hostBattleSessionId;
     }
 
     private static int ValidateRequest(
@@ -226,6 +274,9 @@ public static class FieldNetworkSync
         int amount,
         int token,
         int requestBattleSerial,
+        string requestBattleSessionId,
+        string intentId,
+        string ownerStatusId,
         SunExpRpcSender sender)
     {
         if (protocolVersion != FieldStateSnapshot.CurrentProtocolVersion)
@@ -252,16 +303,30 @@ public static class FieldNetworkSync
             return 4;
         }
 
-        if ((commandKind == FieldNetworkCommandKind.Activate || commandKind == FieldNetworkCommandKind.Set)
-            && amount <= 0)
+        if (commandKind == FieldNetworkCommandKind.Activate && amount <= 0)
         {
             return 5;
         }
 
-        return SyncDomain.TryClaimToken(token) ? 0 : 6;
+        if (!SyncDomain.TryClaimToken(sender.PlayerId, token))
+        {
+            return 6;
+        }
+
+        if (commandKind == FieldNetworkCommandKind.SnapshotRequest)
+        {
+            return 0;
+        }
+
+        if (!string.Equals(requestBattleSessionId, hostBattleSessionId, StringComparison.Ordinal))
+        {
+            return 7;
+        }
+
+        return ValidateActivateIntent(field, intentId, ownerStatusId, sender) ? 0 : 8;
     }
 
-    private static bool SendRequest(FieldNetworkCommandKind commandKind, SunExpFieldId field, int amount, string source)
+    private static bool SendRequest(FieldNetworkCommandKind commandKind, SunExpFieldId field, int amount, string intentId, string ownerStatusId)
     {
         if (!SunExpNetworkRuntime.HasRemotePlayers()
             || !SunExpNetworkRuntime.IsClientOnly())
@@ -275,7 +340,83 @@ public static class FieldNetworkSync
             FieldId = (int)field,
             Amount = Math.Max(0, amount),
             Token = SyncDomain.NextToken(),
-            BattleSerial = CurrentBattleSerial
-        }, source ?? "FieldNetworkSync.SendRequest");
+            BattleSerial = CurrentBattleSerial,
+            BattleSessionId = remoteBattleSessionId,
+            IntentId = intentId ?? "",
+            OwnerStatusId = ownerStatusId ?? ""
+        }, "FieldNetworkSync.SendRequest:" + (intentId ?? ""));
+    }
+
+    private static bool ValidateActivateIntent(SunExpFieldId field, string intentId, string ownerStatusId, SunExpRpcSender sender)
+    {
+        if (field != SunExpFieldId.ScorchingCanopy
+            || !SenderOwnsStatus(sender.PlayerId, ownerStatusId))
+        {
+            return false;
+        }
+
+        return string.Equals(intentId, "card.scorching_canopy", StringComparison.Ordinal)
+               || string.Equals(intentId, "card.canopy_return", StringComparison.Ordinal)
+               || string.Equals(intentId, "card.radiant_oath", StringComparison.Ordinal)
+               || string.Equals(intentId, "carrier.scorching_canopy", StringComparison.Ordinal);
+    }
+
+    private static void ResolveActivateIntent(SunExpFieldId field, string intentId, string ownerStatusId, string senderPlayerId)
+    {
+        var amount = string.Equals(intentId, "card.canopy_return", StringComparison.Ordinal) ? 2 : 1;
+        if (string.Equals(intentId, "carrier.scorching_canopy", StringComparison.Ordinal))
+        {
+            amount = ResolveAuthoritativeCarrierStacks(ownerStatusId);
+            if (amount <= 0)
+            {
+                return;
+            }
+        }
+
+        FieldApi.ActivateFieldAuthoritative(field, amount, "FieldNetworkSync.Intent:" + intentId + ":" + senderPlayerId, broadcast: false);
+    }
+
+    private static int ResolveAuthoritativeCarrierStacks(string ownerStatusId)
+    {
+        try
+        {
+            var statuses = FightManager.Instance?.statuses;
+            if (statuses == null || !statuses.TryGetValue(ownerStatusId, out var status) || status == null)
+            {
+                return 0;
+            }
+
+            return Math.Max(0, status.GetBuff(SunExpIds.ScorchingCanopy)?.buffConfig?.Level ?? 0);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    private static bool SenderOwnsStatus(string playerId, string ownerStatusId)
+    {
+        if (string.IsNullOrWhiteSpace(playerId) || string.IsNullOrWhiteSpace(ownerStatusId))
+        {
+            return false;
+        }
+
+        if (string.Equals(playerId, ownerStatusId, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        try
+        {
+            var map = Singleton<TempDataManager>.Instance?.RoleStatusMap;
+            return map != null
+                   && map.TryGetValue(playerId, out var statuses)
+                   && statuses != null
+                   && statuses.Contains(ownerStatusId);
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

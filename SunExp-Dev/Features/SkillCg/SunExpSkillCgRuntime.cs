@@ -355,7 +355,7 @@ public static class SunExpSkillCgRuntime
 
     private static void OnFightStart(ModHookContext context)
     {
-        SkillCgArbiterRuntime.Clear(SunExpIds.ModId, "fight start");
+        SkillCgArbiterRuntime.BeginFightSession(SunExpIds.ModId, "fight start");
     }
 
     private static void OnAdventureStart(ModHookContext context)

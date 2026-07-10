@@ -86,6 +86,10 @@ public static class FieldRuntime
         CombatVarApi.SetInt(RoundSequenceKey, 0);
         FieldNetworkSync.ResetFightState();
         FieldApi.ResetFightState(source);
+        if (FieldApi.IsAuthoritativeFieldWriter())
+        {
+            FieldNetworkSync.BroadcastSnapshot(source + ":reset");
+        }
         FieldBuffHudRuntime.Close(source);
     }
 

@@ -116,11 +116,13 @@ internal static class DamageSettlementCgAssetCache
         }
 
         PendingKeys.Add(key);
-        AuraSharedFrameScheduler.Enqueue("SettlementCG.Prepare:" + normalizedRoleId, () =>
+        if (!AuraSharedFrameScheduler.Enqueue("SettlementCG.Prepare:" + normalizedRoleId, () =>
+        {
+            Prepare(normalizedRoleId, playerId, instanceId);
+        }))
         {
             PendingKeys.Remove(key);
-            Prepare(normalizedRoleId, playerId, instanceId);
-        });
+        }
     }
 
     private static void Prepare(string roleId, string playerId, string instanceId)
@@ -140,24 +142,62 @@ internal static class DamageSettlementCgAssetCache
         AttemptedKeys.Add(key);
         try
         {
-            var prepared = TryPrepareFromFileSystem(normalizedRoleId, playerId, instanceId)
-                           ?? TryPrepareFromResourceLoader(normalizedRoleId);
-            if (prepared == null)
+            var source = TryResolveSelectedSkinSource(normalizedRoleId, playerId, instanceId)
+                         ?? TryResolveCareerFileSource(normalizedRoleId);
+            if (source != null)
             {
-                AuraToolsLog.Warn("[SettlementCG] preload skipped: role=" + normalizedRoleId + ", reason=no idle source.");
+                var queued = AuraSharedBackgroundWorkScheduler.Queue(new AuraSharedBackgroundWorkRequest<DamageSettlementCgPreparedClip?>
+                {
+                    OwnerId = AuraToolsIds.ModId,
+                    Key = "SettlementCG.Prepare:" + key,
+                    Source = "SettlementCG.CachePrepare:" + normalizedRoleId,
+                    Kind = AuraSharedBackgroundWorkKind.Io,
+                    Work = _ => CopySourceToSharedCache(normalizedRoleId, source),
+                    IsStillCurrent = () => PendingKeys.Contains(key),
+                    ApplyOnMainThread = prepared => CompletePrepare(key, normalizedRoleId, prepared),
+                    OnFailedOnMainThread = ex =>
+                    {
+                        PendingKeys.Remove(key);
+                        AuraToolsLog.Warn("[SettlementCG] preload failed: role=" + normalizedRoleId + ", error=" + ex.Message);
+                    }
+                });
+                if (queued)
+                {
+                    return;
+                }
+
+                AttemptedKeys.Remove(key);
+                AuraSharedFrameScheduler.RunAfterFramesBudgeted(
+                    "SettlementCG.PrepareRetry:" + key,
+                    3,
+                    () => Prepare(normalizedRoleId, playerId, instanceId));
                 return;
             }
 
-            RegisterPrepared(key, prepared);
-            AuraToolsLog.Info("[SettlementCG] preloaded idle: role="
-                              + normalizedRoleId
-                              + ", source=" + prepared.Source
-                              + ", frames=" + prepared.FrameFiles.Count + ".");
+            var prepared = TryPrepareFromResourceLoader(normalizedRoleId);
+            CompletePrepare(key, normalizedRoleId, prepared);
         }
         catch (Exception ex)
         {
+            PendingKeys.Remove(key);
             AuraToolsLog.Warn("[SettlementCG] preload failed: role=" + normalizedRoleId + ", error=" + ex.Message);
         }
+    }
+
+    private static void CompletePrepare(string key, string roleId, DamageSettlementCgPreparedClip? prepared)
+    {
+        PendingKeys.Remove(key);
+        if (prepared == null)
+        {
+            AuraToolsLog.Warn("[SettlementCG] preload skipped: role=" + roleId + ", reason=no idle source.");
+            return;
+        }
+
+        RegisterPrepared(key, prepared);
+        AuraToolsLog.Info("[SettlementCG] preloaded idle: role="
+                          + roleId
+                          + ", source=" + prepared.Source
+                          + ", frames=" + prepared.FrameFiles.Count + ".");
     }
 
     private static void RegisterPrepared(string exactKey, DamageSettlementCgPreparedClip prepared)
@@ -173,21 +213,6 @@ internal static class DamageSettlementCgAssetCache
         {
             PreparedByKey[roleKey] = prepared;
         }
-    }
-
-    private static DamageSettlementCgPreparedClip? TryPrepareFromFileSystem(
-        string roleId,
-        string playerId,
-        string instanceId)
-    {
-        var source = TryResolveSelectedSkinSource(roleId, playerId, instanceId)
-                     ?? TryResolveCareerFileSource(roleId);
-        if (source == null)
-        {
-            return null;
-        }
-
-        return CopySourceToSharedCache(roleId, source);
     }
 
     private static DamageSettlementCgPreparedClip? TryPrepareFromResourceLoader(string roleId)
@@ -321,7 +346,6 @@ internal static class DamageSettlementCgAssetCache
 
     private static DamageSettlementCgPreparedClip? CopySourceToSharedCache(string roleId, IdleFileSource source)
     {
-        using var telemetry = AuraToolsOperationTelemetry.Track("SettlementCG.CachePrepare:" + roleId, 40d);
         var frameFiles = Directory.EnumerateFiles(source.Directory, "*.png", SearchOption.TopDirectoryOnly)
             .ToList();
         if (frameFiles.Count == 0)

@@ -1,12 +1,10 @@
 using System;
-using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
-using System.Threading;
 using AuraShared.Core;
 using Network.Command;
-using UnityEngine;
-using Object = UnityEngine.Object;
 
 namespace AuraToolsExp.Dll.Infrastructure;
 
@@ -30,10 +28,6 @@ public static class AuraToolsRpcTransport
     public const int SoftLimitBytes = AuraToolsRpcPayloadGuard.DefaultSoftLimitBytes;
     public const int WarningLimitBytes = 48000;
     public const int ChunkRawBytes = 18000;
-
-    private const string DispatcherName = "AuraTools.RpcTransportDispatcher";
-    private static readonly ConcurrentQueue<Action> MainThreadActions = new();
-    private static AuraToolsRpcTransportDispatcher? dispatcher;
 
     public static bool Send(
         PlayerManager? manager,
@@ -119,48 +113,16 @@ public static class AuraToolsRpcTransport
             return false;
         }
 
-        AuraSharedFrameScheduler.Enqueue("RpcTransport.Warmup:" + source, () => { });
-        ThreadPool.QueueUserWorkItem(_ =>
+        return AuraSharedBackgroundWorkScheduler.Queue(new AuraSharedBackgroundWorkRequest<PreparedChunkTransfer>
         {
-            try
-            {
-                var payloadBytes = Encoding.UTF8.GetBytes(payloadJson);
-                var chunkCount = Math.Max(1, (payloadBytes.Length + ChunkRawBytes - 1) / ChunkRawBytes);
-                var sha256 = Sha256Hex(payloadBytes);
-                Log("chunk-prepare", source, null, payloadBytes.Length, "chunks=" + chunkCount);
-
-                for (var index = 0; index < chunkCount; index++)
-                {
-                    var offset = index * ChunkRawBytes;
-                    var count = Math.Min(ChunkRawBytes, payloadBytes.Length - offset);
-                    var chunkBytes = new byte[count];
-                    Buffer.BlockCopy(payloadBytes, offset, chunkBytes, 0, count);
-                    var chunk = new AuraToolsRpcChunk
-                    {
-                        TransferId = transferId,
-                        ChunkIndex = index,
-                        ChunkCount = chunkCount,
-                        TotalBytes = payloadBytes.Length,
-                        Sha256 = sha256,
-                        PayloadBase64 = Convert.ToBase64String(chunkBytes)
-                    };
-
-                    AuraSharedFrameScheduler.Enqueue(
-                        "RpcTransport.Chunk:" + source,
-                        () => Send(
-                            manager,
-                            createCommand(chunk),
-                            source + ".chunk",
-                            excludeOwner,
-                            measurePayload: false));
-                }
-            }
-            catch (Exception ex)
-            {
-                Log("chunk-failed", source, null, 0, ex.Message);
-            }
+            OwnerId = AuraToolsIds.ModId,
+            Key = "RpcTransport.Chunk:" + transferId,
+            Source = "RpcTransport.ChunkPrepare:" + source,
+            Kind = AuraSharedBackgroundWorkKind.Cpu,
+            Work = _ => PrepareChunks(transferId, payloadJson),
+            ApplyOnMainThread = prepared => ScheduleChunkSend(manager, source, createCommand, excludeOwner, prepared),
+            OnFailedOnMainThread = ex => Log("chunk-failed", source, null, 0, ex.Message)
         });
-        return true;
     }
 
     public static string NewTransferId(string prefix)
@@ -168,40 +130,54 @@ public static class AuraToolsRpcTransport
         return (string.IsNullOrWhiteSpace(prefix) ? "rpc" : prefix.Trim()) + "-" + Guid.NewGuid().ToString("N");
     }
 
-    internal static void Pump()
+    private static PreparedChunkTransfer PrepareChunks(string transferId, string payloadJson)
     {
-        var limit = 32;
-        while (limit-- > 0 && MainThreadActions.TryDequeue(out var action))
+        var payloadBytes = Encoding.UTF8.GetBytes(payloadJson ?? "");
+        var chunkCount = Math.Max(1, (payloadBytes.Length + ChunkRawBytes - 1) / ChunkRawBytes);
+        var sha256 = Sha256Hex(payloadBytes);
+        var chunks = new List<AuraToolsRpcChunk>(chunkCount);
+        for (var index = 0; index < chunkCount; index++)
         {
-            try
+            var offset = index * ChunkRawBytes;
+            var count = Math.Min(ChunkRawBytes, payloadBytes.Length - offset);
+            var chunkBytes = new byte[count];
+            Buffer.BlockCopy(payloadBytes, offset, chunkBytes, 0, count);
+            chunks.Add(new AuraToolsRpcChunk
             {
-                action();
-            }
-            catch (Exception ex)
-            {
-                AuraToolsLog.Warn("[RpcTransport] dispatcher action failed: " + ex.Message);
-            }
+                TransferId = transferId,
+                ChunkIndex = index,
+                ChunkCount = chunkCount,
+                TotalBytes = payloadBytes.Length,
+                Sha256 = sha256,
+                PayloadBase64 = Convert.ToBase64String(chunkBytes)
+            });
         }
+
+        return new PreparedChunkTransfer(payloadBytes.Length, chunks);
     }
 
-    private static void EnsureDispatcher()
+    private static void ScheduleChunkSend(
+        PlayerManager manager,
+        string source,
+        Func<AuraToolsRpcChunk, RpcCommandBase> createCommand,
+        bool excludeOwner,
+        PreparedChunkTransfer prepared)
     {
-        if (dispatcher != null)
+        Log("chunk-prepare", source, null, prepared.TotalBytes, "chunks=" + prepared.Chunks.Count);
+        AuraSharedFrameStepRunner.Run(new AuraSharedFrameStepSequence
         {
-            return;
-        }
-
-        var existing = GameObject.Find(DispatcherName);
-        if (existing != null)
-        {
-            dispatcher = existing.GetComponent<AuraToolsRpcTransportDispatcher>()
-                         ?? existing.AddComponent<AuraToolsRpcTransportDispatcher>();
-            return;
-        }
-
-        var go = new GameObject(DispatcherName);
-        Object.DontDestroyOnLoad(go);
-        dispatcher = go.AddComponent<AuraToolsRpcTransportDispatcher>();
+            OwnerId = AuraToolsIds.ModId,
+            Source = "RpcTransport.ChunkSend:" + source,
+            DeduplicateKey = "RpcTransport.ChunkSend:" + prepared.Chunks.First().TransferId,
+            Phase = AuraSharedFramePhase.Background,
+            EstimatedCost = 1,
+            Steps = prepared.Chunks.Select(chunk => new AuraSharedFrameStep
+            {
+                Name = chunk.ChunkIndex.ToString(),
+                DelayFrames = 1,
+                Action = () => Send(manager, createCommand(chunk), source + ".chunk", excludeOwner, measurePayload: false)
+            }).ToList()
+        });
     }
 
     private static string Sha256Hex(byte[] bytes)
@@ -241,10 +217,15 @@ public static class AuraToolsRpcTransport
     }
 }
 
-public sealed class AuraToolsRpcTransportDispatcher : MonoBehaviour
+internal sealed class PreparedChunkTransfer
 {
-    private void Update()
+    public PreparedChunkTransfer(int totalBytes, List<AuraToolsRpcChunk> chunks)
     {
-        AuraToolsRpcTransport.Pump();
+        TotalBytes = totalBytes;
+        Chunks = chunks ?? new List<AuraToolsRpcChunk>();
     }
+
+    public int TotalBytes { get; }
+
+    public List<AuraToolsRpcChunk> Chunks { get; }
 }

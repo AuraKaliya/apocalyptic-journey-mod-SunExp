@@ -46,9 +46,9 @@ public static class FieldApi
 
     public static event Action<FieldBuffSnapshot>? Changed;
 
-    public static void ApplyFieldBuff(ScriptExecutor? executor, string fieldId, int amount)
+    public static void ApplyFieldBuff(ScriptExecutor? executor, string fieldId, int amount, string intentId = "")
     {
-        ActivateField(executor, fieldId, amount, "FieldApi.ApplyFieldBuff");
+        ActivateField(executor, fieldId, amount, string.IsNullOrWhiteSpace(intentId) ? "FieldApi.ApplyFieldBuff" : intentId);
     }
 
     public static void ActivateField(ScriptExecutor? executor, string fieldId, int amount, string source = "")
@@ -65,7 +65,7 @@ public static class FieldApi
 
         if (!IsAuthoritativeFieldWriter())
         {
-            FieldNetworkSync.RequestActivate(field, amount, source);
+            FieldNetworkSync.RequestActivate(executor, field, amount, source);
             return;
         }
 
@@ -122,7 +122,7 @@ public static class FieldApi
         var requested = string.IsNullOrWhiteSpace(fieldId) ? SunExpFieldId.None : ParseFieldId(fieldId);
         if (!IsAuthoritativeFieldWriter())
         {
-            FieldNetworkSync.RequestClear(requested, source);
+            FieldNetworkSync.RequestSnapshot(source + ":clear-not-authoritative");
             return false;
         }
 
@@ -217,11 +217,11 @@ public static class FieldApi
         {
             if (stacks <= 0)
             {
-                FieldNetworkSync.RequestClear(field, "FieldApi.SetSharedFieldState");
+                FieldNetworkSync.RequestSnapshot("FieldApi.SetSharedFieldState:clear-not-authoritative");
             }
             else
             {
-                FieldNetworkSync.RequestSet(field, stacks, "FieldApi.SetSharedFieldState");
+                FieldNetworkSync.RequestSnapshot("FieldApi.SetSharedFieldState:set-not-authoritative");
             }
 
             return;
@@ -295,7 +295,7 @@ public static class FieldApi
 
         if (!IsAuthoritativeFieldWriter())
         {
-            FieldNetworkSync.RequestSet(field, 1, "FieldApi.SetActiveField");
+            FieldNetworkSync.RequestSnapshot("FieldApi.SetActiveField:not-authoritative");
             return ActiveFieldEpoch();
         }
 

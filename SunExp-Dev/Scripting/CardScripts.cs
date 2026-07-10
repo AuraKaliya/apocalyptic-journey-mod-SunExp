@@ -235,7 +235,7 @@ public static class CardScripts
 
     private static void UseScorchingCanopyCard(ScriptExecutor self)
     {
-        ExecutorApi.ApplyFieldBuff(self, "scorching_canopy", 1);
+        ExecutorApi.ApplyFieldBuff(self, "scorching_canopy", 1, "card.scorching_canopy");
         self.SetStatus("All");
         self.AddBuff(SunExpIds.Burn, "2");
         ExecutorApi.ClearSelfBurnIfProtected(self, includePending: false);
@@ -305,7 +305,7 @@ public static class CardScripts
 
     private static void UseCanopyReturn(ScriptExecutor self)
     {
-        ExecutorApi.ApplyFieldBuff(self, "scorching_canopy", 2);
+        ExecutorApi.ApplyFieldBuff(self, "scorching_canopy", 2, "card.canopy_return");
         ExecutorApi.ApplySelfBurn(self, 3, includePending: false);
         foreach (var target in ExecutorApi.EnemyTargets(self))
         {
@@ -357,7 +357,7 @@ public static class CardScripts
         self.AddBuff(SunExpIds.SolarRadiance, "3");
         if (!ExecutorApi.IsActiveField(self, "scorching_canopy"))
         {
-            ExecutorApi.ApplyFieldBuff(self, "scorching_canopy", 1);
+            ExecutorApi.ApplyFieldBuff(self, "scorching_canopy", 1, "card.radiant_oath");
         }
         else
         {

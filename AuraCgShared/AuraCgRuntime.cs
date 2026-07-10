@@ -35,9 +35,12 @@ public static class SkillCgArbiterRuntime
     private const string MaskedInvertShaderName = "AuraCg/MaskedInvertFlash";
     private const string LumaKeyShaderName = "AuraCg/LumaKeyUI";
     private const string ScreenBwFlashShaderName = "AuraCg/ScreenBwFlash";
-    public const string CurrentBuildId = "aura-cg-shared-2026-07-08-v10";
-    public const int CurrentProtocolVersion = 8;
-    public const int MinimumSupportedProtocolVersion = 1;
+    public const string CurrentBuildId = "aura-cg-shared-2026-07-10-v11";
+    public const int CurrentProtocolVersion = 9;
+    public const int MinimumSupportedProtocolVersion = CurrentProtocolVersion;
+    private const int MaxNetworkEventsPerPlayback = 4;
+    private const int MaxNetworkPayloadBytes = 8192;
+    private const int MaxNetworkIdentifierLength = 160;
     private const string DefaultNetworkOwner = "AuraCgShared";
     private static readonly HashSet<string> ReuseLogOwners = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> CompatibilityErrorsShown = new(StringComparer.OrdinalIgnoreCase);
@@ -479,6 +482,57 @@ public static class SkillCgArbiterRuntime
         };
     }
 
+    // Network playback carries registered ids only. Every peer resolves its own local resource declaration.
+    private static bool TryBuildRegisteredNetworkRequest(SkillCgNetworkEvent? item, out SkillCgRequest? request)
+    {
+        request = null;
+        if (item == null
+            || !HasBoundedIdentifier(item.OwnerModId)
+            || !HasBoundedIdentifier(item.CgId)
+            || !HasBoundedIdentifier(item.ProviderId)
+            || !HasBoundedIdentifier(item.CardId)
+            || !HasBoundedIdentifier(item.OwnerInstanceId))
+        {
+            return false;
+        }
+
+        var ownerModId = item.OwnerModId.Trim();
+        var entry = AuraCgRegistryRuntime.GetRegisteredEntries(ownerModId)
+            .FirstOrDefault(candidate => string.Equals(candidate.CgId, item.CgId.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (entry == null
+            || !IsRegisteredCgEntry(entry, SkillCgKind) && !IsRegisteredCgEntry(entry, CardUseCgKind)
+            || !EntryMatchesCard(entry, item.CardId)
+            || !string.Equals(item.ProviderId.Trim(), entry.OwnerModId + ".SkillCG." + entry.CgId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var imageResource = ResolveRegisteredImageResource(entry);
+        var imagePath = ResolveImagePath(entry.OwnerModId, imageResource);
+        if (!RegisteredMediaExists(entry.Media.Type, imagePath, entry.Media.BundlePath))
+        {
+            return false;
+        }
+
+        request = CreateRegisteredRequest(entry, imageResource, imagePath, new SkillCgTriggerContext
+        {
+            CardId = item.CardId,
+            OwnerInstanceId = item.OwnerInstanceId,
+            ActionSequence = item.ActionSequence,
+            EventToken = item.EventToken,
+            CreatedAt = Time.unscaledTime
+        }, disableSync: true);
+        request.IssuerPlayerId = item.IssuerPlayerId;
+        request.SkillCgPlayId = item.SkillCgPlayId;
+        return true;
+    }
+
+    private static bool HasBoundedIdentifier(string? value)
+    {
+        var text = (value ?? "").Trim();
+        return text.Length > 0 && text.Length <= MaxNetworkIdentifierLength;
+    }
+
     private static string ResolveRegisteredImageResource(AuraCgRegistryEntry entry)
     {
         return string.IsNullOrWhiteSpace(entry.Media.Resource)
@@ -645,6 +699,12 @@ public static class SkillCgArbiterRuntime
         }
     }
 
+    public static void BeginFightSession(string ownerModId, string reason)
+    {
+        var arbiter = EnsureArbiter(ownerModId);
+        Invoke(arbiter, "BeginFightSession", new SkillCgFightSessionRequest(ownerModId, reason));
+    }
+
     internal static void ApplyServerPlaybackRequest(SkillCgPlaybackSnapshot playback, AuraCgRpcSender sender)
     {
         var ownerModId = FirstOwnerModId(playback) ?? DefaultNetworkOwner;
@@ -657,6 +717,12 @@ public static class SkillCgArbiterRuntime
         var ownerModId = FirstOwnerModId(playback) ?? DefaultNetworkOwner;
         var arbiter = EnsureArbiter(ownerModId);
         Invoke(arbiter, "ApplyNetworkPlayback", new SkillCgNetworkPlaybackEnvelope(playback, source));
+    }
+
+    internal static void ApplyFightSession(string ownerModId, string fightToken, string source)
+    {
+        var arbiter = EnsureArbiter(string.IsNullOrWhiteSpace(ownerModId) ? DefaultNetworkOwner : ownerModId);
+        Invoke(arbiter, "ApplyFightSession", new SkillCgFightSessionRequest(ownerModId, source, fightToken));
     }
 
     private static string? FirstOwnerModId(SkillCgPlaybackSnapshot? playback)
@@ -1089,6 +1155,46 @@ public static class SkillCgArbiterRuntime
             ClearTransientPlayback(reason as string ?? "<none>");
         }
 
+        public void BeginFightSession(object? value)
+        {
+            var request = value as SkillCgFightSessionRequest ?? new SkillCgFightSessionRequest(DefaultNetworkOwner, "fight start");
+            ClearTransientPlayback(request.Reason);
+            if (!IsMultiplayerSession())
+            {
+                fightToken = CreateFightToken();
+                return;
+            }
+
+            var playerManager = PlayerManager.Instance;
+            if (playerManager == null || !playerManager.isServer)
+            {
+                return;
+            }
+
+            fightToken = CreateFightToken();
+            try
+            {
+                var command = new RpcSkillCgFightSession(request.OwnerModId, fightToken);
+                command.BindServerSender(AuraCgRpcAuthorityRuntime.CreateLocalServerSender("SkillCgFightSession"));
+                playerManager.SendRpcCommand(command);
+            }
+            catch (Exception ex)
+            {
+                AuraCgLog.WarnOnce("fight-session-broadcast-failed", "Skill CG fight session broadcast failed once; later errors are suppressed. error=" + ex.Message);
+            }
+        }
+
+        public void ApplyFightSession(object? value)
+        {
+            if (value is not SkillCgFightSessionRequest request || !HasBoundedIdentifier(request.FightToken))
+            {
+                return;
+            }
+
+            ClearTransientPlayback(request.Reason);
+            fightToken = request.FightToken.Trim();
+        }
+
         public void ClearOwner(object? value)
         {
             if (value is SkillCgClearRequest request)
@@ -1223,8 +1329,12 @@ public static class SkillCgArbiterRuntime
             var batch = (requests ?? Array.Empty<SkillCgRequest>())
                 .Where(request => request != null)
                 .ToList();
-            if (batch.Count == 0)
+            if (batch.Count == 0 || batch.Count > MaxNetworkEventsPerPlayback)
             {
+                if (batch.Count > MaxNetworkEventsPerPlayback)
+                {
+                    AuraCgLog.WarnOnce("playback-batch-too-large", "Skill CG playback skipped: event count exceeds network budget.");
+                }
                 return false;
             }
 
@@ -1294,6 +1404,12 @@ public static class SkillCgArbiterRuntime
                 return false;
             }
 
+            if (IsMultiplayerSession() && !HasBoundedIdentifier(CurrentFightToken()))
+            {
+                AuraCgLog.WarnOnce("fight-session-not-ready", "Skill CG playback skipped: host fight session is not ready.");
+                return false;
+            }
+
             var playId = ReuseOrCreateLocalPlayId(issuerPlayerId, first.OwnerInstanceId, first.CardId);
             if (!TryClaimPlayback(issuerPlayerId, playId, "local"))
             {
@@ -1308,7 +1424,7 @@ public static class SkillCgArbiterRuntime
             }
 
             playback = CreatePlaybackSnapshot(issuerPlayerId, playId, first, batch);
-            return true;
+            return AuraSharedPayloadBudget.FitsSoftLimit(playback, MaxNetworkPayloadBytes, out _, out _);
         }
 
         private bool TryValidateLocalPlaybackOwner(SkillCgRequest request, out string issuerPlayerId, out string rejection)
@@ -1513,17 +1629,36 @@ public static class SkillCgArbiterRuntime
                 return false;
             }
 
+            if (!ValidateNetworkPlaybackBudget(playback))
+            {
+                AuraCgLog.WarnOnce("network-playback-over-budget:" + source, "Skill CG network playback skipped: payload exceeds the protocol budget.");
+                return false;
+            }
+
+            if (IsMultiplayerSession()
+                && !string.Equals(playback.FightToken, CurrentFightToken(), StringComparison.Ordinal))
+            {
+                AuraCgLog.DebugLog("Skill CG network playback skipped: stale fight session. source=" + source);
+                return false;
+            }
+
             NormalizePlaybackSnapshot(playback);
             if (!TryClaimPlayback(playback.IssuerPlayerId, playback.SkillCgPlayId, source))
             {
                 return false;
             }
 
-            var requests = playback.Events
-                .Select(FromNetworkEvent)
-                .Where(request => request != null)
-                .Cast<SkillCgRequest>()
-                .ToList();
+            var requests = new List<SkillCgRequest>();
+            foreach (var item in playback.Events)
+            {
+                if (!TryBuildRegisteredNetworkRequest(item, out var request) || request == null)
+                {
+                    AuraCgLog.WarnOnce("network-playback-unregistered:" + playback.SkillCgPlayId, "Skill CG network playback skipped: unregistered event identity.");
+                    return false;
+                }
+
+                requests.Add(request);
+            }
             EnqueueBatch(requests);
             if (!playing && queue.Count > 0)
             {
@@ -1576,7 +1711,37 @@ public static class SkillCgArbiterRuntime
                 return "missing events";
             }
 
+            if (!string.Equals(playback.FightToken, CurrentFightToken(), StringComparison.Ordinal))
+            {
+                return "stale fight session";
+            }
+
+            if (!ValidateNetworkPlaybackBudget(playback))
+            {
+                return "payload budget exceeded";
+            }
+
+            if (playback.Events.Any(item => !TryBuildRegisteredNetworkRequest(item, out _)))
+            {
+                return "unregistered event identity";
+            }
+
             return "";
+        }
+
+        private static bool ValidateNetworkPlaybackBudget(SkillCgPlaybackSnapshot playback)
+        {
+            if (playback.Events == null || playback.Events.Count == 0 || playback.Events.Count > MaxNetworkEventsPerPlayback)
+            {
+                return false;
+            }
+
+            return AuraSharedPayloadBudget.FitsSoftLimit(playback, MaxNetworkPayloadBytes, out _, out _)
+                   && HasBoundedIdentifier(playback.IssuerPlayerId)
+                   && HasBoundedIdentifier(playback.SkillCgPlayId)
+                   && HasBoundedIdentifier(playback.OwnerStatusId)
+                   && HasBoundedIdentifier(playback.CardId)
+                   && HasBoundedIdentifier(playback.FightToken);
         }
 
         private static bool SenderOwnsStatus(string playerId, string ownerStatusId)
@@ -1611,7 +1776,7 @@ public static class SkillCgArbiterRuntime
             playback.SkillCgPlayId = (playback.SkillCgPlayId ?? "").Trim();
             playback.OwnerStatusId = (playback.OwnerStatusId ?? "").Trim();
             playback.CardId = (playback.CardId ?? "").Trim();
-            playback.FightToken = string.IsNullOrWhiteSpace(playback.FightToken) ? CurrentFightToken() : playback.FightToken.Trim();
+            playback.FightToken = (playback.FightToken ?? "").Trim();
 
             foreach (var item in playback.Events ?? new List<SkillCgNetworkEvent>())
             {
@@ -1631,32 +1796,9 @@ public static class SkillCgArbiterRuntime
             {
                 ProviderId = request.ProviderId,
                 OwnerModId = request.OwnerModId,
+                CgId = RegisteredCgId(request),
                 CardId = request.CardId,
                 OwnerInstanceId = request.OwnerInstanceId,
-                ImageResource = string.IsNullOrWhiteSpace(request.ImageResource) ? Path.GetFileName(request.ImagePath) : request.ImageResource,
-                BundlePath = request.BundlePath,
-                BundleAssetPrefix = request.BundleAssetPrefix,
-                MediaType = request.MediaType,
-                FrameSeconds = request.FrameSeconds,
-                AlphaMode = request.AlphaMode,
-                KeyThreshold = request.KeyThreshold,
-                KeySoftness = request.KeySoftness,
-                FlashAtSeconds = request.FlashAtSeconds,
-                FlashDuration = request.FlashDuration,
-                FlashMode = request.FlashMode,
-                FlashStartFrame = request.FlashStartFrame,
-                FlashEndFrame = request.FlashEndFrame,
-                FlashPulseEveryFrames = request.FlashPulseEveryFrames,
-                FlashStrength = request.FlashStrength,
-                Priority = request.Priority,
-                FadeIn = request.FadeIn,
-                Hold = request.Hold,
-                FadeOut = request.FadeOut,
-                PresentationMode = request.PresentationMode,
-                FitMode = request.FitMode,
-                FocusX = request.FocusX,
-                FocusY = request.FocusY,
-                SafeScale = request.SafeScale,
                 ActionSequence = request.ActionSequence,
                 EventToken = request.EventToken,
                 IssuerPlayerId = request.IssuerPlayerId,
@@ -1664,48 +1806,13 @@ public static class SkillCgArbiterRuntime
             };
         }
 
-        private static SkillCgRequest FromNetworkEvent(SkillCgNetworkEvent item)
+        private static string RegisteredCgId(SkillCgRequest request)
         {
-            var ownerModId = string.IsNullOrWhiteSpace(item.OwnerModId) ? DefaultNetworkOwner : item.OwnerModId;
-            return new SkillCgRequest
-            {
-                ProviderId = item.ProviderId,
-                OwnerModId = ownerModId,
-                CardId = item.CardId,
-                OwnerInstanceId = item.OwnerInstanceId,
-                ImageResource = item.ImageResource,
-                ImagePath = ResolveImagePath(ownerModId, item.ImageResource),
-                BundlePath = item.BundlePath,
-                BundleAssetPrefix = item.BundleAssetPrefix,
-                MediaType = item.MediaType,
-                FrameSeconds = item.FrameSeconds,
-                AlphaMode = item.AlphaMode,
-                KeyThreshold = item.KeyThreshold,
-                KeySoftness = item.KeySoftness,
-                FlashAtSeconds = item.FlashAtSeconds,
-                FlashDuration = item.FlashDuration,
-                FlashMode = item.FlashMode,
-                FlashStartFrame = item.FlashStartFrame,
-                FlashEndFrame = item.FlashEndFrame,
-                FlashPulseEveryFrames = item.FlashPulseEveryFrames,
-                FlashStrength = item.FlashStrength,
-                Priority = item.Priority,
-                FadeIn = item.FadeIn,
-                Hold = item.Hold,
-                FadeOut = item.FadeOut,
-                PresentationMode = item.PresentationMode,
-                FitMode = item.FitMode,
-                FocusX = item.FocusX,
-                FocusY = item.FocusY,
-                SafeScale = item.SafeScale,
-                CreatedAt = Time.unscaledTime,
-                ActionSequence = item.ActionSequence,
-                EventToken = item.EventToken,
-                IssuerPlayerId = item.IssuerPlayerId,
-                SkillCgPlayId = item.SkillCgPlayId,
-                IsRemote = true,
-                DisableSync = true
-            };
+            var prefix = (request.OwnerModId ?? "").Trim() + ".SkillCG.";
+            return !string.IsNullOrWhiteSpace(request.ProviderId)
+                   && request.ProviderId.StartsWith(prefix, StringComparison.Ordinal)
+                ? request.ProviderId.Substring(prefix.Length)
+                : "";
         }
 
         private bool TryClaimPlayback(string issuerPlayerId, string playId, string source)
@@ -1742,12 +1849,12 @@ public static class SkillCgArbiterRuntime
 
         private string CurrentFightToken()
         {
-            if (string.IsNullOrWhiteSpace(fightToken))
-            {
-                fightToken = SanitizeTokenPart(ResolveLocalPlayerId()) + "-" + DateTime.UtcNow.Ticks.ToString("x");
-            }
-
             return fightToken;
+        }
+
+        private static string CreateFightToken()
+        {
+            return "cg-" + Guid.NewGuid().ToString("N");
         }
 
         private static string ResolveLocalPlayerId()
@@ -3670,57 +3777,12 @@ public sealed class SkillCgNetworkEvent
 
     public string OwnerModId { get; set; } = "";
 
+    // Stable local registry id. Media paths and presentation data are resolved locally from this id.
+    public string CgId { get; set; } = "";
+
     public string CardId { get; set; } = "";
 
     public string OwnerInstanceId { get; set; } = "";
-
-    public string ImageResource { get; set; } = "";
-
-    public string BundlePath { get; set; } = "";
-
-    public string BundleAssetPrefix { get; set; } = "";
-
-    public string MediaType { get; set; } = SkillCgMediaTypes.Image;
-
-    public float FrameSeconds { get; set; } = 0.08f;
-
-    public string AlphaMode { get; set; } = SkillCgAlphaModes.None;
-
-    public float KeyThreshold { get; set; } = 0.03f;
-
-    public float KeySoftness { get; set; } = 0.08f;
-
-    public float FlashAtSeconds { get; set; } = -1f;
-
-    public float FlashDuration { get; set; } = 0.18f;
-
-    public string FlashMode { get; set; } = SkillCgFlashModes.Screen;
-
-    public int FlashStartFrame { get; set; }
-
-    public int FlashEndFrame { get; set; }
-
-    public int FlashPulseEveryFrames { get; set; } = 1;
-
-    public float FlashStrength { get; set; } = 0.82f;
-
-    public int Priority { get; set; }
-
-    public float FadeIn { get; set; } = 0.35f;
-
-    public float Hold { get; set; } = 1f;
-
-    public float FadeOut { get; set; } = 0.45f;
-
-    public string PresentationMode { get; set; } = SkillCgPresentationModes.Slide;
-
-    public string FitMode { get; set; } = SkillCgFitModes.Contain;
-
-    public float FocusX { get; set; } = 0.5f;
-
-    public float FocusY { get; set; } = 0.5f;
-
-    public float SafeScale { get; set; } = 1f;
 
     public long ActionSequence { get; set; }
 
@@ -3729,6 +3791,22 @@ public sealed class SkillCgNetworkEvent
     public string IssuerPlayerId { get; set; } = "";
 
     public string SkillCgPlayId { get; set; } = "";
+}
+
+internal sealed class SkillCgFightSessionRequest
+{
+    public SkillCgFightSessionRequest(string ownerModId, string reason, string fightToken = "")
+    {
+        OwnerModId = ownerModId ?? "";
+        Reason = reason ?? "";
+        FightToken = fightToken ?? "";
+    }
+
+    public string OwnerModId { get; }
+
+    public string Reason { get; }
+
+    public string FightToken { get; }
 }
 
 [Serializable]
@@ -3828,6 +3906,11 @@ public static class AuraCgRpcAuthorityRuntime
         Register(modConfig, "PlayerManager.UserCode_CmdReceiveRpcCommandExcludeOwner__RpcCommandBase");
         Register(modConfig, "PlayerManager.CmdReceiveRpcCommand");
         Register(modConfig, "PlayerManager.CmdReceiveRpcCommandExcludeOwner");
+    }
+
+    internal static AuraCgRpcSender CreateLocalServerSender(string sourceHook)
+    {
+        return CreateSender(PlayerManager.Instance, sourceHook);
     }
 
     private static void Register(ModConfig modConfig, string target)
@@ -3959,104 +4042,46 @@ public sealed class RpcSkillCgPlayback : RpcCommandBase
 }
 
 [Serializable]
-public sealed class RpcSkillCgEvent : RpcCommandBase
+public sealed class RpcSkillCgFightSession : RpcCommandBase, IAuraCgServerBoundRpcCommand
 {
-    public RpcSkillCgEvent()
+    private AuraCgRpcSender serverSender = AuraCgRpcSender.Unbound;
+
+    public RpcSkillCgFightSession()
     {
-        Event = new SkillCgNetworkEvent();
     }
 
-    public RpcSkillCgEvent(SkillCgRequest request)
+    public RpcSkillCgFightSession(string ownerModId, string fightToken)
     {
-        request.Normalize();
-        Event = new SkillCgNetworkEvent
+        OwnerModId = ownerModId ?? "";
+        FightToken = fightToken ?? "";
+    }
+
+    public string OwnerModId { get; set; } = "";
+
+    public string FightToken { get; set; } = "";
+
+    public bool Accepted { get; set; }
+
+    public void BindServerSender(AuraCgRpcSender sender)
+    {
+        serverSender = sender ?? AuraCgRpcSender.Unbound;
+    }
+
+    public override void CmdExecute()
+    {
+        Accepted = serverSender.IsAvailable && serverSender.IsLobbyMember && serverSender.IsLobbyHost;
+        if (Accepted)
         {
-            ProviderId = request.ProviderId,
-            OwnerModId = request.OwnerModId,
-            CardId = request.CardId,
-            OwnerInstanceId = request.OwnerInstanceId,
-            ImageResource = string.IsNullOrWhiteSpace(request.ImageResource) ? Path.GetFileName(request.ImagePath) : request.ImageResource,
-            BundlePath = request.BundlePath,
-            BundleAssetPrefix = request.BundleAssetPrefix,
-            MediaType = request.MediaType,
-            FrameSeconds = request.FrameSeconds,
-            AlphaMode = request.AlphaMode,
-            KeyThreshold = request.KeyThreshold,
-            KeySoftness = request.KeySoftness,
-            FlashAtSeconds = request.FlashAtSeconds,
-            FlashDuration = request.FlashDuration,
-            FlashMode = request.FlashMode,
-            FlashStartFrame = request.FlashStartFrame,
-            FlashEndFrame = request.FlashEndFrame,
-            FlashPulseEveryFrames = request.FlashPulseEveryFrames,
-            FlashStrength = request.FlashStrength,
-            Priority = request.Priority,
-            FadeIn = request.FadeIn,
-            Hold = request.Hold,
-            FadeOut = request.FadeOut,
-            PresentationMode = request.PresentationMode,
-            FitMode = request.FitMode,
-            FocusX = request.FocusX,
-            FocusY = request.FocusY,
-            SafeScale = request.SafeScale,
-            ActionSequence = request.ActionSequence,
-            EventToken = request.EventToken,
-            IssuerPlayerId = request.IssuerPlayerId,
-            SkillCgPlayId = request.SkillCgPlayId
-        };
+            SkillCgArbiterRuntime.ApplyFightSession(OwnerModId, FightToken, "RpcSkillCgFightSession.CmdExecute");
+        }
     }
-
-    public SkillCgNetworkEvent Event { get; set; }
 
     public override void RpcExecute()
     {
-        var ownerModId = (Event.OwnerModId ?? "").Trim();
-        if (string.IsNullOrWhiteSpace(ownerModId))
+        if (Accepted)
         {
-            AuraCgLog.WarnOnce(
-                "legacy-skill-cg-event-missing-owner",
-                "Legacy Skill CG event skipped: OwnerModId is required for shared resource resolution.");
-            return;
+            SkillCgArbiterRuntime.ApplyFightSession(OwnerModId, FightToken, "RpcSkillCgFightSession.RpcExecute");
         }
-
-        SkillCgArbiterRuntime.Initialize(null, ownerModId);
-        SkillCgArbiterRuntime.RequestCg(ownerModId, new SkillCgRequest
-        {
-            ProviderId = Event.ProviderId,
-            OwnerModId = ownerModId,
-            CardId = Event.CardId,
-            OwnerInstanceId = Event.OwnerInstanceId,
-            ImageResource = Event.ImageResource,
-            ImagePath = SkillCgArbiterRuntime.ResolveImagePath(ownerModId, Event.ImageResource),
-            BundlePath = Event.BundlePath,
-            BundleAssetPrefix = Event.BundleAssetPrefix,
-            MediaType = Event.MediaType,
-            FrameSeconds = Event.FrameSeconds,
-            AlphaMode = Event.AlphaMode,
-            KeyThreshold = Event.KeyThreshold,
-            KeySoftness = Event.KeySoftness,
-            FlashAtSeconds = Event.FlashAtSeconds,
-            FlashDuration = Event.FlashDuration,
-            FlashMode = Event.FlashMode,
-            FlashStartFrame = Event.FlashStartFrame,
-            FlashEndFrame = Event.FlashEndFrame,
-            FlashPulseEveryFrames = Event.FlashPulseEveryFrames,
-            FlashStrength = Event.FlashStrength,
-            Priority = Event.Priority,
-            FadeIn = Event.FadeIn,
-            Hold = Event.Hold,
-            FadeOut = Event.FadeOut,
-            PresentationMode = Event.PresentationMode,
-            FitMode = Event.FitMode,
-            FocusX = Event.FocusX,
-            FocusY = Event.FocusY,
-            SafeScale = Event.SafeScale,
-            CreatedAt = Time.unscaledTime,
-            ActionSequence = Event.ActionSequence,
-            EventToken = Event.EventToken,
-            IsRemote = true,
-            DisableSync = true
-        });
     }
 }
 

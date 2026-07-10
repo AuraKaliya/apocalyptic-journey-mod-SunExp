@@ -14,7 +14,7 @@ of duplicating them in top-level skills.
 | Tool configuration | AuraToolsExp reads local persistent settings and forces or overrides effective tool behavior. | Tool-local config store. | Local effective-state overlay. Do not mutate or re-own foreign registrations. |
 | Shared progression | Map state, route state, run counters, shared reward state, final role commit. | Host/server. | Client request -> server validate -> authoritative snapshot/result broadcast. |
 | Player-scoped state | Player choices, Wuna ember, damage submit, role-owned presentation request. | Bound sender/player owner. | Sender-bound command. Server binds sender from receive context before validation. |
-| Presentation event | CG playback, audio, skin visual, temporary overlay, UI cleanup, projection visual. | Local owner may request; host/server may relay in multiplayer. | Transient event with duplicate suppression and lifecycle cleanup. It must not advance progression. |
+| Presentation event | CG playback, audio, skin visual, temporary overlay, UI cleanup, projection visual. | Local owner may request; host/server may relay in multiplayer. | Transient event with duplicate suppression and lifecycle cleanup. CG relay carries only registered owner/provider/CG ids plus action/session identity; each peer resolves local resources and no resource body crosses the network. It must not advance progression. |
 | Bulk transfer or diagnostic | ModSync host manifest, large snapshots, logs, damage-meter snapshots/history. | Host/server or tool-local producer, depending on feature. | Payload guard, chunking, checksum, expiration, and active-buffer cap. |
 
 ## Current SunExp Consensus

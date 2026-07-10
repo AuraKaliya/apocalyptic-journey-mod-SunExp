@@ -330,9 +330,9 @@ public static class ExecutorApi
         return includePending && GetVar(executor, "SunExpBurnWardPending", "0") == "1";
     }
 
-    public static void ApplyFieldBuff(ScriptExecutor? executor, string fieldId, int amount)
+    public static void ApplyFieldBuff(ScriptExecutor? executor, string fieldId, int amount, string intentId = "")
     {
-        FieldApi.ApplyFieldBuff(executor, fieldId, amount);
+        FieldApi.ApplyFieldBuff(executor, fieldId, amount, intentId);
     }
 
     public static void ActivateField(ScriptExecutor? executor, string fieldId, int amount, string source = "")

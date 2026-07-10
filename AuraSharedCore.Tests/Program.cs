@@ -168,6 +168,7 @@ try
     TestLifecycleContracts();
     TestJourneyContracts();
     TestOnlineChatContracts();
+    TestAuthoritativeSyncContracts();
 
     Console.WriteLine($"AuraSharedCore tests passed: {assertions} assertions.");
 }
@@ -192,6 +193,27 @@ AuraSharedInstallRequest Request(string owner, string system, string id, string 
         SourcePath = source,
         DestinationRelativePath = destination
     };
+}
+
+void TestAuthoritativeSyncContracts()
+{
+    var domain = AuraAuthoritativeSyncRuntime.RegisterDomain(new AuraAuthoritativeSyncDomainOptions
+    {
+        OwnerModId = "Tests",
+        DomainId = "sender-scoped-" + Guid.NewGuid().ToString("N"),
+        SnapshotRequestThrottleSeconds = 0.05d,
+        MaxResolvedTokens = 16
+    });
+
+    Assert(domain.TryClaimToken("player-a", 17), "first sender token claim");
+    Assert(domain.TryClaimToken("player-b", 17), "same token from another sender must not collide");
+    Assert(!domain.TryClaimToken("player-a", 17), "same sender token replay must be rejected");
+
+    Assert(AuraSharedPayloadBudget.TryMeasureUtf8Json(new { text = "payload" }, out var bytes, out _)
+           && bytes > 0,
+        "payload budget measures serialized UTF-8 bytes");
+    Assert(!AuraSharedPayloadBudget.FitsSoftLimit(new { text = new string('x', 512) }, 32, out _, out _),
+        "payload budget rejects oversized serialized payloads");
 }
 
 void Increment(AuraSharedStorageCoordinator coordinator)

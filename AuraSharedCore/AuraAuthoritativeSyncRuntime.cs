@@ -17,8 +17,8 @@ public sealed class AuraAuthoritativeSyncDomainOptions
 public sealed class AuraAuthoritativeSyncDomain
 {
     private readonly object sync = new();
-    private readonly HashSet<int> resolvedTokens = new();
-    private readonly Queue<int> resolvedTokenOrder = new();
+    private readonly HashSet<string> resolvedTokens = new(StringComparer.Ordinal);
+    private readonly Queue<string> resolvedTokenOrder = new();
     private int nextToken = Environment.TickCount;
     private int localSession = 1;
     private int lastRemoteSession;
@@ -71,6 +71,11 @@ public sealed class AuraAuthoritativeSyncDomain
 
     public bool TryClaimToken(int token)
     {
+        return TryClaimToken("", token);
+    }
+
+    public bool TryClaimToken(string senderId, int token)
+    {
         if (token == 0)
         {
             return true;
@@ -78,12 +83,13 @@ public sealed class AuraAuthoritativeSyncDomain
 
         lock (sync)
         {
-            if (!resolvedTokens.Add(token))
+            var key = (senderId ?? "").Trim() + "|" + token;
+            if (!resolvedTokens.Add(key))
             {
                 return false;
             }
 
-            resolvedTokenOrder.Enqueue(token);
+            resolvedTokenOrder.Enqueue(key);
             while (resolvedTokenOrder.Count > MaxResolvedTokens)
             {
                 resolvedTokens.Remove(resolvedTokenOrder.Dequeue());

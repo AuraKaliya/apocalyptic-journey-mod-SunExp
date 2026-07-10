@@ -1,4 +1,5 @@
 using System;
+using AuraCg.Shared;
 using SkillCGExp.Dll.Config;
 using SkillCGExp.Dll.Infrastructure;
 using Witch;
@@ -33,7 +34,7 @@ public static class SkillCgRuntime
 
         if (config.enabled)
         {
-            SkillCgArbiterRuntime.RegisterProvider(modConfig, ModId, new ConfigSkillCgProvider(config.rules, config.syncRemote));
+            SkillCgArbiterRuntime.RegisterProvider(modConfig, ModId, new ConfigSkillCgProvider(config.rules));
         }
 
         RegisterBefore(modConfig, "FightUI.CallActionAnimation", BeforeCallActionAnimation);
@@ -49,7 +50,7 @@ public static class SkillCgRuntime
         SkillCgExpLog.InfoOnce(
             "initialized",
             "Initialized. enabled=" + config.enabled
-            + ", syncRemote=" + config.syncRemote
+            + ", syncRemote=false"
             + ", rules=" + config.rules.Length
             + ", maxQueue=" + config.maxQueueLength
             + ", maxAge=" + config.maxRequestAgeSeconds.ToString("0.##") + "s");

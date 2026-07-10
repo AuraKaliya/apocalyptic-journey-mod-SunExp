@@ -243,7 +243,7 @@ public static class BuffScripts
         }
 
         var carrierStacks = Math.Max(1, ExecutorApi.SelfBuffLevel(self, SunExpIds.ScorchingCanopy));
-        ExecutorApi.ActivateField(self, SunExpFieldId.ScorchingCanopy, carrierStacks, "BuffScripts.ApplyScorchingCanopy");
+        ExecutorApi.ActivateField(self, SunExpFieldId.ScorchingCanopy, carrierStacks, "carrier.scorching_canopy");
 
         self.SetStatus("Self");
         self.RemoveBuff(SunExpIds.ScorchingCanopy);

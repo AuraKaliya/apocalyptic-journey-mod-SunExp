@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using AuraShared.Core;
 using System.Linq;
 using Network.Command;
 using SunExp.Dll.GameApi;
@@ -112,6 +113,19 @@ public static class SunExpNetworkRuntime
         if (manager == null)
         {
             SunExpLog.Debug("[SunExpRpc] send skipped from " + source + ": PlayerManager unavailable.");
+            return false;
+        }
+
+        if (!AuraSharedPayloadBudget.FitsSoftLimit(
+                command,
+                AuraSharedPayloadBudget.DefaultSoftLimitBytes,
+                out var payloadBytes,
+                out var payloadError))
+        {
+            SunExpLog.Warn("[SunExpRpc] send blocked from " + source
+                + "; command=" + command.GetType().Name
+                + "; bytes=" + payloadBytes
+                + "; error=" + payloadError + ".");
             return false;
         }
 
