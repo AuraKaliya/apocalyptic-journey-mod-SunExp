@@ -3,6 +3,7 @@ using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks.Ui;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
+using SunExp.Dll.Network;
 using Witch.Core;
 using Witch.Mod;
 
@@ -38,6 +39,13 @@ public static class FieldRuntime
     {
         try
         {
+            if (!FieldApi.IsAuthoritativeFieldWriter())
+            {
+                FieldNetworkSync.RequestSnapshot("FightInitialized");
+                FieldBuffHudRuntime.RequestRefresh("FightInitialized.ClientSnapshotPending");
+                return;
+            }
+
             var executor = FightPlayer.Instance?.Status?.MirrorSc as ScriptExecutor;
             var applied = FieldStartSourceService.ApplyFightStartSources(executor, "FightInitialized");
             if (applied > 0)
@@ -55,6 +63,13 @@ public static class FieldRuntime
     {
         try
         {
+            if (!FieldApi.CanResolveFieldEffects())
+            {
+                FieldNetworkSync.RequestSnapshot("Fight_PlayerTurn.Init");
+                FieldBuffHudRuntime.RequestRefresh("Fight_PlayerTurn.Init.ClientSnapshotPending");
+                return;
+            }
+
             var executor = FightPlayer.Instance?.Status?.MirrorSc as ScriptExecutor;
             var sequence = CombatVarApi.AddInt(RoundSequenceKey, 1);
             FieldApi.ResolveRoundStart(executor, sequence.ToString(), "Fight_PlayerTurn.Init");
@@ -69,7 +84,8 @@ public static class FieldRuntime
     private static void ResetFightState(string source)
     {
         CombatVarApi.SetInt(RoundSequenceKey, 0);
-        FieldApi.ClearAllFields(source);
+        FieldNetworkSync.ResetFightState();
+        FieldApi.ResetFightState(source);
         FieldBuffHudRuntime.Close(source);
     }
 

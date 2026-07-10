@@ -81,7 +81,7 @@ Source: `SunExp/Data/Relic/sunexp.csv`, `SunExp/Text/Relic/sunexp.csv`
 | SunExp_sunexp_sun_bottle | 太阳瓶 | Sun Bottle | 2 |  | SunExp_sunexp_cardpack_solar_canopy | 回合开始时，随机一名带有{buff_burn}的敌人，其{buff_burn}立刻生效一次。 |
 | SunExp_sunexp_solar_phase_dial | 日相刻盘 | Solar Phase Dial | 3 |  | SunExp_sunexp_cardpack_radiant_spark | 回合开始时，根据{SunExp_sunexp_solar_radiance}层数最多触发三种效果：4+抽1张牌，8+获得1点魔能，12+全体{buff_burn}立刻生效一次。 |
 | SunExp_sunexp_miniature_sunwheel | 小型日轮 | Miniature Sunwheel | 3 |  | SunExp_sunexp_cardpack_ember_crown | 回合开始时，若存在{SunExp_sunexp_scorching_canopy}，获得自身负面 Buff 总层数等量的{SunExp_sunexp_gathered_flame}。 |
-| SunExp_sunexp_blazing_crown_heart | 炽冠圣心 | Blazing Crown Heart | 4 |  | SunExp_sunexp_cardpack_solar_canopy | 战斗开始时，获得1层{SunExp_sunexp_solar_crown}、4层{SunExp_sunexp_solar_radiance}、2层{SunExp_sunexp_scorching_canopy}。回合开始时，敌方全体获得你日耀层数的{buff_burn}。 |
+| SunExp_sunexp_blazing_crown_heart | 炽冠圣心 | Blazing Crown Heart | 4 |  | SunExp_sunexp_cardpack_solar_canopy | 战斗开始时，获得8层{SunExp_sunexp_solar_radiance}、1层{SunExp_sunexp_solar_crown}，为场地铺上2层{SunExp_sunexp_scorching_canopy}。 |
 | SunExp_sunexp_solar_prism | 日心棱镜 | Solar Prism | 1 |  | SunExp_sunexp_cardpack_radiant_spark | 战斗开始时，获得1层{SunExp_sunexp_solar_radiance}。每回合第一次获得{SunExp_sunexp_solar_radiance}后，额外获得1层{buff_elements}。 |
 | SunExp_sunexp_coronation_throne | 授冕圣座 | Coronation Throne | 2 |  | SunExp_sunexp_cardpack_radiant_spark | 每场战斗第一次获得{SunExp_sunexp_solar_crown}后，抽2张牌并回复2点魔能。 |
 | SunExp_sunexp_gathered_flame_charm | 聚炎护符 | Gathered Flame Charm | 3 |  | SunExp_sunexp_cardpack_ember_crown | 自身{buff_burn}层数增加后，获得等量的{SunExp_sunexp_gathered_flame}。 |
@@ -111,4 +111,3 @@ Source: `SunExp/Data/Buff/sunexp.csv`, `SunExp/Text/Buff/sunexp.csv`
 | SunExp_sunexp_boss_trait_mirror_array | 三千环日镜 | Three Thousand Orbit Mirrors | 特性 | 1 | 0 | FALSE | 敌方回合开始时，全体目标获得2层{buff_burn}，三千镜按全体{buff_burn}总层数获得护盾。 |
 | SunExp_sunexp_boss_trait_merciless_daylight | 无悯白昼 | Merciless Daylight | 特性 | 1 | 0 | FALSE | 敌方回合开始时，若玩家全体{buff_burn}总层数不低于8，焚毁1个保存名字；若没有保存名字，则玩家全体获得10层{SunExp_sunexp_body_burn}。 |
 | SunExp_sunexp_boss_trait_white_radiance_saint | 白曜圣女 | White Radiance Saint | 特性 | 1 | 0 | FALSE | 敌方回合开始时，若自身没有{SunExp_sunexp_body_burn}，则将1个保存名字焚尽，获得6层{SunExp_sunexp_solar_radiance}与10%最大生命值的护盾。自身{SunExp_sunexp_solar_radiance}不少于12时，进入{SunExp_sunexp_boss_white_radiance_crown}。 |
-

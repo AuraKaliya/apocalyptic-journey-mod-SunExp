@@ -254,6 +254,8 @@ $requiredFiles = @(
     "SunExp-Dev\Mechanics\StarScoreDisplaySnapshot.cs",
     "SunExp-Dev\Mechanics\StarScoreNote.cs",
     "SunExp-Dev\Mechanics\FieldStartSourceService.cs",
+    "SunExp-Dev\Mechanics\FieldEffectRegistry.cs",
+    "SunExp-Dev\Network\FieldNetworkSync.cs",
     "SunExp-Dev\Network\RpcEmberAdventureStateCommit.cs",
     "SunExp\visual.registry.json",
     "SunExp\familiar.blessing.registry.json"
@@ -266,6 +268,8 @@ foreach ($file in $requiredFiles) {
 $executorApi = Read-RepoText "SunExp-Dev\GameApi\ExecutorApi.cs"
 $fieldApi = Read-RepoText "SunExp-Dev\GameApi\FieldApi.cs"
 $fieldStartSourceService = Read-RepoText "SunExp-Dev\Mechanics\FieldStartSourceService.cs"
+$fieldEffectRegistry = Read-RepoText "SunExp-Dev\Mechanics\FieldEffectRegistry.cs"
+$fieldNetworkSync = Read-RepoText "SunExp-Dev\Network\FieldNetworkSync.cs"
 $buffApi = Read-RepoText "SunExp-Dev\GameApi\BuffApi.cs"
 $buffOverflowApi = Read-RepoText "SunExp-Dev\GameApi\BuffOverflowApi.cs"
 $mapItemApi = Read-RepoText "SunExp-Dev\GameApi\MapItemApi.cs"
@@ -483,15 +487,22 @@ Assert-Contains $executorApi "return TargetApi.EnemyTargets(executor);" "Executo
 Assert-Contains $executorApi "return DamageApi.DealDamage(executor, amount, damageType);" "ExecutorApi must delegate damage to DamageApi."
 Assert-Contains $executorApi "return SolarCombatApi.SolarKeywordDamage(executor, baseDamage, target, coefficientScale);" "ExecutorApi must delegate solar keyword math to SolarCombatApi."
 Assert-Contains $executorApi "FieldApi.ApplyFieldBuff(executor, fieldId, amount);" "ExecutorApi must delegate field application to FieldApi."
-Assert-Contains $executorApi "FieldApi.TryConsumePendingCarrier(field)" "ExecutorApi must expose pending field-buff carrier consumption for legacy Apply scripts."
-Assert-Contains $executorApi "BuffOverflowApi.HandleBurnOverflow(target, buffId, amount);" "ExecutorApi must delegate overflow conversion to BuffOverflowApi."
+Assert-Contains $executorApi "return TargetApi.AllCombatTargets(executor, includeSelf);" "ExecutorApi must delegate all-combatant field target selection to TargetApi."
+Assert-Contains $executorApi "return BuffOverflowApi.HandleBurnOverflow(target, buffId, amount);" "ExecutorApi must delegate overflow conversion to BuffOverflowApi."
 Assert-NotMatches $executorApi "private\s+static\s+.*(ConfiguredBuffUpperBound|TotalFieldBuffStacks|ApplySolarRadianceUpperBound|ReadIntProperty)" "ExecutorApi must remain a compatibility facade, not retain moved private implementations."
 
 Assert-Contains $fieldApi "public static class FieldApi" "FieldApi must own field state behavior."
 Assert-Contains $fieldApi "public static bool IsFieldBuffId" "FieldApi must expose field-buff id classification."
-Assert-Contains $fieldApi "TryRedirectStatusFieldBuffAdd" "FieldApi must redirect status AddBuff attempts into the field module."
-Assert-Contains $fieldApi "PendingCarrierFieldKey" "FieldApi must prevent redirected carrier Buff Apply scripts from double stacking fields."
 Assert-Contains $fieldApi "RemoveFieldBuffCarrier" "FieldApi must remove field-buff carriers from player/enemy status lists."
+Assert-Contains $fieldApi "IsAuthoritativeFieldWriter" "FieldApi must gate battle-wide field writes by host authority in multiplayer."
+Assert-Contains $fieldApi "ApplyNetworkSnapshot" "FieldApi must expose indexed authoritative field snapshot application."
+Assert-Contains $fieldEffectRegistry "public static class FieldEffectRegistry" "Field effects must be registered through a definition registry."
+Assert-Contains $fieldEffectRegistry "HasRoundStartHandler" "Field definitions must explicitly declare round-start handler coverage."
+Assert-Contains $fieldEffectRegistry "HasBuffAddedPolicy" "Field definitions must explicitly declare AddBuff lifecycle policies."
+Assert-Contains $fieldNetworkSync "public sealed class FieldStateSnapshot" "Field multiplayer sync must use an indexed snapshot payload."
+Assert-Contains $fieldNetworkSync "public sealed class RpcFieldStateRequest" "Field multiplayer sync must support client request to host."
+Assert-Contains $fieldNetworkSync "ISunExpServerBoundRpcCommand" "Field state requests must bind sender authority from the server receive context."
+Assert-Contains $fieldNetworkSync "BattleSerial" "Field snapshots must reject late packets from old battles."
 Assert-Contains $fieldStartSourceService "public static class FieldStartSourceService" "Fight-start field source replay must live in Mechanics."
 Assert-Contains $fieldStartSourceService "ApplyFightStartSources" "Field start source replay must expose one runtime entry point."
 Assert-Contains $fieldStartSourceService "FieldApi.ActivateField" "Field start source replay must route field creation through FieldApi."
@@ -739,8 +750,8 @@ Assert-Contains $sunExpStatusLifecycleRouter "SunExpHookTargets.StatusManagerHit
 Assert-Contains $sunExpStatusLifecycleRouter "SunExpHookTargets.EnemyInit" "Status lifecycle router must own enemy initialization status hot-path hooks."
 Assert-Contains $sunExpCombatActionRouter "SunExpHookTargets.OtherObjDoOneAction" "Combat action router must own OtherObj action hooks."
 Assert-Contains $sunExpCombatActionRouter "SunExpHookTargets.FightUiCallActionAnimation" "Combat action router must own FightUI action animation hooks."
-Assert-Contains $runtimeHooks "FieldApi.TryRedirectStatusFieldBuffAdd" "RuntimeHooks must redirect field buff AddBuff attempts through FieldApi."
-Assert-Contains $runtimeHooks "FieldApi.RemoveFieldBuffCarrier" "RuntimeHooks must remove field buff carriers after native AddBuff attempts."
+Assert-NotContains $runtimeHooks "FieldApi.TryRedirectStatusFieldBuffAdd" "RuntimeHooks must not route all StatusManager.AddBuff calls through field-buff redirection."
+Assert-Contains $runtimeHooks "FieldEffectHandlers.HandleBuffAdded" "RuntimeHooks must let active field definitions own AddBuff lifecycle policies."
 Assert-NotContains $runtimeHooks 'SunExpHookRegistry.Before(modConfig, "StatusManager.AddBuff"' "RuntimeHooks must not directly register StatusManager.AddBuff."
 Assert-NotContains $projectionRuntime 'RegisterAfter(modConfig, "StatusManager.Hit"' "Projection runtime must not directly register status hot-path hooks."
 Assert-NotContains $cardVisualSkinRuntime "SunExpCardLifecycleRouter.Register(`"CardVisualSkin`"" "Card visual skin runtime must not own card lifecycle hook mapping."

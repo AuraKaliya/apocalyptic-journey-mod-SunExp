@@ -2,6 +2,7 @@ using System;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks.Ui;
 using SunExp.Dll.Infrastructure;
+using SunExp.Dll.Network;
 using Witch.Core;
 using Witch.UI;
 
@@ -23,6 +24,11 @@ public static class FieldBuffHudRuntime
             var snapshot = FieldApi.ActiveFieldSnapshot();
             if (!snapshot.IsActive)
             {
+                if (SunExpNetworkRuntime.IsClientOnly())
+                {
+                    FieldNetworkSync.RequestSnapshot("FieldBuffHud.Empty");
+                }
+
                 Close("FieldBuffHud.Empty");
                 return;
             }

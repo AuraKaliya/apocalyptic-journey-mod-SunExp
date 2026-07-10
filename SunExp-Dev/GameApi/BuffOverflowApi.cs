@@ -70,17 +70,17 @@ public static class BuffOverflowApi
         }
     }
 
-    public static void HandleBurnOverflow(IStatusManager? target, string buffId, int amount)
+    public static bool HandleBurnOverflow(IStatusManager? target, string buffId, int amount)
     {
         if (target == null || buffId != SunExpIds.Burn || amount <= 0 || !FieldApi.IsSharedFieldActive(SunExpFieldId.ScorchingCanopy))
         {
-            return;
+            return false;
         }
 
         var ward = target.GetBuff(SunExpIds.EmberCloak);
         if (ward?.buffConfig != null && ward.buffConfig.Level > 0)
         {
-            return;
+            return false;
         }
 
         var upperBound = BurnUpperBound(target);
@@ -93,7 +93,10 @@ public static class BuffOverflowApi
                 + ", upperBound=" + upperBound
                 + ", overflow=" + overflow);
             target.AddBuff(SunExpIds.BodyBurn, overflow);
+            return true;
         }
+
+        return false;
     }
 
     private static int ConfiguredBuffUpperBound(string buffId, int fallback)

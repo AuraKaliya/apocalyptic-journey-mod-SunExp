@@ -89,18 +89,13 @@ public static class RuntimeHooks
             }
 
             var amount = BuffAmountFromArgs(args);
-            if (FieldApi.TryRedirectStatusFieldBuffAdd(target, buffId, amount, "StatusManager.AddBuff:before"))
-            {
-                return;
-            }
-
             ExecutorApi.PrepareSolarRadianceUpperBound(target, buffId);
             if (buffId != SunExpIds.Burn || amount <= 0)
             {
                 return;
             }
 
-            ExecutorApi.HandleBurnOverflow(target, buffId, amount);
+            FieldEffectHandlers.HandleBuffAdded(target, buffId, amount, "StatusManager.AddBuff:before");
         }
         catch (Exception ex)
         {
@@ -116,11 +111,6 @@ public static class RuntimeHooks
             var args = context.Arguments;
             var buffId = BuffIdFromArgs(args);
             var amount = BuffAmountFromArgs(args);
-            if (FieldApi.RemoveFieldBuffCarrier(target, buffId, "StatusManager.AddBuff:after"))
-            {
-                return;
-            }
-
             ExecutorApi.FinalizeSolarRadianceUpperBound(target, buffId, amount);
         }
         catch (Exception ex)

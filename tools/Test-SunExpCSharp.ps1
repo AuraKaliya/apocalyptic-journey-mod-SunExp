@@ -1323,7 +1323,9 @@ function Invoke-SourceAssertions {
     $fieldBuffHudHoverProbe = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\FieldBuffHudHoverProbe.cs"))
     $fieldBuffHudTooltipView = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\FieldBuffHudTooltipView.cs"))
     $fieldEffectHandlers = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\FieldEffectHandlers.cs"))
+    $fieldEffectRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\FieldEffectRegistry.cs"))
     $fieldStartSourceService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\FieldStartSourceService.cs"))
+    $fieldNetworkSync = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Network\FieldNetworkSync.cs"))
     $endlessAbyssEvolutionTraitRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssEvolutionTraitRegistry.cs"))
     $endlessAbyssEvolutionTraitRegistryJson = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\endless_abyss.evolution_traits.registry.json"))
     $buffOverflowApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\BuffOverflowApi.cs"))
@@ -1496,14 +1498,25 @@ function Invoke-SourceAssertions {
     Assert-True $fieldApi.Contains("SyncFieldStacks(ScriptExecutor? executor, SunExpFieldId field)") "Field sync must expose the enum-based overload."
     Assert-True $fieldApi.Contains("TryClearActiveField") "FieldApi must clear fields only through an explicit interface."
     Assert-True $fieldApi.Contains("IsFieldBuffId") "FieldApi must classify buff rows that are actually field buffs."
-    Assert-True $fieldApi.Contains("TryRedirectStatusFieldBuffAdd") "Status AddBuff attempts for field buffs must be redirected into FieldApi."
-    Assert-True $fieldApi.Contains("PendingCarrierFieldKey") "FieldApi must prevent intercepted carrier buff apply scripts from double stacking."
     Assert-True $fieldApi.Contains("RemoveFieldBuffCarrier") "FieldApi must remove field buff carriers from player/enemy status lists."
+    Assert-True $fieldApi.Contains("IsAuthoritativeFieldWriter") "FieldApi must gate field writes to the host in multiplayer."
+    Assert-True $fieldApi.Contains("ApplyNetworkSnapshot") "FieldApi must apply host-authored field snapshots on non-host clients."
+    Assert-True $fieldApi.Contains("FieldNetworkSync.RequestActivate") "Non-host field activation must request host authority instead of mutating local TempVarsMap."
+    Assert-True $fieldEffectRegistry.Contains("FieldEffectDefinition") "Field effects must be backed by a registry definition."
+    Assert-True $fieldEffectRegistry.Contains("HasRoundStartHandler") "Field definitions must declare whether round-start handling is implemented."
+    Assert-True $fieldEffectRegistry.Contains("HasBuffAddedPolicy") "Field definitions must declare whether AddBuff lifecycle policy is implemented."
+    Assert-True $fieldNetworkSync.Contains("FieldStateSnapshot") "Field multiplayer sync must use a lightweight indexed snapshot."
+    Assert-True $fieldNetworkSync.Contains("RpcFieldStateRequest") "Field multiplayer sync must support non-host request messages."
+    Assert-True $fieldNetworkSync.Contains("ISunExpServerBoundRpcCommand") "Field request RPC must bind sender through authority runtime."
+    Assert-True $fieldNetworkSync.Contains("BattleSerial") "Field snapshots must include a battle serial to reject late packets."
     Assert-True $fieldRuntime.Contains("SunExpHookTargets.FightPlayerTurnInit") "Field runtime must resolve field effects from the round-start hook."
     Assert-True $fieldRuntime.Contains("FieldApi.ResolveRoundStart") "Field runtime must delegate round-start field settlement to FieldApi."
     Assert-True $fieldRuntime.Contains("FightInitialized = OnFightInitialized") "Field runtime must replay fight-start field sources after FightInit for battle reset support."
     Assert-True $fieldRuntime.Contains("FieldStartSourceService.ApplyFightStartSources") "Field runtime must delegate fight-start field source replay to Mechanics."
+    Assert-True $fieldRuntime.Contains("FieldNetworkSync.RequestSnapshot") "Non-host field runtime must request host-authored field snapshots."
+    Assert-True $fieldRuntime.Contains("FieldApi.CanResolveFieldEffects") "Non-host field runtime must skip local field settlement."
     Assert-True $fieldBuffHudRuntime.Contains('SunExpFrameScheduler.RunOnceNextFrame("FieldBuffHud.Refresh"') "Field HUD refresh must be deferred through the frame scheduler."
+    Assert-True $fieldBuffHudRuntime.Contains("FieldNetworkSync.RequestSnapshot") "Field HUD must request a repair snapshot when a non-host client has no local field state."
     Assert-True $fieldBuffHudView.Contains("FieldBuffHudTooltipView.Create") "Field HUD must create a hover tooltip."
     Assert-True $fieldBuffHudView.Contains("FieldBuffHudHoverProbe") "Field HUD must use pointer events for hover."
     Assert-True $fieldBuffHudView.Contains("private const float RootWidth = 136f") "Field HUD must use a compact vertical badge layout."
@@ -1517,17 +1530,18 @@ function Invoke-SourceAssertions {
     Assert-True $fieldStartSourceService.Contains("SunExpHardTagIds.ScorchedWorld") "Field start sources must replay Scorched World after battle reset."
     Assert-True $fieldStartSourceService.Contains('"blazing_crown_heart"') "Field start sources must replay Blazing Crown Heart after battle reset."
     Assert-True $fieldStartSourceService.Contains("status.AddBuff(SunExpIds.SolarRadiance, 8);") "Blazing Crown Heart start replay must grant Solar Radiance directly to the rebuilt player status."
+    Assert-True $fieldStartSourceService.Contains("status.AddBuff(SunExpIds.SolarCrown, 1);") "Blazing Crown Heart start replay must grant Solar Crown after Solar Radiance."
     Assert-True $fieldStartSourceService.Contains("FieldApi.ActivateField(executor, SunExpFieldId.ScorchingCanopy, 2") "Blazing Crown Heart start replay must restore Scorching Canopy through FieldApi."
-    Assert-True $fieldStartSourceService.Contains("status.AddBuff(SunExpIds.SolarCrown, 1);") "Blazing Crown Heart start replay must grant Solar Crown after restoring the field."
     Assert-True $fieldStartSourceService.Contains("TryClaimBattleOperation") "Field start source replay must be idempotent within a battle session."
     Assert-True $fieldEffectHandlers.Contains("TriggerScorchingCanopyRoundStart") "Scorching Canopy field effect must live outside carrier buff scripts."
-    Assert-True $fieldEffectHandlers.Contains("ExecutorApi.FriendlyTargets(executor, includeSelf: true)") "Scorching Canopy field effect must include friendly combatants without using ScriptExecutor AddBuff."
-    Assert-True $fieldEffectHandlers.Contains("ExecutorApi.EnemyTargets(executor)") "Scorching Canopy field effect must include enemy combatants without using ScriptExecutor AddBuff."
+    Assert-True $fieldEffectHandlers.Contains("ExecutorApi.AllCombatTargets(executor, includeSelf: true)") "Scorching Canopy field effect must collect all combatants in one target pass."
     Assert-True $fieldEffectHandlers.Contains("target.AddBuff(SunExpIds.Burn, count);") "Scorching Canopy field effect must apply burn directly to combat statuses."
+    Assert-True $fieldEffectHandlers.Contains("HandleBuffAdded") "Active field definitions must own StatusManager.AddBuff lifecycle policies."
+    Assert-True $fieldEffectHandlers.Contains("BuffOverflowApi.HandleBurnOverflow") "Scorching Canopy must provide Burn overflow conversion as a field-owned policy."
     Assert-True (-not $fieldEffectHandlers.Contains("executor.AddBuff(SunExpIds.Burn")) "Scorching Canopy field effect must not use ScriptExecutor.AddBuff because round-start hook executors may lack dataConfig Id."
     Assert-True (-not $buffScripts.Contains('TryAddEvent(self, "StartRound"')) "Scorching Canopy carrier buff must not own round-start settlement."
     Assert-True $buffScripts.Contains("ExecutorApi.ActivateField(self, SunExpFieldId.ScorchingCanopy") "Scorching Canopy carrier apply must convert legacy carrier adds into field state."
-    Assert-True $buffScripts.Contains("TryConsumePendingFieldBuffCarrier") "Scorching Canopy carrier apply must not double stack intercepted field buff adds."
+    Assert-True (-not $buffScripts.Contains("TryConsumePendingFieldBuffCarrier")) "Scorching Canopy carrier apply must not depend on global AddBuff redirection state."
     Assert-True $buffScripts.Contains("self.RemoveBuff(SunExpIds.ScorchingCanopy);") "Scorching Canopy legacy carrier apply must immediately remove the player-mounted carrier buff."
     Assert-True $buffData.Contains('"scorching_canopy","","CS.SunExp.Dll.Scripting.BuffScripts.Apply(self, ""scorching_canopy"");') "Scorching Canopy buff data row is missing."
     $fieldBuffTypeText = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("5Zy65Zyw"))
@@ -1550,8 +1564,9 @@ function Invoke-SourceAssertions {
     Assert-True $runtimeHooks.Contains('SunExpStatusLifecycleRouter.Register("RuntimeStatusBuff"') "RuntimeHooks must subscribe burn overflow to the shared StatusManager.AddBuff lifecycle."
     Assert-True $runtimeHooks.Contains("BeforeAddBuff = OnStatusManagerAddBuffBefore") "Burn overflow must prepare before real StatusManager.AddBuff execution."
     Assert-True $runtimeHooks.Contains("AfterAddBuff = OnStatusManagerAddBuffAfter") "Solar Radiance cap repair must run after StatusManager.AddBuff creation."
-    Assert-True $runtimeHooks.Contains("FieldApi.TryRedirectStatusFieldBuffAdd") "Status AddBuff hooks must redirect field buffs before native status effects persist."
-    Assert-True $runtimeHooks.Contains("FieldApi.RemoveFieldBuffCarrier") "Status AddBuff hooks must remove field buff carriers after native status effects run."
+    Assert-True (-not $runtimeHooks.Contains("FieldApi.TryRedirectStatusFieldBuffAdd")) "Status AddBuff hooks must not redirect every field-buff add through the global hot path."
+    Assert-True (-not $runtimeHooks.Contains("FieldApi.RemoveFieldBuffCarrier")) "Status AddBuff hooks must not run field carrier cleanup on every native AddBuff."
+    Assert-True $runtimeHooks.Contains("FieldEffectHandlers.HandleBuffAdded") "Status AddBuff hooks must delegate active field policies to FieldEffectHandlers."
     Assert-True $buffApi.Contains("FieldApi.IsFieldBuffId") "BuffApi positive/negative buff scans must exclude all field buffs through FieldApi."
     Assert-True (-not $runtimeHooks.Contains('RegisterBefore(modConfig, "ScriptExecutor.AddBuff", OnScriptExecutorAddBuffBefore);')) "Burn overflow must not hook ScriptExecutor.AddBuff because it can mutate the active target list."
     Assert-True $buffOverflowApi.Contains("target.AddBuff(SunExpIds.BodyBurn, overflow);") "Burn overflow must add body burn directly to the resolved status target."
@@ -1658,6 +1673,7 @@ function Invoke-SourceAssertions {
     Assert-True $sunOrbitMirrorTextRow.Description_en.Contains("Every 3 actions, gain 1 stack") "Sun-Orbit Mirror text must describe Gathered Flame gain."
     Assert-True $miniatureSunwheelTextRow.Description_en.Contains("All enemies gain {buff_burn} equal to your {SunExp_sunexp_solar_radiance} stacks.") "Miniature Sunwheel text must describe party-wide Burn."
     Assert-True $blazingCrownHeartTextRow.Description_en.Contains("gain 8 stacks of {SunExp_sunexp_solar_radiance}") "Blazing Crown Heart text must describe 8 Solar Radiance at combat start."
+    Assert-True $blazingCrownHeartTextRow.Description.Contains("为场地铺上2层{SunExp_sunexp_scorching_canopy}") "Blazing Crown Heart Chinese text must describe laying 2 Scorching Canopy stacks over the battlefield."
     Assert-True $ashCharmTextRow.Description_en.Contains("At round end") "Ash Charm text must trigger at round end."
     $sunOrbitMirrorBlock = [regex]::Match($relicScripts, "private\s+static\s+void\s+RegisterSunOrbitMirror[\s\S]*?private\s+static\s+void\s+RegisterSolarPhaseDial")
     $miniatureSunwheelBlock = [regex]::Match($relicScripts, "private\s+static\s+void\s+RegisterMiniatureSunwheel[\s\S]*?private\s+static\s+void\s+RegisterSunOrbitMirror")
@@ -1667,7 +1683,7 @@ function Invoke-SourceAssertions {
     Assert-True ($miniatureSunwheelBlock.Success -and $miniatureSunwheelBlock.Value.Contains("BuffApi.NegativeTotal(self.Self)") -and $miniatureSunwheelBlock.Value.Contains("ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, burn);")) "Miniature Sunwheel must convert negative stacks into Gathered Flame and add Solar Radiance as Burn to all enemies."
     Assert-True ($miniatureSunwheelBlock.Success -and -not $miniatureSunwheelBlock.Value.Contains("ScorchingCanopy")) "Miniature Sunwheel must not require Scorching Canopy."
     Assert-True (-not $blazingCrownHeartBlock.Value.Contains('TryAddEvent(self, "FightStart"')) "Blazing Crown Heart must not register a legacy FightStart event that is lost during battle reset."
-    Assert-True ([regex]::IsMatch($fieldStartSourceService, 'AddBuff\(SunExpIds\.SolarRadiance, 8\);[\s\S]*ActivateField\(executor, SunExpFieldId\.ScorchingCanopy, 2[\s\S]*AddBuff\(SunExpIds\.SolarCrown, 1\);')) "Blazing Crown Heart must grant Radiance, Canopy, then Crown through fight-start source replay."
+    Assert-True ([regex]::IsMatch($fieldStartSourceService, 'AddBuff\(SunExpIds\.SolarRadiance, 8\);[\s\S]*AddBuff\(SunExpIds\.SolarCrown, 1\);[\s\S]*ActivateField\(executor, SunExpFieldId\.ScorchingCanopy, 2')) "Blazing Crown Heart must grant Radiance, Crown, then Canopy through fight-start source replay."
     Assert-True (-not $blazingCrownHeartBlock.Value.Contains('TryAddEvent(self, "StartRound"')) "Blazing Crown Heart must not keep the old round-start Burn aura."
     Assert-True ($ashCharmBlock.Success -and $ashCharmBlock.Value.Contains('TryAddEvent(self, "EndRound"') -and $ashCharmBlock.Value.Contains("self.AddBuff(SunExpIds.Ember, burn.ToString());") -and $ashCharmBlock.Value.Contains("self.ChangeDefence(burn.ToString());")) "Ash Charm must grant Ember and Block equal to self Burn at round end."
     Assert-True $solarMemoryCombatRuntime.Contains('SunExpStatusLifecycleRouter.Register("SolarMemoryCombat"') "Solar Memory combat tuning must subscribe through the shared status lifecycle router."

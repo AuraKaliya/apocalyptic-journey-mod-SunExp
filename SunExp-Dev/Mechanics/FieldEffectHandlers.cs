@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 
@@ -9,7 +8,10 @@ public static class FieldEffectHandlers
 {
     public static bool ResolveRoundStart(ScriptExecutor? executor, FieldBuffSnapshot snapshot, string source)
     {
-        if (snapshot == null || !snapshot.IsActive)
+        if (snapshot == null
+            || !snapshot.IsActive
+            || !FieldApi.CanResolveFieldEffects()
+            || FieldEffectRegistry.DefinitionFor(snapshot.Field)?.HasRoundStartHandler != true)
         {
             return false;
         }
@@ -17,6 +19,27 @@ public static class FieldEffectHandlers
         return snapshot.Field switch
         {
             SunExpFieldId.ScorchingCanopy => TriggerScorchingCanopyRoundStart(executor, snapshot, source),
+            _ => false
+        };
+    }
+
+    public static bool HandleBuffAdded(IStatusManager? target, string buffId, int amount, string source)
+    {
+        if (target == null || amount <= 0 || !FieldApi.CanResolveFieldEffects())
+        {
+            return false;
+        }
+
+        var snapshot = FieldApi.ActiveFieldSnapshot();
+        if (!snapshot.IsActive
+            || FieldEffectRegistry.DefinitionFor(snapshot.Field)?.HasBuffAddedPolicy != true)
+        {
+            return false;
+        }
+
+        return snapshot.Field switch
+        {
+            SunExpFieldId.ScorchingCanopy => BuffOverflowApi.HandleBurnOverflow(target, buffId, amount),
             _ => false
         };
     }
@@ -30,7 +53,7 @@ public static class FieldEffectHandlers
         }
 
         var applied = 0;
-        foreach (var target in CombatTargets(executor))
+        foreach (var target in ExecutorApi.AllCombatTargets(executor, includeSelf: true))
         {
             target.AddBuff(SunExpIds.Burn, count);
             applied++;
@@ -44,39 +67,6 @@ public static class FieldEffectHandlers
             + ", source="
             + (source ?? ""));
         return applied > 0;
-    }
-
-    private static IEnumerable<IStatusManager> CombatTargets(ScriptExecutor executor)
-    {
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var target in ExecutorApi.FriendlyTargets(executor, includeSelf: true))
-        {
-            if (TryAddTarget(seen, target))
-            {
-                yield return target;
-            }
-        }
-
-        foreach (var target in ExecutorApi.EnemyTargets(executor))
-        {
-            if (TryAddTarget(seen, target))
-            {
-                yield return target;
-            }
-        }
-    }
-
-    private static bool TryAddTarget(ISet<string> seen, IStatusManager? target)
-    {
-        if (target == null)
-        {
-            return false;
-        }
-
-        var key = string.IsNullOrWhiteSpace(target.InstanceId)
-            ? target.GetHashCode().ToString()
-            : target.InstanceId;
-        return seen.Add(key);
     }
 
     private static void ClearSelfBurnIfProtected(ScriptExecutor executor)

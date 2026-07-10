@@ -61,6 +61,42 @@ public static class TargetApi
         return result;
     }
 
+    public static List<IStatusManager> AllCombatTargets(ScriptExecutor? executor, bool includeSelf)
+    {
+        if (executor == null)
+        {
+            return new List<IStatusManager>();
+        }
+
+        executor.SetStatus("All");
+        var result = new List<IStatusManager>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var target in executor.Object ?? new List<IStatusManager>())
+        {
+            if (target == null)
+            {
+                continue;
+            }
+
+            if (!includeSelf && IsSelf(executor, target))
+            {
+                continue;
+            }
+
+            if (TryAddDistinct(seen, target))
+            {
+                result.Add(target);
+            }
+        }
+
+        if (includeSelf && executor.Self != null && TryAddDistinct(seen, executor.Self))
+        {
+            result.Add(executor.Self);
+        }
+
+        return result;
+    }
+
     public static IStatusManager? RandomEnemyTarget(ScriptExecutor? executor, bool requireBurn)
     {
         var candidates = EnemyTargets(executor)
@@ -177,5 +213,13 @@ public static class TargetApi
         }
 
         return executor?.Self?.fatherObject is not Enemy;
+    }
+
+    private static bool TryAddDistinct(ISet<string> seen, IStatusManager target)
+    {
+        var key = string.IsNullOrWhiteSpace(target.InstanceId)
+            ? target.GetHashCode().ToString()
+            : target.InstanceId;
+        return seen.Add(key);
     }
 }

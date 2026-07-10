@@ -242,18 +242,13 @@ public static class BuffScripts
             return;
         }
 
-        var intercepted = ExecutorApi.TryConsumePendingFieldBuffCarrier(SunExpFieldId.ScorchingCanopy);
         var carrierStacks = Math.Max(1, ExecutorApi.SelfBuffLevel(self, SunExpIds.ScorchingCanopy));
-        if (!intercepted)
-        {
-            ExecutorApi.ActivateField(self, SunExpFieldId.ScorchingCanopy, carrierStacks, "BuffScripts.ApplyScorchingCanopy");
-        }
+        ExecutorApi.ActivateField(self, SunExpFieldId.ScorchingCanopy, carrierStacks, "BuffScripts.ApplyScorchingCanopy");
 
         self.SetStatus("Self");
         self.RemoveBuff(SunExpIds.ScorchingCanopy);
         SunExpLog.Debug("Scorching canopy carrier converted to field: carrierStacks="
             + carrierStacks
-            + ", intercepted=" + intercepted
             + ", fieldStacks=" + ExecutorApi.FieldStacks(SunExpFieldId.ScorchingCanopy));
     }
 

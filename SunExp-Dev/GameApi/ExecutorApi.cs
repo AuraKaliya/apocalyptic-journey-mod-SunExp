@@ -103,6 +103,11 @@ public static class ExecutorApi
         return TargetApi.FriendlyTargets(executor, includeSelf);
     }
 
+    public static List<IStatusManager> AllCombatTargets(ScriptExecutor? executor, bool includeSelf)
+    {
+        return TargetApi.AllCombatTargets(executor, includeSelf);
+    }
+
     public static IStatusManager? RandomEnemyTarget(ScriptExecutor? executor, bool requireBurn)
     {
         return TargetApi.RandomEnemyTarget(executor, requireBurn);
@@ -340,11 +345,6 @@ public static class ExecutorApi
         FieldApi.ActivateField(executor, field, amount, source);
     }
 
-    public static bool TryConsumePendingFieldBuffCarrier(SunExpFieldId field)
-    {
-        return FieldApi.TryConsumePendingCarrier(field);
-    }
-
     public static bool ClearFieldBuff(ScriptExecutor? executor, string fieldId)
     {
         return FieldApi.ClearFieldBuff(executor, fieldId);
@@ -550,8 +550,8 @@ public static class ExecutorApi
         BuffOverflowApi.FinalizeSolarRadianceUpperBound(target, buffId, amount);
     }
 
-    public static void HandleBurnOverflow(IStatusManager? target, string buffId, int amount)
+    public static bool HandleBurnOverflow(IStatusManager? target, string buffId, int amount)
     {
-        BuffOverflowApi.HandleBurnOverflow(target, buffId, amount);
+        return BuffOverflowApi.HandleBurnOverflow(target, buffId, amount);
     }
 }

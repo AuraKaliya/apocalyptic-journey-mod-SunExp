@@ -12,6 +12,11 @@ public static class FieldStartSourceService
 
     public static int ApplyFightStartSources(ScriptExecutor? executor, string source)
     {
+        if (!FieldApi.IsAuthoritativeFieldWriter())
+        {
+            return 0;
+        }
+
         var applied = 0;
         applied += ApplyScorchedWorld(executor, source) ? 1 : 0;
         applied += ApplyBlazingCrownHeart(executor, source) ? 1 : 0;
@@ -69,8 +74,8 @@ public static class FieldStartSourceService
         }
 
         status.AddBuff(SunExpIds.SolarRadiance, 8);
-        FieldApi.ActivateField(executor, SunExpFieldId.ScorchingCanopy, 2, "FieldStartSource.BlazingCrownHeart:" + source);
         status.AddBuff(SunExpIds.SolarCrown, 1);
+        FieldApi.ActivateField(executor, SunExpFieldId.ScorchingCanopy, 2, "FieldStartSource.BlazingCrownHeart:" + source);
         return true;
     }
 
