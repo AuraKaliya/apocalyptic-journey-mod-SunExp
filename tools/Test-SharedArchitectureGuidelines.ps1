@@ -158,10 +158,17 @@ Require-Text $sharedResourceCache "ClearCategory" "Shared resource cache must su
 
 $sharedRpcAuthority = Read-RepoText "AuraSharedCore\AuraRpcAuthorityRuntime.cs"
 $sharedRpcSender = Read-RepoText "AuraSharedCore\AuraRpcSender.cs"
+$authoritativeSync = Read-RepoText "AuraSharedCore\AuraAuthoritativeSyncRuntime.cs"
 Require-Text $sharedRpcAuthority "DefaultReceiveHookTargets" "Shared RPC authority must own receive hook target registration."
 Require-Text $sharedRpcAuthority "CreateLocalServerSender" "Shared RPC authority must expose local host sender creation."
 Require-Text $sharedRpcAuthority "LobbyContains" "Shared RPC authority must bind sender membership centrally."
 Require-Text $sharedRpcSender "public sealed class AuraRpcSender" "Shared RPC sender context must be available without consumer-private sender types."
+Require-Text $authoritativeSync "public static class AuraAuthoritativeSyncRuntime" "Shared authoritative sync runtime must be a semantic-free Core service."
+Require-Text $authoritativeSync "OwnerModId" "Shared authoritative sync domains must be owner-qualified."
+Require-Text $authoritativeSync "DomainId" "Shared authoritative sync domains must be domain-qualified."
+Require-Text $authoritativeSync "TryBeginSnapshotRequest" "Shared authoritative sync runtime must coalesce snapshot requests."
+Require-Text $authoritativeSync "TryClaimToken" "Shared authoritative sync runtime must provide bounded duplicate suppression."
+Require-Text $authoritativeSync "AcceptRemoteSnapshotSession" "Shared authoritative sync runtime must validate host-session freshness."
 
 $sharedModalHost = Read-RepoText "AuraUiShared\AuraUiModalHost.cs"
 Require-Text $sharedModalHost "CreateFullscreenRoot" "Shared UI modal host must own fullscreen modal root creation."

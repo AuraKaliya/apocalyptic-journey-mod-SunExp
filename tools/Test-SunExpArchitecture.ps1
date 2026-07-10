@@ -93,6 +93,7 @@ $requiredFiles = @(
     "SunExp-Dev\Infrastructure\SunExpFrameDispatcher.cs",
     "SunExp-Dev\Infrastructure\SunExpLifecycleStepRunner.cs",
     "AuraSharedCore\AuraSharedLifecycleStepRunner.cs",
+    "AuraSharedCore\AuraAuthoritativeSyncRuntime.cs",
     "SunExp-Dev\Mechanics\BattleRewardAdjustmentService.cs",
     "SunExp-Dev\Mechanics\DialogueFlowDefinition.cs",
     "SunExp-Dev\Mechanics\DialogueFlowRegistry.cs",
@@ -290,6 +291,7 @@ $performanceCounters = Read-RepoText "SunExp-Dev\Infrastructure\SunExpPerformanc
 $sunExpFrameDispatcher = Read-RepoText "SunExp-Dev\Infrastructure\SunExpFrameDispatcher.cs"
 $sunExpLifecycleStepRunner = Read-RepoText "SunExp-Dev\Infrastructure\SunExpLifecycleStepRunner.cs"
 $auraSharedLifecycleStepRunner = Read-RepoText "AuraSharedCore\AuraSharedLifecycleStepRunner.cs"
+$auraAuthoritativeSyncRuntime = Read-RepoText "AuraSharedCore\AuraAuthoritativeSyncRuntime.cs"
 $cardScripts = Read-RepoText "SunExp-Dev\Scripting\CardScripts.cs"
 $buffScripts = Read-RepoText "SunExp-Dev\Scripting\BuffScripts.cs"
 $relicScripts = Read-RepoText "SunExp-Dev\Scripting\RelicScripts.cs"
@@ -499,10 +501,16 @@ Assert-Contains $fieldApi "ApplyNetworkSnapshot" "FieldApi must expose indexed a
 Assert-Contains $fieldEffectRegistry "public static class FieldEffectRegistry" "Field effects must be registered through a definition registry."
 Assert-Contains $fieldEffectRegistry "HasRoundStartHandler" "Field definitions must explicitly declare round-start handler coverage."
 Assert-Contains $fieldEffectRegistry "HasBuffAddedPolicy" "Field definitions must explicitly declare AddBuff lifecycle policies."
+Assert-Contains $fieldEffectRegistry "WarmupConfigCache" "Field effect registry must preload field Buff config into a runtime cache."
+Assert-Contains $fieldEffectRegistry "FieldEffectRuntimeSpec" "Field effect registry must expose precomputed runtime specs for hot-path and HUD use."
 Assert-Contains $fieldNetworkSync "public sealed class FieldStateSnapshot" "Field multiplayer sync must use an indexed snapshot payload."
 Assert-Contains $fieldNetworkSync "public sealed class RpcFieldStateRequest" "Field multiplayer sync must support client request to host."
 Assert-Contains $fieldNetworkSync "ISunExpServerBoundRpcCommand" "Field state requests must bind sender authority from the server receive context."
-Assert-Contains $fieldNetworkSync "BattleSerial" "Field snapshots must reject late packets from old battles."
+Assert-Contains $fieldNetworkSync "AuraAuthoritativeSyncRuntime.RegisterDomain" "Field sync must use the shared authoritative sync domain service."
+Assert-Contains $fieldNetworkSync "AcceptRemoteSnapshotSession" "Field snapshots must use shared host-session freshness checks."
+Assert-Contains $auraAuthoritativeSyncRuntime "public static class AuraAuthoritativeSyncRuntime" "Shared core must provide semantic-free authoritative sync foundations."
+Assert-Contains $auraAuthoritativeSyncRuntime "TryBeginSnapshotRequest" "Shared authoritative sync must coalesce/throttle snapshot requests."
+Assert-Contains $auraAuthoritativeSyncRuntime "TryClaimToken" "Shared authoritative sync must own bounded command token de-duplication."
 Assert-Contains $fieldStartSourceService "public static class FieldStartSourceService" "Fight-start field source replay must live in Mechanics."
 Assert-Contains $fieldStartSourceService "ApplyFightStartSources" "Field start source replay must expose one runtime entry point."
 Assert-Contains $fieldStartSourceService "FieldApi.ActivateField" "Field start source replay must route field creation through FieldApi."
@@ -1085,9 +1093,11 @@ Assert-Contains $fieldBuffHudView "image.raycastTarget = true" "FieldBuffHudView
 Assert-Contains $fieldBuffHudView "icon.raycastTarget = false" "FieldBuffHudView icon must not intercept pointer input outside the hotspot."
 Assert-Contains $fieldBuffHudHoverProbe "IPointerEnterHandler" "FieldBuffHudHoverProbe must receive hover entry through Unity UI events."
 Assert-Contains $fieldBuffHudHoverProbe "IPointerExitHandler" "FieldBuffHudHoverProbe must receive hover exit through Unity UI events."
-Assert-Contains $fieldBuffHudTooltipView 'Localize("Description")' "FieldBuffHudTooltipView must display the Buff CSV description."
-Assert-Contains $fieldBuffHudTooltipView 'Localize("Tips")' "FieldBuffHudTooltipView must keep Tips as a legacy fallback."
-Assert-Contains $fieldBuffHudTooltipView "DataType.Buff" "FieldBuffHudTooltipView must read field display data from the Buff row."
+Assert-Contains $fieldBuffHudView "FieldEffectRegistry.RuntimeSpecFor(snapshot.Field).DisplayName" "FieldBuffHudView must render display data from the prewarmed field runtime spec."
+Assert-Contains $fieldBuffHudView "FieldEffectRegistry.RuntimeSpecFor(snapshot.Field).IconPath" "FieldBuffHudView must render icons from the prewarmed field runtime spec."
+Assert-Contains $fieldBuffHudTooltipView "FieldEffectRegistry.RuntimeSpecFor(snapshot.Field).Description" "FieldBuffHudTooltipView must display the prewarmed Buff CSV description."
+Assert-NotContains $fieldBuffHudTooltipView 'Localize("Description")' "FieldBuffHudTooltipView must not query Buff CSV on hover."
+Assert-NotContains $fieldBuffHudTooltipView "DataType.Buff" "FieldBuffHudTooltipView must not read field display data directly from the Buff row."
 Assert-Contains $fieldBuffHudTooltipView "group.blocksRaycasts = false" "FieldBuffHudTooltipView must not block native battle controls."
 Assert-Contains $fieldBuffHudTooltipView "image.raycastTarget = false" "FieldBuffHudTooltipView images must not intercept pointer input."
 Assert-NotContains $starScoreHudTooltipView "Destroy(child.gameObject)" "StarScoreHudTooltipView must not directly destroy tooltip rows."

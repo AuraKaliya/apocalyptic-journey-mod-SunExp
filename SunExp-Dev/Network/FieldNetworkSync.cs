@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using AuraShared.Core;
 using Network.Command;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
@@ -119,16 +119,17 @@ public sealed class RpcFieldStateRequest : RpcCommandBase, ISunExpServerBoundRpc
 
 public static class FieldNetworkSync
 {
-    private const double SnapshotRequestThrottleSeconds = 1.0d;
-    private const int MaxResolvedTokens = 256;
-    private static readonly object Sync = new();
-    private static readonly HashSet<int> ResolvedTokens = new();
-    private static readonly Queue<int> ResolvedTokenOrder = new();
-    private static int nextToken = Environment.TickCount;
-    private static int battleSerial = 1;
-    private static DateTime lastSnapshotRequestAtUtc = DateTime.MinValue;
+    private const string DomainId = "FieldState";
+    private static readonly AuraAuthoritativeSyncDomain SyncDomain =
+        AuraAuthoritativeSyncRuntime.RegisterDomain(new AuraAuthoritativeSyncDomainOptions
+        {
+            OwnerModId = SunExpIds.ModId,
+            DomainId = DomainId,
+            SnapshotRequestThrottleSeconds = 1.0d,
+            MaxResolvedTokens = 256
+        });
 
-    public static int CurrentBattleSerial => battleSerial;
+    public static int CurrentBattleSerial => SyncDomain.CurrentSession;
 
     public static bool RequestActivate(SunExpFieldId field, int amount, string source)
     {
@@ -149,7 +150,7 @@ public static class FieldNetworkSync
     {
         if (!SunExpNetworkRuntime.HasRemotePlayers()
             || !SunExpNetworkRuntime.IsClientOnly()
-            || IsSnapshotRequestThrottled())
+            || !SyncDomain.TryBeginSnapshotRequest())
         {
             return;
         }
@@ -205,7 +206,7 @@ public static class FieldNetworkSync
     {
         if (snapshot == null
             || snapshot.ProtocolVersion != FieldStateSnapshot.CurrentProtocolVersion
-            || snapshot.BattleSerial != CurrentBattleSerial)
+            || !SyncDomain.AcceptRemoteSnapshotSession(snapshot.BattleSerial))
         {
             return;
         }
@@ -215,20 +216,7 @@ public static class FieldNetworkSync
 
     public static void ResetFightState()
     {
-        lock (Sync)
-        {
-            ResolvedTokens.Clear();
-            ResolvedTokenOrder.Clear();
-            lastSnapshotRequestAtUtc = DateTime.MinValue;
-            unchecked
-            {
-                battleSerial++;
-                if (battleSerial <= 0)
-                {
-                    battleSerial = 1;
-                }
-            }
-        }
+        SyncDomain.ResetSession();
     }
 
     private static int ValidateRequest(
@@ -270,12 +258,7 @@ public static class FieldNetworkSync
             return 5;
         }
 
-        if (requestBattleSerial != CurrentBattleSerial)
-        {
-            return 7;
-        }
-
-        return ClaimToken(token) ? 0 : 6;
+        return SyncDomain.TryClaimToken(token) ? 0 : 6;
     }
 
     private static bool SendRequest(FieldNetworkCommandKind commandKind, SunExpFieldId field, int amount, string source)
@@ -291,61 +274,8 @@ public static class FieldNetworkSync
             CommandKind = (int)commandKind,
             FieldId = (int)field,
             Amount = Math.Max(0, amount),
-            Token = NextToken(),
+            Token = SyncDomain.NextToken(),
             BattleSerial = CurrentBattleSerial
         }, source ?? "FieldNetworkSync.SendRequest");
-    }
-
-    private static bool ClaimToken(int token)
-    {
-        if (token == 0)
-        {
-            return true;
-        }
-
-        lock (Sync)
-        {
-            if (!ResolvedTokens.Add(token))
-            {
-                return false;
-            }
-
-            ResolvedTokenOrder.Enqueue(token);
-            while (ResolvedTokenOrder.Count > MaxResolvedTokens)
-            {
-                ResolvedTokens.Remove(ResolvedTokenOrder.Dequeue());
-            }
-
-            return true;
-        }
-    }
-
-    private static int NextToken()
-    {
-        lock (Sync)
-        {
-            unchecked
-            {
-                nextToken++;
-                if (nextToken == 0)
-                {
-                    nextToken = 1;
-                }
-
-                return nextToken;
-            }
-        }
-    }
-
-    private static bool IsSnapshotRequestThrottled()
-    {
-        var now = DateTime.UtcNow;
-        if ((now - lastSnapshotRequestAtUtc).TotalSeconds < SnapshotRequestThrottleSeconds)
-        {
-            return true;
-        }
-
-        lastSnapshotRequestAtUtc = now;
-        return false;
     }
 }

@@ -1,8 +1,8 @@
 using System;
 using SunExp.Dll.GameApi;
+using SunExp.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.UI;
-using Witch.Core;
 
 namespace SunExp.Dll.Hooks.Ui;
 
@@ -149,35 +149,11 @@ public sealed class FieldBuffHudTooltipView : MonoBehaviour
 
     private static string DisplayName(FieldBuffSnapshot snapshot)
     {
-        try
-        {
-            var data = new DataConfig(snapshot.BuffId, DataType.Buff).data;
-            var localized = data.Localize("Name");
-            return string.IsNullOrWhiteSpace(localized) ? snapshot.BuffId : localized;
-        }
-        catch
-        {
-            return snapshot.BuffId;
-        }
+        return FieldEffectRegistry.RuntimeSpecFor(snapshot.Field).DisplayName;
     }
 
     private static string Description(FieldBuffSnapshot snapshot)
     {
-        try
-        {
-            var data = new DataConfig(snapshot.BuffId, DataType.Buff).data;
-            var localized = data.Localize("Description");
-            if (!string.IsNullOrWhiteSpace(localized) && localized != "Description")
-            {
-                return localized;
-            }
-
-            var tips = data.Localize("Tips");
-            return string.IsNullOrWhiteSpace(tips) || tips == "Tips" ? "" : tips;
-        }
-        catch
-        {
-            return "";
-        }
+        return FieldEffectRegistry.RuntimeSpecFor(snapshot.Field).Description;
     }
 }

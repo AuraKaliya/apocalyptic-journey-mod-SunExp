@@ -1,9 +1,9 @@
 using System;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
+using SunExp.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.UI;
-using Witch.Core;
 
 namespace SunExp.Dll.Hooks.Ui;
 
@@ -257,24 +257,14 @@ public sealed class FieldBuffHudView : MonoBehaviour
 
     private static string DisplayName(FieldBuffSnapshot snapshot)
     {
-        try
-        {
-            var data = new DataConfig(snapshot.BuffId, DataType.Buff).data;
-            var localized = data.Localize("Name");
-            return string.IsNullOrWhiteSpace(localized) ? snapshot.BuffId : localized;
-        }
-        catch
-        {
-            return snapshot.BuffId;
-        }
+        return FieldEffectRegistry.RuntimeSpecFor(snapshot.Field).DisplayName;
     }
 
     private static Sprite? LoadIcon(FieldBuffSnapshot snapshot)
     {
         try
         {
-            var data = Singleton<GameConfigManager>.Instance.GetOne(DataType.Buff, snapshot.BuffId);
-            var iconPath = DictionaryUtil.Get(data, "Icon");
+            var iconPath = FieldEffectRegistry.RuntimeSpecFor(snapshot.Field).IconPath;
             return string.IsNullOrWhiteSpace(iconPath)
                 ? null
                 : SunExpResourceCache.Load<Sprite>(iconPath, true, "field.buff.hud");

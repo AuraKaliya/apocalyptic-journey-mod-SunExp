@@ -25,19 +25,21 @@ public static class FieldEffectHandlers
 
     public static bool HandleBuffAdded(IStatusManager? target, string buffId, int amount, string source)
     {
-        if (target == null || amount <= 0 || !FieldApi.CanResolveFieldEffects())
+        if (target == null
+            || amount <= 0
+            || !FieldApi.CanResolveFieldEffects()
+            || !FieldApi.HasActiveBuffAddedPolicy())
         {
             return false;
         }
 
-        var snapshot = FieldApi.ActiveFieldSnapshot();
-        if (!snapshot.IsActive
-            || FieldEffectRegistry.DefinitionFor(snapshot.Field)?.HasBuffAddedPolicy != true)
+        if (!FieldApi.TryGetActiveField(out var field, out _, out _)
+            || !FieldApi.HasActivePolicy(FieldEffectPolicyFlags.BurnOverflow))
         {
             return false;
         }
 
-        return snapshot.Field switch
+        return field switch
         {
             SunExpFieldId.ScorchingCanopy => BuffOverflowApi.HandleBurnOverflow(target, buffId, amount),
             _ => false

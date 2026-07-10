@@ -42,6 +42,7 @@ public static class FieldApi
     private const string ActiveFieldEpochKey = "SunExpField_ActiveEpoch";
     private const string LastRoundStartKey = "SunExpField_LastRoundStart";
     private const string TriggerLockKey = "SunExpField_TriggerLock";
+    private static FieldEffectPolicyFlags activePolicyFlags = FieldEffectPolicyFlags.None;
 
     public static event Action<FieldBuffSnapshot>? Changed;
 
@@ -401,24 +402,7 @@ public static class FieldApi
 
     public static int MaxStacksFor(SunExpFieldId field)
     {
-        var fallback = FieldEffectRegistry.FallbackMaxStacks(field);
-        var buffId = FieldBuffId(field);
-        if (string.IsNullOrWhiteSpace(buffId))
-        {
-            return fallback;
-        }
-
-        try
-        {
-            var data = Singleton<GameConfigManager>.Instance.GetOne(DataType.Buff, buffId);
-            var configured = DictionaryUtil.ParseInt(DictionaryUtil.Get(data, "UpperBound"));
-            return configured > 0 ? configured : fallback;
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Debug("[FieldApi] field max stack fallback used: id=" + buffId + ", error=" + ex.Message);
-            return fallback;
-        }
+        return FieldEffectRegistry.MaxStacks(field);
     }
 
     private static SunExpFieldId ActiveFieldId()
@@ -446,6 +430,24 @@ public static class FieldApi
     public static bool CanResolveFieldEffects()
     {
         return IsAuthoritativeFieldWriter();
+    }
+
+    public static bool HasActiveBuffAddedPolicy()
+    {
+        return (activePolicyFlags & FieldEffectPolicyFlags.BuffAdded) != 0;
+    }
+
+    public static bool HasActivePolicy(FieldEffectPolicyFlags flag)
+    {
+        return (activePolicyFlags & flag) == flag;
+    }
+
+    public static bool TryGetActiveField(out SunExpFieldId field, out int stacks, out int epoch)
+    {
+        field = ActiveFieldId();
+        stacks = ActiveFieldStacks();
+        epoch = ActiveFieldEpoch();
+        return field != SunExpFieldId.None && stacks > 0;
     }
 
     public static void ApplyNetworkSnapshot(SunExpFieldId field, int stacks, int epoch, string source)
@@ -482,6 +484,7 @@ public static class FieldApi
         CombatVarApi.SetInt(ActiveFieldEpochKey, 0);
         CombatVarApi.SetInt(TriggerLockKey, 0);
         CombatVarApi.SetInt(LastRoundStartKey, 0);
+        UpdateActivePolicyCache(SunExpFieldId.None, 0);
         if (hadState)
         {
             NotifyChanged(source);
@@ -495,6 +498,7 @@ public static class FieldApi
         CombatVarApi.SetInt(ActiveFieldIdKey, (int)field);
         CombatVarApi.SetInt(ActiveFieldStacksKey, nextStacks);
         CombatVarApi.SetInt(TriggerLockKey, 0);
+        UpdateActivePolicyCache(field, nextStacks);
         if (previous.Field != field || previous.Stacks != nextStacks)
         {
             CombatVarApi.AddInt(ActiveFieldEpochKey, 1);
@@ -512,6 +516,7 @@ public static class FieldApi
         CombatVarApi.SetInt(ActiveFieldStacksKey, 0);
         CombatVarApi.SetInt(TriggerLockKey, 0);
         CombatVarApi.SetInt(LastRoundStartKey, 0);
+        UpdateActivePolicyCache(SunExpFieldId.None, 0);
         if (!previous.IsActive)
         {
             return false;
@@ -531,10 +536,18 @@ public static class FieldApi
         CombatVarApi.SetInt(ActiveFieldStacksKey, nextStacks);
         CombatVarApi.SetInt(ActiveFieldEpochKey, Math.Max(0, epoch));
         CombatVarApi.SetInt(TriggerLockKey, 0);
+        UpdateActivePolicyCache(field, nextStacks);
         if (previous.Field != field || previous.Stacks != nextStacks || previous.Epoch != epoch)
         {
             NotifyChanged(source);
         }
+    }
+
+    private static void UpdateActivePolicyCache(SunExpFieldId field, int stacks)
+    {
+        activePolicyFlags = field == SunExpFieldId.None || stacks <= 0
+            ? FieldEffectPolicyFlags.None
+            : FieldEffectRegistry.PolicyFlags(field);
     }
 
     private static void NotifyChanged(string source)

@@ -66,6 +66,16 @@ foreach ($required in @("AuraSharedFrameStepResult", "ContinueNextFrame", "WaitF
     }
 }
 
+$authoritativeSyncText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraAuthoritativeSyncRuntime.cs")
+foreach ($required in @("AuraAuthoritativeSyncRuntime", "AuraAuthoritativeSyncDomain", "OwnerModId", "DomainId", "TryBeginSnapshotRequest", "TryClaimToken", "AcceptRemoteSnapshotSession", "ResetSession")) {
+    if (-not $authoritativeSyncText.Contains($required)) {
+        throw "AuraShared authoritative sync contract is missing: $required"
+    }
+}
+if ($authoritativeSyncText.Contains("SunExp") -or $authoritativeSyncText.Contains("ScorchingCanopy")) {
+    throw "AuraShared authoritative sync runtime must remain semantic-free and not mention SunExp field content."
+}
+
 $jsonText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedJson.cs")
 if (-not $jsonText.Contains("public static class AuraSharedJson")) {
     throw "AuraSharedJson must be public because product Mods now consume it through Aura.Shared.dll."
