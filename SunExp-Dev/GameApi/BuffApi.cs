@@ -126,6 +126,31 @@ public static class BuffApi
         return removed;
     }
 
+    public static int RemoveNegativeBuffsAndTotalExcept(ScriptExecutor executor, IStatusManager? status, params string[] excludeIds)
+    {
+        var excluded = new HashSet<string>(excludeIds ?? Array.Empty<string>(), StringComparer.Ordinal);
+        var entries = NegativeBuffs(status)
+            .Select(buff => new
+            {
+                Id = buff.buffConfig?.BuffId,
+                Level = Math.Max(0, buff.buffConfig?.Level ?? 0)
+            })
+            .Where(entry => !string.IsNullOrWhiteSpace(entry.Id) && !excluded.Contains(entry.Id!))
+            .ToList();
+
+        var total = entries.Sum(entry => entry.Level);
+        foreach (var id in entries
+                     .Select(entry => entry.Id)
+                     .Where(id => !string.IsNullOrWhiteSpace(id))
+                     .Distinct(StringComparer.Ordinal))
+        {
+            ExecutorApi.SetStatusForTarget(executor, status, "Self");
+            executor.RemoveBuff(id!);
+        }
+
+        return total;
+    }
+
     public static int RemoveNegativeBuffsAndCount(ScriptExecutor executor, IStatusManager? status)
     {
         var buffIds = NegativeBuffs(status)

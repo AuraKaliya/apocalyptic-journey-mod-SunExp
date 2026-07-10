@@ -62,10 +62,14 @@ public static class SolarRadianceService
         if (tier >= 1)
         {
             effectCount++;
-            var total = BuffApi.NegativeTotal(executor.Self);
+            var total = BuffApi.RemoveNegativeBuffsAndTotalExcept(
+                executor,
+                executor.Self,
+                SunExpIds.GatheredFlame,
+                SunExpIds.Burn,
+                SunExpIds.BodyBurn);
             if (total > 0)
             {
-                BuffApi.RemoveNegativeBuffs(executor, executor.Self);
                 executor.SetStatus("Self");
                 executor.AddBuff(SunExpIds.Burn, total.ToString());
             }

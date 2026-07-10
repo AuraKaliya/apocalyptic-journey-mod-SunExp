@@ -1315,6 +1315,7 @@ function Invoke-SourceAssertions {
     $morningStarCardScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\MorningStarCardScripts.cs"))
     $buffScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\BuffScripts.cs"))
     $buffApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\BuffApi.cs"))
+    $solarRadianceService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarRadianceService.cs"))
     $scriptEventApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\ScriptEventApi.cs"))
     $fieldApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\FieldApi.cs"))
     $fieldRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\FieldRuntime.cs"))
@@ -2038,6 +2039,8 @@ function Invoke-SourceAssertions {
     Assert-True $positiveExcludeIdsBlock.Success "Could not locate BuffApi.PositiveExcludeIds for source assertion."
     Assert-True (-not $positiveExcludeIdsBlock.Value.Contains("SunExpIds.SolarRadiance")) "Solar Radiance must enter global positive buff logic."
     Assert-True (-not $positiveExcludeIdsBlock.Value.Contains("SunExpIds.GatheredFlame")) "Gathered Flame must enter global positive buff logic."
+    $solarCrownTriggerBlock = [regex]::Match($solarRadianceService, "private\s+static\s+bool\s+TriggerSolarCrown[\s\S]*?private\s+static\s+string\s+SolarCrownEffectSummary")
+    Assert-True ($solarCrownTriggerBlock.Success -and $solarCrownTriggerBlock.Value.Contains("BuffApi.RemoveNegativeBuffsAndTotalExcept") -and $solarCrownTriggerBlock.Value.Contains("SunExpIds.GatheredFlame") -and $solarCrownTriggerBlock.Value.Contains("SunExpIds.Burn") -and $solarCrownTriggerBlock.Value.Contains("SunExpIds.BodyBurn")) "Solar Crown tier 1 must exclude Gathered Flame, Burn, and Body Burn before converting negative buffs to Burn."
     Assert-True $starScoreService.Contains("gain += 1;") "Starlight threshold rewards must grant one Star Blessing per threshold."
     Assert-True (-not $starScoreService.Contains("gain += 2;")) "Starlight reaching 30 must no longer grant two Star Blessing stacks."
     $positiveBuffsBlock = [regex]::Match($buffApi, "private\s+static\s+IEnumerable<IBuffItem>\s+PositiveBuffs[\s\S]*?private\s+static\s+bool\s+IsNegativeType")
