@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 
@@ -7,10 +8,8 @@ namespace SunExp.Dll.Mechanics;
 
 public static class PolymorphCooldownService
 {
-    public const int SkillCooldownRounds = 1;
-
     private static readonly object SyncRoot = new();
-    private static readonly Dictionary<string, int> Cooldowns = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, CrossFormSkillUse> SkillUses = new(StringComparer.Ordinal);
 
     public static bool IsActive(IStatusManager? ownerStatus)
     {
@@ -19,26 +18,8 @@ public static class PolymorphCooldownService
             && PolymorphStateStore.ActiveFor(ownerStatus) != null;
     }
 
-    public static int Current(IStatusManager? ownerStatus)
-    {
-        var owner = OwnerKey(ownerStatus);
-        lock (SyncRoot)
-        {
-            if (!Cooldowns.TryGetValue(owner, out var cooldown))
-            {
-                cooldown = 0;
-                Cooldowns[owner] = cooldown;
-            }
-
-            return cooldown;
-        }
-    }
-
     public static void ApplyToCurrentRole(ScriptExecutor? self, string source)
     {
-        var owner = self?.Self;
-        var cooldown = Current(owner);
-        RoleSkillApi.SetCurrentCareerSkillTimes(cooldown);
         RefreshSkillUi(self, source);
     }
 
@@ -49,11 +30,12 @@ public static class PolymorphCooldownService
             return false;
         }
 
-        var cooldown = Current(self?.Self);
-        if (cooldown > 0)
+        if (IsCrossFormLocked(self?.Self, out var previousRole))
         {
-            PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u6280\u80fd\u5c1a\u672a\u51b7\u5374\u3002");
+            PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u672c\u56de\u5408\u5df2\u4f7f\u7528\u5176\u4ed6\u5316\u8eab\u7684\u6280\u80fd\u3002");
             ApplyToCurrentRole(self, source + ".blocked");
+            SunExpLog.Debug("[Polymorph] cross-form skill use blocked from " + source
+                + "; previousRole=" + previousRole + ".");
             return true;
         }
 
@@ -67,9 +49,9 @@ public static class PolymorphCooldownService
             return false;
         }
 
-        Set(self?.Self, SkillCooldownRounds);
+        MarkCrossFormSkillUse(self?.Self);
         ApplyToCurrentRole(self, source + ".used");
-        SunExpPerformanceCounters.Record("Polymorph.CooldownSkillUsed");
+        SunExpPerformanceCounters.Record("Polymorph.CrossFormSkillUsed");
         return true;
     }
 
@@ -87,7 +69,7 @@ public static class PolymorphCooldownService
                 return false;
             }
 
-            if (Current(self.Self) > 0)
+            if (IsCrossFormLocked(self.Self, out _))
             {
                 ApplyToCurrentRole(self, source + ".blocked");
                 return false;
@@ -120,15 +102,10 @@ public static class PolymorphCooldownService
             return;
         }
 
-        var owner = self?.Self;
-        var current = Current(owner);
-        if (current > 0)
-        {
-            Set(owner, current - 1);
-        }
-
+        AdvanceFallbackRound(self?.Self);
         ApplyToCurrentRole(self, source + ".tick");
-        SunExpPerformanceCounters.Record("Polymorph.CooldownTick");
+        PruneExpiredUse(self?.Self);
+        SunExpPerformanceCounters.Record("Polymorph.CrossFormSkillRoundObserved");
     }
 
     public static void Clear(IStatusManager? ownerStatus)
@@ -136,7 +113,7 @@ public static class PolymorphCooldownService
         var owner = OwnerKey(ownerStatus);
         lock (SyncRoot)
         {
-            Cooldowns.Remove(owner);
+            SkillUses.Remove(owner);
         }
     }
 
@@ -144,17 +121,132 @@ public static class PolymorphCooldownService
     {
         lock (SyncRoot)
         {
-            Cooldowns.Clear();
+            SkillUses.Clear();
         }
     }
 
-    private static void Set(IStatusManager? ownerStatus, int value)
+    private static bool IsCrossFormLocked(IStatusManager? ownerStatus, out string previousRole)
     {
+        previousRole = "";
+        var active = PolymorphStateStore.ActiveFor(ownerStatus);
+        if (active == null)
+        {
+            return false;
+        }
+
+        var owner = OwnerKey(ownerStatus);
+        var round = CurrentRoundKey(ownerStatus);
+        lock (SyncRoot)
+        {
+            if (!SkillUses.TryGetValue(owner, out var used)
+                || !string.Equals(used.RoundKey, round, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            previousRole = used.RoleId;
+            return !RoleMatches(used.RoleId, active.RoleId);
+        }
+    }
+
+    private static void MarkCrossFormSkillUse(IStatusManager? ownerStatus)
+    {
+        var active = PolymorphStateStore.ActiveFor(ownerStatus);
+        if (active == null)
+        {
+            return;
+        }
+
         var owner = OwnerKey(ownerStatus);
         lock (SyncRoot)
         {
-            Cooldowns[owner] = Math.Max(0, Math.Min(SkillCooldownRounds, value));
+            SkillUses[owner] = new CrossFormSkillUse(CurrentRoundKey(ownerStatus), active.RoleId);
         }
+    }
+
+    private static void PruneExpiredUse(IStatusManager? ownerStatus)
+    {
+        var owner = OwnerKey(ownerStatus);
+        var round = CurrentRoundKey(ownerStatus);
+        lock (SyncRoot)
+        {
+            if (SkillUses.TryGetValue(owner, out var used)
+                && !string.Equals(used.RoundKey, round, StringComparison.Ordinal))
+            {
+                SkillUses.Remove(owner);
+            }
+        }
+    }
+
+    private static string CurrentRoundKey(IStatusManager? ownerStatus)
+    {
+        var reflected = ReadFirstInt(FightManager.Instance, "Round", "round", "RoundIndex", "roundIndex", "Turn", "turn", "TurnIndex", "turnIndex");
+        if (reflected > 0)
+        {
+            return "fight:" + reflected;
+        }
+
+        return "local:" + PlayerApi.GetGameVar(PlayerApi.ScopedGameVarKey("SunExpPolymorphCrossFormRound", ownerStatus), "0");
+    }
+
+    private static void AdvanceFallbackRound(IStatusManager? ownerStatus)
+    {
+        if (ReadFirstInt(FightManager.Instance, "Round", "round", "RoundIndex", "roundIndex", "Turn", "turn", "TurnIndex", "turnIndex") > 0)
+        {
+            return;
+        }
+
+        var key = PlayerApi.ScopedGameVarKey("SunExpPolymorphCrossFormRound", ownerStatus);
+        var next = DictionaryUtil.ParseInt(PlayerApi.GetGameVar(key), 0) + 1;
+        PlayerApi.SetGameVar(key, next.ToString());
+    }
+
+    private static int ReadFirstInt(object? target, params string[] names)
+    {
+        if (target == null)
+        {
+            return 0;
+        }
+
+        const BindingFlags Flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+        foreach (var name in names)
+        {
+            try
+            {
+                var type = target.GetType();
+                var value = type.GetProperty(name, Flags)?.GetValue(target)
+                            ?? type.GetField(name, Flags)?.GetValue(target);
+                if (value is int parsed && parsed > 0)
+                {
+                    return parsed;
+                }
+
+                if (int.TryParse(Convert.ToString(value), out parsed) && parsed > 0)
+                {
+                    return parsed;
+                }
+            }
+            catch
+            {
+                // Reflection only improves round precision; the scoped fallback stays safe.
+            }
+        }
+
+        return 0;
+    }
+
+    private static bool RoleMatches(string left, string right)
+    {
+        var first = NormalizeRoleId(left);
+        var second = NormalizeRoleId(right);
+        return string.Equals(first, second, StringComparison.OrdinalIgnoreCase)
+            || first.EndsWith("_" + second, StringComparison.OrdinalIgnoreCase)
+            || second.EndsWith("_" + first, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeRoleId(string roleId)
+    {
+        return (roleId ?? "").Trim().TrimStart('*');
     }
 
     private static void RefreshSkillUi(ScriptExecutor? self, string source)
@@ -173,5 +265,18 @@ public static class PolymorphCooldownService
     {
         var owner = ownerStatus?.InstanceId ?? PlayerApi.LocalPlayerStatusId();
         return string.IsNullOrWhiteSpace(owner) ? "local" : owner;
+    }
+
+    private sealed class CrossFormSkillUse
+    {
+        public CrossFormSkillUse(string roundKey, string roleId)
+        {
+            RoundKey = roundKey ?? "";
+            RoleId = roleId ?? "";
+        }
+
+        public string RoundKey { get; }
+
+        public string RoleId { get; }
     }
 }

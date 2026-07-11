@@ -618,6 +618,19 @@ void TestRuntimeArchitectureGuards()
            && damageMeterResolvers.Contains("DamageMeterFightIndex.ResolveTeam", StringComparison.Ordinal),
         "damage meter resolver hot paths must route through the fight index cache");
 
+    Assert(damageMeterFightIndex.Contains("FriendlyIdentityIds", StringComparison.Ordinal)
+           && damageMeterFightIndex.Contains("RegisterFriendlyIdentity", StringComparison.Ordinal)
+           && damageMeterFightIndex.Contains("IsKnownFriendlyIdentity", StringComparison.Ordinal),
+        "damage meter must keep player identity authoritative over transformed native combatant shape");
+
+    var audioArbiter = ReadRepoText("AudioArbiterShared/AudioArbiterRuntime.cs");
+    var auraToolsAudio = ReadRepoText("AuraToolsExp-Dev/Features/Audio/AuraToolsAudioRuntime.cs");
+    Assert(audioArbiter.Contains("PublishHostCardUsePresentation", StringComparison.Ordinal)
+           && audioArbiter.Contains("IsClientWaitingForHostPresentation", StringComparison.Ordinal)
+           && audioArbiter.Contains("DefaultPresentationMaxAgeMilliseconds", StringComparison.Ordinal)
+           && auraToolsAudio.Contains("presentationRelay=host-observed", StringComparison.Ordinal),
+        "card-use audio must use a host-observed bounded presentation relay");
+
     var buffAttribution = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/Resolution/BuffAttributionEngine.cs");
     Assert(buffAttribution.Contains("class BuffAttributionEngine", StringComparison.Ordinal)
            && buffAttribution.Contains("EmitSplit", StringComparison.Ordinal)

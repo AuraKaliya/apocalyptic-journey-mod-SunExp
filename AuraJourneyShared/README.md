@@ -26,6 +26,9 @@ protocol and state service first; game-specific hooks stay in the owning Mod unt
   preservation.
 - `AuraJourneyGameBridge`: game-facing helpers that turn `AuraJourneyMapNodeSpec` into `MapTree.Node`, repair missing
   `NodeDice`, rebuild a current-node chain from sync arrays, and update the save node when requested.
+- `AuraJourneyCurrentNodeProjectionRuntime`: a client-only guard for native map transitions. It restores
+  `MapTree.currentNode` only when a saved or cached node identity exactly matches the host-synchronised map arrays;
+  it never selects a route, rewrites arrays, or sends a map RPC.
 
 ## Intended integration path
 
@@ -89,3 +92,8 @@ that node. Keep the boundary this way:
 
 When a main Mod uses full IDs that need to resolve to short native table IDs, register the rule with
 `AuraJourneyMapIdAliasRegistry.RegisterPrefixAlias` from that Mod. Do not hard-code main-Mod prefixes in shared code.
+
+The current-node projection guard is intentionally an always-on integrity check rather than a content feature switch.
+It registers once per process through the shared assembly, runs only for non-host players, and uses a bounded
+next-frame retry when native map objects arrive later than their sync arrays. If the node identity is ambiguous, it
+logs and stops instead of guessing a fallback node.

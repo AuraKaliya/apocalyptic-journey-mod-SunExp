@@ -114,6 +114,7 @@ public static class CardVisualSkinApplier
         finally
         {
             SunExpPerformanceCounters.RecordDuration("CardVisualSkin.Apply", start);
+            SunExpCombatCardUiDiagnostics.RecordCurrentSegment("CardVisualSkin.Apply", start);
         }
     }
 

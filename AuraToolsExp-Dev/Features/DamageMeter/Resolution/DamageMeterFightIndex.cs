@@ -20,6 +20,9 @@ internal static class DamageMeterFightIndex
     private static readonly Dictionary<string, string> FriendlyDisplayNames =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private static readonly HashSet<string> FriendlyIdentityIds =
+        new(StringComparer.OrdinalIgnoreCase);
+
     private static bool combatantsBuilt;
 
     public static void BeginFight()
@@ -31,6 +34,7 @@ internal static class DamageMeterFightIndex
     public static void SetFriendlyIdentitySnapshots(IEnumerable<OutOfRunTeamMemberSnapshot>? members)
     {
         FriendlyDisplayNames.Clear();
+        FriendlyIdentityIds.Clear();
         foreach (var member in members ?? Array.Empty<OutOfRunTeamMemberSnapshot>())
         {
             if (member == null)
@@ -38,6 +42,8 @@ internal static class DamageMeterFightIndex
                 continue;
             }
 
+            RegisterFriendlyIdentity(member.InstanceId);
+            RegisterFriendlyIdentity(member.PlayerId);
             var displayName = FirstNonEmpty(member.RoleDisplayName, member.PlayerDisplayName, member.DisplayName);
             if (string.IsNullOrWhiteSpace(displayName))
             {
@@ -282,8 +288,9 @@ internal static class DamageMeterFightIndex
 
                     foreach (var id in values)
                     {
+                        RegisterFriendlyIdentity(id);
                         RegisterFriendlyDisplayName(id, playerDisplayName);
-                        MarkFriendlyIfUnknown(id);
+                        MarkFriendly(id);
                     }
                 }
             }
@@ -316,7 +323,9 @@ internal static class DamageMeterFightIndex
             return;
         }
 
-        var team = preferredTeam == DamageTeam.Unknown
+        var team = IsKnownFriendlyIdentity(instanceId)
+            ? DamageTeam.Friendly
+            : preferredTeam == DamageTeam.Unknown
             ? ResolveTeamUncached(status, instanceId)
             : preferredTeam;
         var displayName = team == DamageTeam.Friendly
@@ -346,7 +355,7 @@ internal static class DamageMeterFightIndex
         };
     }
 
-    private static void MarkFriendlyIfUnknown(string instanceId)
+    private static void MarkFriendly(string instanceId)
     {
         instanceId = instanceId?.Trim() ?? "";
         if (string.IsNullOrWhiteSpace(instanceId))
@@ -356,10 +365,8 @@ internal static class DamageMeterFightIndex
 
         if (Combatants.TryGetValue(instanceId, out var existing))
         {
-            if (existing.Team == DamageTeam.Unknown)
-            {
-                existing.Team = DamageTeam.Friendly;
-            }
+            existing.Team = DamageTeam.Friendly;
+            existing.DisplayName = FirstNonEmpty(KnownFriendlyDisplayName(instanceId), existing.DisplayName);
 
             return;
         }
@@ -380,6 +387,21 @@ internal static class DamageMeterFightIndex
         {
             FriendlyDisplayNames[id] = displayName;
         }
+    }
+
+    private static void RegisterFriendlyIdentity(string? id)
+    {
+        id = id?.Trim() ?? "";
+        if (id.Length > 0)
+        {
+            FriendlyIdentityIds.Add(id);
+        }
+    }
+
+    private static bool IsKnownFriendlyIdentity(string? id)
+    {
+        id = id?.Trim() ?? "";
+        return id.Length > 0 && FriendlyIdentityIds.Contains(id);
     }
 
     private static string KnownFriendlyDisplayName(string? id)
@@ -411,6 +433,11 @@ internal static class DamageMeterFightIndex
             if (string.IsNullOrWhiteSpace(id))
             {
                 id = instanceId?.Trim() ?? "";
+            }
+
+            if (IsKnownFriendlyIdentity(id))
+            {
+                return DamageTeam.Friendly;
             }
 
             var typeName = status?.fatherObject?.GetType().Name ?? "";

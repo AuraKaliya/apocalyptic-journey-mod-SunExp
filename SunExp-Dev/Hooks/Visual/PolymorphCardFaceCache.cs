@@ -177,6 +177,7 @@ public static class PolymorphCardFaceCache
         finally
         {
             SunExpPerformanceCounters.RecordDuration("Polymorph.CardFaceGenerate", start);
+            SunExpCombatCardUiDiagnostics.RecordCurrentSegment("Polymorph.CardFaceGenerate", start);
         }
     }
 

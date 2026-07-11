@@ -125,7 +125,7 @@ public static class AuraToolsAudioRuntime
                 hardClaim: common.HardClaim,
                 condition: IsCommonCardUseEnabled,
                 cooldownSeconds: 0.02f,
-                sync: AuraToolsConfigService.Audio.CardUse.SyncRemote,
+                sync: false,
                 gainDb: common.GainDb,
                 kind: SoundEventKinds.CardUse));
 
@@ -146,13 +146,13 @@ public static class AuraToolsAudioRuntime
                     hardClaim: settings.HardClaim,
                     condition: context => IsRoleCardUseEnabled(context, roleId),
                     cooldownSeconds: 0.02f,
-                    sync: AuraToolsConfigService.Audio.CardUse.SyncRemote,
+                    sync: false,
                     gainDb: settings.GainDb,
                     kind: SoundEventKinds.CardUse));
         }
 
         AuraToolsLog.Info("Audio/CardUse providers registered. mode=" + DescribeCardUseMode()
-                          + ", syncRemote=" + AuraToolsConfigService.Audio.CardUse.SyncRemote
+                          + ", presentationRelay=host-observed"
                           + ", roles=" + CurrentCardUseRoles().Count);
     }
 

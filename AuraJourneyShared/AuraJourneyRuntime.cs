@@ -10,6 +10,7 @@ public static class AuraJourneyRuntime
     public static string Initialize(ModConfig modConfig, string ownerModId)
     {
         var root = AuraSharedRuntime.Initialize(modConfig, ownerModId);
+        AuraJourneyCurrentNodeProjectionRuntime.Initialize(modConfig, ownerModId);
         AuraSharedDiagnostics.Info(AuraJourneyConstants.SystemName, ownerModId, "Initialize", "AuraJourneyShared initialized.");
         return root;
     }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraJourney.Shared;
 using Data.Save;
 using SunExp.Dll.Infrastructure;
 using Witch;
@@ -71,6 +72,11 @@ public static class MapNodeSafetyService
             {
                 EnsureNodeDice(tree, currentNode, source);
                 return false;
+            }
+
+            if (currentNode == null && clientOnly)
+            {
+                return AuraJourneyCurrentNodeProjectionRuntime.TryRepairCurrentNode(source);
             }
 
             var reason = currentNode == null ? "null-current" : "exclusive-current";

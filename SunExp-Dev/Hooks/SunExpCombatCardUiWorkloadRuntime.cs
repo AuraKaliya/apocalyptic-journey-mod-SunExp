@@ -37,6 +37,7 @@ public static class SunExpCombatCardUiWorkloadRuntime
         var key = CounterKey(target);
         SunExpPerformanceCounters.Record("CombatCardUi." + key + ".Before");
         SunExpCombatUiWorkload.Begin(target);
+        SunExpCombatCardUiDiagnostics.Begin(key, context);
         PushStart(key, SunExpPerformanceCounters.Timestamp());
         SunExpLog.InfoOnceAlways(
             "CombatCardUiWorkload." + key,
@@ -54,6 +55,7 @@ public static class SunExpCombatCardUiWorkloadRuntime
         var start = PopStart(key);
         SunExpCombatUiWorkload.End(target);
         SunExpPerformanceCounters.RecordDuration("CombatCardUi." + key, start);
+        var segmentSummary = SunExpCombatCardUiDiagnostics.End(key);
         if (start <= 0L || !SunExpPerformanceSettings.CountersEnabled)
         {
             return;
@@ -69,7 +71,8 @@ public static class SunExpCombatCardUiWorkloadRuntime
                 + ", receiver="
                 + TargetName(context.Target)
                 + ", args="
-                + ArgumentShape(context.Arguments));
+                + ArgumentShape(context.Arguments)
+                + segmentSummary);
         }
     }
 

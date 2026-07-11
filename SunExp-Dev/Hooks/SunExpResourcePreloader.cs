@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using AuraShared.Core;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
@@ -10,30 +11,141 @@ namespace SunExp.Dll.Hooks;
 
 public static class SunExpResourcePreloader
 {
+    private static readonly object SyncRoot = new();
+    private static readonly List<WarmupItem> Pending = new();
+    private static int generation;
+    private static bool battleActive;
+    private static bool initialized;
+
     public static void Initialize(ModConfig modConfig)
     {
-        SunExpFrameScheduler.RunOnceNextFrame("SunExpResourcePreloader.Warmup", WarmupCoreVisuals);
+        if (initialized)
+        {
+            return;
+        }
+
+        initialized = true;
+        SunExpBattleLifecycleRouter.Register("ResourcePreloader", new SunExpBattleLifecycleSubscription
+        {
+            AdventureStarting = _ => BeginAdventureWarmup(),
+            FightInitializing = _ => battleActive = true,
+            FightEnded = _ =>
+            {
+                battleActive = false;
+                ScheduleNext();
+            }
+        });
     }
 
-    private static void WarmupCoreVisuals()
+    private static void BeginAdventureWarmup()
     {
+        lock (SyncRoot)
+        {
+            generation++;
+            battleActive = false;
+            Pending.Clear();
+            AddItems(CoreTexturePaths(), "visual", 300, path => SunExpResourceCache.Load<Texture2D>(path, true, "visual"));
+            AddItems(CoreSpritePaths(), "ui", 250, path => SunExpResourceCache.Load<Sprite>(path, true, "ui"));
+            AddItems(
+                PolymorphRoleRegistry.CardFacePaths(12),
+                SunExpIds.PolymorphSourceResourceCategory,
+                50,
+                path => SunExpResourceCache.Load<Sprite>(path, true, SunExpIds.PolymorphSourceResourceCategory));
+        }
+
+        SunExpPerformanceCounters.Record("ResourcePreloader.AdventureQueueCreated");
+        ScheduleNext();
+    }
+
+    private static void AddItems(IEnumerable<string> paths, string category, int priority, Action<string> load)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var path in paths)
+        {
+            var normalized = (path ?? "").Trim();
+            if (normalized.Length == 0 || !seen.Add(normalized))
+            {
+                continue;
+            }
+
+            Pending.Add(new WarmupItem(normalized, category, priority, load));
+        }
+    }
+
+    private static void ScheduleNext()
+    {
+        WarmupItem? next;
+        int currentGeneration;
+        lock (SyncRoot)
+        {
+            if (battleActive || Pending.Count == 0)
+            {
+                return;
+            }
+
+            Pending.Sort((left, right) => right.Priority.CompareTo(left.Priority));
+            next = Pending[0];
+            Pending.RemoveAt(0);
+            currentGeneration = generation;
+        }
+
+        var key = "ResourcePreloader.Adventure." + currentGeneration + "." + next.Category + "." + next.Path;
+        SunExpFrameScheduler.RunOnceAfterFrames(
+            key,
+            1,
+            () => ExecuteItem(currentGeneration, next),
+            AuraSharedFramePhase.Background,
+            next.Priority,
+            estimatedCost: 1);
+    }
+
+    private static void ExecuteItem(int expectedGeneration, WarmupItem item)
+    {
+        lock (SyncRoot)
+        {
+            if (expectedGeneration != generation || battleActive)
+            {
+                if (expectedGeneration == generation)
+                {
+                    Pending.Add(item);
+                }
+
+                return;
+            }
+        }
+
         var start = SunExpPerformanceCounters.Timestamp();
         try
         {
-            SunExpResourceCache.Preload<Texture2D>(CoreTexturePaths(), "visual");
-            SunExpResourceCache.Preload<Sprite>(CoreSpritePaths(), "ui");
-            SunExpResourceCache.Preload<Sprite>(
-                PolymorphRoleRegistry.CardFacePaths(12),
-                SunExpIds.PolymorphSourceResourceCategory);
+            item.Load(item.Path);
+            SunExpPerformanceCounters.Record("ResourcePreloader.ItemLoaded");
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[ResourcePreloader] warmup skipped: " + ex.Message);
+            SunExpLog.Warn("[ResourcePreloader] item skipped: " + item.Path + " (" + ex.Message + ")");
+            SunExpPerformanceCounters.Record("ResourcePreloader.ItemFailed");
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("ResourcePreloader.WarmupCoreVisuals", start);
+            SunExpPerformanceCounters.RecordDuration("ResourcePreloader.Item", start);
+            ScheduleNext();
         }
+    }
+
+    private sealed class WarmupItem
+    {
+        public WarmupItem(string path, string category, int priority, Action<string> load)
+        {
+            Path = path;
+            Category = category;
+            Priority = priority;
+            Load = load;
+        }
+
+        public string Path { get; }
+        public string Category { get; }
+        public int Priority { get; }
+        public Action<string> Load { get; }
     }
 
     private static IEnumerable<string> CoreTexturePaths()

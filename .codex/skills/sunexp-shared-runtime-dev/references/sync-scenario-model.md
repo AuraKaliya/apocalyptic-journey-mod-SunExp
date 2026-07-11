@@ -120,6 +120,15 @@ Use this order unless a feature has a stronger local reason:
 UI and Unity object work may need a frame scheduler. Do not assume a remote
 packet arrives when the native UI tree or resource cache is ready.
 
+### Client map-node projection repair
+
+Native map/route progression remains host-authoritative. A non-host may repair
+only its local `MapTree.currentNode` projection when the saved or cached node
+identity exactly matches an already received native `mapList` / `mapData`
+snapshot. The repair must not choose a route, rewrite the arrays, or send a
+map command. If identity is ambiguous, retry for a bounded number of frames
+and then log rather than selecting a fallback node.
+
 ### StarterDeck client submission
 
 Content mods register starter-deck profiles; AuraToolsExp resolves the local

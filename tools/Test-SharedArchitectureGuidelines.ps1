@@ -112,6 +112,24 @@ Require-Text $journeyRuntime "TryCommit[\s\S]*QualifyJourneyId" "TryCommit must 
 Require-Text $journeyRuntime "Read legacy unqualified journey" "AuraJourneyRuntime must keep legacy short-id read fallback."
 Require-Text $journeyRuntime "PublishActiveMode" "AuraJourneyRuntime must expose shared active-mode projection for content/tool decoupling."
 Require-Text $journeyRuntime "IsJourneyActive" "AuraJourneyRuntime must expose shared active journey checks for tool consumers."
+Require-Text $journeyRuntime "AuraJourneyCurrentNodeProjectionRuntime\.Initialize" "AuraJourneyRuntime must initialize the shared current-node projection guard."
+
+$journeyProjection = Read-RepoText "AuraJourneyShared\AuraJourneyCurrentNodeProjectionRuntime.cs"
+Require-Text $journeyProjection "TryFindIdentity" "Journey current-node repair must require an exact synced identity match."
+Require-Text $journeyProjection "matches == 1" "Journey current-node repair must reject ambiguous synced identities."
+Require-Text $journeyProjection "MaximumDeferredAttempts" "Journey current-node repair must bound delayed retries."
+Require-Text $journeyProjection "!IsClientOnly" "Journey current-node repair must remain client-only."
+if ($journeyProjection -match "CmdSelectMap|tree\.SelectNode|tree\.DefaultNode") {
+    throw "Journey current-node projection guard must not choose or rewrite map routes."
+}
+
+$sunExpPreloader = Read-RepoText "SunExp-Dev\Hooks\SunExpResourcePreloader.cs"
+Require-Text $sunExpPreloader "AdventureStarting" "SunExp resource warmup must start from the adventure lifecycle."
+Require-Text $sunExpPreloader "AuraSharedFramePhase\.Background" "SunExp resource warmup must use the shared background frame phase."
+Require-Text $sunExpPreloader "battleActive" "SunExp resource warmup must pause during combat."
+if ($sunExpPreloader -match "SunExpResourceCache\.Preload<") {
+    throw "SunExp resource warmup must not synchronously preload the whole visual catalog in one frame action."
+}
 
 $battleLifecycleRouter = Read-RepoText "AuraSharedCore\AuraBattleLifecycleRouter.cs"
 Require-Text $battleLifecycleRouter "EnsureBattleSession" "AuraBattleLifecycleRouter must expose a battle session scope for duplicate suppression."

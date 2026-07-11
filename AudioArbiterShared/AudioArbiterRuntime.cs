@@ -102,6 +102,11 @@ public static class AudioArbiterRuntime
         return PropertyReader.ReadInt(source, propertyName, fallback);
     }
 
+    public static long ReadLong(object? source, string propertyName, long fallback = 0L)
+    {
+        return PropertyReader.ReadLong(source, propertyName, fallback);
+    }
+
     public static float ReadFloat(object? source, string propertyName, float fallback = 0f)
     {
         return PropertyReader.ReadFloat(source, propertyName, fallback);
@@ -615,6 +620,12 @@ public static class AudioArbiterRuntime
 
         public void ReceiveRemote(SoundPlaybackRequest request)
         {
+            if (IsExpiredPresentation(request))
+            {
+                TraceRequest(request, "Discarded expired presentation event");
+                return;
+            }
+
             if (string.IsNullOrWhiteSpace(request.EventId))
             {
                 request.EventId = Guid.NewGuid().ToString("N");
@@ -636,6 +647,17 @@ public static class AudioArbiterRuntime
                 if (string.IsNullOrWhiteSpace(request.EventId))
                 {
                     request.EventId = Guid.NewGuid().ToString("N");
+                }
+
+                if (IsCardUsePresentation(request) && !request.IsRemote)
+                {
+                    if (IsClientWaitingForHostPresentation())
+                    {
+                        TraceRequest(request, "Card-use presentation deferred to host relay");
+                        return true;
+                    }
+
+                    PublishHostCardUsePresentation(request);
                 }
 
                 var resolvedMaybe = Resolve(request);
@@ -995,7 +1017,7 @@ public static class AudioArbiterRuntime
 
         private void SyncRemote(SoundPlaybackRequest request, SoundProviderHandle provider, bool syncRemote)
         {
-            if (!syncRemote || request.DisableSync || request.IsRemote || !provider.Sync)
+            if (!syncRemote || request.DisableSync || request.IsRemote || !provider.Sync || IsCardUsePresentation(request))
             {
                 return;
             }
@@ -1042,12 +1064,78 @@ public static class AudioArbiterRuntime
 
         private void OnFightStartBefore(ModHookContext context)
         {
+            receivedEventIds.Clear();
             cooldownUntil.Clear();
             lowHealthAnnounced.Clear();
             lastHpRatioByStatus.Clear();
             lowHealthNoProviderUntil.Clear();
             suppressNarrationUntil.Clear();
             pendingReplacement = null;
+        }
+
+        private bool IsClientWaitingForHostPresentation()
+        {
+            try
+            {
+                return PlayerManager.Instance != null && !PlayerManager.Instance.isServer;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private void PublishHostCardUsePresentation(SoundPlaybackRequest request)
+        {
+            var playerManager = PlayerManager.Instance;
+            if (playerManager == null || !playerManager.isServer)
+            {
+                return;
+            }
+
+            var presentation = new SoundPlaybackRequest
+            {
+                EventId = Guid.NewGuid().ToString("N"),
+                OwnerModId = ownerModId,
+                Kind = SoundEventKinds.CardUse,
+                CareerId = request.CareerId,
+                RoleId = request.RoleId,
+                StatusInstanceId = request.StatusInstanceId,
+                CardId = request.CardId,
+                EffectName = request.EffectName,
+                ActionName = request.ActionName,
+                SourceName = request.SourceName,
+                CreatedAtUtcTicks = DateTime.UtcNow.Ticks,
+                MaxAgeMilliseconds = SoundPlaybackRequest.DefaultPresentationMaxAgeMilliseconds
+            };
+
+            try
+            {
+                playerManager.SendRpcCommandExcludeOwner(new RpcAudioEvent(presentation));
+                TraceRequest(presentation, "Host card-use presentation relayed");
+            }
+            catch (Exception ex)
+            {
+                Warn("Host card-use presentation relay failed: " + ex.Message);
+            }
+        }
+
+        private static bool IsCardUsePresentation(SoundPlaybackRequest request)
+        {
+            return string.Equals(request.Kind, SoundEventKinds.CardUse, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsExpiredPresentation(SoundPlaybackRequest request)
+        {
+            if (!IsCardUsePresentation(request)
+                || request.CreatedAtUtcTicks <= 0
+                || request.MaxAgeMilliseconds <= 0)
+            {
+                return false;
+            }
+
+            var elapsedTicks = DateTime.UtcNow.Ticks - request.CreatedAtUtcTicks;
+            return elapsedTicks > TimeSpan.TicksPerMillisecond * request.MaxAgeMilliseconds;
         }
 
         private void OnFightStartAfter(ModHookContext context)
@@ -2180,6 +2268,19 @@ public static class AudioArbiterRuntime
             }
         }
 
+        public static long ReadLong(object? source, string propertyName, long fallback)
+        {
+            try
+            {
+                var value = Read(source, propertyName);
+                return value is long typed ? typed : Convert.ToInt64(value);
+            }
+            catch
+            {
+                return fallback;
+            }
+        }
+
         public static bool ReadBool(object? source, string propertyName, bool fallback)
         {
             try
@@ -2329,6 +2430,7 @@ public static class SoundPolicies
 [Serializable]
 public sealed class SoundPlaybackRequest
 {
+    public const int DefaultPresentationMaxAgeMilliseconds = 10000;
     [NonSerialized]
     public ModConfig? ModConfig;
 
@@ -2368,6 +2470,10 @@ public sealed class SoundPlaybackRequest
 
     public string SourceName { get; set; } = "";
 
+    public long CreatedAtUtcTicks { get; set; }
+
+    public int MaxAgeMilliseconds { get; set; }
+
     public bool IsRemote { get; set; }
 
     public bool DisableSync { get; set; }
@@ -2401,6 +2507,8 @@ public sealed class SoundPlaybackRequest
             PreviousHpRatio = AudioArbiterRuntime.ReadFloat(request, nameof(PreviousHpRatio), 0f),
             HpRatio = AudioArbiterRuntime.ReadFloat(request, nameof(HpRatio), 0f),
             SourceName = AudioArbiterRuntime.ReadString(request, nameof(SourceName)),
+            CreatedAtUtcTicks = AudioArbiterRuntime.ReadLong(request, nameof(CreatedAtUtcTicks), 0L),
+            MaxAgeMilliseconds = AudioArbiterRuntime.ReadInt(request, nameof(MaxAgeMilliseconds), 0),
             IsLocalOwner = AudioArbiterRuntime.ReadBool(request, nameof(IsLocalOwner), false)
         };
     }
@@ -2653,6 +2761,8 @@ public sealed class RpcAudioEvent : RpcCommandBase
             PreviousHpRatio = request.PreviousHpRatio,
             HpRatio = request.HpRatio,
             SourceName = request.SourceName,
+            CreatedAtUtcTicks = request.CreatedAtUtcTicks,
+            MaxAgeMilliseconds = request.MaxAgeMilliseconds,
             IsLocalOwner = request.IsLocalOwner,
             DisableSync = true
         };

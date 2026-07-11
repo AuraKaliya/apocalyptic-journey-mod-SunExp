@@ -79,6 +79,7 @@ $roleCommitApi = Read-RepoText "SunExp-Dev\GameApi\SolarMemoryRoleCommitApi.cs"
 $sunSkillCgRuntime = Read-RepoText "SunExp-Dev\Features\SkillCg\SunExpSkillCgRuntime.cs"
 $auraCgRuntime = Read-RepoText "AuraCgShared\AuraCgRuntime.cs"
 $skillCgPrototypeRuntime = Read-RepoText "TestMods\SkillCGExp-Dev\Hooks\SkillCgRuntime.cs"
+$audioArbiter = Read-RepoText "AudioArbiterShared\AudioArbiterRuntime.cs"
 
 Assert-Contains $auraEntry "AuraToolsRpcAuthorityRuntime.Initialize(modConfig)" "AuraToolsExp Entry must initialize RPC authority binding."
 Assert-Contains $sharedAuthority "PlayerManager.UserCode_CmdReceiveRpcCommand__RpcCommandBase" "Shared RPC authority must bind the user-code receive hook."
@@ -99,6 +100,11 @@ Assert-NotContains $auraTransport "ThreadPool.QueueUserWorkItem" "AuraTools must
 Assert-NotContains $auraTransport "AuraToolsRpcTransportDispatcher" "AuraTools must not keep a retired private main-thread dispatcher."
 Assert-Contains $auraTransport "source=" "AuraTools transport logs must identify the sending source."
 Assert-Contains $auraTransport "command=" "AuraTools transport logs must identify the RPC command type."
+Assert-Contains $audioArbiter "PublishHostCardUsePresentation" "Card-use audio must have a dedicated host-observed presentation relay."
+Assert-Contains $audioArbiter "!playerManager.isServer" "Card-use audio relay must only publish from the host observation path."
+Assert-Contains $audioArbiter "IsClientWaitingForHostPresentation" "Clients must wait for the host card-use presentation event to avoid local duplicate playback."
+Assert-Contains $audioArbiter "CreatedAtUtcTicks" "Card-use audio presentation events must carry an expiry timestamp."
+Assert-Contains $audioArbiter "receivedEventIds.Clear" "Card-use audio presentation dedupe must clear at battle start."
 
 $auraToolsSourceRoot = Join-Path $repoRoot "AuraToolsExp-Dev"
 $repoRootFull = [System.IO.Path]::GetFullPath($repoRoot).TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar

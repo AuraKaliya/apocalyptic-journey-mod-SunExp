@@ -25,7 +25,29 @@ public static class SunExpFrameScheduler
         return RunOnceAfterFrames(key, 1, action);
     }
 
+    public static bool RunOnceAfterFrames(
+        string key,
+        int delayFrames,
+        Action action,
+        AuraSharedFramePhase phase,
+        int priority = 0,
+        int estimatedCost = 1)
+    {
+        return Schedule(key, delayFrames, action, phase, priority, estimatedCost);
+    }
+
     public static bool RunOnceAfterFrames(string key, int delayFrames, Action action)
+    {
+        return Schedule(key, delayFrames, action, AuraSharedFramePhase.Presentation);
+    }
+
+    private static bool Schedule(
+        string key,
+        int delayFrames,
+        Action action,
+        AuraSharedFramePhase phase,
+        int priority = 0,
+        int estimatedCost = 1)
     {
         if (action == null)
         {
@@ -39,6 +61,9 @@ public static class SunExpFrameScheduler
             Key = normalizedKey,
             Source = "SunExp." + normalizedKey,
             DelayFrames = Math.Max(1, delayFrames),
+            Phase = phase,
+            Priority = priority,
+            EstimatedCost = estimatedCost,
             Action = () => ExecuteScheduledAction(normalizedKey, action),
             OnScheduled = RecordScheduled,
             OnDeduplicated = RecordDeduplicated,

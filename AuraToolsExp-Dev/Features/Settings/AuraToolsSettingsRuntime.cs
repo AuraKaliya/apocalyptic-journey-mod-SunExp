@@ -583,7 +583,7 @@ public static class AuraToolsSettingsRuntime
         {
             CreateModeRow(content, AuraToolsConfigService.Audio.CardUse, false);
             CreateAudioCommonRow(content, AuraToolsConfigService.Audio.CardUse, false);
-            AuraToolsUi.AddText(content, "仅替换出牌音效；高级模式可为每个角色指定独立音效。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
+            AuraToolsUi.AddText(content, "仅替换出牌音效；联机时由主机同步出牌事件，各端仍按自己的开关和音频文件决定是否播放。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
         });
     }
 

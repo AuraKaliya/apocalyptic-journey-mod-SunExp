@@ -749,7 +749,7 @@ Assert-Contains $cardMutationService "SunExpCardRefreshQueue.RequestConfigTagRef
 Assert-Contains $runtimeCardAttachmentService "SunExpCardRefreshQueue.RequestConfigTagRefresh" "Runtime card attachment config tag refreshes must use the shared refresh queue."
 Assert-NotContains $cardMutationService "FightCardManager.Instance?.RefreshTag" "CardMutationService must not synchronously refresh config tags."
 Assert-NotContains $runtimeCardAttachmentService "FightCardManager.Instance?.RefreshTag" "RuntimeCardAttachmentService must not synchronously refresh config tags."
-Assert-Contains $sunExpResourcePreloader "SunExpResourceCache.Preload" "Resource preloader must warm core visual resources through the shared cache."
+Assert-True ($sunExpResourcePreloader.Contains("SunExpResourceCache.Preload") -or $sunExpResourcePreloader.Contains("SunExpResourceCache.Load")) "Resource preloader must warm core visual resources through the shared cache."
 Assert-Contains $runtimeHooks "SunExpResourcePreloader.Initialize(modConfig)" "RuntimeHooks must initialize the resource preloader as an isolated hook step."
 Assert-Contains $runtimeHooks "SunExpCombatActionRouter.Initialize(modConfig)" "RuntimeHooks must initialize the shared combat action router before feature runtimes."
 Assert-Contains $runtimeHooks "SunExpStatusLifecycleRouter.Initialize(modConfig)" "RuntimeHooks must initialize the shared status lifecycle router before feature runtimes."

@@ -35,6 +35,13 @@ Use existing performance surfaces:
 - `SunExpResourceCache` and `SunExpConfigIndex` for repeated resource/table
   access.
 
+Resource prewarming must follow lifecycle: build manifests at initialization,
+start per-resource shared-frame work after adventure setup is known, pause
+nonessential loads during battle, and resume on safe map/reward idle frames.
+Do not turn all registered visual resources into one synchronous startup
+preload. Keep first-show visuals correct; only duplicate or post-native
+reapply work may be deferred.
+
 Wuna orbit fire must be quality-controlled and measurable. Geometry rebuilds,
 shader/material updates, and per-frame scans should be throttled by settings
 instead of running unconditionally.
