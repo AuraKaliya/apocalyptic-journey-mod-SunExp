@@ -161,9 +161,22 @@ public sealed class ProjectionOtherObj : OtherObj
         {
             status = Status as StatusManager
         };
-        objectCard.Init(new DataConfig(cardId, DataType.EnemyCard));
-        DictionaryUtil.Set(objectCard.dataConfig.Vars, "priority", priority.ToString());
+        var actionConfig = new DataConfig(cardId, DataType.EnemyCard);
+        NormalizeProjectionActionConfig(actionConfig, priority);
+        objectCard.Init(actionConfig);
+        NormalizeProjectionActionConfig(objectCard.dataConfig, priority);
         FightAction.AddCard(objectCard);
+    }
+
+    private static void NormalizeProjectionActionConfig(DataConfig? config, int priority)
+    {
+        if (config?.Vars == null)
+        {
+            return;
+        }
+
+        DictionaryUtil.Set(config.Vars, "CD", "0");
+        DictionaryUtil.Set(config.Vars, "priority", Math.Max(1, priority).ToString());
     }
 
     private bool ExecuteProjectionAction(int index)

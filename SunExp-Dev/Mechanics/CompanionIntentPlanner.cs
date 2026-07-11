@@ -104,6 +104,7 @@ public static class CompanionIntentPlanner
         state.TouchRevision();
         state.CurrentPlan = plan.Snapshot();
         state.CurrentIntentId = plan.IntentId;
+        LogAuthoritativeCommit(state, plan);
         if (plan.IsWait)
         {
             CompanionThreatService.ClearPreview(state);
@@ -115,6 +116,35 @@ public static class CompanionIntentPlanner
         {
             CompanionThreatService.SetPreview(state, intent);
         }
+    }
+
+    private static void LogAuthoritativeCommit(CompanionBattleState state, CompanionIntentPlan plan)
+    {
+        if (!CompanionAuthorityService.IsAuthoritative())
+        {
+            return;
+        }
+
+        var handlers = string.Join(",", (plan.ResolvedEffects ?? new List<CompanionResolvedEffect>())
+            .Select(effect => effect.HandlerId)
+            .Where(handlerId => !string.IsNullOrWhiteSpace(handlerId))
+            .Distinct(StringComparer.Ordinal));
+        var targets = string.Join(",", plan.OrderedTargetIds ?? new List<string>());
+        SunExpLog.Info("[ProjectionPlan] committed"
+            + " battleEpoch=" + CompanionAuthorityService.BattleEpoch
+            + " projection=" + state.StatusId
+            + " owner=" + state.OwnerStatusId
+            + " turn=" + plan.TurnIndex
+            + " revision=" + plan.StateRevision
+            + " plan=" + plan.PlanId
+            + " status=" + (plan.IsWait ? "WaitingForMagicOrIntent" : "Ready")
+            + " intent=" + plan.IntentId
+            + " handler=" + (handlers.Length == 0 ? "none" : handlers)
+            + " magic=" + state.Stats.CurrentMagic
+            + " cost=" + plan.Cost
+            + " targets=" + (targets.Length == 0 ? "none" : targets)
+            + " priority=" + plan.Priority
+            + " reason=" + (plan.IsWait ? "no-eligible-intent" : "priority-weighted"));
     }
 
 }

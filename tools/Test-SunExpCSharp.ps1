@@ -1316,6 +1316,7 @@ function Invoke-SourceAssertions {
     $polymorphStateStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\PolymorphStateStore.cs"))
     $projectionActivationService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionActivationService.cs"))
     $projectionOtherObj = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionOtherObj.cs"))
+    $companionIntentPlanner = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionIntentPlanner.cs"))
     $heartChangeControlService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\HeartChangeControlService.cs"))
     $heartChangeActionProxyObj = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\HeartChangeActionProxyObj.cs"))
     $heartChangeIntentService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\HeartChangeIntentService.cs"))
@@ -1373,6 +1374,9 @@ function Invoke-SourceAssertions {
     $sunExpStatusLifecycleRouter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SunExpStatusLifecycleRouter.cs"))
     $sunExpCardPresentationRouter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SunExpCardPresentationRouter.cs"))
     $sunExpCardPresentationLifecycleBridge = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SunExpCardPresentationLifecycleBridge.cs"))
+    $cardPresentationRootResolver = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Visual\CardPresentationRootResolver.cs"))
+    $sunExpResourcePreloader = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SunExpResourcePreloader.cs"))
+    $solarMemoryJourneyApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\SolarMemoryJourneyApi.cs"))
     $polymorphRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\PolymorphRuntime.cs"))
     $projectionRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\ProjectionRuntime.cs"))
     $heartChangeControlRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\HeartChangeControlRuntime.cs"))
@@ -1939,6 +1943,18 @@ function Invoke-SourceAssertions {
     Assert-True $projectionOtherObj.Contains("EnsureActionIcons") "Projection actors must create action icons because native OtherObj does not."
     Assert-True $projectionOtherObj.Contains("CompanionBattleStateStore.Create") "Projection actors must create companion runtime state."
     Assert-True $projectionOtherObj.Contains("CompanionIntentPlanner.Create") "Projection actors must create an authoritative immutable turn plan."
+    Assert-True $projectionOtherObj.Contains("NormalizeProjectionActionConfig(actionConfig") "Projection action cards must be normalized before ObjectCard.Init."
+    Assert-True $projectionOtherObj.Contains('DictionaryUtil.Set(config.Vars, "CD", "0")') "Projection action cards must always expose native CD."
+    Assert-True $companionIntentPlanner.Contains('"[ProjectionPlan] committed"') "Projection authoritative plans must emit one commit diagnostic."
+    Assert-True $companionIntentPlanner.Contains("CompanionAuthorityService.IsAuthoritative()") "Projection plan diagnostics must be authority-gated."
+    Assert-True $starScoreRuntime.Contains("StarScore.RefreshSignatureSkip") "Star score preview refreshes must skip unchanged signatures."
+    Assert-True $starScoreRuntime.Contains("LastRefreshSignatures.Clear") "Star score preview signatures must reset per fight."
+    Assert-True $sunExpResourcePreloader.Contains("WarmupTier.Essential") "Adventure preload must separate essential and opportunity work."
+    Assert-True $sunExpResourcePreloader.Contains("ResourcePreloader.EssentialCompleted") "Adventure preload must report essential completion."
+    Assert-True $solarMemoryJourneyApi.Contains('JourneyId = "SunExp:SunExp.SolarMemory"') "Solar Memory journey identity must be owner-qualified without changing its stable id."
+    Assert-True $sunExpCardPresentationLifecycleBridge.Contains("Card = card") "Card presentation lifecycle must retain the exact initialized CardItem."
+    Assert-True $cardPresentationRootResolver.Contains('root.Find("Mask/CardIcon")') "Compact ShowCard surfaces must have an explicit structural adapter."
+    Assert-True $cardVisualSkinRuntime.Contains("CardVisualSkin.CompactDisplayHandled") "Compact display fallback must be measurable instead of warning as a root miss."
     Assert-True $projectionOtherObj.Contains("ActivateAfterHydration") "Projection actors must reveal intent after authoritative buff hydration."
     Assert-True $projectionOtherObj.Contains("FightAction.ActionExecute()") "Projection turns must execute queued actions without native head/Msg announcement UI."
     Assert-True (-not $projectionOtherObj.Contains("return base.DoAction();")) "Projection turns must not use native OtherObj.DoAction because the player model lacks head/Msg."

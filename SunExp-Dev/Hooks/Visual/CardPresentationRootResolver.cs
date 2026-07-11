@@ -5,6 +5,12 @@ namespace SunExp.Dll.Hooks.Visual;
 
 public static class CardPresentationRootResolver
 {
+    public static bool IsCompactDisplayRoot(Transform? root)
+    {
+        return root != null
+            && root.Find("Mask/CardIcon")?.GetComponent<UnityEngine.UI.Image>() != null;
+    }
+
     public static Transform? FindCardVisualRoot(Transform? root)
     {
         if (root == null)

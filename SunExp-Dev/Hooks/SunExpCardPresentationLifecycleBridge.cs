@@ -78,7 +78,7 @@ public static class SunExpCardPresentationLifecycleBridge
     {
         observedLifecycle++;
         SunExpPerformanceCounters.Record("CardPresentation.LifecycleObserved");
-        if (!TryExtractLifecycleArguments(context, out var transform, out var config))
+        if (!TryExtractLifecycleArguments(context, out var transform, out var config, out var card))
         {
             SunExpPerformanceCounters.Record("CardPresentation.LifecycleArgumentMiss");
             return;
@@ -98,13 +98,25 @@ public static class SunExpCardPresentationLifecycleBridge
                 + observedLifecycle);
         }
 
-        SunExpCardPresentationRouter.RequestApply(transform, config, source, surface);
+        SunExpCardPresentationRouter.RequestApply(new SunExpCardPresentationContext
+        {
+            Root = transform,
+            Config = config,
+            Card = card,
+            Source = source,
+            Surface = surface
+        });
     }
 
-    private static bool TryExtractLifecycleArguments(ModHookContext context, out Transform? transform, out IDataConfig? config)
+    private static bool TryExtractLifecycleArguments(
+        ModHookContext context,
+        out Transform? transform,
+        out IDataConfig? config,
+        out CardItem? card)
     {
         transform = null;
         config = null;
+        card = context.Target as CardItem;
 
         ReadLifecycleObject(context.Target, ref transform, ref config);
         var args = context.Arguments;
@@ -118,6 +130,12 @@ public static class SunExpCardPresentationLifecycleBridge
                     break;
                 }
             }
+        }
+
+        if (card?.dataConfig != null)
+        {
+            transform = card.transform;
+            config = card.dataConfig;
         }
 
         return config != null;

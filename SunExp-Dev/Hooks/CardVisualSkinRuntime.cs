@@ -96,6 +96,19 @@ public static class CardVisualSkinRuntime
         var visualRoot = CardPresentationRootResolver.FindCardVisualRoot(root);
         if (visualRoot == null)
         {
+            if (context.Surface == SunExpCardPresentationSurface.Display
+                && CardPresentationRootResolver.IsCompactDisplayRoot(root))
+            {
+                SunExpPerformanceCounters.Record("CardVisualSkin.CompactDisplayHandled");
+                var compactCardId = CardConfigApi.Id(config);
+                SunExpLog.DebugOnce("CardVisualSkin.CompactDisplay." + compactCardId + "." + source,
+                    "Card visual skin compact display uses native card art: cardId="
+                    + compactCardId
+                    + ", source="
+                    + source);
+                return;
+            }
+
             if (CardVisualInterestIndex.MayAffect(config))
             {
                 LogRootMiss(config, source, root);

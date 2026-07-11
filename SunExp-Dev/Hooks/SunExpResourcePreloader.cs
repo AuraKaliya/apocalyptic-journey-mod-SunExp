@@ -18,6 +18,10 @@ public static class SunExpResourcePreloader
     private static readonly List<WarmupItem> Pending = new();
     private static int generation;
     private static int nextDelayFrames = 1;
+    private static int essentialTotal;
+    private static int essentialRemaining;
+    private static long adventureWarmupStarted;
+    private static bool essentialCompletionLogged;
     private static bool battleActive;
     private static bool initialized;
 
@@ -32,7 +36,7 @@ public static class SunExpResourcePreloader
         SunExpBattleLifecycleRouter.Register("ResourcePreloader", new SunExpBattleLifecycleSubscription
         {
             AdventureStarting = _ => BeginAdventureWarmup(),
-            FightInitializing = _ => battleActive = true,
+            FightInitializing = _ => OnFightInitializing(),
             FightEnded = _ =>
             {
                 battleActive = false;
@@ -48,13 +52,18 @@ public static class SunExpResourcePreloader
             generation++;
             nextDelayFrames = 1;
             battleActive = false;
+            essentialTotal = 0;
+            essentialRemaining = 0;
+            adventureWarmupStarted = SunExpPerformanceCounters.Timestamp();
+            essentialCompletionLogged = false;
             Pending.Clear();
-            AddItems(CoreTexturePaths(), "visual", 300, path => SunExpResourceCache.Load<Texture2D>(path, true, "visual"));
-            AddItems(CoreSpritePaths(), "ui", 250, path => SunExpResourceCache.Load<Sprite>(path, true, "ui"));
+            AddItems(CoreTexturePaths(), "visual", 300, WarmupTier.Essential, path => SunExpResourceCache.Load<Texture2D>(path, true, "visual"));
+            AddItems(CoreSpritePaths(), "ui", 250, WarmupTier.Essential, path => SunExpResourceCache.Load<Sprite>(path, true, "ui"));
             AddItems(
                 PolymorphRoleRegistry.CardFacePaths(12),
                 SunExpIds.PolymorphSourceResourceCategory,
                 50,
+                WarmupTier.Opportunity,
                 path => SunExpResourceCache.Load<Sprite>(path, true, SunExpIds.PolymorphSourceResourceCategory));
             foreach (var role in PolymorphRoleRegistry.AllRoles().Take(12))
             {
@@ -63,15 +72,27 @@ public static class SunExpResourcePreloader
                     captured.Id,
                     "polymorph-card-face",
                     25,
+                    WarmupTier.Opportunity,
                     _ => PolymorphCardFaceCache.GetOrCreate(captured)));
             }
         }
 
         SunExpPerformanceCounters.Record("ResourcePreloader.AdventureQueueCreated");
+        SunExpLog.Info("[ResourcePreloader] adventure warmup queued: essential="
+            + essentialTotal
+            + ", opportunity="
+            + Math.Max(0, Pending.Count - essentialTotal)
+            + ".");
+        TryLogEssentialCompletion();
         ScheduleNext();
     }
 
-    private static void AddItems(IEnumerable<string> paths, string category, int priority, Action<string> load)
+    private static void AddItems(
+        IEnumerable<string> paths,
+        string category,
+        int priority,
+        WarmupTier tier,
+        Action<string> load)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var path in paths)
@@ -82,7 +103,30 @@ public static class SunExpResourcePreloader
                 continue;
             }
 
-            Pending.Add(new WarmupItem(normalized, category, priority, load));
+            Pending.Add(new WarmupItem(normalized, category, priority, tier, load));
+            if (tier == WarmupTier.Essential)
+            {
+                essentialTotal++;
+                essentialRemaining++;
+            }
+        }
+    }
+
+    private static void OnFightInitializing()
+    {
+        battleActive = true;
+        int remaining;
+        lock (SyncRoot)
+        {
+            remaining = essentialRemaining;
+        }
+
+        if (remaining > 0)
+        {
+            SunExpPerformanceCounters.Record("ResourcePreloader.EssentialIncompleteAtFight");
+            SunExpLog.Warn("[ResourcePreloader] battle initialization paused warmup with "
+                + remaining
+                + " essential item(s) still pending; first-show cache fallbacks remain enabled.");
         }
     }
 
@@ -145,6 +189,16 @@ public static class SunExpResourcePreloader
         {
             var elapsed = SunExpPerformanceCounters.ElapsedMilliseconds(start);
             SunExpPerformanceCounters.RecordDuration("ResourcePreloader.Item", start);
+            if (item.Tier == WarmupTier.Essential)
+            {
+                lock (SyncRoot)
+                {
+                    essentialRemaining = Math.Max(0, essentialRemaining - 1);
+                }
+
+                TryLogEssentialCompletion();
+            }
+
             // Synchronous Unity resource APIs cannot be pre-empted. After an
             // expensive item, leave recovery frames before starting the next one.
             nextDelayFrames = elapsed < 8d ? 1 : Math.Min(30, Math.Max(2, (int)Math.Ceiling(elapsed / 4d)));
@@ -152,19 +206,50 @@ public static class SunExpResourcePreloader
         }
     }
 
+    private static void TryLogEssentialCompletion()
+    {
+        int total;
+        lock (SyncRoot)
+        {
+            if (essentialCompletionLogged || essentialRemaining > 0)
+            {
+                return;
+            }
+
+            essentialCompletionLogged = true;
+            total = essentialTotal;
+        }
+
+        SunExpPerformanceCounters.Record("ResourcePreloader.EssentialCompleted");
+        SunExpLog.Info("[ResourcePreloader] essential adventure warmup completed: items="
+            + total
+            + ", elapsedMs="
+            + SunExpPerformanceCounters.ElapsedMilliseconds(adventureWarmupStarted).ToString("0.###")
+            + ".");
+    }
+
+    private enum WarmupTier
+    {
+        Essential,
+        Opportunity
+    }
+
     private sealed class WarmupItem
     {
-        public WarmupItem(string path, string category, int priority, Action<string> load)
+        public WarmupItem(string path, string category, int priority, WarmupTier tier, Action<string> load)
         {
             Path = path;
             Category = category;
             Priority = priority;
+            Tier = tier;
             Load = load;
         }
 
         public string Path { get; }
         public string Category { get; }
         public int Priority { get; }
+
+        public WarmupTier Tier { get; }
         public Action<string> Load { get; }
     }
 

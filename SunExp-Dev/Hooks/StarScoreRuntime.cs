@@ -16,6 +16,7 @@ public static class StarScoreRuntime
     private const string PendingSealBlessingVar = "SunExpMorningStarSealBlessingGain";
     private static readonly Stack<PendingCard> Pending = new();
     private static readonly StarBlessingCostOverrideStore CostOverrides = new();
+    private static readonly Dictionary<string, string> LastRefreshSignatures = new(StringComparer.Ordinal);
     private static bool handlerRegistered;
 
     public static void Initialize(ModConfig modConfig)
@@ -55,6 +56,7 @@ public static class StarScoreRuntime
     private static void OnFightStart(ModHookContext context)
     {
         CostOverrides.CancelAll();
+        LastRefreshSignatures.Clear();
         Pending.Clear();
         MorningStarOvertureService.ResetForFight();
         StarScoreCombatStateStore.ClearAll();
@@ -82,7 +84,9 @@ public static class StarScoreRuntime
 
     private static void OnCardDestroyedBefore(ModHookContext context)
     {
-        CancelBlessingPreview(context.Target as CardItem);
+        var card = context.Target as CardItem;
+        CancelBlessingPreview(card);
+        ForgetRefreshSignature(card);
     }
 
     private static void OnCardUseBefore(ModHookContext context)
@@ -132,7 +136,7 @@ public static class StarScoreRuntime
                     actualPaidCost = CardConfigApi.CurrentCost(config);
                 }
 
-                RefreshCard(card);
+                RefreshCard(card, "BeforeUse");
                 DictionaryUtil.Set(config.Vars, PendingBlessingOvertureVar, "1");
                 DictionaryUtil.Set(config.Vars, PendingBlessingCostVar, "1");
                 ConsumeBuff(player, SunExpIds.StarBlessing, 1);
@@ -186,7 +190,7 @@ public static class StarScoreRuntime
                 ClearPendingUse(config);
             }
 
-            RefreshCard(card);
+            RefreshCard(card, "AfterUse");
         }
         catch (Exception ex)
         {
@@ -328,7 +332,7 @@ public static class StarScoreRuntime
             EndlessAbyssGazePressureService.BeginCostPreview(card, "StarScorePreview");
             if (refreshed)
             {
-                RefreshCard(card);
+                RefreshCard(card, "PreviewBegin");
             }
         }
         catch (Exception ex)
@@ -357,7 +361,7 @@ public static class StarScoreRuntime
             {
                 if (refreshed)
                 {
-                    RefreshCard(card);
+                    RefreshCard(card, "PreviewCancelGaze");
                 }
 
                 return;
@@ -370,7 +374,7 @@ public static class StarScoreRuntime
                 ClearPendingUse(config);
             }
 
-            RefreshCard(card);
+            RefreshCard(card, "PreviewCancel");
         }
         catch (Exception ex)
         {
@@ -397,9 +401,86 @@ public static class StarScoreRuntime
         }
     }
 
-    private static void RefreshCard(CardItem? card)
+    private static void RefreshCard(CardItem? card, string reason)
     {
-        SunExpCardRefreshQueue.RequestDataUpdate(card, "StarScore");
+        var config = card?.dataConfig;
+        if (card == null || config == null)
+        {
+            return;
+        }
+
+        var key = RefreshKey(card, config);
+        var signature = RefreshSignature(config);
+        if (key.Length > 0
+            && LastRefreshSignatures.TryGetValue(key, out var previous)
+            && string.Equals(previous, signature, StringComparison.Ordinal))
+        {
+            SunExpPerformanceCounters.Record("StarScore.RefreshSignatureSkip");
+            return;
+        }
+
+        if (key.Length > 0)
+        {
+            LastRefreshSignatures[key] = signature;
+        }
+
+        SunExpPerformanceCounters.Record("StarScore.RefreshRequested");
+        SunExpCardRefreshQueue.RequestDataUpdate(
+            card,
+            "StarScore:" + reason + ":" + CardConfigApi.Id(config));
+    }
+
+    private static void ForgetRefreshSignature(CardItem? card)
+    {
+        var config = card?.dataConfig;
+        if (card == null || config == null)
+        {
+            return;
+        }
+
+        var key = RefreshKey(card, config);
+        if (key.Length > 0)
+        {
+            LastRefreshSignatures.Remove(key);
+        }
+    }
+
+    private static string RefreshKey(CardItem card, IDataConfig config)
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(config.InstanceID))
+            {
+                return config.InstanceID;
+            }
+        }
+        catch
+        {
+            // Fall back to the Unity card instance below.
+        }
+
+        try
+        {
+            return card.GetInstanceID().ToString();
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    private static string RefreshSignature(IDataConfig config)
+    {
+        var player = FightPlayer.Instance?.Status;
+        return CardConfigApi.Id(config)
+            + "\u001f" + CardConfigApi.CurrentCost(config)
+            + "\u001f" + (CostOverrides.Contains(config) ? "preview" : "normal")
+            + "\u001f" + (CostOverrides.TargetCost(config)?.ToString() ?? "none")
+            + "\u001f" + DictionaryUtil.Get(config.Vars, PendingBlessingCostVar, "0")
+            + "\u001f" + DictionaryUtil.Get(config.Vars, "OnceExCost")
+            + "\u001f" + DictionaryUtil.Get(config.Vars, "TotalExCost")
+            + "\u001f" + (player == null ? 0 : BuffApi.Level(player, SunExpIds.StarBlessing))
+            + "\u001f" + (SunExpHardTagState.Active(SunExpHardTagIds.AbyssGaze) ? "gaze" : "normal");
     }
 
     private static int StarBlessingHalfCost(int currentCost)

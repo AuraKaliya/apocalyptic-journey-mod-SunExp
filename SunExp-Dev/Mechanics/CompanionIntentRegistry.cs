@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Newtonsoft.Json;
+using AuraShared.Core;
 using SunExp.Dll.Infrastructure;
 using Witch.Mod;
 
@@ -24,7 +24,7 @@ public static class CompanionIntentRegistry
                 unchecked
                 {
                     uint hash = 2166136261;
-                    var canonical = JsonConvert.SerializeObject(document, Formatting.None);
+                    var canonical = AuraSharedJson.Serialize(document);
                     foreach (var character in canonical)
                     {
                         hash = (hash ^ character) * 16777619;
@@ -51,7 +51,7 @@ public static class CompanionIntentRegistry
 
             try
             {
-                var loaded = JsonConvert.DeserializeObject<CompanionIntentRegistryDocument>(File.ReadAllText(path))
+                var loaded = AuraSharedJson.Deserialize<CompanionIntentRegistryDocument>(File.ReadAllText(path))
                     ?? new CompanionIntentRegistryDocument();
                 if (loaded.SchemaVersion != 3)
                 {

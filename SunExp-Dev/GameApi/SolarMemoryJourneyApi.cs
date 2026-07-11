@@ -9,7 +9,7 @@ namespace SunExp.Dll.GameApi;
 
 public static class SolarMemoryJourneyApi
 {
-    public const string JourneyId = "SunExp.SolarMemory";
+    public const string JourneyId = "SunExp:SunExp.SolarMemory";
 
     public static void Initialize(ModConfig modConfig)
     {
