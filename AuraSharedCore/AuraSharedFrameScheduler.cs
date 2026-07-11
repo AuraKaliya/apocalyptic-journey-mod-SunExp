@@ -200,6 +200,66 @@ public static class AuraSharedFrameScheduler
         return true;
     }
 
+    public static bool RunCooperative(AuraSharedFrameWorkRequest? request)
+    {
+        if (request?.ExecuteSlice == null)
+        {
+            return false;
+        }
+
+        return ScheduleCooperativeSlice(request, 1);
+    }
+
+    private static bool ScheduleCooperativeSlice(AuraSharedFrameWorkRequest request, int sliceIndex)
+    {
+        return RunOnceAfterFrames(new AuraSharedFrameActionRequest
+        {
+            OwnerId = request.OwnerId,
+            Key = request.Key,
+            Source = request.Source,
+            DelayFrames = Math.Max(1, request.DelayFrames),
+            Phase = request.Phase,
+            Priority = request.Priority,
+            EstimatedCost = request.EstimatedCost,
+            Action = () => ExecuteCooperativeSlice(request, sliceIndex),
+            OnScheduled = request.OnScheduled,
+            OnDeduplicated = request.OnDeduplicated,
+            OnFailed = (report, error) => request.OnFailed?.Invoke(report, error)
+        });
+    }
+
+    private static void ExecuteCooperativeSlice(AuraSharedFrameWorkRequest request, int sliceIndex)
+    {
+        if (request.IsCancelled?.Invoke() == true)
+        {
+            request.OnCancelled?.Invoke(sliceIndex);
+            return;
+        }
+
+        var started = Stopwatch.GetTimestamp();
+        var budget = request.SliceBudgetMilliseconds > 0d
+            ? request.SliceBudgetMilliseconds
+            : FrameBudgetMilliseconds;
+        var context = new AuraSharedFrameSliceContext(sliceIndex, started, Math.Max(0.25d, budget));
+        var completed = request.ExecuteSlice!(context);
+        var elapsed = (Stopwatch.GetTimestamp() - started) * 1000d / Stopwatch.Frequency;
+        request.OnSliceExecuted?.Invoke(new AuraSharedFrameSliceReport(sliceIndex, elapsed, completed));
+
+        var maximumSlices = request.MaximumSlices <= 0 ? int.MaxValue : request.MaximumSlices;
+        if (completed)
+        {
+            request.OnCompleted?.Invoke(sliceIndex);
+        }
+        else if (sliceIndex >= maximumSlices)
+        {
+            request.OnCancelled?.Invoke(sliceIndex);
+        }
+        else
+        {
+            ScheduleCooperativeSlice(request, sliceIndex + 1);
+        }
+    }
+
     public static bool RunBackground<T>(
         string source,
         Func<T> work,
@@ -938,4 +998,56 @@ public sealed class AuraSharedFrameActionReport
     public bool Deduplicated { get; set; }
 
     public double ActionElapsedMilliseconds { get; set; }
+}
+
+public sealed class AuraSharedFrameWorkRequest
+{
+    public string OwnerId { get; set; } = "";
+    public string Key { get; set; } = "";
+    public string Source { get; set; } = "";
+    public int DelayFrames { get; set; } = 1;
+    public AuraSharedFramePhase Phase { get; set; } = AuraSharedFramePhase.Presentation;
+    public int Priority { get; set; }
+    public int EstimatedCost { get; set; } = 1;
+    public int MaximumSlices { get; set; }
+    public double SliceBudgetMilliseconds { get; set; }
+    public Func<AuraSharedFrameSliceContext, bool>? ExecuteSlice { get; set; }
+    public Func<bool>? IsCancelled { get; set; }
+    public Action<AuraSharedFrameActionReport>? OnScheduled { get; set; }
+    public Action<AuraSharedFrameActionReport>? OnDeduplicated { get; set; }
+    public Action<AuraSharedFrameActionReport, Exception>? OnFailed { get; set; }
+    public Action<AuraSharedFrameSliceReport>? OnSliceExecuted { get; set; }
+    public Action<int>? OnCompleted { get; set; }
+    public Action<int>? OnCancelled { get; set; }
+}
+
+public sealed class AuraSharedFrameSliceContext
+{
+    private readonly long startedTimestamp;
+
+    internal AuraSharedFrameSliceContext(int sliceIndex, long startedTimestamp, double budgetMilliseconds)
+    {
+        SliceIndex = sliceIndex;
+        this.startedTimestamp = startedTimestamp;
+        BudgetMilliseconds = budgetMilliseconds;
+    }
+
+    public int SliceIndex { get; }
+    public double BudgetMilliseconds { get; }
+    public double ElapsedMilliseconds => (Stopwatch.GetTimestamp() - startedTimestamp) * 1000d / Stopwatch.Frequency;
+    public bool IsBudgetExhausted => ElapsedMilliseconds >= BudgetMilliseconds;
+}
+
+public sealed class AuraSharedFrameSliceReport
+{
+    public AuraSharedFrameSliceReport(int sliceIndex, double elapsedMilliseconds, bool completed)
+    {
+        SliceIndex = sliceIndex;
+        ElapsedMilliseconds = elapsedMilliseconds;
+        Completed = completed;
+    }
+
+    public int SliceIndex { get; }
+    public double ElapsedMilliseconds { get; }
+    public bool Completed { get; }
 }

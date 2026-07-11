@@ -25,6 +25,21 @@ public static class StarScoreHudAssets
 
     private static readonly Dictionary<string, Sprite?> Cache = new(StringComparer.OrdinalIgnoreCase);
 
+    public static IEnumerable<string> AllPaths()
+    {
+        yield return FullPath;
+        yield return BackgroundPath;
+        yield return HeadPath;
+        yield return Score1Path;
+        yield return Score2Path;
+        yield return Score3Path;
+        yield return SpacePath;
+        yield return OpeningIconPath;
+        yield return SustainIconPath;
+        yield return TurnIconPath;
+        yield return CloseIconPath;
+    }
+
     public static Sprite? Load(string path)
     {
         if (Cache.TryGetValue(path, out var cached))

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using AuraShared.Core;
 using SunExp.Dll.Infrastructure;
 using Witch.Core;
 using Witch.UI.Window;
@@ -13,7 +14,7 @@ public static class SunExpCardRefreshQueue
     private static readonly object SyncRoot = new();
     private static readonly Dictionary<string, PendingCardRefresh> PendingCards = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, PendingConfigRefresh> PendingConfigs = new(StringComparer.Ordinal);
-    private static int RefreshBudgetPerFrame => Math.Max(2, Math.Min(4, SunExpPerformanceSettings.FrameSchedulerBudget / 8));
+    private const double CooperativeSliceBudgetMilliseconds = 2.0;
 
     public static void RequestDataUpdate(CardItem? card, string source)
     {
@@ -78,58 +79,87 @@ public static class SunExpCardRefreshQueue
 
     private static void ScheduleFlush()
     {
-        if (!SunExpFrameDispatcher.RunOnceNextFrame("SunExpCardRefreshQueue.Flush", Flush))
+        if (!AuraSharedFrameScheduler.RunCooperative(new AuraSharedFrameWorkRequest
+            {
+                OwnerId = SunExpIds.ModId,
+                Key = "SunExpCardRefreshQueue.Flush",
+                Source = "SunExp.CardRefreshQueue",
+                DelayFrames = 1,
+                Phase = AuraSharedFramePhase.Presentation,
+                Priority = 100,
+                EstimatedCost = 4,
+                SliceBudgetMilliseconds = CooperativeSliceBudgetMilliseconds,
+                ExecuteSlice = FlushSlice,
+                OnSliceExecuted = report =>
+                {
+                    SunExpPerformanceCounters.Record("CardRefreshQueue.CooperativeSlice");
+                    if (report.ElapsedMilliseconds >= 8d)
+                    {
+                        SunExpPerformanceCounters.Record("CardRefreshQueue.CooperativeSliceOverBudget");
+                    }
+                }
+            }))
         {
             SunExpPerformanceCounters.Record("CardRefreshQueue.Deduped");
         }
     }
 
-    private static void Flush()
+    private static bool FlushSlice(AuraSharedFrameSliceContext context)
     {
-        var budget = RefreshBudgetPerFrame;
-        PendingConfigRefresh[] configs;
-        PendingCardRefresh[] cards;
+        PendingConfigRefresh? config = null;
+        PendingCardRefresh? card = null;
         lock (SyncRoot)
         {
             if (PendingCards.Count == 0 && PendingConfigs.Count == 0)
             {
-                return;
+                return true;
             }
 
-            var configCount = Math.Min(PendingConfigs.Count, budget);
-            configs = new PendingConfigRefresh[configCount];
-            CopyAndRemoveConfigs(configs);
-
-            var cardBudget = budget - configCount;
-            var cardCount = Math.Min(PendingCards.Count, cardBudget);
-            cards = new PendingCardRefresh[cardCount];
-            CopyAndRemoveCards(cards);
+            if (PendingConfigs.Count > 0)
+            {
+                var entry = First(PendingConfigs);
+                config = entry.Value;
+                PendingConfigs.Remove(entry.Key);
+            }
+            else
+            {
+                var entry = First(PendingCards);
+                card = entry.Value;
+                PendingCards.Remove(entry.Key);
+            }
         }
 
         var start = SunExpPerformanceCounters.Timestamp();
-        foreach (var item in configs)
+        if (config.HasValue)
         {
-            RefreshConfigNow(item.Config, item.Source);
+            RefreshConfigNow(config.Value.Config, config.Value.Source);
         }
-
-        foreach (var item in cards)
+        else if (card.HasValue)
         {
-            RefreshNow(item.Card, item.Source, item.RefreshTags, item.DataUpdate);
+            RefreshNow(card.Value.Card, card.Value.Source, card.Value.RefreshTags, card.Value.DataUpdate);
         }
 
         SunExpPerformanceCounters.RecordDuration("CardRefreshQueue.Flush", start);
-
-        bool hasMore;
         lock (SyncRoot)
         {
-            hasMore = PendingCards.Count > 0 || PendingConfigs.Count > 0;
+            var completed = PendingCards.Count == 0 && PendingConfigs.Count == 0;
+            if (!completed)
+            {
+                SunExpPerformanceCounters.Record("CardRefreshQueue.FlushContinued");
+            }
+
+            return completed;
+        }
+    }
+
+    private static KeyValuePair<string, T> First<T>(Dictionary<string, T> values)
+    {
+        foreach (var pair in values)
+        {
+            return pair;
         }
 
-        if (hasMore)
-        {
-            SunExpPerformanceCounters.Record("CardRefreshQueue.FlushContinued");
-            ScheduleFlush();
-        }
+        return default;
     }
 
     private static void CopyAndRemoveConfigs(PendingConfigRefresh[] target)

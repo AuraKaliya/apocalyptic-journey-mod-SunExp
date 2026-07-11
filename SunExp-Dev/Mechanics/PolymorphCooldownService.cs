@@ -10,6 +10,7 @@ public static class PolymorphCooldownService
 {
     private static readonly object SyncRoot = new();
     private static readonly Dictionary<string, CrossFormSkillUse> SkillUses = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, Dictionary<string, Dictionary<string, int>>> RoleCooldowns = new(StringComparer.Ordinal);
 
     public static bool IsActive(IStatusManager? ownerStatus)
     {
@@ -21,6 +22,85 @@ public static class PolymorphCooldownService
     public static void ApplyToCurrentRole(ScriptExecutor? self, string source)
     {
         RefreshSkillUi(self, source);
+    }
+
+    public static void CaptureCurrentRole(IStatusManager? ownerStatus, string source)
+    {
+        var active = PolymorphStateStore.ActiveFor(ownerStatus);
+        if (active == null)
+        {
+            return;
+        }
+
+        var values = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var skillId in RoleSkillApi.CurrentCareerSkillIds())
+        {
+            values[skillId] = Math.Max(0, PlayerApi.GetSkillTime(skillId));
+        }
+
+        if (values.Count == 0)
+        {
+            return;
+        }
+
+        lock (SyncRoot)
+        {
+            var owner = OwnerKey(ownerStatus);
+            if (!RoleCooldowns.TryGetValue(owner, out var roles))
+            {
+                roles = new Dictionary<string, Dictionary<string, int>>(StringComparer.OrdinalIgnoreCase);
+                RoleCooldowns[owner] = roles;
+            }
+
+            roles[NormalizeRoleId(active.RoleId)] = values;
+        }
+
+        SunExpLog.Debug("[Polymorph] captured role cooldowns from " + source
+            + ": role=" + active.RoleId + ", values=" + FormatCooldowns(values) + ".");
+    }
+
+    public static void PrepareCurrentRoleEntry(IStatusManager? ownerStatus, string roleId, string source)
+    {
+        var normalizedRole = NormalizeRoleId(roleId);
+        Dictionary<string, int>? saved = null;
+        lock (SyncRoot)
+        {
+            var owner = OwnerKey(ownerStatus);
+            if (RoleCooldowns.TryGetValue(owner, out var roles)
+                && roles.TryGetValue(normalizedRole, out var previous))
+            {
+                saved = new Dictionary<string, int>(previous, StringComparer.Ordinal);
+            }
+        }
+
+        // Career initialization may seed a non-zero cooldown. Normalize it first,
+        // then restore only cooldowns earned by an earlier visit to this form.
+        RoleSkillApi.SetCurrentCareerSkillTimes(0);
+        var current = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var skillId in RoleSkillApi.CurrentCareerSkillIds())
+        {
+            var cooldown = saved != null && saved.TryGetValue(skillId, out var actual)
+                ? Math.Max(0, actual)
+                : 0;
+            PlayerApi.SetSkillTime(skillId, cooldown);
+            current[skillId] = cooldown;
+        }
+
+        lock (SyncRoot)
+        {
+            var owner = OwnerKey(ownerStatus);
+            if (!RoleCooldowns.TryGetValue(owner, out var roles))
+            {
+                roles = new Dictionary<string, Dictionary<string, int>>(StringComparer.OrdinalIgnoreCase);
+                RoleCooldowns[owner] = roles;
+            }
+
+            roles[normalizedRole] = current;
+        }
+
+        SunExpLog.Info("[Polymorph] prepared role cooldowns from " + source
+            + ": role=" + roleId + ", firstEntry=" + (saved == null)
+            + ", values=" + FormatCooldowns(current) + ".");
     }
 
     public static bool TryUseSharedSkill(ScriptExecutor? self, string source)
@@ -50,6 +130,7 @@ public static class PolymorphCooldownService
         }
 
         MarkCrossFormSkillUse(self?.Self);
+        CaptureCurrentRole(self?.Self, source + ".capture");
         ApplyToCurrentRole(self, source + ".used");
         SunExpPerformanceCounters.Record("Polymorph.CrossFormSkillUsed");
         return true;
@@ -103,6 +184,7 @@ public static class PolymorphCooldownService
         }
 
         AdvanceFallbackRound(self?.Self);
+        CaptureCurrentRole(self?.Self, source + ".capture");
         ApplyToCurrentRole(self, source + ".tick");
         PruneExpiredUse(self?.Self);
         SunExpPerformanceCounters.Record("Polymorph.CrossFormSkillRoundObserved");
@@ -114,6 +196,7 @@ public static class PolymorphCooldownService
         lock (SyncRoot)
         {
             SkillUses.Remove(owner);
+            RoleCooldowns.Remove(owner);
         }
     }
 
@@ -122,6 +205,7 @@ public static class PolymorphCooldownService
         lock (SyncRoot)
         {
             SkillUses.Clear();
+            RoleCooldowns.Clear();
         }
     }
 
@@ -265,6 +349,17 @@ public static class PolymorphCooldownService
     {
         var owner = ownerStatus?.InstanceId ?? PlayerApi.LocalPlayerStatusId();
         return string.IsNullOrWhiteSpace(owner) ? "local" : owner;
+    }
+
+    private static string FormatCooldowns(Dictionary<string, int> values)
+    {
+        var parts = new List<string>(values.Count);
+        foreach (var pair in values)
+        {
+            parts.Add(pair.Key + "=" + pair.Value);
+        }
+
+        return string.Join("|", parts);
     }
 
     private sealed class CrossFormSkillUse

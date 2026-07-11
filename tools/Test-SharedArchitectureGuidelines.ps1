@@ -73,6 +73,8 @@ Require-Text $audioRuntime "MatchesProviderRequest" "AudioArbiterRuntime must ex
 Require-Text $audioRuntime "ownerStrict:\s*true" "AudioArbiterRuntime must have an owner-strict provider matching path."
 Require-Text $audioRuntime "request\.IsRemote[\s\S]*Remote sound provider mismatch" "AudioArbiterRuntime must fail closed for remote owner/provider mismatches."
 Require-Text $audioRuntime "OwnerModId to disambiguate" "AudioArbiterRuntime must document OwnerModId-based RPC provider disambiguation."
+Require-Text $audioRuntime "RemoteReplacementPairingSeconds" "AudioArbiterRuntime must bound remote native-effect pairing before fallback playback."
+Require-Text $audioRuntime "remote-fallback-played" "AudioArbiterRuntime must expose remote replacement fallback outcomes."
 
 $architectureGuidelines = Read-RepoText "docs\shared-component-architecture-guidelines.md"
 Require-Text $architectureGuidelines "provider identity[\s\S]*BuildId" "Shared architecture guidelines must require BuildId bumps for provider identity semantic changes."
@@ -119,6 +121,11 @@ Require-Text $journeyProjection "TryFindIdentity" "Journey current-node repair m
 Require-Text $journeyProjection "matches == 1" "Journey current-node repair must reject ambiguous synced identities."
 Require-Text $journeyProjection "MaximumDeferredAttempts" "Journey current-node repair must bound delayed retries."
 Require-Text $journeyProjection "!IsClientOnly" "Journey current-node repair must remain client-only."
+Require-Text $journeyProjection "current \?\? saved \?\? authoritativeIdentity \?\? snapshot\.VerifiedIdentity" "Journey current-node capture must preserve native, host-authoritative, and last verified identities in priority order."
+Require-Text $journeyProjection "PlayerInfo\.EventTryChangeMap" "Journey current-node repair must preflight the native map transition."
+Require-Text $journeyProjection "RpcAuraJourneyNodeProjection" "Journey current-node repair must accept a host-published read-only identity projection."
+Require-Text $journeyProjection "MaximumRecentProjections" "Journey current-node repair must keep only a bounded recent native-array window."
+Require-Text $journeyProjection "TryFindInProjections" "Journey current-node repair must search recent native projection arrays for delayed RPC ordering."
 if ($journeyProjection -match "CmdSelectMap|tree\.SelectNode|tree\.DefaultNode") {
     throw "Journey current-node projection guard must not choose or rewrite map routes."
 }
@@ -127,6 +134,8 @@ $sunExpPreloader = Read-RepoText "SunExp-Dev\Hooks\SunExpResourcePreloader.cs"
 Require-Text $sunExpPreloader "AdventureStarting" "SunExp resource warmup must start from the adventure lifecycle."
 Require-Text $sunExpPreloader "AuraSharedFramePhase\.Background" "SunExp resource warmup must use the shared background frame phase."
 Require-Text $sunExpPreloader "battleActive" "SunExp resource warmup must pause during combat."
+Require-Text $sunExpPreloader "StarScoreHudAssets\.AllPaths" "SunExp warmup must cover first-use Star Score HUD sprites."
+Require-Text $sunExpPreloader "PolymorphCardFaceCache\.GetOrCreate" "SunExp warmup must progressively generate polymorph card faces before combat."
 if ($sunExpPreloader -match "SunExpResourceCache\.Preload<") {
     throw "SunExp resource warmup must not synchronously preload the whole visual catalog in one frame action."
 }

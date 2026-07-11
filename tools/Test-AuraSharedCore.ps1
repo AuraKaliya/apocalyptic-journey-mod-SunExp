@@ -55,6 +55,11 @@ foreach ($required in @("AuraSharedFramePhase", "ReadyKeyedBucket", "OwnerQuantu
         throw "AuraShared frame scheduler phased/fair-queue contract is missing: $required"
     }
 }
+foreach ($required in @("AuraSharedFrameWorkRequest", "AuraSharedFrameSliceContext", "RunCooperative", "ExecuteCooperativeSlice")) {
+    if (-not $frameSchedulerText.Contains($required)) {
+        throw "AuraShared cooperative frame-work contract is missing: $required"
+    }
+}
 if ($frameSchedulerText.Contains("CurrentKeyedActions")) {
     throw "AuraShared frame scheduler must not regress to a single FIFO keyed queue."
 }

@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using AuraShared.Core;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
+using SunExp.Dll.Hooks.Ui;
+using SunExp.Dll.Hooks.Visual;
 using UnityEngine;
 using Witch.Mod;
 
@@ -14,6 +17,7 @@ public static class SunExpResourcePreloader
     private static readonly object SyncRoot = new();
     private static readonly List<WarmupItem> Pending = new();
     private static int generation;
+    private static int nextDelayFrames = 1;
     private static bool battleActive;
     private static bool initialized;
 
@@ -42,6 +46,7 @@ public static class SunExpResourcePreloader
         lock (SyncRoot)
         {
             generation++;
+            nextDelayFrames = 1;
             battleActive = false;
             Pending.Clear();
             AddItems(CoreTexturePaths(), "visual", 300, path => SunExpResourceCache.Load<Texture2D>(path, true, "visual"));
@@ -51,6 +56,15 @@ public static class SunExpResourcePreloader
                 SunExpIds.PolymorphSourceResourceCategory,
                 50,
                 path => SunExpResourceCache.Load<Sprite>(path, true, SunExpIds.PolymorphSourceResourceCategory));
+            foreach (var role in PolymorphRoleRegistry.AllRoles().Take(12))
+            {
+                var captured = role;
+                Pending.Add(new WarmupItem(
+                    captured.Id,
+                    "polymorph-card-face",
+                    25,
+                    _ => PolymorphCardFaceCache.GetOrCreate(captured)));
+            }
         }
 
         SunExpPerformanceCounters.Record("ResourcePreloader.AdventureQueueCreated");
@@ -90,9 +104,11 @@ public static class SunExpResourcePreloader
         }
 
         var key = "ResourcePreloader.Adventure." + currentGeneration + "." + next.Category + "." + next.Path;
+        var delayFrames = Math.Max(1, nextDelayFrames);
+        nextDelayFrames = 1;
         SunExpFrameScheduler.RunOnceAfterFrames(
             key,
-            1,
+            delayFrames,
             () => ExecuteItem(currentGeneration, next),
             AuraSharedFramePhase.Background,
             next.Priority,
@@ -127,7 +143,11 @@ public static class SunExpResourcePreloader
         }
         finally
         {
+            var elapsed = SunExpPerformanceCounters.ElapsedMilliseconds(start);
             SunExpPerformanceCounters.RecordDuration("ResourcePreloader.Item", start);
+            // Synchronous Unity resource APIs cannot be pre-empted. After an
+            // expensive item, leave recovery frames before starting the next one.
+            nextDelayFrames = elapsed < 8d ? 1 : Math.Min(30, Math.Max(2, (int)Math.Ceiling(elapsed / 4d)));
             ScheduleNext();
         }
     }
@@ -192,6 +212,11 @@ public static class SunExpResourcePreloader
 
     private static IEnumerable<string> CoreSpritePaths()
     {
+        foreach (var path in StarScoreHudAssets.AllPaths())
+        {
+            yield return path;
+        }
+
         foreach (var modeEntryId in new[] { "solar_memory", "endless_abyss" })
         {
             var modeEntry = VisualRegistry.ModeEntry(modeEntryId);

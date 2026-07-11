@@ -152,7 +152,7 @@ public static class AuraToolsAudioRuntime
         }
 
         AuraToolsLog.Info("Audio/CardUse providers registered. mode=" + DescribeCardUseMode()
-                          + ", presentationRelay=host-observed"
+                          + ", presentationRelay=client-request-host-authorized"
                           + ", roles=" + CurrentCardUseRoles().Count);
     }
 

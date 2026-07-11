@@ -42,6 +42,7 @@ public static class PolymorphRuntimeService
         }
 
         RoleSkillApi.EnsureCurrentCareerSkillTimes();
+        PolymorphCooldownService.PrepareCurrentRoleEntry(self.Self, role.Id, "PolymorphRuntimeService.Enter");
         RoleSkillApi.RefreshFightSkills("PolymorphRuntimeService.Enter:" + role.Id);
         RoleSkillApi.LogCurrentSkillDiagnostics("PolymorphRuntimeService.Enter:" + role.Id);
 

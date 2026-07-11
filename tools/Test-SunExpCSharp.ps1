@@ -118,6 +118,33 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 
+namespace AuraShared.Core
+{
+    public enum AuraSharedFramePhase { Presentation }
+    public sealed class AuraSharedFrameSliceContext { }
+    public sealed class AuraSharedFrameSliceReport
+    {
+        public double ElapsedMilliseconds { get; set; }
+    }
+    public sealed class AuraSharedFrameWorkRequest
+    {
+        public string OwnerId { get; set; } = "";
+        public string Key { get; set; } = "";
+        public string Source { get; set; } = "";
+        public int DelayFrames { get; set; }
+        public AuraSharedFramePhase Phase { get; set; }
+        public int Priority { get; set; }
+        public int EstimatedCost { get; set; }
+        public double SliceBudgetMilliseconds { get; set; }
+        public Func<AuraSharedFrameSliceContext, bool>? ExecuteSlice { get; set; }
+        public Action<AuraSharedFrameSliceReport>? OnSliceExecuted { get; set; }
+    }
+    public static class AuraSharedFrameScheduler
+    {
+        public static bool RunCooperative(AuraSharedFrameWorkRequest request) => true;
+    }
+}
+
 namespace UnityEngine
 {
     public sealed class Transform
@@ -1866,6 +1893,9 @@ function Invoke-SourceAssertions {
     Assert-True $polymorphBuffService.Contains('ExecutorApi.TryAddTokenedEvent(self, "StartRound"') "Polymorph trait buff must own shared cooldown round ticking."
     Assert-True $polymorphCooldownService.Contains("CrossFormSkillUse") "Polymorph must track a separate cross-form skill-use ledger."
     Assert-True $polymorphCooldownService.Contains("IsCrossFormLocked") "Polymorph must block only cross-form skill reuse in the same round."
+    Assert-True $polymorphCooldownService.Contains("RoleCooldowns") "Polymorph must retain actual cooldown snapshots per form."
+    Assert-True $polymorphCooldownService.Contains("PrepareCurrentRoleEntry") "Polymorph must normalize first-entry cooldown and restore revisited form cooldowns."
+    Assert-True $polymorphBuffService.Contains("CaptureCurrentRole(self.Self") "Polymorph must capture the outgoing form cooldown before ChangeCareer."
     Assert-True (-not $polymorphCooldownService.Contains("RoleSkillApi.SetCurrentCareerSkillTimes(cooldown);")) "Polymorph must not overwrite native role skill cooldowns."
     Assert-True $wunaScripts.Contains("PolymorphCooldownService.MarkSkillUsed(self, ""Wuna.WhiteSunPrayer"")") "Wuna polymorph skill use must commit the shared cooldown."
     Assert-True $wunaScripts.Contains("PolymorphCooldownService.MarkSkillUsed(self, ""Wuna.GraveSong"")") "Wuna second polymorph skill must share the same cooldown record."
@@ -2594,7 +2624,7 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemoryRoleCommit.Contains("CommittedTokens.Add(commitToken)") "Solar memory final role command must suppress duplicate network delivery."
     Assert-True ($modConfig.ModVersion -eq "0.4.2") "SunExp network protocol change must ship as version 0.4.2."
     Assert-True ($modConfig.MustSame -eq $true) "SunExp must require an identical multiplayer mod version."
-    Assert-True $audioArbiterRuntime.Contains('CurrentBuildId = "audio-arbiter-2026-07-08-v6"') "Audio arbiter must expose the owner-qualified provider runtime build id."
+    Assert-True $audioArbiterRuntime.Contains('CurrentBuildId = "audio-arbiter-2026-07-11-v8"') "Audio arbiter must expose the fight-scoped presentation runtime build id."
     Assert-True $audioArbiterRuntime.Contains('const string sharedPrefix = "Shared:"') "Audio arbiter must resolve AuraShared resource paths."
     Assert-True $audioArbiterRuntime.Contains("MatchesProviderRequest") "Audio arbiter must expose owner-aware provider matching."
     Assert-True ([regex]::IsMatch($audioArbiterRuntime, 'MatchesProviderRequest\(requestedProviderId,\s*"",\s*ownerStrict:\s*false\)')) "Audio bare provider matching must remain backward-compatible."

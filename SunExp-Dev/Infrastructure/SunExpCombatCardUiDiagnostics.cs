@@ -40,7 +40,7 @@ public static class SunExpCombatCardUiDiagnostics
 
         if (scope.Segments.Count == 0)
         {
-            return "";
+            return " card=" + scope.CardId + "; segments=<native-or-unattributed>";
         }
 
         var parts = new List<string>();
