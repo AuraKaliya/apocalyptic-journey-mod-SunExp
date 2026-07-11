@@ -39,47 +39,160 @@ public sealed class CompanionStats
 
     public int Armor { get; }
 
+    public bool TrySpendMagic(int amount)
+    {
+        var cost = Math.Max(0, amount);
+        if (CurrentMagic < cost)
+        {
+            return false;
+        }
+
+        CurrentMagic -= cost;
+        return true;
+    }
+
     public void SpendMagic(int amount)
     {
-        CurrentMagic = Math.Max(0, CurrentMagic - Math.Max(0, amount));
+        TrySpendMagic(amount);
     }
 
     public void RecoverMagic(int amount)
     {
         CurrentMagic = Math.Min(MaxMagic, CurrentMagic + Math.Max(0, amount));
     }
+
+    public void SetCurrentMagic(int value)
+    {
+        CurrentMagic = Math.Max(0, Math.Min(MaxMagic, value));
+    }
+}
+
+[Serializable]
+public sealed class CompanionEntityIdentity
+{
+    public string StatusId { get; set; } = "";
+
+    public string OwnerPlayerId { get; set; } = "";
+
+    public string OwnerStatusId { get; set; } = "";
+
+    public string RoleId { get; set; } = "";
+
+    public string Faction { get; set; } = "Friendly";
+
+    public string EntityKind { get; set; } = "Companion";
+
+    public int SlotIndex { get; set; } = -1;
+}
+
+[Serializable]
+public sealed class CompanionIntentPlan
+{
+    public string PlanId { get; set; } = "";
+
+    public string StatusId { get; set; } = "";
+
+    public int TurnIndex { get; set; }
+
+    public string IntentId { get; set; } = "";
+
+    public string EnemyCardId { get; set; } = "";
+
+    public string Effect { get; set; } = "";
+
+    public List<string> OrderedTargetIds { get; set; } = new();
+
+    public int ResolvedValue { get; set; }
+
+    public int Cost { get; set; }
+
+    public int ReadyOnTurn { get; set; }
+
+    public int PreviewThreat { get; set; }
+
+    public int Priority { get; set; } = 1;
+
+    public int StateRevision { get; set; }
+
+    public bool IsWait { get; set; }
+
+    public CompanionIntentPlan Snapshot()
+    {
+        return new CompanionIntentPlan
+        {
+            PlanId = PlanId,
+            StatusId = StatusId,
+            TurnIndex = TurnIndex,
+            IntentId = IntentId,
+            EnemyCardId = EnemyCardId,
+            Effect = Effect,
+            OrderedTargetIds = new List<string>(OrderedTargetIds ?? new List<string>()),
+            ResolvedValue = ResolvedValue,
+            Cost = Cost,
+            ReadyOnTurn = ReadyOnTurn,
+            PreviewThreat = PreviewThreat,
+            Priority = Priority,
+            StateRevision = StateRevision,
+            IsWait = IsWait
+        };
+    }
 }
 
 public sealed class CompanionBattleState
 {
-    private readonly Dictionary<string, int> cooldowns = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, int> readyOnTurn = new(StringComparer.Ordinal);
 
-    public CompanionBattleState(string statusId, string roleId, string ownerStatusId, int slotIndex, CompanionStats stats)
+    public CompanionBattleState(
+        string statusId,
+        string roleId,
+        string ownerStatusId,
+        int slotIndex,
+        CompanionStats stats,
+        string ownerPlayerId = "")
     {
-        StatusId = statusId ?? "";
-        RoleId = roleId ?? "";
-        OwnerStatusId = ownerStatusId ?? "";
-        SlotIndex = slotIndex;
+        Identity = new CompanionEntityIdentity
+        {
+            StatusId = statusId ?? "",
+            OwnerPlayerId = ownerPlayerId ?? "",
+            OwnerStatusId = ownerStatusId ?? "",
+            RoleId = roleId ?? "",
+            SlotIndex = slotIndex
+        };
         Stats = stats;
     }
 
-    public string StatusId { get; }
+    public CompanionEntityIdentity Identity { get; }
 
-    public string RoleId { get; }
+    public string StatusId => Identity.StatusId;
 
-    public string OwnerStatusId { get; }
+    public string RoleId => Identity.RoleId;
 
-    public int SlotIndex { get; }
+    public string OwnerStatusId => Identity.OwnerStatusId;
+
+    public string OwnerPlayerId => Identity.OwnerPlayerId;
+
+    public int SlotIndex => Identity.SlotIndex;
 
     public CompanionStats Stats { get; }
 
     public string CurrentIntentId { get; set; } = "";
 
+    public CompanionIntentPlan? CurrentPlan { get; set; }
+
+    public int TurnIndex { get; private set; }
+
+    public int Revision { get; private set; }
+
     public int Cooldown(string intentId)
     {
-        return !string.IsNullOrWhiteSpace(intentId) && cooldowns.TryGetValue(intentId, out var value)
-            ? Math.Max(0, value)
+        return !string.IsNullOrWhiteSpace(intentId) && readyOnTurn.TryGetValue(intentId, out var value)
+            ? Math.Max(0, value - TurnIndex)
             : 0;
+    }
+
+    public bool IsReady(string intentId)
+    {
+        return Cooldown(intentId) <= 0;
     }
 
     public void StartCooldown(string intentId, int turns)
@@ -89,16 +202,53 @@ public sealed class CompanionBattleState
             return;
         }
 
-        cooldowns[intentId] = Math.Max(0, turns);
+        readyOnTurn[intentId] = TurnIndex + Math.Max(0, turns) + 1;
     }
 
-    public void TickCooldowns()
+    public int ReadyOnTurn(string intentId)
     {
-        var keys = new List<string>(cooldowns.Keys);
-        foreach (var key in keys)
+        return !string.IsNullOrWhiteSpace(intentId) && readyOnTurn.TryGetValue(intentId, out var value)
+            ? Math.Max(0, value)
+            : TurnIndex;
+    }
+
+    public IReadOnlyDictionary<string, int> ReadyOnTurnSnapshot()
+    {
+        return new Dictionary<string, int>(readyOnTurn, StringComparer.Ordinal);
+    }
+
+    public void ApplyReadyOnTurn(IReadOnlyDictionary<string, int>? values)
+    {
+        readyOnTurn.Clear();
+        if (values == null)
         {
-            cooldowns[key] = Math.Max(0, cooldowns[key] - 1);
+            return;
         }
+
+        foreach (var entry in values)
+        {
+            if (!string.IsNullOrWhiteSpace(entry.Key))
+            {
+                readyOnTurn[entry.Key] = Math.Max(0, entry.Value);
+            }
+        }
+    }
+
+    public void AdvanceTurn()
+    {
+        TurnIndex++;
+        Revision++;
+    }
+
+    public void TouchRevision()
+    {
+        Revision++;
+    }
+
+    public void ApplyRemoteProgress(int turnIndex, int revision)
+    {
+        TurnIndex = Math.Max(TurnIndex, turnIndex);
+        Revision = Math.Max(Revision, revision);
     }
 }
 
@@ -153,6 +303,8 @@ public sealed class CompanionIntentProfile
 
 public sealed class CompanionIntentRegistryDocument
 {
+    public int SchemaVersion { get; set; } = 2;
+
     public List<CompanionIntentDefinition> Intents { get; set; } = new();
 
     public List<CompanionIntentProfile> Profiles { get; set; } = new();

@@ -5,11 +5,33 @@ using SunExp.Dll.Infrastructure;
 
 namespace SunExp.Dll.Mechanics;
 
+[Serializable]
+public sealed class CompanionThreatSnapshot
+{
+    public string StatusId { get; set; } = "";
+
+    public int BaseThreat { get; set; }
+
+    public int PreviewThreat { get; set; }
+
+    public int RecentThreat { get; set; }
+
+    public int DecayPerRound { get; set; }
+
+    public int FinalThreat { get; set; }
+}
+
 public static class CompanionThreatService
 {
     private const int RealPlayerTargetWeight = 100;
-    private const int MinCompanionTargetWeight = 10;
-    private const int MaxCompanionTargetWeight = 160;
+    public const int MinCompanionTargetWeight = 80;
+    public const int MaxCompanionTargetWeight = 200;
+    public const int MaxBaseThreat = 120;
+    public const int MaxPreviewThreat = 40;
+    public const int MaxOnUseThreat = 60;
+    public const int MaxRecentThreat = 120;
+    public const int MinDecay = 1;
+    public const int MaxDecay = 30;
 
     private static readonly object SyncRoot = new();
     private static readonly Dictionary<string, CompanionThreatState> Threats = new(StringComparer.Ordinal);
@@ -24,6 +46,32 @@ public static class CompanionThreatService
         lock (SyncRoot)
         {
             Threats[state.StatusId] = new CompanionThreatState(state.StatusId, BaseThreat(state.Stats));
+        }
+
+        SunExpPerformanceCounters.Record("Companion.Threat.Registered");
+    }
+
+    /// <summary>
+    /// Registers from the projection's post-buff values instead of its original
+    /// immutable CompanionStats. Intended for the authoritative spawn pipeline.
+    /// </summary>
+    public static void Register(
+        CompanionBattleState state,
+        int maxHp,
+        int armor,
+        int attack,
+        int maxMagic)
+    {
+        if (state == null || string.IsNullOrWhiteSpace(state.StatusId))
+        {
+            return;
+        }
+
+        lock (SyncRoot)
+        {
+            Threats[state.StatusId] = new CompanionThreatState(
+                state.StatusId,
+                CalculateBaseThreat(maxHp, armor, attack, maxMagic));
         }
 
         SunExpPerformanceCounters.Record("Companion.Threat.Registered");
@@ -61,8 +109,22 @@ public static class CompanionThreatService
 
         lock (SyncRoot)
         {
-            threat.PreviewThreat = Math.Max(0, intent.Threat?.Preview ?? 0);
-            threat.DecayPerRound = Math.Max(1, intent.Threat?.Decay ?? 4);
+            threat.PreviewThreat = Clamp(intent.Threat?.Preview ?? 0, 0, MaxPreviewThreat);
+            threat.DecayPerRound = Clamp(intent.Threat?.Decay ?? 4, MinDecay, MaxDecay);
+        }
+    }
+
+    public static void ClearPreview(CompanionBattleState? state)
+    {
+        var threat = FindMutable(state?.StatusId);
+        if (threat == null)
+        {
+            return;
+        }
+
+        lock (SyncRoot)
+        {
+            threat.PreviewThreat = 0;
         }
     }
 
@@ -76,8 +138,9 @@ public static class CompanionThreatService
 
         lock (SyncRoot)
         {
-            threat.RecentThreat = Math.Min(200, threat.RecentThreat + Math.Max(0, intent.Threat?.OnUse ?? 0));
-            threat.DecayPerRound = Math.Max(1, intent.Threat?.Decay ?? threat.DecayPerRound);
+            var onUse = Clamp(intent.Threat?.OnUse ?? 0, 0, MaxOnUseThreat);
+            threat.RecentThreat = Clamp(threat.RecentThreat + onUse, 0, MaxRecentThreat);
+            threat.DecayPerRound = Clamp(intent.Threat?.Decay ?? threat.DecayPerRound, MinDecay, MaxDecay);
         }
     }
 
@@ -95,7 +158,7 @@ public static class CompanionThreatService
         }
     }
 
-    public static int ThreatPercent(CompanionBattleState? state)
+    public static int ThreatPressurePercent(CompanionBattleState? state)
     {
         var threat = Snapshot(state?.StatusId);
         if (threat == null)
@@ -103,7 +166,73 @@ public static class CompanionThreatService
             return 0;
         }
 
-        return Math.Max(0, Math.Min(100, threat.Value.Value * 100 / MaxCompanionTargetWeight));
+        return Clamp((int)Math.Round(
+            (threat.Value.Value - MinCompanionTargetWeight) * 100d
+            / (MaxCompanionTargetWeight - MinCompanionTargetWeight),
+            MidpointRounding.AwayFromZero), 0, 100);
+    }
+
+    public static int ThreatPercent(CompanionBattleState? state) => ThreatPressurePercent(state);
+
+    public static int CurrentWeight(CompanionBattleState? state)
+    {
+        return Snapshot(state?.StatusId)?.Value ?? MinCompanionTargetWeight;
+    }
+
+    public static CompanionThreatSnapshot? Export(string? statusId)
+    {
+        var threat = FindMutable(statusId);
+        if (threat == null)
+        {
+            return null;
+        }
+
+        lock (SyncRoot)
+        {
+            return new CompanionThreatSnapshot
+            {
+                StatusId = threat.StatusId,
+                BaseThreat = threat.BaseThreat,
+                PreviewThreat = threat.PreviewThreat,
+                RecentThreat = threat.RecentThreat,
+                DecayPerRound = threat.DecayPerRound,
+                FinalThreat = threat.Value
+            };
+        }
+    }
+
+    /// <summary>Restores a host-authored threat snapshot on an observing client.</summary>
+    public static void ApplyAuthoritative(CompanionThreatSnapshot? snapshot)
+    {
+        if (snapshot == null || string.IsNullOrWhiteSpace(snapshot.StatusId))
+        {
+            return;
+        }
+
+        lock (SyncRoot)
+        {
+            Threats[snapshot.StatusId] = new CompanionThreatState(snapshot.StatusId, snapshot.BaseThreat)
+            {
+                PreviewThreat = Clamp(snapshot.PreviewThreat, 0, MaxPreviewThreat),
+                RecentThreat = Clamp(snapshot.RecentThreat, 0, MaxRecentThreat),
+                DecayPerRound = Clamp(snapshot.DecayPerRound, MinDecay, MaxDecay)
+            };
+        }
+    }
+
+    public static int CalculateBaseThreat(CompanionStats? stats) => BaseThreat(stats);
+
+    public static int CalculateBaseThreat(int maxHp, int armor, int attack, int maxMagic)
+    {
+        var raw = Math.Max(0, maxHp) * 0.15f
+            + Math.Max(0, armor) * 0.8f
+            + Math.Max(0, attack) * 1.2f
+            + Math.Max(0, maxMagic) * 1.5f;
+        var contribution = Clamp(
+            (int)Math.Round(raw * 0.5f, MidpointRounding.AwayFromZero),
+            0,
+            MaxBaseThreat - MinCompanionTargetWeight);
+        return Clamp(MinCompanionTargetWeight + contribution, MinCompanionTargetWeight, MaxBaseThreat);
     }
 
     public static void AddActiveCompanionsToAllTargets(ScriptExecutor executor)
@@ -221,7 +350,7 @@ public static class CompanionThreatService
         }
     }
 
-    private static CompanionThreatSnapshot? Snapshot(string? statusId)
+    private static CompanionThreatValueSnapshot? Snapshot(string? statusId)
     {
         var threat = FindMutable(statusId);
         if (threat == null)
@@ -231,22 +360,23 @@ public static class CompanionThreatService
 
         lock (SyncRoot)
         {
-            return new CompanionThreatSnapshot(threat.Value);
+            return new CompanionThreatValueSnapshot(threat.Value);
         }
     }
 
-    private static int BaseThreat(CompanionStats stats)
+    private static int BaseThreat(CompanionStats? stats)
     {
         if (stats == null)
         {
             return MinCompanionTargetWeight;
         }
 
-        var value = stats.MaxHp * 0.15f
-            + stats.Armor * 0.8f
-            + stats.Attack * 1.2f
-            + stats.MaxMagic * 1.5f;
-        return Math.Max(MinCompanionTargetWeight, (int)Math.Round(value, MidpointRounding.AwayFromZero));
+        return CalculateBaseThreat(stats.MaxHp, stats.Armor, stats.Attack, stats.MaxMagic);
+    }
+
+    private static int Clamp(int value, int minimum, int maximum)
+    {
+        return Math.Max(minimum, Math.Min(maximum, value));
     }
 
     private static bool IsAlive(IStatusManager? status)
@@ -259,7 +389,7 @@ public static class CompanionThreatService
         public CompanionThreatState(string statusId, int baseThreat)
         {
             StatusId = statusId;
-            BaseThreat = Math.Max(MinCompanionTargetWeight, baseThreat);
+            BaseThreat = Clamp(baseThreat, MinCompanionTargetWeight, MaxBaseThreat);
         }
 
         public string StatusId { get; }
@@ -272,12 +402,12 @@ public static class CompanionThreatService
 
         public int DecayPerRound { get; set; } = 4;
 
-        public int Value => Math.Max(MinCompanionTargetWeight, BaseThreat + PreviewThreat + RecentThreat);
+        public int Value => Clamp(BaseThreat + PreviewThreat + RecentThreat, MinCompanionTargetWeight, MaxCompanionTargetWeight);
     }
 
-    private readonly struct CompanionThreatSnapshot
+    private readonly struct CompanionThreatValueSnapshot
     {
-        public CompanionThreatSnapshot(int value)
+        public CompanionThreatValueSnapshot(int value)
         {
             Value = value;
         }

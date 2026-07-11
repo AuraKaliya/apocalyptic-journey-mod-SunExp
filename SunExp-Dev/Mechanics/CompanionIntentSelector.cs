@@ -46,17 +46,23 @@ public static class CompanionIntentSelector
         return PickWeighted(top);
     }
 
-    public static void MarkUsed(CompanionBattleState state, CompanionIntentDefinition intent)
+    public static bool CommitResolvedPlan(CompanionBattleState state, CompanionIntentPlan plan)
     {
-        if (state == null || intent == null)
+        if (state == null || plan == null || plan.IsWait)
         {
-            return;
+            return false;
         }
 
-        state.Stats.SpendMagic(intent.Cost);
+        var intent = CompanionIntentRegistry.Find(plan.IntentId);
+        if (intent == null || !state.Stats.TrySpendMagic(plan.Cost))
+        {
+            return false;
+        }
+
         state.StartCooldown(intent.Id, intent.Cooldown);
         state.CurrentIntentId = intent.Id;
         CompanionThreatService.MarkIntentUsed(state, intent);
+        return true;
     }
 
     private static List<CompanionIntentChoice> BuildChoices(
@@ -68,7 +74,7 @@ public static class CompanionIntentSelector
         var result = new List<CompanionIntentChoice>();
         foreach (var intent in CompanionIntentRegistry.IntentsForRole(state.RoleId, tendency))
         {
-            if (state.Cooldown(intent.Id) > 0 || state.Stats.CurrentMagic < intent.Cost)
+            if (!state.IsReady(intent.Id) || state.Stats.CurrentMagic < intent.Cost)
             {
                 continue;
             }
@@ -200,9 +206,9 @@ public static class CompanionIntentSelector
         return CompanionIntentRegistry.IntentType(intent) switch
         {
             CompanionIntentType.Attack => 10 + EnemyPressure(executor) - HighThreatLowHpPenalty(state),
-            CompanionIntentType.Defense => 8 + MissingBlock(target) + CompanionThreatService.ThreatPercent(state) / 4,
+            CompanionIntentType.Defense => 8 + MissingBlock(target) + CompanionThreatService.ThreatPressurePercent(state) / 4,
             CompanionIntentType.Support => 6 + MissingBlock(target) / 2,
-            CompanionIntentType.Recovery => 12 + Math.Max(0, 60 - HpPercent(target)) + CompanionThreatService.ThreatPercent(state) / 5,
+            CompanionIntentType.Recovery => 12 + Math.Max(0, 60 - HpPercent(target)) + CompanionThreatService.ThreatPressurePercent(state) / 5,
             CompanionIntentType.Interference => 9 + EnemyPressure(executor) / 2,
             _ => 5
         };
@@ -216,7 +222,7 @@ public static class CompanionIntentSelector
             return 0;
         }
 
-        return CompanionThreatService.ThreatPercent(state) / 5;
+        return CompanionThreatService.ThreatPressurePercent(state) / 5;
     }
 
     private static int EnemyPressure(ScriptExecutor executor)

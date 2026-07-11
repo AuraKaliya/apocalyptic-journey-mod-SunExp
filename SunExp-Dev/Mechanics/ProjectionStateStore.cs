@@ -72,7 +72,7 @@ public static class ProjectionStateStore
 
     public static bool IsProjection(IStatusManager? status)
     {
-        return status != null && Find(status.InstanceId) != null;
+        return status != null && (Find(status.InstanceId) != null || CompanionOwnershipService.IsFriendlyCompanion(status));
     }
 
     public static bool RetireIfDead(IStatusManager? status, string source)
@@ -139,6 +139,8 @@ public static class ProjectionStateStore
             if (Projections.Count == 0)
             {
                 CompanionBattleStateStore.Clear();
+                CompanionOwnershipService.Clear();
+                ProjectionBuffCopyService.Clear();
                 return;
             }
 

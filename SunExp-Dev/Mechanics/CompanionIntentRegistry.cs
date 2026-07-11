@@ -15,6 +15,30 @@ public static class CompanionIntentRegistry
     private static readonly object SyncRoot = new();
     private static CompanionIntentRegistryDocument document = BuiltInDocument();
 
+    public static string RegistryHash
+    {
+        get
+        {
+            lock (SyncRoot)
+            {
+                unchecked
+                {
+                    uint hash = 2166136261;
+                    var canonical = string.Join("|", document.Intents
+                        .OrderBy(intent => intent.Id, StringComparer.Ordinal)
+                        .Select(intent => intent.Id + ":" + intent.EnemyCardId + ":" + intent.Type + ":" + intent.Effect
+                            + ":" + intent.Cost + ":" + intent.Cooldown));
+                    foreach (var character in canonical)
+                    {
+                        hash = (hash ^ character) * 16777619;
+                    }
+
+                    return hash.ToString("x8");
+                }
+            }
+        }
+    }
+
     public static void Load(ModConfig modConfig)
     {
         lock (SyncRoot)
@@ -91,7 +115,7 @@ public static class CompanionIntentRegistry
         CompanionIntentRegistryDocument loaded,
         CompanionIntentRegistryDocument fallback)
     {
-        var result = new CompanionIntentRegistryDocument();
+        var result = new CompanionIntentRegistryDocument { SchemaVersion = 2 };
         var intents = new Dictionary<string, CompanionIntentDefinition>(StringComparer.Ordinal);
         foreach (var intent in fallback.Intents.Concat(loaded.Intents ?? new List<CompanionIntentDefinition>()))
         {
@@ -101,16 +125,25 @@ public static class CompanionIntentRegistry
                 continue;
             }
 
+            if (!Enum.TryParse(intent.Type ?? "", true, out CompanionIntentType _)
+                || !IsKnownEffect(intent.Effect)
+                || string.IsNullOrWhiteSpace(intent.EnemyCardId))
+            {
+                SunExpLog.Warn("[CompanionIntentRegistry] rejected invalid intent: " + id);
+                continue;
+            }
+
             intent.Id = id;
-            intent.EnemyCardId = string.IsNullOrWhiteSpace(intent.EnemyCardId) ? id : intent.EnemyCardId.Trim();
-            intent.Type = string.IsNullOrWhiteSpace(intent.Type) ? "Attack" : intent.Type.Trim();
+            intent.EnemyCardId = (intent.EnemyCardId ?? id).Trim();
+            intent.Type = (intent.Type ?? "Attack").Trim();
             intent.Cost = Math.Max(0, intent.Cost);
             intent.Cooldown = Math.Max(0, intent.Cooldown);
             intent.BasePriority = Math.Max(1, intent.BasePriority);
-            intent.Threat ??= new CompanionIntentThreatSpec();
-            intent.Threat.Preview = Math.Max(0, intent.Threat.Preview);
-            intent.Threat.OnUse = Math.Max(0, intent.Threat.OnUse);
-            intent.Threat.Decay = Math.Max(1, intent.Threat.Decay);
+            var threat = intent.Threat ?? new CompanionIntentThreatSpec();
+            intent.Threat = threat;
+            threat.Preview = Math.Max(0, threat.Preview);
+            threat.OnUse = Math.Max(0, threat.OnUse);
+            threat.Decay = Math.Max(1, threat.Decay);
             intents[id] = intent;
         }
 
@@ -151,6 +184,7 @@ public static class CompanionIntentRegistry
     {
         return new CompanionIntentRegistryDocument
         {
+            SchemaVersion = 2,
             Intents = new List<CompanionIntentDefinition>
             {
                 new()
@@ -211,5 +245,12 @@ public static class CompanionIntentRegistry
     private static bool SameId(string? left, string? right)
     {
         return string.Equals(left ?? "", right ?? "", StringComparison.Ordinal);
+    }
+
+    private static bool IsKnownEffect(string? effect)
+    {
+        var value = effect?.Trim() ?? "";
+        return string.Equals(value, "Damage", StringComparison.Ordinal)
+            || string.Equals(value, "Block", StringComparison.Ordinal);
     }
 }

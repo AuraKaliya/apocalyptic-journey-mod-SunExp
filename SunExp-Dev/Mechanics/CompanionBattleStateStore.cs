@@ -14,15 +14,17 @@ public static class CompanionBattleStateStore
         string roleId,
         string ownerStatusId,
         int slotIndex,
-        CompanionStats stats)
+        CompanionStats stats,
+        string ownerPlayerId = "")
     {
-        var state = new CompanionBattleState(statusId, roleId, ownerStatusId, slotIndex, stats);
+        var state = new CompanionBattleState(statusId, roleId, ownerStatusId, slotIndex, stats, ownerPlayerId);
         lock (SyncRoot)
         {
             States[state.StatusId] = state;
         }
 
         CompanionThreatService.Register(state);
+        CompanionOwnershipService.Register(state.Identity);
         SunExpPerformanceCounters.Record("Companion.State.Created");
         return state;
     }
@@ -57,6 +59,8 @@ public static class CompanionBattleStateStore
         }
 
         CompanionThreatService.Remove(id);
+        CompanionOwnershipService.Remove(id);
+        ProjectionBuffCopyService.Forget(id);
     }
 
     public static void Clear()
@@ -67,5 +71,7 @@ public static class CompanionBattleStateStore
         }
 
         CompanionThreatService.Clear();
+        CompanionOwnershipService.Clear();
+        ProjectionBuffCopyService.Clear();
     }
 }

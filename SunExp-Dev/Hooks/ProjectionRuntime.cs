@@ -13,7 +13,7 @@ public static class ProjectionRuntime
     {
         SunExpBattleLifecycleRouter.Register("Projection", new SunExpBattleLifecycleSubscription
         {
-            FightStarted = context => ClearBattle("Fight_Start.Init"),
+            FightStarted = context => BeginBattle("Fight_Start.Init"),
             FightEnding = context => ClearBattle("FightEnding")
         });
         RegisterBefore(modConfig, SunExpHookTargets.FightWinInit, context => ClearBattle("Fight_Win.Init:before"));
@@ -49,6 +49,13 @@ public static class ProjectionRuntime
         {
             SunExpLog.Error("Projection battle cleanup failed from " + source, ex);
         }
+    }
+
+    private static void BeginBattle(string source)
+    {
+        ClearBattle(source);
+        CompanionAuthorityService.BeginBattleEpoch();
+        ProjectionSummonService.ResetBattleSynchronization();
     }
 
     private static void RetireProjectionAfterDamage(ModHookContext context)

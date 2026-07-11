@@ -15,17 +15,20 @@ public static class CompanionIntentExecutor
         }
 
         var executor = self!;
-        var intent = CompanionIntentRegistry.Find(actionId) ?? CompanionIntentRegistry.Find(SunExpIds.ProjectionActionStaffTap);
-        if (intent == null)
+        var state = CompanionBattleStateStore.Find(executor.Self?.InstanceId);
+        var plan = state?.CurrentPlan;
+        if (plan == null)
         {
             return;
         }
 
-        var state = CompanionBattleStateStore.Find(executor.Self?.InstanceId);
-        var value = state == null ? intent.FlatValue : ResolveValue(state, intent);
-        DictionaryUtil.Set(executor.Vars, "CD", intent.Cooldown.ToString());
-        DictionaryUtil.Set(executor.Vars, "priority", Math.Max(1, intent.BasePriority).ToString());
-        executor.AddDescription("1", DescriptionType(intent), value.ToString());
+        DictionaryUtil.Set(executor.Vars, "CD", "0");
+        DictionaryUtil.Set(executor.Vars, "priority", Math.Max(1, plan.Priority).ToString());
+        if (!plan.IsWait)
+        {
+            var intent = CompanionIntentRegistry.Find(plan.IntentId);
+            executor.AddDescription("1", intent == null ? "Value" : DescriptionType(intent), plan.ResolvedValue.ToString());
+        }
     }
 
     public static void Target(ScriptExecutor self, string actionId)
@@ -36,15 +39,15 @@ public static class CompanionIntentExecutor
         }
 
         var executor = self!;
-        var intent = CompanionIntentRegistry.Find(actionId) ?? CompanionIntentRegistry.Find(SunExpIds.ProjectionActionStaffTap);
-        if (intent == null)
+        var state = CompanionBattleStateStore.Find(executor.Self?.InstanceId);
+        var plan = state?.CurrentPlan;
+        if (plan == null || plan.IsWait)
         {
             return;
         }
 
-        var state = CompanionBattleStateStore.Find(executor.Self?.InstanceId);
-        var target = SelectTarget(executor, state, intent);
-        ExecutorApi.SetStatusForTarget(executor, target, CompanionIntentRegistry.IntentType(intent) == CompanionIntentType.Attack ? "Target" : "Self");
+        var target = ResolveCommittedTarget(plan);
+        ExecutorApi.SetStatusForTarget(executor, target, IsAttackEffect(plan.Effect) ? "Target" : "Self");
     }
 
     public static void UseAction(ScriptExecutor self, string actionId)
@@ -55,26 +58,54 @@ public static class CompanionIntentExecutor
         }
 
         var executor = self!;
-        var intent = CompanionIntentRegistry.Find(actionId) ?? CompanionIntentRegistry.Find(SunExpIds.ProjectionActionStaffTap);
-        if (intent == null)
+        var state = CompanionBattleStateStore.Find(executor.Self?.InstanceId);
+        var plan = state?.CurrentPlan;
+        if (plan == null || plan.IsWait)
         {
             return;
         }
 
-        var state = CompanionBattleStateStore.Find(executor.Self?.InstanceId);
-        var target = SelectTarget(executor, state, intent);
-        var value = state == null ? Math.Max(1, intent.FlatValue) : ResolveValue(state, intent);
-        switch ((intent.Effect ?? "").Trim())
+        var target = ResolveCommittedTarget(plan);
+        if (target == null)
+        {
+            return;
+        }
+
+        switch ((plan.Effect ?? "").Trim())
         {
             case "Block":
                 ExecutorApi.SetStatusForTarget(executor, target, "Self");
-                executor.ChangeDefence(value.ToString());
+                executor.ChangeDefence(plan.ResolvedValue.ToString());
                 break;
             case "Damage":
             default:
-                ExecutorApi.DealDamageToTarget(executor, target, value);
+                ExecutorApi.DealDamageToTarget(executor, target, plan.ResolvedValue);
                 break;
         }
+    }
+
+    public static IStatusManager? ResolveCommittedTarget(CompanionIntentPlan? plan)
+    {
+        if (plan?.OrderedTargetIds == null)
+        {
+            return null;
+        }
+
+        foreach (var targetId in plan.OrderedTargetIds)
+        {
+            var target = StatusById(targetId);
+            if (IsAlive(target))
+            {
+                return target;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsAttackEffect(string? effect)
+    {
+        return string.Equals(effect?.Trim(), "Damage", StringComparison.Ordinal);
     }
 
     public static IStatusManager? SelectTarget(ScriptExecutor self, CompanionBattleState? state, CompanionIntentDefinition intent)

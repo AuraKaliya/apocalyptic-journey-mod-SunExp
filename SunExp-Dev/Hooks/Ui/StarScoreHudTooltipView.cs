@@ -44,6 +44,7 @@ public sealed class StarScoreHudTooltipView : MonoBehaviour
         if (contentKey == lastContentKey)
         {
             gameObject.SetActive(true);
+            transform.SetAsLastSibling();
             return;
         }
 
@@ -64,6 +65,9 @@ public sealed class StarScoreHudTooltipView : MonoBehaviour
         }
 
         gameObject.SetActive(true);
+        // The parent is BattleHudHost, so this only raises the tooltip within the
+        // persistent HUD layer and can never overtake FightUI transient overlays.
+        transform.SetAsLastSibling();
     }
 
     public void Hide()

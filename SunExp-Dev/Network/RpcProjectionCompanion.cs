@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Network.Command;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
@@ -9,17 +10,49 @@ namespace SunExp.Dll.Network;
 [Serializable]
 public sealed class ProjectionCompanionSnapshot
 {
+    public int ProtocolVersion { get; set; } = 2;
+
+    public int BattleEpoch { get; set; }
+
+    public string RegistryHash { get; set; } = "";
+
+    public int Revision { get; set; }
+
     public string Token { get; set; } = "";
 
     public string RoleId { get; set; } = "";
 
     public string OwnerStatusId { get; set; } = "";
 
+    public string OwnerPlayerId { get; set; } = "";
+
     public string StatusId { get; set; } = "";
 
     public int SlotIndex { get; set; } = -1;
 
     public bool Accepted { get; set; }
+
+    public int MaxHp { get; set; }
+
+    public int CurrentHp { get; set; }
+
+    public int Attack { get; set; }
+
+    public int Armor { get; set; }
+
+    public int MaxMagic { get; set; }
+
+    public int CurrentMagic { get; set; }
+
+    public int TurnIndex { get; set; }
+
+    public Dictionary<string, int> ReadyOnTurn { get; set; } = new();
+
+    public List<ProjectionBuffSnapshot> Buffs { get; set; } = new();
+
+    public CompanionThreatSnapshot? Threat { get; set; }
+
+    public CompanionIntentPlan? IntentPlan { get; set; }
 
     public string RejectionReason { get; set; } = "";
 }
@@ -35,6 +68,12 @@ public sealed class RpcProjectionSummonRequest : RpcCommandBase, ISunExpServerBo
 
     public string Token { get; set; } = "";
 
+    public int ProtocolVersion { get; set; } = 2;
+
+    public int BattleEpoch { get; set; }
+
+    public string RegistryHash { get; set; } = "";
+
     public RpcProjectionSummonRequest()
     {
     }
@@ -44,6 +83,8 @@ public sealed class RpcProjectionSummonRequest : RpcCommandBase, ISunExpServerBo
         RoleId = roleId ?? "";
         OwnerStatusId = ownerStatusId ?? "";
         Token = token ?? "";
+        BattleEpoch = CompanionAuthorityService.BattleEpoch;
+        RegistryHash = CompanionIntentRegistry.RegistryHash;
     }
 
     public void BindServerSender(SunExpRpcSender sender)
@@ -53,7 +94,7 @@ public sealed class RpcProjectionSummonRequest : RpcCommandBase, ISunExpServerBo
 
     public override void CmdExecute()
     {
-        ProjectionSummonService.ResolveNetworkSummon(RoleId, OwnerStatusId, Token, serverSender);
+        ProjectionSummonService.ResolveNetworkSummon(RoleId, OwnerStatusId, Token, serverSender, ProtocolVersion, BattleEpoch, RegistryHash);
     }
 
     public override void RpcExecute()

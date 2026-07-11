@@ -33,7 +33,6 @@ public sealed class FieldBuffHudView : MonoBehaviour
     {
         var go = new GameObject(RootName, typeof(RectTransform), typeof(CanvasGroup));
         go.transform.SetParent(parent, false);
-        go.transform.SetAsLastSibling();
 
         var view = go.AddComponent<FieldBuffHudView>();
         view.Build();

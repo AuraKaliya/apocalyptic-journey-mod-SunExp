@@ -167,8 +167,10 @@ public static class SunExpIds
     public const string HeartChangeActionStrikeCardId = "SunExp_sunexp_enemycard_heart_change_strike";
     public const string ProjectionActionStaffTap = "staff_tap";
     public const string ProjectionActionShieldBlessing = "shield_blessing";
+    public const string ProjectionActionWait = "system.wait";
     public const string ProjectionActionStaffTapCardId = "SunExp_sunexp_enemycard_projection_staff_tap";
     public const string ProjectionActionShieldBlessingCardId = "SunExp_sunexp_enemycard_projection_shield_blessing";
+    public const string ProjectionActionWaitCardId = "SunExp_sunexp_enemycard_projection_wait";
 
     public static readonly string[] StellarOvertureCardIds =
     {

@@ -11,7 +11,10 @@ namespace SunExp.Dll.Hooks;
 
 public static class StarScoreHudRuntime
 {
+    private const int MaxHostRetryCount = 30;
     private static StarScoreHudView? activeView;
+    private static StarScoreDisplaySnapshot? pendingSnapshot;
+    private static int hostRetryCount;
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -53,12 +56,16 @@ public static class StarScoreHudRuntime
                 return;
             }
 
+            pendingSnapshot = snapshot;
             var view = EnsureView();
             if (view == null)
             {
+                ScheduleHostRetry();
                 return;
             }
 
+            pendingSnapshot = null;
+            hostRetryCount = 0;
             view.ApplySnapshot(snapshot);
         }
         catch (Exception ex)
@@ -83,14 +90,11 @@ public static class StarScoreHudRuntime
     {
         if (activeView != null)
         {
-            activeView.transform.SetAsLastSibling();
             return activeView;
         }
 
-        var parent = UIManager.Instance?.canvasTf ?? UIManager.Instance?.upperCanvasTf;
-        if (parent == null)
+        if (!BattleHudHost.TryGet(out var parent))
         {
-            SunExpLog.Warn("Star score HUD skipped: UI canvas unavailable.");
             return null;
         }
 
@@ -101,6 +105,8 @@ public static class StarScoreHudRuntime
 
     public static void Close(string source)
     {
+        pendingSnapshot = null;
+        hostRetryCount = 0;
         if (activeView == null)
         {
             SunExpTransientUiRegistry.Unregister("StarScoreHud");
@@ -118,5 +124,27 @@ public static class StarScoreHudRuntime
 
         activeView = null;
         SunExpTransientUiRegistry.Unregister("StarScoreHud");
+    }
+
+    private static void ScheduleHostRetry()
+    {
+        if (hostRetryCount >= MaxHostRetryCount)
+        {
+            SunExpLog.WarnOnce("StarScoreHud.FightUiUnavailable",
+                "Star score HUD skipped after waiting for FightUI; a later score update can retry.");
+            return;
+        }
+
+        hostRetryCount++;
+        SunExpFrameScheduler.RunOnceAfterFrames("StarScoreHud.WaitForFightUI", 2, RetryPendingSnapshot);
+    }
+
+    private static void RetryPendingSnapshot()
+    {
+        var snapshot = pendingSnapshot;
+        if (snapshot != null)
+        {
+            OnStarScoreChanged(snapshot);
+        }
     }
 }

@@ -12,15 +12,15 @@ namespace SunExp.Dll.Mechanics;
 public sealed class ProjectionOtherObj : OtherObj
 {
     private CompanionBattleState? battleState;
-    private CompanionIntentDefinition? selectedIntent;
-
     public string RoleId { get; private set; } = "";
 
     public string OwnerStatusId { get; private set; } = "";
 
+    public string OwnerPlayerId { get; private set; } = "";
+
     public override string Type => "Projection";
 
-    public bool InitProjection(PolymorphRoleSpec role, string ownerStatusId, int slotIndex, CompanionStats stats, string statusId = "")
+    public bool InitProjection(PolymorphRoleSpec role, string ownerStatusId, int slotIndex, CompanionStats stats, string statusId = "", string ownerPlayerId = "")
     {
         if (role == null)
         {
@@ -29,6 +29,7 @@ public sealed class ProjectionOtherObj : OtherObj
 
         RoleId = role.Id;
         OwnerStatusId = ownerStatusId ?? "";
+        OwnerPlayerId = CompanionOwnershipService.ResolveOwnerPlayerId(OwnerStatusId, ownerPlayerId);
         dataConfig = ProjectionSummonService.CreateProjectionDataConfig(role, stats);
         data = dataConfig.data;
         FightAction = new ObjectAction(this);
@@ -41,7 +42,7 @@ public sealed class ProjectionOtherObj : OtherObj
         MaxActionCount = 1;
         ActionCount = MaxActionCount;
         InstanceId = string.IsNullOrWhiteSpace(statusId) ? ProjectionStateStore.NextStatusId() : statusId.Trim();
-        battleState = CompanionBattleStateStore.Create(InstanceId, role.Id, OwnerStatusId, slotIndex, stats);
+        battleState = CompanionBattleStateStore.Create(InstanceId, role.Id, OwnerStatusId, slotIndex, stats, OwnerPlayerId);
         gameObject.name = data.Localize("Name") + InstanceId;
         var status = transform.gameObject.AddComponent<StatusManager>().Init(this) as StatusManager;
         if (status == null)
@@ -55,8 +56,6 @@ public sealed class ProjectionOtherObj : OtherObj
         dataConfig.scriptExecutor.Self = Status;
         dataConfig.scriptExecutor.SetStatus("Self");
         AddCardList();
-        status.UpdateStatus(true);
-        RefreshProjectionIntent("InitProjection");
         status.animatedState = IStatusManager.AnimatedState.Idle;
         if (GameApp.Instance.NowBackground != null && GameApp.Instance.NowBackground.name == "BalancedHolySee")
         {
@@ -68,8 +67,33 @@ public sealed class ProjectionOtherObj : OtherObj
         return true;
     }
 
+    public void ActivateAfterHydration(CompanionIntentPlan? authoritativePlan, string source)
+    {
+        var state = battleState ?? CompanionBattleStateStore.Find(InstanceId);
+        if (state == null)
+        {
+            return;
+        }
+
+        if (authoritativePlan != null)
+        {
+            state.CurrentPlan = authoritativePlan.Snapshot();
+            state.CurrentIntentId = authoritativePlan.IntentId;
+            RebuildProjectionAction(authoritativePlan.EnemyCardId, authoritativePlan.Priority);
+            ShowCommittedPlan();
+            return;
+        }
+
+        RefreshProjectionIntent(source);
+    }
+
     public override IEnumerator DoAction()
     {
+        if (!CompanionAuthorityService.IsAuthoritative())
+        {
+            yield break;
+        }
+
         FightManager.Instance?.ChangeUnit(FightType.Partner);
         if (Status.state == IStatusManager.State.Dead)
         {
@@ -90,8 +114,17 @@ public sealed class ProjectionOtherObj : OtherObj
         }
 
         EnsureProjectionIntentForTurn();
+        if (battleState?.CurrentPlan?.IsWait == true)
+        {
+            HideAction();
+        }
         for (var index = 0; ActionCards != null && index < ActionCards.Count; index++)
         {
+            if (battleState?.CurrentPlan?.IsWait == true)
+            {
+                break;
+            }
+
             if (!ExecuteProjectionAction(index))
             {
                 yield break;
@@ -110,8 +143,8 @@ public sealed class ProjectionOtherObj : OtherObj
             && FightManager.Instance != null
             && FightManager.Instance.fightType != FightType.Loss)
         {
-            battleState?.TickCooldowns();
             battleState?.Stats.RecoverMagic(1);
+            battleState?.AdvanceTurn();
             RefreshProjectionIntent("DoAction.CardUpdate");
         }
     }
@@ -148,11 +181,23 @@ public sealed class ProjectionOtherObj : OtherObj
                 RefreshProjectionIntent("DoAction.MissingAction");
             }
 
+            var plan = battleState?.CurrentPlan;
+            if (plan == null || plan.IsWait)
+            {
+                return false;
+            }
+
+            if (CompanionIntentExecutor.ResolveCommittedTarget(plan) == null)
+            {
+                SunExpLog.Debug("[Projection] committed plan has no surviving target: " + plan.PlanId);
+                return true;
+            }
+
             HideAction();
             FightAction.ActionExecute();
-            if (battleState != null && selectedIntent != null)
+            if (battleState != null)
             {
-                CompanionIntentSelector.MarkUsed(battleState, selectedIntent);
+                CompanionIntentSelector.CommitResolvedPlan(battleState, plan);
             }
 
             return true;
@@ -176,24 +221,25 @@ public sealed class ProjectionOtherObj : OtherObj
             var state = battleState ?? CompanionBattleStateStore.Find(InstanceId);
             if (state != null)
             {
-                var choice = CompanionIntentSelector.Select(this, state);
-                if (choice != null)
-                {
-                    selectedIntent = choice.Value.Intent;
-                    state.CurrentIntentId = selectedIntent.Id;
-                    CompanionThreatService.SetPreview(state, selectedIntent);
-                    RebuildProjectionAction(selectedIntent.EnemyCardId, choice.Value.Priority);
-                }
+                var plan = CompanionIntentPlanner.Create(this, state);
+                CompanionIntentPlanner.Commit(state, plan);
+                RebuildProjectionAction(plan.EnemyCardId, plan.Priority);
             }
 
-            ActionCount = Math.Max(1, MaxActionCount);
-            SetAction();
-            ShowAction();
+            ShowCommittedPlan();
+            ProjectionSummonService.BroadcastRuntimeState(this, source);
         }
         catch (Exception ex)
         {
             SunExpLog.Warn("[Projection] intent refresh failed from " + source + ": " + ex.Message);
         }
+    }
+
+    private void ShowCommittedPlan()
+    {
+        ActionCount = Math.Max(1, MaxActionCount);
+        SetAction();
+        ShowAction();
     }
 
     private void EnsureProjectionIntentForTurn()
@@ -218,7 +264,7 @@ public sealed class ProjectionOtherObj : OtherObj
     {
         try
         {
-            if (PlayerManager.Instance == null || !PlayerManager.Instance.isServer)
+            if (!CompanionAuthorityService.IsAuthoritative())
             {
                 return;
             }

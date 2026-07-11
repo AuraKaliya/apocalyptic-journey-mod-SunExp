@@ -10,7 +10,9 @@ namespace SunExp.Dll.Hooks;
 
 public static class FieldBuffHudRuntime
 {
+    private const int MaxHostRetryCount = 30;
     private static FieldBuffHudView? activeView;
+    private static int hostRetryCount;
 
     public static void RequestRefresh(string source)
     {
@@ -36,9 +38,11 @@ public static class FieldBuffHudRuntime
             var view = EnsureView();
             if (view == null)
             {
+                ScheduleHostRetry();
                 return;
             }
 
+            hostRetryCount = 0;
             view.ApplySnapshot(snapshot);
         }
         catch (Exception ex)
@@ -49,6 +53,7 @@ public static class FieldBuffHudRuntime
 
     public static void Close(string source)
     {
+        hostRetryCount = 0;
         if (activeView == null)
         {
             SunExpTransientUiRegistry.Unregister("FieldBuffHud");
@@ -64,19 +69,29 @@ public static class FieldBuffHudRuntime
     {
         if (activeView != null)
         {
-            activeView.transform.SetAsLastSibling();
             return activeView;
         }
 
-        var parent = UIManager.Instance?.canvasTf ?? UIManager.Instance?.upperCanvasTf;
-        if (parent == null)
+        if (!BattleHudHost.TryGet(out var parent))
         {
-            SunExpLog.Warn("Field buff HUD skipped: UI canvas unavailable.");
             return null;
         }
 
         activeView = FieldBuffHudView.Create(parent);
         SunExpTransientUiRegistry.Register("FieldBuffHud", Close);
         return activeView;
+    }
+
+    private static void ScheduleHostRetry()
+    {
+        if (hostRetryCount >= MaxHostRetryCount)
+        {
+            SunExpLog.WarnOnce("FieldBuffHud.FightUiUnavailable",
+                "Field buff HUD skipped after waiting for FightUI; a later field refresh can retry.");
+            return;
+        }
+
+        hostRetryCount++;
+        SunExpFrameScheduler.RunOnceAfterFrames("FieldBuffHud.WaitForFightUI", 2, Refresh);
     }
 }

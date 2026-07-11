@@ -140,7 +140,9 @@ $requiredFiles = @(
     "SunExp-Dev\Mechanics\CardGrantPostCommitQueue.cs",
     "SunExp-Dev\Mechanics\CompanionBattleModels.cs",
     "SunExp-Dev\Mechanics\CompanionBattleStateStore.cs",
+    "SunExp-Dev\Mechanics\CompanionAuthorityService.cs",
     "SunExp-Dev\Mechanics\CompanionIntentExecutor.cs",
+    "SunExp-Dev\Mechanics\CompanionIntentPlanner.cs",
     "SunExp-Dev\Mechanics\CompanionIntentRegistry.cs",
     "SunExp-Dev\Mechanics\CompanionIntentSelector.cs",
     "SunExp-Dev\Mechanics\CompanionSlotService.cs",
@@ -153,6 +155,7 @@ $requiredFiles = @(
     "SunExp-Dev\Mechanics\FamiliarRosterService.cs",
     "SunExp-Dev\Mechanics\FamiliarGrowthService.cs",
     "SunExp-Dev\Mechanics\ProjectionActivationService.cs",
+    "SunExp-Dev\Mechanics\ProjectionBuffCopyService.cs",
     "SunExp-Dev\Mechanics\ProjectionOtherObj.cs",
     "SunExp-Dev\Mechanics\ProjectionState.cs",
     "SunExp-Dev\Mechanics\ProjectionStateStore.cs",
@@ -169,6 +172,7 @@ $requiredFiles = @(
     "SunExp-Dev\Hooks\SunExpCardLifecycleRouter.cs",
     "SunExp-Dev\Hooks\SunExpCombatActionRouter.cs",
     "SunExp-Dev\Hooks\SunExpStatusLifecycleRouter.cs",
+    "SunExp-Dev\Hooks\Ui\BattleHudHost.cs",
     "SunExp-Dev\Hooks\SunExpCardPresentationRouter.cs",
     "SunExp-Dev\Hooks\SunExpCardPresentationLifecycleBridge.cs",
     "SunExp-Dev\Hooks\SunExpFrameScheduler.cs",
@@ -354,6 +358,9 @@ $familiarGrowthRuntime = Read-RepoText "SunExp-Dev\Hooks\FamiliarGrowthRuntime.c
 $familiarGrowthPanel = Read-RepoText "SunExp-Dev\Hooks\Ui\FamiliarGrowthPanel.cs"
 $familiarBlessingRegistryJson = Read-RepoText "SunExp\familiar.blessing.registry.json"
 $companionIntentRegistryJson = Read-RepoText "SunExp\companion.intent.registry.json"
+$companionAuthorityService = Read-RepoText "SunExp-Dev\Mechanics\CompanionAuthorityService.cs"
+$companionIntentPlanner = Read-RepoText "SunExp-Dev\Mechanics\CompanionIntentPlanner.cs"
+$projectionBuffCopyService = Read-RepoText "SunExp-Dev\Mechanics\ProjectionBuffCopyService.cs"
 $projectionActivationService = Read-RepoText "SunExp-Dev\Mechanics\ProjectionActivationService.cs"
 $projectionOtherObj = Read-RepoText "SunExp-Dev\Mechanics\ProjectionOtherObj.cs"
 $projectionStateStore = Read-RepoText "SunExp-Dev\Mechanics\ProjectionStateStore.cs"
@@ -679,10 +686,14 @@ Assert-Contains $projectionSummonService "CompanionStatsService.ProjectionStats"
 Assert-Contains $projectionOtherObj "public sealed class ProjectionOtherObj : OtherObj" "Projection actors must stay friendly OtherObj objects, not real partners."
 Assert-Contains $projectionOtherObj "EnsureActionIcons" "Projection actors must create action icons because native OtherObj does not."
 Assert-Contains $projectionOtherObj "CompanionBattleStateStore.Create" "Projection actors must create a companion battle state before revealing intent."
-Assert-Contains $projectionOtherObj "CompanionIntentSelector.Select" "Projection actors must choose intents through the companion intent selector."
-Assert-Contains $projectionOtherObj "CompanionThreatService.SetPreview" "Projection actors must publish preview threat from the selected intent."
-Assert-Contains $projectionOtherObj 'RefreshProjectionIntent("InitProjection")' "Projection actors must reveal intent immediately after summon."
+Assert-Contains $projectionOtherObj "CompanionIntentPlanner.Create" "Projection actors must create an immutable turn plan through the authoritative planner."
+Assert-Contains $projectionOtherObj "ActivateAfterHydration" "Projection actors must reveal intent only after authoritative buff hydration."
 Assert-Contains $projectionOtherObj "FightAction.ActionExecute()" "Projection turns must execute queued actions without native head/Msg announcement UI."
+Assert-Contains $companionAuthorityService "OwnerPlayerId" "Companion identity must explicitly map the owning player."
+Assert-Contains $companionIntentPlanner "CompanionSystemPlans.Wait" "Companion planning must expose an explicit wait state when no intent is affordable."
+Assert-Contains $projectionBuffCopyService "ProjectionBuffPolicy.Adapter" "Projection buff copying must isolate incompatible buffs through adapters."
+Assert-Contains $projectionBuffCopyService "ProjectionBuffPolicy.Reject" "Projection buff copying must support explicit rejection without aborting summon."
+Assert-Contains $companionIntentRegistryJson '"schemaVersion": 2' "Companion intent data must declare its schema version."
 Assert-NotContains $projectionOtherObj "return base.DoAction();" "Projection turns must not use native OtherObj.DoAction because the player model lacks head/Msg."
 Assert-Contains $projectionRuntime 'SunExpStatusLifecycleRouter.Register("Projection"' "Projection runtime must retire dead projections through the shared status lifecycle router."
 Assert-Contains $projectionRuntime "AfterHit = RetireProjectionAfterDamage" "Projection runtime must retire dead projections after full damage resolves."
@@ -703,7 +714,7 @@ Assert-Contains $companionBattleModels "CompanionIntentTendency" "Companion mode
 Assert-Contains $companionBattleModels "CompanionIntentType" "Companion models must define companion intent types."
 Assert-Contains $companionIntentSelector "Take(3)" "Companion intent selection must sample from the top three priority candidates."
 Assert-Contains $companionIntentSelector "PickWeighted" "Companion intent selection must use normalized weighted random selection."
-Assert-Contains $companionIntentSelector "CompanionThreatService.ThreatPercent" "Companion intent priority must react to current companion threat."
+Assert-Contains $companionIntentSelector "CompanionThreatService.ThreatPressurePercent" "Companion intent priority must react to normalized 80-200 companion threat."
 Assert-Contains $companionBattleStateStore "CompanionThreatService.Register" "Companion battle state creation must register threat state."
 Assert-Contains $companionBattleStateStore "CompanionThreatService.Remove" "Companion battle state removal must clear threat state."
 Assert-Contains $companionIntentRegistry "companion.intent.registry.json" "Companion intent pools must be data-driven through the registry."
@@ -1028,7 +1039,7 @@ Assert-NotContains ($animatedBlessingIconRuntime + $animatedBuffIconRuntime + $a
 Assert-NotContains ($animatedBlessingIconRuntime + $animatedBuffIconRuntime + $animatedEnemyDictIconRuntime) "public sealed class AnimatedEnemyDictIcon" "Animated enemy dictionary icons must not own a duplicate frame animator component."
 Assert-Contains $starScoreService "public static event Action<StarScoreDisplaySnapshot>? Changed" "StarScoreService must publish typed display snapshots for UI hooks."
 Assert-Contains $starScoreHudRuntime "StarScoreService.Changed += OnStarScoreChanged" "StarScoreHudRuntime must subscribe to star score mechanics changes."
-Assert-Contains $starScoreHudRuntime "UIManager.Instance?.canvasTf" "StarScoreHudRuntime must attach fixed HUD to the main canvas."
+Assert-Contains $starScoreHudRuntime "BattleHudHost.TryGet" "StarScoreHudRuntime must attach fixed HUD beneath FightUI instead of the global canvas."
 Assert-Contains $starScoreHudRuntime "FightPlayer.Instance?.Status?.InstanceId" "StarScoreHudRuntime must keep star score presentation local-player scoped."
 Assert-Contains $starScoreHudRuntime 'activeView.Close("StarScoreHudRuntime.Close")' "StarScoreHudRuntime must close HUD roots through the view safety path."
 Assert-NotContains $starScoreHudRuntime "Object.Destroy(activeView.gameObject)" "StarScoreHudRuntime must not directly destroy HUD roots."

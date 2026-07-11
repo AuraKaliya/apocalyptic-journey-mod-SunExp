@@ -2,10 +2,11 @@ namespace SunExp.Dll.Mechanics;
 
 public sealed class ProjectionState
 {
-    public ProjectionState(string statusId, string ownerStatusId, string roleId, string displayName, ProjectionOtherObj projection, int slotIndex)
+    public ProjectionState(string statusId, string ownerStatusId, string roleId, string displayName, ProjectionOtherObj projection, int slotIndex, string ownerPlayerId = "")
     {
         StatusId = statusId ?? "";
         OwnerStatusId = ownerStatusId ?? "";
+        OwnerPlayerId = ownerPlayerId ?? "";
         RoleId = roleId ?? "";
         DisplayName = displayName ?? "";
         Projection = projection;
@@ -15,6 +16,8 @@ public sealed class ProjectionState
     public string StatusId { get; }
 
     public string OwnerStatusId { get; }
+
+    public string OwnerPlayerId { get; }
 
     public string RoleId { get; }
 

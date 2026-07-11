@@ -27,7 +27,6 @@ public sealed class FieldBuffHudTooltipView : MonoBehaviour
     {
         var go = new GameObject("SunExp_FieldBuffHudTooltip", typeof(RectTransform), typeof(CanvasGroup));
         go.transform.SetParent(parent, false);
-        go.transform.SetAsLastSibling();
 
         var view = go.AddComponent<FieldBuffHudTooltipView>();
         view.Build(hudRect);

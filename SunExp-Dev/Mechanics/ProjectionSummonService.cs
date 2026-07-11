@@ -16,6 +16,14 @@ public static class ProjectionSummonService
     private static readonly object NetworkSync = new();
     private static readonly HashSet<string> ResolvedTokens = new(StringComparer.Ordinal);
 
+    public static void ResetBattleSynchronization()
+    {
+        lock (NetworkSync)
+        {
+            ResolvedTokens.Clear();
+        }
+    }
+
     public static bool TrySummon(ScriptExecutor self, PolymorphRoleSpec role)
     {
         if (self?.Self == null || role == null)
@@ -47,7 +55,14 @@ public static class ProjectionSummonService
             broadcast: SunExpNetworkRuntime.IsMultiplayerSession());
     }
 
-    public static void ResolveNetworkSummon(string roleId, string ownerStatusId, string token, SunExpRpcSender sender)
+    public static void ResolveNetworkSummon(
+        string roleId,
+        string ownerStatusId,
+        string token,
+        SunExpRpcSender sender,
+        int protocolVersion,
+        int battleEpoch,
+        string registryHash)
     {
         if (!ClaimToken(token))
         {
@@ -56,6 +71,18 @@ public static class ProjectionSummonService
 
         var role = PolymorphRoleRegistry.Find(roleId);
         var rejection = ValidateNetworkSender(sender, ownerStatusId);
+        if (protocolVersion != 2)
+        {
+            rejection = "projection protocol mismatch";
+        }
+        else if (battleEpoch != CompanionAuthorityService.BattleEpoch)
+        {
+            rejection = "projection battle epoch mismatch";
+        }
+        else if (!string.Equals(registryHash, CompanionIntentRegistry.RegistryHash, StringComparison.Ordinal))
+        {
+            rejection = "projection intent registry mismatch";
+        }
         if (role == null)
         {
             rejection = "unknown role: " + roleId;
@@ -74,7 +101,13 @@ public static class ProjectionSummonService
             return;
         }
 
-        TrySummonLocal(ownerStatusId, role!, "ProjectionSummonService.ResolveNetworkSummon", broadcast: true, token: token);
+        TrySummonLocal(
+            ownerStatusId,
+            role!,
+            "ProjectionSummonService.ResolveNetworkSummon",
+            broadcast: true,
+            token: token,
+            preferredOwnerPlayerId: sender.PlayerId);
     }
 
     public static void ApplyNetworkState(ProjectionCompanionSnapshot? snapshot, string source)
@@ -100,12 +133,23 @@ public static class ProjectionSummonService
             return;
         }
 
-        if (ProjectionStateStore.Find(snapshot.StatusId) != null)
+        if (snapshot.ProtocolVersion != 2
+            || snapshot.BattleEpoch != CompanionAuthorityService.BattleEpoch
+            || !string.Equals(snapshot.RegistryHash, CompanionIntentRegistry.RegistryHash, StringComparison.Ordinal))
         {
+            SunExpLog.Warn("[Projection] ignored incompatible snapshot: protocol=" + snapshot.ProtocolVersion
+                + ", epoch=" + snapshot.BattleEpoch + ", localEpoch=" + CompanionAuthorityService.BattleEpoch);
             return;
         }
 
-        SpawnProjection(role, snapshot.OwnerStatusId, snapshot.SlotIndex, snapshot.StatusId, source);
+        var existing = ProjectionStateStore.Find(snapshot.StatusId);
+        if (existing != null)
+        {
+            ApplySnapshot(existing.Projection, snapshot, source);
+            return;
+        }
+
+        SpawnProjection(role, snapshot.OwnerStatusId, snapshot.SlotIndex, snapshot.StatusId, source, snapshot);
     }
 
     public static DataConfig CreateProjectionDataConfig(PolymorphRoleSpec role, CompanionStats? stats = null)
@@ -181,7 +225,13 @@ public static class ProjectionSummonService
         CompanionSlotService.PositionInPlayerSlot(projection, slotIndex);
     }
 
-    private static bool TrySummonLocal(string ownerStatusId, PolymorphRoleSpec role, string source, bool broadcast, string token = "")
+    private static bool TrySummonLocal(
+        string ownerStatusId,
+        PolymorphRoleSpec role,
+        string source,
+        bool broadcast,
+        string token = "",
+        string preferredOwnerPlayerId = "")
     {
         var currentCount = RealPlayerCount() + ProjectionStateStore.ActiveCount();
         if (currentCount >= PartyCap)
@@ -200,24 +250,33 @@ public static class ProjectionSummonService
         }
 
         var statusId = ProjectionStateStore.NextStatusId();
-        var spawned = SpawnProjection(role, ownerStatusId, slotIndex.Value, statusId, source);
+        var ownerPlayerId = CompanionOwnershipService.ResolveOwnerPlayerId(ownerStatusId, preferredOwnerPlayerId);
+        var owner = StatusById(ownerStatusId);
+        var buffs = ProjectionBuffCopyService.Capture(owner);
+        var spawned = SpawnProjection(role, ownerStatusId, slotIndex.Value, statusId, source, null, ownerPlayerId, buffs);
         if (spawned && broadcast)
         {
-            BroadcastNetworkState(new ProjectionCompanionSnapshot
+            var projection = ProjectionStateStore.Find(statusId)?.Projection;
+            if (projection != null)
             {
-                Token = string.IsNullOrWhiteSpace(token) ? Guid.NewGuid().ToString("N") : token,
-                RoleId = role.Id,
-                OwnerStatusId = ownerStatusId ?? "",
-                StatusId = statusId,
-                SlotIndex = slotIndex.Value,
-                Accepted = true
-            }, source);
+                var snapshot = BuildSnapshot(projection);
+                snapshot.Token = string.IsNullOrWhiteSpace(token) ? Guid.NewGuid().ToString("N") : token;
+                BroadcastNetworkState(snapshot, source);
+            }
         }
 
         return spawned;
     }
 
-    private static bool SpawnProjection(PolymorphRoleSpec role, string ownerStatusId, int slotIndex, string statusId, string source)
+    private static bool SpawnProjection(
+        PolymorphRoleSpec role,
+        string ownerStatusId,
+        int slotIndex,
+        string statusId,
+        string source,
+        ProjectionCompanionSnapshot? snapshot = null,
+        string ownerPlayerId = "",
+        IReadOnlyList<ProjectionBuffSnapshot>? initialBuffs = null)
     {
         try
         {
@@ -235,9 +294,16 @@ public static class ProjectionSummonService
                 return false;
             }
 
-            var stats = CompanionStatsService.ProjectionStats(role);
+            var stats = snapshot != null && snapshot.MaxHp > 0
+                ? new CompanionStats(snapshot.MaxHp, snapshot.MaxMagic, snapshot.Attack, snapshot.Armor)
+                : CompanionStatsService.ProjectionStats(role);
+            if (snapshot != null)
+            {
+                stats.SetCurrentMagic(snapshot.CurrentMagic);
+                ownerPlayerId = snapshot.OwnerPlayerId;
+            }
             var projection = gameObject.AddComponent<ProjectionOtherObj>();
-            if (!projection.InitProjection(role, ownerStatusId, slotIndex, stats, statusId))
+            if (!projection.InitProjection(role, ownerStatusId, slotIndex, stats, statusId, ownerPlayerId))
             {
                 UnityEngine.Object.Destroy(gameObject);
                 PlayerApi.ShowCaption("拜托了：投影初始化失败。");
@@ -250,7 +316,24 @@ public static class ProjectionSummonService
                 role.Id,
                 role.DisplayName,
                 projection,
-                slotIndex));
+                slotIndex,
+                projection.OwnerPlayerId));
+            if (snapshot == null)
+            {
+                ProjectionBuffCopyService.ApplyInitial(projection.Status, initialBuffs);
+                projection.Status.UpdateStatus(true);
+                CompanionThreatService.Register(
+                    CompanionBattleStateStore.Find(projection.InstanceId)!,
+                    projection.Status.MaxHp,
+                    projection.Status.Defend,
+                    projection.Attack,
+                    stats.MaxMagic);
+                projection.ActivateAfterHydration(null, source + ".AuthoritativeInit");
+            }
+            else
+            {
+                ApplySnapshot(projection, snapshot, source + ".Hydrate");
+            }
             PlayerApi.ShowCaption("拜托了：" + role.DisplayName + "的投影加入战斗。");
             return true;
         }
@@ -282,6 +365,76 @@ public static class ProjectionSummonService
     private static void BroadcastNetworkState(ProjectionCompanionSnapshot snapshot, string source)
     {
         SunExpNetworkRuntime.Send(new RpcProjectionCompanionState(snapshot), source);
+    }
+
+    public static void BroadcastRuntimeState(ProjectionOtherObj projection, string source)
+    {
+        if (projection == null || !SunExpNetworkRuntime.IsMultiplayerSession() || !CompanionAuthorityService.IsAuthoritative())
+        {
+            return;
+        }
+
+        BroadcastNetworkState(BuildSnapshot(projection), "ProjectionRuntime." + source);
+    }
+
+    private static ProjectionCompanionSnapshot BuildSnapshot(ProjectionOtherObj projection)
+    {
+        var state = CompanionBattleStateStore.Find(projection.InstanceId);
+        return new ProjectionCompanionSnapshot
+        {
+            ProtocolVersion = 2,
+            BattleEpoch = CompanionAuthorityService.BattleEpoch,
+            RegistryHash = CompanionIntentRegistry.RegistryHash,
+            Revision = state?.Revision ?? 0,
+            Accepted = true,
+            RoleId = projection.RoleId,
+            OwnerPlayerId = projection.OwnerPlayerId,
+            OwnerStatusId = projection.OwnerStatusId,
+            StatusId = projection.InstanceId,
+            SlotIndex = state?.SlotIndex ?? -1,
+            MaxHp = projection.Status?.MaxHp ?? projection.MaxHp,
+            CurrentHp = projection.Status?.CurHp ?? projection.CurHp,
+            Attack = projection.Attack,
+            Armor = projection.Status?.Defend ?? projection.Defend,
+            MaxMagic = state?.Stats.MaxMagic ?? 1,
+            CurrentMagic = state?.Stats.CurrentMagic ?? 0,
+            TurnIndex = state?.TurnIndex ?? 0,
+            ReadyOnTurn = state == null
+                ? new Dictionary<string, int>()
+                : state.ReadyOnTurnSnapshot().ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.Ordinal),
+            Buffs = ProjectionBuffCopyService.ReadActual(projection.Status).ToList(),
+            Threat = CompanionThreatService.Export(projection.InstanceId),
+            IntentPlan = state?.CurrentPlan
+        };
+    }
+
+    private static void ApplySnapshot(ProjectionOtherObj projection, ProjectionCompanionSnapshot snapshot, string source)
+    {
+        var state = CompanionBattleStateStore.Find(projection.InstanceId);
+        if (state == null || snapshot.Revision < state.Revision)
+        {
+            return;
+        }
+
+        ProjectionBuffCopyService.HydrateExact(projection.Status, snapshot.Buffs, snapshot.Revision);
+        state.Stats.SetCurrentMagic(snapshot.CurrentMagic);
+        state.ApplyReadyOnTurn(snapshot.ReadyOnTurn);
+        state.ApplyRemoteProgress(snapshot.TurnIndex, snapshot.Revision);
+        if (projection.Status != null)
+        {
+            projection.Status.CurHp = Math.Max(0, snapshot.CurrentHp);
+            projection.Status.UpdateStatus(true);
+        }
+        CompanionThreatService.ApplyAuthoritative(snapshot.Threat);
+        projection.ActivateAfterHydration(snapshot.IntentPlan, source);
+    }
+
+    private static IStatusManager? StatusById(string statusId)
+    {
+        return !string.IsNullOrWhiteSpace(statusId)
+            && FightManager.Instance?.statuses?.TryGetValue(statusId, out var status) == true
+                ? status
+                : null;
     }
 
     private static bool ClaimToken(string token)
