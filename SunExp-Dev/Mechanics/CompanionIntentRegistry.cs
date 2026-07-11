@@ -24,10 +24,7 @@ public static class CompanionIntentRegistry
                 unchecked
                 {
                     uint hash = 2166136261;
-                    var canonical = string.Join("|", document.Intents
-                        .OrderBy(intent => intent.Id, StringComparer.Ordinal)
-                        .Select(intent => intent.Id + ":" + intent.EnemyCardId + ":" + intent.Type + ":" + intent.Effect
-                            + ":" + intent.Cost + ":" + intent.Cooldown));
+                    var canonical = JsonConvert.SerializeObject(document, Formatting.None);
                     foreach (var character in canonical)
                     {
                         hash = (hash ^ character) * 16777619;
@@ -56,6 +53,10 @@ public static class CompanionIntentRegistry
             {
                 var loaded = JsonConvert.DeserializeObject<CompanionIntentRegistryDocument>(File.ReadAllText(path))
                     ?? new CompanionIntentRegistryDocument();
+                if (loaded.SchemaVersion != 3)
+                {
+                    throw new InvalidDataException("unsupported schemaVersion=" + loaded.SchemaVersion + "; expected 3");
+                }
                 document = Normalize(loaded, fallback);
                 SunExpLog.Info("[CompanionIntentRegistry] loaded companion intents from " + path);
             }
@@ -91,11 +92,20 @@ public static class CompanionIntentRegistry
         }
     }
 
-    public static CompanionIntentType IntentType(CompanionIntentDefinition intent)
+    public static CompanionIntentType IntentType(CompanionIntentDefinition? intent)
     {
         return Enum.TryParse(intent?.Type ?? "", ignoreCase: true, out CompanionIntentType type)
             ? type
             : CompanionIntentType.Attack;
+    }
+
+    public static (int Attack, int Defense) TendencyWeightsForRole(string roleId)
+    {
+        lock (SyncRoot)
+        {
+            var profile = ProfileFor(roleId);
+            return (Math.Max(1, profile.AttackWeight), Math.Max(1, profile.DefenseWeight));
+        }
     }
 
     private static CompanionIntentProfile ProfileFor(string roleId)
@@ -115,7 +125,7 @@ public static class CompanionIntentRegistry
         CompanionIntentRegistryDocument loaded,
         CompanionIntentRegistryDocument fallback)
     {
-        var result = new CompanionIntentRegistryDocument { SchemaVersion = 2 };
+        var result = new CompanionIntentRegistryDocument { SchemaVersion = 3 };
         var intents = new Dictionary<string, CompanionIntentDefinition>(StringComparer.Ordinal);
         foreach (var intent in fallback.Intents.Concat(loaded.Intents ?? new List<CompanionIntentDefinition>()))
         {
@@ -125,17 +135,17 @@ public static class CompanionIntentRegistry
                 continue;
             }
 
-            if (!Enum.TryParse(intent.Type ?? "", true, out CompanionIntentType _)
-                || !IsKnownEffect(intent.Effect)
-                || string.IsNullOrWhiteSpace(intent.EnemyCardId))
-            {
-                SunExpLog.Warn("[CompanionIntentRegistry] rejected invalid intent: " + id);
-                continue;
-            }
-
             intent.Id = id;
             intent.EnemyCardId = (intent.EnemyCardId ?? id).Trim();
             intent.Type = (intent.Type ?? "Attack").Trim();
+            intent.HandlerId = (intent.HandlerId ?? "").Trim();
+            intent.Target ??= new CompanionIntentTargetSpec();
+            intent.Target.Scope = (intent.Target.Scope ?? "").Trim();
+            intent.Target.Mode = string.IsNullOrWhiteSpace(intent.Target.Mode) ? "Single" : intent.Target.Mode.Trim();
+            intent.Target.Policy = (intent.Target.Policy ?? "").Trim();
+            intent.HitCount = Math.Max(1, intent.HitCount);
+            intent.BuffId = (intent.BuffId ?? "").Trim();
+            intent.BuffStacks = Math.Max(0, intent.BuffStacks);
             intent.Cost = Math.Max(0, intent.Cost);
             intent.Cooldown = Math.Max(0, intent.Cooldown);
             intent.BasePriority = Math.Max(1, intent.BasePriority);
@@ -144,10 +154,19 @@ public static class CompanionIntentRegistry
             threat.Preview = Math.Max(0, threat.Preview);
             threat.OnUse = Math.Max(0, threat.OnUse);
             threat.Decay = Math.Max(1, threat.Decay);
+            var validHandler = CompanionIntentHandlerRegistry.Validate(intent, out var reason);
+            if (!Enum.TryParse(intent.Type, true, out CompanionIntentType _)
+                || string.IsNullOrWhiteSpace(intent.EnemyCardId)
+                || !CompanionTargetPolicyRegistry.ValidateSpec(intent.Target, out _)
+                || !validHandler)
+            {
+                SunExpLog.Warn("[CompanionIntentRegistry] rejected invalid intent " + id + ": " + reason);
+                continue;
+            }
             intents[id] = intent;
         }
 
-        result.Intents = intents.Values.ToList();
+        result.Intents = intents.Values.OrderBy(intent => intent.Id, StringComparer.Ordinal).ToList();
         var profiles = new List<CompanionIntentProfile>();
         foreach (var profile in fallback.Profiles.Concat(loaded.Profiles ?? new List<CompanionIntentProfile>()))
         {
@@ -157,11 +176,15 @@ public static class CompanionIntentRegistry
             {
                 RoleId = roleId,
                 AttackTendency = FilterKnown(profile.AttackTendency, intents),
-                DefenseTendency = FilterKnown(profile.DefenseTendency, intents)
+                DefenseTendency = FilterKnown(profile.DefenseTendency, intents),
+                AttackWeight = Math.Max(1, profile.AttackWeight),
+                DefenseWeight = Math.Max(1, profile.DefenseWeight)
             });
         }
 
-        result.Profiles = profiles.Count == 0 ? fallback.Profiles : profiles;
+        result.Profiles = (profiles.Count == 0 ? fallback.Profiles : profiles)
+            .OrderBy(profile => profile.RoleId, StringComparer.Ordinal)
+            .ToList();
         return result;
     }
 
@@ -184,7 +207,7 @@ public static class CompanionIntentRegistry
     {
         return new CompanionIntentRegistryDocument
         {
-            SchemaVersion = 2,
+            SchemaVersion = 3,
             Intents = new List<CompanionIntentDefinition>
             {
                 new()
@@ -192,10 +215,12 @@ public static class CompanionIntentRegistry
                     Id = SunExpIds.ProjectionActionStaffTap,
                     EnemyCardId = SunExpIds.ProjectionActionStaffTapCardId,
                     Type = nameof(CompanionIntentType.Attack),
+                    HandlerId = CompanionIntentHandlerRegistry.DamageSingle,
+                    Target = Target("Enemy", "Single", CompanionTargetPolicyRegistry.EnemyLowestHp),
+                    HitCount = 1,
                     Cost = 1,
                     Cooldown = 0,
-                    BasePriority = 20,
-                    Effect = "Damage",
+                    BasePriority = 28,
                     FlatValue = 2,
                     AttackScale = 1.0f,
                     MagicScale = 0.3f,
@@ -204,8 +229,7 @@ public static class CompanionIntentRegistry
                     {
                         Preview = 8,
                         OnUse = 12,
-                        Decay = 4,
-                        TargetBias = "self"
+                        Decay = 4
                     }
                 },
                 new()
@@ -213,10 +237,11 @@ public static class CompanionIntentRegistry
                     Id = SunExpIds.ProjectionActionShieldBlessing,
                     EnemyCardId = SunExpIds.ProjectionActionShieldBlessingCardId,
                     Type = nameof(CompanionIntentType.Defense),
+                    HandlerId = CompanionIntentHandlerRegistry.BlockSingle,
+                    Target = Target("Friendly", "Single", CompanionTargetPolicyRegistry.FriendlyOwnerOrSelfDefense),
                     Cost = 1,
                     Cooldown = 0,
                     BasePriority = 16,
-                    Effect = "Block",
                     FlatValue = 2,
                     ArmorScale = 1.0f,
                     MagicScale = 0.35f,
@@ -225,20 +250,116 @@ public static class CompanionIntentRegistry
                     {
                         Preview = 10,
                         OnUse = 16,
-                        Decay = 4,
-                        TargetBias = "self"
+                        Decay = 4
                     }
-                }
+                },
+                new()
+                {
+                    Id = SunExpIds.ProjectionActionStaffCombo,
+                    EnemyCardId = SunExpIds.ProjectionActionStaffComboCardId,
+                    Type = nameof(CompanionIntentType.Attack),
+                    HandlerId = CompanionIntentHandlerRegistry.DamageMulti,
+                    Target = Target("Enemy", "Single", CompanionTargetPolicyRegistry.EnemyLowestHp),
+                    HitCount = 3,
+                    Cost = 2,
+                    Cooldown = 1,
+                    BasePriority = 26,
+                    FlatValue = 1,
+                    AttackScale = 0.38f,
+                    MagicScale = 0.10f,
+                    PriorityBonus = "execute_low_hp",
+                    Threat = new CompanionIntentThreatSpec { Preview = 14, OnUse = 24, Decay = 5 }
+                },
+                new()
+                {
+                    Id = SunExpIds.ProjectionActionMagicInterference,
+                    EnemyCardId = SunExpIds.ProjectionActionMagicInterferenceCardId,
+                    Type = nameof(CompanionIntentType.Interference),
+                    HandlerId = CompanionIntentHandlerRegistry.ApplyBuff,
+                    Target = Target("Enemy", "Single", CompanionTargetPolicyRegistry.EnemyLowestBuffThenHp),
+                    BuffId = "buff_vulnerability",
+                    BuffStacks = 2,
+                    Cost = 1,
+                    Cooldown = 1,
+                    BasePriority = 18,
+                    Threat = new CompanionIntentThreatSpec { Preview = 8, OnUse = 14, Decay = 4 }
+                },
+                new()
+                {
+                    Id = SunExpIds.ProjectionActionYouAreEnhanced,
+                    EnemyCardId = SunExpIds.ProjectionActionYouAreEnhancedCardId,
+                    Type = nameof(CompanionIntentType.Support),
+                    HandlerId = CompanionIntentHandlerRegistry.ApplyBuff,
+                    Target = Target("Friendly", "All", CompanionTargetPolicyRegistry.FriendlyAll),
+                    BuffId = SunExpIds.Extraordinary,
+                    BuffStacks = 50,
+                    Cost = 2,
+                    Cooldown = 2,
+                    BasePriority = 14,
+                    Threat = new CompanionIntentThreatSpec { Preview = 12, OnUse = 20, Decay = 5 }
+                },
+                new()
+                {
+                    Id = SunExpIds.ProjectionActionCharge,
+                    EnemyCardId = SunExpIds.ProjectionActionChargeCardId,
+                    Type = nameof(CompanionIntentType.Support),
+                    HandlerId = CompanionIntentHandlerRegistry.ApplyBuff,
+                    Target = Target("Self", "Single", CompanionTargetPolicyRegistry.Self),
+                    BuffId = SunExpIds.Extraordinary,
+                    BuffStacks = 50,
+                    Cost = 1,
+                    Cooldown = 1,
+                    BasePriority = 12,
+                    Threat = new CompanionIntentThreatSpec { Preview = 6, OnUse = 10, Decay = 4 }
+                },
+                new()
+                {
+                    Id = SunExpIds.ProjectionActionHolyHeal,
+                    EnemyCardId = SunExpIds.ProjectionActionHolyHealCardId,
+                    Type = nameof(CompanionIntentType.Recovery),
+                    HandlerId = CompanionIntentHandlerRegistry.HealSingle,
+                    Target = Target("Friendly", "Single", CompanionTargetPolicyRegistry.FriendlyMostWounded),
+                    Cost = 2,
+                    Cooldown = 1,
+                    BasePriority = 10,
+                    FlatValue = 4,
+                    AttackScale = 0.45f,
+                    MagicScale = 0.35f,
+                    Threat = new CompanionIntentThreatSpec { Preview = 12, OnUse = 20, Decay = 5 }
+                    }
             },
             Profiles = new List<CompanionIntentProfile>
             {
                 new()
                 {
                     RoleId = "*",
-                    AttackTendency = new List<string> { SunExpIds.ProjectionActionStaffTap },
-                    DefenseTendency = new List<string> { SunExpIds.ProjectionActionShieldBlessing }
+                    AttackTendency = new List<string>
+                    {
+                        SunExpIds.ProjectionActionStaffTap,
+                        SunExpIds.ProjectionActionStaffCombo,
+                        SunExpIds.ProjectionActionMagicInterference
+                    },
+                    DefenseTendency = new List<string>
+                    {
+                        SunExpIds.ProjectionActionShieldBlessing,
+                        SunExpIds.ProjectionActionYouAreEnhanced,
+                        SunExpIds.ProjectionActionCharge,
+                        SunExpIds.ProjectionActionHolyHeal
+                    },
+                    AttackWeight = 60,
+                    DefenseWeight = 40
                 }
             }
+        };
+    }
+
+    private static CompanionIntentTargetSpec Target(string scope, string mode, string policy)
+    {
+        return new CompanionIntentTargetSpec
+        {
+            Scope = scope,
+            Mode = mode,
+            Policy = policy
         };
     }
 
@@ -247,10 +368,4 @@ public static class CompanionIntentRegistry
         return string.Equals(left ?? "", right ?? "", StringComparison.Ordinal);
     }
 
-    private static bool IsKnownEffect(string? effect)
-    {
-        var value = effect?.Trim() ?? "";
-        return string.Equals(value, "Damage", StringComparison.Ordinal)
-            || string.Equals(value, "Block", StringComparison.Ordinal);
-    }
 }

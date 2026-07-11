@@ -187,9 +187,9 @@ public sealed class ProjectionOtherObj : OtherObj
                 return false;
             }
 
-            if (CompanionIntentExecutor.ResolveCommittedTarget(plan) == null)
+            if (!CompanionIntentExecutor.CanExecute(plan))
             {
-                SunExpLog.Debug("[Projection] committed plan has no surviving target: " + plan.PlanId);
+                SunExpLog.Debug("[Projection] committed plan is no longer executable: " + plan.PlanId);
                 return true;
             }
 

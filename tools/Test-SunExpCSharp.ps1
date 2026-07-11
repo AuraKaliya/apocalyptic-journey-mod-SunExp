@@ -1325,6 +1325,7 @@ function Invoke-SourceAssertions {
     $companionBattleModels = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionBattleModels.cs"))
     $companionBattleStateStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionBattleStateStore.cs"))
     $companionIntentRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionIntentRegistry.cs"))
+    $companionIntentHandlers = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionIntentHandlers.cs"))
     $companionIntentSelector = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionIntentSelector.cs"))
     $companionSlotService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionSlotService.cs"))
     $companionStatsService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionStatsService.cs"))
@@ -1959,14 +1960,22 @@ function Invoke-SourceAssertions {
     Assert-True $projectionScripts.Contains("ProjectionStrategyService.UseAction") "ProjectionScripts must keep CSV actions routed through Mechanics."
     Assert-True $companionBattleModels.Contains("CompanionIntentTendency") "Companion models must define attack/defense tendencies."
     Assert-True $companionBattleModels.Contains("CompanionIntentType") "Companion models must define companion intent types."
-    Assert-True $companionIntentSelector.Contains("Take(3)") "Companion intent selection must sample from top three priority candidates."
+    Assert-True (-not $companionIntentSelector.Contains("PickType")) "Companion intent selection must not multiply priority through a second type lottery."
     Assert-True $companionIntentSelector.Contains("PickWeighted") "Companion intent selection must use weighted random selection."
+    Assert-True $companionIntentSelector.Contains("TendencyWeightsForRole") "Companion intent tendency must use explicit profile weights independent of pool size."
     Assert-True $companionIntentSelector.Contains("CompanionThreatService.ThreatPressurePercent") "Companion intent priority must react to normalized 80-200 companion threat."
     Assert-True $companionBattleStateStore.Contains("CompanionThreatService.Register") "Companion battle state creation must register threat state."
     Assert-True $companionBattleStateStore.Contains("CompanionThreatService.Remove") "Companion battle state removal must clear threat state."
     Assert-True $companionIntentRegistry.Contains("companion.intent.registry.json") "Companion intent pools must be data-driven through the registry."
     Assert-True $companionIntentRegistryJson.Contains('"staff_tap"') "Companion intent registry must define the common staff-tap intent."
     Assert-True $companionIntentRegistryJson.Contains('"shield_blessing"') "Companion intent registry must define the common magic-shield intent."
+    Assert-True $companionIntentRegistryJson.Contains('"staff_combo"') "Companion intent registry must define Staff Bonk Barrage."
+    Assert-True $companionIntentRegistryJson.Contains('"magic_interference"') "Companion intent registry must define Mana Disruption."
+    Assert-True $companionIntentRegistryJson.Contains('"you_are_enhanced"') "Companion intent registry must define the group Extraordinary intent."
+    Assert-True $companionIntentRegistryJson.Contains('"buffStacks": 50') "Companion support intents must preserve the approved 50 Extraordinary stacks."
+    Assert-True $companionIntentHandlers.Contains("ICompanionIntentHandler") "Companion effects must execute through a handler registry."
+    Assert-True $companionIntentHandlers.Contains("DamageMulti") "Companion handlers must support multi-hit damage."
+    Assert-True $companionIntentHandlers.Contains("HealSingle") "Companion handlers must support single-target healing."
     Assert-True $companionIntentRegistryJson.Contains('"threat"') "Companion intent registry must declare intent threat."
     Assert-True $companionSlotService.Contains("MaxFriendlySlots = 4") "Companion slots must use the four friendly player-side slots."
     Assert-True $companionThreatService.Contains("TryRedirectEnemySingleTarget") "Companion threat must expose weighted enemy single-target redirection."
@@ -2347,10 +2356,16 @@ function Invoke-SourceAssertions {
     Assert-True $enemyCardData.Contains("HeartChangeScripts.UseAction") "Heart Change EnemyCard row must route execution through HeartChangeScripts."
     Assert-True $enemyCardData.Contains("enemycard_projection_staff_tap") "EnemyCard data must define the projection staff-tap action."
     Assert-True $enemyCardData.Contains("enemycard_projection_shield_blessing") "EnemyCard data must define the projection shield action."
+    Assert-True $enemyCardData.Contains("enemycard_projection_staff_combo") "EnemyCard data must define Staff Bonk Barrage."
+    Assert-True $enemyCardData.Contains("enemycard_projection_holy_heal") "EnemyCard data must define Holy Heal."
     Assert-True $enemyCardData.Contains("ProjectionScripts.InitAction") "Projection enemy-card rows must route initialization through ProjectionScripts."
     Assert-True $enemyCardText.Contains("Turncoat Strike") "EnemyCard text must localize Heart Change's temporary strike intent."
     Assert-True $enemyCardText.Contains("Staff Bonk") "EnemyCard text must localize the projection staff action."
     Assert-True $enemyCardText.Contains("Magic Shield") "EnemyCard text must localize the projection magic-shield action."
+    Assert-True $enemyCardText.Contains("Staff Bonk Barrage") "EnemyCard text must localize the projection multi-hit action."
+    Assert-True $enemyCardText.Contains("Mana Disruption") "EnemyCard text must localize the projection debuff action."
+    Assert-True $enemyCardText.Contains("You Are Empowered") "EnemyCard text must localize the projection group buff action."
+    Assert-True $enemyCardText.Contains("Holy Heal") "EnemyCard text must localize the projection heal action."
     Assert-True (-not $enemyCardText.Contains("threat weight")) "Projection shield text must not promise retired threat-weight behavior."
     Assert-True (-not $enemyCardText.Contains("威胁权重")) "Projection shield Chinese text must not promise retired threat-weight behavior."
     Assert-True $buffText.Contains("Three Thousand Orbit Mirrors") "Buff text must localize the mirror-array boss trait."

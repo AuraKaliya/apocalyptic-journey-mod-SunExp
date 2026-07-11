@@ -19,7 +19,6 @@ public static class CompanionSystemPlans
             TurnIndex = state.TurnIndex,
             IntentId = WaitIntentId,
             EnemyCardId = SunExpIds.ProjectionActionWaitCardId,
-            Effect = "Wait",
             ResolvedValue = 0,
             Cost = 0,
             ReadyOnTurn = state.TurnIndex,
@@ -57,6 +56,25 @@ public static class CompanionIntentPlanner
         }
 
         var intent = choice.Value.Intent;
+        if (!CompanionIntentHandlerRegistry.TryGet(intent.HandlerId, out var handler))
+        {
+            SunExpLog.Warn("[CompanionIntent] missing handler while planning: " + intent.HandlerId);
+            return CompanionSystemPlans.Wait(state);
+        }
+
+        var executor = projection.dataConfig?.scriptExecutor as ScriptExecutor;
+        if (executor == null)
+        {
+            return CompanionSystemPlans.Wait(state);
+        }
+
+        var targets = CompanionTargetPolicyRegistry.Resolve(executor, state, intent);
+        if (targets.Count == 0)
+        {
+            return CompanionSystemPlans.Wait(state);
+        }
+
+        var resolvedEffect = handler.Resolve(state, intent, targets);
         return new CompanionIntentPlan
         {
             PlanId = CompanionSystemPlans.PlanId(state),
@@ -64,15 +82,15 @@ public static class CompanionIntentPlanner
             TurnIndex = state.TurnIndex,
             IntentId = intent.Id,
             EnemyCardId = intent.EnemyCardId,
-            Effect = intent.Effect ?? "",
-            OrderedTargetIds = OrderedTargetIds(projection, state, intent, choice.Value.Target),
-            ResolvedValue = CompanionIntentExecutor.ResolveValue(state, intent),
+            OrderedTargetIds = new List<string>(resolvedEffect.TargetIds),
+            ResolvedValue = resolvedEffect.Value,
             Cost = Math.Max(0, intent.Cost),
             ReadyOnTurn = state.TurnIndex + Math.Max(0, intent.Cooldown) + 1,
             PreviewThreat = Math.Max(0, Math.Min(CompanionThreatService.MaxPreviewThreat, intent.Threat?.Preview ?? 0)),
             Priority = choice.Value.Priority,
             StateRevision = state.Revision + 1,
-            IsWait = false
+            IsWait = false,
+            ResolvedEffects = new List<CompanionResolvedEffect> { resolvedEffect }
         };
     }
 
@@ -99,60 +117,4 @@ public static class CompanionIntentPlanner
         }
     }
 
-    private static List<string> OrderedTargetIds(
-        ProjectionOtherObj projection,
-        CompanionBattleState state,
-        CompanionIntentDefinition intent,
-        IStatusManager? primary)
-    {
-        var result = new List<string>();
-        AddTarget(result, primary);
-        var executor = projection.dataConfig?.scriptExecutor as ScriptExecutor;
-        if (executor == null)
-        {
-            return result;
-        }
-
-        if (CompanionIntentRegistry.IntentType(intent) == CompanionIntentType.Attack
-            || CompanionIntentRegistry.IntentType(intent) == CompanionIntentType.Interference)
-        {
-            foreach (var target in ExecutorApi.EnemyTargets(executor)
-                         .Where(IsAlive)
-                         .OrderBy(target => target.CurHp)
-                         .ThenBy(target => target.InstanceId, StringComparer.Ordinal))
-            {
-                AddTarget(result, target);
-            }
-
-            return result;
-        }
-
-        var owner = StatusById(state.OwnerStatusId);
-        var self = projection.Status;
-        AddTarget(result, owner);
-        AddTarget(result, self);
-        return result;
-    }
-
-    private static void AddTarget(List<string> result, IStatusManager? target)
-    {
-        var id = target?.InstanceId ?? "";
-        if (IsAlive(target) && !string.IsNullOrWhiteSpace(id) && !result.Contains(id))
-        {
-            result.Add(id);
-        }
-    }
-
-    private static IStatusManager? StatusById(string statusId)
-    {
-        return !string.IsNullOrWhiteSpace(statusId)
-            && FightManager.Instance?.statuses?.TryGetValue(statusId, out var status) == true
-                ? status
-                : null;
-    }
-
-    private static bool IsAlive(IStatusManager? status)
-    {
-        return status != null && status.CurHp > 0 && status.state != IStatusManager.State.Dead;
-    }
 }

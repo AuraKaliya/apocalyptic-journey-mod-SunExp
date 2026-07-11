@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace SunExp.Dll.Mechanics;
 
@@ -98,8 +99,6 @@ public sealed class CompanionIntentPlan
 
     public string EnemyCardId { get; set; } = "";
 
-    public string Effect { get; set; } = "";
-
     public List<string> OrderedTargetIds { get; set; } = new();
 
     public int ResolvedValue { get; set; }
@@ -116,6 +115,8 @@ public sealed class CompanionIntentPlan
 
     public bool IsWait { get; set; }
 
+    public List<CompanionResolvedEffect> ResolvedEffects { get; set; } = new();
+
     public CompanionIntentPlan Snapshot()
     {
         return new CompanionIntentPlan
@@ -125,7 +126,6 @@ public sealed class CompanionIntentPlan
             TurnIndex = TurnIndex,
             IntentId = IntentId,
             EnemyCardId = EnemyCardId,
-            Effect = Effect,
             OrderedTargetIds = new List<string>(OrderedTargetIds ?? new List<string>()),
             ResolvedValue = ResolvedValue,
             Cost = Cost,
@@ -133,7 +133,39 @@ public sealed class CompanionIntentPlan
             PreviewThreat = PreviewThreat,
             Priority = Priority,
             StateRevision = StateRevision,
-            IsWait = IsWait
+            IsWait = IsWait,
+            ResolvedEffects = (ResolvedEffects ?? new List<CompanionResolvedEffect>())
+                .Select(effect => effect.Snapshot())
+                .ToList()
+        };
+    }
+}
+
+[Serializable]
+public sealed class CompanionResolvedEffect
+{
+    public string HandlerId { get; set; } = "";
+
+    public List<string> TargetIds { get; set; } = new();
+
+    public int Value { get; set; }
+
+    public int RepeatCount { get; set; } = 1;
+
+    public string BuffId { get; set; } = "";
+
+    public int BuffStacks { get; set; }
+
+    public CompanionResolvedEffect Snapshot()
+    {
+        return new CompanionResolvedEffect
+        {
+            HandlerId = HandlerId,
+            TargetIds = new List<string>(TargetIds ?? new List<string>()),
+            Value = Value,
+            RepeatCount = RepeatCount,
+            BuffId = BuffId,
+            BuffStacks = BuffStacks
         };
     }
 }
@@ -266,7 +298,15 @@ public sealed class CompanionIntentDefinition
 
     public int BasePriority { get; set; } = 10;
 
-    public string Effect { get; set; } = "";
+    public string HandlerId { get; set; } = "";
+
+    public CompanionIntentTargetSpec Target { get; set; } = new();
+
+    public int HitCount { get; set; } = 1;
+
+    public string BuffId { get; set; } = "";
+
+    public int BuffStacks { get; set; }
 
     public int FlatValue { get; set; }
 
@@ -289,7 +329,15 @@ public sealed class CompanionIntentThreatSpec
 
     public int Decay { get; set; } = 4;
 
-    public string TargetBias { get; set; } = "";
+}
+
+public sealed class CompanionIntentTargetSpec
+{
+    public string Scope { get; set; } = "";
+
+    public string Mode { get; set; } = "Single";
+
+    public string Policy { get; set; } = "";
 }
 
 public sealed class CompanionIntentProfile
@@ -299,11 +347,15 @@ public sealed class CompanionIntentProfile
     public List<string> AttackTendency { get; set; } = new();
 
     public List<string> DefenseTendency { get; set; } = new();
+
+    public int AttackWeight { get; set; } = 60;
+
+    public int DefenseWeight { get; set; } = 40;
 }
 
 public sealed class CompanionIntentRegistryDocument
 {
-    public int SchemaVersion { get; set; } = 2;
+    public int SchemaVersion { get; set; } = 3;
 
     public List<CompanionIntentDefinition> Intents { get; set; } = new();
 

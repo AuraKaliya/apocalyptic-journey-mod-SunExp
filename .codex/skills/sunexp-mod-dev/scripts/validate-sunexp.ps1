@@ -32,6 +32,47 @@ function Add-Warning {
     $script:Warnings.Add($Message) | Out-Null
 }
 
+function Test-CsvShapes {
+    param([string]$ModRootPath)
+
+    Add-Type -AssemblyName Microsoft.VisualBasic
+    $csvFiles = @(Get-ChildItem -LiteralPath $ModRootPath -Recurse -Filter "*.csv" -File | Sort-Object FullName)
+    foreach ($file in $csvFiles) {
+        $parser = New-Object Microsoft.VisualBasic.FileIO.TextFieldParser($file.FullName)
+        $parser.TextFieldType = [Microsoft.VisualBasic.FileIO.FieldType]::Delimited
+        $parser.SetDelimiters(",")
+        $parser.HasFieldsEnclosedInQuotes = $true
+        $recordNumber = 0
+        try {
+            if ($parser.EndOfData) {
+                Add-Failure "CSV '$($file.FullName)' is empty."
+                continue
+            }
+
+            $header = @($parser.ReadFields())
+            $recordNumber = 1
+            if ($header.Count -eq 0 -or $header[0].TrimStart([char]0xFEFF) -ne "Id") {
+                Add-Failure "CSV '$($file.FullName)' header must begin with Id."
+            }
+
+            while (-not $parser.EndOfData) {
+                $fields = @($parser.ReadFields())
+                $recordNumber++
+                if ($fields.Count -ne $header.Count) {
+                    $id = if ($fields.Count -gt 0) { $fields[0] } else { "" }
+                    Add-Failure "CSV '$($file.FullName)' record $recordNumber ('$id') has $($fields.Count) columns; expected $($header.Count). Quote fields containing commas and preserve trailing empty columns."
+                }
+            }
+        }
+        catch {
+            Add-Failure "CSV '$($file.FullName)' cannot be parsed near record $recordNumber`: $($_.Exception.Message)"
+        }
+        finally {
+            $parser.Close()
+        }
+    }
+}
+
 function Test-NoLuaProductionFiles {
     param(
         [string]$ModRootPath,
@@ -472,6 +513,7 @@ $script:Failures = New-Object System.Collections.Generic.List[string]
 $script:Warnings = New-Object System.Collections.Generic.List[string]
 
 Test-NoLuaProductionFiles $modRootPath $repoRoot
+Test-CsvShapes $modRootPath
 Test-RuntimeIdCollisions $modRootPath
 
 $cardFiles = Get-KindCsvFiles $modRootPath "Data" "Card"

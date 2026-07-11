@@ -167,9 +167,19 @@ public static class SunExpIds
     public const string HeartChangeActionStrikeCardId = "SunExp_sunexp_enemycard_heart_change_strike";
     public const string ProjectionActionStaffTap = "staff_tap";
     public const string ProjectionActionShieldBlessing = "shield_blessing";
+    public const string ProjectionActionStaffCombo = "staff_combo";
+    public const string ProjectionActionMagicInterference = "magic_interference";
+    public const string ProjectionActionYouAreEnhanced = "you_are_enhanced";
+    public const string ProjectionActionCharge = "charge";
+    public const string ProjectionActionHolyHeal = "holy_heal";
     public const string ProjectionActionWait = "system.wait";
     public const string ProjectionActionStaffTapCardId = "SunExp_sunexp_enemycard_projection_staff_tap";
     public const string ProjectionActionShieldBlessingCardId = "SunExp_sunexp_enemycard_projection_shield_blessing";
+    public const string ProjectionActionStaffComboCardId = "SunExp_sunexp_enemycard_projection_staff_combo";
+    public const string ProjectionActionMagicInterferenceCardId = "SunExp_sunexp_enemycard_projection_magic_interference";
+    public const string ProjectionActionYouAreEnhancedCardId = "SunExp_sunexp_enemycard_projection_you_are_enhanced";
+    public const string ProjectionActionChargeCardId = "SunExp_sunexp_enemycard_projection_charge";
+    public const string ProjectionActionHolyHealCardId = "SunExp_sunexp_enemycard_projection_holy_heal";
     public const string ProjectionActionWaitCardId = "SunExp_sunexp_enemycard_projection_wait";
 
     public static readonly string[] StellarOvertureCardIds =

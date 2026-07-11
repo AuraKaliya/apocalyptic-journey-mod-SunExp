@@ -24,7 +24,7 @@ public static class CompanionIntentSelector
 
         var attackChoices = BuildChoices(projection, executor, state, CompanionIntentTendency.Attack);
         var defenseChoices = BuildChoices(projection, executor, state, CompanionIntentTendency.Defense);
-        var tendency = PickTendency(attackChoices, defenseChoices);
+        var tendency = PickTendency(state, attackChoices, defenseChoices);
         var choices = tendency == CompanionIntentTendency.Attack ? attackChoices : defenseChoices;
         if (choices.Count == 0)
         {
@@ -36,14 +36,11 @@ public static class CompanionIntentSelector
             return null;
         }
 
-        var type = PickType(choices);
-        var typedChoices = choices.Where(choice => CompanionIntentRegistry.IntentType(choice.Intent) == type).ToList();
-        var top = typedChoices
+        var weightedChoices = choices
             .OrderByDescending(choice => choice.Priority)
             .ThenBy(choice => choice.Intent.Id, StringComparer.Ordinal)
-            .Take(3)
             .ToList();
-        return PickWeighted(top);
+        return PickWeighted(weightedChoices);
     }
 
     public static bool CommitResolvedPlan(CompanionBattleState state, CompanionIntentPlan plan)
@@ -79,19 +76,27 @@ public static class CompanionIntentSelector
                 continue;
             }
 
-            var target = CompanionIntentExecutor.SelectTarget(executor, state, intent);
-            if (TargetRequired(intent) && target == null)
+            var targets = CompanionTargetPolicyRegistry.Resolve(executor, state, intent);
+            var target = targets.FirstOrDefault();
+            if (targets.Count == 0)
             {
                 continue;
             }
 
-            result.Add(new CompanionIntentChoice(intent, target, DynamicPriority(executor, state, intent, target)));
+            var priority = DynamicPriority(executor, state, intent, target);
+            if (IsRedundantBuff(intent, targets))
+            {
+                priority = Math.Max(1, priority - 25);
+            }
+
+            result.Add(new CompanionIntentChoice(intent, target, priority));
         }
 
         return result;
     }
 
     private static CompanionIntentTendency PickTendency(
+        CompanionBattleState state,
         List<CompanionIntentChoice> attackChoices,
         List<CompanionIntentChoice> defenseChoices)
     {
@@ -105,36 +110,12 @@ public static class CompanionIntentSelector
             return CompanionIntentTendency.Attack;
         }
 
-        var attackWeight = Math.Max(1, attackChoices.Sum(choice => choice.Priority));
-        var defenseWeight = Math.Max(1, defenseChoices.Sum(choice => choice.Priority));
+        var weights = CompanionIntentRegistry.TendencyWeightsForRole(state.RoleId);
+        var attackWeight = weights.Attack;
+        var defenseWeight = weights.Defense + RecoveryUrgency(defenseChoices);
         return UnityEngine.Random.Range(0, attackWeight + defenseWeight) < attackWeight
             ? CompanionIntentTendency.Attack
             : CompanionIntentTendency.Defense;
-    }
-
-    private static CompanionIntentType PickType(List<CompanionIntentChoice> choices)
-    {
-        var groups = choices
-            .GroupBy(choice => CompanionIntentRegistry.IntentType(choice.Intent))
-            .Select(group => new
-            {
-                Type = group.Key,
-                Weight = Math.Max(1, group.Max(choice => choice.Priority))
-            })
-            .ToList();
-        var total = groups.Sum(group => group.Weight);
-        var roll = UnityEngine.Random.Range(0, Math.Max(1, total));
-        var cursor = 0;
-        foreach (var group in groups)
-        {
-            cursor += group.Weight;
-            if (roll < cursor)
-            {
-                return group.Type;
-            }
-        }
-
-        return groups[0].Type;
     }
 
     private static CompanionIntentChoice PickWeighted(List<CompanionIntentChoice> choices)
@@ -169,7 +150,7 @@ public static class CompanionIntentSelector
         switch ((intent.PriorityBonus ?? "").Trim())
         {
             case "execute_low_hp":
-                var damage = CompanionIntentExecutor.ResolveValue(state, intent);
+                var damage = CompanionIntentExecutor.ResolveValue(state, intent) * Math.Max(1, intent.HitCount);
                 if (target != null && target.CurHp <= damage)
                 {
                     priority += 40;
@@ -205,7 +186,7 @@ public static class CompanionIntentSelector
     {
         return CompanionIntentRegistry.IntentType(intent) switch
         {
-            CompanionIntentType.Attack => 10 + EnemyPressure(executor) - HighThreatLowHpPenalty(state),
+            CompanionIntentType.Attack => 16 + EnemyPressure(executor) - HighThreatLowHpPenalty(state),
             CompanionIntentType.Defense => 8 + MissingBlock(target) + CompanionThreatService.ThreatPressurePercent(state) / 4,
             CompanionIntentType.Support => 6 + MissingBlock(target) / 2,
             CompanionIntentType.Recovery => 12 + Math.Max(0, 60 - HpPercent(target)) + CompanionThreatService.ThreatPressurePercent(state) / 5,
@@ -237,11 +218,23 @@ public static class CompanionIntentSelector
         return target == null ? 0 : Math.Max(0, 12 - target.Defend);
     }
 
-    private static bool TargetRequired(CompanionIntentDefinition intent)
+    private static int RecoveryUrgency(IEnumerable<CompanionIntentChoice> choices)
     {
-        var effect = (intent.Effect ?? "").Trim();
-        return effect.Equals("Damage", StringComparison.OrdinalIgnoreCase)
-            || effect.Equals("Block", StringComparison.OrdinalIgnoreCase);
+        var wounded = choices
+            .Where(choice => CompanionIntentRegistry.IntentType(choice.Intent) == CompanionIntentType.Recovery)
+            .Select(choice => HpPercent(choice.Target))
+            .DefaultIfEmpty(100)
+            .Min();
+        return wounded <= 20 ? 60 : wounded <= 35 ? 30 : 0;
+    }
+
+    private static bool IsRedundantBuff(
+        CompanionIntentDefinition intent,
+        IReadOnlyList<IStatusManager> targets)
+    {
+        return string.Equals(intent.HandlerId, CompanionIntentHandlerRegistry.ApplyBuff, StringComparison.Ordinal)
+            && targets.Count > 0
+            && targets.All(target => ExecutorApi.StatusBuffLevel(target, intent.BuffId) >= intent.BuffStacks);
     }
 
     private static bool IsAlive(IStatusManager? status)

@@ -142,6 +142,7 @@ $requiredFiles = @(
     "SunExp-Dev\Mechanics\CompanionBattleStateStore.cs",
     "SunExp-Dev\Mechanics\CompanionAuthorityService.cs",
     "SunExp-Dev\Mechanics\CompanionIntentExecutor.cs",
+    "SunExp-Dev\Mechanics\CompanionIntentHandlers.cs",
     "SunExp-Dev\Mechanics\CompanionIntentPlanner.cs",
     "SunExp-Dev\Mechanics\CompanionIntentRegistry.cs",
     "SunExp-Dev\Mechanics\CompanionIntentSelector.cs",
@@ -360,6 +361,7 @@ $familiarBlessingRegistryJson = Read-RepoText "SunExp\familiar.blessing.registry
 $companionIntentRegistryJson = Read-RepoText "SunExp\companion.intent.registry.json"
 $companionAuthorityService = Read-RepoText "SunExp-Dev\Mechanics\CompanionAuthorityService.cs"
 $companionIntentPlanner = Read-RepoText "SunExp-Dev\Mechanics\CompanionIntentPlanner.cs"
+$companionIntentHandlers = Read-RepoText "SunExp-Dev\Mechanics\CompanionIntentHandlers.cs"
 $projectionBuffCopyService = Read-RepoText "SunExp-Dev\Mechanics\ProjectionBuffCopyService.cs"
 $projectionActivationService = Read-RepoText "SunExp-Dev\Mechanics\ProjectionActivationService.cs"
 $projectionOtherObj = Read-RepoText "SunExp-Dev\Mechanics\ProjectionOtherObj.cs"
@@ -693,7 +695,11 @@ Assert-Contains $companionAuthorityService "OwnerPlayerId" "Companion identity m
 Assert-Contains $companionIntentPlanner "CompanionSystemPlans.Wait" "Companion planning must expose an explicit wait state when no intent is affordable."
 Assert-Contains $projectionBuffCopyService "ProjectionBuffPolicy.Adapter" "Projection buff copying must isolate incompatible buffs through adapters."
 Assert-Contains $projectionBuffCopyService "ProjectionBuffPolicy.Reject" "Projection buff copying must support explicit rejection without aborting summon."
-Assert-Contains $companionIntentRegistryJson '"schemaVersion": 2' "Companion intent data must declare its schema version."
+Assert-Contains $companionIntentRegistryJson '"schemaVersion": 3' "Companion intent data must declare the handler-driven schema version."
+Assert-Contains $companionIntentHandlers "ICompanionIntentHandler" "Companion intent effects must execute through a handler contract."
+Assert-Contains $companionIntentExecutor "rejected unknown execution handler" "Companion intent execution must fail closed for unknown handlers."
+Assert-Contains $companionIntentRegistryJson '"attackWeight": 60' "Companion profiles must declare an explicit attack tendency weight."
+Assert-Contains $companionIntentRegistryJson '"buffStacks": 50' "Companion support intents must keep the approved 50-stack Extraordinary value."
 Assert-NotContains $projectionOtherObj "return base.DoAction();" "Projection turns must not use native OtherObj.DoAction because the player model lacks head/Msg."
 Assert-Contains $projectionRuntime 'SunExpStatusLifecycleRouter.Register("Projection"' "Projection runtime must retire dead projections through the shared status lifecycle router."
 Assert-Contains $projectionRuntime "AfterHit = RetireProjectionAfterDamage" "Projection runtime must retire dead projections after full damage resolves."
@@ -712,7 +718,8 @@ Assert-Contains $projectionStrategyService "CompanionIntentExecutor.UseAction" "
 Assert-Contains $projectionScripts "ProjectionStrategyService.UseAction" "ProjectionScripts must keep CSV actions routed through Mechanics."
 Assert-Contains $companionBattleModels "CompanionIntentTendency" "Companion models must define attack/defense intent tendencies."
 Assert-Contains $companionBattleModels "CompanionIntentType" "Companion models must define companion intent types."
-Assert-Contains $companionIntentSelector "Take(3)" "Companion intent selection must sample from the top three priority candidates."
+Assert-NotContains $companionIntentSelector "PickType" "Companion intent selection must not apply priority through a second type lottery."
+Assert-Contains $companionIntentSelector "TendencyWeightsForRole" "Companion tendency must use explicit profile weights independent of pool size."
 Assert-Contains $companionIntentSelector "PickWeighted" "Companion intent selection must use normalized weighted random selection."
 Assert-Contains $companionIntentSelector "CompanionThreatService.ThreatPressurePercent" "Companion intent priority must react to normalized 80-200 companion threat."
 Assert-Contains $companionBattleStateStore "CompanionThreatService.Register" "Companion battle state creation must register threat state."

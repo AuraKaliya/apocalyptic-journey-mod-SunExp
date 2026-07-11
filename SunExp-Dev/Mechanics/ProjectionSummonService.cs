@@ -71,7 +71,7 @@ public static class ProjectionSummonService
 
         var role = PolymorphRoleRegistry.Find(roleId);
         var rejection = ValidateNetworkSender(sender, ownerStatusId);
-        if (protocolVersion != 2)
+        if (protocolVersion != 3)
         {
             rejection = "projection protocol mismatch";
         }
@@ -133,7 +133,7 @@ public static class ProjectionSummonService
             return;
         }
 
-        if (snapshot.ProtocolVersion != 2
+        if (snapshot.ProtocolVersion != 3
             || snapshot.BattleEpoch != CompanionAuthorityService.BattleEpoch
             || !string.Equals(snapshot.RegistryHash, CompanionIntentRegistry.RegistryHash, StringComparison.Ordinal))
         {
@@ -167,7 +167,16 @@ public static class ProjectionSummonService
         data["Defend"] = activeStats.Armor.ToString();
         data["Hp"] = activeStats.MaxHp.ToString();
         data["ActionCount"] = "1";
-        data["CardList"] = SunExpIds.ProjectionActionStaffTapCardId + "," + SunExpIds.ProjectionActionShieldBlessingCardId;
+        data["CardList"] = string.Join(",", new[]
+        {
+            SunExpIds.ProjectionActionStaffTapCardId,
+            SunExpIds.ProjectionActionShieldBlessingCardId,
+            SunExpIds.ProjectionActionStaffComboCardId,
+            SunExpIds.ProjectionActionMagicInterferenceCardId,
+            SunExpIds.ProjectionActionYouAreEnhancedCardId,
+            SunExpIds.ProjectionActionChargeCardId,
+            SunExpIds.ProjectionActionHolyHealCardId
+        });
         return new DataConfig(data, vars);
     }
 
@@ -382,7 +391,7 @@ public static class ProjectionSummonService
         var state = CompanionBattleStateStore.Find(projection.InstanceId);
         return new ProjectionCompanionSnapshot
         {
-            ProtocolVersion = 2,
+            ProtocolVersion = 3,
             BattleEpoch = CompanionAuthorityService.BattleEpoch,
             RegistryHash = CompanionIntentRegistry.RegistryHash,
             Revision = state?.Revision ?? 0,
