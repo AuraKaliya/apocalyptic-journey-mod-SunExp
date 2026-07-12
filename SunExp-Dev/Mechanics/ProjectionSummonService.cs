@@ -180,7 +180,7 @@ public static class ProjectionSummonService
         return new DataConfig(data, vars);
     }
 
-    public static void RegisterFightState(ProjectionOtherObj projection)
+    public static void RegisterFightState(ProjectionOtherObj projection, string source)
     {
         var status = projection.Status as StatusManager;
         var manager = FightManager.Instance;
@@ -195,10 +195,7 @@ public static class ProjectionSummonService
             manager.statusData[projection.InstanceId] = new StatusDataTransfer(status);
         }
 
-        if (!manager.ActionQueue.Contains(projection))
-        {
-            manager.ActionQueue.Add(projection);
-        }
+        ProjectionTurnCoordinator.RegisterProjection(projection, source);
 
         var roleId = RoleTable.Instance?.Id ?? "";
         var map = Singleton<TempDataManager>.Instance?.RoleStatusMap;
@@ -327,6 +324,7 @@ public static class ProjectionSummonService
                 projection,
                 slotIndex,
                 projection.OwnerPlayerId));
+            CompanionSlotService.ReflowFriendlyLineup(source + ".Spawned");
             if (snapshot == null)
             {
                 ProjectionBuffCopyService.ApplyInitial(projection.Status, initialBuffs);

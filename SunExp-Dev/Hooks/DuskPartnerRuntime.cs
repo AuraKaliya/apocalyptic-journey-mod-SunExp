@@ -1,6 +1,8 @@
 using System;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
+using SunExp.Dll.Mechanics;
+using Witch;
 using Witch.Core;
 using Witch.Mod;
 
@@ -18,7 +20,13 @@ public static class DuskPartnerRuntime
         RegisterAfter(modConfig, "GameEntryUI.CheckCareer", CleanupPlaceholderBlessing);
         SunExpBattleLifecycleRouter.Register("DuskPartner", new SunExpBattleLifecycleSubscription
         {
-            FightStarted = GrantTraitOnFightStart
+            FightStarted = GrantTraitOnFightStart,
+            FightEnding = _ => DuskAfterheatRecoveryService.Deactivate(null, "FightEnding")
+        });
+        SunExpStatusLifecycleRouter.Register("DuskPartner", new SunExpStatusLifecycleSubscription
+        {
+            AfterAddBuff = ObserveBurnAfterAdd,
+            AfterEnemyInit = ObserveEnemyAfterInit
         });
     }
 
@@ -43,6 +51,7 @@ public static class DuskPartnerRuntime
     {
         try
         {
+            DuskAfterheatRecoveryService.Deactivate(null, "FightStarted.Reset");
             PartnerApi.RemovePlaceholderBlessing(BlessingLocalId, BlessingFullId);
             var status = FightPlayer.Instance?.Status;
             if (status == null || !PartnerApi.IsCurrentPartner(PartnerLocalId, PartnerFullId))
@@ -64,5 +73,46 @@ public static class DuskPartnerRuntime
         {
             SunExpLog.Error("Dusk fight start trait grant failed", ex);
         }
+    }
+
+    private static void ObserveBurnAfterAdd(ModHookContext context)
+    {
+        try
+        {
+            DuskAfterheatRecoveryService.ObserveBurnAdded(
+                context.Target as IStatusManager,
+                BuffIdFromArgs(context.Arguments),
+                "StatusManager.AddBuff");
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Dusk burn observer attachment failed after AddBuff", ex);
+        }
+    }
+
+    private static void ObserveEnemyAfterInit(ModHookContext context)
+    {
+        try
+        {
+            DuskAfterheatRecoveryService.ObserveEnemyInitialized(
+                (context.Target as Enemy)?.Status,
+                "Enemy.Init");
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Dusk burn observer attachment failed after Enemy.Init", ex);
+        }
+    }
+
+    private static string BuffIdFromArgs(object[]? args)
+    {
+        if (args == null || args.Length == 0)
+        {
+            return "";
+        }
+
+        return args[0] is IBuffItemConfig config
+            ? config.BuffId ?? ""
+            : Convert.ToString(args[0]) ?? "";
     }
 }

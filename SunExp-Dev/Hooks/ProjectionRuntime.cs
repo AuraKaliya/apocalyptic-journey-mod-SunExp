@@ -19,6 +19,8 @@ public static class ProjectionRuntime
         RegisterBefore(modConfig, SunExpHookTargets.FightWinInit, context => ClearBattle("Fight_Win.Init:before"));
         RegisterBefore(modConfig, SunExpHookTargets.FightLossInit, context => ClearBattle("Fight_Loss.Init:before"));
         RegisterBefore(modConfig, SunExpHookTargets.FightEscapeInit, context => ClearBattle("Fight_Escape.Init:before"));
+        RegisterAfter(modConfig, SunExpHookTargets.FightPlayerTurnInit,
+            context => ProjectionTurnCoordinator.BeginPlayerRound("Fight_PlayerTurn.Init"));
         SunExpStatusLifecycleRouter.Register("Projection", new SunExpStatusLifecycleSubscription
         {
             AfterHit = RetireProjectionAfterDamage,
@@ -42,6 +44,7 @@ public static class ProjectionRuntime
     {
         try
         {
+            ProjectionTurnCoordinator.ClearBattle(source);
             ProjectionActivationService.ClearBattle(source);
             ProjectionUiApi.CloseRoleSelection(source);
         }
@@ -56,6 +59,7 @@ public static class ProjectionRuntime
         ClearBattle(source);
         CompanionAuthorityService.BeginBattleEpoch();
         ProjectionSummonService.ResetBattleSynchronization();
+        ProjectionTurnCoordinator.BeginBattle(source);
     }
 
     private static void RetireProjectionAfterDamage(ModHookContext context)

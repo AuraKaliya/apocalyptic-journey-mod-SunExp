@@ -1,0 +1,269 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using SunExp.Dll.GameApi;
+using SunExp.Dll.Infrastructure;
+using UnityEngine;
+
+namespace SunExp.Dll.Mechanics;
+
+public static class ProjectionTurnCoordinator
+{
+    private static readonly object SyncRoot = new();
+    private static readonly HashSet<string> ExecutedThisRound = new(StringComparer.Ordinal);
+    private static ProjectionTurnAnchorObj? anchor;
+    private static int roundSequence;
+
+    public static void BeginBattle(string source)
+    {
+        ClearBattle(source + ".Reset");
+        EnsureAnchor(source);
+    }
+
+    public static void BeginPlayerRound(string source)
+    {
+        lock (SyncRoot)
+        {
+            roundSequence++;
+            if (roundSequence <= 0)
+            {
+                roundSequence = 1;
+            }
+
+            ExecutedThisRound.Clear();
+        }
+
+        EnsureAnchor(source);
+        SunExpPerformanceCounters.Record("ProjectionTurnCoordinator.RoundStarted");
+        SunExpLog.Info("[ProjectionTurn] player round started: round=" + roundSequence + ", source=" + source);
+    }
+
+    public static void RegisterProjection(ProjectionOtherObj projection, string source)
+    {
+        if (projection == null || !CompanionAuthorityService.IsAuthoritative())
+        {
+            return;
+        }
+
+        var manager = FightManager.Instance;
+        if (manager?.ActionQueue == null)
+        {
+            return;
+        }
+
+        EnsureAnchor(source);
+        manager.ActionQueue.RemoveAll(item => ReferenceEquals(item, projection));
+        if (anchor == null && !manager.ActionQueue.Contains(projection))
+        {
+            manager.ActionQueue.Add(projection);
+            SunExpPerformanceCounters.Record("ProjectionTurnCoordinator.NativeFallbackQueued");
+            SunExpLog.Warn("[ProjectionTurn] anchor unavailable; projection queued for native next-round fallback: "
+                + projection.InstanceId);
+        }
+    }
+
+    public static IEnumerator ExecuteCurrentRound()
+    {
+        if (!CompanionAuthorityService.IsAuthoritative())
+        {
+            yield break;
+        }
+
+        var activeRound = Math.Max(1, roundSequence);
+        var projections = ProjectionStateStore.Active()
+            .OrderBy(state => state.SlotIndex)
+            .ThenBy(state => state.StatusId, StringComparer.Ordinal)
+            .ToArray();
+        SunExpLog.Info("[ProjectionTurn] anchor executing: round=" + activeRound + ", projections=" + projections.Length);
+        SunExpPerformanceCounters.Record("ProjectionTurnCoordinator.AnchorExecuted");
+
+        foreach (var state in projections)
+        {
+            if (state?.Projection == null || !TryClaim(activeRound, state.StatusId))
+            {
+                continue;
+            }
+
+            SunExpLog.Info("[ProjectionTurn] executing projection: round="
+                + activeRound
+                + ", status="
+                + state.StatusId
+                + ", slot="
+                + state.SlotIndex);
+            SunExpPerformanceCounters.Record("ProjectionTurnCoordinator.ProjectionExecuted");
+            var routine = state.Projection.DoAction();
+            while (routine.MoveNext())
+            {
+                yield return routine.Current;
+            }
+        }
+    }
+
+    public static void ClearBattle(string source)
+    {
+        lock (SyncRoot)
+        {
+            roundSequence = 0;
+            ExecutedThisRound.Clear();
+        }
+
+        var manager = FightManager.Instance;
+        if (manager?.ActionQueue != null)
+        {
+            manager.ActionQueue.RemoveAll(item => item == null || item is ProjectionTurnAnchorObj);
+        }
+
+        if (anchor != null)
+        {
+            UnityEngine.Object.Destroy(anchor.gameObject);
+            anchor = null;
+        }
+
+        CleanupStaleAnchors();
+
+        SunExpPerformanceCounters.Record("ProjectionTurnCoordinator.Cleared");
+        SunExpLog.Debug("[ProjectionTurn] coordinator cleared from " + source + ".");
+    }
+
+    private static bool TryClaim(int round, string statusId)
+    {
+        var token = CompanionAuthorityService.BattleEpoch + ":" + round + ":" + (statusId ?? "");
+        lock (SyncRoot)
+        {
+            return ExecutedThisRound.Add(token);
+        }
+    }
+
+    private static void EnsureAnchor(string source)
+    {
+        if (!CompanionAuthorityService.IsAuthoritative())
+        {
+            return;
+        }
+
+        var manager = FightManager.Instance;
+        if (manager?.ActionQueue == null)
+        {
+            return;
+        }
+
+        if (anchor != null)
+        {
+            manager.ActionQueue.RemoveAll(item => item is ProjectionOtherObj);
+            if (!manager.ActionQueue.Contains(anchor))
+            {
+                if (anchor.Status != null && anchor.Status.state == IStatusManager.State.NoAction)
+                {
+                    anchor.Status.ChangeState(IStatusManager.State.Default);
+                }
+
+                anchor.ActionCount = anchor.MaxActionCount;
+                manager.ActionQueue.Add(anchor);
+                SunExpPerformanceCounters.Record("ProjectionTurnCoordinator.AnchorRequeued");
+                SunExpLog.Debug("[ProjectionTurn] anchor requeued from " + source + ".");
+            }
+
+            return;
+        }
+
+        GameObject? pendingRoot = null;
+        try
+        {
+            var prefab = SunExpResourceCache.Load<GameObject>("Model/player", true, "projection-turn-anchor");
+            if (prefab == null)
+            {
+                SunExpPerformanceCounters.Record("ProjectionTurnCoordinator.AnchorPrefabMissing");
+                return;
+            }
+
+            pendingRoot = UnityEngine.Object.Instantiate(prefab);
+            pendingRoot.name = "SunExpProjectionTurnAnchor:pending";
+            pendingRoot.SetActive(false);
+            var created = pendingRoot.AddComponent<ProjectionTurnAnchorObj>();
+            var templateData = ResolveAnchorTemplateData();
+            if (templateData == null
+                || !created.InitializeAnchor(CompanionAuthorityService.BattleEpoch, templateData))
+            {
+                SunExpPerformanceCounters.Record("ProjectionTurnCoordinator.AnchorInitFailed");
+                SunExpLog.Warn("[ProjectionTurn] anchor template is incomplete from " + source + ".");
+                return;
+            }
+
+            manager.ActionQueue.RemoveAll(item => item == null || item is ProjectionTurnAnchorObj || item is ProjectionOtherObj);
+            manager.ActionQueue.Add(created);
+            anchor = created;
+            pendingRoot = null;
+            SunExpPerformanceCounters.Record("ProjectionTurnCoordinator.AnchorRegistered");
+            SunExpLog.Info("[ProjectionTurn] anchor registered: epoch="
+                + CompanionAuthorityService.BattleEpoch
+                + ", source="
+                + source);
+        }
+        catch (Exception ex)
+        {
+            SunExpPerformanceCounters.Record("ProjectionTurnCoordinator.AnchorInitFailed");
+            SunExpLog.Warn("[ProjectionTurn] anchor registration failed from " + source + ": " + ex.Message);
+        }
+        finally
+        {
+            if (pendingRoot != null)
+            {
+                pendingRoot.SetActive(false);
+                UnityEngine.Object.Destroy(pendingRoot);
+            }
+        }
+    }
+
+    private static IDictionary<string, string>? ResolveAnchorTemplateData()
+    {
+        var localCareer = RoleTable.Instance?.Career?.data;
+        if (HasAnimation(localCareer))
+        {
+            return localCareer;
+        }
+
+        var roles = FightManager.Instance?.roleQueue;
+        if (roles == null)
+        {
+            return null;
+        }
+
+        foreach (var role in roles)
+        {
+            var data = role?.career?.data;
+            if (HasAnimation(data))
+            {
+                return data;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool HasAnimation(IDictionary<string, string>? data)
+    {
+        return data != null
+            && data.TryGetValue("Animation", out var animation)
+            && !string.IsNullOrWhiteSpace(animation);
+    }
+
+    private static void CleanupStaleAnchors()
+    {
+        try
+        {
+            foreach (var stale in Resources.FindObjectsOfTypeAll<ProjectionTurnAnchorObj>())
+            {
+                if (stale != null && !ReferenceEquals(stale, anchor) && stale.gameObject != null)
+                {
+                    stale.gameObject.SetActive(false);
+                    UnityEngine.Object.Destroy(stale.gameObject);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Debug("[ProjectionTurn] stale anchor cleanup skipped: " + ex.Message);
+        }
+    }
+}

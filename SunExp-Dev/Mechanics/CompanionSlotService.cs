@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using SunExp.Dll.Infrastructure;
 using UnityEngine;
 
 namespace SunExp.Dll.Mechanics;
@@ -9,18 +11,16 @@ public static class CompanionSlotService
     public const int MaxFriendlySlots = 4;
 
     private const float CenterX = -3.5f;
-    private const float SlotSpacing = 2.5f;
+    private const float MultiplayerSpacing = 2.5f;
+    private const float SinglePlayerSpacing = 3.5f;
 
     public static int? FindOpenPlayerSlot()
     {
         var occupied = new HashSet<int>();
-        foreach (var status in CurrentFriendlyStatuses())
+        var nativePlayers = CurrentFriendlyStatuses().ToArray();
+        for (var i = 0; i < nativePlayers.Length && i < MaxFriendlySlots; i++)
         {
-            var slot = NearestSlot(status?.transform?.position.x ?? CenterX);
-            if (slot >= 0)
-            {
-                occupied.Add(slot);
-            }
+            occupied.Add(i);
         }
 
         foreach (var state in ProjectionStateStore.Active())
@@ -57,7 +57,97 @@ public static class CompanionSlotService
 
     public static void PositionStatusInPlayerSlot(IStatusManager? status, int slotIndex)
     {
+        ReflowFriendlyLineup("PositionStatusInPlayerSlot", status, slotIndex);
+    }
+
+    public static void ReflowFriendlyLineup(string source)
+    {
+        ReflowFriendlyLineup(source, null, -1);
+    }
+
+    public static float SlotX(int slotIndex, int friendlyCount = MaxFriendlySlots)
+    {
+        var count = Math.Max(1, Math.Min(MaxFriendlySlots, friendlyCount));
+        var index = Math.Max(0, Math.Min(count - 1, slotIndex));
+        var spacing = count > 1 ? MultiplayerSpacing : SinglePlayerSpacing;
+        return CenterX + ((count - 1 - index) - (count - 1) / 2f) * spacing;
+    }
+
+    private static void ReflowFriendlyLineup(string source, IStatusManager? pendingStatus, int pendingSlot)
+    {
+        try
+        {
+            var lineup = BuildLineup(pendingStatus, pendingSlot);
+            var count = Math.Min(MaxFriendlySlots, lineup.Count);
+            for (var i = 0; i < count; i++)
+            {
+                PositionAt(lineup[i].Status, i, count);
+            }
+
+            SunExpPerformanceCounters.Record("CompanionSlot.Reflow");
+            SunExpLog.Debug("[CompanionSlot] reflowed from " + source
+                + ": count=" + count
+                + ", lineup=" + string.Join(",", lineup.Take(count).Select(entry => entry.StatusId + "@" + entry.LogicalSlot)));
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[CompanionSlot] reflow failed from " + source + ": " + ex.Message);
+        }
+    }
+
+    private static List<FriendlyEntry> BuildLineup(IStatusManager? pendingStatus, int pendingSlot)
+    {
+        var result = new List<FriendlyEntry>();
+        var statusIds = new HashSet<string>(StringComparer.Ordinal);
+        var playerSlot = 0;
+        foreach (var status in CurrentFriendlyStatuses())
+        {
+            Add(result, statusIds, status, playerSlot++, isNativePlayer: true);
+        }
+
+        foreach (var state in ProjectionStateStore.Active().OrderBy(state => state.SlotIndex).ThenBy(state => state.StatusId, StringComparer.Ordinal))
+        {
+            Add(result, statusIds, state.Projection?.Status, state.SlotIndex, isNativePlayer: false);
+        }
+
+        foreach (var entry in HeartChangeControlService.ActiveSlotStatuses().OrderBy(entry => entry.Key).ThenBy(entry => entry.Value?.InstanceId, StringComparer.Ordinal))
+        {
+            Add(result, statusIds, entry.Value, entry.Key, isNativePlayer: false);
+        }
+
+        Add(result, statusIds, pendingStatus, pendingSlot, isNativePlayer: false);
+        return result
+            .OrderBy(entry => entry.IsNativePlayer ? 0 : 1)
+            .ThenBy(entry => entry.LogicalSlot)
+            .ThenBy(entry => entry.StatusId, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    private static void Add(
+        ICollection<FriendlyEntry> result,
+        ISet<string> statusIds,
+        IStatusManager? status,
+        int logicalSlot,
+        bool isNativePlayer)
+    {
         if (status?.transform == null)
+        {
+            return;
+        }
+
+        var id = status.InstanceId ?? "";
+        var dedupeId = id.Length > 0 ? id : "ref:" + status.GetHashCode();
+        if (!statusIds.Add(dedupeId))
+        {
+            return;
+        }
+
+        result.Add(new FriendlyEntry(status, id, logicalSlot, isNativePlayer));
+    }
+
+    private static void PositionAt(IStatusManager status, int visualIndex, int friendlyCount)
+    {
+        if (status.transform == null)
         {
             return;
         }
@@ -65,35 +155,12 @@ public static class CompanionSlotService
         var groundY = CurrentGroundY(status.transform.position.y);
         var bottom = status.transform.Find("bottom");
         var bottomOffset = bottom == null ? 0f : bottom.localPosition.y;
-        status.SetPosition(new Vector3(SlotX(slotIndex), groundY - bottomOffset, 0f));
+        status.SetPosition(new Vector3(SlotX(visualIndex, friendlyCount), groundY - bottomOffset, 0f));
     }
 
-    public static float SlotX(int slotIndex)
+    private static IEnumerable<IStatusManager> CurrentFriendlyStatuses()
     {
-        var index = Math.Max(0, Math.Min(MaxFriendlySlots - 1, slotIndex));
-        return CenterX + ((MaxFriendlySlots - 1 - index) - (MaxFriendlySlots - 1) / 2f) * SlotSpacing;
-    }
-
-    private static int NearestSlot(float x)
-    {
-        var bestSlot = -1;
-        var bestDistance = float.MaxValue;
-        for (var i = 0; i < MaxFriendlySlots; i++)
-        {
-            var distance = Math.Abs(x - SlotX(i));
-            if (distance < bestDistance)
-            {
-                bestSlot = i;
-                bestDistance = distance;
-            }
-        }
-
-        return bestSlot;
-    }
-
-    private static IEnumerable<IStatusManager?> CurrentFriendlyStatuses()
-    {
-        var result = new List<IStatusManager?>();
+        var result = new List<IStatusManager>();
         var roleIds = new HashSet<string>(StringComparer.Ordinal);
         try
         {
@@ -119,7 +186,7 @@ public static class CompanionSlotService
 
         var self = FightPlayer.Instance?.Status;
         var selfId = self?.InstanceId ?? "";
-        if (!string.IsNullOrWhiteSpace(selfId) && roleIds.Add(selfId))
+        if (self != null && !string.IsNullOrWhiteSpace(selfId) && roleIds.Add(selfId))
         {
             result.Add(self);
         }
@@ -137,5 +204,24 @@ public static class CompanionSlotService
         {
             return fallback;
         }
+    }
+
+    private sealed class FriendlyEntry
+    {
+        public FriendlyEntry(IStatusManager status, string statusId, int logicalSlot, bool isNativePlayer)
+        {
+            Status = status;
+            StatusId = statusId;
+            LogicalSlot = logicalSlot;
+            IsNativePlayer = isNativePlayer;
+        }
+
+        public IStatusManager Status { get; }
+
+        public string StatusId { get; }
+
+        public int LogicalSlot { get; }
+
+        public bool IsNativePlayer { get; }
     }
 }

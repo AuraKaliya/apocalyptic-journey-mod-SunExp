@@ -35,6 +35,8 @@ function New-ProjectXml {
     $sunExpFrameDispatcher = Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpFrameDispatcher.cs"
     $sunExpPerformanceSettings = Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpPerformanceSettings.cs"
     $cardApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardApi.cs"
+    $combatCardViewPoolApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CombatCardViewPoolApi.cs"
+    $combatCardViewPoolCatalog = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CombatCardViewPoolCatalog.cs"
     $cardConfigApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardConfigApi.cs"
     $cardVisualSkinApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardVisualSkinApi.cs"
     $cardVisualEffectApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardVisualEffectApi.cs"
@@ -80,6 +82,8 @@ function New-ProjectXml {
     <Compile Include="$sunExpFrameDispatcher" />
     <Compile Include="$sunExpPerformanceSettings" />
     <Compile Include="$cardApi" />
+    <Compile Include="$combatCardViewPoolApi" />
+    <Compile Include="$combatCardViewPoolCatalog" />
     <Compile Include="$cardConfigApi" />
     <Compile Include="$cardVisualSkinApi" />
     <Compile Include="$cardVisualEffectApi" />
@@ -507,6 +511,7 @@ internal static class Program
         TestCardCostHelpers();
         TestStarBlessingCostOverrideStore();
         TestCardGrantRequest();
+        TestCombatCardViewPoolCatalog();
         TestCardMutationService();
         TestRuntimeCardAttachmentService();
         TestSolarTriggerCostOverride();
@@ -549,6 +554,42 @@ internal static class Program
         True(SunExpIds.IsSolarMemoryExclusiveEventId("SunExp_sunexp_Sub_solar_memory_second_sun"), "Full Solar Memory story event ids are exclusive");
         False(SunExpIds.IsSolarMemoryExclusiveEventId("Sub_wuna_event_1"), "Retired Wuna story event ids are no longer shipped exclusive events");
         False(SunExpIds.IsSolarMemoryExclusiveEventId("event_2001"), "Base game event ids are not Solar Memory exclusive");
+    }
+
+    private static void TestCombatCardViewPoolCatalog()
+    {
+        var close = new DataConfig(new Dictionary<string, string>
+        {
+            ["Id"] = SunExpIds.StellarOvertureCloseCardId
+        });
+        True(CombatCardViewPoolCatalog.TryResolveBucket(close, out var closeBucket), "Stellar Overture Close is eligible for combat card pooling");
+        Equal(CombatCardViewPoolCatalog.AttackBucket, closeBucket, "Stellar Overture Close always uses an attack-card view");
+
+        var turn = new DataConfig(new Dictionary<string, string>
+        {
+            ["Id"] = SunExpIds.StellarOvertureTurnCardId
+        });
+        True(CombatCardViewPoolCatalog.TryResolveBucket(turn, out var turnBucket), "Stellar Overture Turn is eligible for combat card pooling");
+        Equal(CombatCardViewPoolCatalog.AttackBucket, turnBucket, "Stellar Overture Turn always uses an attack-card view");
+
+        var heartChange = new DataConfig(new Dictionary<string, string>
+        {
+            ["Id"] = "SunExp_sunexp_heart_change"
+        });
+        True(CombatCardViewPoolCatalog.TryResolveBucket(heartChange, out var heartChangeBucket), "Heart Change is eligible for combat card pooling");
+        Equal(CombatCardViewPoolCatalog.AttackBucket, heartChangeBucket, "Heart Change always uses an attack-card view");
+
+        var projectionRole = new DataConfig(new Dictionary<string, string>
+        {
+            ["Id"] = SunExpIds.ProjectionRoleTemplateCardId
+        });
+        True(CombatCardViewPoolCatalog.TryResolveBucket(projectionRole, out var projectionBucket), "Projection role cards are eligible for combat card pooling");
+        Equal(CombatCardViewPoolCatalog.CommonBucket, projectionBucket, "Projection role cards use common-card views");
+
+        close.Vars["BaseScript"] = "AttackCardItem";
+        True(CombatCardViewPoolCatalog.MatchesInitializedBucket(close, closeBucket, out _), "Initialized attack cards match their selected pool bucket");
+        close.Vars["BaseScript"] = "CommonCardItem";
+        False(CombatCardViewPoolCatalog.MatchesInitializedBucket(close, closeBucket, out _), "Pool validation rejects an initialized component mismatch");
     }
 
     private static void TestCardVisualSkinRegistry()
@@ -1306,6 +1347,7 @@ function Invoke-SourceAssertions {
     $sunExpFieldId = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpFieldId.cs"))
     $playerApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\PlayerApi.cs"))
     $cardApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\CardApi.cs"))
+    $fightUiCardLayoutApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\FightUiCardLayoutApi.cs"))
     $cardGrantPostCommitQueue = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardGrantPostCommitQueue.cs"))
     $roleSkillApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\RoleSkillApi.cs"))
     $cardMutationService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardMutationService.cs"))
@@ -1323,6 +1365,8 @@ function Invoke-SourceAssertions {
     $projectionStateStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionStateStore.cs"))
     $projectionStrategyService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionStrategyService.cs"))
     $projectionSummonService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionSummonService.cs"))
+    $projectionTurnCoordinator = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionTurnCoordinator.cs"))
+    $projectionTurnAnchorObj = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionTurnAnchorObj.cs"))
     $companionBattleModels = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionBattleModels.cs"))
     $companionBattleStateStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionBattleStateStore.cs"))
     $companionIntentRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionIntentRegistry.cs"))
@@ -1381,6 +1425,7 @@ function Invoke-SourceAssertions {
     $projectionRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\ProjectionRuntime.cs"))
     $heartChangeControlRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\HeartChangeControlRuntime.cs"))
     $duskPartnerRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\DuskPartnerRuntime.cs"))
+    $duskAfterheatRecoveryService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\DuskAfterheatRecoveryService.cs"))
     $starClayDollRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\StarClayDollRuntime.cs"))
     $loneerRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\LoneerRuntime.cs"))
     $starScoreRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\StarScoreRuntime.cs"))
@@ -1822,6 +1867,11 @@ function Invoke-SourceAssertions {
     Assert-True $duskPartnerRuntime.Contains('"GameEntryUI.CheckCareer"') "Dusk runtime must clean its placeholder blessing after career checks."
     Assert-True $duskPartnerRuntime.Contains('SunExpBattleLifecycleRouter.Register("DuskPartner"') "Dusk runtime must grant its trait at fight start through the shared lifecycle router."
     Assert-True ($duskPartnerRuntime.Contains("BuffApi.TryAddBattleScopedBuffOnce") -and $duskPartnerRuntime.Contains("SunExpIds.DuskAfterheatRecoveryTrait")) "Dusk runtime must grant the afterheat recovery trait buff through battle-scoped duplicate suppression."
+    Assert-True ($duskPartnerRuntime.Contains('SunExpStatusLifecycleRouter.Register("DuskPartner"') -and $duskPartnerRuntime.Contains("AfterAddBuff = ObserveBurnAfterAdd") -and $duskPartnerRuntime.Contains("AfterEnemyInit = ObserveEnemyAfterInit")) "Dusk runtime must attach burn observers through existing status lifecycle hooks."
+    Assert-True ($duskAfterheatRecoveryService.Contains("burn?.scriptExecutor") -and $duskAfterheatRecoveryService.Contains("ScriptEventApi.TryAddOwnedEventListener")) "Dusk afterheat recovery must register on the native burn executor owner used by RunImmediately."
+    Assert-True $duskAfterheatRecoveryService.Contains("HashSet<IBuffItem>") "Dusk afterheat recovery must deduplicate listeners by burn buff instance."
+    Assert-True (-not $duskPartnerScripts.Contains("EventCenter")) "Dusk CSV entry points must not register raw native events."
+    Assert-True (-not $duskPartnerScripts.Contains('TryAddTokenedEvent(self, "Action"')) "Dusk must not scan every enemy after each player action."
     Assert-True (-not $duskPartnerRuntime.Contains("StarClay")) "Dusk runtime must not own Star Clay Doll behavior."
     Assert-True $starClayDollRuntime.Contains('SunExpBattleLifecycleRouter.Register("StarClayDoll"') "Star Clay Doll runtime must grant its own trait at fight start through the shared lifecycle router."
     Assert-True ($starClayDollRuntime.Contains("BuffApi.TryAddBattleScopedBuffOnce") -and $starClayDollRuntime.Contains("SunExpIds.StarClayDollTrait")) "Star Clay Doll runtime must grant its own trait through battle-scoped duplicate suppression."
@@ -1938,6 +1988,32 @@ function Invoke-SourceAssertions {
     Assert-True $projectionSummonService.Contains("SunExpIds.ProjectionActionStaffTapCardId") "Projection summon must attach the shared staff-tap action."
     Assert-True $projectionSummonService.Contains("SunExpIds.ProjectionActionShieldBlessingCardId") "Projection summon must attach the shared shield action."
     Assert-True $projectionSummonService.Contains("CompanionSlotService.FindOpenPlayerSlot") "Projection summon must occupy an open player-side slot."
+    Assert-True $projectionSummonService.Contains("ProjectionTurnCoordinator.RegisterProjection") "Projection summon must register through the stable projection-turn coordinator."
+    Assert-True (-not $projectionSummonService.Contains("manager.ActionQueue.Add(projection)")) "Projection summon must not depend on late insertion into the native immutable action snapshot."
+    Assert-True $projectionTurnCoordinator.Contains("ProjectionStateStore.Active()") "Projection turn anchor must resolve projections at execution time so same-round summons are included."
+    Assert-True $projectionTurnCoordinator.Contains("CompanionAuthorityService.IsAuthoritative()") "Projection turn execution must remain host/server authoritative."
+    Assert-True $projectionTurnCoordinator.Contains("ExecutedThisRound") "Projection turn execution must suppress same-round duplicates."
+    Assert-True $projectionTurnCoordinator.Contains("OrderBy(state => state.SlotIndex)") "Projection turn execution order must be stable by friendly slot."
+    Assert-True $projectionTurnCoordinator.Contains("pendingRoot.SetActive(false)") "Projection turn anchor must be hidden before native status initialization."
+    Assert-True $projectionTurnCoordinator.Contains("finally") "Projection turn anchor creation must clean up failed prefab instances."
+    Assert-True $projectionTurnCoordinator.Contains("ResolveAnchorTemplateData") "Projection turn anchor must initialize from complete career data."
+    Assert-True $projectionTurnAnchorObj.Contains('TryGetValue("Animation"') "Projection turn anchor must reject incomplete native animation data."
+    Assert-True $projectionTurnAnchorObj.Contains("EnsureActionIcons(status)") "Projection turn anchor must satisfy native OtherObj action UI prerequisites before registration."
+    Assert-True $projectionTurnAnchorObj.Contains("status.actionObj.Length < 4") "Projection turn anchor must validate all four native action object slots."
+    Assert-True $projectionTurnAnchorObj.Contains('keyword.text = ""') "Projection turn anchor action placeholders must remain visually empty."
+    Assert-True $projectionTurnAnchorObj.Contains("icon.SetActive(false)") "Projection turn anchor action placeholders must remain hidden."
+    Assert-True $projectionTurnAnchorObj.Contains("MaxActionCount = 0") "Projection turn anchor must not pop a card from its intentionally empty native action queue."
+    Assert-True $projectionTurnAnchorObj.Contains("ActionCount = 0") "Projection turn anchor must expose zero native card actions."
+    Assert-True (-not $projectionTurnCoordinator.Contains("Math.Max(1, anchor.MaxActionCount)")) "Projection turn requeue must not restore a fake native card action."
+    Assert-True $projectionTurnAnchorObj.Contains("public sealed class ProjectionTurnAnchorObj : OtherObj") "Projection turns must reserve a native action snapshot slot before player summons occur."
+    Assert-True $projectionRuntime.Contains("ProjectionTurnCoordinator.BeginPlayerRound") "Projection runtime must advance the coordinator round token from the native player-turn lifecycle."
+    Assert-True (-not $companionSlotService.Contains("NearestSlot")) "Friendly logical slots must not be inferred from stale world coordinates."
+    Assert-True $companionSlotService.Contains("ReflowFriendlyLineup") "Friendly companions must share one dynamic lineup reflow path."
+    Assert-True $companionSlotService.Contains("friendlyCount") "Friendly lineup coordinates must use the current unit count."
+    Assert-True $projectionStateStore.Contains('ReflowFriendlyLineup(source + ".Retired")') "Projection retirement must compact the remaining friendly lineup."
+    Assert-True $heartChangeControlService.Contains('ReflowFriendlyLineup(source + ".Cleared")') "Heart Change cleanup must compact the remaining friendly lineup."
+    Assert-True $fightUiCardLayoutApi.Contains("parameters.Length == 2") "FightUI card layout compatibility must support the current two-parameter optional signature."
+    Assert-True $fightUiCardLayoutApi.Contains("new object?[parameterCount]") "FightUI card layout compatibility must invoke optional parameters explicitly through reflection."
     Assert-True $projectionSummonService.Contains("CompanionStatsService.ProjectionStats") "Projection summon must derive independent companion stats."
     Assert-True $projectionOtherObj.Contains("public sealed class ProjectionOtherObj : OtherObj") "Projection actors must stay friendly OtherObj objects, not real partners."
     Assert-True $projectionOtherObj.Contains("EnsureActionIcons") "Projection actors must create action icons because native OtherObj does not."
@@ -2147,6 +2223,7 @@ function Invoke-SourceAssertions {
     Assert-True $starScoreService.Contains("DrawCardsForFriendlyParty(self, 2);") "Start-Start-Start cadence must make the friendly party draw two cards."
     Assert-True ([regex]::IsMatch($starScoreService, 'case NoteStart \+ NoteSustain \+ NoteTurn:[\s\S]*self\.AddBuff\(SunExpIds\.Resonance, "1"\);[\s\S]*AddBuffToFriendlyParty\(self, SunExpIds\.Resonance, 1\);')) "Start-Sustain-Turn cadence must grant self resonance and friendly-party resonance."
     Assert-True $duskPartnerScripts.Contains("SunExpDuskAfterheatHook") "Dusk trait scripts must remain in the Dusk module."
+    Assert-True $scriptEventApi.Contains("TryAddOwnedEventListener") "ScriptEventApi must contain native-owner listener registration behind the GameApi boundary."
     Assert-True $starClayDollScripts.Contains("SunExpStarClayDollHook") "Star Clay Doll trait scripts must remain in the Star Clay module."
     Assert-True $starClayDollScripts.Contains('ExecutorApi.TryAddTokenedEvent(self, "ActionAfter"') "Star Clay Doll must grant starlight after an action resolves through the shared tokened event wrapper."
     Assert-True $entry.Contains("SunExp.Dll.Scripting.DuskPartnerScripts") "XLua registration must expose the Dusk script entry point."

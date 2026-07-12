@@ -338,7 +338,14 @@ public static class CardApi
 
         try
         {
-            self.GetCardFromDeck(added);
+            if (!CombatCardViewPoolApi.TryMaterialize(self, added, "CardApi.GrantCardToHand" + SourceSuffix(request)))
+            {
+                self.GetCardFromDeck(added);
+                if (CombatCardViewPoolCatalog.IsEligible(added))
+                {
+                    SunExpPerformanceCounters.Record("CombatCardViewPool.NativeFallback");
+                }
+            }
             CardGrantPostCommitQueue.Request(new CardGrantPostCommitRequest
             {
                 Config = added,

@@ -52,7 +52,7 @@ public sealed class ProjectionOtherObj : OtherObj
 
         Status = status;
         EnsureActionIcons();
-        ProjectionSummonService.RegisterFightState(this);
+        ProjectionSummonService.RegisterFightState(this, "ProjectionOtherObj.InitProjection");
         dataConfig.scriptExecutor.Self = Status;
         dataConfig.scriptExecutor.SetStatus("Self");
         AddCardList();

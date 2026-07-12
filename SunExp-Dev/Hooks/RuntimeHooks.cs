@@ -23,6 +23,7 @@ public static class RuntimeHooks
         RunHookStep("card presentation bridge", SunExpCardPresentationLifecycleBridge.Initialize);
         RunHookStep("battle reward card presentation", () => BattleRewardCardPresentationRuntime.Initialize(modConfig));
         RunHookStep("combat card UI workload", () => SunExpCombatCardUiWorkloadRuntime.Initialize(modConfig));
+        RunHookStep("combat card view pool", () => Ui.SunExpCombatCardViewPool.Initialize(modConfig));
         RunHookStep("status buff handlers", () =>
         {
             SunExpStatusLifecycleRouter.Register("RuntimeStatusBuff", new SunExpStatusLifecycleSubscription

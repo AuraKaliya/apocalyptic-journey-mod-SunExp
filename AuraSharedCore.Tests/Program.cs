@@ -169,6 +169,7 @@ try
     TestJourneyContracts();
     TestOnlineChatContracts();
     TestAuthoritativeSyncContracts();
+    TestObjectPoolContracts();
 
     Console.WriteLine($"AuraSharedCore tests passed: {assertions} assertions.");
 }
@@ -179,6 +180,31 @@ finally
 }
 
 return;
+
+void TestObjectPoolContracts()
+{
+    var pool = new AuraSharedObjectPool<string, PoolValue>(2, value => value.IsValid);
+    var first = new PoolValue("first");
+    var second = new PoolValue("second");
+    var overflow = new PoolValue("overflow");
+    Assert(pool.Release("common", first), "object pool accepts first value");
+    Assert(!pool.Release("common", first), "object pool rejects duplicate idle instances");
+    Assert(pool.Release("common", second), "object pool accepts value up to capacity");
+    Assert(!pool.Release("common", overflow), "object pool rejects values over per-key capacity");
+    Assert(pool.Count("common") == 2, "object pool reports per-key count");
+    Assert(pool.TryAcquire("common", out var acquired) && ReferenceEquals(acquired, second), "object pool acquires in LIFO order");
+
+    acquired!.IsValid = false;
+    Assert(pool.Release("attack", acquired) == false, "object pool rejects invalid values");
+    first.IsValid = false;
+    Assert(!pool.TryAcquire("common", out _), "object pool discards invalid idle values");
+
+    var disposable = new PoolValue("dispose");
+    Assert(pool.Release("attack", disposable), "object pool keeps keys isolated");
+    var disposed = new List<string>();
+    pool.Clear(value => disposed.Add(value.Name));
+    Assert(disposed.SequenceEqual(new[] { "dispose" }) && pool.Count("attack") == 0, "object pool clear disposes idle values and removes buckets");
+}
 
 AuraSharedInstallRequest Request(string owner, string system, string id, string package, long version, string source, string destination)
 {
@@ -637,4 +663,16 @@ sealed class FakeLobbyMod
     public string ModVersion { get; }
 
     public bool Enabled { get; }
+}
+
+sealed class PoolValue
+{
+    public PoolValue(string name)
+    {
+        Name = name;
+    }
+
+    public string Name { get; }
+
+    public bool IsValid { get; set; } = true;
 }

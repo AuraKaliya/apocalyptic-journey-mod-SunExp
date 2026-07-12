@@ -96,6 +96,16 @@ if ($authoritativeSyncText.Contains("SunExp") -or $authoritativeSyncText.Contain
     throw "AuraShared authoritative sync runtime must remain semantic-free and not mention SunExp field content."
 }
 
+$objectPoolText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedObjectPool.cs")
+foreach ($required in @("AuraSharedObjectPool<TKey, TValue>", "capacityPerKey", "TryAcquire", "Release", "Clear")) {
+    if (-not $objectPoolText.Contains($required)) {
+        throw "AuraShared bounded object-pool contract is missing: $required"
+    }
+}
+if ($objectPoolText.Contains("SunExp") -or $objectPoolText.Contains("CardItem") -or $objectPoolText.Contains("DataConfig")) {
+    throw "AuraShared object pool must remain semantic-free."
+}
+
 $jsonText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedJson.cs")
 if (-not $jsonText.Contains("public static class AuraSharedJson")) {
     throw "AuraSharedJson must be public because product Mods now consume it through Aura.Shared.dll."

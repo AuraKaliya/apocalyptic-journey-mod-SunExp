@@ -47,6 +47,12 @@ public static class SunExpPerformanceSettings
 
     public static int UiPoolCapacityPerKey => 64;
 
+    public static bool CombatCardViewPoolEnabled => UiPoolEnabled;
+
+    public static int CombatCardViewPoolCommonCapacity => 8;
+
+    public static int CombatCardViewPoolAttackCapacity => 6;
+
     public static int FrameSchedulerBudget => 32;
 
     public static bool CardFaceEffectsEnabled => true;

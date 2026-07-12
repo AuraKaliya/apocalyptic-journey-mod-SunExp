@@ -81,6 +81,8 @@ $requiredFiles = @(
     "SunExp-Dev\GameApi\CardVisualEffectApi.cs",
     "SunExp-Dev\GameApi\BattleRewardApi.cs",
     "SunExp-Dev\GameApi\CardApi.cs",
+    "SunExp-Dev\GameApi\CombatCardViewPoolApi.cs",
+    "SunExp-Dev\GameApi\FightUiCardLayoutApi.cs",
     "SunExp-Dev\GameApi\CardConfigApi.cs",
     "SunExp-Dev\GameApi\EnemyApi.cs",
     "SunExp-Dev\GameApi\ModeChoiceSaveCacheApi.cs",
@@ -94,6 +96,13 @@ $requiredFiles = @(
     "SunExp-Dev\Infrastructure\SunExpLifecycleStepRunner.cs",
     "AuraSharedCore\AuraSharedLifecycleStepRunner.cs",
     "AuraSharedCore\AuraAuthoritativeSyncRuntime.cs",
+    "AuraSharedCore\AuraSharedObjectPool.cs",
+    "SunExp-Dev\Mechanics\CombatCardViewPoolCatalog.cs",
+    "SunExp-Dev\Mechanics\DuskAfterheatRecoveryService.cs",
+    "SunExp-Dev\Mechanics\ProjectionTurnCoordinator.cs",
+    "SunExp-Dev\Mechanics\ProjectionTurnAnchorObj.cs",
+    "SunExp-Dev\Hooks\Ui\PooledCombatCardViewMarker.cs",
+    "SunExp-Dev\Hooks\Ui\SunExpCombatCardViewPool.cs",
     "SunExp-Dev\Mechanics\BattleRewardAdjustmentService.cs",
     "SunExp-Dev\Mechanics\DialogueFlowDefinition.cs",
     "SunExp-Dev\Mechanics\DialogueFlowRegistry.cs",
@@ -285,6 +294,19 @@ $dialogueApi = Read-RepoText "SunExp-Dev\GameApi\DialogueApi.cs"
 $dialogueUiApi = Read-RepoText "SunExp-Dev\GameApi\DialogueUiApi.cs"
 $battleRewardApi = Read-RepoText "SunExp-Dev\GameApi\BattleRewardApi.cs"
 $cardApi = Read-RepoText "SunExp-Dev\GameApi\CardApi.cs"
+$combatCardViewPoolApi = Read-RepoText "SunExp-Dev\GameApi\CombatCardViewPoolApi.cs"
+$fightUiCardLayoutApi = Read-RepoText "SunExp-Dev\GameApi\FightUiCardLayoutApi.cs"
+$combatCardViewPoolCatalog = Read-RepoText "SunExp-Dev\Mechanics\CombatCardViewPoolCatalog.cs"
+$combatCardViewPool = Read-RepoText "SunExp-Dev\Hooks\Ui\SunExpCombatCardViewPool.cs"
+$duskAfterheatRecoveryService = Read-RepoText "SunExp-Dev\Mechanics\DuskAfterheatRecoveryService.cs"
+$duskPartnerRuntime = Read-RepoText "SunExp-Dev\Hooks\DuskPartnerRuntime.cs"
+$duskPartnerScripts = Read-RepoText "SunExp-Dev\Scripting\DuskPartnerScripts.cs"
+$scriptEventApi = Read-RepoText "SunExp-Dev\GameApi\ScriptEventApi.cs"
+$projectionTurnCoordinator = Read-RepoText "SunExp-Dev\Mechanics\ProjectionTurnCoordinator.cs"
+$projectionTurnAnchorObj = Read-RepoText "SunExp-Dev\Mechanics\ProjectionTurnAnchorObj.cs"
+$heartChangeControlService = Read-RepoText "SunExp-Dev\Mechanics\HeartChangeControlService.cs"
+$pooledCombatCardViewMarker = Read-RepoText "SunExp-Dev\Hooks\Ui\PooledCombatCardViewMarker.cs"
+$auraSharedObjectPool = Read-RepoText "AuraSharedCore\AuraSharedObjectPool.cs"
 $enemyApi = Read-RepoText "SunExp-Dev\GameApi\EnemyApi.cs"
 $cardConfigApi = Read-RepoText "SunExp-Dev\GameApi\CardConfigApi.cs"
 $familiarGrowthApi = Read-RepoText "SunExp-Dev\GameApi\FamiliarGrowthApi.cs"
@@ -763,6 +785,60 @@ Assert-Contains $sunExpCardRefreshQueue "AuraSharedFrameScheduler.RunCooperative
 Assert-Contains $sunExpCardRefreshQueue "FlushSlice" "Card refresh queue must process one explicit refresh slice at a time."
 Assert-Contains $sunExpCardRefreshQueue "CardRefreshQueue.FlushContinued" "Card refresh queue must reschedule overflow work instead of draining all items in one frame."
 Assert-Contains $cardApi "CardGrantPostCommitQueue.Request" "CardApi must submit SunExp post-commit refresh work after successful native hand grants."
+Assert-Contains $cardApi "CombatCardViewPoolApi.TryMaterialize" "Generated-card grants must offer eligible hand views to the combat card view pool."
+Assert-Contains $cardApi "self.GetCardFromDeck(added)" "Combat card view pooling must preserve the native grant fallback."
+Assert-Contains $combatCardViewPoolApi "Func<ScriptExecutor, DataConfig, string, bool>" "GameApi must depend on a provider facade instead of the UI hook implementation."
+Assert-NotContains $combatCardViewPoolApi "SunExp.Dll.Hooks" "The combat card view pool facade must not reverse the GameApi-to-Hooks dependency."
+Assert-Contains $combatCardViewPoolCatalog "ExplicitBuckets" "Combat card pooling must use an explicit generated-card component catalog."
+Assert-Contains $combatCardViewPoolCatalog '[SunExpIds.StellarOvertureCloseCardId] = AttackBucket' "Stellar Overture Close must retain attack targeting when its view is pooled."
+Assert-Contains $combatCardViewPoolCatalog '[SunExpIds.StellarOvertureTurnCardId] = AttackBucket' "Stellar Overture Turn must retain attack targeting when its view is pooled."
+Assert-Contains $combatCardViewPoolCatalog '["SunExp_sunexp_heart_change"] = AttackBucket' "Heart Change must retain attack targeting when its view is pooled."
+Assert-NotContains $combatCardViewPoolCatalog "baseScript.Length == 0" "An uninitialized BaseScript must not silently select a common-card component."
+Assert-Contains $combatCardViewPoolCatalog "RuntimeMarkersKey" "Runtime polymorph/projection cards must remain eligible after role-card materialization."
+Assert-Contains $combatCardViewPool "AuraSharedObjectPool<string, CardItem>" "Combat card views must use the semantic-free shared pool core."
+Assert-Contains $combatCardViewPool "CommonCardItem.UseCallback" "Pooled hand roots must intercept native discard teardown before returning to the pool."
+Assert-Contains $combatCardViewPool "ReleaseRejectedDirty" "Combat card pooling must destroy dirty views instead of reusing them."
+Assert-Contains $combatCardViewPool "marker.Generation != generation" "Combat card pooling must reject cross-battle generations."
+Assert-Contains $combatCardViewPool "SunExpFrameScheduler.RunOnceAfterFrames" "Combat card warmup and release work must be distributed by the shared frame scheduler."
+Assert-Contains $combatCardViewPool "SunExpResourceCache.Load<GameObject>" "Combat card pool warmup must reuse the shared resource cache."
+Assert-Contains $combatCardViewPool "FightUiCardLayoutApi.RequestHandLayout" "Pooled card materialization and release must use the managed-signature compatibility facade for hand layout."
+Assert-NotContains $combatCardViewPool "Type.EmptyTypes" "UI hook code must not assume UpdateCardItemPos has a zero-parameter reflection signature."
+Assert-Contains $fightUiCardLayoutApi "BindingFlags.Instance | BindingFlags.Public" "FightUI card layout reflection must be contained in its focused GameApi facade."
+Assert-Contains $fightUiCardLayoutApi "parameters.Length == 2" "FightUI card layout facade must support the current optional two-parameter signature."
+Assert-NotContains $combatCardViewPool "AuraSharedObjectPool<string, DataConfig>" "Combat card pooling must never reuse mutable DataConfig state."
+Assert-Contains $pooledCombatCardViewMarker "ConfigInstanceId" "Pooled views must retain the bound config identity for dirty-release validation."
+Assert-Contains $auraSharedObjectPool "capacityPerKey" "The shared object pool must enforce bounded per-key capacity."
+Assert-NotContains $auraSharedObjectPool "SunExp" "AuraShared object pooling must remain product-semantic-free."
+Assert-Contains $runtimeHooks "SunExpCombatCardViewPool.Initialize(modConfig)" "RuntimeHooks must initialize combat card view pooling through an isolated hook step."
+Assert-Contains $duskPartnerRuntime 'SunExpStatusLifecycleRouter.Register("DuskPartner"' "Dusk afterheat observer attachment must reuse the shared status lifecycle router."
+Assert-Contains $duskPartnerRuntime "AfterAddBuff = ObserveBurnAfterAdd" "Dusk must attach to burn buffs added after the trait becomes active."
+Assert-Contains $duskPartnerRuntime "AfterEnemyInit = ObserveEnemyAfterInit" "Dusk must inspect newly initialized enemies for existing burn buffs."
+Assert-Contains $duskAfterheatRecoveryService "burn?.scriptExecutor" "Dusk afterheat callbacks must share the native burn buff event owner so targeted immediate triggers can reach them."
+Assert-Contains $duskAfterheatRecoveryService "ScriptEventApi.TryAddOwnedEventListener" "Dusk mechanics must register native-owner listeners through the GameApi event wrapper."
+Assert-Contains $duskAfterheatRecoveryService "HashSet<IBuffItem>" "Dusk must deduplicate observers by concrete burn buff instance."
+Assert-NotContains $duskPartnerScripts "EventCenter" "CSV-callable Dusk scripts must not register raw native events."
+Assert-NotContains $duskPartnerScripts 'TryAddTokenedEvent(self, "Action"' "Dusk must not rescan all enemies after every player action."
+Assert-Contains $scriptEventApi "TryAddOwnedEventListener" "GameApi must expose contained registration for listeners owned by native buff executors."
+Assert-Contains $projectionTurnCoordinator "ProjectionStateStore.Active()" "Projection turn coordination must resolve active projections when the reserved action slot executes."
+Assert-Contains $projectionTurnCoordinator "CompanionAuthorityService.IsAuthoritative()" "Projection turn coordination must mutate combat state only on the authoritative peer."
+Assert-Contains $projectionTurnCoordinator "ExecutedThisRound" "Projection turn coordination must suppress repeated execution in one player round."
+Assert-Contains $projectionTurnCoordinator "OrderBy(state => state.SlotIndex)" "Projection turns must execute deterministically by friendly slot."
+Assert-Contains $projectionTurnCoordinator "pendingRoot.SetActive(false)" "Projection turn anchor must be hidden before native status initialization."
+Assert-Contains $projectionTurnCoordinator "ResolveAnchorTemplateData" "Projection turn anchor must use complete native career data."
+Assert-Contains $projectionTurnAnchorObj 'TryGetValue("Animation"' "Projection turn anchor must validate native animation data before initialization."
+Assert-Contains $projectionTurnAnchorObj "EnsureActionIcons(status)" "Projection turn anchor must satisfy native OtherObj action UI prerequisites before registration."
+Assert-Contains $projectionTurnAnchorObj "status.actionObj.Length < 4" "Projection turn anchor must validate all four native action object slots."
+Assert-Contains $projectionTurnAnchorObj 'keyword.text = ""' "Projection turn anchor action placeholders must remain visually empty."
+Assert-Contains $projectionTurnAnchorObj "icon.SetActive(false)" "Projection turn anchor action placeholders must remain hidden."
+Assert-Contains $projectionTurnAnchorObj "MaxActionCount = 0" "Projection turn anchor must not pop a card from its intentionally empty native action queue."
+Assert-Contains $projectionTurnAnchorObj "ActionCount = 0" "Projection turn anchor must expose zero native card actions."
+Assert-NotContains $projectionTurnCoordinator "Math.Max(1, anchor.MaxActionCount)" "Projection turn requeue must not restore a fake native card action."
+Assert-Contains $projectionTurnAnchorObj "public sealed class ProjectionTurnAnchorObj : OtherObj" "Projection turns must reserve a native action-queue slot before same-round summons."
+Assert-Contains $projectionRuntime "ProjectionTurnCoordinator.BeginPlayerRound" "Projection runtime must advance projection turn dedupe from the native player-turn lifecycle."
+Assert-NotContains $companionSlotService "NearestSlot" "Friendly logical slots must not be inferred from stale world coordinates."
+Assert-Contains $companionSlotService "ReflowFriendlyLineup" "Friendly companions must use one dynamic lineup reflow path."
+Assert-Contains $projectionStateStore 'ReflowFriendlyLineup(source + ".Retired")' "Projection retirement must compact the remaining friendly lineup."
+Assert-Contains $heartChangeControlService 'ReflowFriendlyLineup(source + ".Cleared")' "Heart Change cleanup must compact the remaining friendly lineup."
 Assert-Contains $cardGrantPostCommitQueue "SunExpCardRefreshQueue.RequestConfigTagRefresh" "Card grant post-commit work must route tag updates through the card refresh queue."
 Assert-Contains $cardGrantPostCommitQueue "VisualRefreshSuppressed" "Card grant post-commit visual refresh must be explicitly suppressed in stable lifecycle mode."
 Assert-NotContains $cardGrantPostCommitQueue "CombatVisualReapplyPasses" "Stable lifecycle mode must not run combat visual reapply passes."

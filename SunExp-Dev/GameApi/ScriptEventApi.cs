@@ -79,6 +79,30 @@ public static class ScriptEventApi
         }), context);
     }
 
+    public static bool TryAddOwnedEventListener(
+        string eventName,
+        Action script,
+        object owner,
+        EventDispose dispose = EventDispose.OnFightEnd,
+        string context = "")
+    {
+        if (string.IsNullOrWhiteSpace(eventName) || script == null || owner == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            EventCenter.Instance.AddEventListener(eventName, script, owner, dispose);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Debug("TryAddOwnedEventListener skipped: " + context + ", event=" + eventName + ", error=" + ex.Message);
+            return false;
+        }
+    }
+
     public static bool TryAddTempEvent(ScriptExecutor? executor, string eventName, Action script, string context = "")
     {
         if (executor == null || executor.Self == null || string.IsNullOrWhiteSpace(eventName) || script == null)

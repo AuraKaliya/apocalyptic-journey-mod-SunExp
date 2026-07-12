@@ -320,6 +320,17 @@ public static class HeartChangeControlService
         }
     }
 
+    public static IEnumerable<KeyValuePair<int, IStatusManager>> ActiveSlotStatuses()
+    {
+        lock (SyncRoot)
+        {
+            return Active.Values
+                .Where(state => IsAlive(state.Status))
+                .Select(state => new KeyValuePair<int, IStatusManager>(state.SlotIndex, state.Status))
+                .ToArray();
+        }
+    }
+
     public static IEnumerable<IStatusManager> ActiveStatuses()
     {
         lock (SyncRoot)
@@ -525,6 +536,8 @@ public static class HeartChangeControlService
         {
             SunExpLog.Warn("[HeartChange] restore failed from " + source + ": " + ex.Message);
         }
+
+        CompanionSlotService.ReflowFriendlyLineup(source + ".Cleared");
 
         if (removeBuff)
         {

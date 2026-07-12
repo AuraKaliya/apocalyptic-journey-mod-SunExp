@@ -129,6 +129,8 @@ public static class ProjectionStateStore
                 // Best-effort cleanup.
             }
         }
+
+        CompanionSlotService.ReflowFriendlyLineup(source + ".Retired");
     }
 
     public static void ClearAll(string source)
@@ -166,6 +168,7 @@ public static class ProjectionStateStore
         }
 
         SunExpPerformanceCounters.Record("Projection.Cleared");
+        CompanionSlotService.ReflowFriendlyLineup(source + ".Cleared");
     }
 
     private static bool IsAlive(ProjectionState state)
