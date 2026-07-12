@@ -67,7 +67,9 @@ public static class SunExpCombatCardUiDiagnostics
 
         if (scope.Segments == null || scope.Segments.Count == 0)
         {
-            return " card=" + scope.CardId + "; segments=<native-or-unattributed>";
+            return " card=" + scope.CardId
+                + "; segments=<native-or-unattributed>"
+                + NativeRemainder(target, elapsedMilliseconds, null);
         }
 
         var parts = new List<string>();
@@ -77,7 +79,37 @@ public static class SunExpCombatCardUiDiagnostics
             SunExpPerformanceCounters.Record("CombatCardUi." + target + ".Segment." + pair.Key);
         }
 
-        return " card=" + scope.CardId + "; segments=" + string.Join(",", parts);
+        return " card=" + scope.CardId
+            + "; segments=" + string.Join(",", parts)
+            + NativeRemainder(target, elapsedMilliseconds, scope.Segments);
+    }
+
+    private static string NativeRemainder(
+        string target,
+        double elapsedMilliseconds,
+        Dictionary<string, double>? segments)
+    {
+        if (!string.Equals(target, "FightUI.CreateCardItemInternal", StringComparison.Ordinal))
+        {
+            return "";
+        }
+
+        var attributed = 0d;
+        if (segments != null)
+        {
+            foreach (var pair in segments)
+            {
+                if (pair.Key.IndexOf('/') < 0)
+                {
+                    attributed += Math.Max(0d, pair.Value);
+                }
+            }
+        }
+
+        return "; attributedTopLevelMs="
+            + attributed.ToString("0.###")
+            + "; nativeOrStaticRemainderMs="
+            + Math.Max(0d, elapsedMilliseconds - attributed).ToString("0.###");
     }
 
     public static void RecordCurrentSegment(string name, long startTimestamp)

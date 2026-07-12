@@ -28,11 +28,11 @@ Source: `SunExp/Data/Card/sunexp.csv`, `SunExp/Text/Card/sunexp.csv`
 
 | Full ID | Name | Name_en | Type | Rarity | Cost | Tag | Action | PackBelong | Description |
 | --- | --- | --- | --- | ---: | ---: | --- | --- | --- | --- |
-| SunExp_sunexp_spark | 星火 | Spark | 攻击牌 | 1 | 0 | - | Attack | SunExp_sunexp_cardpack_radiant_spark | 造成{0}点伤害。给予目标2层{buff_burn}。获得1层{SunExp_sunexp_solar_radiance}。 |
-| SunExp_sunexp_scorching_canopy_card | 灼热天幕 | Scorching Canopy | 技能牌 | 1 | 1 | 白曜 | - | SunExp_sunexp_cardpack_solar_canopy | 获得1层{SunExp_sunexp_scorching_canopy}。全体获得2层{buff_burn}。 |
+| SunExp_sunexp_spark | 星火 | Spark | 攻击牌 | 1 | 0 | 白曜 | Attack | SunExp_sunexp_cardpack_radiant_spark | 造成{0}点伤害。给予目标2层{buff_burn}。获得1层{SunExp_sunexp_solar_radiance}。 |
+| SunExp_sunexp_scorching_canopy_card | 灼热天幕 | Scorching Canopy | 技能牌 | 1 | 1 | 白曜 | - | SunExp_sunexp_cardpack_solar_canopy | 铺上1层{SunExp_sunexp_scorching_canopy}场地，全体获得2层{buff_burn}。 |
 | SunExp_sunexp_radiant_flame_slash | 耀焰斩 | Radiant Flame Slash | 攻击牌 | 1 | 1 | 白曜 | Attack | SunExp_sunexp_cardpack_radiant_spark | 造成{0}（{1}+{2}*{SunExp_sunexp_solar_coefficient}）点伤害。 |
 | SunExp_sunexp_ember_cloak_card | 烬衣 | Ember Cloak | 技能牌 | 1 | 0 | - | - | SunExp_sunexp_cardpack_radiant_spark | 获得等同自身{buff_burn}和{SunExp_sunexp_body_burn}总层数一半的护盾，然后获得{SunExp_sunexp_ember_cloak}。 |
-| SunExp_sunexp_draw_flame | 引炎 | Draw Flame | 攻击牌 | 1 | 1 | 白曜 | Attack | SunExp_sunexp_cardpack_ember_crown | 吸收任意目标所有{buff_burn}，移除等量{buff_burn}，获得等量{SunExp_sunexp_gathered_flame}。 |
+| SunExp_sunexp_draw_flame | 引炎 | Draw Flame | 攻击牌 | 1 | 1 | 白曜 | Attack | SunExp_sunexp_cardpack_ember_crown | 吸收任意目标的所有{buff_burn}，转化为等量的{SunExp_sunexp_gathered_flame}。 |
 | SunExp_sunexp_solar_prayer | 太阳圣祷 | Solar Prayer | 技能牌 | 2 | 1 | 白曜 | - | SunExp_sunexp_cardpack_radiant_spark | 获得2层{SunExp_sunexp_solar_radiance}。将自身的{buff_burn}全部转移给随机一名友方单位。 |
 | SunExp_sunexp_burning_star_hex | 燃星之咒 | Burning Star Hex | 攻击牌 | 2 | 1 | 白曜 | Attack | SunExp_sunexp_cardpack_ember_crown | 消耗至多5层{SunExp_sunexp_gathered_flame}，造成{0}（{1}+{2}*{SunExp_sunexp_solar_coefficient}）点伤害。给予目标2层{buff_burn}。 |
 | SunExp_sunexp_crown_radiance | 冠冕威光 | Crown Radiance | 技能牌 | 3 | 2 | 白曜 | Skill | SunExp_sunexp_cardpack_solar_canopy | 敌方全体获得6层{buff_burn}。若场上存在{SunExp_sunexp_scorching_canopy}，全体目标的{buff_burn}立即生效{SunExp_sunexp_solar_crown_tier}层数等量次数。 |
@@ -57,7 +57,7 @@ Source: `SunExp/Data/Card/sunexp.csv`, `SunExp/Text/Card/sunexp.csv`
 | SunExp_sunexp_*gathered_flame_cycle | 聚炎轮转 | Gathered Flame Cycle | 能力牌 | 2 | 2 | Burnout | - | SunExp_sunexp_cardpack_ember_crown | 获得{SunExp_sunexp_cycle_gathered_flame}。 |
 | SunExp_sunexp_solar_eclipse | 日蚀 | Solar Eclipse | 技能牌 | 1 | 1 | - | - | SunExp_sunexp_cardpack_solar_canopy | 敌方全体获得3层{buff_burn}。若场上存在{SunExp_sunexp_scorching_canopy}，则额外施加1层{buff_rotten}，随机清除一种正面 Buff。 |
 | SunExp_sunexp_smoke_erosion | 烟蚀 | Smoke Erosion | 攻击牌 | 1 | 1 | - | Attack | SunExp_sunexp_cardpack_solar_canopy | 造成{0}（{1}+{2}*目标灼烧层数）点伤害。若目标拥有负面 Buff，给予2层{buff_burn}。 |
-| SunExp_sunexp_afterglow_omen_card | 圣庭净裁 | Court Purification | 技能牌 | 3 | 3 | - | Attack | SunExp_sunexp_cardpack_radiant_spark | 消除目标除{buff_burn}和{SunExp_sunexp_body_burn}外的所有 Buff，每消除一种，给予目标1层{buff_burn}。 |
+| SunExp_sunexp_afterglow_omen_card | 圣庭净裁 | Court Purification | 技能牌 | 3 | 5 | Retain,白曜,Annihilation | Attack | SunExp_sunexp_cardpack_radiant_spark | 消除目标除{buff_burn}和{SunExp_sunexp_body_burn}外的所有 Buff，每消除一种，给予目标1层{buff_burn}。 |
 
 ## 乌娜职业牌/衍生牌
 
@@ -77,7 +77,7 @@ Source: `SunExp/Data/Relic/sunexp.csv`, `SunExp/Text/Relic/sunexp.csv`
 | --- | --- | --- | ---: | --- | --- | --- |
 | SunExp_sunexp_morning_shard | 晨辉碎片 | Morning Shard | 1 |  | SunExp_sunexp_cardpack_radiant_spark | 战斗开始时，获得2层{SunExp_sunexp_solar_radiance}。 |
 | SunExp_sunexp_*ember_cloak_lining | 烬衣衬布 | Ember Cloak Lining | 1 |  | SunExp_sunexp_cardpack_ember_crown | 回合开始时，移除1层{buff_burn}，获得2层{SunExp_sunexp_gathered_flame}。 |
-| SunExp_sunexp_sun_orbit_mirror | 环日镜 | Sun-Orbit Mirror | 2 |  | SunExp_sunexp_cardpack_radiant_spark | 每行动3次，若你拥有{SunExp_sunexp_solar_radiance}，对随机敌人施加2层{buff_burn}；否则获得2层{SunExp_sunexp_solar_radiance}。 |
+| SunExp_sunexp_sun_orbit_mirror | 环日镜 | Sun-Orbit Mirror | 2 |  | SunExp_sunexp_cardpack_ember_crown | 每行动3次，获得1层{SunExp_sunexp_gathered_flame}，对随机敌人施加3层{buff_burn}。 |
 | SunExp_sunexp_sun_bottle | 太阳瓶 | Sun Bottle | 2 |  | SunExp_sunexp_cardpack_solar_canopy | 回合开始时，随机一名带有{buff_burn}的敌人，其{buff_burn}立刻生效一次。 |
 | SunExp_sunexp_solar_phase_dial | 日相刻盘 | Solar Phase Dial | 3 |  | SunExp_sunexp_cardpack_radiant_spark | 回合开始时，根据{SunExp_sunexp_solar_radiance}层数最多触发三种效果：4+抽1张牌，8+获得1点魔能，12+全体{buff_burn}立刻生效一次。 |
 | SunExp_sunexp_miniature_sunwheel | 小型日轮 | Miniature Sunwheel | 3 |  | SunExp_sunexp_cardpack_ember_crown | 回合开始时，若存在{SunExp_sunexp_scorching_canopy}，获得自身负面 Buff 总层数等量的{SunExp_sunexp_gathered_flame}。 |
@@ -107,7 +107,7 @@ Source: `SunExp/Data/Buff/sunexp.csv`, `SunExp/Text/Buff/sunexp.csv`
 | SunExp_sunexp_origin_core_radiance | 源核：日耀 | Origin Core: Radiance | 能力 | 1 | 0 | FALSE | 每回合第一次获得{SunExp_sunexp_solar_radiance}时，额外获得1层{SunExp_sunexp_solar_radiance}。 |
 | SunExp_sunexp_cycle_gathered_flame | 轮转：聚炎 | Cycle: Gathered Flame | 能力 | 1 | 0 | FALSE | 自身灼烧每增加1层，获得1层聚炎。 |
 | SunExp_sunexp_afterglow_omen | 残光病兆 | Afterglow Omen | 能力 | 1 | 0 | FALSE | 回合开始时，所有带有{buff_burn}的敌人获得等同于其{buff_burn}层数一半的{buff_vulnerability}。 |
-| SunExp_sunexp_dusk_afterheat_recovery_trait | 余热回收 | Afterheat Recovery | 特性 | 1 | 0 | FALSE | 每当敌人的{buff_burn}触发时，拥有者获得其{buff_burn}层数一半的{SunExp_sunexp_ember}。 |
+| SunExp_sunexp_dusk_afterheat_recovery_trait | 余热回收 | Afterheat Recovery | 特性 | 1 | 0 | FALSE | 每当敌人{buff_burn}触发时，获得其{buff_burn}层数1/3的{SunExp_sunexp_ember}与{SunExp_sunexp_gathered_flame}。 |
 | SunExp_sunexp_boss_trait_mirror_array | 三千环日镜 | Three Thousand Orbit Mirrors | 特性 | 1 | 0 | FALSE | 敌方回合开始时，全体目标获得2层{buff_burn}，三千镜按全体{buff_burn}总层数获得护盾。 |
 | SunExp_sunexp_boss_trait_merciless_daylight | 无悯白昼 | Merciless Daylight | 特性 | 1 | 0 | FALSE | 敌方回合开始时，若玩家全体{buff_burn}总层数不低于8，焚毁1个保存名字；若没有保存名字，则玩家全体获得10层{SunExp_sunexp_body_burn}。 |
 | SunExp_sunexp_boss_trait_white_radiance_saint | 白曜圣女 | White Radiance Saint | 特性 | 1 | 0 | FALSE | 敌方回合开始时，若自身没有{SunExp_sunexp_body_burn}，则将1个保存名字焚尽，获得6层{SunExp_sunexp_solar_radiance}与10%最大生命值的护盾。自身{SunExp_sunexp_solar_radiance}不少于12时，进入{SunExp_sunexp_boss_white_radiance_crown}。 |

@@ -218,30 +218,41 @@ public static class DuskAfterheatRecoveryService
             return;
         }
 
-        var gain = activeTraitBuff == null ? 0 : snapshot.StacksAtTrigger / 2;
+        var traitGain = activeTraitBuff == null ? 0 : snapshot.StacksAtTrigger / 3;
+        var emberGain = traitGain;
         var ash = FamiliarBlessingEffectRuntime.EffectAmount("BurnTriggeredEmber");
         if (ash > 0 && familiarAshAvailable)
         {
-            gain += ash;
+            emberGain += ash;
             familiarAshAvailable = false;
         }
 
         var store = FamiliarBlessingEffectRuntime.EffectAmount("BurnStackToEmber");
         if (store > 0)
         {
-            gain += Math.Max(1, snapshot.StacksAtTrigger / 2) * store;
+            emberGain += Math.Max(1, snapshot.StacksAtTrigger / 2) * store;
         }
-        if (gain <= 0)
+        if (emberGain <= 0 && traitGain <= 0)
         {
             return;
         }
 
         owner.SetStatus("Self");
-        owner.AddBuff(SunExpIds.Ember, gain.ToString());
-        BuffApi.SyncEmberDamageBonus(owner, owner.Self);
+        if (emberGain > 0)
+        {
+            owner.AddBuff(SunExpIds.Ember, emberGain.ToString());
+            BuffApi.SyncEmberDamageBonus(owner, owner.Self);
+        }
+        if (traitGain > 0)
+        {
+            owner.AddBuff(SunExpIds.GatheredFlame, traitGain.ToString());
+        }
         SunExpPerformanceCounters.Record("DuskAfterheat.Triggered");
         SunExpLog.Debug("Dusk afterheat recovery triggered: target=" + target.InstanceId
-            + ", burn=" + snapshot.StacksAtTrigger + ", gain=" + gain + ", source=" + snapshot.Source);
+            + ", burn=" + snapshot.StacksAtTrigger
+            + ", ember=" + emberGain
+            + ", gatheredFlame=" + traitGain
+            + ", source=" + snapshot.Source);
     }
 
     private static void OnEmberConsumed(ScriptExecutor executor, IStatusManager status, int consumed)

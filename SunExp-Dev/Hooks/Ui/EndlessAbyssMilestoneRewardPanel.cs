@@ -376,7 +376,7 @@ public static class EndlessAbyssMilestoneRewardPanel
         catch (Exception ex)
         {
             SunExpLog.Error("[EndlessAbyssMilestone] UI action failed: " + source, ex);
-            SetHint("\u91cc\u7a0b\u7891\u64cd\u4f5c\u5931\u8d25\uff1a" + ex.Message);
+            SetHint("\u91cc\u7a0b\u7891\u64cd\u4f5c\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002");
         }
     }
 

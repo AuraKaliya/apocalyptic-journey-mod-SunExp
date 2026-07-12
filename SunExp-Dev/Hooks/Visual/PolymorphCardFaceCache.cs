@@ -25,7 +25,7 @@ public sealed class PolymorphCardFaceAsset
 
 public static class PolymorphCardFaceCache
 {
-    private const int OutputSize = 512;
+    public const int OutputSize = 256;
     private static readonly object SyncRoot = new();
     private static readonly Dictionary<string, PolymorphCardFaceAsset> Generated = new(StringComparer.Ordinal);
 
@@ -121,7 +121,7 @@ public static class PolymorphCardFaceCache
     private static PolymorphCardFaceAsset? GetOrCreate(string roleId, string path, int offsetX, int offsetY, int cropSize)
     {
         var normalizedPath = FirstNonEmpty(path, SunExpIds.PolymorphPlaceholderCardIconPath);
-        var key = roleId + "\u001f" + normalizedPath + "\u001f" + offsetX + "\u001f" + offsetY + "\u001f" + cropSize;
+        var key = roleId + "\u001f" + normalizedPath + "\u001f" + offsetX + "\u001f" + offsetY + "\u001f" + cropSize + "\u001f" + OutputSize;
         lock (SyncRoot)
         {
             if (Generated.TryGetValue(key, out var cached))
@@ -167,6 +167,7 @@ public static class PolymorphCardFaceCache
             }
 
             SunExpPerformanceCounters.Record("Polymorph.CardFaceGenerated");
+            SunExpPerformanceCounters.Record("Polymorph.CardFaceGenerated.256");
             return asset;
         }
         catch (Exception ex)

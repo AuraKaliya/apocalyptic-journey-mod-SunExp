@@ -81,6 +81,8 @@ $requiredFiles = @(
     "SunExp-Dev\GameApi\CardVisualEffectApi.cs",
     "SunExp-Dev\GameApi\BattleRewardApi.cs",
     "SunExp-Dev\GameApi\CardApi.cs",
+    "SunExp-Dev\GameApi\CardPresentationInvalidationApi.cs",
+    "SunExp-Dev\GameApi\SkillUseGateApi.cs",
     "SunExp-Dev\GameApi\CombatCardViewPoolApi.cs",
     "SunExp-Dev\GameApi\FightUiCardLayoutApi.cs",
     "SunExp-Dev\GameApi\FightActionPresentationApi.cs",
@@ -150,6 +152,8 @@ $requiredFiles = @(
     "SunExp-Dev\Mechanics\CardVisualThemeCatalog.cs",
     "SunExp-Dev\Mechanics\SunCardThemeCatalog.cs",
     "SunExp-Dev\Mechanics\SunExpCardRefreshQueue.cs",
+    "SunExp-Dev\Mechanics\CardPresentationImpactRegistry.cs",
+    "SunExp-Dev\Mechanics\CombatCardViewConstructionDiagnostics.cs",
     "SunExp-Dev\Mechanics\CardGrantPostCommitQueue.cs",
     "SunExp-Dev\Mechanics\CompanionBattleModels.cs",
     "SunExp-Dev\Mechanics\CompanionBattleStateStore.cs",
@@ -198,6 +202,7 @@ $requiredFiles = @(
     "SunExp-Dev\Hooks\SunExpFrameScheduler.cs",
     "SunExp-Dev\Hooks\SunExpActionEventRouter.cs",
     "SunExp-Dev\Hooks\SunExpResourcePreloader.cs",
+    "SunExp-Dev\Hooks\SunExpCardPresentationInvalidationRuntime.cs",
     "SunExp-Dev\Hooks\BattleRewardAdjustmentRuntime.cs",
     "SunExp-Dev\Hooks\FamiliarGrowthRuntime.cs",
     "SunExp-Dev\Hooks\CompanionThreatRuntime.cs",
@@ -375,6 +380,9 @@ $auraSharedFrameScheduler = Read-RepoText "AuraSharedCore\AuraSharedFrameSchedul
 $auraCombatCardZoneSnapshot = Read-RepoText "AuraSharedCore\AuraCombatCardZoneSnapshot.cs"
 $sunExpActionEventRouter = Read-RepoText "SunExp-Dev\Hooks\SunExpActionEventRouter.cs"
 $sunExpCardRefreshQueue = Read-RepoText "SunExp-Dev\Mechanics\SunExpCardRefreshQueue.cs"
+$cardPresentationImpactRegistry = Read-RepoText "SunExp-Dev\Mechanics\CardPresentationImpactRegistry.cs"
+$cardPresentationInvalidationRuntime = Read-RepoText "SunExp-Dev\Hooks\SunExpCardPresentationInvalidationRuntime.cs"
+$combatCardViewConstructionDiagnostics = Read-RepoText "SunExp-Dev\Mechanics\CombatCardViewConstructionDiagnostics.cs"
 $cardGrantPostCommitQueue = Read-RepoText "SunExp-Dev\Mechanics\CardGrantPostCommitQueue.cs"
 $companionBattleModels = Read-RepoText "SunExp-Dev\Mechanics\CompanionBattleModels.cs"
 $companionBattleStateStore = Read-RepoText "SunExp-Dev\Mechanics\CompanionBattleStateStore.cs"
@@ -413,6 +421,7 @@ $projectionIntentPresenter = Read-RepoText "SunExp-Dev\Hooks\Visual\ProjectionIn
 $burnTriggerApi = Read-RepoText "SunExp-Dev\GameApi\BurnTriggerApi.cs"
 $sunExpResourcePreloader = Read-RepoText "SunExp-Dev\Hooks\SunExpResourcePreloader.cs"
 $sunExpCombatCardUiWorkloadRuntime = Read-RepoText "SunExp-Dev\Hooks\SunExpCombatCardUiWorkloadRuntime.cs"
+$loneerRuntime = Read-RepoText "SunExp-Dev\Hooks\LoneerRuntime.cs"
 $solarMemoryJourneyApi = Read-RepoText "SunExp-Dev\GameApi\SolarMemoryJourneyApi.cs"
 $battleRewardAdjustmentRuntime = Read-RepoText "SunExp-Dev\Hooks\BattleRewardAdjustmentRuntime.cs"
 $companionThreatRuntime = Read-RepoText "SunExp-Dev\Hooks\CompanionThreatRuntime.cs"
@@ -901,6 +910,17 @@ Assert-Contains $sunExpCardRefreshQueue "RequestConfigTagRefresh" "Config tag re
 Assert-Contains $sunExpCardRefreshQueue "AuraSharedFrameScheduler.RunCooperative" "Card refresh queue flushes must use cooperative shared-frame slices."
 Assert-Contains $sunExpCardRefreshQueue "FlushSlice" "Card refresh queue must process one explicit refresh slice at a time."
 Assert-Contains $sunExpCardRefreshQueue "CardRefreshQueue.FlushContinued" "Card refresh queue must reschedule overflow work instead of draining all items in one frame."
+Assert-Contains $runtimeHooks "SunExpCardPresentationInvalidationRuntime.Initialize(modConfig)" "RuntimeHooks must initialize targeted card invalidation through an isolated hook step."
+Assert-Contains $cardPresentationInvalidationRuntime "StatusManagerAddBuff" "Targeted card invalidation must observe managed buff additions."
+Assert-Contains $cardPresentationInvalidationRuntime "StatusManagerRemoveBuff" "Targeted card invalidation must observe managed buff removals."
+Assert-Contains $cardPresentationInvalidationRuntime "BuffItemConfigSetLevel" "Targeted card invalidation must observe managed buff level changes."
+Assert-Contains $cardPresentationInvalidationRuntime "SunExpCardRefreshQueue.RequestDataUpdateForHandCards" "Description-impact buffs must use queued subset refreshes."
+Assert-Contains $cardPresentationImpactRegistry "SunExpIds.MiracleClock" "Loneer clock mutations must have an explicit card-presentation impact policy."
+Assert-Contains $cardPresentationImpactRegistry "SunExpIds.StarStonePouch" "Loneer pouch mutations must have an explicit card-presentation impact policy."
+Assert-Contains $cardPresentationImpactRegistry "SunExpIds.Starlight" "Loneer starlight mutations must have an explicit card-presentation impact policy."
+Assert-Contains $cardPresentationImpactRegistry "SunExpIds.StarBlessing" "Loneer blessing mutations must have an explicit card-presentation impact policy."
+Assert-Contains $loneerRuntime "[MorningPrayerAttempt]" "Morning Star Prayer attempts must emit outcome-aware diagnostics."
+Assert-Contains $loneerRuntime "SkillUseGateApi.Capture" "Morning Star Prayer diagnostics must capture the native skill-use gate."
 Assert-Contains $cardApi "CardGrantPostCommitQueue.Request" "CardApi must submit SunExp post-commit refresh work after successful native hand grants."
 Assert-Contains $cardApi "CombatCardViewPoolApi.TryMaterialize" "Generated-card grants must offer eligible hand views to the combat card view pool."
 Assert-Contains $cardApi "self.GetCardFromDeck(added)" "Combat card view pooling must preserve the native grant fallback."
@@ -942,6 +962,9 @@ Assert-Contains $combatCardViewPool "TryLightweightRebind" "Pooled dynamic cards
 Assert-Contains $combatCardViewPool "ICard.SetCardMsg(card.transform, config, null)" "Lightweight rebinding must use the native card-message presentation boundary."
 Assert-Contains $combatCardViewPool "marker.PresentationSignature" "Lightweight rebinding must require an exact retained presentation signature."
 Assert-Contains $combatCardViewPool 'RecordDuration("CombatCardViewPool.FullInit"' "Pooled full initialization must remain measurable as a fallback."
+Assert-Contains $combatCardViewPool "CombatCardViewConstructionDiagnostics.Record" "Combat card pool warmup must sample prefab construction substeps."
+Assert-Contains $sunExpCombatCardUiWorkloadRuntime "CombatCardViewConstructionDiagnostics.FormatRecent" "Slow native card creation diagnostics must include a recent construction probe."
+Assert-Contains $combatCardViewConstructionDiagnostics "prefabLoad" "Card construction diagnostics must distinguish prefab loading from instantiation."
 Assert-NotContains $combatCardViewPool "Type.EmptyTypes" "UI hook code must not assume UpdateCardItemPos has a zero-parameter reflection signature."
 Assert-Contains $fightUiCardLayoutApi "BindingFlags.Instance | BindingFlags.Public" "FightUI card layout reflection must be contained in its focused GameApi facade."
 Assert-Contains $fightUiCardLayoutApi "parameters.Length == 2" "FightUI card layout facade must support the current optional two-parameter signature."
@@ -1015,6 +1038,7 @@ Assert-Contains $sunExpResourcePreloader "ResourcePreloader.EssentialCompleted" 
 Assert-Contains $sunExpResourcePreloader "StarScoreHudAssets.StructuralPaths()" "Adventure preload must keep oversized note icons out of structural warmup."
 Assert-NotContains $sunExpResourcePreloader "PolymorphRoleRegistry.CardFacePaths(12)" "Adventure preload must defer optional polymorph card-face sources until feature demand."
 Assert-Contains $sunExpResourcePreloader "ResourcePreloader.HeavyOptionalDeferred" "Deferred heavy preload work must remain observable."
+Assert-Contains $sunExpResourcePreloader "OpportunityDelayFrames" "Optional role-card warmup must be paced across idle adventure frames."
 Assert-Contains $sunExpCombatCardUiWorkloadRuntime "SunExpHookTargets.ICardSetCardStyle" "Card UI diagnostics must measure card-style application separately."
 Assert-Contains $sunExpCombatCardUiWorkloadRuntime "SunExpHookTargets.CardItemDataUpdate" "Card UI diagnostics must measure card data updates separately."
 Assert-Contains $sunExpCombatCardUiWorkloadRuntime "SunExpHookTargets.FightCardManagerCardTagCheck" "Card UI diagnostics must measure tag checks separately."

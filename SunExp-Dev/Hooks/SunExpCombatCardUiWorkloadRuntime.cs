@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using SunExp.Dll.Infrastructure;
+using SunExp.Dll.Mechanics;
 using Witch.Core;
 using Witch.Mod;
 
@@ -71,6 +72,10 @@ public static class SunExpCombatCardUiWorkloadRuntime
         SunExpPerformanceCounters.RecordDuration("CombatCardUi." + key, start);
         var elapsed = start <= 0L ? 0d : SunExpPerformanceCounters.ElapsedMilliseconds(start);
         var segmentSummary = SunExpCombatCardUiDiagnostics.End(key, elapsed);
+        if (string.Equals(target, SunExpHookTargets.FightUiCreateCardItemInternal, StringComparison.Ordinal))
+        {
+            segmentSummary += CombatCardViewConstructionDiagnostics.FormatRecent();
+        }
         if (string.Equals(target, SunExpHookTargets.CardItemDataUpdate, StringComparison.Ordinal)
             || string.Equals(target, SunExpHookTargets.AttackCardItemDataUpdate, StringComparison.Ordinal))
         {

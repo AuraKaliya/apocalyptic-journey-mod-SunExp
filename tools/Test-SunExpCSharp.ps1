@@ -1584,6 +1584,35 @@ function Invoke-SourceAssertions {
     $cardTextPath = Join-Path $RepoRoot "SunExp\Text\Card\sunexp.csv"
     $cardText = [System.IO.File]::ReadAllText($cardTextPath)
     $loneerCareerText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\Career\loneer.csv"))
+    $duskTraitTextRow = Import-Csv -LiteralPath (Join-Path $RepoRoot "SunExp\Text\Buff\sunexp.csv") |
+        Where-Object { $_.Id -eq "dusk_afterheat_recovery_trait" } |
+        Select-Object -First 1
+    $duskPartnerTextRow = Import-Csv -LiteralPath (Join-Path $RepoRoot "SunExp\Text\Partner\sunexp.csv") |
+        Where-Object { $_.Id -eq "dusk" } |
+        Select-Object -First 1
+    $duskBlessingTextRow = Import-Csv -LiteralPath (Join-Path $RepoRoot "SunExp\Text\Blessing\sunexp.csv") |
+        Where-Object { $_.Id -eq "dusk_afterheat_recovery" } |
+        Select-Object -First 1
+    $cardRows = Import-Csv -LiteralPath $cardDataPath
+    $cardTextRows = Import-Csv -LiteralPath $cardTextPath
+    $sparkRow = $cardRows | Where-Object { $_.Id -eq "spark" } | Select-Object -First 1
+    $courtPurificationRow = $cardRows | Where-Object { $_.Id -eq "afterglow_omen_card" } | Select-Object -First 1
+    $scorchingCanopyTextRow = $cardTextRows | Where-Object { $_.Id -eq "scorching_canopy_card" } | Select-Object -First 1
+    $drawFlameTextRow = $cardTextRows | Where-Object { $_.Id -eq "draw_flame" } | Select-Object -First 1
+    $hardTextRows = Import-Csv -LiteralPath (Join-Path $RepoRoot "SunExp\Text\Hard\sunexp.csv")
+    $scorchedWorldTextRow = $hardTextRows | Where-Object { $_.Id -eq "sunexp_scorched_world" } | Select-Object -First 1
+    $utf8 = [System.Text.Encoding]::UTF8
+    Assert-True ($sparkRow.Tag -eq $utf8.GetString([Convert]::FromBase64String("55m95puc"))) "Spark must carry the White Radiance tag."
+    Assert-True ($courtPurificationRow.Tag -eq $utf8.GetString([Convert]::FromBase64String("UmV0YWluLOeZveabnCxBbm5paGlsYXRpb24="))) "Court Purification must use Retain, White Radiance, and Annihilation without Burnout."
+    Assert-True ($scorchingCanopyTextRow.Description -eq $utf8.GetString([Convert]::FromBase64String("6ZO65LiKMeWxgntTdW5FeHBfc3VuZXhwX3Njb3JjaGluZ19jYW5vcHl95Zy65Zyw77yM5YWo5L2T6I635b6XMuWxgntidWZmX2J1cm5944CC"))) "Scorching Canopy must use the field-placement description."
+    Assert-True ($drawFlameTextRow.Description -eq $utf8.GetString([Convert]::FromBase64String("5ZC45pS25Lu75oSP55uu5qCH55qE5omA5pyJe2J1ZmZfYnVybn3vvIzovazljJbkuLrnrYnph4/nmoR7U3VuRXhwX3N1bmV4cF9nYXRoZXJlZF9mbGFtZX3jgII="))) "Draw Flame must use the conversion description."
+    Assert-True ($scorchedWorldTextRow.Description -eq $utf8.GetString([Convert]::FromBase64String("5q+P5Zy65oiY5paX5byA5aeL5pe277yM6ZO65LiK6YCJ5oup5bGC5pWw55qEe1N1bkV4cF9zdW5leHBfc2NvcmNoaW5nX2Nhbm9weX0="))) "Scorched World must describe laying the selected field stacks."
+    foreach ($duskTextRow in @($duskTraitTextRow, $duskPartnerTextRow, $duskBlessingTextRow)) {
+        Assert-True ($null -ne $duskTextRow) "Every Dusk passive text surface must keep its localized row."
+        $duskDescriptions = @($duskTextRow.Description, $duskTextRow.Passive1)
+        Assert-True (($duskDescriptions -join " ").Contains("1/3")) "Every Dusk passive text surface must describe the one-third conversion."
+        Assert-True (($duskDescriptions -join " ").Contains("{SunExp_sunexp_gathered_flame}")) "Every Dusk passive text surface must mention Gathered Flame."
+    }
 
     $addStatusBuff = [regex]::Match($executorApi, "public\s+static\s+bool\s+AddStatusBuff[\s\S]*?public\s+static\s+bool\s+RemoveStatusBuff")
     Assert-True $addStatusBuff.Success "Could not locate ExecutorApi.AddStatusBuff for source assertion."
@@ -1774,9 +1803,11 @@ function Invoke-SourceAssertions {
     $relicRows = Import-Csv -LiteralPath (Join-Path $RepoRoot "SunExp\Data\Relic\sunexp.csv")
     $emberCloakLiningRelicRow = $relicRows | Where-Object { $_.Id -eq "*ember_cloak_lining" } | Select-Object -First 1
     $ashCharmRelicRow = $relicRows | Where-Object { $_.Id -eq "ash_charm" } | Select-Object -First 1
+    $sunOrbitMirrorRelicRow = $relicRows | Where-Object { $_.Id -eq "sun_orbit_mirror" } | Select-Object -First 1
     Assert-True ($null -ne $emberCloakLiningRelicRow) "Ember Cloak Lining must remain as a hidden star-prefixed relic row."
     Assert-True ($emberCloakLiningRelicRow.Rarity -eq "1") "Hidden relic rows must keep a UI-valid rarity instead of using Rarity 7."
     Assert-True ($ashCharmRelicRow.Rarity -eq "3") "Ash Charm must be promoted to rarity tier 3."
+    Assert-True ($sunOrbitMirrorRelicRow.PackBelong -eq "SunExp_sunexp_cardpack_ember_crown") "Sun-Orbit Mirror must belong to the Ember Crown card pack."
     $displayRarityKinds = @("Card", "Relic", "Buff", "Blessing", "EnchTag")
     foreach ($kind in $displayRarityKinds) {
         $kindRoot = Join-Path $RepoRoot "SunExp\Data\$kind"
@@ -1907,6 +1938,9 @@ function Invoke-SourceAssertions {
     Assert-True ($duskPartnerRuntime.Contains('SunExpStatusLifecycleRouter.Register("DuskPartner"') -and $duskPartnerRuntime.Contains("AfterAddBuff = ObserveBurnAfterAdd") -and $duskPartnerRuntime.Contains("AfterEnemyInit = ObserveEnemyAfterInit")) "Dusk runtime must attach burn observers through existing status lifecycle hooks."
     Assert-True ($duskAfterheatRecoveryService.Contains("burn?.scriptExecutor") -and $duskAfterheatRecoveryService.Contains("ScriptEventApi.TryAddOwnedEventListener")) "Dusk afterheat recovery must register on the native burn executor owner used by RunImmediately."
     Assert-True $duskAfterheatRecoveryService.Contains("HashSet<IBuffItem>") "Dusk afterheat recovery must deduplicate listeners by burn buff instance."
+    Assert-True $duskAfterheatRecoveryService.Contains("snapshot.StacksAtTrigger / 3") "Dusk's native passive must convert one third of triggered Burn stacks."
+    Assert-True $duskAfterheatRecoveryService.Contains("owner.AddBuff(SunExpIds.GatheredFlame, traitGain.ToString())") "Dusk's native passive must grant Gathered Flame alongside Embers."
+    Assert-True (-not $duskAfterheatRecoveryService.Contains("activeTraitBuff == null ? 0 : snapshot.StacksAtTrigger / 2")) "Dusk's native passive must not retain the old one-half Ember-only formula."
     Assert-True $burnTriggerApi.Contains("NotifyActual") "Burn execution must publish one unified actual-trigger semantic event."
     Assert-True $duskAfterheatRecoveryService.Contains("BurnTriggerApi.Triggered") "Dusk must observe immediate and native Burn through the unified trigger entry."
     Assert-True $duskPartnerRuntime.Contains("EnsureActive") "Dusk must rebind to the rebuilt player status after fight reset."
@@ -2034,6 +2068,10 @@ function Invoke-SourceAssertions {
     Assert-True $projectionActivationService.Contains("DictionaryUtil.Set(config.Vars") "Projection generated cards must write runtime overrides to Vars."
     Assert-True (-not $projectionActivationService.Contains("DictionaryUtil.Set(config.data")) "Projection generated cards must not mutate base config data."
     Assert-True $projectionSummonService.Contains("ProjectionStateStore.HasForOwner") "Projection summon must enforce one projection per player owner."
+    Assert-True $projectionSummonService.Contains("ShowRejectionCaption(snapshot.RejectionReason)") "Projection rejection snapshots must pass through the localized presentation boundary."
+    Assert-True $projectionSummonService.Contains($utf8.GetString([Convert]::FromBase64String("UmVqZWN0T3duZXJBbHJlYWR5SGFzUHJvamVjdGlvbiA9PiAi5q+P5ZCN546p5a625Y+q6IO95oul5pyJ5LiA5Liq5oqV5b2x44CCIg=="))) "Projection rejection reasons must map stable protocol codes to Chinese player text."
+    Assert-True (-not $projectionSummonService.Contains("+ snapshot.RejectionReason")) "Projection rejection protocol text must never be appended directly to player captions."
+    Assert-True $projectionSummonService.Contains("ShowLocalRejectionIfNeeded") "Projection rejection fallback must avoid duplicate local and network captions."
     Assert-True $projectionSummonService.Contains('SunExpResourceCache.Load<GameObject>("Model/player", true, "projection")') "Projection summon must load the player model through the shared resource cache."
     Assert-True $projectionSummonService.Contains("SunExpIds.ProjectionActionStaffTapCardId") "Projection summon must attach the shared staff-tap action."
     Assert-True $projectionSummonService.Contains("SunExpIds.ProjectionActionShieldBlessingCardId") "Projection summon must attach the shared shield action."

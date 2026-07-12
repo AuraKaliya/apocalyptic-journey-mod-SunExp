@@ -186,6 +186,8 @@ Assert-Contains $projectionRpc "ProtocolVersion" "Projection synchronization mus
 Assert-Contains $projectionRpc "BattleEpoch" "Projection synchronization must reject snapshots from another battle."
 Assert-Contains $projectionRpc "RegistryHash" "Projection synchronization must verify the intent registry contract."
 Assert-Contains $projectionSummon "preferredOwnerPlayerId: sender.PlayerId" "Projection ownership must bind to the actual network sender."
+Assert-Contains $projectionSummon "ShowRejectionCaption(snapshot.RejectionReason)" "Projection rejection snapshots must localize protocol reasons at the presentation boundary."
+Assert-NotContains $projectionSummon "+ snapshot.RejectionReason" "Projection protocol reasons must not be exposed directly to players."
 Assert-NotContains $projectionSummon "ProjectionBuffCopyService.HydrateExact" "Owner-bound projections must not hydrate copied player buffs."
 Assert-Contains $projectionRpc "CompanionAuthorityService.ProjectionProtocolVersion" "Projection attachment semantics must use the centralized versioned network contract."
 Assert-Contains $projectionSummon "ProjectionStateStore.FindByOwner" "Projection snapshots must preserve the one-projection-per-player invariant on clients."

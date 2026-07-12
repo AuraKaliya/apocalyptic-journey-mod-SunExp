@@ -94,6 +94,7 @@ public static class LoneerMiracleService
         }
 
         InitializeState(state);
+        SetMorningPrayerCooldown(self, state, 0);
         StarScoreService.ClearScore(self);
         ClearCombatBuffs(self);
         StarStonePouchService.GrantInitial(self);
@@ -456,6 +457,19 @@ public static class LoneerMiracleService
             return;
         }
 
+        if (state.SelectionPending || state.SelectionScheduled)
+        {
+            PlayerApi.ShowCaption("【指引牌】选择尚未提交，晨星祈愿未释放。");
+            SunExpLog.InfoAlways("[MorningPrayerAttempt] guidance selection still pending before use: owner="
+                + self.Self.InstanceId
+                + ", pending="
+                + state.SelectionPending
+                + ", scheduled="
+                + state.SelectionScheduled
+                + ".");
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(state.GuidanceCardId))
         {
             PlayerApi.ShowCaption("\u5c1a\u672a\u9009\u5b9a\u3010\u6307\u5f15\u724c\u3011\u3002");
@@ -474,6 +488,14 @@ public static class LoneerMiracleService
             + ", cooldown=" + state.PrayerCooldown
             + ", blackStoneMax=" + StarStonePouchService.BlackStoneMax(self)
             + ", useCount=" + state.PrayerUseCount);
+    }
+
+    public static void EnsureMorningPrayerSkillState(ScriptExecutor? self, LoneerCombatState? state, string source)
+    {
+        var cooldown = MorningPrayerCooldown(state);
+        SetMorningPrayerCooldown(self, state, cooldown);
+        SunExpLog.Debug("Morning Star Prayer skill state synchronized from " + source
+            + ": cooldown=" + cooldown + ".");
     }
 
     public static void EndCombatCleanup(ScriptExecutor self)

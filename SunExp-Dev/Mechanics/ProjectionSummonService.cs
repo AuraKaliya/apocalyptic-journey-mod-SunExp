@@ -12,6 +12,16 @@ namespace SunExp.Dll.Mechanics;
 
 public static class ProjectionSummonService
 {
+    private const string RejectProtocolMismatch = "projection protocol mismatch";
+    private const string RejectBattleEpochMismatch = "projection battle epoch mismatch";
+    private const string RejectIntentRegistryMismatch = "projection intent registry mismatch";
+    private const string RejectUnknownRolePrefix = "unknown role:";
+    private const string RejectOwnerAlreadyHasProjection = "owner already has projection";
+    private const string RejectMissingOwnerStatus = "missing owner status";
+    private const string RejectMissingSender = "missing sender";
+    private const string RejectSenderOutsideLobby = "sender outside lobby";
+    private const string RejectOwnerMismatch = "owner mismatch";
+
     private static readonly object NetworkSync = new();
     private static readonly HashSet<string> ResolvedTokens = new(StringComparer.Ordinal);
 
@@ -72,19 +82,19 @@ public static class ProjectionSummonService
         var rejection = ValidateNetworkSender(sender, ownerStatusId);
         if (protocolVersion != CompanionAuthorityService.ProjectionProtocolVersion)
         {
-            rejection = "projection protocol mismatch";
+            rejection = RejectProtocolMismatch;
         }
         else if (battleEpoch != CompanionAuthorityService.BattleEpoch)
         {
-            rejection = "projection battle epoch mismatch";
+            rejection = RejectBattleEpochMismatch;
         }
         else if (!string.Equals(registryHash, CompanionIntentRegistry.RegistryHash, StringComparison.Ordinal))
         {
-            rejection = "projection intent registry mismatch";
+            rejection = RejectIntentRegistryMismatch;
         }
         if (role == null)
         {
-            rejection = "unknown role: " + roleId;
+            rejection = RejectUnknownRolePrefix + " " + roleId;
         }
 
         if (!string.IsNullOrWhiteSpace(rejection))
@@ -120,7 +130,7 @@ public static class ProjectionSummonService
         {
             if (SenderOwnsStatus(SunExpNetworkRuntime.LocalPlayerId(), snapshot.OwnerStatusId))
             {
-                PlayerApi.ShowCaption("拜托了：" + snapshot.RejectionReason);
+                ShowRejectionCaption(snapshot.RejectionReason);
             }
 
             return;
@@ -218,16 +228,27 @@ public static class ProjectionSummonService
         var ownerPlayerId = CompanionOwnershipService.ResolveOwnerPlayerId(ownerStatusId, preferredOwnerPlayerId);
         if (ProjectionStateStore.HasForOwner(ownerPlayerId, ownerStatusId))
         {
-            PlayerApi.ShowCaption("拜托了：场上友方单位已达到上限。");
-            BroadcastRejectIfNeeded(role.Id, ownerStatusId, token, "owner already has projection", broadcast, source);
-            PlayerApi.ShowCaption("拜托了：每名玩家只能拥有一个投影。");
+            var sent = BroadcastRejectIfNeeded(
+                role.Id,
+                ownerStatusId,
+                token,
+                RejectOwnerAlreadyHasProjection,
+                broadcast,
+                source);
+            ShowLocalRejectionIfNeeded(ownerStatusId, RejectOwnerAlreadyHasProjection, broadcast, sent);
             return false;
         }
 
         if (string.IsNullOrWhiteSpace(ownerStatusId))
         {
-            PlayerApi.ShowCaption("拜托了：没有可用的友方站位。");
-            BroadcastRejectIfNeeded(role.Id, ownerStatusId, token, "missing owner status", broadcast, source);
+            var sent = BroadcastRejectIfNeeded(
+                role.Id,
+                ownerStatusId,
+                token,
+                RejectMissingOwnerStatus,
+                broadcast,
+                source);
+            ShowLocalRejectionIfNeeded(ownerStatusId, RejectMissingOwnerStatus, broadcast, sent);
             return false;
         }
 
@@ -317,14 +338,14 @@ public static class ProjectionSummonService
         }
     }
 
-    private static void BroadcastRejectIfNeeded(string roleId, string ownerStatusId, string token, string reason, bool broadcast, string source)
+    private static bool BroadcastRejectIfNeeded(string roleId, string ownerStatusId, string token, string reason, bool broadcast, string source)
     {
         if (!broadcast)
         {
-            return;
+            return false;
         }
 
-        BroadcastNetworkState(new ProjectionCompanionSnapshot
+        return BroadcastNetworkState(new ProjectionCompanionSnapshot
         {
             Token = token ?? "",
             RoleId = roleId ?? "",
@@ -334,9 +355,44 @@ public static class ProjectionSummonService
         }, source + ".Reject");
     }
 
-    private static void BroadcastNetworkState(ProjectionCompanionSnapshot snapshot, string source)
+    private static bool BroadcastNetworkState(ProjectionCompanionSnapshot snapshot, string source)
     {
-        SunExpNetworkRuntime.Send(new RpcProjectionCompanionState(snapshot), source);
+        return SunExpNetworkRuntime.Send(new RpcProjectionCompanionState(snapshot), source);
+    }
+
+    private static void ShowLocalRejectionIfNeeded(string ownerStatusId, string reason, bool broadcast, bool sent)
+    {
+        if (!broadcast || !sent && SenderOwnsStatus(SunExpNetworkRuntime.LocalPlayerId(), ownerStatusId))
+        {
+            ShowRejectionCaption(reason);
+        }
+    }
+
+    private static void ShowRejectionCaption(string reason)
+    {
+        PlayerApi.ShowCaption("拜托了：" + RejectionMessage(reason));
+    }
+
+    private static string RejectionMessage(string reason)
+    {
+        var normalized = (reason ?? "").Trim();
+        if (normalized.StartsWith(RejectUnknownRolePrefix, StringComparison.Ordinal))
+        {
+            return "投影目标已失效。";
+        }
+
+        return normalized switch
+        {
+            RejectOwnerAlreadyHasProjection => "每名玩家只能拥有一个投影。",
+            RejectMissingOwnerStatus => "没有可用的友方站位。",
+            RejectProtocolMismatch => "投影协议版本不一致。",
+            RejectBattleEpochMismatch => "当前战斗状态已失效，请重新使用。",
+            RejectIntentRegistryMismatch => "投影行动配置不一致。",
+            RejectMissingSender => "无法确认操作玩家。",
+            RejectSenderOutsideLobby => "操作玩家不在当前房间中。",
+            RejectOwnerMismatch => "当前角色不属于该玩家。",
+            _ => "投影召唤失败，请稍后重试。"
+        };
     }
 
     public static void BroadcastRuntimeState(ProjectionOtherObj projection, string source)
@@ -429,15 +485,15 @@ public static class ProjectionSummonService
 
         if (!sender.IsAvailable)
         {
-            return "missing sender";
+            return RejectMissingSender;
         }
 
         if (!sender.IsLobbyMember)
         {
-            return "sender outside lobby";
+            return RejectSenderOutsideLobby;
         }
 
-        return SenderOwnsStatus(sender.PlayerId, ownerStatusId) ? "" : "owner mismatch";
+        return SenderOwnsStatus(sender.PlayerId, ownerStatusId) ? "" : RejectOwnerMismatch;
     }
 
     private static bool SenderOwnsStatus(string playerId, string ownerStatusId)

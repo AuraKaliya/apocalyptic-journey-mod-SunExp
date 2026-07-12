@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using AuraShared.Core;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
@@ -108,6 +109,46 @@ public static class SunExpCardRefreshQueue
         {
             SunExpPerformanceCounters.Record("CardRefreshQueue.Deduped");
         }
+    }
+
+    public static int RequestDataUpdateForHandCards(
+        IEnumerable<CardItem>? handCards,
+        IEnumerable<string>? cardIds,
+        string source)
+    {
+        if (handCards == null || cardIds == null)
+        {
+            return 0;
+        }
+
+        var ids = new HashSet<string>(cardIds.Where(id => !string.IsNullOrWhiteSpace(id)), StringComparer.Ordinal);
+        if (ids.Count == 0)
+        {
+            return 0;
+        }
+
+        var requested = 0;
+        foreach (var card in handCards)
+        {
+            var id = CardConfigApi.Id(card?.dataConfig);
+            if (card == null || !ids.Contains(id))
+            {
+                continue;
+            }
+
+            RequestDataUpdate(card, source);
+            requested++;
+        }
+
+        if (requested > 0)
+        {
+            for (var i = 0; i < requested; i++)
+            {
+                SunExpPerformanceCounters.Record("CardRefreshQueue.DescriptionSubsetRequested");
+            }
+        }
+
+        return requested;
     }
 
     private static bool FlushSlice(AuraSharedFrameSliceContext context)

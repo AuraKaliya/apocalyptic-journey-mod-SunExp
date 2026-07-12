@@ -32,21 +32,46 @@ public static class PlayerApi
 
     public static int GetSkillTime(string key)
     {
+        if (TryReadSkillTime(key, out var existing))
+        {
+            return existing;
+        }
+
         var skillTime = GetStaticMember(PlayerInfo, "SkillTime");
         if (skillTime == null || string.IsNullOrWhiteSpace(key))
         {
             return 0;
         }
 
-        var contains = skillTime.GetType().GetMethod("ContainsKey")?.Invoke(skillTime, new object[] { key }) as bool?;
-        if (contains != true)
+        skillTime.GetType().GetMethod("set_Item")?.Invoke(skillTime, new object[] { key, 0 });
+        return 0;
+    }
+
+    public static bool TryReadSkillTime(string key, out int value)
+    {
+        value = 0;
+        var skillTime = GetStaticMember(PlayerInfo, "SkillTime");
+        if (skillTime == null || string.IsNullOrWhiteSpace(key))
         {
-            skillTime.GetType().GetMethod("set_Item")?.Invoke(skillTime, new object[] { key, 0 });
-            return 0;
+            return false;
         }
 
-        var value = skillTime.GetType().GetMethod("get_Item")?.Invoke(skillTime, new object[] { key });
-        return value is int intValue ? intValue : DictionaryUtil.ParseInt(Convert.ToString(value));
+        try
+        {
+            var contains = skillTime.GetType().GetMethod("ContainsKey")?.Invoke(skillTime, new object[] { key }) as bool?;
+            if (contains != true)
+            {
+                return false;
+            }
+
+            var current = skillTime.GetType().GetMethod("get_Item")?.Invoke(skillTime, new object[] { key });
+            value = current is int intValue ? intValue : DictionaryUtil.ParseInt(Convert.ToString(current));
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public static void SetSkillTime(string key, int value)

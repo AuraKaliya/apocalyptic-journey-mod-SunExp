@@ -14,6 +14,7 @@ namespace SunExp.Dll.Hooks;
 
 public static class SunExpResourcePreloader
 {
+    private const int OpportunityDelayFrames = 45;
     private static readonly object SyncRoot = new();
     private static readonly List<WarmupItem> Pending = new();
     private static int generation;
@@ -58,6 +59,7 @@ public static class SunExpResourcePreloader
             essentialCompletionLogged = false;
             Pending.Clear();
             AddItems(CoreTexturePaths(), "visual", 300, WarmupTier.Essential, path => SunExpResourceCache.Load<Texture2D>(path, true, "visual"));
+            AddPolymorphCardFaceItems();
             AddItems(CoreSpritePaths(), "ui", 250, WarmupTier.Essential, path => SunExpResourceCache.Load<Sprite>(path, true, "ui"));
         }
 
@@ -70,6 +72,57 @@ public static class SunExpResourcePreloader
             + ".");
         TryLogEssentialCompletion();
         ScheduleNext();
+    }
+
+    private static void AddPolymorphCardFaceItems()
+    {
+        var roles = PolymorphRoleRegistry.AllRoles()
+            .Where(role => !string.IsNullOrWhiteSpace(role.Id) && !string.IsNullOrWhiteSpace(role.CardFacePath))
+            .GroupBy(role => role.Id, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .ToList();
+        var current = PolymorphRoleRegistry.CurrentRole();
+        if (current != null
+            && !string.IsNullOrWhiteSpace(current.Id)
+            && !string.IsNullOrWhiteSpace(current.CardFacePath)
+            && roles.All(role => !string.Equals(role.Id, current.Id, StringComparison.Ordinal)))
+        {
+            roles.Insert(0, current);
+        }
+
+        if (roles.Count == 0)
+        {
+            return;
+        }
+
+        var byId = roles.ToDictionary(role => role.Id, StringComparer.Ordinal);
+        var currentId = current?.Id ?? "";
+        if (currentId.Length > 0 && byId.ContainsKey(currentId))
+        {
+            AddItems(
+                new[] { currentId },
+                "polymorph-role-current",
+                290,
+                WarmupTier.Essential,
+                id => WarmupPolymorphRole(byId[id], "current"));
+        }
+
+        AddItems(
+            roles.Select(role => role.Id).Where(id => !string.Equals(id, currentId, StringComparison.Ordinal)),
+            "polymorph-role",
+            120,
+            WarmupTier.Opportunity,
+            id => WarmupPolymorphRole(byId[id], "opportunity"));
+    }
+
+    private static void WarmupPolymorphRole(PolymorphRoleSpec role, string tier)
+    {
+        if (PolymorphCardFaceCache.GetOrCreate(role) == null)
+        {
+            throw new InvalidOperationException("polymorph role card face unavailable: " + role.Id);
+        }
+
+        SunExpPerformanceCounters.Record("ResourcePreloader.PolymorphCardFace." + tier);
     }
 
     private static void AddItems(
@@ -133,7 +186,9 @@ public static class SunExpResourcePreloader
         }
 
         var key = "ResourcePreloader.Adventure." + currentGeneration + "." + next.Category + "." + next.Path;
-        var delayFrames = Math.Max(1, nextDelayFrames);
+        var delayFrames = Math.Max(
+            next.Tier == WarmupTier.Opportunity ? OpportunityDelayFrames : 1,
+            nextDelayFrames);
         nextDelayFrames = 1;
         SunExpFrameScheduler.RunOnceAfterFrames(
             key,
@@ -146,6 +201,7 @@ public static class SunExpResourcePreloader
 
     private static void ExecuteItem(int expectedGeneration, WarmupItem item)
     {
+        var deferredForUi = false;
         lock (SyncRoot)
         {
             if (expectedGeneration != generation || battleActive)
@@ -157,6 +213,20 @@ public static class SunExpResourcePreloader
 
                 return;
             }
+
+            if (item.Tier == WarmupTier.Opportunity && SunExpCombatUiWorkload.IsBusy)
+            {
+                Pending.Add(item);
+                deferredForUi = true;
+            }
+        }
+
+        if (deferredForUi)
+        {
+            nextDelayFrames = OpportunityDelayFrames;
+            SunExpPerformanceCounters.Record("ResourcePreloader.OpportunityDeferredForUi");
+            ScheduleNext();
+            return;
         }
 
         var start = SunExpPerformanceCounters.Timestamp();
@@ -187,6 +257,11 @@ public static class SunExpResourcePreloader
             // Synchronous Unity resource APIs cannot be pre-empted. After an
             // expensive item, leave recovery frames before starting the next one.
             nextDelayFrames = elapsed < 8d ? 1 : Math.Min(30, Math.Max(2, (int)Math.Ceiling(elapsed / 4d)));
+            if (item.Tier == WarmupTier.Opportunity)
+            {
+                nextDelayFrames = Math.Max(nextDelayFrames, OpportunityDelayFrames);
+                SunExpPerformanceCounters.Record("ResourcePreloader.OpportunityPaced");
+            }
             ScheduleNext();
         }
     }

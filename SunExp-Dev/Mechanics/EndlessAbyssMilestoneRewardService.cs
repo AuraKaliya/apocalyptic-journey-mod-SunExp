@@ -215,7 +215,7 @@ public static class EndlessAbyssMilestoneRewardService
         }
         catch (Exception ex)
         {
-            message = "\u91cc\u7a0b\u7891\u5956\u52b1\u7ed3\u7b97\u5931\u8d25\uff1a" + ex.Message;
+            message = "\u91cc\u7a0b\u7891\u5956\u52b1\u7ed3\u7b97\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002";
             SunExpLog.Warn("[EndlessAbyssMilestone] resolution failed from "
                 + source
                 + ": "
@@ -249,7 +249,11 @@ public static class EndlessAbyssMilestoneRewardService
 
         if (!PlayerApi.TryAddCardToDeck(resolution.CardId, out var grantedCardId, out var error))
         {
-            message = "\u5f02\u6b21\u5143\u5361\u83b7\u53d6\u5931\u8d25\uff1a" + error;
+            message = "\u5f02\u6b21\u5143\u5361\u83b7\u53d6\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002";
+            SunExpLog.Warn("[EndlessAbyssMilestone] other-dimension card grant failed; card="
+                + resolution.CardId
+                + "; error="
+                + error);
             return false;
         }
 

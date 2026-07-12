@@ -20,6 +20,7 @@ public static class PolymorphRuntime
         PolymorphCardFaceRuntime.Initialize(modConfig);
         SunExpBattleLifecycleRouter.Register("Polymorph", new SunExpBattleLifecycleSubscription
         {
+            AdventureStarting = context => ClearAdventure("AdventureStarting"),
             FightStarted = context => ClearBattle("Fight_Start.Init"),
             FightEnding = context => ClearBattle("FightEnding")
         });
@@ -47,13 +48,18 @@ public static class PolymorphRuntime
         {
             PolymorphActivationService.ClearBattle(source);
             PolymorphUiApi.CloseRoleSelection(source);
-            PolymorphCardFaceCache.ClearGenerated(source);
             ClearPendingSkillUses();
         }
         catch (Exception ex)
         {
             SunExpLog.Error("Polymorph battle cleanup failed from " + source, ex);
         }
+    }
+
+    private static void ClearAdventure(string source)
+    {
+        PolymorphCardFaceCache.ClearGenerated(source);
+        ClearPendingSkillUses();
     }
 
     private static void CaptureSkillUseBefore(ModHookContext context)

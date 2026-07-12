@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Infrastructure;
 using TMPro;
+using UnityEngine;
 using Witch.Core;
 using Witch.Mod;
 
@@ -16,12 +18,44 @@ public static class AuraToolsCardUiBenchmarkRuntime
     private static readonly HashSet<string> SampledCardIds = new(StringComparer.Ordinal);
     private static readonly List<IDisposable> Registrations = new();
     [ThreadStatic] private static Stack<SampleStart>? starts;
+    [ThreadStatic] private static Stack<long>? keywordStarts;
 
     public static void Initialize(ModConfig modConfig)
     {
         Register(modConfig, "CardItem.DataUpdate");
         Register(modConfig, "AttackCardItem.DataUpdate");
+        RegisterKeywordDisplay(modConfig);
         AuraToolsLog.Debug("[CardUiBenchmark] slow-card incremental benchmark initialized.");
+    }
+
+    private static void RegisterKeywordDisplay(ModConfig modConfig)
+    {
+        Registrations.Add(AuraSharedHooks.RegisterBeforeRouted(
+            modConfig,
+            "KeywordDisplay.SetText",
+            _ =>
+            {
+                keywordStarts ??= new Stack<long>();
+                keywordStarts.Push(Stopwatch.GetTimestamp());
+            },
+            warn: AuraToolsLog.Warn));
+        Registrations.Add(AuraSharedHooks.RegisterAfterRouted(
+            modConfig,
+            "KeywordDisplay.SetText",
+            _ =>
+            {
+                if (keywordStarts == null || keywordStarts.Count == 0)
+                {
+                    return;
+                }
+
+                var elapsed = ElapsedMilliseconds(keywordStarts.Pop());
+                if (starts != null && starts.Count > 0)
+                {
+                    starts.Peek().KeywordMilliseconds += elapsed;
+                }
+            },
+            warn: AuraToolsLog.Warn));
     }
 
     private static void Register(ModConfig modConfig, string target)
@@ -86,6 +120,17 @@ public static class AuraToolsCardUiBenchmarkRuntime
         var deltaStart = Stopwatch.GetTimestamp();
         var accepted = AuraCardPresentationDelta.TrySetCost(card.transform, text.text);
         var deltaMilliseconds = ElapsedMilliseconds(deltaStart);
+        var descriptionStart = Stopwatch.GetTimestamp();
+        var description = card.dataConfig.Description();
+        var descriptionMilliseconds = ElapsedMilliseconds(descriptionStart);
+        var highlightStart = Stopwatch.GetTimestamp();
+        description.Highlight(new List<string>());
+        var highlightMilliseconds = ElapsedMilliseconds(highlightStart);
+        var iconPath = card.dataConfig.data != null
+                       && card.dataConfig.data.TryGetValue("Icon", out var iconValue)
+            ? iconValue ?? ""
+            : "";
+        var iconBytes = TryGetModFileLength(iconPath);
         AuraToolsLog.Debug("[CardUiBenchmark] card="
                            + id
                            + ", fullDataUpdateMs="
@@ -93,7 +138,89 @@ public static class AuraToolsCardUiBenchmarkRuntime
                            + ", costOnlyMs="
                            + deltaMilliseconds.ToString("0.###")
                            + ", costOnlyAccepted="
-                           + accepted);
+                           + accepted
+                           + ", descriptionProbeMs="
+                           + descriptionMilliseconds.ToString("0.###")
+                           + ", highlightProbeMs="
+                           + highlightMilliseconds.ToString("0.###")
+                           + ", keywordSetTextMs="
+                           + sample.KeywordMilliseconds.ToString("0.###")
+                           + ", iconBytes="
+                           + iconBytes
+                           + ", iconPath="
+                           + iconPath);
+        ScheduleIconDecodeProbe(id, iconPath, iconBytes);
+    }
+
+    private static long TryGetModFileLength(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !path.StartsWith("Mods/", StringComparison.OrdinalIgnoreCase))
+        {
+            return -1L;
+        }
+
+        try
+        {
+            var resolved = ResourceLoader.ResolveModPath(path);
+            return File.Exists(resolved) ? new FileInfo(resolved).Length : -1L;
+        }
+        catch
+        {
+            return -1L;
+        }
+    }
+
+    private static void ScheduleIconDecodeProbe(string cardId, string iconPath, long iconBytes)
+    {
+        if (string.IsNullOrWhiteSpace(iconPath) || !iconPath.StartsWith("Mods/", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        AuraSharedFrameScheduler.RunAfterFramesBudgeted(
+            "AuraTools.CardUiBenchmark.IconDecode." + cardId,
+            15,
+            () => RunIconDecodeProbe(cardId, iconPath, iconBytes));
+    }
+
+    private static void RunIconDecodeProbe(string cardId, string iconPath, long iconBytes)
+    {
+        Sprite? sprite = null;
+        Texture2D? texture = null;
+        var started = Stopwatch.GetTimestamp();
+        try
+        {
+            sprite = ResourceLoader.Load<Sprite>(iconPath, true);
+            texture = sprite?.texture;
+            AuraToolsLog.Debug("[CardUiBenchmark.IconDecodeProbe] card="
+                               + cardId
+                               + ", iconDecodeMs="
+                               + ElapsedMilliseconds(started).ToString("0.###")
+                               + ", iconBytes="
+                               + iconBytes
+                               + ", width="
+                               + (texture?.width ?? 0)
+                               + ", height="
+                               + (texture?.height ?? 0)
+                               + ", iconPath="
+                               + iconPath);
+        }
+        catch (Exception ex)
+        {
+            AuraToolsLog.Debug("[CardUiBenchmark.IconDecodeProbe] failed: card=" + cardId + ", error=" + ex.Message);
+        }
+        finally
+        {
+            if (sprite != null)
+            {
+                UnityEngine.Object.Destroy(sprite);
+            }
+
+            if (texture != null)
+            {
+                UnityEngine.Object.Destroy(texture);
+            }
+        }
     }
 
     private static double ElapsedMilliseconds(long start)
@@ -101,7 +228,7 @@ public static class AuraToolsCardUiBenchmarkRuntime
         return start <= 0L ? 0d : (Stopwatch.GetTimestamp() - start) * 1000d / Stopwatch.Frequency;
     }
 
-    private readonly struct SampleStart
+    private sealed class SampleStart
     {
         public SampleStart(string target, long timestamp)
         {
@@ -111,5 +238,7 @@ public static class AuraToolsCardUiBenchmarkRuntime
 
         public string Target { get; }
         public long Timestamp { get; }
+
+        public double KeywordMilliseconds { get; set; }
     }
 }

@@ -385,28 +385,49 @@ public static class SunExpCombatCardViewPool
 
     private static CardItem? CreateCardView(string bucket)
     {
+        var totalStart = SunExpPerformanceCounters.Timestamp();
+        var segment = totalStart;
         var parent = EnsurePoolRoot();
+        var rootMilliseconds = SunExpPerformanceCounters.ElapsedMilliseconds(segment);
+        segment = SunExpPerformanceCounters.Timestamp();
         var prefab = SunExpResourceCache.Load<GameObject>("UI/CardItem", false, "combat-card-view-pool");
+        var prefabLoadMilliseconds = SunExpPerformanceCounters.ElapsedMilliseconds(segment);
         if (parent == null || prefab == null)
         {
             return null;
         }
 
+        segment = SunExpPerformanceCounters.Timestamp();
         var root = UnityEngine.Object.Instantiate(prefab, parent);
+        var instantiateMilliseconds = SunExpPerformanceCounters.ElapsedMilliseconds(segment);
         root.name = "SunExp.PooledCardItem." + bucket;
         var type = bucket == CombatCardViewPoolCatalog.AttackBucket
             ? typeof(AttackCardItem)
             : typeof(CommonCardItem);
+        segment = SunExpPerformanceCounters.Timestamp();
         var card = root.AddComponent(type) as CardItem;
+        var addComponentMilliseconds = SunExpPerformanceCounters.ElapsedMilliseconds(segment);
         if (card == null)
         {
             UnityEngine.Object.Destroy(root);
             return null;
         }
 
+        segment = SunExpPerformanceCounters.Timestamp();
         var marker = root.AddComponent<PooledCombatCardViewMarker>();
         marker.Bucket = bucket;
         marker.Generation = generation;
+        var markerMilliseconds = SunExpPerformanceCounters.ElapsedMilliseconds(segment);
+        var totalMilliseconds = SunExpPerformanceCounters.ElapsedMilliseconds(totalStart);
+        CombatCardViewConstructionDiagnostics.Record(
+            bucket,
+            rootMilliseconds,
+            prefabLoadMilliseconds,
+            instantiateMilliseconds,
+            addComponentMilliseconds,
+            markerMilliseconds,
+            totalMilliseconds);
+        SunExpPerformanceCounters.RecordDuration("CombatCardViewConstruction.Total", totalStart);
         return card;
     }
 
