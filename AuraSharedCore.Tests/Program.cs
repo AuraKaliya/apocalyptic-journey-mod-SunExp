@@ -371,6 +371,13 @@ void TestLifecycleContracts()
     Assert(AuraFeatureSwitchRuntime.IsEnabled("OwnerA", "FeatureA"), "feature effective override enabled");
 
     AuraLifecycleOperationLedger.ClearScopePrefix("test-battle:");
+
+    AuraLifecycleSessionRuntime.EndBattleSession();
+    var firstEpoch = AuraLifecycleSessionRuntime.RestartBattleSession();
+    var secondEpoch = AuraLifecycleSessionRuntime.RestartBattleSession();
+    Assert(secondEpoch > firstEpoch,
+        "RestartBattleSession should advance the epoch even while the previous battle session is active");
+    AuraLifecycleSessionRuntime.EndBattleSession();
     Assert(AuraLifecycleOperationLedger.TryClaim("test-battle:1", "OwnerA", "FeatureA", "AddStartBuff", "Status1", "buff", "BuffA"),
         "first lifecycle operation claim");
     Assert(!AuraLifecycleOperationLedger.TryClaim("test-battle:1", "OwnerA", "FeatureA", "AddStartBuff", "Status1", "buff", "BuffA"),

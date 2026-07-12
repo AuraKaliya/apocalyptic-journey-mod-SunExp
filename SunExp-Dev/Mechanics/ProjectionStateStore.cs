@@ -14,6 +14,14 @@ public static class ProjectionStateStore
     private static readonly Dictionary<string, ProjectionState> Projections = new(StringComparer.Ordinal);
     private static int nextProjectionIndex;
 
+    public static event Action<ProjectionState>? Registered;
+
+    public static event Action<ProjectionState>? Retired;
+
+    public static event Action<ProjectionState, CompanionIntentPlan>? IntentPresented;
+
+    public static event Action<ProjectionState>? ActionPresented;
+
     public static string NextStatusId()
     {
         lock (SyncRoot)
@@ -45,6 +53,7 @@ public static class ProjectionStateStore
         }
 
         SunExpPerformanceCounters.Record("Projection.Registered");
+        Registered?.Invoke(state);
     }
 
     public static IReadOnlyList<ProjectionState> Active()
@@ -70,9 +79,44 @@ public static class ProjectionStateStore
         }
     }
 
+    public static ProjectionState? FindByOwner(string ownerPlayerId, string ownerStatusId = "")
+    {
+        lock (SyncRoot)
+        {
+            return Projections.Values.FirstOrDefault(state =>
+                (!string.IsNullOrWhiteSpace(ownerPlayerId)
+                    && string.Equals(state.OwnerPlayerId, ownerPlayerId, StringComparison.Ordinal))
+                || (!string.IsNullOrWhiteSpace(ownerStatusId)
+                    && string.Equals(state.OwnerStatusId, ownerStatusId, StringComparison.Ordinal)));
+        }
+    }
+
+    public static bool HasForOwner(string ownerPlayerId, string ownerStatusId = "")
+    {
+        return FindByOwner(ownerPlayerId, ownerStatusId) != null;
+    }
+
+    public static void NotifyIntentPresented(string statusId, CompanionIntentPlan? plan)
+    {
+        var state = Find(statusId);
+        if (state != null && plan != null)
+        {
+            IntentPresented?.Invoke(state, plan);
+        }
+    }
+
+    public static void NotifyActionPresented(string statusId)
+    {
+        var state = Find(statusId);
+        if (state != null)
+        {
+            ActionPresented?.Invoke(state);
+        }
+    }
+
     public static bool IsProjection(IStatusManager? status)
     {
-        return status != null && (Find(status.InstanceId) != null || CompanionOwnershipService.IsFriendlyCompanion(status));
+        return status != null && Find(status.InstanceId) != null;
     }
 
     public static bool RetireIfDead(IStatusManager? status, string source)
@@ -130,7 +174,7 @@ public static class ProjectionStateStore
             }
         }
 
-        CompanionSlotService.ReflowFriendlyLineup(source + ".Retired");
+        Retired?.Invoke(state);
     }
 
     public static void ClearAll(string source)
@@ -142,7 +186,6 @@ public static class ProjectionStateStore
             {
                 CompanionBattleStateStore.Clear();
                 CompanionOwnershipService.Clear();
-                ProjectionBuffCopyService.Clear();
                 return;
             }
 
@@ -160,6 +203,7 @@ public static class ProjectionStateStore
                 {
                     UnityEngine.Object.Destroy(state.Projection.gameObject);
                 }
+                Retired?.Invoke(state);
             }
             catch (Exception ex)
             {
@@ -168,7 +212,6 @@ public static class ProjectionStateStore
         }
 
         SunExpPerformanceCounters.Record("Projection.Cleared");
-        CompanionSlotService.ReflowFriendlyLineup(source + ".Cleared");
     }
 
     private static bool IsAlive(ProjectionState state)

@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
+using SunExp.Dll.Hooks.Visual;
 using Witch.Core;
 using Witch.Mod;
 
@@ -9,8 +11,20 @@ namespace SunExp.Dll.Hooks;
 
 public static class ProjectionRuntime
 {
+    private static readonly Dictionary<string, bool> ProjectionUseGate = new(StringComparer.Ordinal);
+
     public static void Initialize(ModConfig modConfig)
     {
+        ProjectionAttachmentPresenter.Initialize();
+        ProjectionIntentPresenter.Initialize();
+        RegisterBefore(modConfig, SunExpHookTargets.CommonCardItemOnBeginDrag,
+            context => GateDuplicateProjectionUseBefore(context, "OnBeginDrag"));
+        RegisterAfter(modConfig, SunExpHookTargets.CommonCardItemOnBeginDrag,
+            context => RestoreProjectionUseGate(context, "OnBeginDrag"));
+        RegisterBefore(modConfig, SunExpHookTargets.CommonCardItemUseCardDirectly,
+            context => GateDuplicateProjectionUseBefore(context, "UseCardDirectly"));
+        RegisterAfter(modConfig, SunExpHookTargets.CommonCardItemUseCardDirectly,
+            context => RestoreProjectionUseGate(context, "UseCardDirectly"));
         SunExpBattleLifecycleRouter.Register("Projection", new SunExpBattleLifecycleSubscription
         {
             FightStarted = context => BeginBattle("Fight_Start.Init"),
@@ -23,6 +37,9 @@ public static class ProjectionRuntime
             context => ProjectionTurnCoordinator.BeginPlayerRound("Fight_PlayerTurn.Init"));
         SunExpStatusLifecycleRouter.Register("Projection", new SunExpStatusLifecycleSubscription
         {
+            AfterAddBuff = RefreshOwnerProjectionAfterBuffChange,
+            AfterRemoveBuff = RefreshOwnerProjectionAfterBuffChange,
+            AfterBuffLevelChanged = RefreshOwnerProjectionAfterBuffLevelChange,
             AfterHit = RetireProjectionAfterDamage,
             AfterCurHpChanged = RetireProjectionAfterHpChange,
             AfterMaxHpChanged = RetireProjectionAfterHpChange
@@ -54,6 +71,50 @@ public static class ProjectionRuntime
         }
     }
 
+    private static void GateDuplicateProjectionUseBefore(ModHookContext context, string source)
+    {
+        if (context.Target is not CardItem card || !IsProjectionRoleCard(card.dataConfig))
+        {
+            return;
+        }
+
+        var owner = FightPlayer.Instance?.Status;
+        var ownerPlayerId = CompanionOwnershipService.ResolveOwnerPlayerId(owner?.InstanceId ?? "");
+        if (owner != null && ProjectionStateStore.HasForOwner(ownerPlayerId, owner.InstanceId))
+        {
+            ProjectionUseGate[UseGateKey(card, source)] = CardItem.canUse;
+            CardItem.canUse = false;
+            PlayerApi.ShowCaption("拜托了：每名玩家只能拥有一个投影。");
+        }
+    }
+
+    private static void RestoreProjectionUseGate(ModHookContext context, string source)
+    {
+        if (context.Target is not CardItem card)
+        {
+            return;
+        }
+
+        var key = UseGateKey(card, source);
+        if (ProjectionUseGate.TryGetValue(key, out var previous))
+        {
+            CardItem.canUse = previous;
+            ProjectionUseGate.Remove(key);
+        }
+    }
+
+    private static string UseGateKey(CardItem card, string source)
+    {
+        return source + ":" + card.GetInstanceID();
+    }
+
+    private static bool IsProjectionRoleCard(IDataConfig? config)
+    {
+        return config != null && DictionaryUtil.ContainsToken(
+            DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey),
+            SunExpIds.ProjectionRoleCardMarker);
+    }
+
     private static void BeginBattle(string source)
     {
         ClearBattle(source);
@@ -79,11 +140,50 @@ public static class ProjectionRuntime
             if (context.Target is IStatusManager status)
             {
                 ProjectionStateStore.RetireIfDead(status, source);
+                ProjectionAttachmentPresenter.RefreshByOwner(status, source);
             }
         }
         catch (Exception ex)
         {
             SunExpLog.Error("Projection death cleanup failed from " + source, ex);
         }
+    }
+
+    private static void RefreshOwnerProjectionAfterBuffChange(ModHookContext context)
+    {
+        if (!CompanionAuthorityService.IsAuthoritative()
+            || context.Target is not IStatusManager owner
+            || ProjectionStateStore.IsProjection(owner))
+        {
+            return;
+        }
+
+        QueueOwnerIntentRefresh(owner);
+    }
+
+    private static void RefreshOwnerProjectionAfterBuffLevelChange(ModHookContext context)
+    {
+        if (!CompanionAuthorityService.IsAuthoritative()
+            || context.Target is not BuffItemConfig config
+            || config.status == null
+            || ProjectionStateStore.IsProjection(config.status))
+        {
+            return;
+        }
+
+        QueueOwnerIntentRefresh(config.status);
+    }
+
+    private static void QueueOwnerIntentRefresh(IStatusManager owner)
+    {
+        var state = ProjectionStateStore.FindByOwner("", owner.InstanceId);
+        if (state?.Projection == null)
+        {
+            return;
+        }
+
+        SunExpFrameScheduler.RunOnceNextFrame(
+            "ProjectionIntent.OwnerBuff." + owner.InstanceId,
+            () => state.Projection.RefreshCommittedIntentValues("OwnerBuffChanged"));
     }
 }

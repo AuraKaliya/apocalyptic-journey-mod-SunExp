@@ -107,7 +107,7 @@ public static class MorningStarDimmedService
             return false;
         }
 
-        SunExpCardRefreshQueue.RequestDataUpdate(card, "MorningStarDimmed:" + source);
+        SunExpCardRefreshQueue.RequestCostUpdate(card, "MorningStarDimmed:" + source);
         return true;
     }
 

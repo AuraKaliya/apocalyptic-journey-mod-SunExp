@@ -10,7 +10,7 @@ namespace SunExp.Dll.Network;
 [Serializable]
 public sealed class ProjectionCompanionSnapshot
 {
-    public int ProtocolVersion { get; set; } = 3;
+    public int ProtocolVersion { get; set; } = CompanionAuthorityService.ProjectionProtocolVersion;
 
     public int BattleEpoch { get; set; }
 
@@ -48,8 +48,6 @@ public sealed class ProjectionCompanionSnapshot
 
     public Dictionary<string, int> ReadyOnTurn { get; set; } = new();
 
-    public List<ProjectionBuffSnapshot> Buffs { get; set; } = new();
-
     public CompanionThreatSnapshot? Threat { get; set; }
 
     public CompanionIntentPlan? IntentPlan { get; set; }
@@ -68,7 +66,7 @@ public sealed class RpcProjectionSummonRequest : RpcCommandBase, ISunExpServerBo
 
     public string Token { get; set; } = "";
 
-    public int ProtocolVersion { get; set; } = 3;
+    public int ProtocolVersion { get; set; } = CompanionAuthorityService.ProjectionProtocolVersion;
 
     public int BattleEpoch { get; set; }
 

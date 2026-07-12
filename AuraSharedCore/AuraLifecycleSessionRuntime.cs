@@ -56,6 +56,21 @@ public static class AuraLifecycleSessionRuntime
         }
     }
 
+    public static long RestartBattleSession()
+    {
+        lock (Gate)
+        {
+            battleSessionId++;
+            if (battleSessionId <= 0)
+            {
+                battleSessionId = 1;
+            }
+
+            battleSessionActive = true;
+            return battleSessionId;
+        }
+    }
+
     public static void EndBattleSession()
     {
         lock (Gate)

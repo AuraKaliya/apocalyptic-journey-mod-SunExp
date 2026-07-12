@@ -59,25 +59,10 @@ public static class SunExpResourcePreloader
             Pending.Clear();
             AddItems(CoreTexturePaths(), "visual", 300, WarmupTier.Essential, path => SunExpResourceCache.Load<Texture2D>(path, true, "visual"));
             AddItems(CoreSpritePaths(), "ui", 250, WarmupTier.Essential, path => SunExpResourceCache.Load<Sprite>(path, true, "ui"));
-            AddItems(
-                PolymorphRoleRegistry.CardFacePaths(12),
-                SunExpIds.PolymorphSourceResourceCategory,
-                50,
-                WarmupTier.Opportunity,
-                path => SunExpResourceCache.Load<Sprite>(path, true, SunExpIds.PolymorphSourceResourceCategory));
-            foreach (var role in PolymorphRoleRegistry.AllRoles().Take(12))
-            {
-                var captured = role;
-                Pending.Add(new WarmupItem(
-                    captured.Id,
-                    "polymorph-card-face",
-                    25,
-                    WarmupTier.Opportunity,
-                    _ => PolymorphCardFaceCache.GetOrCreate(captured)));
-            }
         }
 
         SunExpPerformanceCounters.Record("ResourcePreloader.AdventureQueueCreated");
+        SunExpPerformanceCounters.Record("ResourcePreloader.HeavyOptionalDeferred");
         SunExpLog.Info("[ResourcePreloader] adventure warmup queued: essential="
             + essentialTotal
             + ", opportunity="
@@ -297,7 +282,7 @@ public static class SunExpResourcePreloader
 
     private static IEnumerable<string> CoreSpritePaths()
     {
-        foreach (var path in StarScoreHudAssets.AllPaths())
+        foreach (var path in StarScoreHudAssets.StructuralPaths())
         {
             yield return path;
         }

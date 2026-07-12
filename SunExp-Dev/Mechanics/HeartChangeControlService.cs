@@ -184,13 +184,20 @@ public static class HeartChangeControlService
             return;
         }
 
+        var status = FindStatus(command.TargetStatusId);
         if (!command.Accepted)
         {
+            if (string.Equals(command.RejectionReason, ReasonAlreadyControlled, StringComparison.Ordinal)
+                && IsControlled(status))
+            {
+                SunExpPerformanceCounters.Record("HeartChange.NetworkDuplicateAcceptedAsNoOp");
+                return;
+            }
+
             ShowFailureCaption(command.RejectionReason);
             return;
         }
 
-        var status = FindStatus(command.TargetStatusId);
         if (status == null)
         {
             return;
@@ -199,6 +206,12 @@ public static class HeartChangeControlService
         if (!command.Active)
         {
             EndControl(status, source + ".RemoteClear", removeBuff: false, consumeNativeAction: false, broadcast: false);
+            return;
+        }
+
+        if (IsControlled(status))
+        {
+            SunExpPerformanceCounters.Record("HeartChange.NetworkDuplicateAcceptedAsNoOp");
             return;
         }
 
@@ -433,6 +446,12 @@ public static class HeartChangeControlService
 
     private static void ApplyWithReservedSlot(IStatusManager status, string source)
     {
+        if (IsControlled(status))
+        {
+            SunExpPerformanceCounters.Record("HeartChange.NetworkDuplicateAcceptedAsNoOp");
+            return;
+        }
+
         if (!TryCreateState(status, out var state, out var reason))
         {
             SunExpLog.Warn("[HeartChange] network state rejected from " + source + ": " + reason);
@@ -500,13 +519,16 @@ public static class HeartChangeControlService
         }
 
         var transform = status.transform;
+        var bodyRenderer = transform?.Find("body")?.GetComponent<SpriteRenderer>();
         state = new HeartChangeState(
             StatusId(status),
             status,
             enemy,
             slotIndex.Value,
             transform == null ? Vector3.zero : transform.position,
-            transform == null ? Vector3.one : transform.localScale);
+            transform == null ? Vector3.one : transform.localScale,
+            bodyRenderer,
+            bodyRenderer?.flipX ?? false);
         return true;
     }
 
@@ -559,7 +581,18 @@ public static class HeartChangeControlService
             return;
         }
 
-        state.Status.transform.localScale = state.OriginalScale;
+        var restoredScale = state.OriginalScale;
+        restoredScale.x = Math.Max(0.001f, Math.Abs(restoredScale.x));
+        state.Status.transform.localScale = restoredScale;
+        if (state.BodyRenderer != null)
+        {
+            var bodyMirrored = state.BodyRenderer.transform.localScale.x < 0f;
+            var originalEffectiveMirrored = state.OriginalScale.x < 0f
+                ^ bodyMirrored
+                ^ state.OriginalBodyFlipX;
+            state.BodyRenderer.flipX = originalEffectiveMirrored ^ bodyMirrored;
+        }
+
         state.Status.SetPosition(state.OriginalPosition);
     }
 
@@ -574,11 +607,17 @@ public static class HeartChangeControlService
             }
 
             var scale = transform.localScale;
-            var originalX = Math.Abs(state.OriginalScale.x) < 0.001f
-                ? (Math.Abs(scale.x) < 0.001f ? 1f : scale.x)
-                : state.OriginalScale.x;
-            scale.x = -originalX;
+            scale.x = Math.Max(0.001f, Math.Abs(scale.x));
             transform.localScale = scale;
+            if (state.BodyRenderer != null)
+            {
+                var bodyMirrored = state.BodyRenderer.transform.localScale.x < 0f;
+                var originalRootMirrored = state.OriginalScale.x < 0f;
+                var originalEffectiveMirrored = originalRootMirrored ^ bodyMirrored ^ state.OriginalBodyFlipX;
+                var desiredEffectiveMirrored = !originalEffectiveMirrored;
+                state.BodyRenderer.flipX = desiredEffectiveMirrored ^ bodyMirrored;
+            }
+
             SunExpPerformanceCounters.Record("HeartChange.FacingMirrored");
         }
         catch (Exception ex)
@@ -1309,7 +1348,7 @@ public static class HeartChangeControlService
 
     private sealed class HeartChangeState
     {
-        public static readonly HeartChangeState Empty = new("", null!, null!, -1, Vector3.zero, Vector3.one);
+        public static readonly HeartChangeState Empty = new("", null!, null!, -1, Vector3.zero, Vector3.one, null, false);
 
         public HeartChangeState(
             string statusId,
@@ -1317,7 +1356,9 @@ public static class HeartChangeControlService
             Enemy enemy,
             int slotIndex,
             Vector3 originalPosition,
-            Vector3 originalScale)
+            Vector3 originalScale,
+            SpriteRenderer? bodyRenderer,
+            bool originalBodyFlipX)
         {
             StatusId = statusId ?? "";
             Status = status;
@@ -1325,6 +1366,8 @@ public static class HeartChangeControlService
             SlotIndex = slotIndex;
             OriginalPosition = originalPosition;
             OriginalScale = originalScale;
+            BodyRenderer = bodyRenderer;
+            OriginalBodyFlipX = originalBodyFlipX;
         }
 
         public string StatusId { get; }
@@ -1338,6 +1381,10 @@ public static class HeartChangeControlService
         public Vector3 OriginalPosition { get; }
 
         public Vector3 OriginalScale { get; }
+
+        public SpriteRenderer? BodyRenderer { get; }
+
+        public bool OriginalBodyFlipX { get; }
 
         public bool IsActing { get; set; }
 

@@ -149,17 +149,7 @@ public static class SolarRadianceService
         var start = SunExpPerformanceCounters.Timestamp();
         try
         {
-        var targets = executor.SetStatus("AllTarget");
-        if (targets != null)
-        {
-            foreach (var target in targets)
-            {
-                BuffApi.ConsumeEmberBeforeBurn(executor, target);
-            }
-        }
-
-        executor.SetStatus("AllTarget");
-        executor.RunImmediately(SunExpIds.Burn, "StartRound");
+        ExecutorApi.TriggerBurnAllEnemies(executor);
         }
         finally
         {

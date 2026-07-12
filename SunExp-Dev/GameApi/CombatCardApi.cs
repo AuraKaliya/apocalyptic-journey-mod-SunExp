@@ -1,0 +1,77 @@
+using System;
+using SunExp.Dll.Infrastructure;
+using Witch.UI;
+using Witch.UI.Window;
+
+namespace SunExp.Dll.GameApi;
+
+public static class CombatCardApi
+{
+    public static bool TryDrawPlayerCards(int count, string source)
+    {
+        var requested = Math.Max(0, count);
+        if (requested <= 0)
+        {
+            return false;
+        }
+
+        var manager = FightCardManager.Instance;
+        if (manager == null)
+        {
+            return Fail(requested, source, "combat card manager unavailable");
+        }
+
+        FightUI? fightUi;
+        try
+        {
+            fightUi = UIManager.Instance?.GetUI<FightUI>("FightUI");
+        }
+        catch (Exception ex)
+        {
+            return Fail(requested, source, "fight UI lookup failed: " + ex.Message);
+        }
+
+        if (fightUi == null)
+        {
+            return Fail(requested, source, "fight UI unavailable");
+        }
+
+        try
+        {
+            var available = manager.cardList?.Count ?? 0;
+            if (!manager.HasCard() || available < requested)
+            {
+                manager.RandomIndex();
+            }
+
+            fightUi.CreateCardItem(requested);
+            SunExpLog.Debug("[CombatCardApi] player draw applied: count="
+                + requested
+                + ", source="
+                + NormalizeSource(source)
+                + ".");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            return Fail(requested, source, ex.Message);
+        }
+    }
+
+    private static bool Fail(int count, string source, string reason)
+    {
+        SunExpLog.Warn("[CombatCardApi] player draw failed: count="
+            + count
+            + ", source="
+            + NormalizeSource(source)
+            + ", reason="
+            + reason
+            + ".");
+        return false;
+    }
+
+    private static string NormalizeSource(string source)
+    {
+        return string.IsNullOrWhiteSpace(source) ? "unknown" : source.Trim();
+    }
+}

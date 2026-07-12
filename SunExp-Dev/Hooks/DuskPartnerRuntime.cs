@@ -17,6 +17,7 @@ public static class DuskPartnerRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
+        DuskAfterheatRecoveryService.Initialize();
         RegisterAfter(modConfig, "GameEntryUI.CheckCareer", CleanupPlaceholderBlessing);
         SunExpBattleLifecycleRouter.Register("DuskPartner", new SunExpBattleLifecycleSubscription
         {
@@ -51,7 +52,6 @@ public static class DuskPartnerRuntime
     {
         try
         {
-            DuskAfterheatRecoveryService.Deactivate(null, "FightStarted.Reset");
             PartnerApi.RemovePlaceholderBlessing(BlessingLocalId, BlessingFullId);
             var status = FightPlayer.Instance?.Status;
             if (status == null || !PartnerApi.IsCurrentPartner(PartnerLocalId, PartnerFullId))
@@ -59,15 +59,14 @@ public static class DuskPartnerRuntime
                 return;
             }
 
-            if (BuffApi.TryAddBattleScopedBuffOnce(
-                    status,
-                    SunExpIds.DuskAfterheatRecoveryTrait,
-                    1,
-                    "DuskPartner",
-                    "FightStarted.GrantTrait"))
+            if (status.GetBuff(SunExpIds.DuskAfterheatRecoveryTrait) == null)
             {
+                DuskAfterheatRecoveryService.Deactivate(null, "FightStarted.NewStatus");
+                status.AddBuff(SunExpIds.DuskAfterheatRecoveryTrait, 1);
                 SunExpLog.Info("Granted Dusk afterheat recovery trait: owner=" + status.InstanceId);
             }
+
+            DuskAfterheatRecoveryService.EnsureActive(status, "FightStarted.EnsureActive");
         }
         catch (Exception ex)
         {

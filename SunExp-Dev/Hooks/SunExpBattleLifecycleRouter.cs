@@ -19,6 +19,8 @@ public sealed class SunExpBattleLifecycleSubscription
 
     public Action<ModHookContext>? FightStarted { get; set; }
 
+    public Action<ModHookContext>? PlayerRoundStarted { get; set; }
+
     public Action<ModHookContext>? FightEnding { get; set; }
 
     public Action<ModHookContext>? FightEnded { get; set; }
@@ -50,6 +52,7 @@ public static class SunExpBattleLifecycleRouter
                 FightInitialized = context => DispatchFightInitialized(context, AuraBattleLifecycleRouter.FightInitInit),
                 FightOpening = context => DispatchFightOpening(context, AuraBattleLifecycleRouter.FightStartInit),
                 FightStarted = context => DispatchFightStarted(context, "Fight lifecycle start"),
+                PlayerRoundStarted = context => DispatchPlayerRoundStarted(context, AuraBattleLifecycleRouter.FightPlayerTurnInit),
                 FightEnding = context => DispatchFightEnding(context, "Fight lifecycle ending"),
                 FightEnded = context => DispatchFightEnded(context, "Fight lifecycle ended")
             },
@@ -96,6 +99,11 @@ public static class SunExpBattleLifecycleRouter
     private static void DispatchFightStarted(ModHookContext context, string source)
     {
         Dispatch(context, source, subscription => subscription.FightStarted);
+    }
+
+    private static void DispatchPlayerRoundStarted(ModHookContext context, string source)
+    {
+        Dispatch(context, source, subscription => subscription.PlayerRoundStarted);
     }
 
     private static void DispatchFightEnding(ModHookContext context, string source)

@@ -11,7 +11,80 @@ public static class DuskAfterheatRecoveryService
     private const string TokenKey = "SunExpDuskAfterheatToken";
     private static readonly HashSet<IBuffItem> ObservedBurnBuffs = new(BuffReferenceComparer.Instance);
     private static ScriptExecutor? activeOwner;
+    private static IBuffItem? activeTraitBuff;
     private static string activeToken = "";
+    private static bool initialized;
+    private static bool familiarAshAvailable;
+
+    public static void Initialize()
+    {
+        if (initialized)
+        {
+            return;
+        }
+
+        initialized = true;
+        BurnTriggerApi.Triggered += OnBurnActuallyTriggered;
+        BuffApi.EmberConsumed += OnEmberConsumed;
+    }
+
+    public static bool ActivateFamiliar(ScriptExecutor owner, string source)
+    {
+        var token = ExecutorApi.RegisterHook(owner, "SunExpFamiliarDuskHook", TokenKey);
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return false;
+        }
+
+        activeTraitBuff = null;
+        Activate(owner, token!);
+        familiarAshAvailable = true;
+        SunExpLog.Debug("Dusk familiar effects bound from " + source + ".");
+        return true;
+    }
+
+    public static void BeginPlayerRound()
+    {
+        familiarAshAvailable = true;
+    }
+
+    public static bool EnsureActive(IStatusManager? status, string source)
+    {
+        var trait = status?.GetBuff(SunExpIds.DuskAfterheatRecoveryTrait);
+        var executor = trait?.scriptExecutor as ScriptExecutor;
+        if (status == null || trait == null || executor == null)
+        {
+            return false;
+        }
+
+        if (ReferenceEquals(activeOwner, executor)
+            && ReferenceEquals(activeTraitBuff, trait)
+            && !string.IsNullOrWhiteSpace(activeToken)
+            && ExecutorApi.IsHookTokenActive(executor, TokenKey, activeToken))
+        {
+            foreach (var target in ExecutorApi.EnemyTargets(executor))
+            {
+                AttachBurnObserver(target, source + ".ExistingBinding");
+            }
+            return true;
+        }
+
+        return ActivateTrait(executor, trait, source);
+    }
+
+    public static bool ActivateTrait(ScriptExecutor owner, IBuffItem? trait = null, string source = "TraitApply")
+    {
+        var token = ExecutorApi.RegisterHook(owner, "SunExpDuskAfterheatHook", TokenKey);
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return false;
+        }
+
+        activeTraitBuff = trait ?? owner.Self?.GetBuff(SunExpIds.DuskAfterheatRecoveryTrait);
+        Activate(owner, token!);
+        SunExpLog.Debug("Dusk afterheat recovery bound from " + source + ".");
+        return true;
+    }
 
     public static void Activate(ScriptExecutor owner, string token)
     {
@@ -41,8 +114,10 @@ public static class DuskAfterheatRecoveryService
         }
 
         activeOwner = null;
+        activeTraitBuff = null;
         activeToken = "";
         ObservedBurnBuffs.Clear();
+        familiarAshAvailable = false;
         SunExpLog.Debug("Dusk afterheat recovery deactivated from " + source + ".");
     }
 
@@ -89,7 +164,7 @@ public static class DuskAfterheatRecoveryService
 
         var attached = ScriptEventApi.TryAddOwnedEventListener(
             "StartRound" + targetId,
-            new Action(() => GrantEmberFromBurn(owner, target, token)),
+            new Action(() => NotifyNativeBurnIfBindingActive(owner, target, token)),
             burnExecutor,
             EventDispose.OnFightEnd,
             "dusk_afterheat:" + source);
@@ -103,7 +178,10 @@ public static class DuskAfterheatRecoveryService
         return true;
     }
 
-    private static void GrantEmberFromBurn(ScriptExecutor owner, IStatusManager target, string token)
+    private static void NotifyNativeBurnIfBindingActive(
+        ScriptExecutor owner,
+        IStatusManager target,
+        string token)
     {
         if (!ReferenceEquals(activeOwner, owner)
             || !string.Equals(activeToken, token, StringComparison.Ordinal)
@@ -112,7 +190,47 @@ public static class DuskAfterheatRecoveryService
             return;
         }
 
-        var gain = ExecutorApi.StatusBuffLevel(target, SunExpIds.Burn) / 2;
+        BurnTriggerApi.NotifyActual(
+            target,
+            ExecutorApi.StatusBuffLevel(target, SunExpIds.Burn),
+            "NativeBurnStartRound");
+    }
+
+    private static void OnBurnActuallyTriggered(BurnTriggerSnapshot snapshot)
+    {
+        var owner = activeOwner;
+        var token = activeToken;
+        var target = snapshot.Target;
+        if (owner == null)
+        {
+            return;
+        }
+
+        if (!ReferenceEquals(activeOwner, owner)
+            || !string.Equals(activeToken, token, StringComparison.Ordinal)
+            || !ExecutorApi.IsHookTokenActive(owner, TokenKey, token))
+        {
+            return;
+        }
+
+        if (target.fatherObject is not Enemy || HeartChangeControlService.IsControlled(target))
+        {
+            return;
+        }
+
+        var gain = activeTraitBuff == null ? 0 : snapshot.StacksAtTrigger / 2;
+        var ash = FamiliarBlessingEffectRuntime.EffectAmount("BurnTriggeredEmber");
+        if (ash > 0 && familiarAshAvailable)
+        {
+            gain += ash;
+            familiarAshAvailable = false;
+        }
+
+        var store = FamiliarBlessingEffectRuntime.EffectAmount("BurnStackToEmber");
+        if (store > 0)
+        {
+            gain += Math.Max(1, snapshot.StacksAtTrigger / 2) * store;
+        }
         if (gain <= 0)
         {
             return;
@@ -122,6 +240,20 @@ public static class DuskAfterheatRecoveryService
         owner.AddBuff(SunExpIds.Ember, gain.ToString());
         BuffApi.SyncEmberDamageBonus(owner, owner.Self);
         SunExpPerformanceCounters.Record("DuskAfterheat.Triggered");
+        SunExpLog.Debug("Dusk afterheat recovery triggered: target=" + target.InstanceId
+            + ", burn=" + snapshot.StacksAtTrigger + ", gain=" + gain + ", source=" + snapshot.Source);
+    }
+
+    private static void OnEmberConsumed(ScriptExecutor executor, IStatusManager status, int consumed)
+    {
+        var transfer = Math.Min(consumed, FamiliarBlessingEffectRuntime.EffectAmount("EmberOffsetBurnTransfer"));
+        if (transfer <= 0)
+        {
+            return;
+        }
+
+        var target = TargetApi.RandomEnemyTarget(executor, requireBurn: false);
+        target?.AddBuff(SunExpIds.Burn, transfer);
     }
 
     private sealed class BuffReferenceComparer : IEqualityComparer<IBuffItem>

@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using Newtonsoft.Json;
 using SunExp.Dll.Hooks;
 using SunExp.Dll.Infrastructure;
@@ -107,13 +108,57 @@ public static class FamiliarGrowthApi
 
             try
             {
-                return JsonConvert.DeserializeObject<FamiliarRosterDocument>(File.ReadAllText(path))
+                var json = File.ReadAllText(path);
+                return JsonConvert.DeserializeObject<FamiliarRosterDocument>(json)
                        ?? new FamiliarRosterDocument();
             }
             catch (Exception ex)
             {
+                var recovered = TryRecoverLegacyProfile(path);
+                if (recovered != null)
+                {
+                    SunExpLog.Warn("[FamiliarGrowth] repaired legacy profile " + path + ": " + ex.Message);
+                    return recovered;
+                }
+
                 SunExpLog.Warn("[FamiliarGrowth] ignored invalid profile " + path + ": " + ex.Message);
                 return new FamiliarRosterDocument();
+            }
+        }
+
+        private FamiliarRosterDocument? TryRecoverLegacyProfile(string path)
+        {
+            try
+            {
+                var original = File.ReadAllText(path);
+                var repaired = Regex.Replace(
+                    original,
+                    "(?m)^(\\s*\"Name\"\\s*:\\s*\"[^\"]*)(,\\s*)$",
+                    "$1\"$2");
+                if (string.Equals(original, repaired, StringComparison.Ordinal))
+                {
+                    return null;
+                }
+
+                var document = JsonConvert.DeserializeObject<FamiliarRosterDocument>(repaired);
+                if (document == null)
+                {
+                    return null;
+                }
+
+                var backup = path + ".invalid.bak";
+                if (!File.Exists(backup))
+                {
+                    File.Copy(path, backup, overwrite: false);
+                }
+
+                File.WriteAllText(path, JsonConvert.SerializeObject(document, Formatting.Indented));
+                return document;
+            }
+            catch (Exception recoveryError)
+            {
+                SunExpLog.Warn("[FamiliarGrowth] legacy profile recovery failed " + path + ": " + recoveryError.Message);
+                return null;
             }
         }
 

@@ -306,6 +306,7 @@ public static class StarScoreService
             state.RecordCompletedCadence(pattern);
             PublishChanged(self.Self, state, isCadencePreview: true, completedCadencePattern: pattern);
             ResolveCadence(self, notes);
+            FamiliarBlessingEffectRuntime.OnStarScoreCadenceCompleted(self.Self);
             state.RetainLastNoteAsCadenceStart();
             SyncScoreBuff(self, state.Notes.Count);
             PublishChanged(self.Self, state);

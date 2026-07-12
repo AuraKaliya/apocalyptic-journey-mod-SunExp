@@ -58,7 +58,11 @@ public static class CompanionIntentSelector
 
         state.StartCooldown(intent.Id, intent.Cooldown);
         state.CurrentIntentId = intent.Id;
-        CompanionThreatService.MarkIntentUsed(state, intent);
+        CompanionThreatService.MarkIntentUsed(
+            state,
+            intent,
+            plan.ResolvedValue,
+            plan.ResolvedEffects.Count == 0 ? 1 : plan.ResolvedEffects[0].RepeatCount);
         return true;
     }
 
@@ -197,7 +201,7 @@ public static class CompanionIntentSelector
 
     private static int HighThreatLowHpPenalty(CompanionBattleState state)
     {
-        var status = FightManager.Instance?.statuses?.TryGetValue(state.StatusId, out var value) == true ? value : null;
+        var status = FightManager.Instance?.statuses?.TryGetValue(state.OwnerStatusId, out var value) == true ? value : null;
         if (HpPercent(status) > 35)
         {
             return 0;

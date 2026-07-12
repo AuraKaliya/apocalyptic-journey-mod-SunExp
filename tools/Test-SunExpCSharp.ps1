@@ -37,6 +37,7 @@ function New-ProjectXml {
     $cardApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardApi.cs"
     $combatCardViewPoolApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CombatCardViewPoolApi.cs"
     $combatCardViewPoolCatalog = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CombatCardViewPoolCatalog.cs"
+    $pooledCardViewExit = Join-Path $RepoRoot "SunExp-Dev\Mechanics\PooledCardViewExit.cs"
     $cardConfigApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardConfigApi.cs"
     $cardVisualSkinApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardVisualSkinApi.cs"
     $cardVisualEffectApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardVisualEffectApi.cs"
@@ -84,6 +85,7 @@ function New-ProjectXml {
     <Compile Include="$cardApi" />
     <Compile Include="$combatCardViewPoolApi" />
     <Compile Include="$combatCardViewPoolCatalog" />
+    <Compile Include="$pooledCardViewExit" />
     <Compile Include="$cardConfigApi" />
     <Compile Include="$cardVisualSkinApi" />
     <Compile Include="$cardVisualEffectApi" />
@@ -146,6 +148,10 @@ namespace AuraShared.Core
     public static class AuraSharedFrameScheduler
     {
         public static bool RunCooperative(AuraSharedFrameWorkRequest request) => true;
+    }
+    public static class AuraCardPresentationDelta
+    {
+        public static bool TrySetCost(UnityEngine.Transform? transform, string costText) => true;
     }
 }
 
@@ -558,6 +564,16 @@ internal static class Program
 
     private static void TestCombatCardViewPoolCatalog()
     {
+        Equal(PooledCardExitKind.MoveToDiscard,
+            PooledCardViewExit.ClassifyThrowTarget(PooledCardViewExit.DiscardTargetPath),
+            "Native discard visuals retain their discard destination adapter");
+        Equal(PooledCardExitKind.MoveToDrawPile,
+            PooledCardViewExit.ClassifyThrowTarget(PooledCardViewExit.DrawPileTargetPath),
+            "Ouroboros-style visuals retain their draw-pile destination adapter");
+        Equal(PooledCardExitKind.Unsupported,
+            PooledCardViewExit.ClassifyThrowTarget("Canvas/FightUI/FutureSpecialZone"),
+            "Unknown future card exits fail closed instead of being treated as discard");
+
         var close = new DataConfig(new Dictionary<string, string>
         {
             ["Id"] = SunExpIds.StellarOvertureCloseCardId
@@ -1347,7 +1363,13 @@ function Invoke-SourceAssertions {
     $sunExpFieldId = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpFieldId.cs"))
     $playerApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\PlayerApi.cs"))
     $cardApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\CardApi.cs"))
+    $combatCardApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\CombatCardApi.cs"))
     $fightUiCardLayoutApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\FightUiCardLayoutApi.cs"))
+    $fightActionPresentationApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\FightActionPresentationApi.cs"))
+    $combatCardViewPoolCatalogText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CombatCardViewPoolCatalog.cs"))
+    $combatCardViewPoolText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\SunExpCombatCardViewPool.cs"))
+    $pooledCombatCardViewMarkerText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\PooledCombatCardViewMarker.cs"))
+    $combatCardUiDiagnostics = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpCombatCardUiDiagnostics.cs"))
     $cardGrantPostCommitQueue = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardGrantPostCommitQueue.cs"))
     $roleSkillApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\RoleSkillApi.cs"))
     $cardMutationService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardMutationService.cs"))
@@ -1365,12 +1387,18 @@ function Invoke-SourceAssertions {
     $projectionStateStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionStateStore.cs"))
     $projectionStrategyService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionStrategyService.cs"))
     $projectionSummonService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionSummonService.cs"))
+    $projectionActionExecutor = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionActionExecutor.cs"))
+    $projectionEffectContext = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionEffectContext.cs"))
+    $projectionAttachmentPresenter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Visual\ProjectionAttachmentPresenter.cs"))
+    $projectionIntentPresenter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Visual\ProjectionIntentPresenter.cs"))
+    $pooledCardExitAnimator = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Visual\PooledCardExitAnimator.cs"))
     $projectionTurnCoordinator = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionTurnCoordinator.cs"))
     $projectionTurnAnchorObj = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionTurnAnchorObj.cs"))
     $companionBattleModels = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionBattleModels.cs"))
     $companionBattleStateStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionBattleStateStore.cs"))
     $companionIntentRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionIntentRegistry.cs"))
     $companionIntentHandlers = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionIntentHandlers.cs"))
+    $companionFriendlyRosterService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionFriendlyRosterService.cs"))
     $companionIntentSelector = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionIntentSelector.cs"))
     $companionSlotService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionSlotService.cs"))
     $companionStatsService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionStatsService.cs"))
@@ -1384,11 +1412,13 @@ function Invoke-SourceAssertions {
     $cardConfigApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\CardConfigApi.cs"))
     $gameCompatibilityApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\GameCompatibilityApi.cs"))
     $cardScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\CardScripts.cs"))
+    $familiarBlessingEffectRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\FamiliarBlessingEffectRuntime.cs"))
     $relicScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\RelicScripts.cs"))
     $morningStarCardScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\MorningStarCardScripts.cs"))
     $buffScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\BuffScripts.cs"))
     $buffApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\BuffApi.cs"))
     $solarRadianceService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarRadianceService.cs"))
+    $burnTriggerApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\BurnTriggerApi.cs"))
     $scriptEventApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\ScriptEventApi.cs"))
     $fieldApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\FieldApi.cs"))
     $fieldRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\FieldRuntime.cs"))
@@ -1420,6 +1450,7 @@ function Invoke-SourceAssertions {
     $sunExpCardPresentationLifecycleBridge = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SunExpCardPresentationLifecycleBridge.cs"))
     $cardPresentationRootResolver = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Visual\CardPresentationRootResolver.cs"))
     $sunExpResourcePreloader = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SunExpResourcePreloader.cs"))
+    $sunExpCombatCardUiWorkloadRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SunExpCombatCardUiWorkloadRuntime.cs"))
     $solarMemoryJourneyApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\SolarMemoryJourneyApi.cs"))
     $polymorphRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\PolymorphRuntime.cs"))
     $projectionRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\ProjectionRuntime.cs"))
@@ -1615,6 +1646,10 @@ function Invoke-SourceAssertions {
     Assert-True $fieldBuffHudView.Contains("group.blocksRaycasts = true") "Field HUD must allow its local hotspot to receive hover raycasts."
     Assert-True $fieldBuffHudView.Contains("FieldEffectRegistry.RuntimeSpecFor(snapshot.Field).DisplayName") "Field HUD must render display data from the prewarmed runtime spec."
     Assert-True $fieldBuffHudView.Contains("FieldEffectRegistry.RuntimeSpecFor(snapshot.Field).IconPath") "Field HUD must render icons from the prewarmed runtime spec."
+    Assert-True $fieldBuffHudView.Contains("MultiplayerAvoidanceAt1080 = 150f") "Field HUD must use the final approved 150/1080 top offset."
+    Assert-True $fieldBuffHudView.Contains("MultiplayerAvoidanceAt1080 / 1080f") "Field HUD must apply its top offset responsively."
+    Assert-True $fieldBuffHudView.Contains("new Vector2(0f, -avoidance)") "Field HUD must use only the approved responsive avoidance offset."
+    Assert-True (-not $fieldBuffHudView.Contains("BaselineTopOffset")) "Field HUD must not retain the obsolete fixed baseline offset."
     Assert-True $fieldBuffHudHoverProbe.Contains("IPointerEnterHandler") "Field HUD hover probe must use Unity pointer enter events."
     Assert-True $fieldBuffHudHoverProbe.Contains("IPointerExitHandler") "Field HUD hover probe must use Unity pointer exit events."
     Assert-True $fieldBuffHudTooltipView.Contains("FieldEffectRegistry.RuntimeSpecFor(snapshot.Field).Description") "Field HUD tooltip must use the prewarmed Buff description cache."
@@ -1844,6 +1879,8 @@ function Invoke-SourceAssertions {
     Assert-True (-not $starScoreHudTooltipView.Contains("Destroy(child.gameObject)")) "Star score tooltip must not directly destroy rows."
     Assert-True $starScoreHudView.Contains("LayoutScale = 0.61f") "Star score HUD must use a single root scale for fixed placement."
     Assert-True $starScoreHudAssets.Contains('OpeningIconPath = Root + "\u542f.png"') "Star score HUD assets must map the Opening icon resource."
+    Assert-True $starScoreHudAssets.Contains("StructuralPaths()") "Star score HUD assets must separate structural warmup resources."
+    Assert-True $starScoreHudAssets.Contains("NoteIconPaths()") "Star score HUD assets must expose heavy note icons separately."
     Assert-True $starScoreHudAssets.Contains("StarScoreNote.Opening => Load(OpeningIconPath)") "Star score HUD assets must map typed notes to icon sprites."
     Assert-True (-not $sunExpProject.Contains("UnityEngine.InputLegacyModule")) "Star score HUD hover detection must not depend on the Unity input legacy module."
     Assert-True $solarMemoryMapItemAnimationRuntime.Contains('RegisterBefore(modConfig, "MapItem.Init", PrepareMapItemAnimation);') "Solar memory map items must patch fixed boss animation paths before native MapItem.Init loads Texture2D frames."
@@ -1866,15 +1903,20 @@ function Invoke-SourceAssertions {
     Assert-True $mapNodeTextureFitService.Contains("DefaultFightBoundsHeight = 238f") "Map-node texture fit service must preserve native fight-node height."
     Assert-True $duskPartnerRuntime.Contains('"GameEntryUI.CheckCareer"') "Dusk runtime must clean its placeholder blessing after career checks."
     Assert-True $duskPartnerRuntime.Contains('SunExpBattleLifecycleRouter.Register("DuskPartner"') "Dusk runtime must grant its trait at fight start through the shared lifecycle router."
-    Assert-True ($duskPartnerRuntime.Contains("BuffApi.TryAddBattleScopedBuffOnce") -and $duskPartnerRuntime.Contains("SunExpIds.DuskAfterheatRecoveryTrait")) "Dusk runtime must grant the afterheat recovery trait buff through battle-scoped duplicate suppression."
+    Assert-True ($duskPartnerRuntime.Contains("status.GetBuff(SunExpIds.DuskAfterheatRecoveryTrait) == null") -and $duskPartnerRuntime.Contains("status.AddBuff(SunExpIds.DuskAfterheatRecoveryTrait")) "Dusk runtime must restore the trait from actual rebuilt status state."
     Assert-True ($duskPartnerRuntime.Contains('SunExpStatusLifecycleRouter.Register("DuskPartner"') -and $duskPartnerRuntime.Contains("AfterAddBuff = ObserveBurnAfterAdd") -and $duskPartnerRuntime.Contains("AfterEnemyInit = ObserveEnemyAfterInit")) "Dusk runtime must attach burn observers through existing status lifecycle hooks."
     Assert-True ($duskAfterheatRecoveryService.Contains("burn?.scriptExecutor") -and $duskAfterheatRecoveryService.Contains("ScriptEventApi.TryAddOwnedEventListener")) "Dusk afterheat recovery must register on the native burn executor owner used by RunImmediately."
     Assert-True $duskAfterheatRecoveryService.Contains("HashSet<IBuffItem>") "Dusk afterheat recovery must deduplicate listeners by burn buff instance."
+    Assert-True $burnTriggerApi.Contains("NotifyActual") "Burn execution must publish one unified actual-trigger semantic event."
+    Assert-True $duskAfterheatRecoveryService.Contains("BurnTriggerApi.Triggered") "Dusk must observe immediate and native Burn through the unified trigger entry."
+    Assert-True $duskPartnerRuntime.Contains("EnsureActive") "Dusk must rebind to the rebuilt player status after fight reset."
+    Assert-True (-not $duskPartnerRuntime.Contains("TryAddBattleScopedBuffOnce")) "Dusk reset rehydration must not be blocked by a stale battle-operation ledger."
+    Assert-True (-not $starClayDollRuntime.Contains("TryAddBattleScopedBuffOnce")) "Familiar start traits must be restored from actual status state after quick reset."
     Assert-True (-not $duskPartnerScripts.Contains("EventCenter")) "Dusk CSV entry points must not register raw native events."
     Assert-True (-not $duskPartnerScripts.Contains('TryAddTokenedEvent(self, "Action"')) "Dusk must not scan every enemy after each player action."
     Assert-True (-not $duskPartnerRuntime.Contains("StarClay")) "Dusk runtime must not own Star Clay Doll behavior."
     Assert-True $starClayDollRuntime.Contains('SunExpBattleLifecycleRouter.Register("StarClayDoll"') "Star Clay Doll runtime must grant its own trait at fight start through the shared lifecycle router."
-    Assert-True ($starClayDollRuntime.Contains("BuffApi.TryAddBattleScopedBuffOnce") -and $starClayDollRuntime.Contains("SunExpIds.StarClayDollTrait")) "Star Clay Doll runtime must grant its own trait through battle-scoped duplicate suppression."
+    Assert-True ($starClayDollRuntime.Contains("status.GetBuff(SunExpIds.StarClayDollTrait) == null") -and $starClayDollRuntime.Contains("status.AddBuff(SunExpIds.StarClayDollTrait")) "Star Clay Doll runtime must restore its trait from actual rebuilt status state."
     Assert-True $starClayDollRuntime.Contains('SunExpStatusLifecycleRouter.Register("StarClayDoll"') "Star Clay Doll runtime must route lethal-hit protection through the status lifecycle router."
     Assert-True $starClayDollRuntime.Contains("AfterHit = ProtectAfterHit") "Star Clay Doll runtime must own lethal-hit protection."
     Assert-True (-not $starScoreRuntime.Contains("LoneerMiracleService")) "Generic star score runtime must not dispatch Loneer role behavior."
@@ -1922,6 +1964,14 @@ function Invoke-SourceAssertions {
     Assert-True $wunaScripts.Contains("SunExpFrameDispatcher.RunOnceNextFrame") "Wuna enemy burn OnLevelChange work must defer aggregate burn scans through the shared frame dispatcher."
     Assert-True $wunaScripts.Contains("WunaRadiance.BurnChanged.Deduped") "Wuna burn-change batching must expose duplicate suppression counters."
     Assert-True $cardApi.Contains("public static CardGrantResult GrantCardToHand") "Generated cards must go through the structured CardApi grant pipeline."
+    Assert-True $combatCardApi.Contains("public static bool TryDrawPlayerCards") "Non-script combat draws must use a focused GameApi facade."
+    Assert-True $combatCardApi.Contains("FightCardManager.Instance") "Combat draw facade must resolve the native draw manager."
+    Assert-True $combatCardApi.Contains('GetUI<FightUI>("FightUI")') "Combat draw facade must resolve the native fight UI."
+    Assert-True $combatCardApi.Contains("manager.RandomIndex()") "Combat draw facade must preserve native draw-pile refill behavior."
+    Assert-True (-not $combatCardApi.Contains(".DrawCount(")) "Combat draw facade must not invoke ScriptExecutor APIs that require dataConfig.Id."
+    Assert-True $familiarBlessingEffectRuntime.Contains("CombatCardApi.TryDrawPlayerCards") "Familiar combat-start draw must use the safe combat draw facade."
+    Assert-True (-not $familiarBlessingEffectRuntime.Contains("executor.DrawCount")) "Familiar combat-start draw must not borrow a synthetic ScriptExecutor."
+    Assert-True $familiarBlessingEffectRuntime.Contains('LogCombatStartEffect(status, entry, "failed", ex.Message)') "Familiar combat-start effects must isolate and diagnose individual failures."
     Assert-True $cardApi.Contains('self.AddCardByData(resolved, request?.RuntimeTags ?? "");') "Generated cards must receive their runtime tags during DataConfig creation."
     Assert-True $cardApi.Contains("self.GetCardFromDeck(added);") "Generated cards must deliver the exact tagged DataConfig to the hand queue."
     Assert-True $cardApi.Contains("CardGrantPostCommitQueue.Request") "Generated cards must submit SunExp post-commit refresh work after native delivery succeeds."
@@ -1983,17 +2033,17 @@ function Invoke-SourceAssertions {
     Assert-True $projectionActivationService.Contains("CardGrantRequest") "Projection generated cards must use the shared card grant API."
     Assert-True $projectionActivationService.Contains("DictionaryUtil.Set(config.Vars") "Projection generated cards must write runtime overrides to Vars."
     Assert-True (-not $projectionActivationService.Contains("DictionaryUtil.Set(config.data")) "Projection generated cards must not mutate base config data."
-    Assert-True $projectionSummonService.Contains("RealPlayerCount() + ProjectionStateStore.ActiveCount()") "Projection summon must respect the four-unit friendly cap."
+    Assert-True $projectionSummonService.Contains("ProjectionStateStore.HasForOwner") "Projection summon must enforce one projection per player owner."
     Assert-True $projectionSummonService.Contains('SunExpResourceCache.Load<GameObject>("Model/player", true, "projection")') "Projection summon must load the player model through the shared resource cache."
     Assert-True $projectionSummonService.Contains("SunExpIds.ProjectionActionStaffTapCardId") "Projection summon must attach the shared staff-tap action."
     Assert-True $projectionSummonService.Contains("SunExpIds.ProjectionActionShieldBlessingCardId") "Projection summon must attach the shared shield action."
-    Assert-True $projectionSummonService.Contains("CompanionSlotService.FindOpenPlayerSlot") "Projection summon must occupy an open player-side slot."
+    Assert-True $projectionSummonService.Contains("SpawnProjection(role, ownerStatusId, -1") "Projection summon must stay outside formal friendly slots."
     Assert-True $projectionSummonService.Contains("ProjectionTurnCoordinator.RegisterProjection") "Projection summon must register through the stable projection-turn coordinator."
     Assert-True (-not $projectionSummonService.Contains("manager.ActionQueue.Add(projection)")) "Projection summon must not depend on late insertion into the native immutable action snapshot."
     Assert-True $projectionTurnCoordinator.Contains("ProjectionStateStore.Active()") "Projection turn anchor must resolve projections at execution time so same-round summons are included."
     Assert-True $projectionTurnCoordinator.Contains("CompanionAuthorityService.IsAuthoritative()") "Projection turn execution must remain host/server authoritative."
     Assert-True $projectionTurnCoordinator.Contains("ExecutedThisRound") "Projection turn execution must suppress same-round duplicates."
-    Assert-True $projectionTurnCoordinator.Contains("OrderBy(state => state.SlotIndex)") "Projection turn execution order must be stable by friendly slot."
+    Assert-True $projectionTurnCoordinator.Contains("OrderBy(state => state.OwnerPlayerId") "Projection turn execution order must be stable by player owner."
     Assert-True $projectionTurnCoordinator.Contains("pendingRoot.SetActive(false)") "Projection turn anchor must be hidden before native status initialization."
     Assert-True $projectionTurnCoordinator.Contains("finally") "Projection turn anchor creation must clean up failed prefab instances."
     Assert-True $projectionTurnCoordinator.Contains("ResolveAnchorTemplateData") "Projection turn anchor must initialize from complete career data."
@@ -2010,7 +2060,7 @@ function Invoke-SourceAssertions {
     Assert-True (-not $companionSlotService.Contains("NearestSlot")) "Friendly logical slots must not be inferred from stale world coordinates."
     Assert-True $companionSlotService.Contains("ReflowFriendlyLineup") "Friendly companions must share one dynamic lineup reflow path."
     Assert-True $companionSlotService.Contains("friendlyCount") "Friendly lineup coordinates must use the current unit count."
-    Assert-True $projectionStateStore.Contains('ReflowFriendlyLineup(source + ".Retired")') "Projection retirement must compact the remaining friendly lineup."
+    Assert-True (-not $companionSlotService.Contains("ProjectionStateStore.Active")) "Owner-bound projections must not participate in formal lineup reflow."
     Assert-True $heartChangeControlService.Contains('ReflowFriendlyLineup(source + ".Cleared")') "Heart Change cleanup must compact the remaining friendly lineup."
     Assert-True $fightUiCardLayoutApi.Contains("parameters.Length == 2") "FightUI card layout compatibility must support the current two-parameter optional signature."
     Assert-True $fightUiCardLayoutApi.Contains("new object?[parameterCount]") "FightUI card layout compatibility must invoke optional parameters explicitly through reflection."
@@ -2025,18 +2075,120 @@ function Invoke-SourceAssertions {
     Assert-True $companionIntentPlanner.Contains("CompanionAuthorityService.IsAuthoritative()") "Projection plan diagnostics must be authority-gated."
     Assert-True $starScoreRuntime.Contains("StarScore.RefreshSignatureSkip") "Star score preview refreshes must skip unchanged signatures."
     Assert-True $starScoreRuntime.Contains("LastRefreshSignatures.Clear") "Star score preview signatures must reset per fight."
+    Assert-True $morningStarDimmedService.Contains("SunExpCardRefreshQueue.RequestCostUpdate") "Morning Star Dimmed cost-only changes must use incremental refreshes."
+    Assert-True $cardScripts.Contains('RequestCostUpdate(card, "FlamewheelHand")') "Flamewheel recurrence cost-only changes must use incremental refreshes."
     Assert-True $sunExpResourcePreloader.Contains("WarmupTier.Essential") "Adventure preload must separate essential and opportunity work."
     Assert-True $sunExpResourcePreloader.Contains("ResourcePreloader.EssentialCompleted") "Adventure preload must report essential completion."
+    Assert-True $sunExpResourcePreloader.Contains("StarScoreHudAssets.StructuralPaths()") "Adventure preload must keep oversized note icons out of structural warmup."
+    Assert-True (-not $sunExpResourcePreloader.Contains("PolymorphRoleRegistry.CardFacePaths(12)")) "Adventure preload must defer optional polymorph card-face sources."
+    Assert-True $sunExpResourcePreloader.Contains("ResourcePreloader.HeavyOptionalDeferred") "Deferred heavy preload work must remain observable."
+    Assert-True $sunExpCombatCardUiWorkloadRuntime.Contains("SunExpHookTargets.ICardSetCardStyle") "Card UI diagnostics must measure card-style application separately."
+    Assert-True $sunExpCombatCardUiWorkloadRuntime.Contains("SunExpHookTargets.CardItemDataUpdate") "Card UI diagnostics must measure data updates separately."
+    Assert-True $sunExpCombatCardUiWorkloadRuntime.Contains("SunExpHookTargets.FightCardManagerCardTagCheck") "Card UI diagnostics must measure tag checks separately."
+    Assert-True $sunExpCombatCardUiWorkloadRuntime.Contains("SunExpHookTargets.FightUiUpdateCardMsg") "Card UI diagnostics must measure whole-hand refresh batches."
+    Assert-True $sunExpCombatCardUiWorkloadRuntime.Contains("SunExpHookTargets.ICardSetCardMsg") "Card UI diagnostics must measure native card-message binding."
+    Assert-True $sunExpCombatCardUiWorkloadRuntime.Contains("SunExpHookTargets.ScriptExecutorRunScript") "Card UI diagnostics must measure InitScript bridge work."
+    Assert-True $sunExpCombatCardUiWorkloadRuntime.Contains("SunExpHookTargets.LocalizeExDescription") "Card UI diagnostics must measure description expansion."
+    Assert-True $sunExpCombatCardUiWorkloadRuntime.Contains("SunExpHookTargets.TextTranslatorTranslate") "Card UI diagnostics must measure keyword translation."
+    Assert-True $sunExpCombatCardUiWorkloadRuntime.Contains("RegisterRefreshCauses") "Card UI diagnostics must associate native refresh causes with each batch."
+    Assert-True $sunExpCombatCardUiWorkloadRuntime.Contains("[ThreadStatic] private static Stack<StartEntry>") "Card UI diagnostics must avoid global hot-path locking."
+    Assert-True $combatCardUiDiagnostics.Contains('var prefix = "Nested." + target') "Card UI diagnostics must attribute nested work to its parent stage."
+    Assert-True $combatCardUiDiagnostics.Contains('RecordSegment(prefix + "/" + pair.Key') "Card UI diagnostics must retain hierarchical child timings."
+    Assert-True $combatCardUiDiagnostics.Contains("private struct Scope") "Card UI diagnostics must avoid per-call scope object allocation."
+    Assert-True $combatCardUiDiagnostics.Contains("BeginRefreshBatch") "Card UI diagnostics must model one UpdateCardMsg call as a batch."
+    Assert-True $combatCardUiDiagnostics.Contains('"; topCards="') "Card UI diagnostics must report the three slowest cards in a refresh batch."
+    Assert-True $combatCardUiDiagnostics.Contains("FightUiDiagnosticsApi.SkillCount") "Card UI diagnostics must include current skill count through GameApi."
+    Assert-True $combatCardUiDiagnostics.Contains('"ms[setMsg="') "Slow-card summaries must expose the native SetCardMsg boundary."
+    Assert-True $combatCardUiDiagnostics.Contains('",runScript="') "Slow-card summaries must expose nested script time."
+    Assert-True $combatCardUiDiagnostics.Contains('",description="') "Slow-card summaries must expose nested description time."
+    Assert-True $combatCardUiDiagnostics.Contains('",translate="') "Slow-card summaries must expose nested translation time."
+    Assert-True $combatCardUiDiagnostics.Contains('",remainder="') "Slow-card summaries must expose unhookable native presentation work."
+    Assert-True $combatCardUiDiagnostics.Contains("WithSetCardMsgFallback") "Card UI diagnostics must fall back to DataUpdate timing when SetCardMsg is not hookable."
+    Assert-True $combatCardUiDiagnostics.Contains("context.Target is CardItem") "Card UI diagnostics must resolve DataUpdate card ids from the hook receiver."
+    Assert-True $projectionTurnAnchorObj.Contains("new Dictionary<string, string>(StringComparer.Ordinal)") "Projection turn anchors must construct minimal synthetic data."
+    Assert-True $projectionTurnAnchorObj.Contains("new DataConfig(anchorData, new Dictionary<string, string>(), false)") "Projection turn anchors must disable script precompilation."
+    Assert-True (-not $projectionTurnAnchorObj.Contains("new Dictionary<string, string>(templateData)")) "Projection turn anchors must not inherit role script fields."
     Assert-True $solarMemoryJourneyApi.Contains('JourneyId = "SunExp:SunExp.SolarMemory"') "Solar Memory journey identity must be owner-qualified without changing its stable id."
     Assert-True $sunExpCardPresentationLifecycleBridge.Contains("Card = card") "Card presentation lifecycle must retain the exact initialized CardItem."
     Assert-True $cardPresentationRootResolver.Contains('root.Find("Mask/CardIcon")') "Compact ShowCard surfaces must have an explicit structural adapter."
     Assert-True $cardVisualSkinRuntime.Contains("CardVisualSkin.CompactDisplayHandled") "Compact display fallback must be measurable instead of warning as a root miss."
     Assert-True $projectionOtherObj.Contains("ActivateAfterHydration") "Projection actors must reveal intent after authoritative buff hydration."
-    Assert-True $projectionOtherObj.Contains("FightAction.ActionExecute()") "Projection turns must execute queued actions without native head/Msg announcement UI."
+    Assert-True $projectionOtherObj.Contains("ProjectionActionExecutor.Execute") "Projection turns must use the dedicated friendly-AI executor."
+    Assert-True $projectionOtherObj.Contains("ProjectionStateStore.NotifyActionPresented") "Projection mechanics must request visual feedback through a presentation event."
+    Assert-True $projectionStateStore.Contains("ActionPresented") "Projection mechanics must expose hook-safe action presentation."
+    Assert-True $projectionAttachmentPresenter.Contains("ProjectionVisualProxy") "Projection visual runtime must isolate attachment presentation in a proxy."
+    Assert-True $projectionAttachmentPresenter.Contains("pulseMultiplier") "Projection action feedback must be applied inside proxy layout."
+    Assert-True $projectionAttachmentPresenter.Contains("PlayActionFocus") "Projection action feedback must distinguish committed intent focus."
+    Assert-True $projectionAttachmentPresenter.Contains("AttackFocusTravelAt1080 = 70f") "Projection attacks must use stronger combat focus travel."
+    Assert-True $projectionAttachmentPresenter.Contains("focusProgress") "Projection focus travel must remain integrated into proxy layout."
+    Assert-True $projectionAttachmentPresenter.Contains("ResolveFocusDirection") "Projection attacks must focus toward committed targets."
+    Assert-True (-not $projectionOtherObj.Contains("FightAction.ActionExecute()")) "Projection turns must not use native enemy target setup."
+    Assert-True $projectionActionExecutor.Contains("ProjectionEffectContextService.RefreshLockedPlan") "Projection execution must refresh owner-derived numbers without rerolling intent."
+    Assert-True $projectionActionExecutor.Contains("FightActionPresentationApi.PresentCommittedAction") "Projection execution must present committed actions through the native animation facade."
+    Assert-True $fightActionPresentationApi.Contains("CallActionAnimation(executor)") "Projection presentation must reuse native combat animation."
+    Assert-True $fightActionPresentationApi.Contains("executor.Object.AddRange(previousObjects)") "Projection presentation must restore executor targets."
+    Assert-True $fightActionPresentationApi.Contains('RecordDuration("ProjectionAction.NativeAnimation"') "Projection native animation must expose measurable duration."
+    Assert-True (-not $fightActionPresentationApi.Contains("ActionExecute")) "Projection presentation must not re-enter native enemy action execution."
+    Assert-True $projectionEffectContext.Contains("ModifierOwner") "Projection effect context must separate actor and modifier owner."
+    Assert-True $projectionEffectContext.Contains("AttributionOwner") "Projection effect context must retain player attribution."
+    Assert-True $projectionEffectContext.Contains("HasActiveConsumableModifier") "Projection effect inheritance must reject consumable modifiers by policy."
+    Assert-True (-not $projectionSummonService.Contains("ProjectionBuffCopyService.Capture")) "Projection summon must not copy the owner's buffs."
+    Assert-True $projectionAttachmentPresenter.Contains("ProjectionHeightAt1080 = 120f") "Projection attachment must use the approved fixed reference height."
+    Assert-True $projectionAttachmentPresenter.Contains("HorizontalOverlapRatio = 1f / 3f") "Projection attachment must overlap one third of its width from the owner right edge."
+    Assert-True $projectionAttachmentPresenter.Contains("targetScreenHeight = Screen.height * ProjectionHeightAt1080 / 1080f") "Projection attachment height must be resolved in screen space."
+    Assert-True $projectionAttachmentPresenter.Contains("ownerScreen.xMax - targetScreenWidth * HorizontalOverlapRatio") "Projection proxy center must move left by one third of its width from the owner right edge."
+    Assert-True $projectionAttachmentPresenter.Contains("ownerScreen.yMax + targetScreenHeight * 0.5f") "Projection proxy center must remain half its height above the owner top edge."
+    Assert-True $projectionAttachmentPresenter.Contains("GetComponent<BoxCollider>()") "Projection attachment must resolve native alpha-trimmed AABB colliders."
+    Assert-True $projectionAttachmentPresenter.Contains("localAabbCenter = center") "Projection proxy must cache native alpha-trimmed AABB geometry."
+    Assert-True $projectionAttachmentPresenter.Contains("localAabbSize = size") "Projection proxy must retain its last valid local AABB size."
+    Assert-True $projectionAttachmentPresenter.Contains("targetWorldHeight / localAabbSize.y") "Projection height must derive from cached local collider geometry."
+    Assert-True $projectionAttachmentPresenter.Contains("var depth = bounds.center.z") "Projection screen AABB must use a common camera depth."
+    Assert-True $projectionAttachmentPresenter.Contains("ProjectionAttachment.ProxyLayoutSkipped") "Projection proxy must reject and measure invalid layouts."
+    Assert-True $projectionAttachmentPresenter.Contains("lastOwnerBounds") "Projection proxy must retain a last-known-good owner AABB."
+    Assert-True $projectionAttachmentPresenter.Contains('new GameObject("SunExp_ProjectionVisualProxy:') "Projection presentation must use a standalone visual proxy."
+    Assert-True (-not $projectionAttachmentPresenter.Contains("projection.transform.SetParent")) "Projection gameplay roots must remain under native hierarchy ownership."
+    Assert-True (-not $projectionAttachmentPresenter.Contains("projection.transform.localScale")) "Projection layout must not scale gameplay roots."
+    Assert-True (-not $projectionAttachmentPresenter.Contains("projection.transform.position")) "Projection layout must not move gameplay roots."
+    Assert-True $projectionAttachmentPresenter.Contains("sourceRenderer.enabled = false") "Projection proxy must hide the native body only."
+    Assert-True $projectionAttachmentPresenter.Contains("proxyRenderer.sharedMaterial = synchronizedMaterial") "Projection proxy must share source materials."
+    Assert-True $projectionAttachmentPresenter.Contains("proxyRenderer.sprite = synchronizedSprite") "Projection proxy must follow source sprites by reference."
+    Assert-True $projectionAttachmentPresenter.Contains("sortingOrder - 1") "Projection attachment must render below its owner body."
+    Assert-True $projectionAttachmentPresenter.Contains("IntentIconScale = 0.60f") "Projection intent icons must remain compact while retaining native hover components."
+    Assert-True $projectionAttachmentPresenter.Contains("IntentGapAt1080 = 14f") "Projection intent must remain above the visible projection boundary."
+    Assert-True $projectionAttachmentPresenter.Contains("private void LateUpdate()") "Projection attachment must follow native focus movement."
+    Assert-True $projectionStateStore.Contains("IntentPresented") "Projection mechanics must expose a hook-safe intent presentation event."
+    Assert-True $projectionOtherObj.Contains("NotifyIntentPresented") "Projection intent rebuilds must notify the dedicated presenter."
+    Assert-True $projectionIntentPresenter.Contains("ResetAllLines(status)") "Projection intent presentation must clear stale native lines before rebinding."
+    Assert-True $projectionIntentPresenter.Contains('string.Equals(intent.Target.Mode, "All"') "All-target projection intents must hide misleading single-target lines."
+    Assert-True $projectionIntentPresenter.Contains("IsValidCommittedTarget") "Projection intent presentation must enforce committed target scope."
+    Assert-True $projectionIntentPresenter.Contains("IPointerEnterHandler, IPointerExitHandler") "Projection intent lines must be hover-driven."
+    Assert-True $projectionIntentPresenter.Contains("hoverLine.Configure(line, targetUi.transform)") "Projection plan binding must not immediately reveal target lines."
+    Assert-True $projectionIntentPresenter.Contains("private void OnDisable()") "Projection intent lines must clear when their icon is disabled."
+    Assert-True $pooledCardExitAnimator.Contains("List<TextBinding> burnTextBindings") "Pooled burn exits must cache text lifecycle bindings."
+    Assert-True $pooledCardExitAnimator.Contains("GetComponentsInChildren<TMP_Text>(true)") "Pooled burn exits must include all card TMP nodes."
+    Assert-True $pooledCardExitAnimator.Contains("RefreshTextBindings") "Pooled burn exits must refresh dynamic text after native card initialization."
+    Assert-True $pooledCardExitAnimator.Contains("text.enabled = false") "Pooled burn exits must hide text before the burn shader starts."
+    Assert-True $pooledCardExitAnimator.Contains("originalEnabled") "Pooled burn exits must restore each text node's enabled state."
+    Assert-True $pooledCardExitAnimator.Contains('RecordDuration("PooledCardExit.BurnTextPrepare"') "Pooled burn text hiding must expose measurable duration."
+    Assert-True $combatCardViewPoolCatalogText.Contains("PresentationSignature") "Pooled dynamic cards must use deterministic presentation signatures."
+    Assert-True $combatCardViewPoolText.Contains("TryLightweightRebind") "Pooled dynamic cards must offer a guarded lightweight rebind path."
+    Assert-True $combatCardViewPoolText.Contains("ICard.SetCardMsg(card.transform, config, null)") "Lightweight rebinding must use native card presentation binding."
+    Assert-True $combatCardViewPoolText.Contains("marker.PresentationSignature") "Lightweight rebinding must require an exact retained signature."
+    Assert-True $pooledCombatCardViewMarkerText.Contains("HasInitializedPresentation") "Pooled views must require one complete Init before lightweight rebinding."
+    Assert-True $projectionActionExecutor.Contains("IsValidCommittedTarget") "Projection execution must reject targets outside the committed intent scope."
+    Assert-True $companionFriendlyRosterService.Contains("manager.roleQueue") "The canonical friendly roster must use the fight role queue."
+    Assert-True $companionFriendlyRosterService.Contains("ActiveSlotStatuses()") "The canonical friendly roster must include actively controlled units."
+    Assert-True (-not $companionFriendlyRosterService.Contains("Singleton<TempDataManager>")) "The canonical friendly roster must not read the ownership routing map."
+    Assert-True $companionSlotService.Contains("CompanionFriendlyRosterService.Snapshot") "Friendly slot layout must use the canonical friendly roster."
+    Assert-True $companionIntentHandlers.Contains("CompanionFriendlyRosterService.Snapshot") "Friendly intent resolution must use the canonical friendly roster."
+    Assert-True $companionIntentHandlers.Contains("CompanionFriendlyRosterService.Contains") "Committed target validation must use the canonical friendly roster."
+    Assert-True (-not $companionIntentHandlers.Contains("Singleton<TempDataManager>")) "Companion target policies must not read the ownership routing map."
     Assert-True (-not $projectionOtherObj.Contains("return base.DoAction();")) "Projection turns must not use native OtherObj.DoAction because the player model lacks head/Msg."
     Assert-True $projectionStateStore.Contains("ProjectionStatusIdPrefix") "Projection status ids must use the centralized friendly projection prefix."
     Assert-True $projectionStateStore.Contains("removeStatusRecords: false") "Projection retirement must leave status records long enough for native hit queues to settle."
     Assert-True $projectionRuntime.Contains('SunExpStatusLifecycleRouter.Register("Projection"') "Projection runtime must retire dead projections through the shared status lifecycle router."
+    Assert-True $projectionRuntime.Contains("CardItem.canUse = false") "A duplicate projection summon card must be gated before use."
+    Assert-True $projectionRuntime.Contains("RestoreProjectionUseGate") "Projection use gating must restore the native global card state."
     Assert-True $projectionRuntime.Contains("AfterHit = RetireProjectionAfterDamage") "Projection runtime must retire dead projections after full damage resolves."
     Assert-True $projectionRuntime.Contains("AfterCurHpChanged = RetireProjectionAfterHpChange") "Projection runtime must retire dead projections after direct HP changes."
     Assert-True $projectionRuntime.Contains("AfterMaxHpChanged = RetireProjectionAfterHpChange") "Projection runtime must retire projections whose max HP is reduced to zero."
@@ -2070,8 +2222,11 @@ function Invoke-SourceAssertions {
     Assert-True $companionIntentHandlers.Contains("HealSingle") "Companion handlers must support single-target healing."
     Assert-True $companionIntentRegistryJson.Contains('"threat"') "Companion intent registry must declare intent threat."
     Assert-True $companionSlotService.Contains("MaxFriendlySlots = 4") "Companion slots must use the four friendly player-side slots."
+    Assert-True $companionSlotService.Contains("ReservedPlayerSeatCount") "Formal slots must reserve player seats across death and resurrection."
     Assert-True $companionThreatService.Contains("TryRedirectEnemySingleTarget") "Companion threat must expose weighted enemy single-target redirection."
     Assert-True $companionThreatService.Contains("AddActiveCompanionsToAllTargets") "Companion threat must expose all-target companion expansion."
+    Assert-True $companionThreatService.Contains("OwnerThreat") "Projection threat must be accumulated onto its player owner."
+    Assert-True $companionThreatService.Contains("BaseThreat = 0") "Projection threat must not derive from internal HP or armor."
     Assert-True (-not $companionThreatService.Contains("roleQueue.Add")) "Companion threat must not add projections to the native player role queue."
     Assert-True $companionThreatRuntime.Contains('RegisterAfter(modConfig, "ScriptExecutor.SetStatus", ExtendEnemyTargetsAfterSetStatus);') "Companion threat runtime must hook enemy SetStatus after native target construction."
     Assert-True $companionThreatRuntime.Contains("executor.Self?.fatherObject is not Enemy") "Companion threat runtime must only extend enemy target selection."
@@ -2085,7 +2240,10 @@ function Invoke-SourceAssertions {
     Assert-True $heartChangeControlService.Contains("CompleteProxyAction") "Heart Change must expose a proxy completion path that ends control immediately after the proxy action."
     Assert-True $heartChangeControlService.Contains("consumeNativeAction") "Heart Change cleanup must distinguish proxy completion from plain control cancellation."
     Assert-True $heartChangeControlService.Contains("ApplyFriendlyFacing(state)") "Heart Change must mirror the controlled enemy while it occupies a friendly slot."
-    Assert-True $heartChangeControlService.Contains("scale.x = -originalX") "Heart Change friendly-slot mirroring must reverse the original X-facing sign."
+    Assert-True $heartChangeControlService.Contains("HeartChange.NetworkDuplicateAcceptedAsNoOp") "Heart Change repeated network state must be idempotent."
+    Assert-True $heartChangeControlService.Contains("BodyRenderer.flipX") "Heart Change must mirror only the visual body."
+    Assert-True $heartChangeControlService.Contains("Math.Abs(restoredScale.x)") "Heart Change restore must keep root scale positive for colliders."
+    Assert-True (-not $heartChangeControlService.Contains("scale.x = -originalX")) "Heart Change must not negatively scale the collider-owning root."
     Assert-True $heartChangeControlService.Contains("RestoreNativeQueueNow(state, source, consumeNativeAction)") "Heart Change cleanup must restore the native enemy queue immediately after proxy cleanup."
     Assert-True $heartChangeControlService.Contains("RestoreNativeVisibleState(state, source)") "Heart Change queue restoration must also repair accidental NoAction visible state."
     Assert-True $heartChangeControlService.Contains("state.Status.state == IStatusManager.State.NoAction") "Heart Change visible-state repair must detect stale native NoAction placeholders."

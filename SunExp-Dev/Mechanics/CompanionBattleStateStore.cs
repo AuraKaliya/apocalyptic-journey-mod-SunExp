@@ -60,7 +60,6 @@ public static class CompanionBattleStateStore
 
         CompanionThreatService.Remove(id);
         CompanionOwnershipService.Remove(id);
-        ProjectionBuffCopyService.Forget(id);
     }
 
     public static void Clear()
@@ -72,6 +71,5 @@ public static class CompanionBattleStateStore
 
         CompanionThreatService.Clear();
         CompanionOwnershipService.Clear();
-        ProjectionBuffCopyService.Clear();
     }
 }

@@ -14,19 +14,29 @@ public static class SunExpHookTargets
     public const string FightPlayerTurnInit = "Fight_PlayerTurn.Init";
     public const string FightUiCreateCardItem = "FightUI.CreateCardItem";
     public const string FightUiCreateCardItemInternal = "FightUI.CreateCardItemInternal";
+    public const string FightUiUpdateCardMsg = "FightUI.UpdateCardMsg";
     public const string FightUiCallActionAnimation = "FightUI.CallActionAnimation";
     public const string FightUiFadeIn = "FightUI.FadeIn";
 
     public const string ICardSetCardStyle = "ICard.SetCardStyle";
+    public const string ICardSetCardMsg = "ICard.SetCardMsg";
+    public const string ScriptExecutorRunScript = "ScriptExecutor.RunScript";
+    public const string LocalizeExDescription = "LocalizeEx.Description";
+    public const string TextTranslatorTranslate = "TextTranslator.Translate";
     public const string CardItemInit = "CardItem.Init";
     public const string AttackCardItemInit = "AttackCardItem.Init";
     public const string CardItemDataUpdate = "CardItem.DataUpdate";
     public const string AttackCardItemDataUpdate = "AttackCardItem.DataUpdate";
     public const string CardItemDrawEffect = "CardItem.DrawEffect";
+    public const string CardItemEffectOfBurnCard = "CardItem.EffectOfBurnCard";
+    public const string CardItemEffectOfThrowCard = "CardItem.EffectOfThrowCard";
     public const string CommonCardItemDrawEffect = "CommonCardItem.DrawEffect";
     public const string AttackCardItemDrawEffect = "AttackCardItem.DrawEffect";
     public const string CommonCardItemTrueUse = "CommonCardItem.TrueUse";
+    public const string CommonCardItemOnBeginDrag = "CommonCardItem.OnBeginDrag";
+    public const string CommonCardItemUseCardDirectly = "CommonCardItem.UseCardDirectly";
     public const string AttackCardItemTrueUse = "AttackCardItem.TrueUse";
+    public const string FightCardManagerCardTagCheck = "FightCardManager.CardTagCheck";
     public const string CardChoiceItemInitialize = "CardChoiceItem.Initialize";
     public const string CardChoiceUiSelect = "CardChoiceUI.Select";
     public const string ScriptExecutorGetCardFromDeck = "ScriptExecutor.GetCardFromDeck";
@@ -51,6 +61,9 @@ public static class SunExpHookTargets
     public const string SkillItemTrueUse = "SkillItem.TrueUse";
 
     public const string StatusManagerAddBuff = "StatusManager.AddBuff";
+    public const string StatusManagerRemoveBuff = "StatusManager.RemoveBuff";
+    public const string BuffItemConfigSetLevel = "BuffItemConfig.set_Level";
+    public const string BuffBarUiCheckAllBuff = "BuffBarUI.CheckAllBuff";
     public const string StatusManagerHit = "StatusManager.Hit";
     public const string StatusManagerSetCurHp = "StatusManager.set_CurHp";
     public const string StatusManagerSetMaxHp = "StatusManager.set_MaxHp";

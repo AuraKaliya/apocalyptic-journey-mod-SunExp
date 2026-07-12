@@ -10,19 +10,28 @@ namespace SunExp.Dll.Hooks;
 public static class SunExpCombatCardUiWorkloadRuntime
 {
     private const double SlowMethodWarningMilliseconds = 16.0;
-    private static readonly object SyncRoot = new();
-    private static readonly Dictionary<string, Stack<long>> Starts = new(StringComparer.Ordinal);
+    [ThreadStatic] private static Stack<StartEntry>? starts;
 
     public static void Initialize(ModConfig modConfig)
     {
-        RegisterMeasured(modConfig, "FightUI.CreateCardItem");
-        RegisterMeasured(modConfig, "FightUI.CreateCardItemInternal");
+        RegisterMeasured(modConfig, SunExpHookTargets.FightUiCreateCardItem);
+        RegisterMeasured(modConfig, SunExpHookTargets.FightUiCreateCardItemInternal);
+        RegisterMeasured(modConfig, SunExpHookTargets.FightUiUpdateCardMsg);
         RegisterMeasured(modConfig, "FightUI.UpdateCardItemPos");
-        RegisterMeasured(modConfig, "CardItem.Init");
-        RegisterMeasured(modConfig, "AttackCardItem.Init");
-        RegisterMeasured(modConfig, "CardItem.DrawEffect");
-        RegisterMeasured(modConfig, "CommonCardItem.DrawEffect");
-        RegisterMeasured(modConfig, "AttackCardItem.DrawEffect");
+        RegisterMeasured(modConfig, SunExpHookTargets.ICardSetCardStyle);
+        RegisterMeasured(modConfig, SunExpHookTargets.ICardSetCardMsg);
+        RegisterMeasured(modConfig, SunExpHookTargets.ScriptExecutorRunScript);
+        RegisterMeasured(modConfig, SunExpHookTargets.LocalizeExDescription);
+        RegisterMeasured(modConfig, SunExpHookTargets.TextTranslatorTranslate);
+        RegisterMeasured(modConfig, SunExpHookTargets.CardItemInit);
+        RegisterMeasured(modConfig, SunExpHookTargets.AttackCardItemInit);
+        RegisterMeasured(modConfig, SunExpHookTargets.CardItemDataUpdate);
+        RegisterMeasured(modConfig, SunExpHookTargets.AttackCardItemDataUpdate);
+        RegisterMeasured(modConfig, SunExpHookTargets.CardItemDrawEffect);
+        RegisterMeasured(modConfig, SunExpHookTargets.CommonCardItemDrawEffect);
+        RegisterMeasured(modConfig, SunExpHookTargets.AttackCardItemDrawEffect);
+        RegisterMeasured(modConfig, SunExpHookTargets.FightCardManagerCardTagCheck);
+        RegisterRefreshCauses(modConfig);
         SunExpLog.InfoAlways("Combat card UI workload diagnostics initialized");
     }
 
@@ -35,6 +44,11 @@ public static class SunExpCombatCardUiWorkloadRuntime
     private static void Begin(string target, ModHookContext context)
     {
         var key = CounterKey(target);
+        if (string.Equals(target, SunExpHookTargets.FightUiUpdateCardMsg, StringComparison.Ordinal))
+        {
+            SunExpCombatCardUiDiagnostics.BeginRefreshBatch(context);
+        }
+
         SunExpPerformanceCounters.Record("CombatCardUi." + key + ".Before");
         SunExpCombatUiWorkload.Begin(target);
         SunExpCombatCardUiDiagnostics.Begin(key, context);
@@ -55,13 +69,22 @@ public static class SunExpCombatCardUiWorkloadRuntime
         var start = PopStart(key);
         SunExpCombatUiWorkload.End(target);
         SunExpPerformanceCounters.RecordDuration("CombatCardUi." + key, start);
-        var segmentSummary = SunExpCombatCardUiDiagnostics.End(key);
+        var elapsed = start <= 0L ? 0d : SunExpPerformanceCounters.ElapsedMilliseconds(start);
+        var segmentSummary = SunExpCombatCardUiDiagnostics.End(key, elapsed);
+        if (string.Equals(target, SunExpHookTargets.CardItemDataUpdate, StringComparison.Ordinal)
+            || string.Equals(target, SunExpHookTargets.AttackCardItemDataUpdate, StringComparison.Ordinal))
+        {
+            SunExpCombatCardUiDiagnostics.RecordRefreshCard(context, elapsed);
+        }
+        else if (string.Equals(target, SunExpHookTargets.FightUiUpdateCardMsg, StringComparison.Ordinal))
+        {
+            segmentSummary += SunExpCombatCardUiDiagnostics.EndRefreshBatch(elapsed);
+        }
         if (start <= 0L || !SunExpPerformanceSettings.CountersEnabled)
         {
             return;
         }
 
-        var elapsed = SunExpPerformanceCounters.ElapsedMilliseconds(start);
         if (elapsed >= SlowMethodWarningMilliseconds)
         {
             SunExpLog.Warn("Slow combat card UI method: target="
@@ -76,6 +99,40 @@ public static class SunExpCombatCardUiWorkloadRuntime
         }
     }
 
+    private static void RegisterRefreshCauses(ModConfig config)
+    {
+        SunExpHookRegistry.Before(
+            config,
+            SunExpHookTargets.BuffItemConfigSetLevel,
+            SunExpCombatCardUiDiagnostics.BeginBuffLevelChange,
+            "CombatCardUiRefreshCause");
+        SunExpHookRegistry.After(
+            config,
+            SunExpHookTargets.BuffItemConfigSetLevel,
+            SunExpCombatCardUiDiagnostics.EndBuffLevelChange,
+            "CombatCardUiRefreshCause");
+        SunExpHookRegistry.After(
+            config,
+            SunExpHookTargets.StatusManagerAddBuff,
+            context => SunExpCombatCardUiDiagnostics.RecordBuffMutation("add", context),
+            "CombatCardUiRefreshCause");
+        SunExpHookRegistry.After(
+            config,
+            SunExpHookTargets.StatusManagerRemoveBuff,
+            context => SunExpCombatCardUiDiagnostics.RecordBuffMutation("remove", context),
+            "CombatCardUiRefreshCause");
+        SunExpHookRegistry.After(
+            config,
+            SunExpHookTargets.FightPlayerTurnInit,
+            context => SunExpCombatCardUiDiagnostics.RecordRefreshCause("player-turn"),
+            "CombatCardUiRefreshCause");
+        SunExpHookRegistry.After(
+            config,
+            SunExpHookTargets.BuffBarUiCheckAllBuff,
+            context => SunExpCombatCardUiDiagnostics.RecordRefreshCause("buff-bar-check"),
+            "CombatCardUiRefreshCause");
+    }
+
     private static void PushStart(string key, long start)
     {
         if (start <= 0L)
@@ -83,35 +140,24 @@ public static class SunExpCombatCardUiWorkloadRuntime
             return;
         }
 
-        lock (SyncRoot)
-        {
-            if (!Starts.TryGetValue(key, out var stack))
-            {
-                stack = new Stack<long>();
-                Starts[key] = stack;
-            }
-
-            stack.Push(start);
-        }
+        starts ??= new Stack<StartEntry>();
+        starts.Push(new StartEntry(key, start));
     }
 
     private static long PopStart(string key)
     {
-        lock (SyncRoot)
+        if (starts == null || starts.Count == 0)
         {
-            if (!Starts.TryGetValue(key, out var stack) || stack.Count == 0)
-            {
-                return 0L;
-            }
-
-            var start = stack.Pop();
-            if (stack.Count == 0)
-            {
-                Starts.Remove(key);
-            }
-
-            return start;
+            return 0L;
         }
+
+        var entry = starts.Pop();
+        if (!string.Equals(entry.Key, key, StringComparison.Ordinal))
+        {
+            SunExpPerformanceCounters.Record("CombatCardUi.Workload.StackMismatch");
+        }
+
+        return entry.Start;
     }
 
     private static string CounterKey(string value)
@@ -148,5 +194,18 @@ public static class SunExpCombatCardUiWorkloadRuntime
         return string.Join(
             "|",
             args.Select(arg => arg == null ? "null" : arg.GetType().FullName ?? arg.GetType().Name));
+    }
+
+    private readonly struct StartEntry
+    {
+        public StartEntry(string key, long start)
+        {
+            Key = key;
+            Start = start;
+        }
+
+        public string Key { get; }
+
+        public long Start { get; }
     }
 }

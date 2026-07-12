@@ -348,9 +348,9 @@ public static class CompanionTargetPolicyRegistry
             case FriendlyOwnerOrSelfDefense:
                 return ResolveDefenseTarget(executor, state);
             case FriendlyAll:
-                return FriendlyStatuses(executor, state).ToArray();
+                return FriendlyStatuses().ToArray();
             case FriendlyMostWounded:
-                return FriendlyStatuses(executor, state)
+                return FriendlyStatuses()
                     .Where(target => target.CurHp < target.MaxHp)
                     .OrderBy(HpPercent)
                     .ThenBy(target => string.Equals(target.InstanceId, state.OwnerStatusId, StringComparison.Ordinal) ? 0 : 1)
@@ -358,9 +358,36 @@ public static class CompanionTargetPolicyRegistry
                     .Take(1)
                     .ToArray();
             case Self:
-                return IsAlive(executor.Self) ? new[] { executor.Self } : Array.Empty<IStatusManager>();
+                var owner = StatusById(state.OwnerStatusId);
+                return IsAlive(owner) ? new[] { owner! } : Array.Empty<IStatusManager>();
             default:
                 return Array.Empty<IStatusManager>();
+        }
+    }
+
+    public static bool IsValidCommittedTarget(
+        CompanionBattleState state,
+        CompanionIntentDefinition intent,
+        IStatusManager? target)
+    {
+        if (state == null || intent?.Target == null || !IsAlive(target))
+        {
+            return false;
+        }
+
+        switch (intent.Target.Scope)
+        {
+            case "Self":
+                return string.Equals(target!.InstanceId, state.OwnerStatusId, StringComparison.Ordinal);
+            case "Friendly":
+                return CompanionFriendlyRosterService.Contains(target, includeControlled: true);
+            case "Enemy":
+                return !HeartChangeControlService.IsControlled(target)
+                    && EnemyManager.Instance?.enemyList?.Any(enemy =>
+                        enemy?.Status != null
+                        && string.Equals(enemy.Status.InstanceId, target!.InstanceId, StringComparison.Ordinal)) == true;
+            default:
+                return false;
         }
     }
 
@@ -394,52 +421,14 @@ public static class CompanionTargetPolicyRegistry
             return new[] { owner! };
         }
 
-        if (IsAlive(executor.Self) && (HpPercent(executor.Self) <= 55 || executor.Self!.Defend <= 0))
-        {
-            return new[] { executor.Self! };
-        }
-
-        return IsAlive(owner)
-            ? new[] { owner! }
-            : IsAlive(executor.Self) ? new[] { executor.Self! } : Array.Empty<IStatusManager>();
+        return IsAlive(owner) ? new[] { owner! } : Array.Empty<IStatusManager>();
     }
 
-    private static IEnumerable<IStatusManager> FriendlyStatuses(ScriptExecutor executor, CompanionBattleState state)
+    private static IEnumerable<IStatusManager> FriendlyStatuses()
     {
-        var ids = new HashSet<string>(StringComparer.Ordinal);
-        AddId(ids, state.OwnerStatusId);
-        AddId(ids, executor.Self?.InstanceId);
-        try
-        {
-            var map = Singleton<TempDataManager>.Instance?.RoleStatusMap;
-            if (map != null)
-            {
-                foreach (var statuses in map.Values)
-                {
-                    foreach (var statusId in statuses ?? new List<string>())
-                    {
-                        AddId(ids, statusId);
-                    }
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Debug("[CompanionIntent] friendly roster fallback: " + ex.Message);
-        }
-
-        return ids.Select(StatusById)
+        return CompanionFriendlyRosterService.Snapshot(includeControlled: true)
             .Where(IsAlive)
-            .Cast<IStatusManager>()
             .OrderBy(target => target.InstanceId, StringComparer.Ordinal);
-    }
-
-    private static void AddId(HashSet<string> ids, string? statusId)
-    {
-        if (!string.IsNullOrWhiteSpace(statusId))
-        {
-            ids.Add(statusId!.Trim());
-        }
     }
 
     private static IStatusManager? StatusById(string? statusId)

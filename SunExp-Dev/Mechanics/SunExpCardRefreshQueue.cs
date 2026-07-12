@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using AuraShared.Core;
+using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using Witch.Core;
 using Witch.UI.Window;
@@ -18,17 +19,22 @@ public static class SunExpCardRefreshQueue
 
     public static void RequestDataUpdate(CardItem? card, string source)
     {
-        Request(card, source, refreshTags: false, dataUpdate: true);
+        Request(card, source, refreshTags: false, dataUpdate: true, costUpdate: false);
+    }
+
+    public static void RequestCostUpdate(CardItem? card, string source)
+    {
+        Request(card, source, refreshTags: false, dataUpdate: false, costUpdate: true);
     }
 
     public static void RequestTagRefresh(CardItem? card, string source)
     {
-        Request(card, source, refreshTags: true, dataUpdate: false);
+        Request(card, source, refreshTags: true, dataUpdate: false, costUpdate: false);
     }
 
     public static void RequestFullRefresh(CardItem? card, string source)
     {
-        Request(card, source, refreshTags: true, dataUpdate: true);
+        Request(card, source, refreshTags: true, dataUpdate: true, costUpdate: false);
     }
 
     public static void RequestConfigTagRefresh(IDataConfig? config, string source)
@@ -53,7 +59,7 @@ public static class SunExpCardRefreshQueue
         ScheduleFlush();
     }
 
-    private static void Request(CardItem? card, string source, bool refreshTags, bool dataUpdate)
+    private static void Request(CardItem? card, string source, bool refreshTags, bool dataUpdate, bool costUpdate)
     {
         if (card == null)
         {
@@ -63,15 +69,15 @@ public static class SunExpCardRefreshQueue
         var key = CardKey(card);
         if (key.Length == 0)
         {
-            RefreshNow(card, source, refreshTags, dataUpdate);
+            RefreshNow(card, source, refreshTags, dataUpdate, costUpdate);
             return;
         }
 
         lock (SyncRoot)
         {
             PendingCards[key] = PendingCards.TryGetValue(key, out var existing)
-                ? new PendingCardRefresh(card, existing.RefreshTags || refreshTags, existing.DataUpdate || dataUpdate, source)
-                : new PendingCardRefresh(card, refreshTags, dataUpdate, source);
+                ? new PendingCardRefresh(card, existing.RefreshTags || refreshTags, existing.DataUpdate || dataUpdate, existing.CostUpdate || costUpdate, source)
+                : new PendingCardRefresh(card, refreshTags, dataUpdate, costUpdate, source);
         }
 
         ScheduleFlush();
@@ -136,7 +142,7 @@ public static class SunExpCardRefreshQueue
         }
         else if (card.HasValue)
         {
-            RefreshNow(card.Value.Card, card.Value.Source, card.Value.RefreshTags, card.Value.DataUpdate);
+            RefreshNow(card.Value.Card, card.Value.Source, card.Value.RefreshTags, card.Value.DataUpdate, card.Value.CostUpdate);
         }
 
         SunExpPerformanceCounters.RecordDuration("CardRefreshQueue.Flush", start);
@@ -214,7 +220,7 @@ public static class SunExpCardRefreshQueue
         }
     }
 
-    private static void RefreshNow(CardItem card, string source, bool refreshTags, bool dataUpdate)
+    private static void RefreshNow(CardItem card, string source, bool refreshTags, bool dataUpdate, bool costUpdate)
     {
         var start = SunExpPerformanceCounters.Timestamp();
         try
@@ -231,6 +237,19 @@ public static class SunExpCardRefreshQueue
                 var dataStart = SunExpPerformanceCounters.Timestamp();
                 card.DataUpdate();
                 SunExpPerformanceCounters.RecordDuration("CardRefreshQueue.Card.DataUpdate", dataStart);
+            }
+            else if (costUpdate)
+            {
+                var costStart = SunExpPerformanceCounters.Timestamp();
+                if (!AuraCardPresentationDelta.TrySetCost(
+                        card.transform,
+                        CardConfigApi.NativeDisplayCost(card.dataConfig, FightPlayer.Instance?.Status).ToString()))
+                {
+                    card.DataUpdate();
+                    SunExpPerformanceCounters.Record("CardRefreshQueue.Card.CostFallback");
+                }
+
+                SunExpPerformanceCounters.RecordDuration("CardRefreshQueue.Card.CostUpdate", costStart);
             }
         }
         catch (Exception ex)
@@ -340,11 +359,12 @@ public static class SunExpCardRefreshQueue
 
     private readonly struct PendingCardRefresh
     {
-        public PendingCardRefresh(CardItem card, bool refreshTags, bool dataUpdate, string source)
+        public PendingCardRefresh(CardItem card, bool refreshTags, bool dataUpdate, bool costUpdate, string source)
         {
             Card = card;
             RefreshTags = refreshTags;
             DataUpdate = dataUpdate;
+            CostUpdate = costUpdate;
             Source = source;
         }
 
@@ -353,6 +373,8 @@ public static class SunExpCardRefreshQueue
         public bool RefreshTags { get; }
 
         public bool DataUpdate { get; }
+
+        public bool CostUpdate { get; }
 
         public string Source { get; }
     }

@@ -5,6 +5,7 @@ using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.Audio;
 using AuraToolsExp.Dll.Features.DamageMeter;
+using AuraToolsExp.Dll.Features.Diagnostics;
 using AuraToolsExp.Dll.Features.Feast;
 using AuraToolsExp.Dll.Features.Logging;
 using AuraToolsExp.Dll.Features.ModSync;
@@ -40,6 +41,7 @@ public static class Entry
         RunStep("safe box", () => AuraToolsSafeBoxRuntime.Initialize(modConfig));
         RunStep("mod sync", () => AuraToolsModSyncRuntime.Initialize(modConfig));
         RunStep("DPS meter", () => AuraToolsDamageMeterRuntime.Initialize(modConfig));
+        RunStep("card UI benchmark", () => AuraToolsCardUiBenchmarkRuntime.Initialize(modConfig));
         RunStep("skill CG", () => AuraToolsSkillCgRuntime.Initialize(modConfig));
         RunStep("settings", () => AuraToolsSettingsRuntime.Initialize(modConfig));
 

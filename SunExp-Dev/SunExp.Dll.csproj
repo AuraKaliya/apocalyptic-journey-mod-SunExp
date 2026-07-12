@@ -44,6 +44,10 @@
       <HintPath>$(DllPath)\UnityEngine.CoreModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="UnityEngine.PhysicsModule">
+      <HintPath>$(DllPath)\UnityEngine.PhysicsModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="UnityEngine.AudioModule">
       <HintPath>$(DllPath)\UnityEngine.AudioModule.dll</HintPath>
       <Private>false</Private>
@@ -94,6 +98,10 @@
     </Reference>
     <Reference Include="MemoryPack.Core">
       <HintPath>$(DllPath)\MemoryPack.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="DOTween">
+      <HintPath>$(DllPath)\DOTween.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Mirror">

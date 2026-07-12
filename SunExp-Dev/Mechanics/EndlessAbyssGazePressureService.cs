@@ -63,7 +63,7 @@ public static class EndlessAbyssGazePressureService
 
             if (ApplyCostToCurrentUse(state, config, source, preview: true))
             {
-                SunExpCardRefreshQueue.RequestDataUpdate(item, "AbyssGazePreview:" + source);
+                SunExpCardRefreshQueue.RequestCostUpdate(item, "AbyssGazePreview:" + source);
             }
         }
         catch (Exception ex)
@@ -88,7 +88,7 @@ public static class EndlessAbyssGazePressureService
             }
 
             CancelActiveCost(state, "CancelPreview:" + source);
-            SunExpCardRefreshQueue.RequestDataUpdate(item, "AbyssGazePreviewCancel:" + source);
+            SunExpCardRefreshQueue.RequestCostUpdate(item, "AbyssGazePreviewCancel:" + source);
             return true;
         }
         catch (Exception ex)
@@ -170,7 +170,7 @@ public static class EndlessAbyssGazePressureService
 
             if (ApplyCostToCurrentUse(state, config, source, preview: false))
             {
-                SunExpCardRefreshQueue.RequestDataUpdate(item, "AbyssGazeCost:" + source);
+                SunExpCardRefreshQueue.RequestCostUpdate(item, "AbyssGazeCost:" + source);
             }
         }
         catch (Exception ex)

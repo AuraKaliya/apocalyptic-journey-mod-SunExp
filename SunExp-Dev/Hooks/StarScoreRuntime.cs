@@ -425,7 +425,7 @@ public static class StarScoreRuntime
         }
 
         SunExpPerformanceCounters.Record("StarScore.RefreshRequested");
-        SunExpCardRefreshQueue.RequestDataUpdate(
+        SunExpCardRefreshQueue.RequestCostUpdate(
             card,
             "StarScore:" + reason + ":" + CardConfigApi.Id(config));
     }

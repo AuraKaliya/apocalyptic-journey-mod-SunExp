@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using SunExp.Dll.Infrastructure;
 using UnityEngine;
+using Witch.UI;
+using Witch.UI.Window;
 
 namespace SunExp.Dll.Mechanics;
 
@@ -10,25 +12,16 @@ public static class CompanionSlotService
 {
     public const int MaxFriendlySlots = 4;
 
-    private const float CenterX = -3.5f;
-    private const float MultiplayerSpacing = 2.5f;
+    private const float CenterX = -4f;
+    private const float MultiplayerSpacing = 2.4f;
     private const float SinglePlayerSpacing = 3.5f;
 
     public static int? FindOpenPlayerSlot()
     {
         var occupied = new HashSet<int>();
-        var nativePlayers = CurrentFriendlyStatuses().ToArray();
-        for (var i = 0; i < nativePlayers.Length && i < MaxFriendlySlots; i++)
+        for (var i = 0; i < ReservedPlayerSeatCount() && i < MaxFriendlySlots; i++)
         {
             occupied.Add(i);
-        }
-
-        foreach (var state in ProjectionStateStore.Active())
-        {
-            if (state.SlotIndex >= 0)
-            {
-                occupied.Add(state.SlotIndex);
-            }
         }
 
         foreach (var slotIndex in HeartChangeControlService.ActiveSlotIndexes())
@@ -50,11 +43,6 @@ public static class CompanionSlotService
         return null;
     }
 
-    public static void PositionInPlayerSlot(ProjectionOtherObj projection, int slotIndex)
-    {
-        PositionStatusInPlayerSlot(projection.Status, slotIndex);
-    }
-
     public static void PositionStatusInPlayerSlot(IStatusManager? status, int slotIndex)
     {
         ReflowFriendlyLineup("PositionStatusInPlayerSlot", status, slotIndex);
@@ -70,7 +58,7 @@ public static class CompanionSlotService
         var count = Math.Max(1, Math.Min(MaxFriendlySlots, friendlyCount));
         var index = Math.Max(0, Math.Min(count - 1, slotIndex));
         var spacing = count > 1 ? MultiplayerSpacing : SinglePlayerSpacing;
-        return CenterX + ((count - 1 - index) - (count - 1) / 2f) * spacing;
+        return Math.Min(-0.35f, CenterX + ((count - 1 - index) - (count - 1) / 2f) * spacing);
     }
 
     private static void ReflowFriendlyLineup(string source, IStatusManager? pendingStatus, int pendingSlot)
@@ -100,14 +88,9 @@ public static class CompanionSlotService
         var result = new List<FriendlyEntry>();
         var statusIds = new HashSet<string>(StringComparer.Ordinal);
         var playerSlot = 0;
-        foreach (var status in CurrentFriendlyStatuses())
+        foreach (var status in CompanionFriendlyRosterService.Snapshot(includeControlled: false))
         {
             Add(result, statusIds, status, playerSlot++, isNativePlayer: true);
-        }
-
-        foreach (var state in ProjectionStateStore.Active().OrderBy(state => state.SlotIndex).ThenBy(state => state.StatusId, StringComparer.Ordinal))
-        {
-            Add(result, statusIds, state.Projection?.Status, state.SlotIndex, isNativePlayer: false);
         }
 
         foreach (var entry in HeartChangeControlService.ActiveSlotStatuses().OrderBy(entry => entry.Key).ThenBy(entry => entry.Value?.InstanceId, StringComparer.Ordinal))
@@ -158,40 +141,29 @@ public static class CompanionSlotService
         status.SetPosition(new Vector3(SlotX(visualIndex, friendlyCount), groundY - bottomOffset, 0f));
     }
 
-    private static IEnumerable<IStatusManager> CurrentFriendlyStatuses()
+    private static int ReservedPlayerSeatCount()
     {
-        var result = new List<IStatusManager>();
-        var roleIds = new HashSet<string>(StringComparer.Ordinal);
         try
         {
-            var manager = FightManager.Instance;
-            if (manager?.roleQueue != null)
+            var count = FightManager.Instance?.roleQueue?.Count ?? 0;
+            if (count > 0)
             {
-                foreach (var role in manager.roleQueue)
-                {
-                    var instanceId = role?.InstanceId ?? "";
-                    if (!string.IsNullOrWhiteSpace(instanceId)
-                        && roleIds.Add(instanceId)
-                        && manager.statuses?.TryGetValue(instanceId, out var status) == true)
-                    {
-                        result.Add(status);
-                    }
-                }
+                return Math.Min(MaxFriendlySlots, count);
             }
         }
         catch
         {
-            // Fall through to the singleton player.
+            // Fall back to the configured lobby seat count.
         }
 
-        var self = FightPlayer.Instance?.Status;
-        var selfId = self?.InstanceId ?? "";
-        if (self != null && !string.IsNullOrWhiteSpace(selfId) && roleIds.Add(selfId))
+        try
         {
-            result.Add(self);
+            return Math.Max(1, Math.Min(MaxFriendlySlots, GameEntryUI.playerCount));
         }
-
-        return result;
+        catch
+        {
+            return 1;
+        }
     }
 
     private static float CurrentGroundY(float fallback)

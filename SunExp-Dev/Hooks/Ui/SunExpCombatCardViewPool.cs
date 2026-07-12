@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using AuraShared.Core;
+using DG.Tweening;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks.Visual;
 using SunExp.Dll.Infrastructure;
@@ -19,7 +20,7 @@ public static class SunExpCombatCardViewPool
     private const string PoolRootName = "SunExp.CombatCardViewPool";
     private static readonly AuraSharedObjectPool<string, CardItem> Pool =
         new(SunExpPerformanceSettings.CombatCardViewPoolCommonCapacity, IsAlive);
-    private static readonly Func<CommonCardItem, (bool, bool, Action)> UseCallback = OnCardUse;
+    private static readonly HashSet<CardItem> ActiveViews = new();
     private static int generation;
     private static Transform? poolRoot;
     private static bool initialized;
@@ -33,10 +34,14 @@ public static class SunExpCombatCardViewPool
 
         initialized = true;
         CombatCardViewPoolApi.Register(TryMaterialize);
-        if (!CommonCardItem.UseCallback.Contains(UseCallback))
-        {
-            CommonCardItem.UseCallback.Add(UseCallback);
-        }
+        SunExpHookRegistry.Before(modConfig, SunExpHookTargets.CardItemEffectOfBurnCard,
+            context => SuppressNativeExitVisual(context, PooledCardExitKind.Burn), "CombatCardViewPool");
+        SunExpHookRegistry.After(modConfig, SunExpHookTargets.CardItemEffectOfBurnCard,
+            CompleteNativeExitVisual, "CombatCardViewPool");
+        SunExpHookRegistry.Before(modConfig, SunExpHookTargets.CardItemEffectOfThrowCard,
+            context => SuppressNativeExitVisual(context, ThrowExitKind(context)), "CombatCardViewPool");
+        SunExpHookRegistry.After(modConfig, SunExpHookTargets.CardItemEffectOfThrowCard,
+            CompleteNativeExitVisual, "CombatCardViewPool");
 
         SunExpBattleLifecycleRouter.Register("CombatCardViewPool", new SunExpBattleLifecycleSubscription
         {
@@ -59,6 +64,12 @@ public static class SunExpCombatCardViewPool
     private static void EndFight(string source)
     {
         generation++;
+        foreach (var active in new List<CardItem>(ActiveViews))
+        {
+            DestroyCardView(active);
+        }
+
+        ActiveViews.Clear();
         Pool.Clear(DestroyCardView);
         if (poolRoot != null)
         {
@@ -172,7 +183,19 @@ public static class SunExpCombatCardViewPool
                 new CreateData(config, FightPlayer.Instance.InstanceId));
 
             ActivateForUse(pooled, marker, bucket, config, fightUi);
-            pooled.Init(config);
+            var presentationSignature = CombatCardViewPoolCatalog.PresentationSignature(config, bucket);
+            if (!TryLightweightRebind(pooled, marker, config, presentationSignature))
+            {
+                var initStart = SunExpPerformanceCounters.Timestamp();
+                pooled.Init(config);
+                SunExpPerformanceCounters.RecordDuration("CombatCardViewPool.FullInit", initStart);
+                marker.HasInitializedPresentation = true;
+                marker.PresentationSignature = presentationSignature;
+            }
+
+            var exitAnimator = pooled.GetComponent<PooledCardExitAnimator>()
+                ?? pooled.gameObject.AddComponent<PooledCardExitAnimator>();
+            exitAnimator.RefreshTextBindings(pooled.transform);
             FightUI.cardItemList.Add(pooled);
             fightUi.transform.SetAsFirstSibling();
             FightUiCardLayoutApi.RequestHandLayout(fightUi, "CombatCardViewPool.Materialize");
@@ -196,64 +219,93 @@ public static class SunExpCombatCardViewPool
         }
     }
 
-    private static (bool, bool, Action) OnCardUse(CommonCardItem card)
+    private static void SuppressNativeExitVisual(ModHookContext context, PooledCardExitKind kind)
     {
-        var marker = card.GetComponent<PooledCombatCardViewMarker>();
-        if (marker == null
-            || !marker.InUse
-            || marker.ReleasePending
-            || marker.Generation != generation)
+        if (context.Target is not CardItem card)
         {
-            return (false, false, null!);
+            return;
         }
 
-        return (true, false, () => BeginReleaseAfterUse(card, marker));
+        var marker = card.GetComponent<PooledCombatCardViewMarker>();
+        if (marker == null || marker.Generation != generation || marker.ReleasePending)
+        {
+            return;
+        }
+
+        if (!marker.TryTransition(PooledCardViewState.Bound, PooledCardViewState.NativeVisualSuppressed))
+        {
+            // Re-entrant native visual calls must never regain ownership of a pooled root.
+            card.cardcontainer = null;
+            SunExpPerformanceCounters.Record("CombatCardViewPool.InvalidExitTransition");
+            return;
+        }
+
+        marker.SuppressedCardContainer = card.cardcontainer;
+        marker.PendingExitKind = kind;
+        marker.PendingExitTargetPath = ExitTargetPath(context);
+        card.cardcontainer = null;
+        SunExpPerformanceCounters.Record("CombatCardViewPool.NativeVisualSuppressed");
     }
 
-    private static void BeginReleaseAfterUse(CommonCardItem card, PooledCombatCardViewMarker marker)
+    private static void CompleteNativeExitVisual(ModHookContext context)
     {
-        if (card == null || marker == null || marker.ReleasePending)
+        if (context.Target is not CardItem card)
         {
+            return;
+        }
+
+        var marker = card.GetComponent<PooledCombatCardViewMarker>();
+        if (marker == null || marker.State != PooledCardViewState.NativeVisualSuppressed)
+        {
+            return;
+        }
+
+        card.cardcontainer = marker.SuppressedCardContainer;
+        marker.SuppressedCardContainer = null;
+        if (marker.Generation != generation
+            || !marker.TryTransition(PooledCardViewState.NativeVisualSuppressed, PooledCardViewState.Exiting))
+        {
+            DestroyCardView(card);
+            SunExpPerformanceCounters.Record("CombatCardViewPool.ExitRejectedStale");
+            return;
+        }
+
+        if (marker.PendingExitKind == PooledCardExitKind.Unsupported)
+        {
+            DestroyCardView(card);
+            SunExpPerformanceCounters.Record("CombatCardViewPool.UnsupportedExitDestroyed");
             return;
         }
 
         marker.ReleasePending = true;
         marker.ReleaseAttempts = 0;
-        FightUI.cardItemList.Remove(card);
-        FightUI.WaitCard.Remove(card);
-        FightUI.SelectedCard.Remove(card);
-        if (FightUI.cardItemList.Count == 0 && FightPlayer.Instance != null)
+        StopContainerTween(card);
+        card.ignore = true;
+        card.hasDone = true;
+        card.enabled = false;
+        SetInteraction(card, false);
+        if (marker.PendingExitKind == PooledCardExitKind.MoveToDiscard
+            || marker.PendingExitKind == PooledCardExitKind.MoveToDrawPile)
         {
-            Singleton<EventCenter>.Instance.EventTrigger("NoCard" + FightPlayer.Instance.InstanceId);
+            FightUiCardLayoutApi.RequestHandLayout(
+                UIManager.Instance?.GetUI<FightUI>("FightUI"),
+                "CombatCardViewPool.NativeMoveExit");
         }
 
-        try
+        var animator = card.GetComponent<PooledCardExitAnimator>()
+            ?? card.gameObject.AddComponent<PooledCardExitAnimator>();
+        if (!animator.Play(
+                card,
+                marker.PendingExitKind,
+                marker.PendingExitTargetPath,
+                () => ScheduleRelease(card, marker, 1)))
         {
-            if (DictionaryUtil.Get(card.Vars, "HasBurn", "False") != "True")
-            {
-                if (!FightCardManager.Instance.usedCardList.Contains(card.dataConfig))
-                {
-                    FightCardManager.Instance.usedCardList.Add(card.dataConfig);
-                }
-
-                if (FightManager.Instance != null && FightManager.Instance.fightType != FightType.None)
-                {
-                    card.RunScript("DropScript");
-                }
-
-                card.DataUpdate();
-            }
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Debug("[CombatCardViewPool] native discard bookkeeping fallback: " + ex.Message);
+            DestroyCardView(card);
+            SunExpPerformanceCounters.Record("CombatCardViewPool.ExitAnimationUnavailable");
+            return;
         }
 
-        HidePendingRelease(card);
-        FightUiCardLayoutApi.RequestHandLayout(
-            UIManager.Instance?.GetUI<FightUI>("FightUI"),
-            "CombatCardViewPool.ReleaseAfterUse");
-        ScheduleRelease(card, marker, 1);
+        SunExpPerformanceCounters.Record("CombatCardViewPool.ExitAnimationStarted." + marker.PendingExitKind);
     }
 
     private static void ScheduleRelease(CardItem card, PooledCombatCardViewMarker marker, int delayFrames)
@@ -301,7 +353,7 @@ public static class SunExpCombatCardViewPool
 
         if (cardComponents.Length != 1
             || !string.Equals(marker.ConfigInstanceId, card.dataConfig?.InstanceID ?? "", StringComparison.Ordinal)
-            || card.hasDone)
+            || marker.State != PooledCardViewState.Exiting)
         {
             DestroyCardView(card);
             SunExpPerformanceCounters.Record("CombatCardViewPool.ReleaseRejectedDirty");
@@ -395,7 +447,7 @@ public static class SunExpCombatCardViewPool
         marker.Generation = generation;
         marker.Bucket = bucket;
         marker.ConfigInstanceId = config.InstanceID ?? "";
-        marker.InUse = true;
+        marker.ForceState(PooledCardViewState.Bound);
         marker.ReleasePending = false;
         marker.ReleaseAttempts = 0;
         StopCardAnimation(card);
@@ -416,6 +468,7 @@ public static class SunExpCombatCardViewPool
         rect.localScale = Vector3.one * card.initScale;
         SetInteraction(card, true);
         SetCanvasAlpha(card, 1f);
+        ActiveViews.Add(card);
     }
 
     private static void PrepareIdle(CardItem card, string bucket, int expectedGeneration)
@@ -426,6 +479,11 @@ public static class SunExpCombatCardViewPool
             marker = card.gameObject.AddComponent<PooledCombatCardViewMarker>();
         }
 
+        marker.ForceState(PooledCardViewState.Resetting);
+        card.GetComponent<PooledCardExitAnimator>()?.ResetVisual();
+        FightUI.cardItemList.Remove(card);
+        FightUI.WaitCard.Remove(card);
+        FightUI.SelectedCard.Remove(card);
         StopCardAnimation(card);
         card.StopAllCoroutines();
         card.enabled = false;
@@ -448,17 +506,62 @@ public static class SunExpCombatCardViewPool
         marker.Generation = expectedGeneration;
         marker.Bucket = bucket;
         marker.ConfigInstanceId = "";
-        marker.InUse = false;
         marker.ReleasePending = false;
         marker.ReleaseAttempts = 0;
+        marker.SuppressedCardContainer = null;
+        marker.PendingExitKind = PooledCardExitKind.Unsupported;
+        marker.PendingExitTargetPath = "";
+        marker.ForceState(PooledCardViewState.Idle);
+        ActiveViews.Remove(card);
         card.gameObject.SetActive(false);
     }
 
-    private static void HidePendingRelease(CardItem card)
+    private static bool TryLightweightRebind(
+        CardItem card,
+        PooledCombatCardViewMarker marker,
+        DataConfig config,
+        string presentationSignature)
     {
-        card.enabled = false;
-        SetInteraction(card, false);
-        SetCanvasAlpha(card, 0f);
+        if (!marker.HasInitializedPresentation
+            || presentationSignature.Length == 0
+            || !string.Equals(marker.PresentationSignature, presentationSignature, StringComparison.Ordinal))
+        {
+            SunExpPerformanceCounters.Record("CombatCardViewPool.LightRebind.SignatureMiss");
+            return false;
+        }
+
+        var start = SunExpPerformanceCounters.Timestamp();
+        try
+        {
+            card.dataConfig = config;
+            ICard.SetCardMsg(card.transform, config, null);
+            card.DataUpdate();
+            marker.PresentationSignature = presentationSignature;
+            SunExpPerformanceCounters.Record("CombatCardViewPool.LightRebind.Applied");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SunExpPerformanceCounters.Record("CombatCardViewPool.LightRebind.Fallback");
+            SunExpLog.Debug("[CombatCardViewPool] lightweight rebind fell back to full Init: " + ex.Message);
+            return false;
+        }
+        finally
+        {
+            SunExpPerformanceCounters.RecordDuration("CombatCardViewPool.LightRebind", start);
+        }
+    }
+
+    private static PooledCardExitKind ThrowExitKind(ModHookContext context)
+    {
+        return PooledCardViewExit.ClassifyThrowTarget(ExitTargetPath(context));
+    }
+
+    private static string ExitTargetPath(ModHookContext context)
+    {
+        return context.Arguments != null && context.Arguments.Length > 0
+            ? context.Arguments[0] as string ?? ""
+            : "";
     }
 
     private static void StopCardAnimation(CardItem card)
@@ -470,6 +573,23 @@ public static class SunExpCombatCardViewPool
         catch (Exception ex)
         {
             SunExpLog.Debug("[CombatCardViewPool] StopMove failed: " + ex.Message);
+        }
+    }
+
+    private static void StopContainerTween(CardItem card)
+    {
+        try
+        {
+            var container = card.cardcontainer;
+            if (container != null && container.cardTweenDict.TryGetValue(card, out var tween))
+            {
+                tween?.Kill();
+                container.cardTweenDict.Remove(card);
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Debug("[CombatCardViewPool] container tween cleanup failed: " + ex.Message);
         }
     }
 
@@ -512,6 +632,7 @@ public static class SunExpCombatCardViewPool
     {
         if (IsAlive(card))
         {
+            ActiveViews.Remove(card);
             UnityEngine.Object.Destroy(card.gameObject);
         }
     }

@@ -66,4 +66,57 @@ public static class CombatCardViewPoolCatalog
         return DictionaryUtil.ContainsToken(markers, SunExpIds.PolymorphRoleCardMarker)
             || DictionaryUtil.ContainsToken(markers, SunExpIds.ProjectionRoleCardMarker);
     }
+
+    public static string PresentationSignature(IDataConfig? config, string bucket)
+    {
+        if (config == null)
+        {
+            return "";
+        }
+
+        unchecked
+        {
+            var hash = 14695981039346656037UL;
+            Mix(ref hash, bucket);
+            Mix(ref hash, config.GetType().FullName ?? config.GetType().Name);
+            MixMap(ref hash, config.data);
+            MixMap(ref hash, config.Vars);
+            return hash.ToString("X16");
+        }
+    }
+
+    private static void MixMap(ref ulong hash, IDictionary<string, string>? values)
+    {
+        if (values == null)
+        {
+            Mix(ref hash, "<null>");
+            return;
+        }
+
+        var keys = new List<string>(values.Keys);
+        keys.Sort(StringComparer.Ordinal);
+        foreach (var key in keys)
+        {
+            if (string.Equals(key, "InstanceID", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            Mix(ref hash, key);
+            Mix(ref hash, values.TryGetValue(key, out var value) ? value : "");
+        }
+    }
+
+    private static void Mix(ref ulong hash, string? value)
+    {
+        var text = value ?? "";
+        for (var index = 0; index < text.Length; index++)
+        {
+            hash ^= text[index];
+            hash *= 1099511628211UL;
+        }
+
+        hash ^= 0xFF;
+        hash *= 1099511628211UL;
+    }
 }

@@ -188,7 +188,8 @@ public sealed class CompanionBattleState
             OwnerPlayerId = ownerPlayerId ?? "",
             OwnerStatusId = ownerStatusId ?? "",
             RoleId = roleId ?? "",
-            SlotIndex = slotIndex
+            SlotIndex = slotIndex,
+            EntityKind = "ProjectionAttachment"
         };
         Stats = stats;
     }

@@ -10,6 +10,8 @@ public sealed class SunExpStatusLifecycleSubscription
 {
     public Action<ModHookContext>? BeforeAddBuff { get; set; }
     public Action<ModHookContext>? AfterAddBuff { get; set; }
+    public Action<ModHookContext>? AfterRemoveBuff { get; set; }
+    public Action<ModHookContext>? AfterBuffLevelChanged { get; set; }
     public Action<ModHookContext>? AfterHit { get; set; }
     public Action<ModHookContext>? AfterCurHpChanged { get; set; }
     public Action<ModHookContext>? AfterMaxHpChanged { get; set; }
@@ -36,6 +38,8 @@ public static class SunExpStatusLifecycleRouter
         initialized = true;
         Before(modConfig, SunExpHookTargets.StatusManagerAddBuff, subscription => subscription.BeforeAddBuff);
         After(modConfig, SunExpHookTargets.StatusManagerAddBuff, subscription => subscription.AfterAddBuff);
+        After(modConfig, SunExpHookTargets.StatusManagerRemoveBuff, subscription => subscription.AfterRemoveBuff);
+        After(modConfig, SunExpHookTargets.BuffItemConfigSetLevel, subscription => subscription.AfterBuffLevelChanged);
         After(modConfig, SunExpHookTargets.StatusManagerHit, subscription => subscription.AfterHit);
         After(modConfig, SunExpHookTargets.StatusManagerSetCurHp, subscription => subscription.AfterCurHpChanged);
         After(modConfig, SunExpHookTargets.StatusManagerSetMaxHp, subscription => subscription.AfterMaxHpChanged);

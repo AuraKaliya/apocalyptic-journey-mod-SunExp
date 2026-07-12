@@ -1,7 +1,6 @@
 using System;
 using System.Linq;
 using System.Reflection;
-using AuraShared.Core;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks.Ui;
 using SunExp.Dll.Infrastructure;
@@ -35,9 +34,22 @@ public static class FamiliarGrowthRuntime
         RegisterAfter(modConfig, "HouseManager.OpenWindowByIndex", EnsureLibraryButton);
         RegisterAfter(modConfig, "HouseManager.OpenLibrary", EnsureLibraryButton);
         RegisterAfter(modConfig, "GameEntryUI.NormalGame", MarkSelectedForRun);
+        SunExpHookRegistry.Before(modConfig, SunExpHookTargets.StatusManagerHit, OnStatusHitBefore, "FamiliarGrowth");
+        SunExpHookRegistry.After(modConfig, SunExpHookTargets.StatusManagerHit, OnStatusHitAfter, "FamiliarGrowth");
+        SunExpCombatActionRouter.RegisterActionEventHandler(
+            "FamiliarGrowth",
+            null,
+            FamiliarBlessingEffectRuntime.AfterPlayerAction);
+        BattleRewardAdjustmentService.Register(new BattleRewardAdjustmentRule(
+            "FamiliarGrowth.ExtraChoices",
+            context => BattleRewardApi.IsCurrentBattleReward()
+                       && FamiliarBlessingEffectRuntime.EffectAmount("BattleRewardExtraChoice") > 0,
+            context => FamiliarBlessingEffectRuntime.ApplyBattleRewardExtraChoices(context.RewardUi)));
         SunExpBattleLifecycleRouter.Register("FamiliarGrowth", new SunExpBattleLifecycleSubscription
         {
             FightInitialized = ApplySelectedCombatStartEffects,
+            PlayerRoundStarted = context => FamiliarBlessingEffectRuntime.BeginPlayerRound(),
+            FightEnding = context => FamiliarBlessingEffectRuntime.EndEpoch(),
             FightEnded = GrantBattleWinExperience
         });
         SunExpLog.Info(LogPrefix + " runtime initialized.");
@@ -88,6 +100,7 @@ public static class FamiliarGrowthRuntime
     {
         try
         {
+            FamiliarBlessingEffectRuntime.BeginRun();
             var selected = FamiliarGrowthApi.Selected();
             PlayerApi.SetGameVar(SunExpIds.FamiliarRunSelectedInstanceKey, selected?.InstanceId ?? "");
             SunExpLog.Info(LogPrefix + " selected run familiar: " + (selected?.InstanceId ?? "none"));
@@ -132,28 +145,17 @@ public static class FamiliarGrowthRuntime
                 return;
             }
 
-            var selected = FamiliarGrowthApi.Selected();
-            if (selected == null)
-            {
-                return;
-            }
-
-            var applied = 0;
-            foreach (var blessing in FamiliarGrowthService.BlessingsFor(selected))
-            {
-                for (var i = 0; i < blessing.Effects.Count; i++)
-                {
-                    var effect = blessing.Effects[i];
-                    if (TryClaimCombatStartEffect(status, selected, blessing, effect, i))
-                    {
-                        applied += ApplyCombatStartEffect(status, effect) ? 1 : 0;
-                    }
-                }
-            }
+            var applied = FamiliarBlessingEffectRuntime.BeginEpoch(status);
 
             if (applied > 0)
             {
                 SunExpLog.Debug(LogPrefix + " applied combat start effects: " + applied);
+            }
+
+            var unsupported = FamiliarBlessingEffectRuntime.UnsupportedSelectedEffectKinds();
+            if (unsupported.Count > 0)
+            {
+                SunExpLog.Warn(LogPrefix + " selected effects have no runtime handler: " + string.Join(",", unsupported));
             }
         }
         catch (Exception ex)
@@ -162,78 +164,38 @@ public static class FamiliarGrowthRuntime
         }
     }
 
-    private static bool TryClaimCombatStartEffect(
-        IStatusManager status,
-        FamiliarInstance selected,
-        FamiliarBlessingDefinition blessing,
-        FamiliarBlessingEffect effect,
-        int index)
+    private static void OnStatusHitBefore(ModHookContext context)
     {
-        var statusId = string.IsNullOrWhiteSpace(status.InstanceId) ? "local" : status.InstanceId;
-        var familiarId = string.IsNullOrWhiteSpace(selected.InstanceId) ? selected.SpeciesId : selected.InstanceId;
-        var blessingId = string.IsNullOrWhiteSpace(blessing.Id) ? "unknown-blessing" : blessing.Id;
-        var effectId = blessingId
-                       + ":"
-                       + Math.Max(0, index)
-                       + ":"
-                       + (effect.Kind ?? "")
-                       + ":"
-                       + (effect.Value ?? "")
-                       + ":"
-                       + Math.Max(0, effect.Amount);
-        return AuraLifecycleOperationLedger.TryClaimBattleOperation(
-            SunExpIds.ModId,
-            "FamiliarGrowth",
-            "CombatStartEffect",
-            statusId + ":" + familiarId,
-            effect.Kind ?? "effect",
-            effectId);
+        FamiliarBlessingEffectRuntime.BeforePotentialLethal(
+            context.Target as IStatusManager,
+            HitAmount(context.Arguments));
     }
 
-    private static bool ApplyCombatStartEffect(IStatusManager status, FamiliarBlessingEffect effect)
+    private static void OnStatusHitAfter(ModHookContext context)
     {
-        var kind = (effect.Kind ?? "").Trim();
-        var amount = Math.Max(0, effect.Amount);
-        if (kind.Length == 0 || amount <= 0)
+        FamiliarBlessingEffectRuntime.AfterDamage(
+            context.Target as IStatusManager,
+            HitAmount(context.Arguments),
+            context.Arguments != null && context.Arguments.Length > 3
+                ? Convert.ToString(context.Arguments[3]) ?? ""
+                : "");
+    }
+
+    private static int HitAmount(object[]? args)
+    {
+        if (args == null || args.Length == 0)
         {
-            return false;
+            return 0;
         }
 
-        if (kind.Equals("CombatStartBuff", StringComparison.OrdinalIgnoreCase))
+        try
         {
-            var buffId = NormalizeRuntimeBuffId(effect.Value);
-            if (buffId.Length == 0)
-            {
-                return false;
-            }
-
-            status.AddBuff(buffId, amount);
-            return true;
+            return Math.Max(0, Convert.ToInt32(args[0]));
         }
-
-        if (kind.Equals("CombatStartResource", StringComparison.OrdinalIgnoreCase))
+        catch
         {
-            var buffId = NormalizeRuntimeBuffId(effect.Value);
-            if (buffId.Length == 0)
-            {
-                return false;
-            }
-
-            status.AddBuff(buffId, amount);
-            return true;
+            return 0;
         }
-
-        if (kind.Equals("CombatStartHeal", StringComparison.OrdinalIgnoreCase))
-        {
-            return Heal(status, amount);
-        }
-
-        if (kind.Equals("CombatStartShield", StringComparison.OrdinalIgnoreCase))
-        {
-            return AddShield(status, amount);
-        }
-
-        return false;
     }
 
     private static void ApplySelectedBattleWinEffects()
@@ -257,60 +219,6 @@ public static class FamiliarGrowthRuntime
         {
             PlayerApi.ShowCaption("\u4f7f\u9b54\u795d\u798f\uff1a\u91d1\u5e01+" + gold);
         }
-    }
-
-    private static bool Heal(IStatusManager status, int amount)
-    {
-        try
-        {
-            var maxHp = Math.Max(1, status.MaxHp);
-            var next = Math.Min(maxHp, Math.Max(0, status.CurHp) + amount);
-            if (next == status.CurHp)
-            {
-                return false;
-            }
-
-            status.CurHp = next;
-            if (string.Equals(status.fatherObject?.GetType().Name, "FightPlayer", StringComparison.Ordinal) && RoleTable.Instance != null)
-            {
-                RoleTable.Instance.san = Math.Max(1, next);
-            }
-
-            status.UpdateStatus(true);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Debug(LogPrefix + " heal effect ignored: " + ex.Message);
-            return false;
-        }
-    }
-
-    private static bool AddShield(IStatusManager status, int amount)
-    {
-        try
-        {
-            var next = Math.Max(0, status.Defend) + amount;
-            status.Defend = next;
-            status.UpdateStatus(true);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Debug(LogPrefix + " shield effect ignored: " + ex.Message);
-            return false;
-        }
-    }
-
-    private static string NormalizeRuntimeBuffId(string value)
-    {
-        var id = (value ?? "").Trim();
-        if (id.Equals("starlight", StringComparison.OrdinalIgnoreCase))
-        {
-            return SunExpIds.Starlight;
-        }
-
-        return id;
     }
 
     private static Transform? ResolveLibraryWindow(object? houseManager)

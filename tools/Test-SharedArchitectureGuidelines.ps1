@@ -134,8 +134,10 @@ $sunExpPreloader = Read-RepoText "SunExp-Dev\Hooks\SunExpResourcePreloader.cs"
 Require-Text $sunExpPreloader "AdventureStarting" "SunExp resource warmup must start from the adventure lifecycle."
 Require-Text $sunExpPreloader "AuraSharedFramePhase\.Background" "SunExp resource warmup must use the shared background frame phase."
 Require-Text $sunExpPreloader "battleActive" "SunExp resource warmup must pause during combat."
-Require-Text $sunExpPreloader "StarScoreHudAssets\.AllPaths" "SunExp warmup must cover first-use Star Score HUD sprites."
-Require-Text $sunExpPreloader "PolymorphCardFaceCache\.GetOrCreate" "SunExp warmup must progressively generate polymorph card faces before combat."
+Require-Text $sunExpPreloader "StarScoreHudAssets\.StructuralPaths" "SunExp warmup must cover first-use structural Star Score HUD sprites."
+if ($sunExpPreloader -match "PolymorphCardFaceCache\.GetOrCreate") {
+    throw "SunExp warmup must not generate polymorph card faces on the preload path."
+}
 if ($sunExpPreloader -match "SunExpResourceCache\.Preload<") {
     throw "SunExp resource warmup must not synchronously preload the whole visual catalog in one frame action."
 }
@@ -167,7 +169,14 @@ Require-Text $cardLifecycleRouter "CardItemInit" "AuraCardLifecycleRouter must o
 
 $lifecycleSession = Read-RepoText "AuraSharedCore\AuraLifecycleSessionRuntime.cs"
 Require-Text $lifecycleSession "BeginBattleSession" "Shared lifecycle session runtime must own battle session start."
+Require-Text $lifecycleSession "RestartBattleSession" "Shared lifecycle session runtime must advance the battle epoch when FightInit.Init restarts an active fight."
 Require-Text $lifecycleSession "EndBattleSession" "Shared lifecycle session runtime must own battle session end."
+
+$cardPresentationDelta = Read-RepoText "AuraSharedCore\AuraCardPresentationDelta.cs"
+Require-Text $cardPresentationDelta "TrySetCost" "Shared card presentation deltas must expose a cost-only refresh path."
+if ($cardPresentationDelta -match "SunExp|AuraTools") {
+    throw "Shared card presentation deltas must remain consumer-semantic-free."
+}
 
 $operationLedger = Read-RepoText "AuraSharedCore\AuraLifecycleOperationLedger.cs"
 Require-Text $operationLedger "TryClaimBattleOperation" "Shared lifecycle ledger must expose battle-scoped operation claiming."

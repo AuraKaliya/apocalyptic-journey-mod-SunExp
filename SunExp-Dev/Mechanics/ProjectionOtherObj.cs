@@ -36,9 +36,9 @@ public sealed class ProjectionOtherObj : OtherObj
         ApplyEnemyMaterial();
 
         Attack = stats.Attack;
-        Defend = stats.Armor;
-        MaxHp = stats.MaxHp;
-        CurHp = MaxHp;
+        Defend = 0;
+        MaxHp = 1;
+        CurHp = 1;
         MaxActionCount = 1;
         ActionCount = MaxActionCount;
         InstanceId = string.IsNullOrWhiteSpace(statusId) ? ProjectionStateStore.NextStatusId() : statusId.Trim();
@@ -63,7 +63,6 @@ public sealed class ProjectionOtherObj : OtherObj
         }
 
         InitBound(null, true);
-        ProjectionSummonService.PositionProjection(this, slotIndex);
         return true;
     }
 
@@ -90,6 +89,11 @@ public sealed class ProjectionOtherObj : OtherObj
     public override IEnumerator DoAction()
     {
         if (!CompanionAuthorityService.IsAuthoritative())
+        {
+            yield break;
+        }
+
+        if (!ProjectionEffectContextService.IsOwnerAvailable(battleState))
         {
             yield break;
         }
@@ -207,13 +211,8 @@ public sealed class ProjectionOtherObj : OtherObj
             }
 
             HideAction();
-            FightAction.ActionExecute();
-            if (battleState != null)
-            {
-                CompanionIntentSelector.CommitResolvedPlan(battleState, plan);
-            }
-
-            return true;
+            ProjectionStateStore.NotifyActionPresented(InstanceId);
+            return battleState != null && ProjectionActionExecutor.Execute(this, battleState, action);
         }
         catch (Exception ex)
         {
@@ -248,10 +247,46 @@ public sealed class ProjectionOtherObj : OtherObj
         }
     }
 
+    public void RefreshCommittedIntentValues(string source)
+    {
+        try
+        {
+            var state = battleState ?? CompanionBattleStateStore.Find(InstanceId);
+            if (state?.CurrentPlan == null || state.CurrentPlan.IsWait)
+            {
+                return;
+            }
+
+            state.CurrentPlan = ProjectionEffectContextService.RefreshLockedPlan(this, state, state.CurrentPlan);
+            var intent = CompanionIntentRegistry.Find(state.CurrentPlan.IntentId);
+            if (intent != null)
+            {
+                var repeatCount = state.CurrentPlan.ResolvedEffects.Count == 0
+                    ? 1
+                    : state.CurrentPlan.ResolvedEffects[0].RepeatCount;
+                CompanionThreatService.SetPreview(
+                    state,
+                    intent,
+                    state.CurrentPlan.ResolvedValue,
+                    repeatCount);
+            }
+            RebuildProjectionAction(state.CurrentPlan.EnemyCardId, state.CurrentPlan.Priority);
+            ShowCommittedPlan();
+            ProjectionSummonService.BroadcastRuntimeState(this, source);
+            SunExpPerformanceCounters.Record("ProjectionIntent.OwnerModifierRefresh");
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[Projection] committed intent refresh failed from " + source + ": " + ex.Message);
+        }
+    }
+
     private void ShowCommittedPlan()
     {
         ActionCount = Math.Max(1, MaxActionCount);
         SetAction();
+        var state = battleState ?? CompanionBattleStateStore.Find(InstanceId);
+        ProjectionStateStore.NotifyIntentPresented(InstanceId, state?.CurrentPlan);
         ShowAction();
     }
 
@@ -295,6 +330,7 @@ public sealed class ProjectionOtherObj : OtherObj
     private bool CanProjectionAct()
     {
         return Status != null
+            && ProjectionEffectContextService.IsOwnerAvailable(battleState)
             && Status.state != IStatusManager.State.NoAction
             && Status.state != IStatusManager.State.Dead
             && Status.CurHp > 0

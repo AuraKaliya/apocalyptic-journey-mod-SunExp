@@ -31,6 +31,22 @@ public static class StatusApi
         return Math.Max(0, status?.Defend ?? ReadInt(status, "Defend"));
     }
 
+    public static float DynamicFloat(IStatusManager? status, string key, float fallback = 0f)
+    {
+        if (status == null || string.IsNullOrWhiteSpace(key))
+        {
+            return fallback;
+        }
+
+        var value = ReadDynamicFloat(status, key, float.NaN);
+        return float.IsNaN(value) || float.IsInfinity(value) ? fallback : value;
+    }
+
+    public static float DynamicMultiplier(IStatusManager? status, string key)
+    {
+        return Math.Max(0f, DynamicFloat(status, key, 1f));
+    }
+
     public static bool AddDynamicPercent(IStatusManager? status, string key, int percent)
     {
         return AddDynamicFloat(status, key, percent / 100f, enqueue: true);
@@ -147,7 +163,7 @@ public static class StatusApi
         RoleTable.Instance.isDead = false;
     }
 
-    private static float ReadDynamicFloat(IStatusManager status, string key)
+    private static float ReadDynamicFloat(IStatusManager status, string key, float fallback = 0f)
     {
         var map = Member(status, "dynamicVariables");
         if (map is IDictionary<string, float> typed && typed.TryGetValue(key, out var value))
@@ -163,11 +179,11 @@ public static class StatusApi
             }
             catch
             {
-                return 0f;
+                return fallback;
             }
         }
 
-        return 0f;
+        return fallback;
     }
 
     private static int ReadInt(object? target, string name)

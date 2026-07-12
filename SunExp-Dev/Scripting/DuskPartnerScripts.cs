@@ -11,13 +11,7 @@ public static class DuskPartnerScripts
     {
         try
         {
-            var token = ExecutorApi.RegisterHook(self, "SunExpDuskAfterheatHook", "SunExpDuskAfterheatToken");
-            if (token == null)
-            {
-                return;
-            }
-
-            DuskAfterheatRecoveryService.Activate(self, token);
+            DuskAfterheatRecoveryService.ActivateTrait(self);
         }
         catch (Exception ex)
         {

@@ -7,6 +7,8 @@ namespace SunExp.Dll.Mechanics;
 
 public static class CompanionAuthorityService
 {
+    public const int ProjectionProtocolVersion = 4;
+
     private static int battleEpoch;
 
     public static bool IsAuthoritative()
@@ -85,22 +87,8 @@ public static class CompanionOwnershipService
             Identities[identity.StatusId] = identity;
         }
 
-        var map = Singleton<TempDataManager>.Instance?.RoleStatusMap;
-        if (map == null || string.IsNullOrWhiteSpace(identity.OwnerPlayerId))
-        {
-            return;
-        }
-
-        if (!map.TryGetValue(identity.OwnerPlayerId, out var statuses) || statuses == null)
-        {
-            statuses = new List<string>();
-            map[identity.OwnerPlayerId] = statuses;
-        }
-
-        if (!statuses.Contains(identity.StatusId))
-        {
-            statuses.Add(identity.StatusId);
-        }
+        // Projection attachments deliberately stay outside RoleStatusMap so
+        // native friendly targeting and formal player slots never see them.
     }
 
     public static CompanionEntityIdentity? Find(string statusId)

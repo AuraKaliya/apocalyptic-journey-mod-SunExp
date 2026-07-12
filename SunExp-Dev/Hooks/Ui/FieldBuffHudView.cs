@@ -15,6 +15,7 @@ public sealed class FieldBuffHudView : MonoBehaviour
     private const float RootHeight = 128f;
     private const float IconFrameSize = 62f;
     private const float IconSize = 52f;
+    private const float MultiplayerAvoidanceAt1080 = 150f;
     private static readonly Color PanelTint = new(0.08f, 0.07f, 0.05f, 0.78f);
     private static readonly Color IconFrameTint = new(0.12f, 0.08f, 0.045f, 0.94f);
     private static readonly Color StackTint = new(0.18f, 0.11f, 0.045f, 0.92f);
@@ -96,7 +97,7 @@ public sealed class FieldBuffHudView : MonoBehaviour
         rectTransform.anchorMax = new Vector2(0.5f, 1f);
         rectTransform.pivot = new Vector2(0.5f, 1f);
         rectTransform.sizeDelta = new Vector2(RootWidth, RootHeight);
-        rectTransform.anchoredPosition = new Vector2(0f, -72f);
+        RefreshResponsivePosition();
 
         var group = GetComponent<CanvasGroup>();
         group.alpha = 1f;
@@ -235,6 +236,27 @@ public sealed class FieldBuffHudView : MonoBehaviour
     {
         pointerInside = false;
         tooltip?.Hide();
+    }
+
+    private void OnRectTransformDimensionsChange()
+    {
+        if (rectTransform != null)
+        {
+            RefreshResponsivePosition();
+        }
+    }
+
+    private void RefreshResponsivePosition()
+    {
+        if (rectTransform == null)
+        {
+            return;
+        }
+
+        var host = transform.parent as RectTransform;
+        var hostHeight = host != null && host.rect.height > 1f ? host.rect.height : Screen.height;
+        var avoidance = hostHeight * MultiplayerAvoidanceAt1080 / 1080f;
+        rectTransform.anchoredPosition = new Vector2(0f, -avoidance);
     }
 
     private void OnDestroy()

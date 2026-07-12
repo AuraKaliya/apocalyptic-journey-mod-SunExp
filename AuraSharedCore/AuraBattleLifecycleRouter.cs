@@ -111,10 +111,8 @@ public static class AuraBattleLifecycleRouter
 
     private static void BeginBattleSession()
     {
-        if (AuraLifecycleSessionRuntime.BeginBattleSession())
-        {
-            AuraLifecycleOperationLedger.ClearScopePrefix("battle:");
-        }
+        AuraLifecycleSessionRuntime.RestartBattleSession();
+        AuraLifecycleOperationLedger.ClearScopePrefix("battle:");
     }
 
     private static void DispatchEnded(ModHookContext context, string source)

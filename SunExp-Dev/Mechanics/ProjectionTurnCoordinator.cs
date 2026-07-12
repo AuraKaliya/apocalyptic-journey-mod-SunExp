@@ -72,7 +72,7 @@ public static class ProjectionTurnCoordinator
 
         var activeRound = Math.Max(1, roundSequence);
         var projections = ProjectionStateStore.Active()
-            .OrderBy(state => state.SlotIndex)
+            .OrderBy(state => state.OwnerPlayerId, StringComparer.Ordinal)
             .ThenBy(state => state.StatusId, StringComparer.Ordinal)
             .ToArray();
         SunExpLog.Info("[ProjectionTurn] anchor executing: round=" + activeRound + ", projections=" + projections.Length);

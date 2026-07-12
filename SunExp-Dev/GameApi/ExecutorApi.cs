@@ -231,8 +231,10 @@ public static class ExecutorApi
         }
 
         BuffApi.ConsumeEmberBeforeBurn(executor, target);
+        var stacksAtTrigger = StatusBuffLevel(target, SunExpIds.Burn);
         SetStatusForTarget(executor, target, fallbackStatus);
-        executor.RunImmediately(SunExpIds.Burn, "StartRound");
+        BurnTriggerApi.ExecuteImmediate(() => executor.RunImmediately(SunExpIds.Burn, "StartRound"));
+        BurnTriggerApi.NotifyActual(target, stacksAtTrigger, "ExecutorApi.TriggerBurn");
         return true;
     }
 
@@ -247,13 +249,23 @@ public static class ExecutorApi
         var triggered = 0;
         for (var i = 0; i < count; i++)
         {
-            foreach (var target in EnemyTargets(executor))
+            var targets = EnemyTargets(executor).ToArray();
+            var stacks = targets.ToDictionary(
+                target => target.InstanceId,
+                target => StatusBuffLevel(target, SunExpIds.Burn),
+                StringComparer.Ordinal);
+            foreach (var target in targets)
             {
                 BuffApi.ConsumeEmberBeforeBurn(executor, target);
+                stacks[target.InstanceId] = StatusBuffLevel(target, SunExpIds.Burn);
             }
 
             executor.SetStatus("AllTarget");
-            executor.RunImmediately(SunExpIds.Burn, "StartRound");
+            BurnTriggerApi.ExecuteImmediate(() => executor.RunImmediately(SunExpIds.Burn, "StartRound"));
+            foreach (var target in targets)
+            {
+                BurnTriggerApi.NotifyActual(target, stacks[target.InstanceId], "ExecutorApi.TriggerBurnAllEnemies");
+            }
             triggered++;
         }
 
@@ -272,13 +284,23 @@ public static class ExecutorApi
         for (var i = 0; i < count; i++)
         {
             executor.SetStatus("All");
-            foreach (var target in executor.Object ?? new List<IStatusManager>())
+            var targets = (executor.Object ?? new List<IStatusManager>()).ToArray();
+            var stacks = targets.ToDictionary(
+                target => target.InstanceId,
+                target => StatusBuffLevel(target, SunExpIds.Burn),
+                StringComparer.Ordinal);
+            foreach (var target in targets)
             {
                 BuffApi.ConsumeEmberBeforeBurn(executor, target);
+                stacks[target.InstanceId] = StatusBuffLevel(target, SunExpIds.Burn);
             }
 
             executor.SetStatus("All");
-            executor.RunImmediately(SunExpIds.Burn, "StartRound");
+            BurnTriggerApi.ExecuteImmediate(() => executor.RunImmediately(SunExpIds.Burn, "StartRound"));
+            foreach (var target in targets)
+            {
+                BurnTriggerApi.NotifyActual(target, stacks[target.InstanceId], "ExecutorApi.TriggerBurnAll");
+            }
             triggered++;
         }
 

@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using TMPro;
@@ -20,7 +21,7 @@ public sealed class ProjectionTurnAnchorObj : OtherObj
             return false;
         }
 
-        var anchorData = new Dictionary<string, string>(templateData)
+        var anchorData = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["Id"] = "SunExp_projection_turn_anchor",
             ["Name"] = "",
@@ -31,9 +32,10 @@ public sealed class ProjectionTurnAnchorObj : OtherObj
             ["Defend"] = "0",
             ["Hp"] = "1",
             ["ActionCount"] = "1",
-            ["CardList"] = ""
+            ["CardList"] = "",
+            ["Animation"] = animation
         };
-        dataConfig = new DataConfig(anchorData, new Dictionary<string, string>());
+        dataConfig = new DataConfig(anchorData, new Dictionary<string, string>(), false);
         data = dataConfig.data;
         FightAction = new ObjectAction(this);
         Attack = 0;

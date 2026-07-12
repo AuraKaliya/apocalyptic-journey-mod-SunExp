@@ -26,4 +26,11 @@ public sealed class ProjectionState
     public ProjectionOtherObj Projection { get; }
 
     public int SlotIndex { get; }
+
+    public bool IsSuspended { get; private set; }
+
+    public void SetSuspended(bool suspended)
+    {
+        IsSuspended = suspended;
+    }
 }

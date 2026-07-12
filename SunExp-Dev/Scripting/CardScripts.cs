@@ -9,6 +9,8 @@ namespace SunExp.Dll.Scripting;
 
 public static class CardScripts
 {
+    private static readonly object DirectInitGate = new();
+    private static readonly Dictionary<string, Action<ScriptExecutor>> DirectInitDelegates = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, Action<ScriptExecutor>> InitHandlers = new(StringComparer.Ordinal)
     {
         ["spark"] = InitSpark,
@@ -73,6 +75,7 @@ public static class CardScripts
 
     public static void Init(ScriptExecutor self, string id)
     {
+        var start = SunExpPerformanceCounters.Timestamp();
         try
         {
             id = NormalizeId(id);
@@ -106,6 +109,32 @@ public static class CardScripts
         {
             SunExpLog.Error("Card Init failed: " + id, ex);
         }
+        finally
+        {
+            BindDirectInit(self, id);
+            SunExpCombatCardUiDiagnostics.RecordCurrentSegment("Manual.CardScripts.Init", start);
+        }
+    }
+
+    private static void BindDirectInit(ScriptExecutor self, string id)
+    {
+        if (self?.ScriptDict == null)
+        {
+            return;
+        }
+
+        var normalized = NormalizeId(id);
+        Action<ScriptExecutor> direct;
+        lock (DirectInitGate)
+        {
+            if (!DirectInitDelegates.TryGetValue(normalized, out direct))
+            {
+                direct = executor => Init(executor, normalized);
+                DirectInitDelegates[normalized] = direct;
+            }
+        }
+
+        self.ScriptDict["InitScript"] = direct;
     }
 
     public static void Use(ScriptExecutor self, string id)
@@ -738,7 +767,7 @@ public static class CardScripts
 
             DictionaryUtil.Set(card.Vars, "ExCost", used.ToString());
             DictionaryUtil.Set(card.dataConfig?.Vars, "ExCost", used.ToString());
-            SunExpCardRefreshQueue.RequestDataUpdate(card, "FlamewheelHand");
+            SunExpCardRefreshQueue.RequestCostUpdate(card, "FlamewheelHand");
         }
     }
 }

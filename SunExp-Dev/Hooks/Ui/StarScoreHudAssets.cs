@@ -25,7 +25,7 @@ public static class StarScoreHudAssets
 
     private static readonly Dictionary<string, Sprite?> Cache = new(StringComparer.OrdinalIgnoreCase);
 
-    public static IEnumerable<string> AllPaths()
+    public static IEnumerable<string> StructuralPaths()
     {
         yield return FullPath;
         yield return BackgroundPath;
@@ -34,10 +34,27 @@ public static class StarScoreHudAssets
         yield return Score2Path;
         yield return Score3Path;
         yield return SpacePath;
+    }
+
+    public static IEnumerable<string> NoteIconPaths()
+    {
         yield return OpeningIconPath;
         yield return SustainIconPath;
         yield return TurnIconPath;
         yield return CloseIconPath;
+    }
+
+    public static IEnumerable<string> AllPaths()
+    {
+        foreach (var path in StructuralPaths())
+        {
+            yield return path;
+        }
+
+        foreach (var path in NoteIconPaths())
+        {
+            yield return path;
+        }
     }
 
     public static Sprite? Load(string path)

@@ -89,6 +89,39 @@ public static class CardConfigApi
         return Math.Max(0, total);
     }
 
+    public static int NativeDisplayCost(IDataConfig? config, object? status = null)
+    {
+        if (config == null)
+        {
+            return 0;
+        }
+
+        var baseCost = Math.Max(0, DictionaryUtil.GetInt(config.data, "Expend"));
+        var extra = DictionaryUtil.GetInt(config.Vars, "TotalExCost")
+                    + DictionaryUtil.GetInt(config.Vars, "ExCost")
+                    + DictionaryUtil.GetInt(config.Vars, "OnceExCost");
+        var multiplier = 1f;
+        if (ReadDynamicVariables(status) is IDictionary<string, float> dynamicVariables
+            && dynamicVariables.TryGetValue("CardCost", out var currentMultiplier))
+        {
+            multiplier = currentMultiplier;
+        }
+
+        return Math.Max(0, (int)Math.Abs(baseCost * multiplier) + extra);
+    }
+
+    private static object? ReadDynamicVariables(object? status)
+    {
+        if (status == null)
+        {
+            return null;
+        }
+
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+        return status.GetType().GetProperty("dynamicVariables", flags)?.GetValue(status)
+               ?? status.GetType().GetField("dynamicVariables", flags)?.GetValue(status);
+    }
+
     public static int BaseCost(IDataConfig? config)
     {
         return config == null ? 0 : Math.Max(0, DictionaryUtil.GetInt(config.data, "Expend"));

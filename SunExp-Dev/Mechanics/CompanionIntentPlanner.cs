@@ -75,7 +75,7 @@ public static class CompanionIntentPlanner
         }
 
         var resolvedEffect = handler.Resolve(state, intent, targets);
-        return new CompanionIntentPlan
+        var plan = new CompanionIntentPlan
         {
             PlanId = CompanionSystemPlans.PlanId(state),
             StatusId = state.StatusId,
@@ -92,6 +92,7 @@ public static class CompanionIntentPlanner
             IsWait = false,
             ResolvedEffects = new List<CompanionResolvedEffect> { resolvedEffect }
         };
+        return ProjectionEffectContextService.RefreshLockedPlan(projection, state, plan);
     }
 
     public static void Commit(CompanionBattleState state, CompanionIntentPlan plan)
@@ -114,7 +115,8 @@ public static class CompanionIntentPlanner
         var intent = CompanionIntentRegistry.Find(plan.IntentId);
         if (intent != null)
         {
-            CompanionThreatService.SetPreview(state, intent);
+            CompanionThreatService.SetPreview(state, intent, plan.ResolvedValue,
+                plan.ResolvedEffects.Count == 0 ? 1 : plan.ResolvedEffects[0].RepeatCount);
         }
     }
 
@@ -130,6 +132,10 @@ public static class CompanionIntentPlanner
             .Where(handlerId => !string.IsNullOrWhiteSpace(handlerId))
             .Distinct(StringComparer.Ordinal));
         var targets = string.Join(",", plan.OrderedTargetIds ?? new List<string>());
+        var intent = CompanionIntentRegistry.Find(plan.IntentId);
+        var friendlyRoster = string.Join(",", CompanionFriendlyRosterService.Snapshot(includeControlled: true)
+            .Where(CompanionTargetPolicyRegistry.IsAlive)
+            .Select(status => status.InstanceId));
         SunExpLog.Info("[ProjectionPlan] committed"
             + " battleEpoch=" + CompanionAuthorityService.BattleEpoch
             + " projection=" + state.StatusId
@@ -139,10 +145,12 @@ public static class CompanionIntentPlanner
             + " plan=" + plan.PlanId
             + " status=" + (plan.IsWait ? "WaitingForMagicOrIntent" : "Ready")
             + " intent=" + plan.IntentId
+            + " scope=" + (intent?.Target?.Scope ?? "none")
             + " handler=" + (handlers.Length == 0 ? "none" : handlers)
             + " magic=" + state.Stats.CurrentMagic
             + " cost=" + plan.Cost
             + " targets=" + (targets.Length == 0 ? "none" : targets)
+            + " friendlyRoster=" + (friendlyRoster.Length == 0 ? "none" : friendlyRoster)
             + " priority=" + plan.Priority
             + " reason=" + (plan.IsWait ? "no-eligible-intent" : "priority-weighted"));
     }

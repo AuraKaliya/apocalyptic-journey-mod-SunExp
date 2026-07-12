@@ -9,6 +9,7 @@ namespace SunExp.Dll.GameApi;
 
 public static class BuffApi
 {
+    public static event Action<ScriptExecutor, IStatusManager, int>? EmberConsumed;
     private static readonly HashSet<string> PositiveExcludeIds = new(StringComparer.Ordinal)
     {
         "scorching_canopy",
@@ -581,9 +582,11 @@ public static class BuffApi
         SavePersistentEmber(executor, status);
         if (!IsWunaActive())
         {
+            EmberConsumed?.Invoke(executor, status, consumed);
             return consumed;
         }
 
+        EmberConsumed?.Invoke(executor, status, consumed);
         var maxHp = ReadIntProperty(status, "MaxHp");
         var heal = Math.Max(1, maxHp * consumed / 100);
         executor.SetStatus("Self");
