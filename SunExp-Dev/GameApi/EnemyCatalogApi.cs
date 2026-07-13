@@ -141,6 +141,15 @@ public static class EnemyCatalogApi
     private static string SourceModId(string enemyId)
     {
         var normalized = enemyId ?? "";
+        if (normalized.StartsWith("enemy_", StringComparison.Ordinal))
+        {
+            return "BaseGame";
+        }
+        if (normalized.StartsWith("SunExp_sunexp_", StringComparison.Ordinal))
+        {
+            return "SunExp";
+        }
+
         var separator = normalized.IndexOf('_');
         return separator > 0 ? normalized.Substring(0, separator) : "BaseGame";
     }

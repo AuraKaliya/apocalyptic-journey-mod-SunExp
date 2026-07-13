@@ -24,7 +24,7 @@ $patterns = @(
     },
     [pscustomobject]@{
         Key = "retired-mode-name"
-        Regex = "TongtianTower|通天塔"
+        Regex = "TongtianTower|\u901A\u5929\u5854"
         Note = "retired mode name; use EndlessSea/EndlessAbyss current naming"
     },
     [pscustomobject]@{
@@ -39,7 +39,7 @@ $patterns = @(
     },
     [pscustomobject]@{
         Key = "old-decompile-folder"
-        Regex = "反编译文件夹v1\.0\.23693118"
+        Regex = "\u53CD\u7F16\u8BD1\u6587\u4EF6\u5939v1\.0\.23693118"
         Note = "old decompile folder version; route through game-reference-index"
     }
 )
@@ -58,7 +58,7 @@ $files = Get-ChildItem -LiteralPath $root -Recurse -File |
 
 $hits = New-Object System.Collections.Generic.List[object]
 foreach ($file in $files) {
-    $relative = [System.IO.Path]::GetRelativePath($root, $file.FullName)
+    $relative = $file.FullName.Substring($root.TrimEnd('\', '/').Length).TrimStart('\', '/').Replace('/', '\')
     $text = [System.IO.File]::ReadAllText($file.FullName)
     foreach ($pattern in $patterns) {
         foreach ($match in [regex]::Matches($text, $pattern.Regex, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)) {

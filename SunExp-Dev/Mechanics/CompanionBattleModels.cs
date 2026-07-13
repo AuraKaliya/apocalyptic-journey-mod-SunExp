@@ -19,6 +19,13 @@ public enum CompanionIntentTendency
     Defense
 }
 
+public enum SpiritIntentPool
+{
+    Pve,
+    PvpReserved,
+    Fallback
+}
+
 public sealed class CompanionStats
 {
     public CompanionStats(int maxHp, int maxMagic, int attack, int armor)
@@ -294,6 +301,10 @@ public sealed class CompanionIntentDefinition
 
     public string EnemyCardId { get; set; } = "";
 
+    public string Pool { get; set; } = "Common";
+
+    public string AdaptationNote { get; set; } = "";
+
     public string Type { get; set; } = "Attack";
 
     public int Cost { get; set; }
@@ -323,6 +334,94 @@ public sealed class CompanionIntentDefinition
     public string PriorityBonus { get; set; } = "";
 
     public CompanionIntentThreatSpec Threat { get; set; } = new();
+
+    // Schema 3 spirit intents may preserve several effects from one native
+    // enemy card. Empty keeps the projection registry backward compatible
+    // with its original single-effect shape.
+    public List<CompanionIntentEffectSpec> Effects { get; set; } = new();
+}
+
+public sealed class CompanionIntentEffectSpec
+{
+    public string HandlerId { get; set; } = "";
+
+    public CompanionIntentTargetSpec Target { get; set; } = new();
+
+    public int HitCount { get; set; } = 1;
+
+    public string BuffId { get; set; } = "";
+
+    public int BuffStacks { get; set; }
+
+    public int FlatValue { get; set; }
+
+    public float AttackScale { get; set; }
+
+    public float ArmorScale { get; set; }
+
+    public float MagicScale { get; set; }
+
+    public int DisplayIndex { get; set; } = 1;
+}
+
+public static class CompanionIntentEffects
+{
+    public static IReadOnlyList<CompanionIntentEffectSpec> Expand(CompanionIntentDefinition intent)
+    {
+        if (intent?.Effects != null && intent.Effects.Count > 0)
+        {
+            return intent.Effects;
+        }
+
+        return intent == null
+            ? Array.Empty<CompanionIntentEffectSpec>()
+            : new[] { FromLegacy(intent) };
+    }
+
+    public static CompanionIntentDefinition AsDefinition(
+        CompanionIntentDefinition parent,
+        CompanionIntentEffectSpec effect)
+    {
+        return new CompanionIntentDefinition
+        {
+            Id = parent.Id,
+            EnemyCardId = parent.EnemyCardId,
+            Pool = parent.Pool,
+            AdaptationNote = parent.AdaptationNote,
+            Type = parent.Type,
+            Cost = parent.Cost,
+            Cooldown = parent.Cooldown,
+            BasePriority = parent.BasePriority,
+            HandlerId = effect.HandlerId,
+            Target = effect.Target,
+            HitCount = effect.HitCount,
+            BuffId = effect.BuffId,
+            BuffStacks = effect.BuffStacks,
+            FlatValue = effect.FlatValue,
+            AttackScale = effect.AttackScale,
+            ArmorScale = effect.ArmorScale,
+            MagicScale = effect.MagicScale,
+            PriorityBonus = parent.PriorityBonus,
+            Threat = parent.Threat
+        };
+    }
+
+    public static CompanionIntentEffectSpec FromLegacy(CompanionIntentDefinition intent)
+    {
+        return new CompanionIntentEffectSpec
+        {
+            HandlerId = intent.HandlerId,
+            Target = intent.Target,
+            HitCount = intent.HitCount,
+            BuffId = intent.BuffId,
+            BuffStacks = intent.BuffStacks,
+            FlatValue = intent.FlatValue,
+            AttackScale = intent.AttackScale,
+            ArmorScale = intent.ArmorScale,
+            MagicScale = intent.MagicScale,
+            DisplayIndex = 1
+        };
+    }
 }
 
 public sealed class CompanionIntentThreatSpec

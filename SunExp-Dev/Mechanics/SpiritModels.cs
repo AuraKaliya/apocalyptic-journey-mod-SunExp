@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace SunExp.Dll.Mechanics;
 
@@ -25,6 +26,26 @@ public sealed class CapturedEnemySnapshot
     public List<string> SourceEnemyCardIds { get; set; } = new();
 
     public string ProfileKey => SpiritProfileKey.Create(EnemyId, VariantId);
+}
+
+[Serializable]
+public sealed class SpiritCardBattleState
+{
+    public int TurnIndex { get; set; }
+
+    public Dictionary<string, int> ReadyOnTurn { get; set; } = new(StringComparer.Ordinal);
+
+    public static SpiritCardBattleState From(CompanionBattleState? state)
+    {
+        return new SpiritCardBattleState
+        {
+            TurnIndex = Math.Max(0, state?.TurnIndex ?? 0),
+            ReadyOnTurn = state == null
+                ? new Dictionary<string, int>(StringComparer.Ordinal)
+                : state.ReadyOnTurnSnapshot()
+                    .ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.Ordinal)
+        };
+    }
 }
 
 public sealed class SpiritEligibilityResult
@@ -53,7 +74,7 @@ public static class SpiritProfileKey
     {
         var enemy = (enemyId ?? "").Trim();
         var variant = string.IsNullOrWhiteSpace(variantId) ? enemy : variantId.Trim();
-        return "spirit:" + enemy + "#" + variant;
+        return SpiritProfileIdentityResolver.CreateProfileKey(enemy, variant);
     }
 }
 
@@ -63,8 +84,14 @@ public sealed class SpiritIntentProfile
     public string EnemyId { get; set; } = "*";
     public string VariantId { get; set; } = "*";
     public List<string> SourceEnemyCardIds { get; set; } = new();
-    public List<string> AttackTendency { get; set; } = new();
-    public List<string> DefenseTendency { get; set; } = new();
+    public List<string> PveAttackTendency { get; set; } = new();
+    public List<string> PveDefenseTendency { get; set; } = new();
+    public List<string> PvpAttackTendency { get; set; } = new();
+    public List<string> PvpDefenseTendency { get; set; } = new();
+    public List<string> FallbackAttackTendency { get; set; } = new();
+    public List<string> FallbackDefenseTendency { get; set; } = new();
+    public List<string> PvpSourceEnemyCardIds { get; set; } = new();
+    public List<string> FallbackSourceEnemyCardIds { get; set; } = new();
     public int AttackWeight { get; set; } = 60;
     public int DefenseWeight { get; set; } = 40;
     public float HpMultiplier { get; set; } = 1f;
@@ -76,7 +103,7 @@ public sealed class SpiritIntentProfile
 [Serializable]
 public sealed class SpiritIntentRegistryDocument
 {
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } = 3;
     public List<CompanionIntentDefinition> Intents { get; set; } = new();
     public List<SpiritIntentProfile> Profiles { get; set; } = new();
 }

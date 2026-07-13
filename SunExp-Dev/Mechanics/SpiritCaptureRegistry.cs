@@ -47,11 +47,19 @@ public static class SpiritCaptureRegistry
 
     public static SpiritCaptureProfile ProfileFor(string enemyId, string variantId)
     {
+        return ResolveProfile(enemyId, variantId).Profile;
+    }
+
+    public static SpiritProfileResolution<SpiritCaptureProfile> ResolveProfile(string enemyId, string variantId)
+    {
         lock (SyncRoot)
         {
-            return document.Profiles.FirstOrDefault(profile => Same(profile.EnemyId, enemyId) && Same(profile.VariantId, variantId))
-                ?? document.Profiles.FirstOrDefault(profile => Same(profile.EnemyId, enemyId) && profile.VariantId == "*")
-                ?? document.Profiles.First(profile => profile.EnemyId == "*" && profile.VariantId == "*");
+            return SpiritProfileIdentityResolver.Resolve(
+                document.Profiles,
+                profile => profile.EnemyId,
+                profile => profile.VariantId,
+                enemyId,
+                variantId);
         }
     }
 

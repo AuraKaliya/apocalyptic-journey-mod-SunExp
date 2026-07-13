@@ -71,7 +71,7 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
             running = null;
             if (burnAnimationStarted > 0L)
             {
-                SunExpPerformanceCounters.RecordDuration("PooledCardExit.BurnAnimationCancelled", burnAnimationStarted);
+                SunExpPerformanceCounters.RecordDuration("PooledCardExit.BurnWallDurationCancelled", burnAnimationStarted);
                 burnAnimationStarted = 0L;
             }
         }
@@ -127,6 +127,7 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
         var elapsed = 0f;
         while (elapsed < duration && card != null)
         {
+            var frameCpuStarted = SunExpPerformanceCounters.Timestamp();
             elapsed += Math.Max(0f, Time.deltaTime);
             var progress = Mathf.Clamp01(elapsed / duration);
             var fade = Mathf.Lerp(50f, -90f, Mathf.Clamp01((progress - 0.18f) / 0.82f));
@@ -146,11 +147,12 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
                 canvasGroup.alpha = 1f - Mathf.Clamp01((progress - 0.55f) / 0.45f);
             }
 
+            SunExpPerformanceCounters.RecordDuration("PooledCardExit.BurnFrameCpu", frameCpuStarted);
             yield return null;
         }
 
         running = null;
-        SunExpPerformanceCounters.RecordDuration("PooledCardExit.BurnAnimation", burnAnimationStarted);
+        SunExpPerformanceCounters.RecordDuration("PooledCardExit.BurnWallDuration", burnAnimationStarted);
         burnAnimationStarted = 0L;
         onComplete();
     }

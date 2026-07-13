@@ -16,6 +16,7 @@ public static class SpiritRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
+        ProjectionIntentPresenter.Initialize();
         SpiritAttachmentPresenter.Initialize();
         SpiritCardFaceRuntime.Initialize();
         RegisterBefore(modConfig, SunExpHookTargets.CommonCardItemOnBeginDrag, context => GateUse(context, "OnBeginDrag"));
@@ -33,7 +34,12 @@ public static class SpiritRuntime
                 SpiritCaptureService.ResetBattleSynchronization();
                 SpiritStateStore.ClearAll("FightStarted");
             },
-            FightEnding = _ => SpiritStateStore.ClearAll("FightEnding")
+            PlayerRoundStarted = _ => SpiritSummonService.FlushPendingCardReturns("PlayerRoundStarted"),
+            FightEnding = _ =>
+            {
+                SpiritSummonService.ResetBattleSynchronization();
+                SpiritStateStore.ClearAll("FightEnding");
+            }
         });
         RegisterBefore(modConfig, SunExpHookTargets.FightWinInit, _ => SpiritStateStore.ClearAll("Fight_Win.Init:before"));
         RegisterBefore(modConfig, SunExpHookTargets.FightLossInit, _ => SpiritStateStore.ClearAll("Fight_Loss.Init:before"));

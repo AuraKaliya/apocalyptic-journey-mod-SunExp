@@ -19,6 +19,14 @@ internal static class CombatantTeamResolver
     {
         return DamageMeterFightIndex.DisplayName(status, fallback);
     }
+
+    public static DamageSourceAttribution ResolveAttribution(
+        IStatusManager? status,
+        string instanceId,
+        string fallbackDisplayName)
+    {
+        return DamageMeterFightIndex.ResolveAttribution(status, instanceId, fallbackDisplayName);
+    }
 }
 
 internal static class DamageDetailResolver

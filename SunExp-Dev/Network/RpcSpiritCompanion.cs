@@ -12,6 +12,8 @@ public sealed class SpiritCompanionSnapshot
     public int BattleEpoch { get; set; }
     public string RegistryHash { get; set; } = "";
     public int Revision { get; set; }
+    public int Generation { get; set; }
+    public int ExchangeCount { get; set; }
     public string Token { get; set; } = "";
     public CapturedEnemySnapshot CapturedEnemy { get; set; } = new();
     public string OwnerStatusId { get; set; } = "";
@@ -26,6 +28,12 @@ public sealed class SpiritCompanionSnapshot
     public Dictionary<string, int> ReadyOnTurn { get; set; } = new();
     public CompanionThreatSnapshot? Threat { get; set; }
     public CompanionIntentPlan? IntentPlan { get; set; }
+    public string ReplacedStatusId { get; set; } = "";
+    public CapturedEnemySnapshot? ReturnedCard { get; set; }
+    public int ReturnedExchangeCount { get; set; }
+    public int ReturnedTurnIndex { get; set; }
+    public Dictionary<string, int> ReturnedReadyOnTurn { get; set; } = new();
+    public string CardGrantEventId { get; set; } = "";
     public string RejectionReason { get; set; } = "";
 }
 
@@ -37,6 +45,9 @@ public sealed class RpcSpiritSummonRequest : RpcCommandBase, ISunExpServerBoundR
     public CapturedEnemySnapshot CapturedEnemy { get; set; } = new();
     public string OwnerStatusId { get; set; } = "";
     public string Token { get; set; } = "";
+    public int ExchangeCount { get; set; }
+    public int TurnIndex { get; set; }
+    public Dictionary<string, int> ReadyOnTurn { get; set; } = new();
     public int ProtocolVersion { get; set; } = CompanionAuthorityService.ProjectionProtocolVersion;
     public int BattleEpoch { get; set; }
     public string RegistryHash { get; set; } = "";
@@ -45,11 +56,21 @@ public sealed class RpcSpiritSummonRequest : RpcCommandBase, ISunExpServerBoundR
     {
     }
 
-    public RpcSpiritSummonRequest(CapturedEnemySnapshot capturedEnemy, string ownerStatusId, string token)
+    public RpcSpiritSummonRequest(
+        CapturedEnemySnapshot capturedEnemy,
+        string ownerStatusId,
+        string token,
+        int exchangeCount,
+        SpiritCardBattleState battleState)
     {
         CapturedEnemy = capturedEnemy ?? new CapturedEnemySnapshot();
         OwnerStatusId = ownerStatusId ?? "";
         Token = token ?? "";
+        ExchangeCount = Math.Max(0, exchangeCount);
+        TurnIndex = Math.Max(0, battleState?.TurnIndex ?? 0);
+        ReadyOnTurn = battleState?.ReadyOnTurn == null
+            ? new Dictionary<string, int>()
+            : new Dictionary<string, int>(battleState.ReadyOnTurn);
         BattleEpoch = CompanionAuthorityService.BattleEpoch;
         RegistryHash = SpiritIntentRegistry.RegistryHash;
     }
@@ -65,6 +86,8 @@ public sealed class RpcSpiritSummonRequest : RpcCommandBase, ISunExpServerBoundR
             CapturedEnemy,
             OwnerStatusId,
             Token,
+            ExchangeCount,
+            new SpiritCardBattleState { TurnIndex = TurnIndex, ReadyOnTurn = ReadyOnTurn },
             serverSender,
             ProtocolVersion,
             BattleEpoch,

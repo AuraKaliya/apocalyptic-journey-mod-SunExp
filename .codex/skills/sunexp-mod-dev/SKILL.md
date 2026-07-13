@@ -104,6 +104,10 @@ tools\Build-SunExpVisualBundle.ps1 # when VisualAssets or VisualBundles change
 - Use full mod IDs when referencing SunExp-defined content.
 - Keep player-facing text, dynamic descriptions, release notes, and behavior in sync when rows or scripts change.
 - Do not write battle-only or run-only state back into base CSV `Data/*` rows.
+- Treat `IDataConfig.data` as read-only host configuration. Write runtime card
+  overrides to `Vars`; copy and merge `data` only when composing persistent
+  payloads such as `Vars["RawData"]`. See
+  `references/csharp-authoring-boundaries.md`.
 - Keep historical anchors out of operational skills. Record them only through
   `sunexp-skill-evolution` archaeology or staleness notes.
 - Do not expose SunExp internal helpers as the development base for AuraToolsExp.

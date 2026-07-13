@@ -11,6 +11,7 @@ namespace SunExp.Dll.GameApi;
 public sealed class CardGrantRequest
 {
     private readonly List<CardGrantMutation> mutations = new();
+    private readonly Dictionary<string, string> runtimePresentation = new(StringComparer.Ordinal);
 
     public CardGrantRequest(string cardId)
     {
@@ -28,6 +29,8 @@ public sealed class CardGrantRequest
     public bool RequiresWritableRuntimeConfig { get; private set; }
 
     public IReadOnlyList<CardGrantMutation> Mutations => mutations;
+
+    public IReadOnlyDictionary<string, string> RuntimePresentation => runtimePresentation;
 
     public static CardGrantRequest ToHand(string cardId)
     {
@@ -59,6 +62,29 @@ public sealed class CardGrantRequest
         return this;
     }
 
+    public CardGrantRequest WithRuntimePresentation(IDictionary<string, string> values)
+    {
+        if (values == null)
+        {
+            return this;
+        }
+
+        foreach (var entry in values)
+        {
+            if (IsRuntimePresentationKey(entry.Key))
+            {
+                runtimePresentation[entry.Key] = entry.Value ?? "";
+            }
+        }
+
+        if (runtimePresentation.Count > 0)
+        {
+            RequiresWritableRuntimeConfig = true;
+        }
+
+        return this;
+    }
+
     public CardGrantRequest Configure(string name, Action<DataConfig> apply)
     {
         mutations.Add(new CardGrantMutation(name, apply));
@@ -83,6 +109,17 @@ public sealed class CardGrantRequest
             .Where(tag => !string.IsNullOrWhiteSpace(tag))
             .Select(tag => tag.Trim())
             .Distinct(StringComparer.Ordinal));
+    }
+
+    private static bool IsRuntimePresentationKey(string key)
+    {
+        return !string.IsNullOrWhiteSpace(key)
+            && (string.Equals(key, "Name", StringComparison.Ordinal)
+            || key.StartsWith("Name_", StringComparison.Ordinal)
+            || string.Equals(key, "Description", StringComparison.Ordinal)
+            || key.StartsWith("Description_", StringComparison.Ordinal)
+            || string.Equals(key, "Icon", StringComparison.Ordinal)
+            || key.StartsWith("Icon_", StringComparison.Ordinal));
     }
 }
 
@@ -270,6 +307,17 @@ public static class CardApi
         return GrantCardToHand(self, request).Success;
     }
 
+    public static bool MarkForAdventureRemoval(IDataConfig? config)
+    {
+        if (config?.Vars == null)
+        {
+            return false;
+        }
+
+        DictionaryUtil.Set(config.Vars, "NeedRemove", "True");
+        return true;
+    }
+
     public static CardGrantResult GrantCardToHand(ScriptExecutor self, CardGrantRequest request)
     {
         var warnings = new List<string>();
@@ -308,7 +356,7 @@ public static class CardApi
         {
             try
             {
-                added = EnsureWritableRuntimeConfig(added, cards);
+                added = EnsureWritableRuntimeConfig(added, cards, request?.RuntimePresentation);
             }
             catch (Exception ex)
             {
@@ -419,7 +467,10 @@ public static class CardApi
                 || request.RequiresWritableRuntimeConfig);
     }
 
-    private static DataConfig EnsureWritableRuntimeConfig(DataConfig source, IList<DataConfig> cards)
+    private static DataConfig EnsureWritableRuntimeConfig(
+        DataConfig source,
+        IList<DataConfig> cards,
+        IReadOnlyDictionary<string, string>? runtimePresentation)
     {
         if (source == null)
         {
@@ -432,6 +483,15 @@ public static class CardApi
         var vars = source.Vars == null
             ? new Dictionary<string, string>()
             : new Dictionary<string, string>(source.Vars);
+        if (runtimePresentation != null)
+        {
+            foreach (var entry in runtimePresentation)
+            {
+                data[entry.Key] = entry.Value ?? "";
+                vars[entry.Key] = entry.Value ?? "";
+            }
+        }
+
         var id = DictionaryUtil.Get(data, "Id", CardConfigApi.Id(source));
         if (!string.IsNullOrWhiteSpace(id))
         {

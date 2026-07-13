@@ -400,7 +400,9 @@ void TestDamageSettlementCgPayloadOrdering()
             new() { InstanceId = "p1", PlayerId = "p1", RoleId = "role1", RoleDisplayName = "A", TotalDamage = 100, Dps = 20 },
             new() { InstanceId = "p3", PlayerId = "p3", RoleId = "role3", RoleDisplayName = "C", TotalDamage = 50, Dps = 30 },
             new() { InstanceId = "p2", PlayerId = "p2", RoleId = "role2", RoleDisplayName = "B", TotalDamage = 100, Dps = 15 },
-            new() { InstanceId = "p5", PlayerId = "p5", RoleId = "role5", RoleDisplayName = "E", TotalDamage = 1, Dps = 1 }
+            new() { InstanceId = "p5", PlayerId = "p5", RoleId = "role5", RoleDisplayName = "E", TotalDamage = 1, Dps = 1 },
+            new() { InstanceId = "e0", PlayerId = "e0", RoleDisplayName = "Enemy", TotalDamage = 999, Dps = 999 },
+            new() { InstanceId = "p1-alias", PlayerId = "p1", RoleId = "role1", RoleDisplayName = "A", TotalDamage = 90, Dps = 18 }
         }
     };
 
@@ -413,6 +415,9 @@ void TestDamageSettlementCgPayloadOrdering()
         "settlement CG payload orders by total DPS damage with deterministic tie breakers");
     Assert(payload.Entries.Select(entry => entry.Rank).SequenceEqual(new[] { 1, 2, 3, 4 }),
         "settlement CG payload assigns rank numbers");
+    Assert(payload.Entries.All(entry => entry.InstanceId != "e0")
+           && payload.Entries.Count(entry => entry.PlayerId == "p1") == 1,
+        "settlement CG excludes non-role combatants and deduplicates real players");
 
     payload = DamageSettlementCgBuilder.Build(new OutOfRunDamageHistoryRecord
     {
@@ -622,6 +627,14 @@ void TestRuntimeArchitectureGuards()
            && damageMeterFightIndex.Contains("RegisterFriendlyIdentity", StringComparison.Ordinal)
            && damageMeterFightIndex.Contains("IsKnownFriendlyIdentity", StringComparison.Ordinal),
         "damage meter must keep player identity authoritative over transformed native combatant shape");
+    Assert(damageMeterFightIndex.Contains("FightManager.Instance?.roleQueue", StringComparison.Ordinal)
+           && !damageMeterFightIndex.Contains("RoleStatusMap", StringComparison.Ordinal)
+           && damageMeterFightIndex.Contains("preferredTeam == DamageTeam.Enemy", StringComparison.Ordinal),
+        "damage meter faction indexing must use the real player roster and preserve enemy precedence");
+    Assert(damageMeterFightIndex.Contains("OwnerPlayerId", StringComparison.Ordinal)
+           && damageMeterFightIndex.Contains("OwnerStatusId", StringComparison.Ordinal)
+           && damageMeterResolvers.Contains("ResolveAttribution", StringComparison.Ordinal),
+        "damage meter must fold generic owned companions into their explicit player owner");
 
     var audioArbiter = ReadRepoText("AudioArbiterShared/AudioArbiterRuntime.cs");
     var auraToolsAudio = ReadRepoText("AuraToolsExp-Dev/Features/Audio/AuraToolsAudioRuntime.cs");
@@ -903,7 +916,7 @@ void TestOutOfRunHistoryBuilder()
            && restored.Records[0].TeamMembers[0].RoleDisplayName == "AlphaLongNameForTrim",
         "out-of-run history store file round-trips");
 
-    var unresolved = OutOfRunDamageHistoryBuilder.Build(
+    var rosterOnly = OutOfRunDamageHistoryBuilder.Build(
         new DamageRunAggregateSnapshot
         {
             AdventureId = "fallback",
@@ -912,16 +925,53 @@ void TestOutOfRunHistoryBuilder()
             {
                 new()
                 {
-                    InstanceId = "76561198000000000",
-                    DisplayName = "76561198000000000",
+                    InstanceId = "alpha",
+                    DisplayName = "Alpha",
                     Team = DamageTeam.Friendly,
-                    TotalHpDamage = 1
+                    TotalHpDamage = 50
+                },
+                new()
+                {
+                    InstanceId = "e0",
+                    DisplayName = "洛奈尔",
+                    Team = DamageTeam.Friendly,
+                    TotalHpDamage = 999
                 }
             }
         },
-        new OutOfRunDamageHistoryBuildRequest { AdventureId = "fallback" });
-    Assert(unresolved.TeamMembers.Single().PlayerDisplayName == "未知玩家",
-        "unresolved combatant ids are not shown as player display names");
+        new OutOfRunDamageHistoryBuildRequest
+        {
+            AdventureId = "fallback",
+            TeamMembers = new[]
+            {
+                new OutOfRunTeamMemberSnapshot
+                {
+                    InstanceId = "alpha",
+                    PlayerId = "player-alpha",
+                    RoleId = "role-alpha",
+                    RoleDisplayName = "Alpha"
+                }
+            }
+        });
+    Assert(rosterOnly.TeamMembers.Count == 1
+           && rosterOnly.TeamMembers[0].InstanceId == "alpha"
+           && rosterOnly.TeamTotalDamage == 50
+           && rosterOnly.Mvp.InstanceId == "alpha",
+        "settlement history consumes only the captured real-player roster");
+
+    var unresolved = OutOfRunDamageHistoryBuilder.Build(
+        new DamageRunAggregateSnapshot
+        {
+            AdventureId = "unresolved",
+            TotalRounds = 1,
+            Combatants = new List<CombatantDamageStat>
+            {
+                new() { InstanceId = "unknown", Team = DamageTeam.Friendly, TotalHpDamage = 1 }
+            }
+        },
+        new OutOfRunDamageHistoryBuildRequest { AdventureId = "unresolved" });
+    Assert(unresolved.TeamMembers.Count == 0 && unresolved.TeamTotalDamage == 0,
+        "unknown and unrostered damage sources are excluded from settlement players");
 }
 
 void TestDeterministicAllocation()

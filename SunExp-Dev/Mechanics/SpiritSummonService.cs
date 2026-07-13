@@ -11,14 +11,37 @@ namespace SunExp.Dll.Mechanics;
 
 public static class SpiritSummonService
 {
+    private const int MaxExchangeCount = 999;
+    private const int MaxIntentStateEntries = 128;
+    private const int MaxIntentTurnIndex = 10000;
     private static readonly object NetworkSync = new();
     private static readonly HashSet<string> ResolvedTokens = new(StringComparer.Ordinal);
+    private static readonly HashSet<string> GrantedCardEvents = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, PendingCardGrant> PendingCardGrants = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, int> OwnerGenerations = new(StringComparer.Ordinal);
 
     public static void ResetBattleSynchronization()
     {
         lock (NetworkSync)
         {
             ResolvedTokens.Clear();
+            GrantedCardEvents.Clear();
+            PendingCardGrants.Clear();
+            OwnerGenerations.Clear();
+        }
+    }
+
+    public static void FlushPendingCardReturns(string source)
+    {
+        PendingCardGrant[] pending;
+        lock (NetworkSync)
+        {
+            pending = PendingCardGrants.Values.ToArray();
+        }
+
+        foreach (var item in pending)
+        {
+            TryDeliverCard(item, null, source);
         }
     }
 
@@ -31,11 +54,13 @@ public static class SpiritSummonService
         }
 
         var ownerStatusId = self!.Self.InstanceId;
+        var exchangeCount = SpiritCardFactory.ReadExchangeCount(self.dataConfig);
+        var battleState = SpiritCardFactory.ReadBattleState(self.dataConfig);
+        var token = Guid.NewGuid().ToString("N");
         if (SunExpNetworkRuntime.IsMultiplayerSession() && SunExpNetworkRuntime.IsClientOnly())
         {
-            var token = Guid.NewGuid().ToString("N");
             SunExpNetworkRuntime.Send(
-                new RpcSpiritSummonRequest(snapshot!, ownerStatusId, token),
+                new RpcSpiritSummonRequest(snapshot!, ownerStatusId, token, exchangeCount, battleState),
                 "SpiritSummonService.TrySummon");
             PlayerApi.ShowCaption("精灵：正在同步召唤。");
             return true;
@@ -45,13 +70,20 @@ public static class SpiritSummonService
             snapshot!,
             ownerStatusId,
             "SpiritSummonService.TrySummon",
-            SunExpNetworkRuntime.IsMultiplayerSession());
+            SunExpNetworkRuntime.IsMultiplayerSession(),
+            token,
+            "",
+            exchangeCount,
+            battleState,
+            self);
     }
 
     public static void ResolveNetworkSummon(
         CapturedEnemySnapshot snapshot,
         string ownerStatusId,
         string token,
+        int exchangeCount,
+        SpiritCardBattleState battleState,
         SunExpRpcSender sender,
         int protocolVersion,
         int battleEpoch,
@@ -62,21 +94,23 @@ public static class SpiritSummonService
             return;
         }
 
-        var rejection = ValidateNetworkRequest(snapshot, ownerStatusId, sender, protocolVersion, battleEpoch, registryHash);
+        var rejection = ValidateNetworkRequest(snapshot, ownerStatusId, exchangeCount, battleState, sender, protocolVersion, battleEpoch, registryHash);
         if (rejection.Length > 0)
         {
-            Broadcast(new SpiritCompanionSnapshot
-            {
-                Token = token ?? "",
-                CapturedEnemy = snapshot ?? new CapturedEnemySnapshot(),
-                OwnerStatusId = ownerStatusId ?? "",
-                Accepted = false,
-                RejectionReason = rejection
-            }, "SpiritSummonService.ResolveNetworkSummon.Reject");
+            Broadcast(CreateRejection(snapshot, ownerStatusId, token, exchangeCount, battleState, rejection), "SpiritSummonService.ResolveNetworkSummon.Reject");
             return;
         }
 
-        TrySummonLocal(snapshot, ownerStatusId, "SpiritSummonService.ResolveNetworkSummon", true, token, sender.PlayerId);
+        TrySummonLocal(
+            snapshot,
+            ownerStatusId,
+            "SpiritSummonService.ResolveNetworkSummon",
+            true,
+            token,
+            sender.PlayerId,
+            exchangeCount,
+            battleState,
+            null);
     }
 
     public static void ApplyNetworkState(SpiritCompanionSnapshot? snapshot, string source)
@@ -86,8 +120,16 @@ public static class SpiritSummonService
             return;
         }
 
+        if (snapshot.ProtocolVersion != CompanionAuthorityService.ProjectionProtocolVersion
+            || snapshot.BattleEpoch != CompanionAuthorityService.BattleEpoch)
+        {
+            SunExpLog.Warn("[Spirit] ignored incompatible companion snapshot from " + source + ".");
+            return;
+        }
+
         if (!snapshot.Accepted)
         {
+            QueueReturnedCard(snapshot, null, source);
             if (SenderOwnsStatus(SunExpNetworkRuntime.LocalPlayerId(), snapshot.OwnerStatusId))
             {
                 PlayerApi.ShowCaption("精灵：" + RejectionMessage(snapshot.RejectionReason));
@@ -103,15 +145,44 @@ public static class SpiritSummonService
             return;
         }
 
-        var existing = SpiritStateStore.Find(snapshot.StatusId)
-            ?? SpiritStateStore.FindByOwner(snapshot.OwnerPlayerId, snapshot.OwnerStatusId);
+        QueueReturnedCard(snapshot, null, source);
+
+        var existing = SpiritStateStore.Find(snapshot.StatusId);
         if (existing != null)
         {
+            if (snapshot.Generation < existing.Generation)
+            {
+                return;
+            }
+
+            ObserveGeneration(snapshot.OwnerPlayerId, snapshot.OwnerStatusId, snapshot.Generation);
             ApplySnapshot(existing.Spirit, snapshot, source);
             return;
         }
 
-        Spawn(snapshot.CapturedEnemy, snapshot.OwnerStatusId, snapshot.OwnerPlayerId, snapshot.StatusId, source, snapshot);
+        var ownerExisting = SpiritStateStore.FindByOwner(snapshot.OwnerPlayerId, snapshot.OwnerStatusId);
+        if (ownerExisting != null && snapshot.Generation < ownerExisting.Generation)
+        {
+            SunExpLog.Debug("[Spirit] ignored stale owner generation from " + source + ": incoming="
+                + snapshot.Generation + ", active=" + ownerExisting.Generation + ".");
+            return;
+        }
+
+        if (ownerExisting != null)
+        {
+            SpiritStateStore.Withdraw(ownerExisting.StatusId, source + ".OwnerGenerationReplace");
+        }
+
+        ObserveGeneration(snapshot.OwnerPlayerId, snapshot.OwnerStatusId, snapshot.Generation);
+        Spawn(
+            snapshot.CapturedEnemy,
+            snapshot.OwnerStatusId,
+            snapshot.OwnerPlayerId,
+            snapshot.StatusId,
+            source,
+            snapshot.ExchangeCount,
+            snapshot.Generation,
+            snapshot);
     }
 
     public static bool CanSummon(IDataConfig? card, IStatusManager? owner, out string reason)
@@ -155,7 +226,7 @@ public static class SpiritSummonService
         }
 
         var ownerPlayerId = CompanionOwnershipService.ResolveOwnerPlayerId(owner.InstanceId);
-        if (CompanionPositionOwnershipService.HasForOwner(ownerPlayerId, owner.InstanceId))
+        if (ProjectionStateStore.HasForOwner(ownerPlayerId, owner.InstanceId))
         {
             reason = "投影位置已被占用。";
             return false;
@@ -171,29 +242,57 @@ public static class SpiritSummonService
         string source,
         bool broadcast,
         string token = "",
-        string preferredOwnerPlayerId = "")
+        string preferredOwnerPlayerId = "",
+        int exchangeCount = 0,
+        SpiritCardBattleState? incomingBattleState = null,
+        ScriptExecutor? preferredExecutor = null)
     {
         var ownerPlayerId = CompanionOwnershipService.ResolveOwnerPlayerId(ownerStatusId, preferredOwnerPlayerId);
-        if (CompanionPositionOwnershipService.HasForOwner(ownerPlayerId, ownerStatusId))
+        if (ProjectionStateStore.HasForOwner(ownerPlayerId, ownerStatusId))
         {
-            BroadcastRejection(snapshot, ownerStatusId, token, "position-occupied", broadcast, source);
+            BroadcastRejection(snapshot, ownerStatusId, token, exchangeCount, incomingBattleState, "position-occupied", broadcast, source, preferredExecutor);
             return false;
         }
 
+        var outgoing = SpiritStateStore.FindByOwner(ownerPlayerId, ownerStatusId);
+        var generation = NextGeneration(ownerPlayerId, ownerStatusId);
         var statusId = SpiritStateStore.NextStatusId();
-        var spawned = Spawn(snapshot, ownerStatusId, ownerPlayerId, statusId, source, null);
-        if (spawned && broadcast)
+        var spawned = Spawn(snapshot, ownerStatusId, ownerPlayerId, statusId, source, exchangeCount, generation, null, incomingBattleState);
+        if (!spawned)
         {
-            var spirit = SpiritStateStore.Find(statusId)?.Spirit;
-            if (spirit != null)
-            {
-                var networkState = BuildSnapshot(spirit);
-                networkState.Token = string.IsNullOrWhiteSpace(token) ? Guid.NewGuid().ToString("N") : token;
-                Broadcast(networkState, source);
-            }
+            BroadcastRejection(snapshot, ownerStatusId, token, exchangeCount, incomingBattleState, "spawn-failed", broadcast, source, preferredExecutor);
+            return false;
         }
 
-        return spawned;
+        var spirit = SpiritStateStore.Find(statusId)?.Spirit;
+        if (spirit == null)
+        {
+            SpiritStateStore.Withdraw(statusId, source + ".MissingSpawnStateRollback");
+            BroadcastRejection(snapshot, ownerStatusId, token, exchangeCount, incomingBattleState, "spawn-state-missing", broadcast, source, preferredExecutor);
+            return false;
+        }
+
+        var networkState = BuildSnapshot(spirit);
+        networkState.Token = string.IsNullOrWhiteSpace(token) ? Guid.NewGuid().ToString("N") : token;
+        if (outgoing != null)
+        {
+            var returnedBattleState = SpiritCardBattleState.From(CompanionBattleStateStore.Find(outgoing.StatusId));
+            networkState.ReplacedStatusId = outgoing.StatusId;
+            networkState.ReturnedCard = outgoing.Snapshot;
+            networkState.ReturnedExchangeCount = Math.Min(MaxExchangeCount, outgoing.ExchangeCount + 1);
+            networkState.ReturnedTurnIndex = returnedBattleState.TurnIndex;
+            networkState.ReturnedReadyOnTurn = returnedBattleState.ReadyOnTurn;
+            networkState.CardGrantEventId = networkState.Token + ":return";
+            SpiritStateStore.Withdraw(outgoing.StatusId, source + ".ExchangeOut");
+            QueueReturnedCard(networkState, preferredExecutor, source);
+        }
+
+        if (broadcast)
+        {
+            Broadcast(networkState, source);
+        }
+
+        return true;
     }
 
     private static bool Spawn(
@@ -202,10 +301,14 @@ public static class SpiritSummonService
         string ownerPlayerId,
         string statusId,
         string source,
-        SpiritCompanionSnapshot? networkState)
+        int exchangeCount,
+        int generation,
+        SpiritCompanionSnapshot? networkState,
+        SpiritCardBattleState? initialBattleState = null)
     {
         var started = SunExpPerformanceCounters.Timestamp();
         var succeeded = false;
+        GameObject? root = null;
         try
         {
             var prefab = SunExpResourceCache.Load<GameObject>("Model/player", true, "spirit");
@@ -215,9 +318,29 @@ public static class SpiritSummonService
                 return false;
             }
 
-            var root = UnityEngine.Object.Instantiate(prefab);
+            root = UnityEngine.Object.Instantiate(prefab);
             var spirit = root.AddComponent<SpiritOtherObj>();
-            var profile = SpiritIntentRegistry.ProfileFor(snapshot.ProfileKey);
+            var profileResolution = SpiritIntentRegistry.ResolveProfile(snapshot.ProfileKey);
+            var profile = profileResolution.Profile;
+            var profileMessage = "[SpiritProfile] summon resolve: raw=" + snapshot.ProfileKey
+                + ", matched=" + profileResolution.MatchedProfileKey
+                + ", kind=" + profileResolution.MatchKind
+                + ", pveAttack=" + profile.PveAttackTendency.Count
+                + ", pveDefense=" + profile.PveDefenseTendency.Count
+                + ", fallbackAttack=" + profile.FallbackAttackTendency.Count
+                + ", fallbackDefense=" + profile.FallbackDefenseTendency.Count
+                + ", registry=" + SpiritIntentRegistry.RegistryHash
+                + ", source=" + source;
+            if (profileResolution.UsedGlobalFallback)
+            {
+                SunExpLog.WarnOnce(
+                    "spirit-summon-global:" + profileResolution.RawEnemyId + "#" + profileResolution.RawVariantId,
+                    profileMessage);
+            }
+            else
+            {
+                SunExpLog.InfoAlways(profileMessage);
+            }
             var stats = networkState == null
                 ? CompanionStatsService.SpiritStats(profile)
                 : new CompanionStats(1, Math.Max(1, networkState.MaxMagic), Math.Max(1, networkState.Attack), Math.Max(1, networkState.Armor));
@@ -233,10 +356,20 @@ public static class SpiritSummonService
                 return false;
             }
 
-            SpiritStateStore.Register(new SpiritState(snapshot, ownerStatusId, spirit.OwnerPlayerId, spirit, -1));
+            SpiritStateStore.Register(new SpiritState(
+                snapshot,
+                ownerStatusId,
+                spirit.OwnerPlayerId,
+                spirit,
+                -1,
+                exchangeCount,
+                generation));
             spirit.Status.UpdateStatus(true);
             if (networkState == null)
             {
+                var state = CompanionBattleStateStore.Find(spirit.InstanceId);
+                state?.ApplyReadyOnTurn(initialBattleState?.ReadyOnTurn);
+                state?.ApplyRemoteProgress(initialBattleState?.TurnIndex ?? 0, 0);
                 spirit.Activate(source);
                 PlayerApi.ShowCaption("精灵：【" + snapshot.DisplayName + "】加入战斗。");
             }
@@ -245,6 +378,7 @@ public static class SpiritSummonService
                 ApplySnapshot(spirit, networkState, source);
             }
             succeeded = true;
+            root = null;
             return true;
         }
         catch (Exception ex)
@@ -255,6 +389,17 @@ public static class SpiritSummonService
         }
         finally
         {
+            if (!succeeded)
+            {
+                FightManager.Instance?.statuses?.Remove(statusId);
+                FightManager.Instance?.statusData?.Remove(statusId);
+                FightManager.Instance?.ActionQueue?.RemoveAll(item => item == null || item.InstanceId == statusId);
+                CompanionBattleStateStore.Remove(statusId);
+                if (root != null)
+                {
+                    UnityEngine.Object.Destroy(root);
+                }
+            }
             SunExpPerformanceCounters.RecordHotspot(
                 "Spirit.Summon.Spawn",
                 started,
@@ -332,12 +477,15 @@ public static class SpiritSummonService
     private static SpiritCompanionSnapshot BuildSnapshot(SpiritOtherObj spirit)
     {
         var state = CompanionBattleStateStore.Find(spirit.InstanceId);
+        var spiritState = SpiritStateStore.Find(spirit.InstanceId);
         return new SpiritCompanionSnapshot
         {
             ProtocolVersion = CompanionAuthorityService.ProjectionProtocolVersion,
             BattleEpoch = CompanionAuthorityService.BattleEpoch,
             RegistryHash = SpiritIntentRegistry.RegistryHash,
             Revision = state?.Revision ?? 0,
+            Generation = spiritState?.Generation ?? 1,
+            ExchangeCount = spiritState?.ExchangeCount ?? 0,
             Accepted = true,
             CapturedEnemy = spirit.Snapshot,
             OwnerStatusId = spirit.OwnerStatusId,
@@ -374,6 +522,8 @@ public static class SpiritSummonService
     private static string ValidateNetworkRequest(
         CapturedEnemySnapshot snapshot,
         string ownerStatusId,
+        int exchangeCount,
+        SpiritCardBattleState battleState,
         SunExpRpcSender sender,
         int protocolVersion,
         int battleEpoch,
@@ -398,6 +548,14 @@ public static class SpiritSummonService
         if (!SenderOwnsStatus(sender.PlayerId, ownerStatusId))
         {
             return "owner-mismatch";
+        }
+        if (exchangeCount < 0 || exchangeCount > MaxExchangeCount)
+        {
+            return "exchange-count-invalid";
+        }
+        if (!ValidBattleState(battleState))
+        {
+            return "intent-state-invalid";
         }
         if (snapshot == null || string.IsNullOrWhiteSpace(snapshot.EnemyId) || !HasIdle(snapshot.IdlePath))
         {
@@ -448,25 +606,197 @@ public static class SpiritSummonService
         CapturedEnemySnapshot snapshot,
         string ownerStatusId,
         string token,
+        int exchangeCount,
+        SpiritCardBattleState? battleState,
         string reason,
         bool broadcast,
-        string source)
+        string source,
+        ScriptExecutor? preferredExecutor)
     {
+        var rejection = CreateRejection(snapshot, ownerStatusId, token, exchangeCount, battleState, reason);
         if (broadcast)
         {
-            Broadcast(new SpiritCompanionSnapshot
-            {
-                Token = token ?? "",
-                CapturedEnemy = snapshot,
-                OwnerStatusId = ownerStatusId ?? "",
-                Accepted = false,
-                RejectionReason = reason
-            }, source + ".Reject");
+            Broadcast(rejection, source + ".Reject");
         }
         else
         {
+            QueueReturnedCard(rejection, preferredExecutor, source + ".Reject");
             PlayerApi.ShowCaption("精灵：" + RejectionMessage(reason));
         }
+    }
+
+    private static SpiritCompanionSnapshot CreateRejection(
+        CapturedEnemySnapshot snapshot,
+        string ownerStatusId,
+        string token,
+        int exchangeCount,
+        SpiritCardBattleState? battleState,
+        string reason)
+    {
+        var normalizedToken = string.IsNullOrWhiteSpace(token) ? Guid.NewGuid().ToString("N") : token;
+        var returnBattleState = ValidBattleState(battleState)
+            ? battleState!
+            : new SpiritCardBattleState();
+        return new SpiritCompanionSnapshot
+        {
+            ProtocolVersion = CompanionAuthorityService.ProjectionProtocolVersion,
+            BattleEpoch = CompanionAuthorityService.BattleEpoch,
+            Token = normalizedToken,
+            CapturedEnemy = snapshot ?? new CapturedEnemySnapshot(),
+            OwnerStatusId = ownerStatusId ?? "",
+            Accepted = false,
+            ReturnedCard = snapshot,
+            ReturnedExchangeCount = Math.Max(0, Math.Min(MaxExchangeCount, exchangeCount)),
+            ReturnedTurnIndex = returnBattleState.TurnIndex,
+            ReturnedReadyOnTurn = new Dictionary<string, int>(returnBattleState.ReadyOnTurn),
+            CardGrantEventId = normalizedToken + ":refund",
+            RejectionReason = reason ?? ""
+        };
+    }
+
+    private static void QueueReturnedCard(
+        SpiritCompanionSnapshot snapshot,
+        ScriptExecutor? preferredExecutor,
+        string source)
+    {
+        if (snapshot.ReturnedCard == null
+            || string.IsNullOrWhiteSpace(snapshot.CardGrantEventId)
+            || !IsLocalOwner(snapshot.OwnerStatusId))
+        {
+            return;
+        }
+
+        var pending = new PendingCardGrant(
+            snapshot.CardGrantEventId,
+            snapshot.OwnerStatusId,
+            snapshot.ReturnedCard,
+            snapshot.ReturnedExchangeCount,
+            new SpiritCardBattleState
+            {
+                TurnIndex = snapshot.ReturnedTurnIndex,
+                ReadyOnTurn = snapshot.ReturnedReadyOnTurn ?? new Dictionary<string, int>()
+            });
+        lock (NetworkSync)
+        {
+            if (GrantedCardEvents.Contains(pending.EventId))
+            {
+                return;
+            }
+
+            PendingCardGrants[pending.EventId] = pending;
+        }
+
+        TryDeliverCard(pending, preferredExecutor, source);
+    }
+
+    private static bool TryDeliverCard(PendingCardGrant pending, ScriptExecutor? preferredExecutor, string source)
+    {
+        lock (NetworkSync)
+        {
+            if (GrantedCardEvents.Contains(pending.EventId))
+            {
+                PendingCardGrants.Remove(pending.EventId);
+                return true;
+            }
+        }
+
+        var localStatus = FightPlayer.Instance?.Status;
+        if (localStatus == null || !IsLocalOwner(pending.OwnerStatusId))
+        {
+            return false;
+        }
+
+        var executor = preferredExecutor;
+        if (executor?.Self == null
+            || !string.Equals(executor.Self.InstanceId, pending.OwnerStatusId, StringComparison.Ordinal))
+        {
+            executor = localStatus.MirrorSc as ScriptExecutor;
+        }
+        if (executor == null)
+        {
+            SunExpLog.Debug("[Spirit] returned-card delivery deferred from " + source + ": executor unavailable.");
+            return false;
+        }
+
+        executor.Self = localStatus;
+        var result = SpiritCardFactory.GrantReturnedToHand(
+            executor,
+            pending.Card,
+            pending.ExchangeCount,
+            pending.BattleState,
+            "spirit-exchange:" + source);
+        if (!result.Success)
+        {
+            SunExpLog.Warn("[Spirit] returned-card delivery deferred from " + source
+                + ": step=" + result.FailureStep + ", reason=" + result.FailureReason + ".");
+            return false;
+        }
+
+        lock (NetworkSync)
+        {
+            GrantedCardEvents.Add(pending.EventId);
+            PendingCardGrants.Remove(pending.EventId);
+        }
+        PlayerApi.ShowCaption("\u7cbe\u7075\uff1a\u3010" + pending.Card.DisplayName
+            + "\u3011\u5df2\u8fd4\u56de\u624b\u724c\uff0c\u8017\u8d39\u63d0\u5347\u81f3"
+            + pending.ExchangeCount + "\u3002");
+        SunExpPerformanceCounters.Record("Spirit.Card.ReturnedToHand");
+        return true;
+    }
+
+    private static bool IsLocalOwner(string ownerStatusId)
+    {
+        return string.Equals(FightPlayer.Instance?.Status?.InstanceId, ownerStatusId, StringComparison.Ordinal)
+            || SenderOwnsStatus(SunExpNetworkRuntime.LocalPlayerId(), ownerStatusId);
+    }
+
+    private static bool ValidBattleState(SpiritCardBattleState? battleState)
+    {
+        if (battleState == null
+            || battleState.TurnIndex < 0
+            || battleState.TurnIndex > MaxIntentTurnIndex
+            || battleState.ReadyOnTurn == null
+            || battleState.ReadyOnTurn.Count > MaxIntentStateEntries)
+        {
+            return false;
+        }
+
+        return battleState.ReadyOnTurn.All(entry =>
+            !string.IsNullOrWhiteSpace(entry.Key)
+            && entry.Key.Length <= 160
+            && entry.Value >= 0
+            && entry.Value <= MaxIntentTurnIndex);
+    }
+
+    private static int NextGeneration(string ownerPlayerId, string ownerStatusId)
+    {
+        var key = OwnerKey(ownerPlayerId, ownerStatusId);
+        lock (NetworkSync)
+        {
+            var next = OwnerGenerations.TryGetValue(key, out var current) ? current + 1 : 1;
+            OwnerGenerations[key] = next;
+            return next;
+        }
+    }
+
+    private static void ObserveGeneration(string ownerPlayerId, string ownerStatusId, int generation)
+    {
+        var key = OwnerKey(ownerPlayerId, ownerStatusId);
+        lock (NetworkSync)
+        {
+            var normalized = Math.Max(1, generation);
+            if (!OwnerGenerations.TryGetValue(key, out var current) || normalized > current)
+            {
+                OwnerGenerations[key] = normalized;
+            }
+        }
+    }
+
+    private static string OwnerKey(string ownerPlayerId, string ownerStatusId)
+    {
+        return !string.IsNullOrWhiteSpace(ownerPlayerId)
+            ? "player:" + ownerPlayerId.Trim()
+            : "status:" + (ownerStatusId ?? "").Trim();
     }
 
     private static bool Broadcast(SpiritCompanionSnapshot snapshot, string source)
@@ -482,6 +812,7 @@ public static class SpiritSummonService
             "protocol-mismatch" => "召唤协议版本不一致。",
             "battle-epoch-mismatch" => "当前战斗状态已失效，请重新使用。",
             "registry-mismatch" => "精灵行动配置不一致。",
+            "intent-state-invalid" => "精灵行动冷却记录无效。",
             "sender-invalid" => "无法确认操作玩家。",
             "owner-mismatch" => "当前角色不属于该玩家。",
             "snapshot-invalid" => "捕获记录或来源动画已经失效。",
@@ -511,5 +842,32 @@ public static class SpiritSummonService
                 "found=" + found + ", path=" + (idlePath ?? ""),
                 logFirstSample: true);
         }
+    }
+
+    private sealed class PendingCardGrant
+    {
+        public PendingCardGrant(
+            string eventId,
+            string ownerStatusId,
+            CapturedEnemySnapshot card,
+            int exchangeCount,
+            SpiritCardBattleState battleState)
+        {
+            EventId = eventId ?? "";
+            OwnerStatusId = ownerStatusId ?? "";
+            Card = card ?? new CapturedEnemySnapshot();
+            ExchangeCount = Math.Max(0, Math.Min(MaxExchangeCount, exchangeCount));
+            BattleState = battleState ?? new SpiritCardBattleState();
+        }
+
+        public string EventId { get; }
+
+        public string OwnerStatusId { get; }
+
+        public CapturedEnemySnapshot Card { get; }
+
+        public int ExchangeCount { get; }
+
+        public SpiritCardBattleState BattleState { get; }
     }
 }

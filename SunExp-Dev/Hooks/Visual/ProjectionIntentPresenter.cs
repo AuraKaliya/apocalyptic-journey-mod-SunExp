@@ -20,18 +20,29 @@ public static class ProjectionIntentPresenter
 
         initialized = true;
         ProjectionStateStore.IntentPresented += BindCommittedPlan;
+        SpiritStateStore.IntentPresented += BindCommittedPlan;
     }
 
     private static void BindCommittedPlan(ProjectionState projectionState, CompanionIntentPlan plan)
     {
+        BindCommittedPlan(projectionState?.StatusId ?? "", projectionState?.Projection, plan);
+    }
+
+    private static void BindCommittedPlan(SpiritState spiritState, CompanionIntentPlan plan)
+    {
+        BindCommittedPlan(spiritState?.StatusId ?? "", spiritState?.Spirit, plan);
+    }
+
+    private static void BindCommittedPlan(string statusId, OtherObj? actor, CompanionIntentPlan plan)
+    {
         try
         {
-            if (projectionState == null)
+            if (actor == null)
             {
                 return;
             }
 
-            var status = projectionState.Projection?.Status as StatusManager;
+            var status = actor.Status as StatusManager;
             if (status?.actionObj == null)
             {
                 return;
@@ -43,21 +54,14 @@ public static class ProjectionIntentPresenter
                 return;
             }
 
-            var intent = CompanionIntentResolver.Find(CompanionBattleStateStore.Find(plan.StatusId), plan.IntentId);
-            var battleState = CompanionBattleStateStore.Find(projectionState.StatusId);
-            if (intent?.Target == null
-                || battleState == null
-                || string.Equals(intent.Target.Scope, "Self", StringComparison.Ordinal)
-                || string.Equals(intent.Target.Mode, "All", StringComparison.Ordinal))
+            var battleState = CompanionBattleStateStore.Find(statusId);
+            var intent = CompanionIntentResolver.Find(battleState, plan.IntentId);
+            if (intent == null || battleState == null)
             {
                 return;
             }
 
-            var target = (plan.ResolvedEffects ?? new System.Collections.Generic.List<CompanionResolvedEffect>())
-                .SelectMany(effect => CompanionTargetPolicyRegistry.Alive(effect.TargetIds))
-                .Concat(CompanionTargetPolicyRegistry.Alive(plan.OrderedTargetIds))
-                .FirstOrDefault(candidate =>
-                    CompanionTargetPolicyRegistry.IsValidCommittedTarget(battleState, intent, candidate));
+            var target = ResolveLineTarget(battleState, intent, plan);
             var targetStatus = target as StatusManager;
             var targetUi = targetStatus?.selfUI;
             var line = LineFor(status, 0);
@@ -71,12 +75,42 @@ public static class ProjectionIntentPresenter
             var hoverLine = status.actionObj[0].GetComponent<ProjectionIntentHoverLine>()
                 ?? status.actionObj[0].AddComponent<ProjectionIntentHoverLine>();
             hoverLine.Configure(line, targetUi.transform);
-            SunExpPerformanceCounters.Record("ProjectionIntent.PresentationBound");
+            SunExpPerformanceCounters.Record("CompanionIntent.PresentationBound");
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[ProjectionIntent] presentation bind failed: " + ex.Message);
+            SunExpLog.Warn("[CompanionIntent] presentation bind failed: " + ex.Message);
         }
+    }
+
+    private static IStatusManager? ResolveLineTarget(
+        CompanionBattleState battleState,
+        CompanionIntentDefinition intent,
+        CompanionIntentPlan plan)
+    {
+        var effects = plan.ResolvedEffects ?? new System.Collections.Generic.List<CompanionResolvedEffect>();
+        var specs = CompanionIntentEffects.Expand(intent);
+        var candidates = new System.Collections.Generic.List<(int Rank, IStatusManager Target)>();
+        for (var index = 0; index < effects.Count && index < specs.Count; index++)
+        {
+            var effectIntent = CompanionIntentEffects.AsDefinition(intent, specs[index]);
+            if (string.Equals(effectIntent.Target.Scope, "Self", StringComparison.Ordinal)
+                || string.Equals(effectIntent.Target.Mode, "All", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            foreach (var candidate in CompanionTargetPolicyRegistry.Alive(effects[index].TargetIds))
+            {
+                if (CompanionTargetPolicyRegistry.IsValidCommittedTarget(battleState, effectIntent, candidate))
+                {
+                    var rank = string.Equals(effectIntent.Target.Scope, "Enemy", StringComparison.Ordinal) ? 0 : 1;
+                    candidates.Add((rank, candidate));
+                }
+            }
+        }
+
+        return candidates.OrderBy(candidate => candidate.Rank).Select(candidate => candidate.Target).FirstOrDefault();
     }
 
     private static void ResetAllLines(StatusManager status)

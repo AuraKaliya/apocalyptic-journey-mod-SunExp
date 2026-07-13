@@ -175,6 +175,9 @@ public static class SunExpIds
     public const string SpiritProfileVersionKey = "SunExpSpiritProfileVersion";
     public const string SpiritCaptureOriginKey = "SunExpSpiritCaptureOrigin";
     public const string SpiritCapturedAtKey = "SunExpSpiritCapturedAt";
+    public const string SpiritExchangeCountKey = "SunExpSpiritExchangeCount";
+    public const string SpiritIntentTurnIndexKey = "SunExpSpiritIntentTurnIndex";
+    public const string SpiritIntentReadyOnTurnKey = "SunExpSpiritIntentReadyOnTurn";
     public const string SpiritStatusIdPrefix = "ss";
     public const string SpiritBallIconPath = "Mods/SunExp/ModResource/Images/Card/MoreDimension/spirit_ball";
     public const string SpiritIntentRegistryFile = "spirit.intent.registry.json";
@@ -202,6 +205,8 @@ public static class SunExpIds
     public const string ProjectionActionChargeCardId = "SunExp_sunexp_enemycard_projection_charge";
     public const string ProjectionActionHolyHealCardId = "SunExp_sunexp_enemycard_projection_holy_heal";
     public const string ProjectionActionWaitCardId = "SunExp_sunexp_enemycard_projection_wait";
+    public const string SpiritIntentAdapterCardId = "SunExp_sunexp_enemycard_spirit_intent_adapter";
+    public const string SpiritIntentSourceCardVar = "SunExpSpiritIntentSourceCardId";
 
     public static readonly string[] StellarOvertureCardIds =
     {

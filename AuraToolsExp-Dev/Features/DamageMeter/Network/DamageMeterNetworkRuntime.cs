@@ -351,12 +351,13 @@ internal static class DamageMeterNetworkRuntime
         var resolvedSource = CombatantTeamResolver.ResolveStatus(confirmed.SourceInstanceId);
         if (resolvedSource != null)
         {
-            confirmed.SourceDisplayName = CombatantTeamResolver.DisplayName(
+            var attribution = CombatantTeamResolver.ResolveAttribution(
                 resolvedSource,
-                confirmed.SourceInstanceId);
-            confirmed.SourceTeam = CombatantTeamResolver.Resolve(
-                resolvedSource,
-                confirmed.SourceInstanceId);
+                confirmed.SourceInstanceId,
+                confirmed.SourceDisplayName);
+            confirmed.SourceInstanceId = attribution.InstanceId;
+            confirmed.SourceDisplayName = attribution.DisplayName;
+            confirmed.SourceTeam = attribution.Team;
         }
         else if (string.Equals(confirmed.SourceInstanceId, "unknown", StringComparison.OrdinalIgnoreCase))
         {

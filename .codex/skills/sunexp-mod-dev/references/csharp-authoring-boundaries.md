@@ -49,6 +49,29 @@ snapshot disagrees with the current game or `Managed/` assemblies.
 - Return an empty safe result only after supported paths fail, and log failures
   without exposing exceptions to UI flow.
 
+## DataConfig Read/Write Contract
+
+- Treat `IDataConfig.data` as the host-owned, read-only base configuration.
+  Never assign through it or through a local alias such as
+  `var data = config.data`; the game exposes this dictionary through a
+  read-only wrapper and mutation throws `Collection is read-only.`
+- Write dynamic card names, descriptions, icons, tags, markers, costs, and
+  identity snapshots to `DataConfig.Vars`.
+- When native card presentation must read a dynamic name, description, or icon
+  immediately from `data`, compose those presentation fields before
+  constructing the final `DataConfig` through the `CardGrantRequest` runtime
+  presentation path. Keep the same values in `Vars`; never mutate an existing
+  `data` dictionary after construction.
+- Read dynamic values from `Vars` first and fall back to `data`, so newly
+  generated cards and restored base rows follow the same path.
+- For persistence payloads such as `Vars["RawData"]`, clone `data` into a new
+  mutable dictionary, overlay the runtime values, and serialize the merged
+  copy. Do not mistake a newly constructed `DataConfig` for writable base data;
+  its `data` property remains read-only after construction.
+- Add a regression check whenever a new dynamic-card factory is introduced:
+  the check must preserve the read-only `data` contract and prove the required
+  runtime values are written through `Vars`.
+
 ## Hook Failure Containment
 
 - Wrap hook entry points so game flow survives mod failures.

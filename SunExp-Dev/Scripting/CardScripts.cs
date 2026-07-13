@@ -22,7 +22,7 @@ public static class CardScripts
         ["smoke_erosion"] = InitSmokeErosion,
         ["solar_scorching_light"] = InitCommonCard,
         ["draw_flame"] = InitDrawFlame,
-        ["afterglow_omen_card"] = InitTargetedAttackCard,
+        ["afterglow_omen_card"] = InitAnnihilatingTargetedAttackCard,
         ["scorching_flow_reclaim"] = InitTargetedAttackCard,
         ["eclipse_hex"] = InitTargetedAttackCard,
         ["burning_calamity"] = InitTargetedAttackCard,
@@ -242,6 +242,7 @@ public static class CardScripts
     private static void InitSpiritBall(ScriptExecutor self)
     {
         ExecutorApi.SetBaseScript(self, "AttackCardItem", canSelf: false);
+        CardApi.MarkForAdventureRemoval(self?.dataConfig);
     }
 
     private static void InitSpiritCard(ScriptExecutor self)
@@ -257,6 +258,12 @@ public static class CardScripts
     private static void InitTargetedAttackCard(ScriptExecutor self)
     {
         ExecutorApi.SetBaseScript(self, "AttackCardItem", canSelf: false);
+    }
+
+    private static void InitAnnihilatingTargetedAttackCard(ScriptExecutor self)
+    {
+        InitTargetedAttackCard(self);
+        CardApi.MarkForAdventureRemoval(self?.dataConfig);
     }
 
     private static void InitFlamewheelCard(ScriptExecutor self)

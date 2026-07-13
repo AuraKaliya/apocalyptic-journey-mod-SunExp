@@ -74,25 +74,37 @@ public static class CompanionIntentPlanner
         }
 
         var intent = choice.Value.Intent;
-        if (!CompanionIntentHandlerRegistry.TryGet(intent.HandlerId, out var handler))
-        {
-            SunExpLog.Warn("[CompanionIntent] missing handler while planning: " + intent.HandlerId);
-            return CompanionSystemPlans.Wait(state);
-        }
-
         var executor = projection.dataConfig?.scriptExecutor as ScriptExecutor;
         if (executor == null)
         {
             return CompanionSystemPlans.Wait(state);
         }
 
-        var targets = CompanionTargetPolicyRegistry.Resolve(executor, state, intent);
-        if (targets.Count == 0)
+        var resolvedEffects = new List<CompanionResolvedEffect>();
+        foreach (var effectSpec in CompanionIntentEffects.Expand(intent))
+        {
+            var effectIntent = CompanionIntentEffects.AsDefinition(intent, effectSpec);
+            if (!CompanionIntentHandlerRegistry.TryGet(effectIntent.HandlerId, out var handler))
+            {
+                SunExpLog.Warn("[CompanionIntent] missing handler while planning: " + effectIntent.HandlerId);
+                return CompanionSystemPlans.Wait(state);
+            }
+
+            var targets = CompanionTargetPolicyRegistry.Resolve(executor, state, effectIntent);
+            if (targets.Count == 0)
+            {
+                return CompanionSystemPlans.Wait(state);
+            }
+
+            resolvedEffects.Add(handler.Resolve(state, effectIntent, targets));
+        }
+
+        if (resolvedEffects.Count == 0)
         {
             return CompanionSystemPlans.Wait(state);
         }
 
-        var resolvedEffect = handler.Resolve(state, intent, targets);
+        var primaryEffect = resolvedEffects[0];
         var plan = new CompanionIntentPlan
         {
             PlanId = CompanionSystemPlans.PlanId(state),
@@ -100,15 +112,17 @@ public static class CompanionIntentPlanner
             TurnIndex = state.TurnIndex,
             IntentId = intent.Id,
             EnemyCardId = intent.EnemyCardId,
-            OrderedTargetIds = new List<string>(resolvedEffect.TargetIds),
-            ResolvedValue = resolvedEffect.Value,
+            OrderedTargetIds = resolvedEffects.SelectMany(effect => effect.TargetIds)
+                .Distinct(StringComparer.Ordinal)
+                .ToList(),
+            ResolvedValue = primaryEffect.Value,
             Cost = Math.Max(0, intent.Cost),
             ReadyOnTurn = state.TurnIndex + Math.Max(0, intent.Cooldown) + 1,
             PreviewThreat = Math.Max(0, Math.Min(CompanionThreatService.MaxPreviewThreat, intent.Threat?.Preview ?? 0)),
             Priority = choice.Value.Priority,
             StateRevision = state.Revision + 1,
             IsWait = false,
-            ResolvedEffects = new List<CompanionResolvedEffect> { resolvedEffect }
+            ResolvedEffects = resolvedEffects
         };
         return ProjectionEffectContextService.RefreshLockedPlan(projection, state, plan);
     }
@@ -149,6 +163,10 @@ public static class CompanionIntentPlanner
             .Select(effect => effect.HandlerId)
             .Where(handlerId => !string.IsNullOrWhiteSpace(handlerId))
             .Distinct(StringComparer.Ordinal));
+        var values = string.Join(",", (plan.ResolvedEffects ?? new List<CompanionResolvedEffect>())
+            .Select(effect => effect.HandlerId + "=" + effect.Value
+                + (effect.BuffStacks > 0 ? "/stacks=" + effect.BuffStacks : "")
+                + (effect.RepeatCount > 1 ? "/hits=" + effect.RepeatCount : "")));
         var targets = string.Join(",", plan.OrderedTargetIds ?? new List<string>());
         var intent = CompanionIntentResolver.Find(state, plan.IntentId);
         var friendlyRoster = string.Join(",", CompanionFriendlyRosterService.Snapshot(includeControlled: true)
@@ -165,6 +183,7 @@ public static class CompanionIntentPlanner
             + " intent=" + plan.IntentId
             + " scope=" + (intent?.Target?.Scope ?? "none")
             + " handler=" + (handlers.Length == 0 ? "none" : handlers)
+            + " effects=" + (values.Length == 0 ? "none" : values)
             + " magic=" + state.Stats.CurrentMagic
             + " cost=" + plan.Cost
             + " targets=" + (targets.Length == 0 ? "none" : targets)

@@ -64,6 +64,7 @@ function New-ProjectXml {
     $mapNodeTextureBounds = Join-Path $RepoRoot "SunExp-Dev\Mechanics\MapNodeTextureBounds.cs"
     $mapNodeTextureFitService = Join-Path $RepoRoot "SunExp-Dev\Mechanics\MapNodeTextureFitService.cs"
     $modeChoiceDragRange = Join-Path $RepoRoot "SunExp-Dev\Mechanics\ModeChoiceDragRange.cs"
+    $spiritProfileIdentityResolver = Join-Path $RepoRoot "SunExp-Dev\Mechanics\SpiritProfileIdentityResolver.cs"
 
 @"
 <Project Sdk="Microsoft.NET.Sdk">
@@ -113,6 +114,7 @@ function New-ProjectXml {
     <Compile Include="$mapNodeTextureBounds" />
     <Compile Include="$mapNodeTextureFitService" />
     <Compile Include="$modeChoiceDragRange" />
+    <Compile Include="$spiritProfileIdentityResolver" />
     <Compile Include="$SourceDir\Tests.cs" />
   </ItemGroup>
 </Project>
@@ -532,6 +534,7 @@ internal static class Program
         TestCardVisualInterestIndex();
         TestMapNodeTextureFitService();
         TestModeChoiceDragRange();
+        TestSpiritProfileIdentityResolver();
         TestLoneerStateOwnership();
         TestStarScoreWindow();
 
@@ -898,6 +901,55 @@ internal static class Program
         False(fourSlots.DragEnabled, "Four fitting slots keep dragging disabled");
     }
 
+    private static void TestSpiritProfileIdentityResolver()
+    {
+        var profiles = new List<TestSpiritProfile>
+        {
+            new("10026", "*"),
+            new("boss_orbit_mirror_array", "*"),
+            new("enemy_exact", "v1"),
+            new("enemy_10026", "enemy_10026"),
+            new("*", "*")
+        };
+
+        SpiritProfileResolution<TestSpiritProfile> Resolve(string enemyId, string variantId) =>
+            SpiritProfileIdentityResolver.Resolve(profiles, profile => profile.EnemyId, profile => profile.VariantId, enemyId, variantId);
+
+        var runtimeBaseGame = Resolve("enemy_10026", "enemy_10026");
+        Equal("enemy_10026", runtimeBaseGame.MatchedEnemyId, "Raw exact profiles take precedence over canonical aliases");
+        Equal("exact", runtimeBaseGame.MatchKind, "Raw exact profile resolution reports its match kind");
+
+        profiles.RemoveAt(3);
+        var oldCapturedCard = Resolve("enemy_10026", "enemy_10026");
+        Equal("10026", oldCapturedCard.MatchedEnemyId, "Old captured cards resolve the base-game runtime prefix to the stable registry id");
+        Equal("*", oldCapturedCard.MatchedVariantId, "Canonical base-game ids retain enemy wildcard fallback");
+        Equal("alias-enemy-wildcard", oldCapturedCard.MatchKind, "Base-game prefix normalization is visible in diagnostics");
+        True(oldCapturedCard.UsedAlias, "Base-game prefix normalization is marked as an alias match");
+        True(oldCapturedCard.UsedVariantWildcard, "Enemy wildcard use is marked in the resolution result");
+        False(oldCapturedCard.UsedGlobalFallback, "Known base-game enemies do not reach the global profile");
+
+        var canonical = Resolve("10026", "10026");
+        Equal("10026", canonical.MatchedEnemyId, "Canonical registry ids continue to resolve directly");
+        Equal("enemy-wildcard", canonical.MatchKind, "Canonical ids use the explicit enemy wildcard profile");
+
+        var sunExpRuntime = Resolve("SunExp_sunexp_boss_orbit_mirror_array", "SunExp_sunexp_boss_orbit_mirror_array");
+        Equal("boss_orbit_mirror_array", sunExpRuntime.MatchedEnemyId, "SunExp runtime ids resolve to short stable profile ids");
+        Equal("alias-enemy-wildcard", sunExpRuntime.MatchKind, "SunExp prefix normalization is visible in diagnostics");
+
+        var exactVariant = Resolve("enemy_exact", "v1");
+        Equal("exact", exactVariant.MatchKind, "Explicit variant profiles resolve before enemy wildcards");
+        Equal("v1", exactVariant.MatchedVariantId, "Explicit variant identity is retained");
+
+        var unknownModEnemy = Resolve("OtherMod_enemy_dragon", "OtherMod_enemy_dragon");
+        Equal("*", unknownModEnemy.MatchedEnemyId, "Unknown mod enemies use the global compatibility profile");
+        Equal("global-fallback", unknownModEnemy.MatchKind, "Unknown mod fallback is explicit in diagnostics");
+        True(unknownModEnemy.UsedGlobalFallback, "Unknown mod fallback is marked in the resolution result");
+
+        SpiritProfileIdentityResolver.ParseProfileKey("spirit:enemy_10026#enemy_10026", out var parsedEnemy, out var parsedVariant);
+        Equal("enemy_10026", parsedEnemy, "Persisted spirit profile keys retain their raw enemy id");
+        Equal("enemy_10026", parsedVariant, "Persisted spirit profile keys retain their raw variant id");
+    }
+
     private static void TestCardCostHelpers()
     {
         var config = NewConfig(
@@ -1045,6 +1097,27 @@ internal static class Program
         True(runtimeVarsResult.Config!.data is System.Collections.ObjectModel.ReadOnlyDictionary<string, string>, "CardApi grant preserves the game's read-only base data contract");
         Equal("Runtime role card", runtimeVarsResult.Config!.Vars["Name"], "CardApi grant accepts runtime display state through Vars");
         Equal("1", runtimeVarsResult.Config!.Vars["RuntimeFlag"], "CardApi grant accepts runtime flags through Vars");
+
+        FightCardManager.Instance.cardList.Clear();
+        var presentationResult = CardApi.GrantCardToHand(
+            executor,
+            CardGrantRequest.ToHand("runtime_presentation_card")
+                .WithRuntimePresentation(new Dictionary<string, string>
+                {
+                    ["Name"] = "Spirit: Cat",
+                    ["Description"] = "Summon one Cat",
+                    ["RuntimeFlag"] = "must-stay-in-vars"
+                })
+                .Configure("runtime-state", config => config.Vars["RuntimeFlag"] = "1"));
+        True(presentationResult.Success, "CardApi grant composes runtime presentation before native materialization");
+        True(presentationResult.Config!.data is System.Collections.ObjectModel.ReadOnlyDictionary<string, string>, "Runtime presentation remains immutable after DataConfig construction");
+        Equal("Spirit: Cat", presentationResult.Config!.data["Name"], "Native card readers receive the dynamic runtime name");
+        Equal("Summon one Cat", presentationResult.Config!.data["Description"], "Native card readers receive the dynamic runtime description");
+        Equal("Spirit: Cat", presentationResult.Config!.Vars["Name"], "Runtime presentation also remains available through Vars");
+        False(presentationResult.Config!.data.ContainsKey("RuntimeFlag"), "Non-presentation runtime state is not copied into the immutable data snapshot");
+        Equal("1", presentationResult.Config!.Vars["RuntimeFlag"], "Non-presentation runtime state remains writable in Vars");
+        True(CardApi.MarkForAdventureRemoval(presentationResult.Config), "CardApi marks a valid card for adventure removal");
+        Equal("True", presentationResult.Config!.Vars["NeedRemove"], "Adventure removal uses the host NeedRemove runtime contract");
 
         FightCardManager.Instance.cardList.Clear();
         var failing = new ScriptExecutor { ThrowOnDelivery = true };
@@ -1380,6 +1453,19 @@ internal static class Program
         public IScriptExecutor scriptExecutor => throw new NotSupportedException();
 
         public bool isCompiling => false;
+    }
+
+    private sealed class TestSpiritProfile
+    {
+        public TestSpiritProfile(string enemyId, string variantId)
+        {
+            EnemyId = enemyId;
+            VariantId = variantId;
+        }
+
+        public string EnemyId { get; }
+
+        public string VariantId { get; }
     }
 }
 '@
@@ -2062,6 +2148,8 @@ function Invoke-SourceAssertions {
     Assert-True (-not $familiarBlessingEffectRuntime.Contains("executor.DrawCount")) "Familiar combat-start draw must not borrow a synthetic ScriptExecutor."
     Assert-True $familiarBlessingEffectRuntime.Contains('LogCombatStartEffect(status, entry, "failed", ex.Message)') "Familiar combat-start effects must isolate and diagnose individual failures."
     Assert-True $cardApi.Contains('self.AddCardByData(resolved, request?.RuntimeTags ?? "");') "Generated cards must receive their runtime tags during DataConfig creation."
+    Assert-True $cardApi.Contains("public CardGrantRequest WithRuntimePresentation") "Dynamic cards must compose native-readable presentation before materialization."
+    Assert-True $cardApi.Contains("public static bool MarkForAdventureRemoval") "Permanent-use cards must use the centralized host lifecycle facade."
     Assert-True $cardApi.Contains("self.GetCardFromDeck(added);") "Generated cards must deliver the exact tagged DataConfig to the hand queue."
     Assert-True $cardApi.Contains("CardGrantPostCommitQueue.Request") "Generated cards must submit SunExp post-commit refresh work after native delivery succeeds."
     Assert-True $cardGrantPostCommitQueue.Contains("SunExpCardRefreshQueue.RequestConfigTagRefresh") "Post-commit card grant refreshes must reuse the card refresh queue."
@@ -2252,7 +2340,8 @@ function Invoke-SourceAssertions {
     Assert-True $projectionStateStore.Contains("IntentPresented") "Projection mechanics must expose a hook-safe intent presentation event."
     Assert-True $projectionOtherObj.Contains("NotifyIntentPresented") "Projection intent rebuilds must notify the dedicated presenter."
     Assert-True $projectionIntentPresenter.Contains("ResetAllLines(status)") "Projection intent presentation must clear stale native lines before rebinding."
-    Assert-True $projectionIntentPresenter.Contains('string.Equals(intent.Target.Mode, "All"') "All-target projection intents must hide misleading single-target lines."
+    Assert-True $projectionIntentPresenter.Contains('string.Equals(effectIntent.Target.Mode, "All"') "All-target companion intents must hide misleading single-target lines."
+    Assert-True $projectionIntentPresenter.Contains("SpiritStateStore.IntentPresented += BindCommittedPlan") "Spirit intent lines must share the committed-plan presenter with projections."
     Assert-True $projectionIntentPresenter.Contains("IsValidCommittedTarget") "Projection intent presentation must enforce committed target scope."
     Assert-True $projectionIntentPresenter.Contains("IPointerEnterHandler, IPointerExitHandler") "Projection intent lines must be hover-driven."
     Assert-True $projectionIntentPresenter.Contains("hoverLine.Configure(line, targetUi.transform)") "Projection plan binding must not immediately reveal target lines."
@@ -2263,6 +2352,8 @@ function Invoke-SourceAssertions {
     Assert-True $pooledCardExitAnimator.Contains("text.enabled = false") "Pooled burn exits must hide text before the burn shader starts."
     Assert-True $pooledCardExitAnimator.Contains("originalEnabled") "Pooled burn exits must restore each text node's enabled state."
     Assert-True $pooledCardExitAnimator.Contains('RecordDuration("PooledCardExit.BurnTextPrepare"') "Pooled burn text hiding must expose measurable duration."
+    Assert-True $pooledCardExitAnimator.Contains('RecordDuration("PooledCardExit.BurnFrameCpu"') "Pooled burn profiling must measure per-frame CPU work separately."
+    Assert-True $pooledCardExitAnimator.Contains('RecordDuration("PooledCardExit.BurnWallDuration"') "Pooled burn profiling must label coroutine wall duration explicitly."
     Assert-True $combatCardViewPoolCatalogText.Contains("PresentationSignature") "Pooled dynamic cards must use deterministic presentation signatures."
     Assert-True $combatCardViewPoolText.Contains("TryLightweightRebind") "Pooled dynamic cards must offer a guarded lightweight rebind path."
     Assert-True $combatCardViewPoolText.Contains("ICard.SetCardMsg(card.transform, config, null)") "Lightweight rebinding must use native card presentation binding."
@@ -2702,6 +2793,7 @@ function Invoke-SourceAssertions {
     Assert-True $enemyCardData.Contains("enemycard_projection_shield_blessing") "EnemyCard data must define the projection shield action."
     Assert-True $enemyCardData.Contains("enemycard_projection_staff_combo") "EnemyCard data must define Staff Bonk Barrage."
     Assert-True $enemyCardData.Contains("enemycard_projection_holy_heal") "EnemyCard data must define Holy Heal."
+    Assert-True ($enemyCardData.Contains("enemycard_spirit_intent_adapter") -and $enemyCardData.Contains('ProjectionScripts.InitAction(self, ""spirit-adapted"")')) "EnemyCard data must register a dedicated spirit adapter identity instead of reusing native precompiled ids."
     Assert-True $enemyCardData.Contains("ProjectionScripts.InitAction") "Projection enemy-card rows must route initialization through ProjectionScripts."
     Assert-True $enemyCardText.Contains("Turncoat Strike") "EnemyCard text must localize Heart Change's temporary strike intent."
     Assert-True $enemyCardText.Contains("Staff Bonk") "EnemyCard text must localize the projection staff action."
@@ -2710,6 +2802,7 @@ function Invoke-SourceAssertions {
     Assert-True $enemyCardText.Contains("Mana Disruption") "EnemyCard text must localize the projection debuff action."
     Assert-True $enemyCardText.Contains("You Are Empowered") "EnemyCard text must localize the projection group buff action."
     Assert-True $enemyCardText.Contains("Holy Heal") "EnemyCard text must localize the projection heal action."
+    Assert-True ($enemyCardText.Contains("enemycard_spirit_intent_adapter") -and $enemyCardText.Contains("Spirit Intent")) "EnemyCard text must localize the spirit adapter fallback row."
     Assert-True (-not $enemyCardText.Contains("threat weight")) "Projection shield text must not promise retired threat-weight behavior."
     Assert-True (-not $enemyCardText.Contains("威胁权重")) "Projection shield Chinese text must not promise retired threat-weight behavior."
     Assert-True $buffText.Contains("Three Thousand Orbit Mirrors") "Buff text must localize the mirror-array boss trait."

@@ -47,9 +47,7 @@ public static class ProjectionActionExecutor
         }
 
         var intent = CompanionIntentResolver.Find(state, plan.IntentId);
-        if (intent == null || plan.ResolvedEffects.Any(effect =>
-                CompanionTargetPolicyRegistry.Alive(effect.TargetIds).Any(target =>
-                    !CompanionTargetPolicyRegistry.IsValidCommittedTarget(state, intent, target))))
+        if (intent == null || !CommittedTargetsAreValid(state, intent, plan.ResolvedEffects))
         {
             SunExpLog.Warn("[ProjectionAction] rejected committed target outside intent scope: " + plan.IntentId);
             return false;
@@ -78,6 +76,30 @@ public static class ProjectionActionExecutor
         }
 
         SunExpPerformanceCounters.Record("ProjectionAction.DedicatedExecuted");
+        return true;
+    }
+
+    private static bool CommittedTargetsAreValid(
+        CompanionBattleState state,
+        CompanionIntentDefinition intent,
+        IReadOnlyList<CompanionResolvedEffect> resolvedEffects)
+    {
+        var specs = CompanionIntentEffects.Expand(intent);
+        if (resolvedEffects == null || resolvedEffects.Count != specs.Count)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < resolvedEffects.Count; index++)
+        {
+            var effectIntent = CompanionIntentEffects.AsDefinition(intent, specs[index]);
+            if (CompanionTargetPolicyRegistry.Alive(resolvedEffects[index].TargetIds).Any(target =>
+                    !CompanionTargetPolicyRegistry.IsValidCommittedTarget(state, effectIntent, target)))
+            {
+                return false;
+            }
+        }
+
         return true;
     }
 

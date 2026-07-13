@@ -87,7 +87,7 @@ public static class ProjectionTurnCoordinator
 
         foreach (var state in projections)
         {
-            if (state?.Actor == null || !TryClaim(activeRound, state.StatusId))
+            if (state?.Actor == null || !TryClaim(activeRound, state.OwnerPlayerId, state.SlotIndex, state.StatusId))
             {
                 continue;
             }
@@ -133,9 +133,12 @@ public static class ProjectionTurnCoordinator
         SunExpLog.Debug("[ProjectionTurn] coordinator cleared from " + source + ".");
     }
 
-    private static bool TryClaim(int round, string statusId)
+    private static bool TryClaim(int round, string ownerPlayerId, int slotIndex, string statusId)
     {
-        var token = CompanionAuthorityService.BattleEpoch + ":" + round + ":" + (statusId ?? "");
+        var ownerScope = string.IsNullOrWhiteSpace(ownerPlayerId)
+            ? "status:" + (statusId ?? "")
+            : "owner:" + ownerPlayerId + ":slot:" + slotIndex;
+        var token = CompanionAuthorityService.BattleEpoch + ":" + round + ":" + ownerScope;
         lock (SyncRoot)
         {
             return ExecutedThisRound.Add(token);

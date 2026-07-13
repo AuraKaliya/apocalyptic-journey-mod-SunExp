@@ -103,8 +103,9 @@ public static class SpiritCaptureService
         state.RollBasisPoints = roll;
         if (state.Success)
         {
-            var profile = SpiritCaptureRegistry.ProfileFor(snapshot.EnemyId, snapshot.VariantId);
-            state.Success = EnemyCaptureSettlementApi.Settle(target, snapshot, profile);
+            var resolution = SpiritCaptureRegistry.ResolveProfile(snapshot.EnemyId, snapshot.VariantId);
+            LogProfileResolution(snapshot, resolution, "network");
+            state.Success = EnemyCaptureSettlementApi.Settle(target, snapshot, resolution.Profile);
             if (!state.Success)
             {
                 state.Reason = "敌人离场结算失败。";
@@ -141,7 +142,7 @@ public static class SpiritCaptureService
         }
 
         executor.Self = FightPlayer.Instance.Status;
-        var granted = SpiritCardFactory.GrantToHand(executor, state.CapturedEnemy);
+        var granted = SpiritCardFactory.GrantCapturedToHand(executor, state.CapturedEnemy);
         if (!granted.Success)
         {
             PlayerApi.ShowCaption("精灵球：捕获已结算，但精灵卡同步失败。");
@@ -166,7 +167,7 @@ public static class SpiritCaptureService
             return false;
         }
 
-        var granted = SpiritCardFactory.GrantToHand(self, snapshot);
+        var granted = SpiritCardFactory.GrantCapturedToHand(self, snapshot);
         if (!granted.Success)
         {
             PlayerApi.ShowCaption("精灵球：精灵卡生成失败，本次捕获未结算。");
@@ -174,12 +175,34 @@ public static class SpiritCaptureService
             return false;
         }
 
-        var profile = SpiritCaptureRegistry.ProfileFor(snapshot.EnemyId, snapshot.VariantId);
-        var settled = EnemyCaptureSettlementApi.Settle(target, snapshot, profile);
+        var resolution = SpiritCaptureRegistry.ResolveProfile(snapshot.EnemyId, snapshot.VariantId);
+        LogProfileResolution(snapshot, resolution, "local");
+        var settled = EnemyCaptureSettlementApi.Settle(target, snapshot, resolution.Profile);
         PlayerApi.ShowCaption(settled
             ? "精灵球：成功捕获【" + snapshot.DisplayName + "】。"
             : "精灵球：已获得精灵卡，但敌人结算使用了兼容兜底。");
         return true;
+    }
+
+    private static void LogProfileResolution(
+        CapturedEnemySnapshot snapshot,
+        SpiritProfileResolution<SpiritCaptureProfile> resolution,
+        string source)
+    {
+        var message = "[SpiritProfile] capture resolve: raw=" + snapshot.ProfileKey
+            + ", matched=" + resolution.MatchedProfileKey
+            + ", kind=" + resolution.MatchKind
+            + ", mode=" + resolution.Profile.ResolutionMode
+            + ", source=" + source;
+        if (resolution.UsedGlobalFallback)
+        {
+            SunExpLog.WarnOnce(
+                "spirit-capture-global:" + resolution.RawEnemyId + "#" + resolution.RawVariantId,
+                message);
+            return;
+        }
+
+        SunExpLog.InfoAlways(message);
     }
 
     private static string ValidateNetworkRequest(string ownerStatusId, SunExpRpcSender sender, int protocolVersion, int battleEpoch)

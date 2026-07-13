@@ -7,7 +7,7 @@ namespace SunExp.Dll.Mechanics;
 
 public static class CompanionAuthorityService
 {
-    public const int ProjectionProtocolVersion = 4;
+    public const int ProjectionProtocolVersion = 6;
 
     private static int battleEpoch;
 

@@ -14,6 +14,13 @@ public static class CompanionIntentRegistry
 
     private static readonly object SyncRoot = new();
     private static CompanionIntentRegistryDocument document = BuiltInDocument();
+    private static Dictionary<string, CompanionIntentDefinition> intentById = new(StringComparer.Ordinal);
+    private static string registryHash = "00000000";
+
+    static CompanionIntentRegistry()
+    {
+        SetDocument(document);
+    }
 
     public static string RegistryHash
     {
@@ -21,17 +28,7 @@ public static class CompanionIntentRegistry
         {
             lock (SyncRoot)
             {
-                unchecked
-                {
-                    uint hash = 2166136261;
-                    var canonical = AuraSharedJson.Serialize(document);
-                    foreach (var character in canonical)
-                    {
-                        hash = (hash ^ character) * 16777619;
-                    }
-
-                    return hash.ToString("x8");
-                }
+                return registryHash;
             }
         }
     }
@@ -44,7 +41,7 @@ public static class CompanionIntentRegistry
             var path = Path.Combine(modConfig.DirectoryName, RegistryFileName);
             if (!File.Exists(path))
             {
-                document = Normalize(fallback, fallback);
+                SetDocument(Normalize(fallback, fallback));
                 SunExpLog.Warn("[CompanionIntentRegistry] missing registry; using built-in intents.");
                 return;
             }
@@ -57,12 +54,12 @@ public static class CompanionIntentRegistry
                 {
                     throw new InvalidDataException("unsupported schemaVersion=" + loaded.SchemaVersion + "; expected 3");
                 }
-                document = Normalize(loaded, fallback);
+                SetDocument(Normalize(loaded, fallback));
                 SunExpLog.Info("[CompanionIntentRegistry] loaded companion intents from " + path);
             }
             catch (Exception ex)
             {
-                document = Normalize(fallback, fallback);
+                SetDocument(Normalize(fallback, fallback));
                 SunExpLog.Warn("[CompanionIntentRegistry] failed to load registry; using built-in intents: " + ex.Message);
             }
         }
@@ -72,7 +69,7 @@ public static class CompanionIntentRegistry
     {
         lock (SyncRoot)
         {
-            return document.Intents.FirstOrDefault(intent => SameId(intent.Id, intentId));
+            return FindUnlocked(intentId);
         }
     }
 
@@ -118,7 +115,25 @@ public static class CompanionIntentRegistry
 
     private static CompanionIntentDefinition? FindUnlocked(string intentId)
     {
-        return document.Intents.FirstOrDefault(intent => SameId(intent.Id, intentId));
+        return intentById.TryGetValue(intentId ?? "", out var intent) ? intent : null;
+    }
+
+    private static void SetDocument(CompanionIntentRegistryDocument next)
+    {
+        document = next ?? BuiltInDocument();
+        intentById = (document.Intents ?? new List<CompanionIntentDefinition>())
+            .Where(intent => !string.IsNullOrWhiteSpace(intent.Id))
+            .ToDictionary(intent => intent.Id, intent => intent, StringComparer.Ordinal);
+        unchecked
+        {
+            uint hash = 2166136261;
+            foreach (var character in AuraSharedJson.Serialize(document))
+            {
+                hash = (hash ^ character) * 16777619;
+            }
+
+            registryHash = hash.ToString("x8");
+        }
     }
 
     private static CompanionIntentRegistryDocument Normalize(

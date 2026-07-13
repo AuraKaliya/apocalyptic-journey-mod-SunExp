@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Text;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 
@@ -7,6 +8,9 @@ namespace SunExp.Dll.Mechanics;
 
 public static class CompanionIntentExecutor
 {
+    internal const string PresentedPlanVar = "SunExpCompanionPresentedPlan";
+    private const string PresentedFingerprintVar = "SunExpCompanionPresentedFingerprint";
+
     public static void InitAction(ScriptExecutor self, string actionId)
     {
         if (ReferenceEquals(self, null))
@@ -17,7 +21,7 @@ public static class CompanionIntentExecutor
         var executor = self!;
         var state = CompanionBattleStateStore.Find(executor.Self?.InstanceId);
         var plan = state?.CurrentPlan;
-        if (plan == null)
+        if (state == null || plan == null)
         {
             return;
         }
@@ -26,13 +30,66 @@ public static class CompanionIntentExecutor
         DictionaryUtil.Set(executor.Vars, "priority", Math.Max(1, plan.Priority).ToString());
         if (!plan.IsWait)
         {
-            foreach (var effect in plan.ResolvedEffects ?? new System.Collections.Generic.List<CompanionResolvedEffect>())
+            var intent = CompanionIntentResolver.Find(state, plan.IntentId);
+            var specs = intent == null
+                ? Array.Empty<CompanionIntentEffectSpec>()
+                : CompanionIntentEffects.Expand(intent);
+            System.Collections.Generic.IReadOnlyList<CompanionResolvedEffect> effects = plan.ResolvedEffects;
+            var fingerprint = CompanionIntentPresentationSnapshot.Fingerprint(effects, specs);
+            var isCurrentSnapshot = string.Equals(
+                    DictionaryUtil.Get(executor.Vars, PresentedPlanVar),
+                    plan.PlanId,
+                    StringComparison.Ordinal)
+                && int.TryParse(DictionaryUtil.Get(executor.Vars, PresentedFingerprintVar), out var previousFingerprint)
+                && previousFingerprint == fingerprint;
+            if (isCurrentSnapshot)
             {
-                if (CompanionIntentHandlerRegistry.TryGet(effect.HandlerId, out var handler))
+                return;
+            }
+
+            for (var index = 1; index <= CompanionIntentPresentationSnapshot.ClearedDescriptionSlots; index++)
+            {
+                DictionaryUtil.Set(executor.Vars, "DesVal" + index, "");
+            }
+
+            var diagnostic = new StringBuilder(192);
+            for (var index = 0; index < effects.Count; index++)
+            {
+                var effect = effects[index];
+                var displayIndex = index < specs.Count
+                    ? Math.Max(1, specs[index].DisplayIndex)
+                    : index + 1;
+                var snapshot = CompanionIntentPresentationSnapshot.Resolve(effect, displayIndex);
+                DictionaryUtil.Set(executor.Vars, "DesVal" + snapshot.DisplayIndex, snapshot.DisplayText);
+                if (diagnostic.Length > 0)
                 {
-                    handler.AddDescription(executor, effect);
+                    diagnostic.Append(',');
+                }
+
+                diagnostic.Append("DesVal").Append(snapshot.DisplayIndex)
+                    .Append('=').Append(snapshot.DisplayText)
+                    .Append("/base=").Append(snapshot.AuthoritativeValue)
+                    .Append("/handler=").Append(snapshot.HandlerId);
+                if (snapshot.RepeatCount > 1)
+                {
+                    diagnostic.Append("/hits=").Append(snapshot.RepeatCount);
                 }
             }
+
+            DictionaryUtil.Set(executor.Vars, PresentedPlanVar, plan.PlanId);
+            DictionaryUtil.Set(executor.Vars, PresentedFingerprintVar, fingerprint.ToString());
+            SunExpLog.InfoAlways("[CompanionIntentPresentation] status=" + state.StatusId
+                + ", plan=" + plan.PlanId
+                + ", intent=" + plan.IntentId
+                + ", fingerprint=" + fingerprint
+                + ", values=" + (diagnostic.Length > 0 ? diagnostic.ToString() : "none"));
+
+            return;
+        }
+
+        for (var index = 1; index <= CompanionIntentPresentationSnapshot.ClearedDescriptionSlots; index++)
+        {
+            DictionaryUtil.Set(executor.Vars, "DesVal" + index, "");
         }
     }
 

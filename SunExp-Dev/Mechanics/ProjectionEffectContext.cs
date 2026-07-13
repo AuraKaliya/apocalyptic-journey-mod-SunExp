@@ -183,24 +183,45 @@ public static class ProjectionEffectContextService
         }
 
         var intent = context.Intent;
-        if (!CompanionIntentHandlerRegistry.TryGet(intent.HandlerId, out var handler))
+        var previousEffects = plan.ResolvedEffects ?? new List<CompanionResolvedEffect>();
+        var effectSpecs = CompanionIntentEffects.Expand(intent);
+        var refreshed = new List<CompanionResolvedEffect>();
+        for (var index = 0; index < effectSpecs.Count; index++)
+        {
+            var effectIntent = CompanionIntentEffects.AsDefinition(intent, effectSpecs[index]);
+            if (!CompanionIntentHandlerRegistry.TryGet(effectIntent.HandlerId, out var handler))
+            {
+                return plan;
+            }
+
+            var committedIds = index < previousEffects.Count
+                ? previousEffects[index].TargetIds
+                : plan.OrderedTargetIds;
+            var targets = CompanionTargetPolicyRegistry.Alive(committedIds).ToArray();
+            if (targets.Length == 0)
+            {
+                return plan;
+            }
+
+            var effect = handler.Resolve(state, effectIntent, targets);
+            effect.Value = context.ApplyStableModifier(effect.Value, EffectKind(effect.HandlerId));
+            refreshed.Add(effect);
+        }
+
+        if (refreshed.Count == 0)
         {
             return plan;
         }
 
-        var targets = CompanionTargetPolicyRegistry.Alive(plan.OrderedTargetIds).ToArray();
-        if (targets.Length == 0)
-        {
-            return plan;
-        }
-
-        var effect = handler.Resolve(state, intent, targets);
-        var kind = EffectKind(effect.HandlerId);
-        effect.Value = context.ApplyStableModifier(effect.Value, kind);
-        plan.ResolvedEffects = new List<CompanionResolvedEffect> { effect };
-        plan.ResolvedValue = effect.Value;
-        plan.OrderedTargetIds = new List<string>(effect.TargetIds);
-        plan.PreviewThreat = CompanionThreatService.CalculatePreview(intent, effect.Value, effect.RepeatCount);
+        plan.ResolvedEffects = refreshed;
+        plan.ResolvedValue = refreshed[0].Value;
+        plan.OrderedTargetIds = refreshed.SelectMany(effect => effect.TargetIds)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        plan.PreviewThreat = CompanionThreatService.CalculatePreview(
+            intent,
+            refreshed[0].Value,
+            refreshed[0].RepeatCount);
         return plan;
     }
 
@@ -213,12 +234,14 @@ public static class ProjectionEffectContextService
     private static ProjectionEffectKind EffectKind(string handlerId)
     {
         if (string.Equals(handlerId, CompanionIntentHandlerRegistry.DamageSingle, StringComparison.Ordinal)
-            || string.Equals(handlerId, CompanionIntentHandlerRegistry.DamageMulti, StringComparison.Ordinal))
+            || string.Equals(handlerId, CompanionIntentHandlerRegistry.DamageMulti, StringComparison.Ordinal)
+            || string.Equals(handlerId, CompanionIntentHandlerRegistry.DamageAll, StringComparison.Ordinal))
         {
             return ProjectionEffectKind.Damage;
         }
 
-        if (string.Equals(handlerId, CompanionIntentHandlerRegistry.BlockSingle, StringComparison.Ordinal))
+        if (string.Equals(handlerId, CompanionIntentHandlerRegistry.BlockSingle, StringComparison.Ordinal)
+            || string.Equals(handlerId, CompanionIntentHandlerRegistry.BlockAll, StringComparison.Ordinal))
         {
             return ProjectionEffectKind.Block;
         }

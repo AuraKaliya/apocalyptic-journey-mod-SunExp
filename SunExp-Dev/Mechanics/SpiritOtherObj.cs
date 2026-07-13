@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using SunExp.Dll.Infrastructure;
 using TMPro;
 using UnityEngine;
@@ -10,6 +11,11 @@ namespace SunExp.Dll.Mechanics;
 
 public sealed class SpiritOtherObj : OtherObj
 {
+    private static readonly object PresentationCacheLock = new();
+    private static readonly Dictionary<string, Dictionary<string, string>> PresentationTemplates =
+        new(StringComparer.Ordinal);
+    private static Dictionary<string, string>? presentationAdapterData;
+
     private CompanionBattleState? battleState;
 
     public CapturedEnemySnapshot Snapshot { get; private set; } = new();
@@ -171,13 +177,65 @@ public sealed class SpiritOtherObj : OtherObj
 
     private void RebuildAction(string cardId, int priority)
     {
+        var started = SunExpPerformanceCounters.Timestamp();
         FightAction = new ObjectAction(this);
         var card = new ObjectCard { status = Status as StatusManager };
-        var config = new DataConfig(cardId, DataType.EnemyCard);
+        var sourceCardId = string.IsNullOrWhiteSpace(cardId)
+            ? SunExpIds.ProjectionActionWaitCardId
+            : cardId.Trim();
+        var presentationData = PresentationDataFor(sourceCardId);
+        var config = new DataConfig(presentationData, new Dictionary<string, string>());
+        DictionaryUtil.Set(config.Vars, SunExpIds.SpiritIntentSourceCardVar, sourceCardId);
         DictionaryUtil.Set(config.Vars, "CD", "0");
         DictionaryUtil.Set(config.Vars, "priority", Math.Max(1, priority).ToString());
         card.Init(config);
+        VerifyPresentationBinding(config, sourceCardId);
         FightAction.AddCard(card);
+        SunExpPerformanceCounters.RecordHotspot(
+            "Spirit.Intent.PresentationBuild",
+            started,
+            "card=" + cardId + ", intent=" + (battleState?.CurrentPlan?.IntentId ?? "<none>"),
+            logFirstSample: true);
+    }
+
+    private static Dictionary<string, string> PresentationDataFor(string cardId)
+    {
+        var key = string.IsNullOrWhiteSpace(cardId) ? SunExpIds.ProjectionActionWaitCardId : cardId.Trim();
+        lock (PresentationCacheLock)
+        {
+            if (!PresentationTemplates.TryGetValue(key, out var template))
+            {
+                var source = new DataConfig(key, DataType.EnemyCard);
+                presentationAdapterData ??= new Dictionary<string, string>(
+                    new DataConfig(SunExpIds.SpiritIntentAdapterCardId, DataType.EnemyCard).data,
+                    StringComparer.Ordinal);
+                template = SpiritIntentPresentationDataComposer.Compose(source.data, presentationAdapterData);
+                PresentationTemplates[key] = template;
+            }
+
+            return new Dictionary<string, string>(template);
+        }
+    }
+
+    private void VerifyPresentationBinding(DataConfig config, string sourceCardId)
+    {
+        var expectedPlanId = battleState?.CurrentPlan?.PlanId;
+        if (string.IsNullOrWhiteSpace(expectedPlanId))
+        {
+            return;
+        }
+
+        var presentedPlanId = DictionaryUtil.Get(config.Vars, CompanionIntentExecutor.PresentedPlanVar);
+        if (string.Equals(presentedPlanId, expectedPlanId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        SunExpLog.Warn("[SpiritIntentPresentationAdapter] binding failed: status=" + InstanceId
+            + ", sourceCard=" + sourceCardId
+            + ", runtimeCard=" + DictionaryUtil.Get(config.Vars, "Id")
+            + ", expectedPlan=" + expectedPlanId
+            + ", presentedPlan=" + (string.IsNullOrWhiteSpace(presentedPlanId) ? "<none>" : presentedPlanId));
     }
 
     private void EnsureActionIcons()

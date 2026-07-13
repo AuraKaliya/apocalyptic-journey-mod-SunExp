@@ -108,12 +108,24 @@ public static class OutOfRunDamageHistoryBuilder
             BestHit = aggregate.BestHit?.Copy(),
             Combatants = aggregate.Combatants ?? new List<CombatantDamageStat>()
         };
-        var mvp = (mvpEvaluator ?? DefaultMvpEvaluator).Evaluate(aggregateSnapshot, countShield);
-        var teamTotal = aggregateSnapshot.Combatants
-            .Where(stat => stat.Team == DamageTeam.Friendly)
-            .Sum(stat => stat.DisplayTotal(countShield));
         var rounds = Math.Max(1, totalRounds);
         var members = BuildMembers(request.TeamMembers, aggregateSnapshot.Combatants, rounds, countShield);
+        var settlementSnapshot = new DamageMeterSnapshot
+        {
+            ProtocolVersion = aggregateSnapshot.ProtocolVersion,
+            SessionId = aggregateSnapshot.SessionId,
+            CompletedRoundCount = aggregateSnapshot.CompletedRoundCount,
+            BestHit = aggregateSnapshot.BestHit?.Copy(),
+            Combatants = members.Select(member => new CombatantDamageStat
+            {
+                InstanceId = member.InstanceId ?? "",
+                DisplayName = member.RoleDisplayName ?? "",
+                Team = DamageTeam.Friendly,
+                TotalHpDamage = Math.Max(0, member.TotalDamage)
+            }).ToList()
+        };
+        var mvp = (mvpEvaluator ?? DefaultMvpEvaluator).Evaluate(settlementSnapshot, countShield: false);
+        var teamTotal = members.Sum(member => Math.Max(0, member.TotalDamage));
 
         return new OutOfRunDamageHistoryRecord
         {
@@ -141,17 +153,33 @@ public static class OutOfRunDamageHistoryBuilder
         int rounds,
         bool countShield)
     {
-        var byId = combatants.ToDictionary(item => item.InstanceId, StringComparer.OrdinalIgnoreCase);
         var result = new List<OutOfRunTeamMemberSnapshot>();
+        var seenPlayers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var member in requested ?? Array.Empty<OutOfRunTeamMemberSnapshot>())
         {
-            if (member == null || result.Count >= DamageMeterProtocol.MaxTeamMembers)
+            if (result.Count >= DamageMeterProtocol.MaxTeamMembers)
             {
                 break;
             }
 
-            byId.TryGetValue(member.InstanceId ?? "", out var stat);
-            var total = stat?.DisplayTotal(countShield) ?? member.TotalDamage;
+            if (member == null
+                || string.IsNullOrWhiteSpace(member.PlayerId)
+                || !seenPlayers.Add(member.PlayerId!))
+            {
+                continue;
+            }
+
+            var aliases = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                member.InstanceId ?? "",
+                member.PlayerId ?? ""
+            };
+            var matched = combatants
+                .Where(stat => stat != null && aliases.Contains(stat.InstanceId ?? ""))
+                .ToList();
+            var total = matched.Count > 0
+                ? matched.Sum(stat => stat.DisplayTotal(countShield))
+                : member.TotalDamage;
             result.Add(new OutOfRunTeamMemberSnapshot
             {
                 InstanceId = member.InstanceId ?? "",
@@ -168,34 +196,6 @@ public static class OutOfRunDamageHistoryBuilder
                 DisplayName = member.DisplayName ?? "",
                 AvatarPngBase64 = member.AvatarPngBase64 ?? "",
                 AvatarSha256 = member.AvatarSha256 ?? "",
-                TotalDamage = total,
-                Dps = total / (double)Math.Max(1, rounds)
-            });
-        }
-
-        foreach (var stat in combatants
-                     .Where(item => item.Team == DamageTeam.Friendly)
-                     .OrderByDescending(item => item.DisplayTotal(countShield)))
-        {
-            if (result.Count >= DamageMeterProtocol.MaxTeamMembers)
-            {
-                break;
-            }
-
-            if (result.Any(item => string.Equals(item.InstanceId, stat.InstanceId, StringComparison.OrdinalIgnoreCase)))
-            {
-                continue;
-            }
-
-            var total = stat.DisplayTotal(countShield);
-            var fallbackDisplayName = FallbackDisplayName(stat);
-            result.Add(new OutOfRunTeamMemberSnapshot
-            {
-                InstanceId = stat.InstanceId ?? "",
-                PlayerId = stat.InstanceId ?? "",
-                PlayerDisplayName = fallbackDisplayName,
-                RoleDisplayName = fallbackDisplayName,
-                DisplayName = fallbackDisplayName,
                 TotalDamage = total,
                 Dps = total / (double)Math.Max(1, rounds)
             });

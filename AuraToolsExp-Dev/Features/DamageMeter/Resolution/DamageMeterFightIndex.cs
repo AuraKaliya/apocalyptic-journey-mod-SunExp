@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using Witch;
 using Witch.Core;
@@ -23,6 +24,9 @@ internal static class DamageMeterFightIndex
     private static readonly HashSet<string> FriendlyIdentityIds =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private static readonly Dictionary<string, string> FriendlyCanonicalIds =
+        new(StringComparer.OrdinalIgnoreCase);
+
     private static bool combatantsBuilt;
 
     public static void BeginFight()
@@ -35,6 +39,7 @@ internal static class DamageMeterFightIndex
     {
         FriendlyDisplayNames.Clear();
         FriendlyIdentityIds.Clear();
+        FriendlyCanonicalIds.Clear();
         foreach (var member in members ?? Array.Empty<OutOfRunTeamMemberSnapshot>())
         {
             if (member == null)
@@ -42,8 +47,9 @@ internal static class DamageMeterFightIndex
                 continue;
             }
 
-            RegisterFriendlyIdentity(member.InstanceId);
-            RegisterFriendlyIdentity(member.PlayerId);
+            var canonicalId = FirstNonEmpty(member.InstanceId, member.PlayerId);
+            RegisterFriendlyIdentity(member.InstanceId, canonicalId);
+            RegisterFriendlyIdentity(member.PlayerId, canonicalId);
             var displayName = FirstNonEmpty(member.RoleDisplayName, member.PlayerDisplayName, member.DisplayName);
             if (string.IsNullOrWhiteSpace(displayName))
             {
@@ -121,6 +127,43 @@ internal static class DamageMeterFightIndex
         }
 
         return resolved;
+    }
+
+    public static DamageSourceAttribution ResolveAttribution(
+        IStatusManager? status,
+        string instanceId,
+        string fallbackDisplayName)
+    {
+        instanceId = FirstNonEmpty(SafeStatusId(status), instanceId);
+        if (status == null && !string.IsNullOrWhiteSpace(instanceId))
+        {
+            status = ResolveStatus(instanceId);
+        }
+
+        var ownerPlayerId = ReadStringProperty(status?.fatherObject, "OwnerPlayerId");
+        var ownerStatusId = ReadStringProperty(status?.fatherObject, "OwnerStatusId");
+        var canonicalOwnerId = CanonicalFriendlyId(ownerPlayerId);
+        if (string.IsNullOrWhiteSpace(canonicalOwnerId))
+        {
+            canonicalOwnerId = CanonicalFriendlyId(ownerStatusId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(canonicalOwnerId))
+        {
+            return new DamageSourceAttribution(
+                canonicalOwnerId,
+                FirstNonEmpty(
+                    KnownFriendlyDisplayName(ownerPlayerId),
+                    KnownFriendlyDisplayName(ownerStatusId),
+                    KnownFriendlyDisplayName(canonicalOwnerId),
+                    fallbackDisplayName),
+                DamageTeam.Friendly);
+        }
+
+        return new DamageSourceAttribution(
+            instanceId,
+            DisplayName(status, FirstNonEmpty(fallbackDisplayName, instanceId)),
+            ResolveTeam(status, instanceId));
     }
 
     public static string DisplayName(IStatusManager? status, string fallback)
@@ -273,27 +316,19 @@ internal static class DamageMeterFightIndex
 
         try
         {
-            var roleStatusMap = Singleton<TempDataManager>.Instance?.RoleStatusMap;
-            if (roleStatusMap != null)
+            if (FightManager.Instance?.roleQueue != null)
             {
-                foreach (var pair in roleStatusMap)
+                foreach (var role in FightManager.Instance.roleQueue)
                 {
-                    var values = pair.Value;
-                    if (values == null)
+                    var id = role?.InstanceId ?? "";
+                    if (FightManager.Instance.statuses?.TryGetValue(id, out var status) == true)
                     {
-                        continue;
-                    }
-
-                    var playerDisplayName = KnownFriendlyDisplayName(pair.Key);
-
-                    foreach (var id in values)
-                    {
-                        RegisterFriendlyIdentity(id);
-                        RegisterFriendlyDisplayName(id, playerDisplayName);
-                        MarkFriendly(id);
+                        IndexAlias(id, status, DamageTeam.Friendly);
                     }
                 }
             }
+
+            IndexStatus(FightPlayer.Instance?.Status, DamageTeam.Friendly);
         }
         catch
         {
@@ -323,7 +358,9 @@ internal static class DamageMeterFightIndex
             return;
         }
 
-        var team = IsKnownFriendlyIdentity(instanceId)
+        var team = preferredTeam == DamageTeam.Enemy
+            ? DamageTeam.Enemy
+            : IsKnownFriendlyIdentity(instanceId)
             ? DamageTeam.Friendly
             : preferredTeam == DamageTeam.Unknown
             ? ResolveTeamUncached(status, instanceId)
@@ -355,30 +392,6 @@ internal static class DamageMeterFightIndex
         };
     }
 
-    private static void MarkFriendly(string instanceId)
-    {
-        instanceId = instanceId?.Trim() ?? "";
-        if (string.IsNullOrWhiteSpace(instanceId))
-        {
-            return;
-        }
-
-        if (Combatants.TryGetValue(instanceId, out var existing))
-        {
-            existing.Team = DamageTeam.Friendly;
-            existing.DisplayName = FirstNonEmpty(KnownFriendlyDisplayName(instanceId), existing.DisplayName);
-
-            return;
-        }
-
-        Combatants[instanceId] = new IndexedCombatant
-        {
-            Status = ResolveStatus(instanceId),
-            DisplayName = FirstNonEmpty(KnownFriendlyDisplayName(instanceId), "未命名友方单位"),
-            Team = DamageTeam.Friendly
-        };
-    }
-
     private static void RegisterFriendlyDisplayName(string? id, string? displayName)
     {
         id = id?.Trim() ?? "";
@@ -389,12 +402,17 @@ internal static class DamageMeterFightIndex
         }
     }
 
-    private static void RegisterFriendlyIdentity(string? id)
+    private static void RegisterFriendlyIdentity(string? id, string? canonicalId)
     {
         id = id?.Trim() ?? "";
         if (id.Length > 0)
         {
             FriendlyIdentityIds.Add(id);
+            canonicalId = canonicalId?.Trim() ?? "";
+            if (canonicalId.Length > 0)
+            {
+                FriendlyCanonicalIds[id] = canonicalId;
+            }
         }
     }
 
@@ -409,6 +427,14 @@ internal static class DamageMeterFightIndex
         id = id?.Trim() ?? "";
         return id.Length > 0 && FriendlyDisplayNames.TryGetValue(id, out var displayName)
             ? displayName
+            : "";
+    }
+
+    private static string CanonicalFriendlyId(string? id)
+    {
+        id = id?.Trim() ?? "";
+        return id.Length > 0 && FriendlyCanonicalIds.TryGetValue(id, out var canonicalId)
+            ? canonicalId
             : "";
     }
 
@@ -435,11 +461,6 @@ internal static class DamageMeterFightIndex
                 id = instanceId?.Trim() ?? "";
             }
 
-            if (IsKnownFriendlyIdentity(id))
-            {
-                return DamageTeam.Friendly;
-            }
-
             var typeName = status?.fatherObject?.GetType().Name ?? "";
             if (typeName.IndexOf("Enemy", StringComparison.OrdinalIgnoreCase) >= 0)
             {
@@ -463,6 +484,11 @@ internal static class DamageMeterFightIndex
                 }
             }
 
+            if (IsKnownFriendlyIdentity(id))
+            {
+                return DamageTeam.Friendly;
+            }
+
             if (typeName.IndexOf("FightPlayer", StringComparison.OrdinalIgnoreCase) >= 0
                 || typeName.IndexOf("Partner", StringComparison.OrdinalIgnoreCase) >= 0
                 || typeName.IndexOf("Role", StringComparison.OrdinalIgnoreCase) >= 0)
@@ -470,25 +496,6 @@ internal static class DamageMeterFightIndex
                 return DamageTeam.Friendly;
             }
 
-            var roleStatusMap = Singleton<TempDataManager>.Instance?.RoleStatusMap;
-            if (roleStatusMap != null)
-            {
-                foreach (var values in roleStatusMap.Values)
-                {
-                    if (values == null)
-                    {
-                        continue;
-                    }
-
-                    foreach (var value in values)
-                    {
-                        if (string.Equals(value, id, StringComparison.Ordinal))
-                        {
-                            return DamageTeam.Friendly;
-                        }
-                    }
-                }
-            }
         }
         catch
         {
@@ -522,6 +529,28 @@ internal static class DamageMeterFightIndex
         }
     }
 
+    private static string ReadStringProperty(object? target, string propertyName)
+    {
+        if (target == null)
+        {
+            return "";
+        }
+
+        try
+        {
+            return target.GetType()
+                       .GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public)
+                       ?.GetValue(target)
+                       ?.ToString()
+                       ?.Trim()
+                   ?? "";
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
     private static readonly DataType[] DataTypes =
     {
         DataType.Card,
@@ -541,4 +570,20 @@ internal static class DamageMeterFightIndex
         public string DisplayName { get; set; } = "";
         public DamageTeam Team { get; set; }
     }
+}
+
+internal readonly struct DamageSourceAttribution
+{
+    public DamageSourceAttribution(string instanceId, string displayName, DamageTeam team)
+    {
+        InstanceId = instanceId ?? "";
+        DisplayName = displayName ?? "";
+        Team = team;
+    }
+
+    public string InstanceId { get; }
+
+    public string DisplayName { get; }
+
+    public DamageTeam Team { get; }
 }

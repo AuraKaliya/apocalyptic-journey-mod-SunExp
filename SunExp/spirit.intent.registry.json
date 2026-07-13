@@ -1,6 +1,3117 @@
 {
-  "schemaVersion": 1,
-  "intents": [],
+  "schemaVersion": 3,
+  "intents": [
+    {
+      "id": "spirit.pve.enemycard_burn.intent",
+      "enemyCardId": "enemycard_burn",
+      "pool": "Pve",
+      "adaptationNote": "native buff/debuff preserved with a safe target adapter",
+      "type": "Interference",
+      "cost": 0,
+      "cooldown": 1,
+      "basePriority": 3,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "buff_burn",
+      "buffStacks": 4,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "buff_burn",
+          "buffStacks": 4,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_burn1.intent",
+      "enemyCardId": "enemycard_burn1",
+      "pool": "Pve",
+      "adaptationNote": "native buff/debuff preserved with a safe target adapter",
+      "type": "Interference",
+      "cost": 0,
+      "cooldown": 3,
+      "basePriority": 4,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "buff_burn",
+      "buffStacks": 3,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "buff_burn",
+          "buffStacks": 3,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_burn2.intent",
+      "enemyCardId": "enemycard_burn2",
+      "pool": "Pve",
+      "adaptationNote": "native buff/debuff preserved with a safe target adapter",
+      "type": "Interference",
+      "cost": 0,
+      "cooldown": 3,
+      "basePriority": 3,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "buff_burn",
+      "buffStacks": 6,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "buff_burn",
+          "buffStacks": 6,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_car_hammer.intent",
+      "enemyCardId": "enemycard_CAR_Hammer",
+      "pool": "Pve",
+      "adaptationNote": "native damage shape adapted to spirit attack scaling; native defense redirected to the friendly roster",
+      "type": "Attack",
+      "cost": 0,
+      "cooldown": 2,
+      "basePriority": 5,
+      "handlerId": "damage.single",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 2,
+      "attackScale": 0.8,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "damage.single",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 2,
+          "attackScale": 0.8,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        },
+        {
+          "handlerId": "block.single",
+          "target": {
+            "scope": "Friendly",
+            "mode": "Single",
+            "policy": "friendly.owner_or_self_defense"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 4,
+          "attackScale": 0,
+          "armorScale": 0.8,
+          "magicScale": 0,
+          "displayIndex": 2
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_car_shield.intent",
+      "enemyCardId": "enemycard_CAR_Shield",
+      "pool": "Pve",
+      "adaptationNote": "native buff/debuff preserved with a safe target adapter",
+      "type": "Support",
+      "cost": 0,
+      "cooldown": 2,
+      "basePriority": 3,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Friendly",
+        "mode": "Single",
+        "policy": "friendly.owner_or_self_defense"
+      },
+      "hitCount": 1,
+      "buffId": "buff_impregnable",
+      "buffStacks": 1,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Friendly",
+            "mode": "Single",
+            "policy": "friendly.owner_or_self_defense"
+          },
+          "hitCount": 1,
+          "buffId": "buff_impregnable",
+          "buffStacks": 1,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        },
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Friendly",
+            "mode": "Single",
+            "policy": "friendly.owner_or_self_defense"
+          },
+          "hitCount": 1,
+          "buffId": "buff_vitality",
+          "buffStacks": 1,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 2
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_car_spear.intent",
+      "enemyCardId": "enemycard_CAR_Spear",
+      "pool": "Pve",
+      "adaptationNote": "native damage shape adapted to spirit attack scaling; native buff/debuff preserved with a safe target adapter",
+      "type": "Attack",
+      "cost": 0,
+      "cooldown": 1,
+      "basePriority": 4,
+      "handlerId": "damage.single",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 2,
+      "attackScale": 0.8,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "damage.single",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 2,
+          "attackScale": 0.8,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        },
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "buff_vulnerability",
+          "buffStacks": 2,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 2
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_car_sword.intent",
+      "enemyCardId": "enemycard_CAR_Sword",
+      "pool": "Pve",
+      "adaptationNote": "native damage shape adapted to spirit attack scaling",
+      "type": "Attack",
+      "cost": 0,
+      "cooldown": 2,
+      "basePriority": 8,
+      "handlerId": "damage.single",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 2,
+      "attackScale": 0.8,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "damage.single",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 2,
+          "attackScale": 0.8,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_charmed.intent",
+      "enemyCardId": "enemycard_charmed",
+      "pool": "Pve",
+      "adaptationNote": "native buff/debuff preserved with a safe target adapter",
+      "type": "Interference",
+      "cost": 0,
+      "cooldown": 3,
+      "basePriority": 2,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "buff_timestop",
+      "buffStacks": 1,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "buff_timestop",
+          "buffStacks": 1,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_defence.intent",
+      "enemyCardId": "enemycard_defence",
+      "pool": "Pve",
+      "adaptationNote": "native defense redirected to the friendly roster",
+      "type": "Defense",
+      "cost": 0,
+      "cooldown": 0,
+      "basePriority": 1,
+      "handlerId": "block.single",
+      "target": {
+        "scope": "Friendly",
+        "mode": "Single",
+        "policy": "friendly.owner_or_self_defense"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 4,
+      "attackScale": 0,
+      "armorScale": 0.8,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "block.single",
+          "target": {
+            "scope": "Friendly",
+            "mode": "Single",
+            "policy": "friendly.owner_or_self_defense"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 4,
+          "attackScale": 0,
+          "armorScale": 0.8,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_despair.intent",
+      "enemyCardId": "enemycard_Despair",
+      "pool": "Pve",
+      "adaptationNote": "native damage shape adapted to spirit attack scaling; native buff/debuff preserved with a safe target adapter",
+      "type": "Attack",
+      "cost": 0,
+      "cooldown": 1,
+      "basePriority": 5,
+      "handlerId": "damage.single",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 2,
+      "attackScale": 0.8,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "damage.single",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 2,
+          "attackScale": 0.8,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        },
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "buff_toxin",
+          "buffStacks": 3,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 2
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_fallendragon.intent",
+      "enemyCardId": "enemycard_FallenDragon",
+      "pool": "Pve",
+      "adaptationNote": "native buff/debuff preserved with a safe target adapter",
+      "type": "Support",
+      "cost": 0,
+      "cooldown": 3,
+      "basePriority": 4,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Friendly",
+        "mode": "Single",
+        "policy": "friendly.owner_or_self_defense"
+      },
+      "hitCount": 1,
+      "buffId": "buff_extraordinary",
+      "buffStacks": 20,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Friendly",
+            "mode": "Single",
+            "policy": "friendly.owner_or_self_defense"
+          },
+          "hitCount": 1,
+          "buffId": "buff_extraordinary",
+          "buffStacks": 20,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_fearless.intent",
+      "enemyCardId": "enemycard_fearless",
+      "pool": "Pve",
+      "adaptationNote": "native buff/debuff preserved with a safe target adapter",
+      "type": "Support",
+      "cost": 0,
+      "cooldown": 3,
+      "basePriority": 2,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Friendly",
+        "mode": "Single",
+        "policy": "friendly.owner_or_self_defense"
+      },
+      "hitCount": 1,
+      "buffId": "buff_vitality",
+      "buffStacks": 4,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Friendly",
+            "mode": "Single",
+            "policy": "friendly.owner_or_self_defense"
+          },
+          "hitCount": 1,
+          "buffId": "buff_vitality",
+          "buffStacks": 4,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_fivehit.intent",
+      "enemyCardId": "enemycard_FiveHit",
+      "pool": "Pve",
+      "adaptationNote": "native damage shape adapted to spirit attack scaling",
+      "type": "Attack",
+      "cost": 0,
+      "cooldown": 2,
+      "basePriority": 3,
+      "handlerId": "damage.multi",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 5,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 2,
+      "attackScale": 0.35,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "damage.multi",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 5,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 2,
+          "attackScale": 0.35,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_foraging.intent",
+      "enemyCardId": "enemycard_foraging",
+      "pool": "Pve",
+      "adaptationNote": "native damage shape adapted to spirit attack scaling",
+      "type": "Attack",
+      "cost": 0,
+      "cooldown": 1,
+      "basePriority": 3,
+      "handlerId": "damage.single",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 2,
+      "attackScale": 0.8,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "damage.single",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 2,
+          "attackScale": 0.8,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_fullsupport.intent",
+      "enemyCardId": "enemycard_FullSupport",
+      "pool": "Pve",
+      "adaptationNote": "native defense redirected to the friendly roster",
+      "type": "Defense",
+      "cost": 0,
+      "cooldown": 1,
+      "basePriority": 1,
+      "handlerId": "block.single",
+      "target": {
+        "scope": "Friendly",
+        "mode": "Single",
+        "policy": "friendly.owner_or_self_defense"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 4,
+      "attackScale": 0,
+      "armorScale": 0.8,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "block.single",
+          "target": {
+            "scope": "Friendly",
+            "mode": "Single",
+            "policy": "friendly.owner_or_self_defense"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 4,
+          "attackScale": 0,
+          "armorScale": 0.8,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_giantclawstrike.intent",
+      "enemyCardId": "enemycard_GiantClawStrike",
+      "pool": "Pve",
+      "adaptationNote": "native damage shape adapted to spirit attack scaling; native buff/debuff preserved with a safe target adapter",
+      "type": "Attack",
+      "cost": 0,
+      "cooldown": 3,
+      "basePriority": 2,
+      "handlerId": "damage.single",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 2,
+      "attackScale": 0.8,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "damage.single",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 2,
+          "attackScale": 0.8,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        },
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "buff_bleeding",
+          "buffStacks": 2,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 2
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_highfly.intent",
+      "enemyCardId": "enemycard_HighFly",
+      "pool": "Pve",
+      "adaptationNote": "native defense redirected to the friendly roster",
+      "type": "Defense",
+      "cost": 0,
+      "cooldown": 0,
+      "basePriority": 2,
+      "handlerId": "block.single",
+      "target": {
+        "scope": "Friendly",
+        "mode": "Single",
+        "policy": "friendly.owner_or_self_defense"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 4,
+      "attackScale": 0,
+      "armorScale": 0.8,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "block.single",
+          "target": {
+            "scope": "Friendly",
+            "mode": "Single",
+            "policy": "friendly.owner_or_self_defense"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 4,
+          "attackScale": 0,
+          "armorScale": 0.8,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_iceshield.intent",
+      "enemyCardId": "enemycard_IceShield",
+      "pool": "Pve",
+      "adaptationNote": "native buff/debuff preserved with a safe target adapter",
+      "type": "Interference",
+      "cost": 0,
+      "cooldown": 4,
+      "basePriority": 5,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "buff_cripple",
+      "buffStacks": 2,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "buff_cripple",
+          "buffStacks": 2,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_licking.intent",
+      "enemyCardId": "enemycard_Licking",
+      "pool": "Pve",
+      "adaptationNote": "native buff/debuff preserved with a safe target adapter",
+      "type": "Interference",
+      "cost": 0,
+      "cooldown": 2,
+      "basePriority": 2,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "buff_rotten",
+      "buffStacks": 2,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "buff_rotten",
+          "buffStacks": 2,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_limepowder.intent",
+      "enemyCardId": "enemycard_LimePowder",
+      "pool": "Pve",
+      "adaptationNote": "native buff/debuff preserved with a safe target adapter",
+      "type": "Interference",
+      "cost": 0,
+      "cooldown": 3,
+      "basePriority": 3,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "buff_oblivion",
+      "buffStacks": 1,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "buff_oblivion",
+          "buffStacks": 1,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_makeineffectiverays1.intent",
+      "enemyCardId": "enemycard_MakeIneffectiveRays1",
+      "pool": "Pve",
+      "adaptationNote": "native defense redirected to the friendly roster; native buff/debuff preserved with a safe target adapter",
+      "type": "Defense",
+      "cost": 0,
+      "cooldown": 4,
+      "basePriority": 3,
+      "handlerId": "block.single",
+      "target": {
+        "scope": "Friendly",
+        "mode": "Single",
+        "policy": "friendly.owner_or_self_defense"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 4,
+      "attackScale": 0,
+      "armorScale": 0.8,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "block.single",
+          "target": {
+            "scope": "Friendly",
+            "mode": "Single",
+            "policy": "friendly.owner_or_self_defense"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 4,
+          "attackScale": 0,
+          "armorScale": 0.8,
+          "magicScale": 0,
+          "displayIndex": 1
+        },
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Friendly",
+            "mode": "Single",
+            "policy": "friendly.owner_or_self_defense"
+          },
+          "hitCount": 1,
+          "buffId": "buff_impregnable",
+          "buffStacks": 2,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 2
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_mt1.intent",
+      "enemyCardId": "enemycard_MT1",
+      "pool": "Pve",
+      "adaptationNote": "native buff/debuff preserved with a safe target adapter",
+      "type": "Support",
+      "cost": 0,
+      "cooldown": 3,
+      "basePriority": 9,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Friendly",
+        "mode": "Single",
+        "policy": "friendly.owner_or_self_defense"
+      },
+      "hitCount": 1,
+      "buffId": "buff_lifelink",
+      "buffStacks": 2,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Friendly",
+            "mode": "Single",
+            "policy": "friendly.owner_or_self_defense"
+          },
+          "hitCount": 1,
+          "buffId": "buff_lifelink",
+          "buffStacks": 2,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_mt2.intent",
+      "enemyCardId": "enemycard_MT2",
+      "pool": "Pve",
+      "adaptationNote": "native buff/debuff preserved with a safe target adapter",
+      "type": "Support",
+      "cost": 0,
+      "cooldown": 3,
+      "basePriority": 2,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Friendly",
+        "mode": "Single",
+        "policy": "friendly.owner_or_self_defense"
+      },
+      "hitCount": 1,
+      "buffId": "buff_extraordinary",
+      "buffStacks": 10,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Friendly",
+            "mode": "Single",
+            "policy": "friendly.owner_or_self_defense"
+          },
+          "hitCount": 1,
+          "buffId": "buff_extraordinary",
+          "buffStacks": 10,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_nervereflexes.intent",
+      "enemyCardId": "enemycard_NerveReflexes",
+      "pool": "Pve",
+      "adaptationNote": "native buff/debuff preserved with a safe target adapter",
+      "type": "Support",
+      "cost": 0,
+      "cooldown": 2,
+      "basePriority": 2,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Friendly",
+        "mode": "Single",
+        "policy": "friendly.owner_or_self_defense"
+      },
+      "hitCount": 1,
+      "buffId": "buff_frenzy",
+      "buffStacks": 1,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Friendly",
+            "mode": "Single",
+            "policy": "friendly.owner_or_self_defense"
+          },
+          "hitCount": 1,
+          "buffId": "buff_frenzy",
+          "buffStacks": 1,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_neverdead.intent",
+      "enemyCardId": "enemycard_NeverDead",
+      "pool": "Pve",
+      "adaptationNote": "native buff/debuff preserved with a safe target adapter",
+      "type": "Support",
+      "cost": 0,
+      "cooldown": 2,
+      "basePriority": 1,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Friendly",
+        "mode": "Single",
+        "policy": "friendly.owner_or_self_defense"
+      },
+      "hitCount": 1,
+      "buffId": "buff_evergreen",
+      "buffStacks": 5,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Friendly",
+            "mode": "Single",
+            "policy": "friendly.owner_or_self_defense"
+          },
+          "hitCount": 1,
+          "buffId": "buff_evergreen",
+          "buffStacks": 5,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_observe.intent",
+      "enemyCardId": "enemycard_Observe",
+      "pool": "Pve",
+      "adaptationNote": "native buff/debuff preserved with a safe target adapter",
+      "type": "Interference",
+      "cost": 0,
+      "cooldown": 3,
+      "basePriority": 2,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "buff_degrade",
+      "buffStacks": 2,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "buff_degrade",
+          "buffStacks": 2,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_obtainmoney.intent",
+      "enemyCardId": "enemycard_obtainMoney",
+      "pool": "Pve",
+      "adaptationNote": "native damage shape adapted to spirit attack scaling",
+      "type": "Attack",
+      "cost": 0,
+      "cooldown": 2,
+      "basePriority": 4,
+      "handlerId": "damage.single",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 2,
+      "attackScale": 0.8,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "damage.single",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 2,
+          "attackScale": 0.8,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_ordinaryfivehit.intent",
+      "enemyCardId": "enemycard_OrdinaryFiveHit",
+      "pool": "Pve",
+      "adaptationNote": "native damage shape adapted to spirit attack scaling",
+      "type": "Attack",
+      "cost": 0,
+      "cooldown": 1,
+      "basePriority": 3,
+      "handlerId": "damage.multi",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 5,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 2,
+      "attackScale": 0.35,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "damage.multi",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 5,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 2,
+          "attackScale": 0.35,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_ordinaryhit.intent",
+      "enemyCardId": "enemycard_OrdinaryHit",
+      "pool": "Pve",
+      "adaptationNote": "native damage shape adapted to spirit attack scaling",
+      "type": "Attack",
+      "cost": 0,
+      "cooldown": 0,
+      "basePriority": 1,
+      "handlerId": "damage.single",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 2,
+      "attackScale": 0.8,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "damage.single",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 2,
+          "attackScale": 0.8,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_overrunworkouts.intent",
+      "enemyCardId": "enemycard_OverrunWorkouts",
+      "pool": "Pve",
+      "adaptationNote": "native buff/debuff preserved with a safe target adapter",
+      "type": "Support",
+      "cost": 0,
+      "cooldown": 2,
+      "basePriority": 2,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Friendly",
+        "mode": "Single",
+        "policy": "friendly.owner_or_self_defense"
+      },
+      "hitCount": 1,
+      "buffId": "buff_keenedge",
+      "buffStacks": 1,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Friendly",
+            "mode": "Single",
+            "policy": "friendly.owner_or_self_defense"
+          },
+          "hitCount": 1,
+          "buffId": "buff_keenedge",
+          "buffStacks": 1,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_poisonthrowing.intent",
+      "enemyCardId": "enemycard_PoisonThrowing",
+      "pool": "Pve",
+      "adaptationNote": "native buff/debuff preserved with a safe target adapter",
+      "type": "Interference",
+      "cost": 0,
+      "cooldown": 3,
+      "basePriority": 2,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "buff_oblivion",
+      "buffStacks": 1,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "buff_oblivion",
+          "buffStacks": 1,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        },
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "buff_toxin",
+          "buffStacks": 3,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 2
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_psychologicalshock.intent",
+      "enemyCardId": "enemycard_psychologicalShock",
+      "pool": "Pve",
+      "adaptationNote": "native damage shape adapted to spirit attack scaling",
+      "type": "Attack",
+      "cost": 0,
+      "cooldown": 3,
+      "basePriority": 4,
+      "handlerId": "damage.single",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 2,
+      "attackScale": 0.8,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "damage.single",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 2,
+          "attackScale": 0.8,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_quadruplehits.intent",
+      "enemyCardId": "enemycard_QuadrupleHits",
+      "pool": "Pve",
+      "adaptationNote": "native damage shape adapted to spirit attack scaling",
+      "type": "Attack",
+      "cost": 0,
+      "cooldown": 2,
+      "basePriority": 2,
+      "handlerId": "damage.multi",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 4,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 2,
+      "attackScale": 0.35,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "damage.multi",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 4,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 2,
+          "attackScale": 0.35,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_rejuvenation.intent",
+      "enemyCardId": "enemycard_rejuvenation",
+      "pool": "Pve",
+      "adaptationNote": "native self-heal redirected to the most wounded ally",
+      "type": "Recovery",
+      "cost": 0,
+      "cooldown": 1,
+      "basePriority": 1,
+      "handlerId": "heal.single",
+      "target": {
+        "scope": "Friendly",
+        "mode": "Single",
+        "policy": "friendly.most_wounded"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 4,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0.6,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "heal.single",
+          "target": {
+            "scope": "Friendly",
+            "mode": "Single",
+            "policy": "friendly.most_wounded"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 4,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0.6,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_royalbarrier.intent",
+      "enemyCardId": "enemycard_RoyalBarrier",
+      "pool": "Pve",
+      "adaptationNote": "native defense redirected to the friendly roster",
+      "type": "Defense",
+      "cost": 0,
+      "cooldown": 1,
+      "basePriority": 2,
+      "handlerId": "block.single",
+      "target": {
+        "scope": "Friendly",
+        "mode": "Single",
+        "policy": "friendly.owner_or_self_defense"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 4,
+      "attackScale": 0,
+      "armorScale": 0.8,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "block.single",
+          "target": {
+            "scope": "Friendly",
+            "mode": "Single",
+            "policy": "friendly.owner_or_self_defense"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 4,
+          "attackScale": 0,
+          "armorScale": 0.8,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_seduce.intent",
+      "enemyCardId": "enemycard_Seduce",
+      "pool": "Pve",
+      "adaptationNote": "native damage shape adapted to spirit attack scaling; native buff/debuff preserved with a safe target adapter",
+      "type": "Attack",
+      "cost": 0,
+      "cooldown": 1,
+      "basePriority": 3,
+      "handlerId": "damage.single",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 2,
+      "attackScale": 0.8,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "damage.single",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 2,
+          "attackScale": 0.8,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        },
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "buff_vulnerability",
+          "buffStacks": 2,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 2
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_specialattack.intent",
+      "enemyCardId": "enemycard_specialAttack",
+      "pool": "Pve",
+      "adaptationNote": "native damage shape adapted to spirit attack scaling; native defense redirected to the friendly roster",
+      "type": "Attack",
+      "cost": 0,
+      "cooldown": 2,
+      "basePriority": 3,
+      "handlerId": "damage.single",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 2,
+      "attackScale": 0.8,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "damage.single",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 2,
+          "attackScale": 0.8,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        },
+        {
+          "handlerId": "block.single",
+          "target": {
+            "scope": "Friendly",
+            "mode": "Single",
+            "policy": "friendly.owner_or_self_defense"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 4,
+          "attackScale": 0,
+          "armorScale": 0.8,
+          "magicScale": 0,
+          "displayIndex": 2
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_spreadwings.intent",
+      "enemyCardId": "enemycard_SpreadWings",
+      "pool": "Pve",
+      "adaptationNote": "native damage shape adapted to spirit attack scaling; native buff/debuff preserved with a safe target adapter",
+      "type": "Attack",
+      "cost": 0,
+      "cooldown": 0,
+      "basePriority": 2,
+      "handlerId": "damage.single",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 2,
+      "attackScale": 0.8,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "damage.single",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 2,
+          "attackScale": 0.8,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        },
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Friendly",
+            "mode": "Single",
+            "policy": "friendly.owner_or_self_defense"
+          },
+          "hitCount": 1,
+          "buffId": "buff_burn",
+          "buffStacks": 1,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 2
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_superfireball.intent",
+      "enemyCardId": "enemycard_SuperFireBall",
+      "pool": "Pve",
+      "adaptationNote": "native damage shape adapted to spirit attack scaling",
+      "type": "Attack",
+      "cost": 0,
+      "cooldown": 2,
+      "basePriority": 2,
+      "handlerId": "damage.multi",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 2,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 2,
+      "attackScale": 0.35,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "damage.multi",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 2,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 2,
+          "attackScale": 0.35,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_toxin1.intent",
+      "enemyCardId": "enemycard_Toxin1",
+      "pool": "Pve",
+      "adaptationNote": "native buff/debuff preserved with a safe target adapter",
+      "type": "Interference",
+      "cost": 0,
+      "cooldown": 1,
+      "basePriority": 3,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "buff_toxin",
+      "buffStacks": 3,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "buff_toxin",
+          "buffStacks": 3,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_toxin2.intent",
+      "enemyCardId": "enemycard_Toxin2",
+      "pool": "Pve",
+      "adaptationNote": "native buff/debuff preserved with a safe target adapter",
+      "type": "Interference",
+      "cost": 0,
+      "cooldown": 1,
+      "basePriority": 2,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "buff_toxin",
+      "buffStacks": 4,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "buff_toxin",
+          "buffStacks": 4,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_toxin3.intent",
+      "enemyCardId": "enemycard_Toxin3",
+      "pool": "Pve",
+      "adaptationNote": "native buff/debuff preserved with a safe target adapter",
+      "type": "Interference",
+      "cost": 0,
+      "cooldown": 1,
+      "basePriority": 1,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "buff_toxin",
+      "buffStacks": 5,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "buff_toxin",
+          "buffStacks": 5,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_toxin4.intent",
+      "enemyCardId": "enemycard_Toxin4",
+      "pool": "Pve",
+      "adaptationNote": "native buff/debuff preserved with a safe target adapter",
+      "type": "Interference",
+      "cost": 0,
+      "cooldown": 2,
+      "basePriority": 1,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "buff_toxin",
+      "buffStacks": 5,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "buff_toxin",
+          "buffStacks": 5,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_venomspray.intent",
+      "enemyCardId": "enemycard_VenomSpray",
+      "pool": "Pve",
+      "adaptationNote": "native damage shape adapted to spirit attack scaling",
+      "type": "Attack",
+      "cost": 0,
+      "cooldown": 3,
+      "basePriority": 4,
+      "handlerId": "damage.single",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 2,
+      "attackScale": 0.8,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "damage.single",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 2,
+          "attackScale": 0.8,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_vulnerabilitylight.intent",
+      "enemyCardId": "enemycard_vulnerabilityLight",
+      "pool": "Pve",
+      "adaptationNote": "native buff/debuff preserved with a safe target adapter",
+      "type": "Interference",
+      "cost": 0,
+      "cooldown": 2,
+      "basePriority": 5,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "buff_vulnerability",
+      "buffStacks": 3,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "buff_vulnerability",
+          "buffStacks": 3,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_weak.intent",
+      "enemyCardId": "enemycard_Weak",
+      "pool": "Pve",
+      "adaptationNote": "native buff/debuff preserved with a safe target adapter",
+      "type": "Support",
+      "cost": 0,
+      "cooldown": 2,
+      "basePriority": 2,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Friendly",
+        "mode": "Single",
+        "policy": "friendly.owner_or_self_defense"
+      },
+      "hitCount": 1,
+      "buffId": "buff_weak",
+      "buffStacks": 1,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Friendly",
+            "mode": "Single",
+            "policy": "friendly.owner_or_self_defense"
+          },
+          "hitCount": 1,
+          "buffId": "buff_weak",
+          "buffStacks": 1,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_weaklight.intent",
+      "enemyCardId": "enemycard_WeakLight",
+      "pool": "Pve",
+      "adaptationNote": "native buff/debuff preserved with a safe target adapter",
+      "type": "Interference",
+      "cost": 0,
+      "cooldown": 4,
+      "basePriority": 2,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "buff_weak",
+      "buffStacks": 2,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "buff_weak",
+          "buffStacks": 2,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.enemycard_witness.intent",
+      "enemyCardId": "enemycard_Witness",
+      "pool": "Pve",
+      "adaptationNote": "native buff/debuff preserved with a safe target adapter",
+      "type": "Support",
+      "cost": 0,
+      "cooldown": 2,
+      "basePriority": 2,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Friendly",
+        "mode": "Single",
+        "policy": "friendly.owner_or_self_defense"
+      },
+      "hitCount": 1,
+      "buffId": "buff_impregnable",
+      "buffStacks": 2,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Friendly",
+            "mode": "Single",
+            "policy": "friendly.owner_or_self_defense"
+          },
+          "hitCount": 1,
+          "buffId": "buff_impregnable",
+          "buffStacks": 2,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.sunexp_sunexp_enemycard_last_day_morning_prayer.intent",
+      "enemyCardId": "SunExp_sunexp_enemycard_last_day_morning_prayer",
+      "pool": "Pve",
+      "adaptationNote": "all-enemy burn adapted from morning prayer; self gathered flame redirected to the owner",
+      "type": "Interference",
+      "cost": 0,
+      "cooldown": 0,
+      "basePriority": 1,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Enemy",
+        "mode": "All",
+        "policy": "enemy.all"
+      },
+      "hitCount": 1,
+      "buffId": "buff_burn",
+      "buffStacks": 5,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "mode": "All",
+            "policy": "enemy.all"
+          },
+          "hitCount": 1,
+          "buffId": "buff_burn",
+          "buffStacks": 5,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        },
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Friendly",
+            "mode": "Single",
+            "policy": "friendly.owner_or_self_defense"
+          },
+          "hitCount": 1,
+          "buffId": "SunExp_sunexp_gathered_flame",
+          "buffStacks": 10,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 2
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.sunexp_sunexp_enemycard_last_day_noon_burn.intent",
+      "enemyCardId": "SunExp_sunexp_enemycard_last_day_noon_burn",
+      "pool": "Pve",
+      "adaptationNote": "primary damage preserved; boss phase trigger omitted",
+      "type": "Attack",
+      "cost": 0,
+      "cooldown": 0,
+      "basePriority": 1,
+      "handlerId": "damage.single",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 12,
+      "attackScale": 1,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "damage.single",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 12,
+          "attackScale": 1,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.sunexp_sunexp_enemycard_mirror_calibration.intent",
+      "enemyCardId": "SunExp_sunexp_enemycard_mirror_calibration",
+      "pool": "Pve",
+      "adaptationNote": "self block redirected to the owner; all-enemy burn adapted from mirror calibration",
+      "type": "Defense",
+      "cost": 0,
+      "cooldown": 0,
+      "basePriority": 1,
+      "handlerId": "block.single",
+      "target": {
+        "scope": "Friendly",
+        "mode": "Single",
+        "policy": "friendly.owner_or_self_defense"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 10,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "block.single",
+          "target": {
+            "scope": "Friendly",
+            "mode": "Single",
+            "policy": "friendly.owner_or_self_defense"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 10,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        },
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "mode": "All",
+            "policy": "enemy.all"
+          },
+          "hitCount": 1,
+          "buffId": "buff_burn",
+          "buffStacks": 5,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 2
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.sunexp_sunexp_enemycard_orbit_refraction.intent",
+      "enemyCardId": "SunExp_sunexp_enemycard_orbit_refraction",
+      "pool": "Pve",
+      "adaptationNote": "damage component; burn trigger remains safely omitted; burn component adapted without native boss trigger",
+      "type": "Attack",
+      "cost": 0,
+      "cooldown": 0,
+      "basePriority": 1,
+      "handlerId": "damage.single",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 8,
+      "attackScale": 0.9,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "damage.single",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 8,
+          "attackScale": 0.9,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        },
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "buff_burn",
+          "buffStacks": 10,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 2
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.sunexp_sunexp_enemycard_saint_purification.intent",
+      "enemyCardId": "SunExp_sunexp_enemycard_saint_purification",
+      "pool": "Pve",
+      "adaptationNote": "primary damage preserved; global coronation logic omitted; body burn component adapted safely",
+      "type": "Attack",
+      "cost": 0,
+      "cooldown": 0,
+      "basePriority": 1,
+      "handlerId": "damage.single",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 10,
+      "attackScale": 0.9,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "damage.single",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 10,
+          "attackScale": 0.9,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        },
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "SunExp_sunexp_body_burn",
+          "buffStacks": 2,
+          "flatValue": 0,
+          "attackScale": 0,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 2
+        }
+      ]
+    },
+    {
+      "id": "spirit.pve.sunexp_sunexp_enemycard_saint_return_to_court.intent",
+      "enemyCardId": "SunExp_sunexp_enemycard_saint_return_to_court",
+      "pool": "Pve",
+      "adaptationNote": "primary damage preserved; saved-name global mechanic omitted",
+      "type": "Attack",
+      "cost": 0,
+      "cooldown": 0,
+      "basePriority": 1,
+      "handlerId": "damage.single",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 9,
+      "attackScale": 0.85,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "damage.single",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 9,
+          "attackScale": 0.85,
+          "armorScale": 0,
+          "magicScale": 0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.pvp.enemycard_dragon_smajesty.reserved",
+      "enemyCardId": "enemycard_Dragon'sMajesty",
+      "pool": "PvpReserved",
+      "adaptationNote": "reserved original card/deck/currency interference; inactive in PvE",
+      "type": "Interference",
+      "cost": 0,
+      "cooldown": 4,
+      "basePriority": 2,
+      "handlerId": "pvp.reserved",
+      "target": {
+        "scope": "OpponentPlayer",
+        "mode": "Single",
+        "policy": "pvp.opponent"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      }
+    },
+    {
+      "id": "spirit.pvp.enemycard_evilcurse.reserved",
+      "enemyCardId": "enemycard_EvilCurse",
+      "pool": "PvpReserved",
+      "adaptationNote": "reserved original card/deck/currency interference; inactive in PvE",
+      "type": "Interference",
+      "cost": 0,
+      "cooldown": 0,
+      "basePriority": 2,
+      "handlerId": "pvp.reserved",
+      "target": {
+        "scope": "OpponentPlayer",
+        "mode": "Single",
+        "policy": "pvp.opponent"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      }
+    },
+    {
+      "id": "spirit.pvp.enemycard_obtainmoney.reserved",
+      "enemyCardId": "enemycard_obtainMoney",
+      "pool": "PvpReserved",
+      "adaptationNote": "reserved original card/deck/currency interference; inactive in PvE",
+      "type": "Interference",
+      "cost": 0,
+      "cooldown": 2,
+      "basePriority": 4,
+      "handlerId": "pvp.reserved",
+      "target": {
+        "scope": "OpponentPlayer",
+        "mode": "Single",
+        "policy": "pvp.opponent"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      }
+    },
+    {
+      "id": "spirit.pvp.enemycard_originalsincard.reserved",
+      "enemyCardId": "enemycard_OriginalSinCard",
+      "pool": "PvpReserved",
+      "adaptationNote": "reserved original card/deck/currency interference; inactive in PvE",
+      "type": "Interference",
+      "cost": 0,
+      "cooldown": 2,
+      "basePriority": 5,
+      "handlerId": "pvp.reserved",
+      "target": {
+        "scope": "OpponentPlayer",
+        "mode": "Single",
+        "policy": "pvp.opponent"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      }
+    },
+    {
+      "id": "spirit.pvp.enemycard_plugcards1.reserved",
+      "enemyCardId": "enemycard_PlugCards1",
+      "pool": "PvpReserved",
+      "adaptationNote": "reserved original card/deck/currency interference; inactive in PvE",
+      "type": "Interference",
+      "cost": 0,
+      "cooldown": 4,
+      "basePriority": 3,
+      "handlerId": "pvp.reserved",
+      "target": {
+        "scope": "OpponentPlayer",
+        "mode": "Single",
+        "policy": "pvp.opponent"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      }
+    },
+    {
+      "id": "spirit.pvp.enemycard_plugcards2.reserved",
+      "enemyCardId": "enemycard_PlugCards2",
+      "pool": "PvpReserved",
+      "adaptationNote": "reserved original card/deck/currency interference; inactive in PvE",
+      "type": "Interference",
+      "cost": 0,
+      "cooldown": 3,
+      "basePriority": 2,
+      "handlerId": "pvp.reserved",
+      "target": {
+        "scope": "OpponentPlayer",
+        "mode": "Single",
+        "policy": "pvp.opponent"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      }
+    },
+    {
+      "id": "spirit.pvp.enemycard_plugcards3.reserved",
+      "enemyCardId": "enemycard_PlugCards3",
+      "pool": "PvpReserved",
+      "adaptationNote": "reserved original card/deck/currency interference; inactive in PvE",
+      "type": "Interference",
+      "cost": 0,
+      "cooldown": 3,
+      "basePriority": 5,
+      "handlerId": "pvp.reserved",
+      "target": {
+        "scope": "OpponentPlayer",
+        "mode": "Single",
+        "policy": "pvp.opponent"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      }
+    },
+    {
+      "id": "spirit.pvp.enemycard_powerlesscurse.reserved",
+      "enemyCardId": "enemycard_PowerlessCurse",
+      "pool": "PvpReserved",
+      "adaptationNote": "reserved original card/deck/currency interference; inactive in PvE",
+      "type": "Interference",
+      "cost": 0,
+      "cooldown": 3,
+      "basePriority": 2,
+      "handlerId": "pvp.reserved",
+      "target": {
+        "scope": "OpponentPlayer",
+        "mode": "Single",
+        "policy": "pvp.opponent"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      }
+    },
+    {
+      "id": "spirit.pvp.enemycard_psychologicalshock.reserved",
+      "enemyCardId": "enemycard_psychologicalShock",
+      "pool": "PvpReserved",
+      "adaptationNote": "reserved original card/deck/currency interference; inactive in PvE",
+      "type": "Interference",
+      "cost": 0,
+      "cooldown": 3,
+      "basePriority": 4,
+      "handlerId": "pvp.reserved",
+      "target": {
+        "scope": "OpponentPlayer",
+        "mode": "Single",
+        "policy": "pvp.opponent"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      }
+    },
+    {
+      "id": "spirit.pvp.enemycard_thief.reserved",
+      "enemyCardId": "enemycard_thief",
+      "pool": "PvpReserved",
+      "adaptationNote": "reserved original card/deck/currency interference; inactive in PvE",
+      "type": "Interference",
+      "cost": 0,
+      "cooldown": 2,
+      "basePriority": 5,
+      "handlerId": "pvp.reserved",
+      "target": {
+        "scope": "OpponentPlayer",
+        "mode": "Single",
+        "policy": "pvp.opponent"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      }
+    },
+    {
+      "id": "spirit.pvp.enemycard_thieves.reserved",
+      "enemyCardId": "enemycard_Thieves",
+      "pool": "PvpReserved",
+      "adaptationNote": "reserved original card/deck/currency interference; inactive in PvE",
+      "type": "Interference",
+      "cost": 0,
+      "cooldown": 2,
+      "basePriority": 5,
+      "handlerId": "pvp.reserved",
+      "target": {
+        "scope": "OpponentPlayer",
+        "mode": "Single",
+        "policy": "pvp.opponent"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      }
+    },
+    {
+      "id": "spirit.pvp.enemycard_venomspray.reserved",
+      "enemyCardId": "enemycard_VenomSpray",
+      "pool": "PvpReserved",
+      "adaptationNote": "reserved original card/deck/currency interference; inactive in PvE",
+      "type": "Interference",
+      "cost": 0,
+      "cooldown": 3,
+      "basePriority": 4,
+      "handlerId": "pvp.reserved",
+      "target": {
+        "scope": "OpponentPlayer",
+        "mode": "Single",
+        "policy": "pvp.opponent"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 0,
+      "attackScale": 0,
+      "armorScale": 0,
+      "magicScale": 0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      }
+    }
+  ],
   "profiles": [
     {
       "enemyId": "10001",
@@ -13,14 +3124,26 @@
         "enemycard_Observe",
         "enemycard_vulnerabilityLight"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "magic_interference"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_weaklight.intent",
+        "spirit.pve.enemycard_observe.intent",
+        "spirit.pve.enemycard_vulnerabilitylight.intent"
       ],
-      "defenseTendency": [
-        "shield_blessing",
-        "charge",
-        "you_are_enhanced"
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_neverdead.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
+        "shield_blessing"
+      ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [
+        "enemycard_Charge1"
       ],
       "attackWeight": 65,
       "defenseWeight": 35,
@@ -40,21 +3163,36 @@
         "enemycard_defence",
         "enemycard_OrdinaryHit"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "magic_interference"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_vulnerabilitylight.intent",
+        "spirit.pve.enemycard_ordinaryhit.intent"
       ],
-      "defenseTendency": [
-        "shield_blessing",
-        "charge",
-        "you_are_enhanced"
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_witness.intent",
+        "spirit.pve.enemycard_defence.intent"
       ],
-      "attackWeight": 65,
-      "defenseWeight": 35,
-      "hpMultiplier": 1.0,
-      "magicMultiplier": 1.0,
-      "attackMultiplier": 1.0,
-      "armorMultiplier": 1.0
+      "pvpAttackTendency": [
+        "spirit.pvp.enemycard_plugcards2.reserved"
+      ],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
+        "shield_blessing"
+      ],
+      "pvpSourceEnemyCardIds": [
+        "enemycard_PlugCards2"
+      ],
+      "fallbackSourceEnemyCardIds": [
+        "enemycard_Charge1"
+      ],
+      "attackWeight": 55,
+      "defenseWeight": 45,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10003",
@@ -66,20 +3204,37 @@
         "enemycard_OrdinaryFiveHit",
         "enemycard_obtainMoney"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo",
-        "magic_interference"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryfivehit.intent",
+        "spirit.pve.enemycard_obtainmoney.intent"
       ],
-      "defenseTendency": [
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent"
+      ],
+      "pvpAttackTendency": [
+        "spirit.pvp.enemycard_thieves.reserved",
+        "spirit.pvp.enemycard_thief.reserved",
+        "spirit.pvp.enemycard_obtainmoney.reserved"
+      ],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [
+        "enemycard_Thieves",
+        "enemycard_thief",
+        "enemycard_obtainMoney"
+      ],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 65,
       "defenseWeight": 35,
-      "hpMultiplier": 1.0,
-      "magicMultiplier": 1.0,
-      "attackMultiplier": 1.0,
-      "armorMultiplier": 1.0
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10004",
@@ -89,14 +3244,25 @@
         "enemycard_defence",
         "enemycard_NeverDead"
       ],
-      "attackTendency": [
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent"
+      ],
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_neverdead.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
         "staff_tap"
       ],
-      "defenseTendency": [
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
-      "attackWeight": 55,
-      "defenseWeight": 45,
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
+      "attackWeight": 45,
+      "defenseWeight": 55,
       "hpMultiplier": 0.9,
       "magicMultiplier": 0.9,
       "attackMultiplier": 0.9,
@@ -109,12 +3275,22 @@
         "enemycard_OrdinaryHit",
         "enemycard_defence"
       ],
-      "attackTendency": [
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent"
+      ],
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
         "staff_tap"
       ],
-      "defenseTendency": [
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 55,
       "defenseWeight": 45,
       "hpMultiplier": 0.9,
@@ -133,18 +3309,36 @@
         "enemycard_MakeIneffectiveRays1",
         "enemycard_PlugCards1"
       ],
-      "attackTendency": [
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_quadruplehits.intent",
+        "spirit.pve.enemycard_ordinaryhit.intent"
+      ],
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_makeineffectiverays1.intent"
+      ],
+      "pvpAttackTendency": [
+        "spirit.pvp.enemycard_plugcards1.reserved"
+      ],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
         "staff_tap"
       ],
-      "defenseTendency": [
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
-      "attackWeight": 55,
-      "defenseWeight": 45,
-      "hpMultiplier": 1.15,
-      "magicMultiplier": 1.15,
-      "attackMultiplier": 1.15,
-      "armorMultiplier": 1.15
+      "pvpSourceEnemyCardIds": [
+        "enemycard_PlugCards1"
+      ],
+      "fallbackSourceEnemyCardIds": [
+        "enemycard_WhereverYouGo"
+      ],
+      "attackWeight": 45,
+      "defenseWeight": 55,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10008",
@@ -155,14 +3349,26 @@
         "enemycard_Licking",
         "enemycard_OrdinaryHit"
       ],
-      "attackTendency": [
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_quadruplehits.intent",
+        "spirit.pve.enemycard_licking.intent",
+        "spirit.pve.enemycard_ordinaryhit.intent"
+      ],
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
         "staff_tap"
       ],
-      "defenseTendency": [
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
-      "attackWeight": 55,
-      "defenseWeight": 45,
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
+      "attackWeight": 65,
+      "defenseWeight": 35,
       "hpMultiplier": 0.9,
       "magicMultiplier": 0.9,
       "attackMultiplier": 0.9,
@@ -178,19 +3384,32 @@
         "enemycard_specialAttack",
         "enemycard_burn1"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_burn2.intent",
+        "spirit.pve.enemycard_specialattack.intent",
+        "spirit.pve.enemycard_burn1.intent"
       ],
-      "defenseTendency": [
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_specialattack.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 65,
       "defenseWeight": 35,
-      "hpMultiplier": 1.0,
-      "magicMultiplier": 1.0,
-      "attackMultiplier": 1.0,
-      "armorMultiplier": 1.0
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10010",
@@ -202,20 +3421,32 @@
         "enemycard_OrdinaryFiveHit",
         "enemycard_Charge1"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_ordinaryfivehit.intent"
       ],
-      "defenseTendency": [
-        "shield_blessing",
-        "charge"
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_overrunworkouts.intent"
       ],
-      "attackWeight": 65,
-      "defenseWeight": 35,
-      "hpMultiplier": 1.0,
-      "magicMultiplier": 1.0,
-      "attackMultiplier": 1.0,
-      "armorMultiplier": 1.0
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
+        "shield_blessing"
+      ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [
+        "enemycard_Charge1"
+      ],
+      "attackWeight": 55,
+      "defenseWeight": 45,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10014",
@@ -226,19 +3457,34 @@
         "enemycard_WeakLight",
         "enemycard_psychologicalShock"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "magic_interference"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_weaklight.intent",
+        "spirit.pve.enemycard_psychologicalshock.intent"
       ],
-      "defenseTendency": [
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent"
+      ],
+      "pvpAttackTendency": [
+        "spirit.pvp.enemycard_psychologicalshock.reserved"
+      ],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [
+        "enemycard_psychologicalShock"
+      ],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 65,
       "defenseWeight": 35,
-      "hpMultiplier": 1.0,
-      "magicMultiplier": 1.0,
-      "attackMultiplier": 1.0,
-      "armorMultiplier": 1.0
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10015",
@@ -251,19 +3497,35 @@
         "enemycard_QuadrupleHits",
         "enemycard_burn"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_quadruplehits.intent",
+        "spirit.pve.enemycard_burn.intent"
       ],
-      "defenseTendency": [
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_fallendragon.intent"
+      ],
+      "pvpAttackTendency": [
+        "spirit.pvp.enemycard_dragon_smajesty.reserved"
+      ],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [
+        "enemycard_Dragon'sMajesty"
+      ],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 65,
       "defenseWeight": 35,
-      "hpMultiplier": 1.15,
-      "magicMultiplier": 1.15,
-      "attackMultiplier": 1.15,
-      "armorMultiplier": 1.15
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10016",
@@ -274,15 +3536,26 @@
         "enemycard_NerveReflexes",
         "enemycard_NeverDead"
       ],
-      "attackTendency": [
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent"
+      ],
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_nervereflexes.intent",
+        "spirit.pve.enemycard_neverdead.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
         "staff_tap"
       ],
-      "defenseTendency": [
-        "shield_blessing",
-        "charge"
+      "fallbackDefenseTendency": [
+        "shield_blessing"
       ],
-      "attackWeight": 55,
-      "defenseWeight": 45,
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
+      "attackWeight": 45,
+      "defenseWeight": 55,
       "hpMultiplier": 0.9,
       "magicMultiplier": 0.9,
       "attackMultiplier": 0.9,
@@ -297,13 +3570,24 @@
         "enemycard_burn",
         "enemycard_OrdinaryHit"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_burn1.intent",
+        "spirit.pve.enemycard_burn.intent",
+        "spirit.pve.enemycard_ordinaryhit.intent"
       ],
-      "defenseTendency": [
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 65,
       "defenseWeight": 35,
       "hpMultiplier": 0.9,
@@ -320,21 +3604,30 @@
         "enemycard_defence",
         "enemycard_Witness"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "magic_interference"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent"
       ],
-      "defenseTendency": [
-        "shield_blessing",
-        "charge",
-        "you_are_enhanced"
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_weak.intent",
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_witness.intent"
       ],
-      "attackWeight": 65,
-      "defenseWeight": 35,
-      "hpMultiplier": 1.0,
-      "magicMultiplier": 1.0,
-      "attackMultiplier": 1.0,
-      "armorMultiplier": 1.0
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
+        "shield_blessing"
+      ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
+      "attackWeight": 45,
+      "defenseWeight": 55,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10019",
@@ -345,13 +3638,24 @@
         "enemycard_charmed",
         "enemycard_QuadrupleHits"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "magic_interference"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_charmed.intent",
+        "spirit.pve.enemycard_quadruplehits.intent"
       ],
-      "defenseTendency": [
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 65,
       "defenseWeight": 35,
       "hpMultiplier": 0.9,
@@ -372,20 +3676,38 @@
         "enemycard_PlugCards1",
         "enemycard_VenomSpray"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo",
-        "magic_interference"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_burn.intent",
+        "spirit.pve.enemycard_burn1.intent",
+        "spirit.pve.enemycard_toxin1.intent",
+        "spirit.pve.enemycard_toxin2.intent",
+        "spirit.pve.enemycard_toxin3.intent",
+        "spirit.pve.enemycard_toxin4.intent",
+        "spirit.pve.enemycard_venomspray.intent"
       ],
-      "defenseTendency": [
+      "pveDefenseTendency": [],
+      "pvpAttackTendency": [
+        "spirit.pvp.enemycard_plugcards1.reserved",
+        "spirit.pvp.enemycard_venomspray.reserved"
+      ],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [
+        "enemycard_PlugCards1",
+        "enemycard_VenomSpray"
+      ],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 65,
       "defenseWeight": 35,
-      "hpMultiplier": 1.15,
-      "magicMultiplier": 1.15,
-      "attackMultiplier": 1.15,
-      "armorMultiplier": 1.15
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10021",
@@ -401,15 +3723,33 @@
         "enemycard_Toxin2",
         "enemycard_VenomSpray"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo",
-        "magic_interference"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryfivehit.intent",
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_burn1.intent",
+        "spirit.pve.enemycard_toxin2.intent",
+        "spirit.pve.enemycard_venomspray.intent"
       ],
-      "defenseTendency": [
-        "shield_blessing",
-        "charge",
-        "holy_heal"
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_rejuvenation.intent",
+        "spirit.pve.enemycard_neverdead.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ],
+      "pvpAttackTendency": [
+        "spirit.pvp.enemycard_venomspray.reserved"
+      ],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
+        "shield_blessing"
+      ],
+      "pvpSourceEnemyCardIds": [
+        "enemycard_VenomSpray"
+      ],
+      "fallbackSourceEnemyCardIds": [
+        "enemycard_Charge1"
       ],
       "attackWeight": 65,
       "defenseWeight": 35,
@@ -427,19 +3767,31 @@
         "enemycard_OrdinaryFiveHit",
         "enemycard_Come"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_ordinaryfivehit.intent"
       ],
-      "defenseTendency": [
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
         "shield_blessing"
+      ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [
+        "enemycard_Come"
       ],
       "attackWeight": 65,
       "defenseWeight": 35,
-      "hpMultiplier": 1.15,
-      "magicMultiplier": 1.15,
-      "attackMultiplier": 1.15,
-      "armorMultiplier": 1.15
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10023",
@@ -450,16 +3802,26 @@
         "enemycard_OverrunWorkouts",
         "enemycard_OrdinaryFiveHit"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_ordinaryfivehit.intent"
       ],
-      "defenseTendency": [
-        "shield_blessing",
-        "charge"
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_overrunworkouts.intent"
       ],
-      "attackWeight": 65,
-      "defenseWeight": 35,
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
+        "shield_blessing"
+      ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
+      "attackWeight": 55,
+      "defenseWeight": 45,
       "hpMultiplier": 0.9,
       "magicMultiplier": 0.9,
       "attackMultiplier": 0.9,
@@ -478,21 +3840,40 @@
         "enemycard_specialAttack",
         "enemycard_VenomSpray"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo",
-        "magic_interference"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_burn1.intent",
+        "spirit.pve.enemycard_toxin3.intent",
+        "spirit.pve.enemycard_toxin1.intent",
+        "spirit.pve.enemycard_quadruplehits.intent",
+        "spirit.pve.enemycard_specialattack.intent",
+        "spirit.pve.enemycard_venomspray.intent"
       ],
-      "defenseTendency": [
-        "shield_blessing",
-        "charge"
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_neverdead.intent",
+        "spirit.pve.enemycard_specialattack.intent"
+      ],
+      "pvpAttackTendency": [
+        "spirit.pvp.enemycard_venomspray.reserved"
+      ],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
+        "shield_blessing"
+      ],
+      "pvpSourceEnemyCardIds": [
+        "enemycard_VenomSpray"
+      ],
+      "fallbackSourceEnemyCardIds": [
+        "enemycard_Charge1"
       ],
       "attackWeight": 65,
       "defenseWeight": 35,
-      "hpMultiplier": 1.0,
-      "magicMultiplier": 1.0,
-      "attackMultiplier": 1.0,
-      "armorMultiplier": 1.0
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10025",
@@ -506,13 +3887,27 @@
         "enemycard_WeakLight",
         "enemycard_QuadrupleHits"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "magic_interference"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_toxin3.intent",
+        "spirit.pve.enemycard_toxin1.intent",
+        "spirit.pve.enemycard_weaklight.intent",
+        "spirit.pve.enemycard_quadruplehits.intent"
       ],
-      "defenseTendency": [
-        "shield_blessing",
-        "charge"
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
+        "shield_blessing"
+      ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [
+        "enemycard_Charge1"
       ],
       "attackWeight": 65,
       "defenseWeight": 35,
@@ -533,13 +3928,31 @@
         "enemycard_VenomSpray",
         "enemycard_QuadrupleHits"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "magic_interference"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_toxin1.intent",
+        "spirit.pve.enemycard_toxin2.intent",
+        "spirit.pve.enemycard_toxin3.intent",
+        "spirit.pve.enemycard_venomspray.intent",
+        "spirit.pve.enemycard_quadruplehits.intent"
       ],
-      "defenseTendency": [
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent"
+      ],
+      "pvpAttackTendency": [
+        "spirit.pvp.enemycard_venomspray.reserved"
+      ],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [
+        "enemycard_VenomSpray"
+      ],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 65,
       "defenseWeight": 35,
       "hpMultiplier": 0.9,
@@ -559,19 +3972,38 @@
         "enemycard_burn2",
         "enemycard_specialAttack"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_quadruplehits.intent",
+        "spirit.pve.enemycard_burn2.intent",
+        "spirit.pve.enemycard_specialattack.intent"
       ],
-      "defenseTendency": [
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_specialattack.intent"
+      ],
+      "pvpAttackTendency": [
+        "spirit.pvp.enemycard_plugcards2.reserved",
+        "spirit.pvp.enemycard_plugcards1.reserved"
+      ],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [
+        "enemycard_PlugCards2",
+        "enemycard_PlugCards1"
+      ],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 65,
       "defenseWeight": 35,
-      "hpMultiplier": 1.15,
-      "magicMultiplier": 1.15,
-      "attackMultiplier": 1.15,
-      "armorMultiplier": 1.15
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10028",
@@ -582,13 +4014,24 @@
         "enemycard_defence",
         "enemycard_rejuvenation"
       ],
-      "attackTendency": [
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_quadruplehits.intent",
+        "spirit.pve.enemycard_ordinaryhit.intent"
+      ],
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_rejuvenation.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
         "staff_tap"
       ],
-      "defenseTendency": [
-        "shield_blessing",
-        "holy_heal"
+      "fallbackDefenseTendency": [
+        "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 55,
       "defenseWeight": 45,
       "hpMultiplier": 0.9,
@@ -606,20 +4049,31 @@
         "enemycard_NeverDead",
         "enemycard_QuadrupleHits"
       ],
-      "attackTendency": [
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_quadruplehits.intent"
+      ],
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_rejuvenation.intent",
+        "spirit.pve.enemycard_overrunworkouts.intent",
+        "spirit.pve.enemycard_neverdead.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
         "staff_tap"
       ],
-      "defenseTendency": [
-        "shield_blessing",
-        "charge",
-        "holy_heal"
+      "fallbackDefenseTendency": [
+        "shield_blessing"
       ],
-      "attackWeight": 55,
-      "defenseWeight": 45,
-      "hpMultiplier": 1.15,
-      "magicMultiplier": 1.15,
-      "attackMultiplier": 1.15,
-      "armorMultiplier": 1.15
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
+      "attackWeight": 45,
+      "defenseWeight": 55,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10032",
@@ -630,19 +4084,35 @@
         "enemycard_psychologicalShock",
         "enemycard_defence"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_fivehit.intent",
+        "spirit.pve.enemycard_psychologicalshock.intent"
       ],
-      "defenseTendency": [
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent"
+      ],
+      "pvpAttackTendency": [
+        "spirit.pvp.enemycard_evilcurse.reserved",
+        "spirit.pvp.enemycard_psychologicalshock.reserved"
+      ],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [
+        "enemycard_EvilCurse",
+        "enemycard_psychologicalShock"
+      ],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 65,
       "defenseWeight": 35,
-      "hpMultiplier": 1.15,
-      "magicMultiplier": 1.15,
-      "attackMultiplier": 1.15,
-      "armorMultiplier": 1.15
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10033",
@@ -654,20 +4124,33 @@
         "enemycard_burn1",
         "enemycard_Charge1"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_spreadwings.intent",
+        "spirit.pve.enemycard_burn.intent",
+        "spirit.pve.enemycard_burn1.intent"
       ],
-      "defenseTendency": [
-        "shield_blessing",
-        "charge"
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_spreadwings.intent",
+        "spirit.pve.enemycard_highfly.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
+        "shield_blessing"
+      ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [
+        "enemycard_Charge1"
       ],
       "attackWeight": 65,
       "defenseWeight": 35,
-      "hpMultiplier": 1.15,
-      "magicMultiplier": 1.15,
-      "attackMultiplier": 1.15,
-      "armorMultiplier": 1.15
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10034",
@@ -679,13 +4162,25 @@
         "enemycard_PoisonThrowing",
         "enemycard_Weak"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "magic_interference"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_limepowder.intent",
+        "spirit.pve.enemycard_poisonthrowing.intent"
       ],
-      "defenseTendency": [
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_weak.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 65,
       "defenseWeight": 35,
       "hpMultiplier": 0.9,
@@ -702,19 +4197,35 @@
         "enemycard_Toxin2",
         "enemycard_obtainMoney"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "magic_interference"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_toxin2.intent",
+        "spirit.pve.enemycard_obtainmoney.intent"
       ],
-      "defenseTendency": [
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent"
+      ],
+      "pvpAttackTendency": [
+        "spirit.pvp.enemycard_evilcurse.reserved",
+        "spirit.pvp.enemycard_obtainmoney.reserved"
+      ],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [
+        "enemycard_EvilCurse",
+        "enemycard_obtainMoney"
+      ],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 65,
       "defenseWeight": 35,
-      "hpMultiplier": 1.0,
-      "magicMultiplier": 1.0,
-      "attackMultiplier": 1.0,
-      "armorMultiplier": 1.0
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10036",
@@ -724,18 +4235,32 @@
         "enemycard_OrdinaryHit",
         "enemycard_PlugCards3"
       ],
-      "attackTendency": [
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent"
+      ],
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent"
+      ],
+      "pvpAttackTendency": [
+        "spirit.pvp.enemycard_plugcards3.reserved"
+      ],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
         "staff_tap"
       ],
-      "defenseTendency": [
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [
+        "enemycard_PlugCards3"
+      ],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 55,
       "defenseWeight": 45,
-      "hpMultiplier": 1.0,
-      "magicMultiplier": 1.0,
-      "attackMultiplier": 1.0,
-      "armorMultiplier": 1.0
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10037",
@@ -747,20 +4272,31 @@
         "enemycard_IceShield",
         "enemycard_Toxin4"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "magic_interference"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_iceshield.intent",
+        "spirit.pve.enemycard_toxin4.intent"
       ],
-      "defenseTendency": [
-        "shield_blessing",
-        "charge"
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_fearless.intent"
       ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
+        "shield_blessing"
+      ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 65,
       "defenseWeight": 35,
-      "hpMultiplier": 1.0,
-      "magicMultiplier": 1.0,
-      "attackMultiplier": 1.0,
-      "armorMultiplier": 1.0
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10038",
@@ -770,13 +4306,23 @@
         "enemycard_defence",
         "enemycard_charmed"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "magic_interference"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_charmed.intent"
       ],
-      "defenseTendency": [
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 65,
       "defenseWeight": 35,
       "hpMultiplier": 0.9,
@@ -792,13 +4338,23 @@
         "enemycard_OrdinaryHit",
         "enemycard_burn1"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_burn1.intent"
       ],
-      "defenseTendency": [
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 65,
       "defenseWeight": 35,
       "hpMultiplier": 0.9,
@@ -831,17 +4387,44 @@
         "enemycard_thief",
         "enemycard_Thieves"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo",
-        "magic_interference"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_quadruplehits.intent",
+        "spirit.pve.enemycard_charmed.intent",
+        "spirit.pve.enemycard_toxin1.intent",
+        "spirit.pve.enemycard_toxin2.intent",
+        "spirit.pve.enemycard_toxin3.intent",
+        "spirit.pve.enemycard_toxin4.intent",
+        "spirit.pve.enemycard_foraging.intent",
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_superfireball.intent",
+        "spirit.pve.enemycard_weaklight.intent",
+        "spirit.pve.enemycard_ordinaryfivehit.intent"
       ],
-      "defenseTendency": [
-        "shield_blessing",
-        "charge",
-        "holy_heal",
-        "you_are_enhanced"
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_rejuvenation.intent",
+        "spirit.pve.enemycard_overrunworkouts.intent",
+        "spirit.pve.enemycard_nervereflexes.intent",
+        "spirit.pve.enemycard_fearless.intent",
+        "spirit.pve.enemycard_witness.intent",
+        "spirit.pve.enemycard_neverdead.intent",
+        "spirit.pve.enemycard_weak.intent"
       ],
+      "pvpAttackTendency": [
+        "spirit.pvp.enemycard_thief.reserved",
+        "spirit.pvp.enemycard_thieves.reserved"
+      ],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
+        "shield_blessing"
+      ],
+      "pvpSourceEnemyCardIds": [
+        "enemycard_thief",
+        "enemycard_Thieves"
+      ],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 65,
       "defenseWeight": 35,
       "hpMultiplier": 0.9,
@@ -858,13 +4441,24 @@
         "enemycard_OrdinaryFiveHit",
         "enemycard_Charge1"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_ordinaryfivehit.intent"
       ],
-      "defenseTendency": [
-        "shield_blessing",
-        "charge"
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
+        "shield_blessing"
+      ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [
+        "enemycard_Charge1"
       ],
       "attackWeight": 65,
       "defenseWeight": 35,
@@ -882,15 +4476,26 @@
         "enemycard_OverrunWorkouts",
         "enemycard_MakeIneffectiveRays1"
       ],
-      "attackTendency": [
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent"
+      ],
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_overrunworkouts.intent",
+        "spirit.pve.enemycard_makeineffectiverays1.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
         "staff_tap"
       ],
-      "defenseTendency": [
-        "shield_blessing",
-        "charge"
+      "fallbackDefenseTendency": [
+        "shield_blessing"
       ],
-      "attackWeight": 55,
-      "defenseWeight": 45,
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
+      "attackWeight": 45,
+      "defenseWeight": 55,
       "hpMultiplier": 0.9,
       "magicMultiplier": 0.9,
       "attackMultiplier": 0.9,
@@ -905,15 +4510,26 @@
         "enemycard_NeverDead",
         "enemycard_vulnerabilityLight"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "magic_interference"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_vulnerabilitylight.intent"
       ],
-      "defenseTendency": [
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_neverdead.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
-      "attackWeight": 65,
-      "defenseWeight": 35,
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
+      "attackWeight": 55,
+      "defenseWeight": 45,
       "hpMultiplier": 0.9,
       "magicMultiplier": 0.9,
       "attackMultiplier": 0.9,
@@ -929,18 +4545,32 @@
         "enemycard_MT2",
         "enemycard_Wake"
       ],
-      "attackTendency": [
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent"
+      ],
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_mt1.intent",
+        "spirit.pve.enemycard_mt2.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
         "staff_tap"
       ],
-      "defenseTendency": [
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
-      "attackWeight": 55,
-      "defenseWeight": 45,
-      "hpMultiplier": 1.0,
-      "magicMultiplier": 1.0,
-      "attackMultiplier": 1.0,
-      "armorMultiplier": 1.0
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [
+        "enemycard_Wake"
+      ],
+      "attackWeight": 45,
+      "defenseWeight": 55,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10045",
@@ -954,19 +4584,37 @@
         "enemycard_Charge2",
         "enemycard_QuadrupleHits"
       ],
-      "attackTendency": [
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_giantclawstrike.intent",
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_quadruplehits.intent"
+      ],
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent"
+      ],
+      "pvpAttackTendency": [
+        "spirit.pvp.enemycard_powerlesscurse.reserved"
+      ],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
         "staff_tap"
       ],
-      "defenseTendency": [
-        "shield_blessing",
-        "charge"
+      "fallbackDefenseTendency": [
+        "shield_blessing"
       ],
-      "attackWeight": 55,
-      "defenseWeight": 45,
-      "hpMultiplier": 1.0,
-      "magicMultiplier": 1.0,
-      "attackMultiplier": 1.0,
-      "armorMultiplier": 1.0
+      "pvpSourceEnemyCardIds": [
+        "enemycard_PowerlessCurse"
+      ],
+      "fallbackSourceEnemyCardIds": [
+        "enemycard_Charge1",
+        "enemycard_Charge2"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10046",
@@ -977,20 +4625,30 @@
         "enemycard_defence",
         "enemycard_FullSupport"
       ],
-      "attackTendency": [
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent"
+      ],
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_rejuvenation.intent",
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_fullsupport.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
         "staff_tap"
       ],
-      "defenseTendency": [
-        "shield_blessing",
-        "holy_heal",
-        "you_are_enhanced"
+      "fallbackDefenseTendency": [
+        "shield_blessing"
       ],
-      "attackWeight": 55,
-      "defenseWeight": 45,
-      "hpMultiplier": 1.15,
-      "magicMultiplier": 1.15,
-      "attackMultiplier": 1.15,
-      "armorMultiplier": 1.15
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
+      "attackWeight": 45,
+      "defenseWeight": 55,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10047",
@@ -1004,21 +4662,38 @@
         "enemycard_PlugCards1",
         "enemycard_Charge1"
       ],
-      "attackTendency": [
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_observe.intent"
+      ],
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_rejuvenation.intent",
+        "spirit.pve.enemycard_overrunworkouts.intent"
+      ],
+      "pvpAttackTendency": [
+        "spirit.pvp.enemycard_powerlesscurse.reserved",
+        "spirit.pvp.enemycard_plugcards1.reserved"
+      ],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
         "staff_tap"
       ],
-      "defenseTendency": [
-        "shield_blessing",
-        "charge",
-        "holy_heal",
-        "you_are_enhanced"
+      "fallbackDefenseTendency": [
+        "shield_blessing"
+      ],
+      "pvpSourceEnemyCardIds": [
+        "enemycard_PowerlessCurse",
+        "enemycard_PlugCards1"
+      ],
+      "fallbackSourceEnemyCardIds": [
+        "enemycard_Charge1"
       ],
       "attackWeight": 55,
       "defenseWeight": 45,
-      "hpMultiplier": 1.15,
-      "magicMultiplier": 1.15,
-      "attackMultiplier": 1.15,
-      "armorMultiplier": 1.15
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10048",
@@ -1032,19 +4707,37 @@
         "enemycard_Despair",
         "enemycard_RoyalBarrier"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_superfireball.intent",
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_specialattack.intent",
+        "spirit.pve.enemycard_despair.intent"
       ],
-      "defenseTendency": [
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_specialattack.intent",
+        "spirit.pve.enemycard_royalbarrier.intent"
+      ],
+      "pvpAttackTendency": [
+        "spirit.pvp.enemycard_originalsincard.reserved"
+      ],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [
+        "enemycard_OriginalSinCard"
+      ],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 65,
       "defenseWeight": 35,
-      "hpMultiplier": 1.15,
-      "magicMultiplier": 1.15,
-      "attackMultiplier": 1.15,
-      "armorMultiplier": 1.15
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10049",
@@ -1054,18 +4747,30 @@
         "enemycard_OrdinaryHit",
         "enemycard_specialAttack"
       ],
-      "attackTendency": [
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_specialattack.intent"
+      ],
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_specialattack.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
         "staff_tap"
       ],
-      "defenseTendency": [
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 55,
       "defenseWeight": 45,
-      "hpMultiplier": 1.0,
-      "magicMultiplier": 1.0,
-      "attackMultiplier": 1.0,
-      "armorMultiplier": 1.0
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10050",
@@ -1075,19 +4780,29 @@
         "enemycard_OrdinaryHit",
         "enemycard_FiveHit"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_fivehit.intent"
       ],
-      "defenseTendency": [
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 65,
       "defenseWeight": 35,
-      "hpMultiplier": 1.0,
-      "magicMultiplier": 1.0,
-      "attackMultiplier": 1.0,
-      "armorMultiplier": 1.0
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10051",
@@ -1101,19 +4816,37 @@
         "enemycard_Despair",
         "enemycard_RoyalBarrier"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_superfireball.intent",
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_specialattack.intent",
+        "spirit.pve.enemycard_despair.intent"
       ],
-      "defenseTendency": [
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_specialattack.intent",
+        "spirit.pve.enemycard_royalbarrier.intent"
+      ],
+      "pvpAttackTendency": [
+        "spirit.pvp.enemycard_originalsincard.reserved"
+      ],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [
+        "enemycard_OriginalSinCard"
+      ],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 65,
       "defenseWeight": 35,
-      "hpMultiplier": 1.15,
-      "magicMultiplier": 1.15,
-      "attackMultiplier": 1.15,
-      "armorMultiplier": 1.15
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10052",
@@ -1127,19 +4860,37 @@
         "enemycard_Despair",
         "enemycard_RoyalBarrier"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_superfireball.intent",
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_specialattack.intent",
+        "spirit.pve.enemycard_despair.intent"
       ],
-      "defenseTendency": [
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_specialattack.intent",
+        "spirit.pve.enemycard_royalbarrier.intent"
+      ],
+      "pvpAttackTendency": [
+        "spirit.pvp.enemycard_originalsincard.reserved"
+      ],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [
+        "enemycard_OriginalSinCard"
+      ],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 65,
       "defenseWeight": 35,
-      "hpMultiplier": 1.15,
-      "magicMultiplier": 1.15,
-      "attackMultiplier": 1.15,
-      "armorMultiplier": 1.15
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10053",
@@ -1153,19 +4904,38 @@
         "enemycard_burn2",
         "enemycard_specialAttack"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_quadruplehits.intent",
+        "spirit.pve.enemycard_burn2.intent",
+        "spirit.pve.enemycard_specialattack.intent"
       ],
-      "defenseTendency": [
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_specialattack.intent"
+      ],
+      "pvpAttackTendency": [
+        "spirit.pvp.enemycard_plugcards2.reserved",
+        "spirit.pvp.enemycard_plugcards1.reserved"
+      ],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [
+        "enemycard_PlugCards2",
+        "enemycard_PlugCards1"
+      ],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 65,
       "defenseWeight": 35,
-      "hpMultiplier": 1.15,
-      "magicMultiplier": 1.15,
-      "attackMultiplier": 1.15,
-      "armorMultiplier": 1.15
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10054",
@@ -1174,12 +4944,22 @@
         "enemycard_OrdinaryHit",
         "enemycard_defence"
       ],
-      "attackTendency": [
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent"
+      ],
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
         "staff_tap"
       ],
-      "defenseTendency": [
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 55,
       "defenseWeight": 45,
       "hpMultiplier": 0.9,
@@ -1194,18 +4974,28 @@
         "enemycard_defence",
         "enemycard_OrdinaryHit"
       ],
-      "attackTendency": [
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent"
+      ],
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
         "staff_tap"
       ],
-      "defenseTendency": [
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 55,
       "defenseWeight": 45,
-      "hpMultiplier": 1.15,
-      "magicMultiplier": 1.15,
-      "attackMultiplier": 1.15,
-      "armorMultiplier": 1.15
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10056",
@@ -1216,19 +5006,31 @@
         "enemycard_defence",
         "enemycard_OrdinaryHit"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_car_spear.intent",
+        "spirit.pve.enemycard_car_hammer.intent",
+        "spirit.pve.enemycard_ordinaryhit.intent"
       ],
-      "defenseTendency": [
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_car_hammer.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 65,
       "defenseWeight": 35,
-      "hpMultiplier": 1.15,
-      "magicMultiplier": 1.15,
-      "attackMultiplier": 1.15,
-      "armorMultiplier": 1.15
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10057",
@@ -1240,19 +5042,32 @@
         "enemycard_defence",
         "enemycard_OrdinaryHit"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_car_spear.intent",
+        "spirit.pve.enemycard_car_hammer.intent",
+        "spirit.pve.enemycard_ordinaryhit.intent"
       ],
-      "defenseTendency": [
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_car_hammer.intent",
+        "spirit.pve.enemycard_car_shield.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
-      "attackWeight": 65,
-      "defenseWeight": 35,
-      "hpMultiplier": 1.15,
-      "magicMultiplier": 1.15,
-      "attackMultiplier": 1.15,
-      "armorMultiplier": 1.15
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
+      "attackWeight": 55,
+      "defenseWeight": 45,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10058",
@@ -1266,20 +5081,35 @@
         "enemycard_OrdinaryHit",
         "enemycard_Charge1"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_car_spear.intent",
+        "spirit.pve.enemycard_car_hammer.intent",
+        "spirit.pve.enemycard_car_sword.intent",
+        "spirit.pve.enemycard_ordinaryhit.intent"
       ],
-      "defenseTendency": [
-        "shield_blessing",
-        "charge"
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_car_hammer.intent",
+        "spirit.pve.enemycard_car_shield.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
+        "shield_blessing"
+      ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [
+        "enemycard_Charge1"
       ],
       "attackWeight": 65,
       "defenseWeight": 35,
-      "hpMultiplier": 1.15,
-      "magicMultiplier": 1.15,
-      "attackMultiplier": 1.15,
-      "armorMultiplier": 1.15
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10059",
@@ -1290,18 +5120,30 @@
         "enemycard_defence",
         "enemycard_MakeIneffectiveRays1"
       ],
-      "attackTendency": [
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_seduce.intent",
+        "spirit.pve.enemycard_giantclawstrike.intent"
+      ],
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_makeineffectiverays1.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
         "staff_tap"
       ],
-      "defenseTendency": [
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
-      "attackWeight": 55,
-      "defenseWeight": 45,
-      "hpMultiplier": 1.15,
-      "magicMultiplier": 1.15,
-      "attackMultiplier": 1.15,
-      "armorMultiplier": 1.15
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10060",
@@ -1313,20 +5155,31 @@
         "enemycard_OrdinaryHit",
         "enemycard_defence"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo",
-        "magic_interference"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_toxin3.intent",
+        "spirit.pve.enemycard_toxin2.intent",
+        "spirit.pve.enemycard_burn1.intent",
+        "spirit.pve.enemycard_ordinaryhit.intent"
       ],
-      "defenseTendency": [
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 65,
       "defenseWeight": 35,
-      "hpMultiplier": 1.15,
-      "magicMultiplier": 1.15,
-      "attackMultiplier": 1.15,
-      "armorMultiplier": 1.15
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "10061",
@@ -1338,20 +5191,31 @@
         "enemycard_OrdinaryFiveHit",
         "enemycard_rejuvenation"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo"
+      "pveAttackTendency": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_quadruplehits.intent",
+        "spirit.pve.enemycard_ordinaryfivehit.intent"
       ],
-      "defenseTendency": [
-        "shield_blessing",
-        "holy_heal"
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_rejuvenation.intent"
       ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
+        "shield_blessing"
+      ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 65,
       "defenseWeight": 35,
-      "hpMultiplier": 1.15,
-      "magicMultiplier": 1.15,
-      "attackMultiplier": 1.15,
-      "armorMultiplier": 1.15
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "99999",
@@ -1359,14 +5223,22 @@
       "sourceEnemyCardIds": [
         "enemycard_defence"
       ],
-      "attackTendency": [
+      "pveAttackTendency": [],
+      "pveDefenseTendency": [
+        "spirit.pve.enemycard_defence.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
         "staff_tap"
       ],
-      "defenseTendency": [
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
-      "attackWeight": 55,
-      "defenseWeight": 45,
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
+      "attackWeight": 45,
+      "defenseWeight": 55,
       "hpMultiplier": 0.9,
       "magicMultiplier": 0.9,
       "attackMultiplier": 0.9,
@@ -1379,20 +5251,29 @@
         "SunExp_sunexp_enemycard_mirror_calibration",
         "SunExp_sunexp_enemycard_orbit_refraction"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo",
-        "magic_interference"
+      "pveAttackTendency": [
+        "spirit.pve.sunexp_sunexp_enemycard_mirror_calibration.intent",
+        "spirit.pve.sunexp_sunexp_enemycard_orbit_refraction.intent"
       ],
-      "defenseTendency": [
+      "pveDefenseTendency": [
+        "spirit.pve.sunexp_sunexp_enemycard_mirror_calibration.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 65,
       "defenseWeight": 35,
-      "hpMultiplier": 1.15,
-      "magicMultiplier": 1.15,
-      "attackMultiplier": 1.15,
-      "armorMultiplier": 1.15
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "boss_saint_wuna",
@@ -1401,20 +5282,27 @@
         "SunExp_sunexp_enemycard_saint_purification",
         "SunExp_sunexp_enemycard_saint_return_to_court"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo"
+      "pveAttackTendency": [
+        "spirit.pve.sunexp_sunexp_enemycard_saint_purification.intent",
+        "spirit.pve.sunexp_sunexp_enemycard_saint_return_to_court.intent"
       ],
-      "defenseTendency": [
-        "shield_blessing",
-        "holy_heal"
+      "pveDefenseTendency": [],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
       ],
+      "fallbackDefenseTendency": [
+        "shield_blessing"
+      ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 65,
       "defenseWeight": 35,
-      "hpMultiplier": 1.15,
-      "magicMultiplier": 1.15,
-      "attackMultiplier": 1.15,
-      "armorMultiplier": 1.15
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "boss_second_sun_last_day",
@@ -1423,33 +5311,52 @@
         "SunExp_sunexp_enemycard_last_day_morning_prayer",
         "SunExp_sunexp_enemycard_last_day_noon_burn"
       ],
-      "attackTendency": [
-        "staff_tap",
-        "staff_combo",
-        "magic_interference"
+      "pveAttackTendency": [
+        "spirit.pve.sunexp_sunexp_enemycard_last_day_morning_prayer.intent",
+        "spirit.pve.sunexp_sunexp_enemycard_last_day_noon_burn.intent"
       ],
-      "defenseTendency": [
+      "pveDefenseTendency": [
+        "spirit.pve.sunexp_sunexp_enemycard_last_day_morning_prayer.intent"
+      ],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
         "shield_blessing"
       ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 65,
       "defenseWeight": 35,
-      "hpMultiplier": 1.15,
-      "magicMultiplier": 1.15,
-      "attackMultiplier": 1.15,
-      "armorMultiplier": 1.15
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
     },
     {
       "enemyId": "*",
       "variantId": "*",
       "sourceEnemyCardIds": [],
-      "attackTendency": [],
-      "defenseTendency": [],
+      "pveAttackTendency": [],
+      "pveDefenseTendency": [],
+      "pvpAttackTendency": [],
+      "pvpDefenseTendency": [],
+      "fallbackAttackTendency": [
+        "staff_tap"
+      ],
+      "fallbackDefenseTendency": [
+        "shield_blessing"
+      ],
+      "pvpSourceEnemyCardIds": [],
+      "fallbackSourceEnemyCardIds": [],
       "attackWeight": 60,
       "defenseWeight": 40,
-      "hpMultiplier": 1.0,
-      "magicMultiplier": 1.0,
-      "attackMultiplier": 1.0,
-      "armorMultiplier": 1.0
+      "hpMultiplier": 1,
+      "magicMultiplier": 1,
+      "attackMultiplier": 1,
+      "armorMultiplier": 1
     }
   ]
 }

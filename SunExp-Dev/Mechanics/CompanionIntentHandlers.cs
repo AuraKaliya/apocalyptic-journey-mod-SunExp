@@ -26,18 +26,24 @@ public static class CompanionIntentHandlerRegistry
 {
     public const string DamageSingle = "damage.single";
     public const string DamageMulti = "damage.multi";
+    public const string DamageAll = "damage.all";
     public const string BlockSingle = "block.single";
+    public const string BlockAll = "block.all";
     public const string ApplyBuff = "buff.apply";
     public const string HealSingle = "heal.single";
+    public const string PvpReserved = "pvp.reserved";
 
     private static readonly Dictionary<string, ICompanionIntentHandler> Handlers =
         new(StringComparer.Ordinal)
         {
-            [DamageSingle] = new DamageHandler(DamageSingle, 1),
-            [DamageMulti] = new DamageHandler(DamageMulti, 2),
-            [BlockSingle] = new BlockHandler(),
+            [DamageSingle] = new DamageHandler(DamageSingle, 1, "Single"),
+            [DamageMulti] = new DamageHandler(DamageMulti, 2, "Single"),
+            [DamageAll] = new DamageHandler(DamageAll, 1, "All"),
+            [BlockSingle] = new BlockHandler(BlockSingle, "Single"),
+            [BlockAll] = new BlockHandler(BlockAll, "All"),
             [ApplyBuff] = new BuffHandler(),
-            [HealSingle] = new HealHandler()
+            [HealSingle] = new HealHandler(),
+            [PvpReserved] = new ReservedPvpHandler()
         };
 
     public static bool TryGet(string? handlerId, out ICompanionIntentHandler handler)
@@ -65,18 +71,20 @@ public static class CompanionIntentHandlerRegistry
     private sealed class DamageHandler : ICompanionIntentHandler
     {
         private readonly int minimumHits;
+        private readonly string targetMode;
 
-        public DamageHandler(string handlerId, int minimumHits)
+        public DamageHandler(string handlerId, int minimumHits, string targetMode)
         {
             HandlerId = handlerId;
             this.minimumHits = minimumHits;
+            this.targetMode = targetMode;
         }
 
         public string HandlerId { get; }
 
         public bool Validate(CompanionIntentDefinition intent, out string reason)
         {
-            if (!ValidateTarget(intent, "Enemy", "Single", out reason))
+            if (!ValidateTarget(intent, "Enemy", targetMode, out reason))
             {
                 return false;
             }
@@ -101,13 +109,15 @@ public static class CompanionIntentHandlerRegistry
 
         public void Execute(ScriptExecutor executor, CompanionResolvedEffect effect)
         {
-            var target = CompanionTargetPolicyRegistry.FirstAlive(effect.TargetIds);
-            for (var hit = 0; target != null && hit < Math.Max(1, effect.RepeatCount); hit++)
+            foreach (var target in CompanionTargetPolicyRegistry.Alive(effect.TargetIds))
             {
-                ExecutorApi.DealDamageToTarget(executor, target, effect.Value);
-                if (!CompanionTargetPolicyRegistry.IsAlive(target))
+                for (var hit = 0; hit < Math.Max(1, effect.RepeatCount); hit++)
                 {
-                    break;
+                    ExecutorApi.DealDamageToTarget(executor, target, effect.Value);
+                    if (!CompanionTargetPolicyRegistry.IsAlive(target))
+                    {
+                        break;
+                    }
                 }
             }
         }
@@ -120,11 +130,19 @@ public static class CompanionIntentHandlerRegistry
 
     private sealed class BlockHandler : ICompanionIntentHandler
     {
-        public string HandlerId => BlockSingle;
+        private readonly string targetMode;
+
+        public BlockHandler(string handlerId, string targetMode)
+        {
+            HandlerId = handlerId;
+            this.targetMode = targetMode;
+        }
+
+        public string HandlerId { get; }
 
         public bool Validate(CompanionIntentDefinition intent, out string reason)
         {
-            return ValidateTarget(intent, "Friendly", "Single", out reason);
+            return ValidateTarget(intent, "Friendly", targetMode, out reason);
         }
 
         public CompanionResolvedEffect Resolve(
@@ -137,14 +155,11 @@ public static class CompanionIntentHandlerRegistry
 
         public void Execute(ScriptExecutor executor, CompanionResolvedEffect effect)
         {
-            var target = CompanionTargetPolicyRegistry.FirstAlive(effect.TargetIds);
-            if (target == null)
+            foreach (var target in CompanionTargetPolicyRegistry.Alive(effect.TargetIds))
             {
-                return;
+                ExecutorApi.SetStatusForTarget(executor, target, "Self");
+                executor.ChangeDefence(Math.Max(0, effect.Value).ToString());
             }
-
-            ExecutorApi.SetStatusForTarget(executor, target, "Self");
-            executor.ChangeDefence(Math.Max(0, effect.Value).ToString());
         }
 
         public void AddDescription(ScriptExecutor executor, CompanionResolvedEffect effect)
@@ -234,6 +249,33 @@ public static class CompanionIntentHandlerRegistry
         }
     }
 
+    private sealed class ReservedPvpHandler : ICompanionIntentHandler
+    {
+        public string HandlerId => PvpReserved;
+
+        public bool Validate(CompanionIntentDefinition intent, out string reason)
+        {
+            return ValidateTarget(intent, "OpponentPlayer", "Single", out reason);
+        }
+
+        public CompanionResolvedEffect Resolve(
+            CompanionBattleState state,
+            CompanionIntentDefinition intent,
+            IReadOnlyList<IStatusManager> targets)
+        {
+            return Effect(intent, Array.Empty<IStatusManager>(), 0);
+        }
+
+        public void Execute(ScriptExecutor executor, CompanionResolvedEffect effect)
+        {
+            // Reserved until an authoritative hostile-player card-zone contract exists.
+        }
+
+        public void AddDescription(ScriptExecutor executor, CompanionResolvedEffect effect)
+        {
+        }
+    }
+
     private static CompanionResolvedEffect Effect(
         CompanionIntentDefinition intent,
         IReadOnlyList<IStatusManager> targets,
@@ -273,19 +315,23 @@ public static class CompanionTargetPolicyRegistry
 {
     public const string EnemyLowestHp = "enemy.lowest_hp";
     public const string EnemyLowestBuffThenHp = "enemy.lowest_buff_then_lowest_hp";
+    public const string EnemyAll = "enemy.all";
     public const string FriendlyOwnerOrSelfDefense = "friendly.owner_or_self_defense";
     public const string FriendlyAll = "friendly.all";
     public const string FriendlyMostWounded = "friendly.most_wounded";
     public const string Self = "self";
+    public const string PvpOpponent = "pvp.opponent";
 
     private static readonly HashSet<string> KnownPolicies = new(StringComparer.Ordinal)
     {
         EnemyLowestHp,
         EnemyLowestBuffThenHp,
+        EnemyAll,
         FriendlyOwnerOrSelfDefense,
         FriendlyAll,
         FriendlyMostWounded,
-        Self
+        Self,
+        PvpOpponent
     };
 
     public static bool IsKnown(string? policy)
@@ -305,10 +351,12 @@ public static class CompanionTargetPolicyRegistry
         {
             EnemyLowestHp => ("Enemy", "Single"),
             EnemyLowestBuffThenHp => ("Enemy", "Single"),
+            EnemyAll => ("Enemy", "All"),
             FriendlyOwnerOrSelfDefense => ("Friendly", "Single"),
             FriendlyAll => ("Friendly", "All"),
             FriendlyMostWounded => ("Friendly", "Single"),
             Self => ("Self", "Single"),
+            PvpOpponent => ("OpponentPlayer", "Single"),
             _ => ("", "")
         };
         if (!string.Equals(target.Scope, expected.Item1, StringComparison.Ordinal)
@@ -345,6 +393,11 @@ public static class CompanionTargetPolicyRegistry
                     .ThenBy(target => target.InstanceId, StringComparer.Ordinal)
                     .Take(1)
                     .ToArray();
+            case EnemyAll:
+                return ExecutorApi.EnemyTargets(executor)
+                    .Where(IsAlive)
+                    .OrderBy(target => target.InstanceId, StringComparer.Ordinal)
+                    .ToArray();
             case FriendlyOwnerOrSelfDefense:
                 return ResolveDefenseTarget(executor, state);
             case FriendlyAll:
@@ -360,6 +413,8 @@ public static class CompanionTargetPolicyRegistry
             case Self:
                 var owner = StatusById(state.OwnerStatusId);
                 return IsAlive(owner) ? new[] { owner! } : Array.Empty<IStatusManager>();
+            case PvpOpponent:
+                return Array.Empty<IStatusManager>();
             default:
                 return Array.Empty<IStatusManager>();
         }

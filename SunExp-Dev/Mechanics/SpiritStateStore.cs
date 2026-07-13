@@ -133,9 +133,42 @@ public static class SpiritStateStore
         RemoveFightRecords(state.StatusId);
         CompanionBattleStateStore.Remove(state.StatusId);
         status.state = IStatusManager.State.Dead;
-        state.Spirit.DeadEffect();
+        if (state.Spirit != null)
+        {
+            state.Spirit.DeadEffect();
+        }
         Retired?.Invoke(state);
         SunExpLog.Info("[Spirit] retired from " + source + ": status=" + state.StatusId + ", enemy=" + state.Snapshot.EnemyId);
+    }
+
+    public static bool Withdraw(string statusId, string source)
+    {
+        SpiritState? state;
+        lock (SyncRoot)
+        {
+            Spirits.TryGetValue(statusId ?? "", out state);
+            if (state != null)
+            {
+                Spirits.Remove(state.StatusId);
+            }
+        }
+
+        if (state == null)
+        {
+            return false;
+        }
+
+        RemoveFightRecords(state.StatusId);
+        CompanionBattleStateStore.Remove(state.StatusId);
+        var spirit = state.Spirit;
+        if (spirit != null)
+        {
+            UnityEngine.Object.Destroy(spirit.gameObject);
+        }
+        Retired?.Invoke(state);
+        SunExpLog.Info("[Spirit] withdrawn from " + source + ": status=" + state.StatusId + ", enemy=" + state.Snapshot.EnemyId);
+        SunExpPerformanceCounters.Record("Spirit.Withdrawn");
+        return true;
     }
 
     public static void ClearAll(string source)
@@ -151,9 +184,10 @@ public static class SpiritStateStore
         {
             RemoveFightRecords(state.StatusId);
             CompanionBattleStateStore.Remove(state.StatusId);
-            if (state.Spirit?.gameObject != null)
+            var spirit = state.Spirit;
+            if (spirit != null)
             {
-                UnityEngine.Object.Destroy(state.Spirit.gameObject);
+                UnityEngine.Object.Destroy(spirit.gameObject);
             }
             Retired?.Invoke(state);
         }
@@ -164,8 +198,13 @@ public static class SpiritStateStore
     private static bool IsAlive(SpiritState state)
     {
         var spirit = state?.Spirit;
-        var status = spirit?.Status;
-        return status != null && status.CurHp > 0 && status.state != IStatusManager.State.Dead && spirit!.gameObject != null;
+        if (spirit == null)
+        {
+            return false;
+        }
+
+        var status = spirit.Status;
+        return status != null && status.CurHp > 0 && status.state != IStatusManager.State.Dead && spirit.gameObject != null;
     }
 
     private static void RemoveFightRecords(string statusId)
