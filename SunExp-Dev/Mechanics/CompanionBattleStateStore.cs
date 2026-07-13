@@ -15,9 +15,10 @@ public static class CompanionBattleStateStore
         string ownerStatusId,
         int slotIndex,
         CompanionStats stats,
-        string ownerPlayerId = "")
+        string ownerPlayerId = "",
+        string entityKind = "ProjectionAttachment")
     {
-        var state = new CompanionBattleState(statusId, roleId, ownerStatusId, slotIndex, stats, ownerPlayerId);
+        var state = new CompanionBattleState(statusId, roleId, ownerStatusId, slotIndex, stats, ownerPlayerId, entityKind);
         lock (SyncRoot)
         {
             States[state.StatusId] = state;

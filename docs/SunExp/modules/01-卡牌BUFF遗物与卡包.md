@@ -10,12 +10,12 @@
 
 | 内容 | 数量 | 数据入口 |
 | --- | ---: | --- |
-| 卡牌 | 54 | `SunExp/Data/Card/*.csv` |
+| 卡牌 | 56 | `SunExp/Data/Card/*.csv` |
 | Buff | 32 | `SunExp/Data/Buff/*.csv` |
 | 遗物 | 13 | `SunExp/Data/Relic/sunexp.csv` |
 | 卡包 | 5 | `SunExp/Data/CardPack/sunexp.csv` |
 
-卡牌总数由 `Card/sunexp.csv` 的 48 张、乌娜 3 张、洛奈尔 1 张和深渊诅咒 2 张组成。数量按当前仓库验证脚本统计，不包含只有表头而无实体的 `Buff/wuna.csv`。
+卡牌总数由 `Card/sunexp.csv` 的 50 张、乌娜 3 张、洛奈尔 1 张和深渊诅咒 2 张组成。数量按当前仓库验证脚本统计，不包含各 CSV 的说明行。
 
 ## 2. 五个卡包
 
@@ -25,7 +25,7 @@
 | `SunExp_sunexp_cardpack_ember_crown` | 日耀：烬冠 | 自身灼烧、聚炎转化、圣冕爆发和自燃压力 |
 | `SunExp_sunexp_cardpack_solar_canopy` | 日耀：天幕 | 场地、敌方灼烧、负面状态和持续扩散 |
 | `SunExp_sunexp_cardpack_morning_star_overture` | 晨星：序曲 | 星谱、伏谱、谱句、复奏和启明星 |
-| `SunExp_sunexp_cardpack_more_dimensions` | 更多的次元 | 百变、投影、心变入口 |
+| `SunExp_sunexp_cardpack_more_dimensions` | 更多的次元 | 百变、投影、心变与精灵球入口 |
 
 卡包表本身只声明 id、Type 和 Icon。卡牌/遗物通过 `PackBelong` 使用完整卡包 id 归属。游戏 `GameConfigManager.GetItemsByPack` 和 SunExp 的 `GameCompatibilityApi` 负责按包查询。
 
@@ -66,9 +66,9 @@ flowchart LR
 
 ### 3.3 更多次元和内部模板
 
-- `polymorph`、`witch_projection`、`heart_change` 是公开入口卡；
-- `polymorph_role_template`、`projection_role_template` 是锁定模板卡；
-- 它们的业务由百变、投影、心变服务承担，CardScripts 只提供入口。
+- `polymorph`、`witch_projection`、`heart_change`、`spirit_ball` 是公开入口卡；
+- `polymorph_role_template`、`projection_role_template`、`spirit_card_template` 是锁定模板卡；
+- 它们的业务由百变、投影、心变和精灵服务承担，CardScripts 只提供入口。
 
 ### 3.4 无尽深渊诅咒
 

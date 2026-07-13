@@ -41,6 +41,11 @@ public static class ProjectionTurnCoordinator
 
     public static void RegisterProjection(ProjectionOtherObj projection, string source)
     {
+        RegisterCompanion(projection, source);
+    }
+
+    public static void RegisterCompanion(OtherObj projection, string source)
+    {
         if (projection == null || !CompanionAuthorityService.IsAuthoritative())
         {
             return;
@@ -72,6 +77,8 @@ public static class ProjectionTurnCoordinator
 
         var activeRound = Math.Max(1, roundSequence);
         var projections = ProjectionStateStore.Active()
+            .Select(state => new CompanionTurnEntry(state.OwnerPlayerId, state.StatusId, state.SlotIndex, state.Projection))
+            .Concat(SpiritStateStore.Active().Select(state => new CompanionTurnEntry(state.OwnerPlayerId, state.StatusId, state.SlotIndex, state.Spirit)))
             .OrderBy(state => state.OwnerPlayerId, StringComparer.Ordinal)
             .ThenBy(state => state.StatusId, StringComparer.Ordinal)
             .ToArray();
@@ -80,7 +87,7 @@ public static class ProjectionTurnCoordinator
 
         foreach (var state in projections)
         {
-            if (state?.Projection == null || !TryClaim(activeRound, state.StatusId))
+            if (state?.Actor == null || !TryClaim(activeRound, state.StatusId))
             {
                 continue;
             }
@@ -92,7 +99,7 @@ public static class ProjectionTurnCoordinator
                 + ", slot="
                 + state.SlotIndex);
             SunExpPerformanceCounters.Record("ProjectionTurnCoordinator.ProjectionExecuted");
-            var routine = state.Projection.DoAction();
+            var routine = state.Actor.DoAction();
             while (routine.MoveNext())
             {
                 yield return routine.Current;
@@ -150,7 +157,7 @@ public static class ProjectionTurnCoordinator
 
         if (anchor != null)
         {
-            manager.ActionQueue.RemoveAll(item => item is ProjectionOtherObj);
+            manager.ActionQueue.RemoveAll(item => item is ProjectionOtherObj || item is SpiritOtherObj);
             if (!manager.ActionQueue.Contains(anchor))
             {
                 if (anchor.Status != null && anchor.Status.state == IStatusManager.State.NoAction)
@@ -190,7 +197,7 @@ public static class ProjectionTurnCoordinator
                 return;
             }
 
-            manager.ActionQueue.RemoveAll(item => item == null || item is ProjectionTurnAnchorObj || item is ProjectionOtherObj);
+            manager.ActionQueue.RemoveAll(item => item == null || item is ProjectionTurnAnchorObj || item is ProjectionOtherObj || item is SpiritOtherObj);
             manager.ActionQueue.Add(created);
             anchor = created;
             pendingRoot = null;
@@ -265,5 +272,24 @@ public static class ProjectionTurnCoordinator
         {
             SunExpLog.Debug("[ProjectionTurn] stale anchor cleanup skipped: " + ex.Message);
         }
+    }
+
+    private sealed class CompanionTurnEntry
+    {
+        public CompanionTurnEntry(string ownerPlayerId, string statusId, int slotIndex, OtherObj actor)
+        {
+            OwnerPlayerId = ownerPlayerId ?? "";
+            StatusId = statusId ?? "";
+            SlotIndex = slotIndex;
+            Actor = actor;
+        }
+
+        public string OwnerPlayerId { get; }
+
+        public string StatusId { get; }
+
+        public int SlotIndex { get; }
+
+        public OtherObj Actor { get; }
     }
 }

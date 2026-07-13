@@ -20,7 +20,7 @@ public enum ProjectionEffectKind
 public sealed class ProjectionEffectContext
 {
     public ProjectionEffectContext(
-        ProjectionOtherObj actor,
+        OtherObj actor,
         IStatusManager modifierOwner,
         IStatusManager attributionOwner,
         CompanionIntentDefinition intent)
@@ -31,7 +31,7 @@ public sealed class ProjectionEffectContext
         Intent = intent;
     }
 
-    public ProjectionOtherObj Actor { get; }
+    public OtherObj Actor { get; }
 
     public IStatusManager ModifierOwner { get; }
 
@@ -144,19 +144,19 @@ public static class ProjectionModifierPolicyRegistry
 
 public static class ProjectionEffectContextService
 {
-    public static ProjectionEffectContext? Create(ProjectionOtherObj? actor, CompanionBattleState? state)
+    public static ProjectionEffectContext? Create(OtherObj? actor, CompanionBattleState? state)
     {
         if (actor == null || state == null)
         {
             return null;
         }
 
-        var intent = CompanionIntentRegistry.Find(state.CurrentPlan?.IntentId ?? state.CurrentIntentId);
+        var intent = CompanionIntentResolver.Find(state, state.CurrentPlan?.IntentId ?? state.CurrentIntentId);
         return Create(actor, state, intent);
     }
 
     private static ProjectionEffectContext? Create(
-        ProjectionOtherObj? actor,
+        OtherObj? actor,
         CompanionBattleState? state,
         CompanionIntentDefinition? intent)
     {
@@ -172,11 +172,11 @@ public static class ProjectionEffectContextService
     }
 
     public static CompanionIntentPlan RefreshLockedPlan(
-        ProjectionOtherObj actor,
+        OtherObj actor,
         CompanionBattleState state,
         CompanionIntentPlan plan)
     {
-        var context = Create(actor, state, CompanionIntentRegistry.Find(plan.IntentId));
+        var context = Create(actor, state, CompanionIntentResolver.Find(state, plan.IntentId));
         if (context == null || plan.IsWait)
         {
             return plan;

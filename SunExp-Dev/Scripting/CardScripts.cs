@@ -31,6 +31,8 @@ public static class CardScripts
         [SunExpIds.PolymorphRoleTemplateShortId] = InitCommonCard,
         [SunExpIds.ProjectionCardShortId] = InitCommonCard,
         [SunExpIds.ProjectionRoleTemplateShortId] = InitCommonCard,
+        [SunExpIds.SpiritBallCardShortId] = InitSpiritBall,
+        [SunExpIds.SpiritCardTemplateShortId] = InitSpiritCard,
         [SunExpIds.HeartChangeCardShortId] = InitHeartChange
     };
 
@@ -70,6 +72,8 @@ public static class CardScripts
         [SunExpIds.PolymorphRoleTemplateShortId] = UsePolymorphRoleCard,
         [SunExpIds.ProjectionCardShortId] = UseProjection,
         [SunExpIds.ProjectionRoleTemplateShortId] = UseProjectionRoleCard,
+        [SunExpIds.SpiritBallCardShortId] = UseSpiritBall,
+        [SunExpIds.SpiritCardTemplateShortId] = UseSpiritCard,
         [SunExpIds.HeartChangeCardShortId] = UseHeartChange
     };
 
@@ -231,6 +235,16 @@ public static class CardScripts
     }
 
     private static void InitCommonCard(ScriptExecutor self)
+    {
+        ExecutorApi.SetBaseScript(self, "CommonCardItem");
+    }
+
+    private static void InitSpiritBall(ScriptExecutor self)
+    {
+        ExecutorApi.SetBaseScript(self, "AttackCardItem", canSelf: false);
+    }
+
+    private static void InitSpiritCard(ScriptExecutor self)
     {
         ExecutorApi.SetBaseScript(self, "CommonCardItem");
     }
@@ -507,6 +521,16 @@ public static class CardScripts
     private static void UseProjectionRoleCard(ScriptExecutor self)
     {
         ProjectionActivationService.SummonFromCard(self);
+    }
+
+    private static void UseSpiritBall(ScriptExecutor self)
+    {
+        SpiritCaptureService.TryCapture(self);
+    }
+
+    private static void UseSpiritCard(ScriptExecutor self)
+    {
+        SpiritSummonService.TrySummon(self);
     }
 
     private static void InitHeartChange(ScriptExecutor self)

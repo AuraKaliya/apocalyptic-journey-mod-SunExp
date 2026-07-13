@@ -42,6 +42,38 @@ public static class SunExpPerformanceCounters
         return startTimestamp <= 0L ? 0.0 : TicksToMilliseconds(Stopwatch.GetTimestamp() - startTimestamp);
     }
 
+    public static double RecordHotspot(
+        string name,
+        long startTimestamp,
+        string details = "",
+        bool logFirstSample = false,
+        double slowWarningMilliseconds = 8.0)
+    {
+        if (startTimestamp <= 0L || !SunExpPerformanceSettings.CountersEnabled)
+        {
+            return 0.0;
+        }
+
+        var elapsedTicks = Math.Max(0L, Stopwatch.GetTimestamp() - startTimestamp);
+        Add(name, elapsedTicks);
+        var elapsedMilliseconds = TicksToMilliseconds(elapsedTicks);
+        var message = "[PerfHotspot] name="
+            + name
+            + ", elapsedMs="
+            + elapsedMilliseconds.ToString("0.###")
+            + (string.IsNullOrWhiteSpace(details) ? "" : ", " + details);
+        if (elapsedMilliseconds >= Math.Max(0.0, slowWarningMilliseconds))
+        {
+            SunExpLog.Warn(message);
+        }
+        else if (logFirstSample)
+        {
+            SunExpLog.InfoOnceAlways("perf-hotspot:" + name, message);
+        }
+
+        return elapsedMilliseconds;
+    }
+
     public static void MaybeLogSummary()
     {
         if (!SunExpPerformanceSettings.CountersEnabled)

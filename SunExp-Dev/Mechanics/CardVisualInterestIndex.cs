@@ -27,7 +27,8 @@ public static class CardVisualInterestIndex
             }
         }
 
-        var result = !IsPolymorphRoleCard(config)
+        var result = IsSpiritCard(config)
+            || !IsPolymorphRoleCard(config)
                 && CardVisualSkinRegistry.Resolve(config) != null
             || CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Face, config) != null
             || CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, config) != null;
@@ -64,5 +65,12 @@ public static class CardVisualInterestIndex
         return DictionaryUtil.ContainsToken(
             DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey),
             SunExpIds.PolymorphRoleCardMarker);
+    }
+
+    private static bool IsSpiritCard(IDataConfig config)
+    {
+        return DictionaryUtil.ContainsToken(
+            DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey),
+            SunExpIds.SpiritCardMarker);
     }
 }

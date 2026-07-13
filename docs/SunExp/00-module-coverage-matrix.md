@@ -7,7 +7,7 @@
 
 ### 1.1 内容交付层
 
-- 卡牌：54（其中 `Card/sunexp.csv` 48，乌娜 3，洛奈尔 1，深渊诅咒 2）。
+- 卡牌：56（其中 `Card/sunexp.csv` 50，乌娜 3，洛奈尔 1，深渊诅咒 2）。
 - Buff：32。
 - 遗物：13。
 - 卡包：5。
@@ -22,11 +22,11 @@
 | --- | ---: | --- |
 | `Entry.cs` | 1 | 加载链与共享初始化章节 |
 | `Scripting` | 13 | 所有 CSV 可调用入口映射 |
-| `GameApi` | 46 | 宿主 API、反射兼容和流程 facade 映射 |
-| `Mechanics` | 131 | 按业务模块归属，禁止形成“其他”大类 |
+| `GameApi` | 48 | 宿主 API、反射兼容和流程 facade 映射 |
+| `Mechanics` | 143 | 按业务模块归属，禁止形成“其他”大类 |
 | `Features` | 1 | Skill CG 模块 |
-| `Hooks`，含 UI/Visual | 125 | Hook 目标、生命周期、UI/视觉归属 |
-| `Network` | 11 | RPC、发送者绑定、状态同步归属 |
+| `Hooks`，含 UI/Visual | 128 | Hook 目标、生命周期、UI/视觉归属 |
+| `Network` | 14 | RPC、发送者绑定、状态同步归属 |
 | `Infrastructure` | 13 | id、日志、性能、调度和诊断章节 |
 
 ## 2. 结构层覆盖
@@ -58,9 +58,10 @@
 | 日耀回忆地图与结局 | EventList、Map、Enemy、EnemyCard | `SolarMemoryModeRuntime`、MapNodePool、StoryGate、Finale、Reward/Settlement | Journey、shared hooks、online authority | `NormalMapManager.RandomGenerate/GeneratrMap/MapItemInit/ReadyToChangeMap`、`MapManager` RPC、`Fight_Win/Escape/Loss` | 模块 05 | P0 |
 | 无尽之海地图与运行状态 | endless sea 配置、Map/Enemy/奖励数据 | `EndlessSea*Runtime`、FloorPlanner、MapBuilder、RunStateStore | shared hooks、UI guard | `ModeChoiceUI`、`NormalMapManager`、`MapSelectUI`、`MapManager` | 模块 06 | P0 |
 | 无尽深渊机制 | abyss 配置、进化特征、Blessing、诅咒卡、敌人 | `EndlessAbyss*Service`、ledger、reward、shock/milestone UI | shared hooks、online/scheduler | 地图显示、战斗奖励、敌人意图、战斗结算 | 模块 07 | P0 |
-| 伙伴与使魔 | Partner、PartnerCard、familiar registries | `DuskPartnerScripts`、Companion*、Familiar* 服务与运行时 | UI guard、shared hooks | `HouseManager`、`GameEntryUI.NormalGame`、`ScriptExecutor.SetStatus` | 模块 08 | P1 |
+| 伙伴与使魔 | Partner、PartnerCard、familiar registries | `DuskPartnerScripts`、Companion*、Familiar* 服务与运行时 | UI guard、shared hooks | `HouseManager`、`GameEntryUI.NormalGame`、`ScriptExecutor.SetStatus` | 后续模块，编号待定 | P1 |
 | 百变 | polymorph 配置、卡牌/Buff | `Polymorph*Service/Runtime`、Role registry、UI、RPC visual state | shared hooks、UI safety | `SkillItem.TrueUse`、战斗结束边界、角色/UI 对象 | 模块 09 | P1 |
 | 投影 | 投影卡牌、EnemyCard、伙伴意图 | `ProjectionScripts`、Projection* services/runtime、RPC companion | shared hooks、online patterns | `CommonCardItem.OnBeginDrag/UseCardDirectly`、`FightPlayer.TurnInit`、战斗边界 | 模块 09 | P1 |
+| 精灵球与精灵 | 精灵球、动态精灵卡、精灵意图/捕获注册表 | `SpiritCapture*`、`SpiritCardFactory`、`SpiritSummon*`、Spirit runtime/RPC | shared hooks、online authority、payload budget | `AttackCardItem.TrueUse`、`StatusManager.CheckDead/EnemyDead`、`EnemyManager.AddEnemy`、`DictionaryUI`、战斗边界 | 模块 08 | P0 |
 | 心变 | 心变卡牌、Buff、EnemyCard | `HeartChangeScripts`、Control/Intent services/runtime | shared hooks | `ScriptExecutor.SetStatus/RunScript`、战斗边界 | 模块 09 | P1 |
 | 地图事件与对话 | EventList、Map、Dialogue | `EventScripts`、DialogueFlow*、MapItem API | shared hooks、Journey 仅模式路径 | `MapItem.Init`、`DialogueUI.ChooseOption`、`MapSelectUI` | 模块 10 | P1 |
 | Boss、敌人意图与奖励 | Enemy、EnemyCard、Buff、Level | `BossScripts`、BattleReward*、敌人池/意图服务 | BGM arbiter、shared hooks | `BattleRewardsUI.Entry/ModeSetReward`、敌人 Card/Status 流程 | 模块 10 | P1 |

@@ -104,7 +104,7 @@ public static class SunExpResourcePreloader
                 "polymorph-role-current",
                 290,
                 WarmupTier.Essential,
-                id => WarmupPolymorphRole(byId[id], "current"));
+                id => PreloadPolymorphSource(byId[id], "current"));
         }
 
         AddItems(
@@ -112,17 +112,17 @@ public static class SunExpResourcePreloader
             "polymorph-role",
             120,
             WarmupTier.Opportunity,
-            id => WarmupPolymorphRole(byId[id], "opportunity"));
+            id => PreloadPolymorphSource(byId[id], "opportunity"));
     }
 
-    private static void WarmupPolymorphRole(PolymorphRoleSpec role, string tier)
+    private static void PreloadPolymorphSource(PolymorphRoleSpec role, string tier)
     {
-        if (PolymorphCardFaceCache.GetOrCreate(role) == null)
+        if (SunExpResourceCache.Load<Sprite>(role.CardFacePath, true, SunExpIds.PolymorphSourceResourceCategory) == null)
         {
-            throw new InvalidOperationException("polymorph role card face unavailable: " + role.Id);
+            throw new InvalidOperationException("polymorph role card source unavailable: " + role.Id);
         }
 
-        SunExpPerformanceCounters.Record("ResourcePreloader.PolymorphCardFace." + tier);
+        SunExpPerformanceCounters.Record("ResourcePreloader.PolymorphCardSource." + tier);
     }
 
     private static void AddItems(

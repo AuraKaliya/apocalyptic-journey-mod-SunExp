@@ -80,11 +80,11 @@ public static class ProjectionRuntime
 
         var owner = FightPlayer.Instance?.Status;
         var ownerPlayerId = CompanionOwnershipService.ResolveOwnerPlayerId(owner?.InstanceId ?? "");
-        if (owner != null && ProjectionStateStore.HasForOwner(ownerPlayerId, owner.InstanceId))
+        if (owner != null && CompanionPositionOwnershipService.HasForOwner(ownerPlayerId, owner.InstanceId))
         {
             ProjectionUseGate[UseGateKey(card, source)] = CardItem.canUse;
             CardItem.canUse = false;
-            PlayerApi.ShowCaption("拜托了：每名玩家只能拥有一个投影。");
+            PlayerApi.ShowCaption("拜托了：投影位置已被占用。");
         }
     }
 

@@ -765,7 +765,7 @@ Assert-Contains $entrySource "SunExp.Dll.Scripting.ProjectionScripts" "Entry mus
 Assert-Contains $projectionActivationService "CardGrantRequest" "Projection generated cards must use the shared card grant API."
 Assert-Contains $projectionActivationService "DictionaryUtil.Set(config.Vars" "Projection generated cards must write runtime overrides to Vars."
 Assert-NotContains $projectionActivationService "DictionaryUtil.Set(config.data" "Projection generated cards must not mutate base config data."
-Assert-Contains $projectionSummonService "ProjectionStateStore.HasForOwner" "Projection summon must enforce one owner-bound projection per player."
+Assert-Contains $projectionSummonService "CompanionPositionOwnershipService.HasForOwner" "Projection summon must enforce the shared projection/spirit position per player."
 Assert-Contains $projectionSummonService 'SunExpResourceCache.Load<GameObject>("Model/player", true, "projection")' "Projection summon must load the player model through the shared resource cache."
 Assert-Contains $projectionSummonService "SunExpIds.ProjectionActionStaffTapCardId" "Projection summon must attach the shared staff-tap action."
 Assert-Contains $projectionSummonService "SunExpIds.ProjectionActionShieldBlessingCardId" "Projection summon must attach the shared shield action."
@@ -870,7 +870,7 @@ Assert-Contains $projectionScripts "ProjectionStrategyService.UseAction" "Projec
 Assert-Contains $companionBattleModels "CompanionIntentTendency" "Companion models must define attack/defense intent tendencies."
 Assert-Contains $companionBattleModels "CompanionIntentType" "Companion models must define companion intent types."
 Assert-NotContains $companionIntentSelector "PickType" "Companion intent selection must not apply priority through a second type lottery."
-Assert-Contains $companionIntentSelector "TendencyWeightsForRole" "Companion tendency must use explicit profile weights independent of pool size."
+Assert-Contains $companionIntentSelector "CompanionIntentResolver.TendencyWeightsFor" "Companion tendency must resolve explicit projection or spirit profile weights independent of pool size."
 Assert-Contains $companionIntentSelector "PickWeighted" "Companion intent selection must use normalized weighted random selection."
 Assert-Contains $companionIntentSelector "CompanionThreatService.ThreatPressurePercent" "Companion intent priority must react to normalized 80-200 companion threat."
 Assert-Contains $companionBattleStateStore "CompanionThreatService.Register" "Companion battle state creation must register threat state."
@@ -1692,4 +1692,5 @@ foreach ($file in $dataFiles) {
 $dialogueData = Read-RepoText "SunExp\Data\Dialogue\sunexp.csv"
 Assert-NotContains $dialogueData "CS.SunExp.Dll.Scripting" "Managed dialogue rows must not call C# through native Dialogue script columns."
 
+& (Join-Path $PSScriptRoot "Test-SpiritCapture.ps1")
 Write-Host "SunExp architecture assertions passed."

@@ -258,7 +258,7 @@ public sealed class ProjectionOtherObj : OtherObj
             }
 
             state.CurrentPlan = ProjectionEffectContextService.RefreshLockedPlan(this, state, state.CurrentPlan);
-            var intent = CompanionIntentRegistry.Find(state.CurrentPlan.IntentId);
+            var intent = CompanionIntentResolver.Find(state, state.CurrentPlan.IntentId);
             if (intent != null)
             {
                 var repeatCount = state.CurrentPlan.ResolvedEffects.Count == 0

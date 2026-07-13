@@ -160,7 +160,7 @@ public static class ProjectionAttachmentPresenter
             && Proxies.TryGetValue(state.StatusId, out var proxy)
             && proxy != null)
         {
-            proxy.GetComponent<ProjectionVisualProxy>()?.PlayActionFocus(state);
+            proxy.GetComponent<ProjectionVisualProxy>()?.PlayActionFocus(state.StatusId);
         }
     }
 
@@ -268,11 +268,12 @@ internal sealed class ProjectionVisualProxy : MonoBehaviour
         return true;
     }
 
-    public void PlayActionFocus(ProjectionState state)
+    public void PlayActionFocus(string statusId)
     {
         StopActionPulse();
-        var plan = CompanionBattleStateStore.Find(state.StatusId)?.CurrentPlan;
-        var intentType = CompanionIntentRegistry.IntentType(CompanionIntentRegistry.Find(plan?.IntentId ?? ""));
+        var plan = CompanionBattleStateStore.Find(statusId)?.CurrentPlan;
+        var battleState = CompanionBattleStateStore.Find(statusId);
+        var intentType = CompanionIntentResolver.IntentType(battleState, CompanionIntentResolver.Find(battleState, plan?.IntentId ?? ""));
         switch (intentType)
         {
             case CompanionIntentType.Attack:

@@ -40,7 +40,25 @@ public static class CompanionSystemPlans
 
 public static class CompanionIntentPlanner
 {
-    public static CompanionIntentPlan Create(ProjectionOtherObj projection, CompanionBattleState state)
+    public static CompanionIntentPlan Create(OtherObj? projection, CompanionBattleState? state)
+    {
+        var isSpirit = string.Equals(state?.EntityKind, "SpiritAttachment", StringComparison.Ordinal);
+        var started = isSpirit ? SunExpPerformanceCounters.Timestamp() : 0L;
+        CompanionIntentPlan plan = CreateCore(projection, state)!;
+        if (isSpirit)
+        {
+            SunExpPerformanceCounters.RecordHotspot(
+                "Spirit.Intent.Plan",
+                started,
+                "status=" + (state?.StatusId ?? "<none>")
+                + ", intent=" + plan.IntentId
+                + ", wait=" + plan.IsWait,
+                logFirstSample: true);
+        }
+        return plan;
+    }
+
+    private static CompanionIntentPlan CreateCore(OtherObj? projection, CompanionBattleState? state)
     {
         if (projection == null || state == null || !CompanionAuthorityService.IsAuthoritative())
         {
@@ -112,7 +130,7 @@ public static class CompanionIntentPlanner
             return;
         }
 
-        var intent = CompanionIntentRegistry.Find(plan.IntentId);
+        var intent = CompanionIntentResolver.Find(state, plan.IntentId);
         if (intent != null)
         {
             CompanionThreatService.SetPreview(state, intent, plan.ResolvedValue,
@@ -132,7 +150,7 @@ public static class CompanionIntentPlanner
             .Where(handlerId => !string.IsNullOrWhiteSpace(handlerId))
             .Distinct(StringComparer.Ordinal));
         var targets = string.Join(",", plan.OrderedTargetIds ?? new List<string>());
-        var intent = CompanionIntentRegistry.Find(plan.IntentId);
+        var intent = CompanionIntentResolver.Find(state, plan.IntentId);
         var friendlyRoster = string.Join(",", CompanionFriendlyRosterService.Snapshot(includeControlled: true)
             .Where(CompanionTargetPolicyRegistry.IsAlive)
             .Select(status => status.InstanceId));

@@ -17,6 +17,8 @@ public static class CombatCardViewPoolCatalog
         [SunExpIds.PolymorphRoleTemplateCardId] = CommonBucket,
         ["SunExp_sunexp_witch_projection"] = CommonBucket,
         [SunExpIds.ProjectionRoleTemplateCardId] = CommonBucket,
+        [SunExpIds.SpiritCardTemplateId] = CommonBucket,
+        [SunExpIds.SpiritBallCardId] = AttackBucket,
         ["SunExp_sunexp_heart_change"] = AttackBucket,
         [SunExpIds.WunaCoronationTokenCardId] = CommonBucket,
         [SunExpIds.WitchStarScoreCardId] = CommonBucket,
@@ -64,7 +66,8 @@ public static class CombatCardViewPoolCatalog
 
         var markers = DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey);
         return DictionaryUtil.ContainsToken(markers, SunExpIds.PolymorphRoleCardMarker)
-            || DictionaryUtil.ContainsToken(markers, SunExpIds.ProjectionRoleCardMarker);
+            || DictionaryUtil.ContainsToken(markers, SunExpIds.ProjectionRoleCardMarker)
+            || DictionaryUtil.ContainsToken(markers, SunExpIds.SpiritCardMarker);
     }
 
     public static string PresentationSignature(IDataConfig? config, string bucket)

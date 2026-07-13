@@ -76,7 +76,7 @@ Require-Text $audioRuntime "OwnerModId to disambiguate" "AudioArbiterRuntime mus
 Require-Text $audioRuntime "RemoteReplacementPairingSeconds" "AudioArbiterRuntime must bound remote native-effect pairing before fallback playback."
 Require-Text $audioRuntime "remote-fallback-played" "AudioArbiterRuntime must expose remote replacement fallback outcomes."
 
-$architectureGuidelines = Read-RepoText "docs\shared-component-architecture-guidelines.md"
+$architectureGuidelines = Read-RepoText "docs\aura-shared-core-v2-contract.md"
 Require-Text $architectureGuidelines "provider identity[\s\S]*BuildId" "Shared architecture guidelines must require BuildId bumps for provider identity semantic changes."
 Require-Text $architectureGuidelines "Tool-owned runtime caches[\s\S]*AuraSharedStorageCoordinator\.ExecuteWrite" "Shared architecture guidelines must document coordinated shared-cache writes."
 Require-Text $architectureGuidelines "WriteTextAtomic[\s\S]*cache metadata" "Shared architecture guidelines must require atomic metadata writes for shared caches."
@@ -277,12 +277,12 @@ if ($violations.Count -gt 0) {
     throw "Shared architecture guideline scan failed: $($violations.Count) raw write violation(s)."
 }
 
-$guidelines = Read-RepoText "docs\shared-component-architecture-guidelines.md"
+$guidelines = Read-RepoText "docs\aura-shared-core-v2-contract.md"
 Require-Text $guidelines "Ownership And Mutability" "Shared guidelines must document ownership and mutability."
 Require-Text $guidelines "Conflict And Candidate Policy" "Shared guidelines must document conflict and candidate policy."
 Require-Text $guidelines "Resolution Priority" "Shared guidelines must document resolution priority."
 
-$audit = Read-RepoText "docs\shared-component-architecture-audit.md"
+$audit = Read-RepoText "docs\SunExp\04-Aura共享层与核心层接入.md"
 Require-Text $audit "AuraCgShared" "Shared architecture audit must include AuraCgShared."
 Require-Text $audit "provider identity" "Shared architecture audit must include provider identity findings."
 

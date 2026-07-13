@@ -1,0 +1,97 @@
+using System;
+using System.Collections.Generic;
+using Network.Command;
+using SunExp.Dll.Mechanics;
+
+namespace SunExp.Dll.Network;
+
+[Serializable]
+public sealed class SpiritCompanionSnapshot
+{
+    public int ProtocolVersion { get; set; } = CompanionAuthorityService.ProjectionProtocolVersion;
+    public int BattleEpoch { get; set; }
+    public string RegistryHash { get; set; } = "";
+    public int Revision { get; set; }
+    public string Token { get; set; } = "";
+    public CapturedEnemySnapshot CapturedEnemy { get; set; } = new();
+    public string OwnerStatusId { get; set; } = "";
+    public string OwnerPlayerId { get; set; } = "";
+    public string StatusId { get; set; } = "";
+    public bool Accepted { get; set; }
+    public int Attack { get; set; }
+    public int Armor { get; set; }
+    public int MaxMagic { get; set; }
+    public int CurrentMagic { get; set; }
+    public int TurnIndex { get; set; }
+    public Dictionary<string, int> ReadyOnTurn { get; set; } = new();
+    public CompanionThreatSnapshot? Threat { get; set; }
+    public CompanionIntentPlan? IntentPlan { get; set; }
+    public string RejectionReason { get; set; } = "";
+}
+
+[Serializable]
+public sealed class RpcSpiritSummonRequest : RpcCommandBase, ISunExpServerBoundRpcCommand
+{
+    private SunExpRpcSender serverSender = SunExpRpcSender.Unbound;
+
+    public CapturedEnemySnapshot CapturedEnemy { get; set; } = new();
+    public string OwnerStatusId { get; set; } = "";
+    public string Token { get; set; } = "";
+    public int ProtocolVersion { get; set; } = CompanionAuthorityService.ProjectionProtocolVersion;
+    public int BattleEpoch { get; set; }
+    public string RegistryHash { get; set; } = "";
+
+    public RpcSpiritSummonRequest()
+    {
+    }
+
+    public RpcSpiritSummonRequest(CapturedEnemySnapshot capturedEnemy, string ownerStatusId, string token)
+    {
+        CapturedEnemy = capturedEnemy ?? new CapturedEnemySnapshot();
+        OwnerStatusId = ownerStatusId ?? "";
+        Token = token ?? "";
+        BattleEpoch = CompanionAuthorityService.BattleEpoch;
+        RegistryHash = SpiritIntentRegistry.RegistryHash;
+    }
+
+    public void BindServerSender(SunExpRpcSender sender)
+    {
+        serverSender = sender ?? SunExpRpcSender.Unbound;
+    }
+
+    public override void CmdExecute()
+    {
+        SpiritSummonService.ResolveNetworkSummon(
+            CapturedEnemy,
+            OwnerStatusId,
+            Token,
+            serverSender,
+            ProtocolVersion,
+            BattleEpoch,
+            RegistryHash);
+    }
+
+    public override void RpcExecute()
+    {
+    }
+}
+
+[Serializable]
+public sealed class RpcSpiritCompanionState : RpcCommandBase
+{
+    public SpiritCompanionSnapshot Snapshot { get; set; } = new();
+
+    public RpcSpiritCompanionState()
+    {
+    }
+
+    public RpcSpiritCompanionState(SpiritCompanionSnapshot snapshot)
+    {
+        Snapshot = snapshot ?? new SpiritCompanionSnapshot();
+    }
+
+    public override void RpcExecute()
+    {
+        SpiritSummonService.ApplyNetworkState(Snapshot, "RpcSpiritCompanionState");
+    }
+}

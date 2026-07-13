@@ -12,7 +12,7 @@ namespace SunExp.Dll.Mechanics;
 /// </summary>
 public static class ProjectionActionExecutor
 {
-    public static bool Execute(ProjectionOtherObj actor, CompanionBattleState state, ObjectCard? action)
+    public static bool Execute(OtherObj actor, CompanionBattleState state, ObjectCard? action)
     {
         var start = SunExpPerformanceCounters.Timestamp();
         try
@@ -25,7 +25,7 @@ public static class ProjectionActionExecutor
         }
     }
 
-    private static bool ExecuteCore(ProjectionOtherObj actor, CompanionBattleState state, ObjectCard? action)
+    private static bool ExecuteCore(OtherObj actor, CompanionBattleState state, ObjectCard? action)
     {
         var plan = state?.CurrentPlan;
         if (actor == null || state == null || plan == null || plan.IsWait)
@@ -46,7 +46,7 @@ public static class ProjectionActionExecutor
             return false;
         }
 
-        var intent = CompanionIntentRegistry.Find(plan.IntentId);
+        var intent = CompanionIntentResolver.Find(state, plan.IntentId);
         if (intent == null || plan.ResolvedEffects.Any(effect =>
                 CompanionTargetPolicyRegistry.Alive(effect.TargetIds).Any(target =>
                     !CompanionTargetPolicyRegistry.IsValidCommittedTarget(state, intent, target))))

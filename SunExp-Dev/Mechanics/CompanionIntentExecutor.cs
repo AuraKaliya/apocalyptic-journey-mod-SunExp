@@ -52,7 +52,7 @@ public static class CompanionIntentExecutor
         }
 
         var target = ResolveCommittedTarget(plan);
-        var type = CompanionIntentRegistry.IntentType(CompanionIntentRegistry.Find(plan.IntentId));
+        var type = CompanionIntentResolver.IntentType(state, CompanionIntentResolver.Find(state, plan.IntentId));
         ExecutorApi.SetStatusForTarget(
             executor,
             target,

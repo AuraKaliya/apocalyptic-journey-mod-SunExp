@@ -226,7 +226,7 @@ public static class ProjectionSummonService
         string preferredOwnerPlayerId = "")
     {
         var ownerPlayerId = CompanionOwnershipService.ResolveOwnerPlayerId(ownerStatusId, preferredOwnerPlayerId);
-        if (ProjectionStateStore.HasForOwner(ownerPlayerId, ownerStatusId))
+        if (CompanionPositionOwnershipService.HasForOwner(ownerPlayerId, ownerStatusId))
         {
             var sent = BroadcastRejectIfNeeded(
                 role.Id,
@@ -383,7 +383,7 @@ public static class ProjectionSummonService
 
         return normalized switch
         {
-            RejectOwnerAlreadyHasProjection => "每名玩家只能拥有一个投影。",
+            RejectOwnerAlreadyHasProjection => "投影位置已被占用。",
             RejectMissingOwnerStatus => "没有可用的友方站位。",
             RejectProtocolMismatch => "投影协议版本不一致。",
             RejectBattleEpochMismatch => "当前战斗状态已失效，请重新使用。",

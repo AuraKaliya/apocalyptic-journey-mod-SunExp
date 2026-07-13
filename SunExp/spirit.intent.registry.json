@@ -1,0 +1,1455 @@
+{
+  "schemaVersion": 1,
+  "intents": [],
+  "profiles": [
+    {
+      "enemyId": "10001",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_WeakLight",
+        "enemycard_NeverDead",
+        "enemycard_Charge1",
+        "enemycard_defence",
+        "enemycard_Observe",
+        "enemycard_vulnerabilityLight"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "magic_interference"
+      ],
+      "defenseTendency": [
+        "shield_blessing",
+        "charge",
+        "you_are_enhanced"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
+    },
+    {
+      "enemyId": "10002",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_vulnerabilityLight",
+        "enemycard_PlugCards2",
+        "enemycard_Witness",
+        "enemycard_Charge1",
+        "enemycard_defence",
+        "enemycard_OrdinaryHit"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "magic_interference"
+      ],
+      "defenseTendency": [
+        "shield_blessing",
+        "charge",
+        "you_are_enhanced"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 1.0,
+      "magicMultiplier": 1.0,
+      "attackMultiplier": 1.0,
+      "armorMultiplier": 1.0
+    },
+    {
+      "enemyId": "10003",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_Thieves",
+        "enemycard_thief",
+        "enemycard_defence",
+        "enemycard_OrdinaryFiveHit",
+        "enemycard_obtainMoney"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo",
+        "magic_interference"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 1.0,
+      "magicMultiplier": 1.0,
+      "attackMultiplier": 1.0,
+      "armorMultiplier": 1.0
+    },
+    {
+      "enemyId": "10004",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_OrdinaryHit",
+        "enemycard_defence",
+        "enemycard_NeverDead"
+      ],
+      "attackTendency": [
+        "staff_tap"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 55,
+      "defenseWeight": 45,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
+    },
+    {
+      "enemyId": "10005",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_OrdinaryHit",
+        "enemycard_defence"
+      ],
+      "attackTendency": [
+        "staff_tap"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 55,
+      "defenseWeight": 45,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
+    },
+    {
+      "enemyId": "10007",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_defence",
+        "enemycard_QuadrupleHits",
+        "enemycard_WhereverYouGo",
+        "enemycard_OrdinaryHit",
+        "enemycard_MakeIneffectiveRays1",
+        "enemycard_PlugCards1"
+      ],
+      "attackTendency": [
+        "staff_tap"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 55,
+      "defenseWeight": 45,
+      "hpMultiplier": 1.15,
+      "magicMultiplier": 1.15,
+      "attackMultiplier": 1.15,
+      "armorMultiplier": 1.15
+    },
+    {
+      "enemyId": "10008",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_defence",
+        "enemycard_QuadrupleHits",
+        "enemycard_Licking",
+        "enemycard_OrdinaryHit"
+      ],
+      "attackTendency": [
+        "staff_tap"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 55,
+      "defenseWeight": 45,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
+    },
+    {
+      "enemyId": "10009",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_OrdinaryHit",
+        "enemycard_defence",
+        "enemycard_burn2",
+        "enemycard_specialAttack",
+        "enemycard_burn1"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 1.0,
+      "magicMultiplier": 1.0,
+      "attackMultiplier": 1.0,
+      "armorMultiplier": 1.0
+    },
+    {
+      "enemyId": "10010",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_OrdinaryHit",
+        "enemycard_defence",
+        "enemycard_OverrunWorkouts",
+        "enemycard_OrdinaryFiveHit",
+        "enemycard_Charge1"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo"
+      ],
+      "defenseTendency": [
+        "shield_blessing",
+        "charge"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 1.0,
+      "magicMultiplier": 1.0,
+      "attackMultiplier": 1.0,
+      "armorMultiplier": 1.0
+    },
+    {
+      "enemyId": "10014",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_OrdinaryHit",
+        "enemycard_defence",
+        "enemycard_WeakLight",
+        "enemycard_psychologicalShock"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "magic_interference"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 1.0,
+      "magicMultiplier": 1.0,
+      "attackMultiplier": 1.0,
+      "armorMultiplier": 1.0
+    },
+    {
+      "enemyId": "10015",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_OrdinaryHit",
+        "enemycard_defence",
+        "enemycard_Dragon'sMajesty",
+        "enemycard_FallenDragon",
+        "enemycard_QuadrupleHits",
+        "enemycard_burn"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 1.15,
+      "magicMultiplier": 1.15,
+      "attackMultiplier": 1.15,
+      "armorMultiplier": 1.15
+    },
+    {
+      "enemyId": "10016",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_OrdinaryHit",
+        "enemycard_defence",
+        "enemycard_NerveReflexes",
+        "enemycard_NeverDead"
+      ],
+      "attackTendency": [
+        "staff_tap"
+      ],
+      "defenseTendency": [
+        "shield_blessing",
+        "charge"
+      ],
+      "attackWeight": 55,
+      "defenseWeight": 45,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
+    },
+    {
+      "enemyId": "10017",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_defence",
+        "enemycard_burn1",
+        "enemycard_burn",
+        "enemycard_OrdinaryHit"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
+    },
+    {
+      "enemyId": "10018",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_OrdinaryHit",
+        "enemycard_Weak",
+        "enemycard_defence",
+        "enemycard_Witness"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "magic_interference"
+      ],
+      "defenseTendency": [
+        "shield_blessing",
+        "charge",
+        "you_are_enhanced"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 1.0,
+      "magicMultiplier": 1.0,
+      "attackMultiplier": 1.0,
+      "armorMultiplier": 1.0
+    },
+    {
+      "enemyId": "10019",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_OrdinaryHit",
+        "enemycard_defence",
+        "enemycard_charmed",
+        "enemycard_QuadrupleHits"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "magic_interference"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
+    },
+    {
+      "enemyId": "10020",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_burn",
+        "enemycard_burn1",
+        "enemycard_Toxin1",
+        "enemycard_Toxin2",
+        "enemycard_Toxin3",
+        "enemycard_Toxin4",
+        "enemycard_PlugCards1",
+        "enemycard_VenomSpray"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo",
+        "magic_interference"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 1.15,
+      "magicMultiplier": 1.15,
+      "attackMultiplier": 1.15,
+      "armorMultiplier": 1.15
+    },
+    {
+      "enemyId": "10021",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_rejuvenation",
+        "enemycard_OrdinaryFiveHit",
+        "enemycard_NeverDead",
+        "enemycard_OrdinaryHit",
+        "enemycard_defence",
+        "enemycard_Charge1",
+        "enemycard_burn1",
+        "enemycard_Toxin2",
+        "enemycard_VenomSpray"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo",
+        "magic_interference"
+      ],
+      "defenseTendency": [
+        "shield_blessing",
+        "charge",
+        "holy_heal"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
+    },
+    {
+      "enemyId": "10022",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_OrdinaryHit",
+        "enemycard_defence",
+        "enemycard_OrdinaryFiveHit",
+        "enemycard_Come"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 1.15,
+      "magicMultiplier": 1.15,
+      "attackMultiplier": 1.15,
+      "armorMultiplier": 1.15
+    },
+    {
+      "enemyId": "10023",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_OrdinaryHit",
+        "enemycard_defence",
+        "enemycard_OverrunWorkouts",
+        "enemycard_OrdinaryFiveHit"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo"
+      ],
+      "defenseTendency": [
+        "shield_blessing",
+        "charge"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
+    },
+    {
+      "enemyId": "10024",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_burn1",
+        "enemycard_Toxin3",
+        "enemycard_Toxin1",
+        "enemycard_NeverDead",
+        "enemycard_QuadrupleHits",
+        "enemycard_Charge1",
+        "enemycard_specialAttack",
+        "enemycard_VenomSpray"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo",
+        "magic_interference"
+      ],
+      "defenseTendency": [
+        "shield_blessing",
+        "charge"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 1.0,
+      "magicMultiplier": 1.0,
+      "attackMultiplier": 1.0,
+      "armorMultiplier": 1.0
+    },
+    {
+      "enemyId": "10025",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_OrdinaryHit",
+        "enemycard_defence",
+        "enemycard_Toxin3",
+        "enemycard_Toxin1",
+        "enemycard_Charge1",
+        "enemycard_WeakLight",
+        "enemycard_QuadrupleHits"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "magic_interference"
+      ],
+      "defenseTendency": [
+        "shield_blessing",
+        "charge"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
+    },
+    {
+      "enemyId": "10026",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_OrdinaryHit",
+        "enemycard_defence",
+        "enemycard_Toxin1",
+        "enemycard_Toxin2",
+        "enemycard_Toxin3",
+        "enemycard_VenomSpray",
+        "enemycard_QuadrupleHits"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "magic_interference"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
+    },
+    {
+      "enemyId": "10027",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_OrdinaryHit",
+        "enemycard_defence",
+        "enemycard_QuadrupleHits",
+        "enemycard_PlugCards2",
+        "enemycard_PlugCards1",
+        "enemycard_burn2",
+        "enemycard_specialAttack"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 1.15,
+      "magicMultiplier": 1.15,
+      "attackMultiplier": 1.15,
+      "armorMultiplier": 1.15
+    },
+    {
+      "enemyId": "10028",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_QuadrupleHits",
+        "enemycard_OrdinaryHit",
+        "enemycard_defence",
+        "enemycard_rejuvenation"
+      ],
+      "attackTendency": [
+        "staff_tap"
+      ],
+      "defenseTendency": [
+        "shield_blessing",
+        "holy_heal"
+      ],
+      "attackWeight": 55,
+      "defenseWeight": 45,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
+    },
+    {
+      "enemyId": "10029",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_rejuvenation",
+        "enemycard_OverrunWorkouts",
+        "enemycard_OrdinaryHit",
+        "enemycard_NeverDead",
+        "enemycard_QuadrupleHits"
+      ],
+      "attackTendency": [
+        "staff_tap"
+      ],
+      "defenseTendency": [
+        "shield_blessing",
+        "charge",
+        "holy_heal"
+      ],
+      "attackWeight": 55,
+      "defenseWeight": 45,
+      "hpMultiplier": 1.15,
+      "magicMultiplier": 1.15,
+      "attackMultiplier": 1.15,
+      "armorMultiplier": 1.15
+    },
+    {
+      "enemyId": "10032",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_FiveHit",
+        "enemycard_EvilCurse",
+        "enemycard_psychologicalShock",
+        "enemycard_defence"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 1.15,
+      "magicMultiplier": 1.15,
+      "attackMultiplier": 1.15,
+      "armorMultiplier": 1.15
+    },
+    {
+      "enemyId": "10033",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_SpreadWings",
+        "enemycard_HighFly",
+        "enemycard_burn",
+        "enemycard_burn1",
+        "enemycard_Charge1"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo"
+      ],
+      "defenseTendency": [
+        "shield_blessing",
+        "charge"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 1.15,
+      "magicMultiplier": 1.15,
+      "attackMultiplier": 1.15,
+      "armorMultiplier": 1.15
+    },
+    {
+      "enemyId": "10034",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_OrdinaryHit",
+        "enemycard_defence",
+        "enemycard_LimePowder",
+        "enemycard_PoisonThrowing",
+        "enemycard_Weak"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "magic_interference"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
+    },
+    {
+      "enemyId": "10035",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_defence",
+        "enemycard_EvilCurse",
+        "enemycard_Toxin2",
+        "enemycard_obtainMoney"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "magic_interference"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 1.0,
+      "magicMultiplier": 1.0,
+      "attackMultiplier": 1.0,
+      "armorMultiplier": 1.0
+    },
+    {
+      "enemyId": "10036",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_defence",
+        "enemycard_OrdinaryHit",
+        "enemycard_PlugCards3"
+      ],
+      "attackTendency": [
+        "staff_tap"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 55,
+      "defenseWeight": 45,
+      "hpMultiplier": 1.0,
+      "magicMultiplier": 1.0,
+      "attackMultiplier": 1.0,
+      "armorMultiplier": 1.0
+    },
+    {
+      "enemyId": "10037",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_OrdinaryHit",
+        "enemycard_defence",
+        "enemycard_fearless",
+        "enemycard_IceShield",
+        "enemycard_Toxin4"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "magic_interference"
+      ],
+      "defenseTendency": [
+        "shield_blessing",
+        "charge"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 1.0,
+      "magicMultiplier": 1.0,
+      "attackMultiplier": 1.0,
+      "armorMultiplier": 1.0
+    },
+    {
+      "enemyId": "10038",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_OrdinaryHit",
+        "enemycard_defence",
+        "enemycard_charmed"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "magic_interference"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
+    },
+    {
+      "enemyId": "10039",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_defence",
+        "enemycard_OrdinaryHit",
+        "enemycard_burn1"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
+    },
+    {
+      "enemyId": "10040",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_QuadrupleHits",
+        "enemycard_rejuvenation",
+        "enemycard_charmed",
+        "enemycard_OverrunWorkouts",
+        "enemycard_NerveReflexes",
+        "enemycard_fearless",
+        "enemycard_Witness",
+        "enemycard_Toxin1",
+        "enemycard_Toxin2",
+        "enemycard_Toxin3",
+        "enemycard_Toxin4",
+        "enemycard_foraging",
+        "enemycard_NeverDead",
+        "enemycard_OrdinaryHit",
+        "enemycard_SuperFireBall",
+        "enemycard_WeakLight",
+        "enemycard_OrdinaryFiveHit",
+        "enemycard_Weak",
+        "enemycard_thief",
+        "enemycard_Thieves"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo",
+        "magic_interference"
+      ],
+      "defenseTendency": [
+        "shield_blessing",
+        "charge",
+        "holy_heal",
+        "you_are_enhanced"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
+    },
+    {
+      "enemyId": "10041",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_OrdinaryHit",
+        "enemycard_defence",
+        "enemycard_OrdinaryFiveHit",
+        "enemycard_Charge1"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo"
+      ],
+      "defenseTendency": [
+        "shield_blessing",
+        "charge"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
+    },
+    {
+      "enemyId": "10042",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_defence",
+        "enemycard_OrdinaryHit",
+        "enemycard_OverrunWorkouts",
+        "enemycard_MakeIneffectiveRays1"
+      ],
+      "attackTendency": [
+        "staff_tap"
+      ],
+      "defenseTendency": [
+        "shield_blessing",
+        "charge"
+      ],
+      "attackWeight": 55,
+      "defenseWeight": 45,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
+    },
+    {
+      "enemyId": "10043",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_defence",
+        "enemycard_OrdinaryHit",
+        "enemycard_NeverDead",
+        "enemycard_vulnerabilityLight"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "magic_interference"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
+    },
+    {
+      "enemyId": "10044",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_defence",
+        "enemycard_OrdinaryHit",
+        "enemycard_MT1",
+        "enemycard_MT2",
+        "enemycard_Wake"
+      ],
+      "attackTendency": [
+        "staff_tap"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 55,
+      "defenseWeight": 45,
+      "hpMultiplier": 1.0,
+      "magicMultiplier": 1.0,
+      "attackMultiplier": 1.0,
+      "armorMultiplier": 1.0
+    },
+    {
+      "enemyId": "10045",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_GiantClawStrike",
+        "enemycard_PowerlessCurse",
+        "enemycard_defence",
+        "enemycard_OrdinaryHit",
+        "enemycard_Charge1",
+        "enemycard_Charge2",
+        "enemycard_QuadrupleHits"
+      ],
+      "attackTendency": [
+        "staff_tap"
+      ],
+      "defenseTendency": [
+        "shield_blessing",
+        "charge"
+      ],
+      "attackWeight": 55,
+      "defenseWeight": 45,
+      "hpMultiplier": 1.0,
+      "magicMultiplier": 1.0,
+      "attackMultiplier": 1.0,
+      "armorMultiplier": 1.0
+    },
+    {
+      "enemyId": "10046",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_rejuvenation",
+        "enemycard_OrdinaryHit",
+        "enemycard_defence",
+        "enemycard_FullSupport"
+      ],
+      "attackTendency": [
+        "staff_tap"
+      ],
+      "defenseTendency": [
+        "shield_blessing",
+        "holy_heal",
+        "you_are_enhanced"
+      ],
+      "attackWeight": 55,
+      "defenseWeight": 45,
+      "hpMultiplier": 1.15,
+      "magicMultiplier": 1.15,
+      "attackMultiplier": 1.15,
+      "armorMultiplier": 1.15
+    },
+    {
+      "enemyId": "10047",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_rejuvenation",
+        "enemycard_OverrunWorkouts",
+        "enemycard_OrdinaryHit",
+        "enemycard_Observe",
+        "enemycard_PowerlessCurse",
+        "enemycard_PlugCards1",
+        "enemycard_Charge1"
+      ],
+      "attackTendency": [
+        "staff_tap"
+      ],
+      "defenseTendency": [
+        "shield_blessing",
+        "charge",
+        "holy_heal",
+        "you_are_enhanced"
+      ],
+      "attackWeight": 55,
+      "defenseWeight": 45,
+      "hpMultiplier": 1.15,
+      "magicMultiplier": 1.15,
+      "attackMultiplier": 1.15,
+      "armorMultiplier": 1.15
+    },
+    {
+      "enemyId": "10048",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_OriginalSinCard",
+        "enemycard_SuperFireBall",
+        "enemycard_defence",
+        "enemycard_OrdinaryHit",
+        "enemycard_specialAttack",
+        "enemycard_Despair",
+        "enemycard_RoyalBarrier"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 1.15,
+      "magicMultiplier": 1.15,
+      "attackMultiplier": 1.15,
+      "armorMultiplier": 1.15
+    },
+    {
+      "enemyId": "10049",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_defence",
+        "enemycard_OrdinaryHit",
+        "enemycard_specialAttack"
+      ],
+      "attackTendency": [
+        "staff_tap"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 55,
+      "defenseWeight": 45,
+      "hpMultiplier": 1.0,
+      "magicMultiplier": 1.0,
+      "attackMultiplier": 1.0,
+      "armorMultiplier": 1.0
+    },
+    {
+      "enemyId": "10050",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_defence",
+        "enemycard_OrdinaryHit",
+        "enemycard_FiveHit"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 1.0,
+      "magicMultiplier": 1.0,
+      "attackMultiplier": 1.0,
+      "armorMultiplier": 1.0
+    },
+    {
+      "enemyId": "10051",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_OriginalSinCard",
+        "enemycard_SuperFireBall",
+        "enemycard_defence",
+        "enemycard_OrdinaryHit",
+        "enemycard_specialAttack",
+        "enemycard_Despair",
+        "enemycard_RoyalBarrier"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 1.15,
+      "magicMultiplier": 1.15,
+      "attackMultiplier": 1.15,
+      "armorMultiplier": 1.15
+    },
+    {
+      "enemyId": "10052",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_OriginalSinCard",
+        "enemycard_SuperFireBall",
+        "enemycard_defence",
+        "enemycard_OrdinaryHit",
+        "enemycard_specialAttack",
+        "enemycard_Despair",
+        "enemycard_RoyalBarrier"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 1.15,
+      "magicMultiplier": 1.15,
+      "attackMultiplier": 1.15,
+      "armorMultiplier": 1.15
+    },
+    {
+      "enemyId": "10053",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_OrdinaryHit",
+        "enemycard_defence",
+        "enemycard_QuadrupleHits",
+        "enemycard_PlugCards2",
+        "enemycard_PlugCards1",
+        "enemycard_burn2",
+        "enemycard_specialAttack"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 1.15,
+      "magicMultiplier": 1.15,
+      "attackMultiplier": 1.15,
+      "armorMultiplier": 1.15
+    },
+    {
+      "enemyId": "10054",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_OrdinaryHit",
+        "enemycard_defence"
+      ],
+      "attackTendency": [
+        "staff_tap"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 55,
+      "defenseWeight": 45,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
+    },
+    {
+      "enemyId": "10055",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_defence",
+        "enemycard_OrdinaryHit"
+      ],
+      "attackTendency": [
+        "staff_tap"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 55,
+      "defenseWeight": 45,
+      "hpMultiplier": 1.15,
+      "magicMultiplier": 1.15,
+      "attackMultiplier": 1.15,
+      "armorMultiplier": 1.15
+    },
+    {
+      "enemyId": "10056",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_CAR_Spear",
+        "enemycard_CAR_Hammer",
+        "enemycard_defence",
+        "enemycard_OrdinaryHit"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 1.15,
+      "magicMultiplier": 1.15,
+      "attackMultiplier": 1.15,
+      "armorMultiplier": 1.15
+    },
+    {
+      "enemyId": "10057",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_CAR_Spear",
+        "enemycard_CAR_Hammer",
+        "enemycard_CAR_Shield",
+        "enemycard_defence",
+        "enemycard_OrdinaryHit"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 1.15,
+      "magicMultiplier": 1.15,
+      "attackMultiplier": 1.15,
+      "armorMultiplier": 1.15
+    },
+    {
+      "enemyId": "10058",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_CAR_Spear",
+        "enemycard_CAR_Hammer",
+        "enemycard_CAR_Shield",
+        "enemycard_CAR_Sword",
+        "enemycard_defence",
+        "enemycard_OrdinaryHit",
+        "enemycard_Charge1"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo"
+      ],
+      "defenseTendency": [
+        "shield_blessing",
+        "charge"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 1.15,
+      "magicMultiplier": 1.15,
+      "attackMultiplier": 1.15,
+      "armorMultiplier": 1.15
+    },
+    {
+      "enemyId": "10059",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_Seduce",
+        "enemycard_GiantClawStrike",
+        "enemycard_defence",
+        "enemycard_MakeIneffectiveRays1"
+      ],
+      "attackTendency": [
+        "staff_tap"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 55,
+      "defenseWeight": 45,
+      "hpMultiplier": 1.15,
+      "magicMultiplier": 1.15,
+      "attackMultiplier": 1.15,
+      "armorMultiplier": 1.15
+    },
+    {
+      "enemyId": "10060",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_Toxin3",
+        "enemycard_Toxin2",
+        "enemycard_burn1",
+        "enemycard_OrdinaryHit",
+        "enemycard_defence"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo",
+        "magic_interference"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 1.15,
+      "magicMultiplier": 1.15,
+      "attackMultiplier": 1.15,
+      "armorMultiplier": 1.15
+    },
+    {
+      "enemyId": "10061",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_defence",
+        "enemycard_OrdinaryHit",
+        "enemycard_QuadrupleHits",
+        "enemycard_OrdinaryFiveHit",
+        "enemycard_rejuvenation"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo"
+      ],
+      "defenseTendency": [
+        "shield_blessing",
+        "holy_heal"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 1.15,
+      "magicMultiplier": 1.15,
+      "attackMultiplier": 1.15,
+      "armorMultiplier": 1.15
+    },
+    {
+      "enemyId": "99999",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "enemycard_defence"
+      ],
+      "attackTendency": [
+        "staff_tap"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 55,
+      "defenseWeight": 45,
+      "hpMultiplier": 0.9,
+      "magicMultiplier": 0.9,
+      "attackMultiplier": 0.9,
+      "armorMultiplier": 0.9
+    },
+    {
+      "enemyId": "boss_orbit_mirror_array",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "SunExp_sunexp_enemycard_mirror_calibration",
+        "SunExp_sunexp_enemycard_orbit_refraction"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo",
+        "magic_interference"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 1.15,
+      "magicMultiplier": 1.15,
+      "attackMultiplier": 1.15,
+      "armorMultiplier": 1.15
+    },
+    {
+      "enemyId": "boss_saint_wuna",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "SunExp_sunexp_enemycard_saint_purification",
+        "SunExp_sunexp_enemycard_saint_return_to_court"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo"
+      ],
+      "defenseTendency": [
+        "shield_blessing",
+        "holy_heal"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 1.15,
+      "magicMultiplier": 1.15,
+      "attackMultiplier": 1.15,
+      "armorMultiplier": 1.15
+    },
+    {
+      "enemyId": "boss_second_sun_last_day",
+      "variantId": "*",
+      "sourceEnemyCardIds": [
+        "SunExp_sunexp_enemycard_last_day_morning_prayer",
+        "SunExp_sunexp_enemycard_last_day_noon_burn"
+      ],
+      "attackTendency": [
+        "staff_tap",
+        "staff_combo",
+        "magic_interference"
+      ],
+      "defenseTendency": [
+        "shield_blessing"
+      ],
+      "attackWeight": 65,
+      "defenseWeight": 35,
+      "hpMultiplier": 1.15,
+      "magicMultiplier": 1.15,
+      "attackMultiplier": 1.15,
+      "armorMultiplier": 1.15
+    },
+    {
+      "enemyId": "*",
+      "variantId": "*",
+      "sourceEnemyCardIds": [],
+      "attackTendency": [],
+      "defenseTendency": [],
+      "attackWeight": 60,
+      "defenseWeight": 40,
+      "hpMultiplier": 1.0,
+      "magicMultiplier": 1.0,
+      "attackMultiplier": 1.0,
+      "armorMultiplier": 1.0
+    }
+  ]
+}

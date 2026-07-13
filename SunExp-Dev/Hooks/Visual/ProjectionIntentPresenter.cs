@@ -43,7 +43,7 @@ public static class ProjectionIntentPresenter
                 return;
             }
 
-            var intent = CompanionIntentRegistry.Find(plan.IntentId);
+            var intent = CompanionIntentResolver.Find(CompanionBattleStateStore.Find(plan.StatusId), plan.IntentId);
             var battleState = CompanionBattleStateStore.Find(projectionState.StatusId);
             if (intent?.Target == null
                 || battleState == null

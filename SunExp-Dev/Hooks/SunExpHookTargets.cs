@@ -57,6 +57,7 @@ public static class SunExpHookTargets
     public const string PlayerInfoRandomAddCard = "PlayerInfo.RandomAddCard";
 
     public const string EnemyInit = "Enemy.Init";
+    public const string EnemyManagerAddEnemy = "EnemyManager.AddEnemy";
     public const string OtherObjDoOneAction = "OtherObj.DoOneAction";
     public const string SkillItemTrueUse = "SkillItem.TrueUse";
 

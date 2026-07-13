@@ -185,13 +185,11 @@ public static class AuraToolsCardUiBenchmarkRuntime
 
     private static void RunIconDecodeProbe(string cardId, string iconPath, long iconBytes)
     {
-        Sprite? sprite = null;
-        Texture2D? texture = null;
         var started = Stopwatch.GetTimestamp();
         try
         {
-            sprite = ResourceLoader.Load<Sprite>(iconPath, true);
-            texture = sprite?.texture;
+            var sprite = AuraToolsResourceCache.Load<Sprite>(iconPath, true);
+            var texture = sprite?.texture;
             AuraToolsLog.Debug("[CardUiBenchmark.IconDecodeProbe] card="
                                + cardId
                                + ", iconDecodeMs="
@@ -208,18 +206,6 @@ public static class AuraToolsCardUiBenchmarkRuntime
         catch (Exception ex)
         {
             AuraToolsLog.Debug("[CardUiBenchmark.IconDecodeProbe] failed: card=" + cardId + ", error=" + ex.Message);
-        }
-        finally
-        {
-            if (sprite != null)
-            {
-                UnityEngine.Object.Destroy(sprite);
-            }
-
-            if (texture != null)
-            {
-                UnityEngine.Object.Destroy(texture);
-            }
         }
     }
 

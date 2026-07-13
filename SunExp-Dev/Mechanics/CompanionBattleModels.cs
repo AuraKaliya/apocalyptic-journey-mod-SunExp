@@ -180,7 +180,8 @@ public sealed class CompanionBattleState
         string ownerStatusId,
         int slotIndex,
         CompanionStats stats,
-        string ownerPlayerId = "")
+        string ownerPlayerId = "",
+        string entityKind = "ProjectionAttachment")
     {
         Identity = new CompanionEntityIdentity
         {
@@ -189,7 +190,7 @@ public sealed class CompanionBattleState
             OwnerStatusId = ownerStatusId ?? "",
             RoleId = roleId ?? "",
             SlotIndex = slotIndex,
-            EntityKind = "ProjectionAttachment"
+            EntityKind = string.IsNullOrWhiteSpace(entityKind) ? "Companion" : entityKind.Trim()
         };
         Stats = stats;
     }
@@ -203,6 +204,8 @@ public sealed class CompanionBattleState
     public string OwnerStatusId => Identity.OwnerStatusId;
 
     public string OwnerPlayerId => Identity.OwnerPlayerId;
+
+    public string EntityKind => Identity.EntityKind;
 
     public int SlotIndex => Identity.SlotIndex;
 

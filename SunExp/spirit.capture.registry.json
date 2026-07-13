@@ -1,0 +1,485 @@
+{
+  "schemaVersion": 1,
+  "profiles": [
+    {
+      "enemyId": "10001",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10002",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10003",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10004",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10005",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10007",
+      "variantId": "*",
+      "resolutionMode": "AdaptedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10008",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10009",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10010",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10014",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10015",
+      "variantId": "*",
+      "resolutionMode": "AdaptedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10016",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10017",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10018",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10019",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10020",
+      "variantId": "*",
+      "resolutionMode": "AdaptedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10021",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10022",
+      "variantId": "*",
+      "resolutionMode": "AdaptedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10023",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10024",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10025",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10026",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10027",
+      "variantId": "*",
+      "resolutionMode": "AdaptedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10028",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10029",
+      "variantId": "*",
+      "resolutionMode": "AdaptedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10032",
+      "variantId": "*",
+      "resolutionMode": "AdaptedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10033",
+      "variantId": "*",
+      "resolutionMode": "AdaptedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10034",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10035",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10036",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10037",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10038",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10039",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10040",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10041",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10042",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10043",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10044",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10045",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10046",
+      "variantId": "*",
+      "resolutionMode": "AdaptedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10047",
+      "variantId": "*",
+      "resolutionMode": "AdaptedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10048",
+      "variantId": "*",
+      "resolutionMode": "AdaptedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10049",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10050",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10051",
+      "variantId": "*",
+      "resolutionMode": "AdaptedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10052",
+      "variantId": "*",
+      "resolutionMode": "AdaptedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10053",
+      "variantId": "*",
+      "resolutionMode": "AdaptedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10054",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10055",
+      "variantId": "*",
+      "resolutionMode": "AdaptedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10056",
+      "variantId": "*",
+      "resolutionMode": "AdaptedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10057",
+      "variantId": "*",
+      "resolutionMode": "AdaptedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10058",
+      "variantId": "*",
+      "resolutionMode": "AdaptedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10059",
+      "variantId": "*",
+      "resolutionMode": "AdaptedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10060",
+      "variantId": "*",
+      "resolutionMode": "AdaptedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "10061",
+      "variantId": "*",
+      "resolutionMode": "AdaptedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "99999",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "boss_orbit_mirror_array",
+      "variantId": "*",
+      "resolutionMode": "AdaptedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "boss_saint_wuna",
+      "variantId": "*",
+      "resolutionMode": "AdaptedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "boss_second_sun_last_day",
+      "variantId": "*",
+      "resolutionMode": "AdaptedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    },
+    {
+      "enemyId": "*",
+      "variantId": "*",
+      "resolutionMode": "GuardedTerminal",
+      "suppressedSuccessorIds": [],
+      "runNativeDeath": true,
+      "allowRewards": true
+    }
+  ]
+}

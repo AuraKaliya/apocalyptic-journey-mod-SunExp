@@ -9,6 +9,22 @@ public static class CompanionStatsService
 {
     public static CompanionStats ProjectionStats(PolymorphRoleSpec role)
     {
+        return BaseStats();
+    }
+
+    public static CompanionStats SpiritStats(SpiritIntentProfile? profile)
+    {
+        var source = BaseStats();
+        var active = profile ?? new SpiritIntentProfile();
+        return new CompanionStats(
+            Scale(source.MaxHp, active.HpMultiplier),
+            Scale(source.MaxMagic, active.MagicMultiplier),
+            Scale(source.Attack, active.AttackMultiplier),
+            Scale(source.Armor, active.ArmorMultiplier));
+    }
+
+    private static CompanionStats BaseStats()
+    {
         var origins = CurrentOrigins();
         var multiplier = AbyssMultiplier();
         var maxHp = Round((28 + origins.Spirit * 3.0f + origins.Luck * 2.0f) * multiplier);
@@ -16,6 +32,12 @@ public static class CompanionStatsService
         var attack = Round((5 + origins.Magic * 1.2f) * multiplier);
         var armor = Round((4 + origins.Spirit * 0.7f + origins.Perception * 0.8f) * multiplier);
         return new CompanionStats(maxHp, maxMagic, attack, armor);
+    }
+
+    private static int Scale(int value, float multiplier)
+    {
+        var safe = Math.Max(0.25f, Math.Min(2.5f, multiplier <= 0f ? 1f : multiplier));
+        return Math.Max(1, (int)Math.Round(value * safe, MidpointRounding.AwayFromZero));
     }
 
     private static CompanionOriginStats CurrentOrigins()

@@ -37,8 +37,8 @@ visual resources.
    - `SunExp-Dev/SunExp.Dll.csproj`
    - `SunExp-Dev/Entry.cs`
    - affected `SunExp-Dev/GameApi/*` or `SunExp-Dev/Hooks/*`
-   - `docs/shared-component-architecture-guidelines.md`
    - `docs/aura-shared-core-v2-contract.md`
+   - `docs/SunExp/04-Aura共享层与核心层接入.md`
    - `tools/shared-release-matrix.json`
    - `tools/Test-SharedDllPackaging.ps1`
    - `tools/Test-NetworkRpcAuthority.ps1`

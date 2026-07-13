@@ -9,7 +9,7 @@ namespace SunExp.Dll.Mechanics;
 
 public static class CompanionIntentSelector
 {
-    public static CompanionIntentChoice? Select(ProjectionOtherObj projection, CompanionBattleState state)
+    public static CompanionIntentChoice? Select(OtherObj projection, CompanionBattleState state)
     {
         if (projection?.dataConfig?.scriptExecutor == null || state == null)
         {
@@ -50,7 +50,7 @@ public static class CompanionIntentSelector
             return false;
         }
 
-        var intent = CompanionIntentRegistry.Find(plan.IntentId);
+        var intent = CompanionIntentResolver.Find(state, plan.IntentId);
         if (intent == null || !state.Stats.TrySpendMagic(plan.Cost))
         {
             return false;
@@ -67,13 +67,13 @@ public static class CompanionIntentSelector
     }
 
     private static List<CompanionIntentChoice> BuildChoices(
-        ProjectionOtherObj projection,
+        OtherObj projection,
         ScriptExecutor executor,
         CompanionBattleState state,
         CompanionIntentTendency tendency)
     {
         var result = new List<CompanionIntentChoice>();
-        foreach (var intent in CompanionIntentRegistry.IntentsForRole(state.RoleId, tendency))
+        foreach (var intent in CompanionIntentResolver.IntentsFor(state, tendency))
         {
             if (!state.IsReady(intent.Id) || state.Stats.CurrentMagic < intent.Cost)
             {
@@ -114,7 +114,7 @@ public static class CompanionIntentSelector
             return CompanionIntentTendency.Attack;
         }
 
-        var weights = CompanionIntentRegistry.TendencyWeightsForRole(state.RoleId);
+        var weights = CompanionIntentResolver.TendencyWeightsFor(state);
         var attackWeight = weights.Attack;
         var defenseWeight = weights.Defense + RecoveryUrgency(defenseChoices);
         return UnityEngine.Random.Range(0, attackWeight + defenseWeight) < attackWeight
@@ -188,7 +188,7 @@ public static class CompanionIntentSelector
         CompanionIntentDefinition intent,
         IStatusManager? target)
     {
-        return CompanionIntentRegistry.IntentType(intent) switch
+        return CompanionIntentResolver.IntentType(state, intent) switch
         {
             CompanionIntentType.Attack => 16 + EnemyPressure(executor) - HighThreatLowHpPenalty(state),
             CompanionIntentType.Defense => 8 + MissingBlock(target) + CompanionThreatService.ThreatPressurePercent(state) / 4,
@@ -225,7 +225,7 @@ public static class CompanionIntentSelector
     private static int RecoveryUrgency(IEnumerable<CompanionIntentChoice> choices)
     {
         var wounded = choices
-            .Where(choice => CompanionIntentRegistry.IntentType(choice.Intent) == CompanionIntentType.Recovery)
+            .Where(choice => CompanionIntentResolver.IntentType(null, choice.Intent) == CompanionIntentType.Recovery)
             .Select(choice => HpPercent(choice.Target))
             .DefaultIfEmpty(100)
             .Min();
