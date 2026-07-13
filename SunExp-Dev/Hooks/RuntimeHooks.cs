@@ -14,6 +14,7 @@ public static class RuntimeHooks
     public static void Initialize(ModConfig modConfig)
     {
         RunHookStep("battle lifecycle router", () => SunExpBattleLifecycleRouter.Initialize(modConfig));
+        RunHookStep("companion scene lifecycle", () => CompanionSceneLifecycleRuntime.Initialize(modConfig));
         RunHookStep("card lifecycle router", () => SunExpCardLifecycleRouter.Initialize(modConfig));
         RunHookStep("combat action router", () => SunExpCombatActionRouter.Initialize(modConfig));
         RunHookStep("status lifecycle router", () => SunExpStatusLifecycleRouter.Initialize(modConfig));

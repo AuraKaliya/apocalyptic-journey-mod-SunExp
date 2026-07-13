@@ -188,6 +188,10 @@ public static class ProjectionTurnCoordinator
             }
 
             pendingRoot = UnityEngine.Object.Instantiate(prefab);
+            CompanionSceneApi.MoveToOwnerScene(
+                pendingRoot,
+                FightPlayer.Instance?.Status?.transform?.gameObject,
+                source + ".TurnAnchor");
             pendingRoot.name = "SunExpProjectionTurnAnchor:pending";
             pendingRoot.SetActive(false);
             var created = pendingRoot.AddComponent<ProjectionTurnAnchorObj>();

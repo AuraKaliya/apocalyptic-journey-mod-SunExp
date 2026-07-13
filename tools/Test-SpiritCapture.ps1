@@ -188,6 +188,9 @@ $captureRegistrySource = Get-Content -LiteralPath (Join-Path $repoRoot "SunExp-D
 $catalogSource = Get-Content -LiteralPath (Join-Path $repoRoot "SunExp-Dev\GameApi\EnemyCatalogApi.cs") -Raw -Encoding UTF8
 $rpcSource = Get-Content -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Network\RpcSpiritCompanion.cs") -Raw -Encoding UTF8
 $runtimeSource = Get-Content -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Hooks\SpiritRuntime.cs") -Raw -Encoding UTF8
+$sceneRuntimeSource = Get-Content -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Hooks\CompanionSceneLifecycleRuntime.cs") -Raw -Encoding UTF8
+$sceneApiSource = Get-Content -LiteralPath (Join-Path $repoRoot "SunExp-Dev\GameApi\CompanionSceneApi.cs") -Raw -Encoding UTF8
+$spiritPresenterSource = Get-Content -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Hooks\Visual\SpiritAttachmentPresenter.cs") -Raw -Encoding UTF8
 $spiritObjectSource = Get-Content -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Mechanics\SpiritOtherObj.cs") -Raw -Encoding UTF8
 $presentationComposerSource = Get-Content -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Mechanics\SpiritIntentPresentationDataComposer.cs") -Raw -Encoding UTF8
 $sunExpIdsSource = Get-Content -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Infrastructure\SunExpIds.cs") -Raw -Encoding UTF8
@@ -214,6 +217,10 @@ Assert-True ($enemyCardData.Contains("enemycard_spirit_intent_adapter") -and $en
 Assert-True ($enemyCardText.Contains("enemycard_spirit_intent_adapter") -and $enemyCardText.Contains("Spirit Intent")) "the dedicated spirit intent adapter must have localized fallback text."
 Assert-True ($spiritObjectSource.Contains("PresentationTemplates") -and $spiritObjectSource.Contains('RecordHotspot(') -and $spiritObjectSource.Contains('"Spirit.Intent.PresentationBuild"')) "spirit intent presentation must cache source templates and expose focused build timing."
 Assert-True ($runtimeSource.Contains('PlayerRoundStarted = _ => SpiritSummonService.FlushPendingCardReturns')) "deferred spirit-card returns must retry on the next player round."
+Assert-True ($runtimeSource.Contains('RunCleanupStep("SummonDedupe"') -and $runtimeSource.Contains('RunCleanupStep("CaptureDedupe"') -and $runtimeSource.Contains('RunCleanupStep("UseGates"')) "spirit lifecycle cleanup must reset summon, capture, and card-use transient state independently."
+Assert-True ($sceneRuntimeSource.Contains("SceneManager.sceneUnloaded += OnSceneUnloaded") -and $sceneRuntimeSource.Contains("SpiritRuntime.ClearBattle(source)")) "direct battle-scene replacement must route through complete spirit cleanup."
+Assert-True ($sceneApiSource.Contains("SceneManager.MoveGameObjectToScene") -and $summonSource.Contains("CompanionSceneApi.MoveToOwnerScene")) "spirit runtime objects must be owned by the battle scene."
+Assert-True ($spiritPresenterSource.Contains("public static void ClearAll") -and $spiritPresenterSource.Contains('StartsWith("SunExp_SpiritVisualProxy:"')) "spirit visual cleanup must sweep registered and orphaned proxy objects."
 Assert-True ($turnSource.Contains('"owner:" + ownerPlayerId + ":slot:" + slotIndex')) "companion action claims must stay bound to the shared owner slot across replacements."
 Assert-True ($authoritySource.Contains("ProjectionProtocolVersion = 6")) "spirit cooldown RPC changes must bump the companion protocol version."
 Assert-True ($intentRegistrySource.Contains("SpiritProfileIdentityResolver.Resolve")) "spirit intent profiles must use the shared identity resolver."

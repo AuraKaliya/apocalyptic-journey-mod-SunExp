@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
 using UnityEngine;
@@ -69,6 +70,7 @@ public static class SpiritAttachmentPresenter
             var status = spirit.Status as StatusManager;
             status?.statusBarObj?.SetActive(false);
             proxy = new GameObject("SunExp_SpiritVisualProxy:" + state.StatusId);
+            CompanionSceneApi.MoveToOwnerScene(proxy, owner.transform.gameObject, "SpiritAttachment.Attach");
             proxy.layer = ownerRenderer.gameObject.layer;
             var output = proxy.AddComponent<SpriteRenderer>();
             var visual = proxy.AddComponent<ProjectionVisualProxy>();
@@ -133,7 +135,40 @@ public static class SpiritAttachmentPresenter
             proxy.GetComponent<ProjectionVisualProxy>()?.RestoreSourcePresentation();
         }
 
+        proxy.SetActive(false);
         UnityEngine.Object.Destroy(proxy);
+    }
+
+    public static void ClearAll(string source)
+    {
+        var proxies = new List<GameObject>(Proxies.Values);
+        Proxies.Clear();
+        foreach (var proxy in proxies)
+        {
+            if (proxy == null)
+            {
+                continue;
+            }
+
+            proxy.SetActive(false);
+            UnityEngine.Object.Destroy(proxy);
+        }
+
+        foreach (var visual in Resources.FindObjectsOfTypeAll<ProjectionVisualProxy>())
+        {
+            var proxy = visual?.gameObject;
+            if (proxy == null
+                || !proxy.scene.IsValid()
+                || !proxy.name.StartsWith("SunExp_SpiritVisualProxy:", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            proxy.SetActive(false);
+            UnityEngine.Object.Destroy(proxy);
+        }
+
+        SunExpLog.Debug("[SpiritAttachment] cleared from " + source + ": count=" + proxies.Count);
     }
 
     private static IStatusManager? StatusById(string statusId)

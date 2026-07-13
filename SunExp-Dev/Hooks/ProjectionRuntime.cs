@@ -57,18 +57,37 @@ public static class ProjectionRuntime
         SunExpHookRegistry.After(config, target, action, "Projection");
     }
 
-    private static void ClearBattle(string source)
+    internal static void ClearBattle(string source)
+    {
+        RunCleanupStep("TurnCoordinator", source, () => ProjectionTurnCoordinator.ClearBattle(source));
+        RunCleanupStep("StateStore", source, () => ProjectionActivationService.ClearBattle(source));
+        RunCleanupStep("VisualProxies", source, () => ProjectionAttachmentPresenter.ClearAll(source));
+        RunCleanupStep("RoleSelection", source, () => ProjectionUiApi.CloseRoleSelection(source));
+        RunCleanupStep("NetworkDedupe", source, ProjectionSummonService.ResetBattleSynchronization);
+        RunCleanupStep("UseGate", source, ResetProjectionUseGate);
+    }
+
+    private static void RunCleanupStep(string step, string source, Action action)
     {
         try
         {
-            ProjectionTurnCoordinator.ClearBattle(source);
-            ProjectionActivationService.ClearBattle(source);
-            ProjectionUiApi.CloseRoleSelection(source);
+            action();
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Projection battle cleanup failed from " + source, ex);
+            SunExpLog.Error("Projection cleanup step failed: " + step + " @ " + source, ex);
         }
+    }
+
+    private static void ResetProjectionUseGate()
+    {
+        foreach (var previous in ProjectionUseGate.Values)
+        {
+            CardItem.canUse = previous;
+            break;
+        }
+
+        ProjectionUseGate.Clear();
     }
 
     private static void GateDuplicateProjectionUseBefore(ModHookContext context, string source)
@@ -119,7 +138,6 @@ public static class ProjectionRuntime
     {
         ClearBattle(source);
         CompanionAuthorityService.BeginBattleEpoch();
-        ProjectionSummonService.ResetBattleSynchronization();
         ProjectionTurnCoordinator.BeginBattle(source);
     }
 

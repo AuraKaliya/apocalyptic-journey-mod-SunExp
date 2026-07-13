@@ -293,6 +293,14 @@ public static class ProjectionSummonService
                 return false;
             }
 
+            var owner = FightManager.Instance?.statuses?.TryGetValue(ownerStatusId, out var ownerStatus) == true
+                ? ownerStatus
+                : null;
+            CompanionSceneApi.MoveToOwnerScene(
+                gameObject,
+                owner?.transform?.gameObject,
+                source + ".ProjectionSpawn");
+
             var stats = snapshot != null && snapshot.MaxHp > 0
                 ? new CompanionStats(snapshot.MaxHp, snapshot.MaxMagic, snapshot.Attack, snapshot.Armor)
                 : CompanionStatsService.ProjectionStats(role);

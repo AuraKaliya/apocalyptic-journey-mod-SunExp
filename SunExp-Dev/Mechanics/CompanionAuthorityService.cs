@@ -20,6 +20,16 @@ public static class CompanionAuthorityService
 
     public static void BeginBattleEpoch()
     {
+        AdvanceBattleEpoch();
+    }
+
+    public static void InvalidateBattleEpoch()
+    {
+        AdvanceBattleEpoch();
+    }
+
+    private static void AdvanceBattleEpoch()
+    {
         battleEpoch++;
         if (battleEpoch <= 0)
         {

@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
 using UnityEngine;
@@ -84,6 +85,7 @@ public static class ProjectionAttachmentPresenter
             status?.statusBarObj?.SetActive(false);
 
             proxy = new GameObject("SunExp_ProjectionVisualProxy:" + state.StatusId);
+            CompanionSceneApi.MoveToOwnerScene(proxy, owner.transform.gameObject, "ProjectionAttachment.Attach");
             proxy.transform.position = Vector3.zero;
             proxy.transform.rotation = Quaternion.identity;
             proxy.transform.localScale = Vector3.one;
@@ -151,7 +153,40 @@ public static class ProjectionAttachmentPresenter
             proxy.GetComponent<ProjectionVisualProxy>()?.RestoreSourcePresentation();
         }
 
+        proxy.SetActive(false);
         UnityEngine.Object.Destroy(proxy);
+    }
+
+    public static void ClearAll(string source)
+    {
+        var proxies = new List<GameObject>(Proxies.Values);
+        Proxies.Clear();
+        foreach (var proxy in proxies)
+        {
+            if (proxy == null)
+            {
+                continue;
+            }
+
+            proxy.SetActive(false);
+            UnityEngine.Object.Destroy(proxy);
+        }
+
+        foreach (var visual in Resources.FindObjectsOfTypeAll<ProjectionVisualProxy>())
+        {
+            var proxy = visual?.gameObject;
+            if (proxy == null
+                || !proxy.scene.IsValid()
+                || !proxy.name.StartsWith("SunExp_ProjectionVisualProxy:", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            proxy.SetActive(false);
+            UnityEngine.Object.Destroy(proxy);
+        }
+
+        SunExpLog.Debug("[ProjectionAttachment] cleared from " + source + ": count=" + proxies.Count);
     }
 
     private static void PlayActionFocus(ProjectionState state)

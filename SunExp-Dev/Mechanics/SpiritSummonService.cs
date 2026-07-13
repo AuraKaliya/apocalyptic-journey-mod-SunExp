@@ -319,6 +319,13 @@ public static class SpiritSummonService
             }
 
             root = UnityEngine.Object.Instantiate(prefab);
+            var owner = FightManager.Instance?.statuses?.TryGetValue(ownerStatusId, out var ownerStatus) == true
+                ? ownerStatus
+                : null;
+            CompanionSceneApi.MoveToOwnerScene(
+                root,
+                owner?.transform?.gameObject,
+                source + ".SpiritSpawn");
             var spirit = root.AddComponent<SpiritOtherObj>();
             var profileResolution = SpiritIntentRegistry.ResolveProfile(snapshot.ProfileKey);
             var profile = profileResolution.Profile;

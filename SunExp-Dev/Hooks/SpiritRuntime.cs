@@ -28,22 +28,13 @@ public static class SpiritRuntime
         RegisterAfter(modConfig, SunExpHookTargets.EnemyManagerAddEnemy, ObserveEnemyAdded);
         SunExpBattleLifecycleRouter.Register("Spirit", new SunExpBattleLifecycleSubscription
         {
-            FightStarted = _ =>
-            {
-                SpiritSummonService.ResetBattleSynchronization();
-                SpiritCaptureService.ResetBattleSynchronization();
-                SpiritStateStore.ClearAll("FightStarted");
-            },
+            FightStarted = _ => ClearBattle("FightStarted"),
             PlayerRoundStarted = _ => SpiritSummonService.FlushPendingCardReturns("PlayerRoundStarted"),
-            FightEnding = _ =>
-            {
-                SpiritSummonService.ResetBattleSynchronization();
-                SpiritStateStore.ClearAll("FightEnding");
-            }
+            FightEnding = _ => ClearBattle("FightEnding")
         });
-        RegisterBefore(modConfig, SunExpHookTargets.FightWinInit, _ => SpiritStateStore.ClearAll("Fight_Win.Init:before"));
-        RegisterBefore(modConfig, SunExpHookTargets.FightLossInit, _ => SpiritStateStore.ClearAll("Fight_Loss.Init:before"));
-        RegisterBefore(modConfig, SunExpHookTargets.FightEscapeInit, _ => SpiritStateStore.ClearAll("Fight_Escape.Init:before"));
+        RegisterBefore(modConfig, SunExpHookTargets.FightWinInit, _ => ClearBattle("Fight_Win.Init:before"));
+        RegisterBefore(modConfig, SunExpHookTargets.FightLossInit, _ => ClearBattle("Fight_Loss.Init:before"));
+        RegisterBefore(modConfig, SunExpHookTargets.FightEscapeInit, _ => ClearBattle("Fight_Escape.Init:before"));
         SunExpStatusLifecycleRouter.Register("Spirit", new SunExpStatusLifecycleSubscription
         {
             AfterHit = context => RetireIfDead(context, "StatusManager.Hit"),
@@ -51,6 +42,39 @@ public static class SpiritRuntime
             AfterMaxHpChanged = context => RetireIfDead(context, "StatusManager.MaxHp")
         });
         SunExpLog.Info("Spirit runtime initialized");
+    }
+
+    internal static void ClearBattle(string source)
+    {
+        RunCleanupStep("SummonDedupe", source, SpiritSummonService.ResetBattleSynchronization);
+        RunCleanupStep("CaptureDedupe", source, SpiritCaptureService.ResetBattleSynchronization);
+        RunCleanupStep("StateStore", source, () => SpiritStateStore.ClearAll(source));
+        RunCleanupStep("VisualProxies", source, () => SpiritAttachmentPresenter.ClearAll(source));
+        RunCleanupStep("UseGates", source, ResetUseGates);
+    }
+
+    private static void RunCleanupStep(string step, string source, Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Spirit cleanup step failed: " + step + " @ " + source, ex);
+        }
+    }
+
+    private static void ResetUseGates()
+    {
+        foreach (var previous in UseGate.Values)
+        {
+            CardItem.canUse = previous;
+            break;
+        }
+
+        UseGate.Clear();
+        AttackUseGate.Clear();
     }
 
     private static void GateUse(ModHookContext context, string source)

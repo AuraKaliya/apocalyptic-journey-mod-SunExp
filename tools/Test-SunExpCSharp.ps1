@@ -1522,9 +1522,13 @@ function Invoke-SourceAssertions {
     $projectionStateStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionStateStore.cs"))
     $projectionStrategyService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionStrategyService.cs"))
     $projectionSummonService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionSummonService.cs"))
+    $spiritSummonService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\SpiritSummonService.cs"))
     $projectionActionExecutor = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionActionExecutor.cs"))
     $projectionEffectContext = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionEffectContext.cs"))
     $projectionAttachmentPresenter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Visual\ProjectionAttachmentPresenter.cs"))
+    $spiritAttachmentPresenter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Visual\SpiritAttachmentPresenter.cs"))
+    $companionSceneApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\CompanionSceneApi.cs"))
+    $companionSceneLifecycleRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\CompanionSceneLifecycleRuntime.cs"))
     $projectionIntentPresenter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Visual\ProjectionIntentPresenter.cs"))
     $pooledCardExitAnimator = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Visual\PooledCardExitAnimator.cs"))
     $projectionTurnCoordinator = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionTurnCoordinator.cs"))
@@ -1590,6 +1594,7 @@ function Invoke-SourceAssertions {
     $solarMemoryJourneyApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\SolarMemoryJourneyApi.cs"))
     $polymorphRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\PolymorphRuntime.cs"))
     $projectionRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\ProjectionRuntime.cs"))
+    $spiritRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SpiritRuntime.cs"))
     $heartChangeControlRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\HeartChangeControlRuntime.cs"))
     $duskPartnerRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\DuskPartnerRuntime.cs"))
     $duskAfterheatRecoveryService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\DuskAfterheatRecoveryService.cs"))
@@ -2203,6 +2208,15 @@ function Invoke-SourceAssertions {
     Assert-True $cardScripts.Contains("[SunExpIds.ProjectionCardShortId] = UseProjection") "CardScripts must route the projection selection card."
     Assert-True $cardScripts.Contains("[SunExpIds.ProjectionRoleTemplateShortId] = UseProjectionRoleCard") "CardScripts must route generated projection role cards."
     Assert-True $runtimeHooks.Contains("ProjectionRuntime.Initialize(modConfig)") "RuntimeHooks must initialize projection combat hooks."
+    Assert-True $runtimeHooks.Contains("CompanionSceneLifecycleRuntime.Initialize(modConfig)") "RuntimeHooks must initialize direct scene-replacement cleanup."
+    Assert-True ($companionSceneLifecycleRuntime.Contains("SceneManager.sceneUnloaded += OnSceneUnloaded") -and $companionSceneLifecycleRuntime.Contains("SceneManager.activeSceneChanged += OnActiveSceneChanged")) "Companion lifecycle cleanup must observe both scene unload and the guarded active-scene fallback."
+    Assert-True $companionSceneLifecycleRuntime.Contains("!CompanionSceneApi.IsSceneLoaded(previousHandle)") "Additive scene activation must not clear companions while the tracked battle scene is loaded."
+    Assert-True ($companionSceneLifecycleRuntime.Contains("ProjectionRuntime.ClearBattle(source)") -and $companionSceneLifecycleRuntime.Contains("SpiritRuntime.ClearBattle(source)")) "Direct scene replacement must clear both companion implementations."
+    Assert-True $companionSceneLifecycleRuntime.Contains("CompanionAuthorityService.InvalidateBattleEpoch") "Direct scene replacement must invalidate late network state."
+    Assert-True ($companionSceneApi.Contains("SceneManager.MoveGameObjectToScene") -and $companionSceneApi.Contains("SceneManager.sceneCount") -and -not $companionSceneApi.Contains("GetSceneByHandle")) "Companion scene ownership must use APIs present in the current Managed contract."
+    Assert-True ($projectionSummonService.Contains("CompanionSceneApi.MoveToOwnerScene") -and $spiritSummonService.Contains("CompanionSceneApi.MoveToOwnerScene") -and $projectionTurnCoordinator.Contains("CompanionSceneApi.MoveToOwnerScene")) "Companion actors and their turn anchor must inherit the owner's scene lifetime."
+    Assert-True ($projectionAttachmentPresenter.Contains("public static void ClearAll") -and $spiritAttachmentPresenter.Contains("public static void ClearAll")) "Both companion presenters must expose an orphan-safe proxy sweep."
+    Assert-True ($projectionRuntime.Contains('RunCleanupStep("NetworkDedupe"') -and $spiritRuntime.Contains('RunCleanupStep("CaptureDedupe"')) "Companion cleanup must reset all battle-scoped duplicate sets."
     Assert-True $runtimeHooks.Contains("CompanionIntentRegistry.Load(modConfig)") "RuntimeHooks must load companion intent registry before projection combat hooks."
     Assert-True $runtimeHooks.Contains("CompanionThreatRuntime.Initialize(modConfig)") "RuntimeHooks must initialize companion threat targeting."
     Assert-True $entry.Contains("SunExp.Dll.Scripting.ProjectionScripts") "Entry must register ProjectionScripts for CSV action calls."
