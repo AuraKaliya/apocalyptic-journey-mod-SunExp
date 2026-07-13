@@ -53,6 +53,7 @@ function New-ProjectXml {
     $sunExpCardRefreshQueue = Join-Path $RepoRoot "SunExp-Dev\Mechanics\SunExpCardRefreshQueue.cs"
     $cardGrantPostCommitQueue = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardGrantPostCommitQueue.cs"
     $starBlessingCostOverrideStore = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarBlessingCostOverrideStore.cs"
+    $resonanceCostTransactionStore = Join-Path $RepoRoot "SunExp-Dev\Mechanics\ResonanceCostTransactionStore.cs"
     $loneerCombatState = Join-Path $RepoRoot "SunExp-Dev\Mechanics\LoneerCombatState.cs"
     $starScoreNote = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreNote.cs"
     $starScoreDisplaySnapshot = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreDisplaySnapshot.cs"
@@ -101,6 +102,7 @@ function New-ProjectXml {
     <Compile Include="$cardMutationService" />
     <Compile Include="$runtimeCardAttachmentService" />
     <Compile Include="$starBlessingCostOverrideStore" />
+    <Compile Include="$resonanceCostTransactionStore" />
     <Compile Include="$loneerCombatState" />
     <Compile Include="$starScoreNote" />
     <Compile Include="$starScoreDisplaySnapshot" />
@@ -516,6 +518,7 @@ internal static class Program
         TestDictionaryUtil();
         TestCardCostHelpers();
         TestStarBlessingCostOverrideStore();
+        TestResonanceCostTransactionStore();
         TestCardGrantRequest();
         TestCombatCardViewPoolCatalog();
         TestCardMutationService();
@@ -964,6 +967,52 @@ internal static class Program
         False(store.Contains(config), "Fight cleanup removes active preview state");
     }
 
+    private static void TestResonanceCostTransactionStore()
+    {
+        var store = new ResonanceCostTransactionStore();
+        var owner = new FakeStatus("resonance-owner");
+        var config = NewConfig(
+            new Dictionary<string, string>
+            {
+                ["Id"] = "resonance_target",
+                ["Expend"] = "4"
+            },
+            new Dictionary<string, string>
+            {
+                ["OnceExCost"] = "1"
+            });
+
+        var begun = store.Begin(owner, config, 3);
+        True(begun.Found, "Resonance begins a cost-payment transaction");
+        Equal(3, begun.ResonancePaid, "Resonance records the exact number of substituted Magic points");
+        True(ReferenceEquals(owner, begun.Owner), "Resonance records the player who funded the payment");
+        Equal("-2", config.Vars["OnceExCost"], "Resonance applies its own one-use cost delta");
+        False(store.Begin(owner, config, 1).Found, "Resonance cannot charge the same card transaction twice");
+
+        store.MarkPaymentApplied(config);
+        DictionaryUtil.Set(config.Vars, "OnceExCost", "0");
+        var cancelled = store.Cancel(config);
+        True(cancelled.PaymentApplied, "Cancelled Resonance transaction reports that its Buff payment was applied");
+        Equal("3", config.Vars["OnceExCost"], "Cancelling Resonance removes only its own delta and preserves later modifiers");
+        False(store.Contains(config), "Cancelling Resonance closes the transaction exactly once");
+
+        DictionaryUtil.Set(config.Vars, "OnceExCost", "1");
+        True(store.Begin(owner, config, 2).Found, "Resonance can begin a later transaction for the same card");
+        store.MarkPaymentApplied(config);
+        store.MarkActionObserved(config);
+        True(store.ActionObserved(config), "Card Action marks the Resonance transaction as confirmed");
+        var committed = store.Commit(config);
+        True(committed.ActionObserved, "Committed Resonance transaction retains Action evidence");
+        Equal("0", config.Vars["OnceExCost"], "Successful Resonance payment consumes all one-use cost modifiers");
+
+        DictionaryUtil.Set(config.Vars, "OnceExCost", "2");
+        store.Begin(owner, config, 1);
+        var cleared = store.CancelAll();
+        Equal(1, cleared.Count, "Fight cleanup returns every pending Resonance transaction");
+        Equal("2", config.Vars["OnceExCost"], "Fight cleanup removes the pending Resonance delta");
+        False(store.Contains(config), "Fight cleanup clears pending Resonance state");
+    }
+
     private static void TestCardGrantRequest()
     {
         var request = CardGrantRequest.ToHand("spark")
@@ -1406,6 +1455,7 @@ function Invoke-SourceAssertions {
     $companionIntentRegistryJson = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\companion.intent.registry.json"))
     $runtimeCardAttachmentService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\RuntimeCardAttachmentService.cs"))
     $starBlessingCostOverrideStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarBlessingCostOverrideStore.cs"))
+    $resonanceCostTransactionStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ResonanceCostTransactionStore.cs"))
     $cardGrantRecipes = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardGrantRecipes.cs"))
     $specialTagRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SpecialTagRuntime.cs"))
     $companionThreatRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\CompanionThreatRuntime.cs"))
@@ -1964,6 +2014,11 @@ function Invoke-SourceAssertions {
     Assert-True $starScoreRuntime.Contains("RefundBlessing();") "A rejected card use must refund the consumed Star Blessing."
     Assert-True $starBlessingCostOverrideStore.Contains('DictionaryUtil.Set(config.Vars, "OnceExCost", entry.OriginalOnceCost.ToString())') "Cancelling Star Blessing must restore the exact original one-use cost."
     Assert-True $starBlessingCostOverrideStore.Contains('DictionaryUtil.Set(config.Vars, "OnceExCost", "0")') "Successful Star Blessing use must clear one-use cost state."
+    Assert-True $starScoreRuntime.Contains("ResonanceCostTransactions.MarkActionObserved(config)") "Resonance payment must commit only after the matching card Action is observed."
+    Assert-True $starScoreRuntime.Contains('RefundResonance(ResonanceCostTransactions.Cancel(config), "CardUseAfterWithoutAction")') "A rejected card use must roll back and refund its Resonance payment."
+    Assert-True $starScoreRuntime.Contains('CancelResonancePayment(card, "CardDestroyed")') "Destroying a pending card must roll back its Resonance payment."
+    Assert-True $resonanceCostTransactionStore.Contains("ApplyOnceCostDelta(config, -entry.AppliedOnceCostDelta)") "Resonance cancellation must remove only the transaction-owned cost delta."
+    Assert-True $resonanceCostTransactionStore.Contains('DictionaryUtil.Set(config.Vars, "OnceExCost", "0")') "Successful Resonance payment must consume one-use cost state."
     Assert-True (-not $loneerRuntime.Contains("LoneerMiracleService.OnCardActionAfter")) "Loneer runtime must not own Star Stone Pouch action dispatch."
     Assert-True $buffScripts.Contains('["star_stone_pouch"] = ApplyStarStonePouch') "BuffScripts must route Star Stone Pouch apply behavior."
     Assert-True $buffScripts.Contains('["star_stone_pouch"] = ClearStarStonePouch') "BuffScripts must route Star Stone Pouch clear behavior."

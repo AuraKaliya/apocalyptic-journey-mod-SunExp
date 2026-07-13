@@ -138,6 +138,7 @@ $requiredFiles = @(
     "SunExp-Dev\Mechanics\EndlessSeaStarterDeckCatalog.cs",
     "SunExp-Dev\Mechanics\EndlessSeaRichTextSanitizer.cs",
     "SunExp-Dev\Mechanics\ModeChoiceDragRange.cs",
+    "SunExp-Dev\Mechanics\ResonanceCostTransactionStore.cs",
     "SunExp-Dev\Mechanics\SolarFinaleStateService.cs",
     "SunExp-Dev\Mechanics\SolarMemoryStoryGateService.cs",
     "SunExp-Dev\Mechanics\VisualRegistry.cs",

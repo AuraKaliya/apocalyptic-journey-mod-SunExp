@@ -16,6 +16,7 @@ public static class StarScoreRuntime
     private const string PendingSealBlessingVar = "SunExpMorningStarSealBlessingGain";
     private static readonly Stack<PendingCard> Pending = new();
     private static readonly StarBlessingCostOverrideStore CostOverrides = new();
+    private static readonly ResonanceCostTransactionStore ResonanceCostTransactions = new();
     private static readonly Dictionary<string, string> LastRefreshSignatures = new(StringComparer.Ordinal);
     private static bool handlerRegistered;
 
@@ -56,6 +57,7 @@ public static class StarScoreRuntime
     private static void OnFightStart(ModHookContext context)
     {
         CostOverrides.CancelAll();
+        ResonanceCostTransactions.CancelAll();
         LastRefreshSignatures.Clear();
         Pending.Clear();
         MorningStarOvertureService.ResetForFight();
@@ -79,13 +81,16 @@ public static class StarScoreRuntime
 
     private static void OnCardSelectionEndedAfter(ModHookContext context)
     {
-        CancelBlessingPreview(context.Target as CardItem);
+        var card = context.Target as CardItem;
+        CancelBlessingPreview(card);
+        CancelResonancePayment(card, "SelectionEnded");
     }
 
     private static void OnCardDestroyedBefore(ModHookContext context)
     {
         var card = context.Target as CardItem;
         CancelBlessingPreview(card);
+        CancelResonancePayment(card, "CardDestroyed");
         ForgetRefreshSignature(card);
     }
 
@@ -146,7 +151,7 @@ public static class StarScoreRuntime
             }
             else if (player != null && actualPaidCost > 0)
             {
-                var paidByResonance = ConsumeResonanceAsCost(player, config, actualPaidCost);
+                var paidByResonance = BeginResonancePayment(player, config, actualPaidCost);
                 if (paidByResonance > 0)
                 {
                     PlayerApi.ShowCaption("\u4f59\u97f3\uff1a\u4ee3\u66ff\u6d88\u8017" + paidByResonance + "\u70b9\u9b54\u80fd\u3002");
@@ -170,24 +175,40 @@ public static class StarScoreRuntime
         {
             var card = context.Target as CardItem;
             var config = CardConfigApi.FromActionPayload(context.Target);
-            if (config == null || !CostOverrides.Contains(config))
+            if (config == null
+                || (!CostOverrides.Contains(config) && !ResonanceCostTransactions.Contains(config)))
             {
                 return;
             }
 
-            if (CostOverrides.ActionObserved(config))
+            if (CostOverrides.Contains(config))
             {
-                CostOverrides.Commit(config);
-            }
-            else
-            {
-                var cancelled = CostOverrides.Cancel(config);
-                if (cancelled.BlessingConsumed)
+                if (CostOverrides.ActionObserved(config))
                 {
-                    RefundBlessing();
+                    CostOverrides.Commit(config);
                 }
+                else
+                {
+                    var cancelled = CostOverrides.Cancel(config);
+                    if (cancelled.BlessingConsumed)
+                    {
+                        RefundBlessing();
+                    }
 
-                ClearPendingUse(config);
+                    ClearPendingUse(config);
+                }
+            }
+
+            if (ResonanceCostTransactions.Contains(config))
+            {
+                if (ResonanceCostTransactions.ActionObserved(config))
+                {
+                    ResonanceCostTransactions.Commit(config);
+                }
+                else
+                {
+                    RefundResonance(ResonanceCostTransactions.Cancel(config), "CardUseAfterWithoutAction");
+                }
             }
 
             RefreshCard(card, "AfterUse");
@@ -238,6 +259,7 @@ public static class StarScoreRuntime
             }
 
             CostOverrides.MarkActionObserved(config);
+            ResonanceCostTransactions.MarkActionObserved(config);
             MorningStarOvertureService.OnAction(config);
             var executor = config.scriptExecutor as ScriptExecutor;
             var pendingBlessingOverture = DictionaryUtil.Get(config.Vars, PendingBlessingOvertureVar, "0") == "1";
@@ -489,7 +511,7 @@ public static class StarScoreRuntime
         return (cost + 1) / 2;
     }
 
-    private static int ConsumeResonanceAsCost(IStatusManager status, IDataConfig config, int currentCost)
+    private static int BeginResonancePayment(IStatusManager status, IDataConfig config, int currentCost)
     {
         var resonance = Math.Max(0, BuffApi.Level(status, SunExpIds.Resonance));
         var consumed = Math.Min(Math.Max(0, currentCost), resonance);
@@ -498,9 +520,61 @@ public static class StarScoreRuntime
             return 0;
         }
 
-        CardMutationService.AdjustOnceCost(config, -consumed);
-        ConsumeBuff(status, SunExpIds.Resonance, consumed);
-        return consumed;
+        var transaction = ResonanceCostTransactions.Begin(status, config, consumed);
+        if (!transaction.Found)
+        {
+            return 0;
+        }
+
+        try
+        {
+            BuffApi.SetExactLevel(status, SunExpIds.Resonance, resonance - transaction.ResonancePaid);
+            ResonanceCostTransactions.MarkPaymentApplied(config);
+            return transaction.ResonancePaid;
+        }
+        catch
+        {
+            ResonanceCostTransactions.Cancel(config);
+            try
+            {
+                BuffApi.SetExactLevel(status, SunExpIds.Resonance, resonance);
+            }
+            catch (Exception rollbackEx)
+            {
+                SunExpLog.Error("Resonance payment rollback failed", rollbackEx);
+            }
+
+            throw;
+        }
+    }
+
+    private static void CancelResonancePayment(CardItem? card, string reason)
+    {
+        var config = card?.dataConfig;
+        if (config == null || !ResonanceCostTransactions.Contains(config))
+        {
+            return;
+        }
+
+        RefundResonance(ResonanceCostTransactions.Cancel(config), reason);
+        RefreshCard(card, "ResonanceRollback:" + reason);
+    }
+
+    private static void RefundResonance(ResonanceCostTransactionResult transaction, string reason)
+    {
+        if (!transaction.Found
+            || !transaction.PaymentApplied
+            || transaction.Owner == null
+            || transaction.ResonancePaid <= 0)
+        {
+            return;
+        }
+
+        BuffApi.SetExactLevel(
+            transaction.Owner,
+            SunExpIds.Resonance,
+            BuffApi.Level(transaction.Owner, SunExpIds.Resonance) + transaction.ResonancePaid);
+        SunExpLog.Debug("[StarScore] refunded " + transaction.ResonancePaid + " Resonance from " + reason + ".");
     }
 
     private static bool HasMorningStarSeal(IDataConfig config)
