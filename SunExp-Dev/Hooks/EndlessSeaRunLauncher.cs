@@ -244,7 +244,7 @@ public static class EndlessSeaRunLauncher
         image.color = image.sprite != null ? Color.white : new Color(0.08f, 0.065f, 0.16f, 0.98f);
 
         var button = rect.gameObject.AddComponent<Button>();
-        button.targetGraphic = image;
+        AuraUiButtonFeedback.Apply(button, image, PromptTitle);
         button.onClick.AddListener(new UnityAction(action));
         AddTextBlock(rect.transform, label, 18, FontStyle.Bold, TextAnchor.MiddleCenter, PromptTitle, 50f);
         return button;

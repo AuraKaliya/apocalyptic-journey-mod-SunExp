@@ -7,10 +7,10 @@ using SunExp.Dll.Hooks.Ui;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
 using UnityEngine;
-using UnityEngine.Events;
 using UnityEngine.UI;
 using Witch.Core;
 using Witch.Mod;
+using Object = UnityEngine.Object;
 
 namespace SunExp.Dll.Hooks;
 
@@ -25,6 +25,7 @@ public static class FamiliarGrowthRuntime
     private const float FallbackButtonHeight = 50f;
     private const float LibraryButtonGap = 12f;
     private static float lastLibraryButtonOpenTime = -1f;
+    private static bool loggedNativeButtonFallback;
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -81,15 +82,82 @@ public static class FamiliarGrowthRuntime
                              ?? FindButtonLikeTransformByText(libraryWindow, "\u501f\u9605\u56fe\u4e66", "\u501f\u95b1\u5716\u66f8");
             var rollButton = FindHouseItemTransform(libraryWindow, "rollShop")
                              ?? FindButtonLikeTransformByText(libraryWindow, "\u67e5\u627e\u5178\u7c4d", "\u67e5\u627e\u5178\u7c4d");
-            var template = cardButton ?? rollButton ?? FindLibraryButtonTemplate(libraryWindow);
+            var template = rollButton ?? cardButton ?? FindLibraryButtonTemplate(libraryWindow);
             var parent = template?.parent ?? ResolveLibraryButtonParent(libraryWindow);
             if (parent == null)
             {
                 return;
             }
 
-            var buttonObject = FindDeepChild(libraryWindow, ButtonName) ?? CreateLibraryButton(parent, template);
-            ConfigureLibraryButton(buttonObject, parent, template, cardButton, rollButton);
+            var templateManager = template == null ? null : FindButtonManagerComponent(template);
+            var existing = FindDeepChild(libraryWindow, ButtonName);
+            if (existing != null
+                && templateManager != null
+                && AuraUiNativeButtonCloneAdapter.IsOwnedClone(templateManager, existing))
+            {
+                if (TryConfigureNativeLibraryButton(existing, parent, templateManager, template, cardButton, rollButton, out var failureReason))
+                {
+                    return;
+                }
+
+                RejectUnsafeLibraryButton(existing, failureReason);
+                existing = null;
+            }
+
+            if (existing != null && HasComponentNamed(existing.transform, "ButtonManager"))
+            {
+                RejectUnsafeLibraryButton(existing, "existing native-style button has no matching ownership marker");
+                existing = null;
+            }
+
+            if (existing != null)
+            {
+                ConfigureFallbackLibraryButton(existing, parent, template, cardButton, rollButton);
+                return;
+            }
+
+            if (templateManager != null)
+            {
+                var cloneResult = AuraUiNativeButtonCloneAdapter.TryClone(new AuraUiNativeButtonCloneRequest
+                {
+                    Template = templateManager,
+                    Parent = parent,
+                    CloneName = ButtonName,
+                    Label = ButtonText,
+                    OnClick = OpenPanelFromLibraryButton,
+                    StripOwnerBehaviours = StripNativeHouseItems
+                });
+                var failureReason = cloneResult.FailureReason;
+                if (cloneResult.Success
+                    && cloneResult.Root != null
+                    && TryConfigureNativeLibraryButton(
+                        cloneResult.Root,
+                        parent,
+                        templateManager,
+                        template,
+                        cardButton,
+                        rollButton,
+                        out failureReason))
+                {
+                    return;
+                }
+
+                if (cloneResult.Root != null)
+                {
+                    RejectUnsafeLibraryButton(cloneResult.Root, failureReason);
+                }
+                else
+                {
+                    LogNativeButtonFallback(cloneResult.FailureReason);
+                }
+            }
+            else
+            {
+                LogNativeButtonFallback("the 查找典籍 template has no ButtonManager");
+            }
+
+            var fallback = CreateLibraryButton(parent, template);
+            ConfigureFallbackLibraryButton(fallback, parent, template, cardButton, rollButton);
         }
         catch (Exception ex)
         {
@@ -284,6 +352,27 @@ public static class FamiliarGrowthRuntime
         return button == null ? null : button.transform;
     }
 
+    private static UnityEngine.Component? FindButtonManagerComponent(Transform root)
+    {
+        foreach (var component in root.GetComponents<MonoBehaviour>())
+        {
+            if (component != null && component.GetType().Name == "ButtonManager")
+            {
+                return component;
+            }
+        }
+
+        foreach (var component in root.GetComponentsInChildren<MonoBehaviour>(true))
+        {
+            if (component != null && component.GetType().Name == "ButtonManager")
+            {
+                return component;
+            }
+        }
+
+        return null;
+    }
+
     private static Transform? FindButtonLikeTransformByText(Transform root, params string[] texts)
     {
         foreach (var component in root.GetComponentsInChildren<MonoBehaviour>(true))
@@ -359,7 +448,42 @@ public static class FamiliarGrowthRuntime
         return go;
     }
 
-    private static void ConfigureLibraryButton(
+    private static bool TryConfigureNativeLibraryButton(
+        GameObject go,
+        Transform parent,
+        UnityEngine.Component templateManager,
+        Transform? template,
+        Transform? cardButton,
+        Transform? rollButton,
+        out string failureReason)
+    {
+        go.name = ButtonName;
+        if (go.transform.parent != parent)
+        {
+            go.transform.SetParent(parent, false);
+        }
+
+        go.SetActive(false);
+        StripNativeHouseItems(go);
+        SetChildrenActiveByName(go.transform, "New", false);
+        ConfigureLibraryButtonRect(go, parent, template, cardButton, rollButton);
+        var configured = AuraUiNativeButtonCloneAdapter.TryConfigureClone(
+            templateManager,
+            go,
+            ButtonText,
+            OpenPanelFromLibraryButton);
+        if (!configured.Success)
+        {
+            failureReason = configured.FailureReason;
+            return false;
+        }
+
+        go.SetActive(true);
+        failureReason = "";
+        return true;
+    }
+
+    private static void ConfigureFallbackLibraryButton(
         GameObject go,
         Transform parent,
         Transform? template,
@@ -373,8 +497,6 @@ public static class FamiliarGrowthRuntime
         }
 
         go.SetActive(true);
-        DisableNativeHouseItems(go);
-        DisableTemplateButtonBehaviours(go);
         SetChildrenActiveByName(go.transform, "New", false);
         ConfigureLibraryButtonRect(go, parent, template, cardButton, rollButton);
         ApplyLibraryButtonSprites(go);
@@ -453,7 +575,7 @@ public static class FamiliarGrowthRuntime
         target.localRotation = source.localRotation;
     }
 
-    private static void DisableNativeHouseItems(GameObject go)
+    private static void StripNativeHouseItems(GameObject go)
     {
         foreach (var component in go.GetComponentsInChildren<MonoBehaviour>(true))
         {
@@ -462,35 +584,39 @@ public static class FamiliarGrowthRuntime
                 continue;
             }
 
-            SetMember(component, "oriStr", ButtonText);
-            SetMember(component, "houseManager", null);
+            try
+            {
+                Singleton<EventCenter>.Instance.RemoveEventListener(
+                    LanguageEvent.LanguageChange.ToString(),
+                    component);
+            }
+            catch (Exception ex)
+            {
+                SunExpLog.Warn(LogPrefix + " failed to detach cloned HouseItem language listener: " + ex.Message);
+            }
+
             component.enabled = false;
+            Object.Destroy(component);
         }
     }
 
-    private static void DisableTemplateButtonBehaviours(GameObject go)
+    private static void RejectUnsafeLibraryButton(GameObject go, string reason)
     {
-        foreach (var component in go.GetComponentsInChildren<MonoBehaviour>(true))
-        {
-            if (component == null)
-            {
-                continue;
-            }
+        LogNativeButtonFallback(reason);
+        go.SetActive(false);
+        go.name = ButtonName + "-Rejected";
+        Object.Destroy(go);
+    }
 
-            var name = component.GetType().Name;
-            if (name == "ButtonManager" || name == "HouseItem")
-            {
-                component.enabled = false;
-            }
+    private static void LogNativeButtonFallback(string reason)
+    {
+        if (loggedNativeButtonFallback)
+        {
+            return;
         }
 
-        foreach (var button in go.GetComponentsInChildren<Button>(true))
-        {
-            if (button.transform != go.transform)
-            {
-                button.enabled = false;
-            }
-        }
+        loggedNativeButtonFallback = true;
+        SunExpLog.Warn(LogPrefix + " native 查找典籍 style clone rejected; using Aura fallback. reason=" + reason);
     }
 
     private static void ApplyLibraryButtonSprites(GameObject go)
@@ -569,31 +695,6 @@ public static class FamiliarGrowthRuntime
         text.raycastTarget = false;
     }
 
-    private static bool ConfigureButtonManagers(GameObject go)
-    {
-        var configured = false;
-        foreach (var component in go.GetComponentsInChildren<MonoBehaviour>(true))
-        {
-            if (component == null || component.GetType().Name != "ButtonManager")
-            {
-                continue;
-            }
-
-            InvokeOptional(component, "SetText", ButtonText);
-            InvokeOptional(component, "Interactable", true);
-            if (Member(component, "onClick") is UnityEvent onClick)
-            {
-                onClick.RemoveAllListeners();
-                onClick.AddListener(OpenPanelFromLibraryButton);
-                configured = true;
-            }
-
-            InvokeOptional(component, "UpdateUI");
-        }
-
-        return configured;
-    }
-
     private static void ConfigureUnityButtons(GameObject go)
     {
         var image = go.GetComponent<Image>() ?? go.AddComponent<Image>();
@@ -602,8 +703,8 @@ public static class FamiliarGrowthRuntime
 
         button.enabled = true;
         button.interactable = true;
-        button.transition = Selectable.Transition.None;
-        button.targetGraphic = image;
+        var visual = FindDirectChild(go.transform, ButtonBrushName)?.GetComponent<Image>() ?? image;
+        AuraUiButtonFeedback.Apply(button, visual, SunExpUiComponents.Theme.Accent);
         button.onClick.RemoveAllListeners();
         button.onClick.AddListener(OpenPanelFromLibraryButton);
     }
@@ -764,20 +865,6 @@ public static class FamiliarGrowthRuntime
         return name == "TMP_Text" || name == "TextMeshProUGUI" || name == "TextMeshPro";
     }
 
-    private static void InvokeOptional(object target, string methodName, params object[] args)
-    {
-        try
-        {
-            target.GetType()
-                .GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                ?.Invoke(target, args);
-        }
-        catch (Exception ex)
-        {
-            SunExpLog.Debug(LogPrefix + " ignored UI method " + methodName + ": " + ex.Message);
-        }
-    }
-
     private static void SetProperty(object target, string name, object value)
     {
         try
@@ -789,20 +876,6 @@ public static class FamiliarGrowthRuntime
         {
             // Optional visual polish only.
         }
-    }
-
-    private static void SetMember(object target, string name, object? value)
-    {
-        const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-        var type = target.GetType();
-        var property = type.GetProperty(name, flags);
-        if (property != null && property.CanWrite)
-        {
-            property.SetValue(target, value);
-            return;
-        }
-
-        type.GetField(name, flags)?.SetValue(target, value);
     }
 
     private static object? Member(object? target, string name)

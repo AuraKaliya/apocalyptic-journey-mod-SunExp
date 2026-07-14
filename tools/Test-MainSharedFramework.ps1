@@ -34,8 +34,13 @@ if (-not $auraToolsProject.Contains("AuraSharedRuntime-Dev\Aura.Shared.csproj"))
 $auraToolsStarterDeckRuntime = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\StarterDeck\AuraToolsStarterDeckRuntime.cs")
 $auraToolsUi = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\Settings\AuraToolsUi.cs")
 $auraToolsSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\Settings\AuraToolsSettingsRuntime.cs")
+$auraToolsDamageMeterUi = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\DamageMeter\AuraToolsDamageMeterUi.cs")
 $auraToolsConfigModels = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Config\AuraToolsConfigModels.cs")
 $auraToolsSkinRuntime = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\Skin\AuraToolsSkinRuntime.cs")
+$familiarGrowthRuntime = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Hooks\FamiliarGrowthRuntime.cs")
+$solarMemoryStarterDeckRuntime = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Hooks\SolarMemoryStarterDeckRuntime.cs")
+$solarMemoryBlessingPickerRuntime = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Hooks\SolarMemoryBlessingPickerRuntime.cs")
+$solarMemorySetupFlowRuntime = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Hooks\SolarMemorySetupFlowRuntime.cs")
 
 if (-not ($auraToolsStarterDeckRuntime.Contains("IsWorldSimulationRun"))) {
     throw "AuraTools starter deck must guard application to confirmed World Simulation runs."
@@ -79,8 +84,17 @@ if (-not ($auraToolsStarterDeckRuntime.Contains('"GameEntryUI.Init"')) -or -not 
 if (-not ($auraToolsStarterDeckRuntime.Contains("BuildRegisteredExplicitCardIds")) -or -not ($auraToolsStarterDeckRuntime.Contains("BuildRegisteredHiddenCardIds")) -or -not ($auraToolsStarterDeckRuntime.Contains("BuildRegisteredSkillCardIds")) -or -not ($auraToolsStarterDeckRuntime.Contains("SystemSkillCardIds"))) {
     throw "AuraTools starter deck card catalog must keep explicit, hidden, skill, and system skill card tables."
 }
-if (-not ($auraToolsStarterDeckRuntime.Contains("expandedCandidateGroups")) -or -not ($auraToolsStarterDeckRuntime.Contains("RefreshCandidateGroups")) -or -not ($auraToolsStarterDeckRuntime.Contains("ToggleCandidateGroup"))) {
-    throw "AuraTools starter deck pack groups must render as default-collapsed foldouts."
+if (-not ($auraToolsStarterDeckRuntime.Contains("expandedCandidateGroups")) -or -not ($auraToolsStarterDeckRuntime.Contains("candidateGroupViews")) -or -not ($auraToolsStarterDeckRuntime.Contains("EnsureCandidateRows")) -or -not ($auraToolsStarterDeckRuntime.Contains("ToggleCandidateGroup"))) {
+    throw "AuraTools starter deck pack groups must keep stable, lazily-built foldout views."
+}
+if ($auraToolsStarterDeckRuntime.Contains("RefreshCandidateGroups") -or $auraToolsStarterDeckRuntime.Contains("ClearChildren(candidateContent)")) {
+    throw "AuraTools starter deck foldout toggles must not rebuild every card-pack header."
+}
+if (-not ($auraToolsStarterDeckRuntime.Contains("selectedRowViews")) -or -not ($auraToolsStarterDeckRuntime.Contains("BindSelectedRow")) -or $auraToolsStarterDeckRuntime.Contains("ClearChildren(selectedContent)")) {
+    throw "AuraTools starter deck selected cards must reuse persistent slot views."
+}
+if (-not ($auraToolsUi.Contains("SetFoldoutExpanded")) -or -not ($auraToolsSettings.Contains("AuraToolsUi.SetFoldoutExpanded")) -or -not ($auraToolsStarterDeckRuntime.Contains("AuraToolsUi.SetFoldoutExpanded"))) {
+    throw "AuraTools main and child foldouts must use the stable shared activation path."
 }
 if ($auraToolsStarterDeckRuntime.Contains('.Where(id => !string.IsNullOrWhiteSpace(id) && !id.StartsWith("*", StringComparison.Ordinal))')) {
     throw "AuraTools custom starter deck candidates must not filter special * cards."
@@ -138,6 +152,32 @@ if (-not ($auraToolsUi.Contains("SuccessText")) -or -not ($auraToolsUi.Contains(
 }
 if (-not ($auraToolsSettings.Contains("starterDeckEnabled ?")) -or -not ($auraToolsSettings.Contains("AuraToolsUi.MutedText"))) {
     throw "AuraTools starter deck settings must expose an obvious enabled/disabled title state."
+}
+if (-not ($auraToolsSettings.Contains("AuraUiNativeButtonCloneAdapter.IsOwnedClone")) -or -not ($auraToolsSettings.Contains("Template = template"))) {
+    throw "AuraTools settings tab must use the ownership-audited native KeyButton clone path."
+}
+if ($auraToolsSettings.Contains("SetTabVisualText")) {
+    throw "AuraTools settings tab must not rewrite every descendant text after native button cloning."
+}
+if (-not ($auraToolsSettings.Contains("private const float AuraTabTextSize = 20f")) -or -not ($auraToolsSettings.Contains("private const float AuraTabMinimumTextSize = 18f")) -or -not ($auraToolsSettings.Contains("TextSizeOverride = AuraTabTextSize")) -or -not ($auraToolsSettings.Contains("MinimumTextSizeOverride = AuraTabMinimumTextSize"))) {
+    throw "AuraTools settings tab must fit its four-character title within an 18-20px range."
+}
+if (-not ($auraToolsDamageMeterUi.Contains('CreateLayout("HeaderActions"')) -or -not ($auraToolsDamageMeterUi.Contains("headerActionsLayout.spacing = AuraToolsUi.Theme.Metrics.SmallSpacing")) -or -not ($auraToolsDamageMeterUi.Contains("headerActionsElement.minWidth = 146f"))) {
+    throw "AuraTools damage meter header actions must use the shared small gap and reserve enough width for both buttons."
+}
+if (-not ($familiarGrowthRuntime.Contains("var template = rollButton ?? cardButton")) -or -not ($familiarGrowthRuntime.Contains("StripOwnerBehaviours = StripNativeHouseItems"))) {
+    throw "SunExp familiar archive must clone the exact roll-shop button and strip its native owner behaviour."
+}
+if (-not ($familiarGrowthRuntime.Contains("RemoveEventListener")) -or -not ($familiarGrowthRuntime.Contains("AuraUiNativeButtonCloneAdapter.TryConfigureClone"))) {
+    throw "SunExp familiar archive must detach HouseItem language ownership before configuring its audited clone."
+}
+foreach ($solarFooter in @($solarMemoryStarterDeckRuntime, $solarMemoryBlessingPickerRuntime)) {
+    if (-not ($solarFooter.Contains("private const float FooterHeight = 64f;")) -or -not ($solarFooter.Contains("private const float ButtonHeight = 40f;")) -or -not ($solarFooter.Contains("new RectOffset(14, 14, 12, 12)"))) {
+        throw "Solar Memory starter-deck and blessing footers must share 64px chrome, 40px buttons, and 12px vertical padding."
+    }
+}
+if (-not ($solarMemorySetupFlowRuntime.Contains("AnchorTextFromLeft(nameText, 24f);"))) {
+    throw "Solar Memory origin labels must be anchored from the left instead of overlapping the control group."
 }
 if ($auraToolsSettings -like "*settings.PreferRoleModProfile, value =>*") {
     throw "AuraTools starter deck role-mod fallback policy must be explanatory text, not a checkbox."

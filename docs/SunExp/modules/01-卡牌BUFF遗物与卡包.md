@@ -162,7 +162,7 @@ Clear 时清除 hook、token 和本地 Vars。这样 Buff 被移除后，旧回�
 
 所有事件通过 `ExecutorApi.TryAddEvent/TryAddTempEvent` 进入 `ScriptEventApi`，而不是在 Scripting 中裸调用宿主 AddEvent。
 
-“炽冠圣心”的战斗开始效果是一个特殊例子：日耀、圣冕和天幕由 `FieldStartSourceService` 在 `FightInitialized` 统一重放，并用 `AuraLifecycleOperationLedger` 防止同一战斗重复应用；RelicScripts 不再独立重复执行该开场效果。
+“炽冠圣心”的开场效果被拆成两部分：日耀和圣冕由 `RelicOpeningEffectService` 幂等地恢复到重建后的战斗状态；2 层灼热天幕作为遗物场地 grant 注册给 `FieldStartCoordinator`。协调器在 `FightOpening` 按“难度池、祝福、遗物、其他”的顺序折叠所有来源，同类叠加、异类替换，并只提交一次最终场地。
 
 ## 7. 卡牌修改与临时附着
 

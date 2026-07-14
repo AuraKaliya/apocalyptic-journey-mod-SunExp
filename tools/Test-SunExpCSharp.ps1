@@ -1558,6 +1558,7 @@ function Invoke-SourceAssertions {
     $morningStarCardScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\MorningStarCardScripts.cs"))
     $buffScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\BuffScripts.cs"))
     $buffApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\BuffApi.cs"))
+    $statusApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\StatusApi.cs"))
     $solarRadianceService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarRadianceService.cs"))
     $burnTriggerApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\BurnTriggerApi.cs"))
     $scriptEventApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\ScriptEventApi.cs"))
@@ -1569,7 +1570,11 @@ function Invoke-SourceAssertions {
     $fieldBuffHudTooltipView = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\FieldBuffHudTooltipView.cs"))
     $fieldEffectHandlers = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\FieldEffectHandlers.cs"))
     $fieldEffectRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\FieldEffectRegistry.cs"))
-    $fieldStartSourceService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\FieldStartSourceService.cs"))
+    $fieldStartCoordinator = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\FieldStartCoordinator.cs"))
+    $difficultyFieldPoolService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\DifficultyFieldPoolService.cs"))
+    $relicFieldStartSourceService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\RelicFieldStartSourceService.cs"))
+    $relicOpeningEffectService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\RelicOpeningEffectService.cs"))
+    $relicApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\RelicApi.cs"))
     $fieldNetworkSync = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Network\FieldNetworkSync.cs"))
     $auraAuthoritativeSyncRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "AuraSharedCore\AuraAuthoritativeSyncRuntime.cs"))
     $endlessAbyssEvolutionTraitRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssEvolutionTraitRegistry.cs"))
@@ -1585,6 +1590,7 @@ function Invoke-SourceAssertions {
     $enemyApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\EnemyApi.cs"))
     $endlessAbyssEnemyInjectionService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssEnemyInjectionService.cs"))
     $runtimeHooks = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\RuntimeHooks.cs"))
+    $sunExpPerformanceSettingsSource = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpPerformanceSettings.cs"))
     $sunExpCombatActionRouter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SunExpCombatActionRouter.cs"))
     $sunExpStatusLifecycleRouter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SunExpStatusLifecycleRouter.cs"))
     $sunExpCardPresentationRouter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SunExpCardPresentationRouter.cs"))
@@ -1710,7 +1716,11 @@ function Invoke-SourceAssertions {
     $enemyText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\Enemy\sunexp.csv"))
     $enemyCardData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\EnemyCard\sunexp.csv"))
     $enemyCardText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\EnemyCard\sunexp.csv"))
-    $buffData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Buff\sunexp.csv"))
+    $buffDataPath = Join-Path $RepoRoot "SunExp\Data\Buff\sunexp.csv"
+    $buffData = [System.IO.File]::ReadAllText($buffDataPath)
+    $buffRows = Import-Csv -LiteralPath $buffDataPath
+    $scorchingCanopyBuffRow = $buffRows | Where-Object { $_.Id -eq "scorching_canopy" } | Select-Object -First 1
+    $samsaraGardenBuffRow = $buffRows | Where-Object { $_.Id -eq "samsara_garden" } | Select-Object -First 1
     $buffText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\Buff\sunexp.csv"))
     $enchTagData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\EnchTag\sunexp.csv"))
     $keywordText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\KeyWordsDic\sunexp.csv"))
@@ -1743,12 +1753,21 @@ function Invoke-SourceAssertions {
     $drawFlameTextRow = $cardTextRows | Where-Object { $_.Id -eq "draw_flame" } | Select-Object -First 1
     $hardTextRows = Import-Csv -LiteralPath (Join-Path $RepoRoot "SunExp\Text\Hard\sunexp.csv")
     $scorchedWorldTextRow = $hardTextRows | Where-Object { $_.Id -eq "sunexp_scorched_world" } | Select-Object -First 1
+    $samsaraGardenTextRow = $hardTextRows | Where-Object { $_.Id -eq "sunexp_samsara_garden" } | Select-Object -First 1
+    $hardRows = Import-Csv -LiteralPath (Join-Path $RepoRoot "SunExp\Data\Hard\sunexp.csv")
+    $samsaraGardenHardRow = $hardRows | Where-Object { $_.Id -eq "sunexp_samsara_garden" } | Select-Object -First 1
     $utf8 = [System.Text.Encoding]::UTF8
     Assert-True ($sparkRow.Tag -eq $utf8.GetString([Convert]::FromBase64String("55m95puc"))) "Spark must carry the White Radiance tag."
     Assert-True ($courtPurificationRow.Tag -eq $utf8.GetString([Convert]::FromBase64String("UmV0YWluLOeZveabnCxBbm5paGlsYXRpb24="))) "Court Purification must use Retain, White Radiance, and Annihilation without Burnout."
     Assert-True ($scorchingCanopyTextRow.Description -eq $utf8.GetString([Convert]::FromBase64String("6ZO65LiKMeWxgntTdW5FeHBfc3VuZXhwX3Njb3JjaGluZ19jYW5vcHl95Zy65Zyw77yM5YWo5L2T6I635b6XMuWxgntidWZmX2J1cm5944CC"))) "Scorching Canopy must use the field-placement description."
     Assert-True ($drawFlameTextRow.Description -eq $utf8.GetString([Convert]::FromBase64String("5ZC45pS25Lu75oSP55uu5qCH55qE5omA5pyJe2J1ZmZfYnVybn3vvIzovazljJbkuLrnrYnph4/nmoR7U3VuRXhwX3N1bmV4cF9nYXRoZXJlZF9mbGFtZX3jgII="))) "Draw Flame must use the conversion description."
-    Assert-True ($scorchedWorldTextRow.Description -eq $utf8.GetString([Convert]::FromBase64String("5q+P5Zy65oiY5paX5byA5aeL5pe277yM6ZO65LiK6YCJ5oup5bGC5pWw55qEe1N1bkV4cF9zdW5leHBfc2NvcmNoaW5nX2Nhbm9weX0="))) "Scorched World must describe laying the selected field stacks."
+    $scorchedWorldDescription = $utf8.GetString([Convert]::FromBase64String("5oiY5paX5byA5aeL5pe277yM5Li65Zy65LiK6ZO65LiK6YCJ5oup5bGC5pWw55qEe1N1bkV4cF9zdW5leHBfc2NvcmNoaW5nX2Nhbm9weX3jgII="))
+    $samsaraGardenDescription = $utf8.GetString([Convert]::FromBase64String("5oiY5paX5byA5aeL5pe277yM5Li65Zy65LiK6ZO65LiK6YCJ5oup5bGC5pWw55qEe1N1bkV4cF9zdW5leHBfc2Ftc2FyYV9nYXJkZW5944CC"))
+    $eternalGardenName = $utf8.GetString([Convert]::FromBase64String("5rC45oGS6Iqx5Zut"))
+    Assert-True ($scorchedWorldTextRow.Description -eq $scorchedWorldDescription) "Scorched World must use the concise combat-start field description."
+    Assert-True ($samsaraGardenTextRow.Name -eq $eternalGardenName) "The Samsara Garden difficulty tag must be displayed as Eternal Garden."
+    Assert-True ($samsaraGardenTextRow.Description -eq $samsaraGardenDescription) "Eternal Garden must use the concise combat-start field description."
+    Assert-True ($samsaraGardenHardRow.Belong -eq $eternalGardenName) "The Samsara Garden difficulty row must belong to Eternal Garden."
     foreach ($duskTextRow in @($duskTraitTextRow, $duskPartnerTextRow, $duskBlessingTextRow)) {
         Assert-True ($null -ne $duskTextRow) "Every Dusk passive text surface must keep its localized row."
         $duskDescriptions = @($duskTextRow.Description, $duskTextRow.Passive1)
@@ -1771,12 +1790,19 @@ function Invoke-SourceAssertions {
     Assert-True $executorApi.Contains("public static bool TryClearActiveField") "ExecutorApi must expose an explicit field clear interface."
     Assert-True $sunExpFieldId.Contains("public enum SunExpFieldId") "SunExpFieldId must define enum-like field ids."
     Assert-True $sunExpFieldId.Contains("ScorchingCanopy") "SunExpFieldId must include ScorchingCanopy."
+    Assert-True $sunExpFieldId.Contains("SamsaraGarden") "SunExpFieldId must include SamsaraGarden."
     Assert-True $fieldApi.Contains("ActiveFieldIdKey") "FieldApi must keep one battle-wide active field id."
     Assert-True $fieldApi.Contains("ActiveFieldStacksKey") "FieldApi must keep battle-wide field stacks outside player status buffs."
     Assert-True $fieldApi.Contains("MaxStacksFor") "FieldApi must clamp field stacks through the configured buff upper bound."
     Assert-True $fieldEffectRegistry.Contains("WarmupConfigCache") "Field effect registry must preload Buff runtime data once during initialization."
     Assert-True $fieldEffectRegistry.Contains("GetOne(DataType.Buff, definition.BuffId)") "Field stack caps must read the current Buff data row during registry warmup."
     Assert-True $fieldEffectRegistry.Contains("FieldEffectRuntimeSpec") "Field effect registry must expose precomputed runtime specs for field hot paths and HUD."
+    Assert-True $fieldEffectRegistry.Contains("description = description.Description();") "Field descriptions must resolve localized Buff placeholders during registry warmup."
+    Assert-True $fieldEffectRegistry.Contains("public string HudIconPath") "Field effect definitions must own dedicated HUD icon paths."
+    Assert-True $fieldEffectRegistry.Contains('hudIconPath: "Mods/SunExp/ModResource/Images/Buff/Area/\u707c\u70ed\u5929\u5e55"') "Scorching Canopy must register the renamed 64x64 field HUD icon."
+    Assert-True $fieldEffectRegistry.Contains('hudIconPath: "Mods/SunExp/ModResource/Images/Buff/Area/\u8f6e\u56de\u82b1\u5ead"') "Garden of Samsara must register its 64x64 field HUD icon."
+    Assert-True $fieldEffectRegistry.Contains("maxVisualTier: 4") "Garden of Samsara stack 5 must reuse visual tier 4."
+    Assert-True (-not $fieldEffectRegistry.Contains('DictionaryUtil.Get(data, "Icon")')) "Field HUD icons must not depend on generic Buff.Icon data."
     Assert-True $fieldApi.Contains("CombatVarApi.AddInt(ActiveFieldEpochKey, 1);") "Field state changes must advance a shared epoch."
     Assert-True $fieldApi.Contains("SyncFieldStacks(ScriptExecutor? executor, SunExpFieldId field)") "Field sync must expose the enum-based overload."
     Assert-True $fieldApi.Contains("TryClearActiveField") "FieldApi must clear fields only through an explicit interface."
@@ -1803,8 +1829,8 @@ function Invoke-SourceAssertions {
     Assert-True $auraAuthoritativeSyncRuntime.Contains("TryClaimToken") "Shared authoritative sync must own bounded command token de-duplication."
     Assert-True $fieldRuntime.Contains("SunExpHookTargets.FightPlayerTurnInit") "Field runtime must resolve field effects from the round-start hook."
     Assert-True $fieldRuntime.Contains("FieldApi.ResolveRoundStart") "Field runtime must delegate round-start field settlement to FieldApi."
-    Assert-True $fieldRuntime.Contains("FightInitialized = OnFightInitialized") "Field runtime must replay fight-start field sources after FightInit for battle reset support."
-    Assert-True $fieldRuntime.Contains("FieldStartSourceService.ApplyFightStartSources") "Field runtime must delegate fight-start field source replay to Mechanics."
+    Assert-True $fieldRuntime.Contains("FightOpening = OnFightOpening") "Field runtime must resolve all opening sources after native FightStart initialization."
+    Assert-True $fieldRuntime.Contains("FieldStartCoordinator.ResolveAndCommit") "Field runtime must delegate opening field resolution to the coordinator."
     Assert-True $fieldRuntime.Contains("FieldNetworkSync.RequestSnapshot") "Non-host field runtime must request host-authored field snapshots."
     Assert-True $fieldRuntime.Contains("FieldApi.CanResolveFieldEffects") "Non-host field runtime must skip local field settlement."
     Assert-True $runtimeHooks.Contains("FieldEffectRegistry.WarmupConfigCache") "RuntimeHooks must preload field Buff config before field runtime and HUD use."
@@ -1812,14 +1838,25 @@ function Invoke-SourceAssertions {
     Assert-True $fieldBuffHudRuntime.Contains("FieldNetworkSync.RequestSnapshot") "Field HUD must request a repair snapshot when a non-host client has no local field state."
     Assert-True $fieldBuffHudView.Contains("FieldBuffHudTooltipView.Create") "Field HUD must create a hover tooltip."
     Assert-True $fieldBuffHudView.Contains("FieldBuffHudHoverProbe") "Field HUD must use pointer events for hover."
-    Assert-True $fieldBuffHudView.Contains("private const float RootWidth = 164f") "Field HUD must use the enlarged compact vertical badge layout."
+    Assert-True $fieldBuffHudView.Contains("private const float RootWidth = 164f") "Field HUD must restore the approved field status panel width."
+    Assert-True $fieldBuffHudView.Contains("private const float RootHeight = 128f") "Field HUD must use the compact vertical panel height."
+    Assert-True $fieldBuffHudView.Contains("private const float IconSize = 64f") "Field HUD must preserve a fixed 64x64 field icon."
+    Assert-True $fieldBuffHudView.Contains("new Vector2(RootWidth, RootHeight)") "Field HUD root must use the approved panel dimensions."
     Assert-True $fieldBuffHudView.Contains("ConfigureTmpText") "Field HUD labels must use the shared game-font TMP component."
+    Assert-True $fieldBuffHudView.Contains('stackText.text = currentSnapshot.Stacks + "/" + currentSnapshot.MaxStacks;') "Field HUD must show current and maximum stacks below the icon."
+    Assert-True $fieldBuffHudView.Contains("stackText.outlineWidth") "Field HUD stack text must remain legible against the panel."
+    Assert-True $fieldBuffHudView.Contains('ApplyPanelImage(gameObject, SunExpUiSprites.Panel("[FieldBuffHud]")') "Field HUD must restore its outer status-panel background."
+    Assert-True (-not $fieldBuffHudView.Contains("ApplyLabelImage")) "Field HUD must not draw stack or name label backgrounds."
+    Assert-True $fieldBuffHudView.Contains('"NameSection"') "Field HUD must use a darker integrated name region."
+    Assert-True $fieldBuffHudView.Contains("private const float DividerInset = 12f") "Field HUD name divider must remain inset from the outer border."
+    Assert-True ($fieldBuffHudView.Contains('"Divider"') -and $fieldBuffHudView.Contains("dividerImage.raycastTarget = false")) "Field HUD must separate the name region with a non-blocking bright line."
     Assert-True $fieldBuffHudTooltipView.Contains("DescriptionHeight = Height * 0.5f") "Field HUD tooltip body must reserve half of the floating panel height."
     Assert-True $fieldBuffHudTooltipView.Contains("21f, FontStyles.Normal") "Field HUD tooltip body must use the enlarged approved font size."
-    Assert-True $fieldBuffHudView.Contains('"NameBar"') "Field HUD must keep the field buff name inside the HUD panel."
+    Assert-True (-not $fieldBuffHudView.Contains('"NameBar"')) "Field HUD must use an integrated name region instead of a raised label bar."
     Assert-True $fieldBuffHudView.Contains("group.blocksRaycasts = true") "Field HUD must allow its local hotspot to receive hover raycasts."
-    Assert-True $fieldBuffHudView.Contains("FieldEffectRegistry.RuntimeSpecFor(snapshot.Field).DisplayName") "Field HUD must render display data from the prewarmed runtime spec."
-    Assert-True $fieldBuffHudView.Contains("FieldEffectRegistry.RuntimeSpecFor(snapshot.Field).IconPath") "Field HUD must render icons from the prewarmed runtime spec."
+    Assert-True $fieldBuffHudView.Contains("FieldEffectRegistry.RuntimeSpecFor(snapshot.Field).HudIconPathForStacks(snapshot.Stacks)") "Field HUD must render its icon through the visual-tier fallback."
+    Assert-True $fieldBuffHudView.Contains("FieldEffectRegistry.RuntimeSpecFor(snapshot.Field).DisplayName") "Field HUD must restore the localized field name in its lower section."
+    Assert-True $fieldBuffHudTooltipView.Contains("FieldEffectRegistry.RuntimeSpecFor(snapshot.Field).DisplayName") "Field HUD tooltip must keep the localized field name on hover."
     Assert-True $fieldBuffHudView.Contains("MultiplayerAvoidanceAt1080 = 150f") "Field HUD must use the final approved 150/1080 top offset."
     Assert-True $fieldBuffHudView.Contains("MultiplayerAvoidanceAt1080 / 1080f") "Field HUD must apply its top offset responsively."
     Assert-True $fieldBuffHudView.Contains("new Vector2(0f, -avoidance)") "Field HUD must use only the approved responsive avoidance offset."
@@ -1830,17 +1867,37 @@ function Invoke-SourceAssertions {
     Assert-True (-not $fieldBuffHudTooltipView.Contains('Localize("Description")')) "Field HUD tooltip must not query Buff CSV on hover."
     Assert-True (-not $fieldBuffHudTooltipView.Contains("DataType.Buff")) "Field HUD tooltip must not read field display data directly from the Buff row."
     Assert-True $fieldBuffHudTooltipView.Contains("group.blocksRaycasts = false") "Field HUD tooltip must not block battle controls."
-    Assert-True $fieldStartSourceService.Contains("SunExpHardTagIds.ScorchedWorld") "Field start sources must replay Scorched World after battle reset."
-    Assert-True $fieldStartSourceService.Contains('"blazing_crown_heart"') "Field start sources must replay Blazing Crown Heart after battle reset."
-    Assert-True $fieldStartSourceService.Contains("status.AddBuff(SunExpIds.SolarRadiance, 8);") "Blazing Crown Heart start replay must grant Solar Radiance directly to the rebuilt player status."
-    Assert-True $fieldStartSourceService.Contains("status.AddBuff(SunExpIds.SolarCrown, 1);") "Blazing Crown Heart start replay must grant Solar Crown after Solar Radiance."
-    Assert-True $fieldStartSourceService.Contains("FieldApi.ActivateField(executor, SunExpFieldId.ScorchingCanopy, 2") "Blazing Crown Heart start replay must restore Scorching Canopy through FieldApi."
-    Assert-True $fieldStartSourceService.Contains("TryClaimBattleOperation") "Field start source replay must be idempotent within a battle session."
+    Assert-True $fieldStartCoordinator.Contains("DifficultyPool = 100") "Field coordinator must resolve the difficulty pool first."
+    Assert-True $fieldStartCoordinator.Contains("Blessing = 200") "Field coordinator must resolve blessings second."
+    Assert-True $fieldStartCoordinator.Contains("Relic = 300") "Field coordinator must resolve relics third."
+    Assert-True $fieldStartCoordinator.Contains("Other = 400") "Field coordinator must resolve other opening sources last."
+    Assert-True $fieldStartCoordinator.Contains("field == grant.Field ? stacks + grant.Stacks : grant.Stacks") "Field coordinator must add same-type grants and replace different fields."
+    Assert-True $fieldStartCoordinator.Contains("FieldApi.CommitOpeningField") "Field coordinator must commit only the final opening field."
+    Assert-True $fieldStartCoordinator.Contains("TryClaimBattleOperation") "Field coordination must be idempotent within a battle session."
+    Assert-True $difficultyFieldPoolService.Contains("SunExpHardTagIds.ScorchedWorld") "Difficulty field pool must include Scorched World."
+    Assert-True $difficultyFieldPoolService.Contains("SunExpHardTagIds.SamsaraGarden") "Difficulty field pool must include Garden of Samsara."
+    Assert-True $difficultyFieldPoolService.Contains("UnityEngine.Random.Range(0, candidates.Count)") "Difficulty field pool must draw each distinct field type with equal probability."
+    Assert-True $relicFieldStartSourceService.Contains('"blazing_crown_heart"') "Blazing Crown Heart must register its field grant through the relic provider."
+    Assert-True $relicApi.Contains("public static bool HasRelic") "Relic ownership lookup must be isolated in GameApi."
+    Assert-True $familiarBlessingEffectRuntime.Contains('SelectedEffects("CombatStartField")') "Blessing field grants must register through the opening coordinator."
+    Assert-True $fieldRuntime.Contains('RunOpeningStep(') "Independent field-opening actions must be isolated so one failure cannot block final field submission."
+    Assert-True $relicOpeningEffectService.Contains("RelicApi.HasRelic") "Blazing Crown Heart's non-field opening effects must replay against rebuilt combat status."
+    Assert-True $relicOpeningEffectService.Contains("TryClaimBattleOperation") "Blazing Crown Heart's non-field opening effects must be battle-idempotent."
     Assert-True $fieldEffectHandlers.Contains("TriggerScorchingCanopyRoundStart") "Scorching Canopy field effect must live outside carrier buff scripts."
-    Assert-True $fieldEffectHandlers.Contains("ExecutorApi.AllCombatTargets(executor, includeSelf: true)") "Scorching Canopy field effect must collect all combatants in one target pass."
+    Assert-True $fieldEffectHandlers.Contains("FieldRoundStartContext") "All round-start fields must share one field processing context."
+    Assert-True $fieldEffectHandlers.Contains("ApplyToAllCombatants") "All round-start fields must use the shared all-combatant processor."
+    Assert-True $fieldEffectHandlers.Contains("ExecutorApi.AllCombatTargets(executor, includeSelf: true)") "Field settlement must collect all combatants in one target pass."
     Assert-True $fieldEffectHandlers.Contains("target.AddBuff(SunExpIds.Burn, count);") "Scorching Canopy field effect must apply burn directly to combat statuses."
     Assert-True $fieldEffectHandlers.Contains("HandleBuffAdded") "Active field definitions must own StatusManager.AddBuff lifecycle policies."
     Assert-True $fieldEffectHandlers.Contains("BuffOverflowApi.HandleBurnOverflow") "Scorching Canopy must provide Burn overflow conversion as a field-owned policy."
+    Assert-True $fieldEffectHandlers.Contains("TriggerSamsaraGardenRoundStart") "Garden of Samsara must have a registered round-start handler."
+    Assert-True $fieldEffectHandlers.Contains("StatusApi.TryHeal(target, heal)") "Garden of Samsara must heal each combatant through the native status-targeted wrapper."
+    Assert-True $statusApi.Contains("public static bool TryHeal(IStatusManager? target, int amount)") "StatusApi.TryHeal must not require a borrowed ScriptExecutor."
+    Assert-True $statusApi.Contains("target!.Heal(amount, NativeHealDamageType);") "StatusApi.TryHeal must call the native status Heal API."
+    Assert-True (-not $statusApi.Contains("TargetApi.SetStatusForTarget")) "StatusApi.TryHeal must not mutate ScriptExecutor.Object target state."
+    Assert-True (-not $statusApi.Contains("executor.ChangeHp(amount.ToString())")) "StatusApi.TryHeal must not use the ForEachObject ChangeHp path."
+    Assert-True $fieldEffectHandlers.Contains("target.AddBuff(SunExpIds.Rebirth, 30)") "Garden of Samsara must grant 30 Rebirth every round while capped."
+    Assert-True $fieldEffectHandlers.Contains("StatusApi.IsAlive(target)") "Garden of Samsara must skip dead combatants."
     Assert-True (-not $fieldEffectHandlers.Contains("executor.AddBuff(SunExpIds.Burn")) "Scorching Canopy field effect must not use ScriptExecutor.AddBuff because round-start hook executors may lack dataConfig Id."
     Assert-True (-not $buffScripts.Contains('TryAddEvent(self, "StartRound"')) "Scorching Canopy carrier buff must not own round-start settlement."
     Assert-True $buffScripts.Contains("ExecutorApi.ActivateField(self, SunExpFieldId.ScorchingCanopy") "Scorching Canopy carrier apply must convert legacy carrier adds into field state."
@@ -1848,7 +1905,31 @@ function Invoke-SourceAssertions {
     Assert-True $buffScripts.Contains("self.RemoveBuff(SunExpIds.ScorchingCanopy);") "Scorching Canopy legacy carrier apply must immediately remove the player-mounted carrier buff."
     Assert-True $buffData.Contains('"scorching_canopy","","CS.SunExp.Dll.Scripting.BuffScripts.Apply(self, ""scorching_canopy"");') "Scorching Canopy buff data row is missing."
     $fieldBuffTypeText = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("5Zy65Zyw"))
-    Assert-True $buffData.Contains('"Mods/SunExp/ModResource/Images/Buff/SunExp/scorching_canopy","' + $fieldBuffTypeText + '"') "Scorching Canopy must be typed as a field buff so native random positive/negative/ability pools do not select it."
+    Assert-True ($null -ne $scorchingCanopyBuffRow) "Scorching Canopy buff data row must remain importable."
+    Assert-True ([string]::IsNullOrWhiteSpace($scorchingCanopyBuffRow.Icon)) "Scorching Canopy must not expose its field-only icon through generic Buff.Icon."
+    Assert-True ($scorchingCanopyBuffRow.Type -eq $fieldBuffTypeText) "Scorching Canopy must remain typed as a field buff so native random positive/negative/ability pools do not select it."
+    Assert-True ($null -ne $samsaraGardenBuffRow) "Garden of Samsara buff data row must remain importable."
+    Assert-True ([string]::IsNullOrWhiteSpace($samsaraGardenBuffRow.Icon)) "Garden of Samsara must not expose its field-only icon through generic Buff.Icon."
+    Assert-True ($samsaraGardenBuffRow.Type -eq $fieldBuffTypeText) "Garden of Samsara must remain typed as a field buff."
+    Assert-True ($samsaraGardenBuffRow.UpperBound -eq "5") "Garden of Samsara field gameplay cap must remain 5."
+    Assert-True ($null -ne $samsaraGardenHardRow -and $samsaraGardenHardRow.MaxCount -eq "4") "Garden of Samsara difficulty selection must remain capped at 4 stacks."
+    $fieldHudIconName = $utf8.GetString([Convert]::FromBase64String("54G854Ot5aSp5bmVLnBuZw=="))
+    $oldFieldHudIconName = $utf8.GetString([Convert]::FromBase64String("54K954G85aSp5bmVLnBuZw=="))
+    $fieldHudIconDirectory = Join-Path $RepoRoot "SunExp\ModResource\Images\Buff\Area"
+    $fieldHudIconPath = Join-Path $fieldHudIconDirectory $fieldHudIconName
+    Assert-True (Test-Path -LiteralPath $fieldHudIconPath -PathType Leaf) "Scorching Canopy's renamed field HUD icon asset is missing."
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $fieldHudIconDirectory $oldFieldHudIconName) -PathType Leaf)) "The old Scorching Canopy field HUD icon filename must not remain."
+    $fieldHudIconBytes = [System.IO.File]::ReadAllBytes($fieldHudIconPath)
+    Assert-True ($fieldHudIconBytes.Length -ge 24) "Scorching Canopy's field HUD icon must be a valid PNG header."
+    $fieldHudIconWidth = ([int]$fieldHudIconBytes[16] -shl 24) -bor ([int]$fieldHudIconBytes[17] -shl 16) -bor ([int]$fieldHudIconBytes[18] -shl 8) -bor [int]$fieldHudIconBytes[19]
+    $fieldHudIconHeight = ([int]$fieldHudIconBytes[20] -shl 24) -bor ([int]$fieldHudIconBytes[21] -shl 16) -bor ([int]$fieldHudIconBytes[22] -shl 8) -bor [int]$fieldHudIconBytes[23]
+    Assert-True ($fieldHudIconWidth -eq 64 -and $fieldHudIconHeight -eq 64) "Scorching Canopy's dedicated field HUD icon must remain 64x64."
+    $samsaraGardenIconPath = Join-Path $fieldHudIconDirectory ($utf8.GetString([Convert]::FromBase64String("6L2u5Zue6Iqx5bqtLnBuZw==")))
+    Assert-True (Test-Path -LiteralPath $samsaraGardenIconPath -PathType Leaf) "Garden of Samsara's field HUD icon asset is missing."
+    $samsaraGardenIconBytes = [System.IO.File]::ReadAllBytes($samsaraGardenIconPath)
+    $samsaraGardenIconWidth = ([int]$samsaraGardenIconBytes[16] -shl 24) -bor ([int]$samsaraGardenIconBytes[17] -shl 16) -bor ([int]$samsaraGardenIconBytes[18] -shl 8) -bor [int]$samsaraGardenIconBytes[19]
+    $samsaraGardenIconHeight = ([int]$samsaraGardenIconBytes[20] -shl 24) -bor ([int]$samsaraGardenIconBytes[21] -shl 16) -bor ([int]$samsaraGardenIconBytes[22] -shl 8) -bor [int]$samsaraGardenIconBytes[23]
+    Assert-True ($samsaraGardenIconWidth -eq 64 -and $samsaraGardenIconHeight -eq 64) "Garden of Samsara's dedicated field HUD icon must remain 64x64."
     Assert-True $endlessAbyssRewardService.Contains("EndlessAbyssEvolutionTraitRegistry.EvolutionTraitBuffIds()") "Endless Abyss evolution rewards must read the advanced trait pool from the registry."
     Assert-True (-not $endlessAbyssRewardService.Contains("EvolutionTraitPool")) "Endless Abyss evolution traits must not use the old hardcoded pool."
     Assert-True $entry.Contains("EndlessAbyssEvolutionTraitRegistry.Load(modConfig)") "SunExp entry must load the evolution trait registry during initialization."
@@ -1988,8 +2069,9 @@ function Invoke-SourceAssertions {
     Assert-True ($sunOrbitMirrorBlock.Success -and $sunOrbitMirrorBlock.Value.Contains('self.AddBuff(SunExpIds.GatheredFlame, "1");') -and $sunOrbitMirrorBlock.Value.Contains("ExecutorApi.AddBurnToRandomEnemy(self, 3);")) "Sun-Orbit Mirror must gain Gathered Flame and apply 3 Burn every third action."
     Assert-True ($miniatureSunwheelBlock.Success -and $miniatureSunwheelBlock.Value.Contains("BuffApi.NegativeTotal(self.Self)") -and $miniatureSunwheelBlock.Value.Contains("ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, burn);")) "Miniature Sunwheel must convert negative stacks into Gathered Flame and add Solar Radiance as Burn to all enemies."
     Assert-True ($miniatureSunwheelBlock.Success -and -not $miniatureSunwheelBlock.Value.Contains("ScorchingCanopy")) "Miniature Sunwheel must not require Scorching Canopy."
-    Assert-True (-not $blazingCrownHeartBlock.Value.Contains('TryAddEvent(self, "FightStart"')) "Blazing Crown Heart must not register a legacy FightStart event that is lost during battle reset."
-    Assert-True ([regex]::IsMatch($fieldStartSourceService, 'AddBuff\(SunExpIds\.SolarRadiance, 8\);[\s\S]*AddBuff\(SunExpIds\.SolarCrown, 1\);[\s\S]*ActivateField\(executor, SunExpFieldId\.ScorchingCanopy, 2')) "Blazing Crown Heart must grant Radiance, Crown, then Canopy through fight-start source replay."
+    Assert-True (-not $blazingCrownHeartBlock.Value.Contains('TryAddEvent(self, "FightStart"')) "Blazing Crown Heart must not restore the legacy FightStart listener that can be lost during combat-status rebuild."
+    Assert-True ($relicOpeningEffectService.Contains("executor.Self.AddBuff(SunExpIds.SolarRadiance, 8);") -and $relicOpeningEffectService.Contains("executor.Self.AddBuff(SunExpIds.SolarCrown, 1);")) "Blazing Crown Heart must replay Radiance and Crown through the focused opening-effect service."
+    Assert-True ($relicFieldStartSourceService.Contains('SunExpFieldId.ScorchingCanopy') -and $relicFieldStartSourceService.Contains('"blazing_crown_heart"')) "Blazing Crown Heart's field grant must be registered separately with the opening coordinator."
     Assert-True (-not $blazingCrownHeartBlock.Value.Contains('TryAddEvent(self, "StartRound"')) "Blazing Crown Heart must not keep the old round-start Burn aura."
     Assert-True ($ashCharmBlock.Success -and $ashCharmBlock.Value.Contains('TryAddEvent(self, "EndRound"') -and $ashCharmBlock.Value.Contains("self.AddBuff(SunExpIds.Ember, burn.ToString());") -and $ashCharmBlock.Value.Contains("self.ChangeDefence(burn.ToString());")) "Ash Charm must grant Ember and Block equal to self Burn at round end."
     Assert-True $solarMemoryCombatRuntime.Contains('SunExpStatusLifecycleRouter.Register("SolarMemoryCombat"') "Solar Memory combat tuning must subscribe through the shared status lifecycle router."
@@ -2215,7 +2297,7 @@ function Invoke-SourceAssertions {
     Assert-True $runtimeHooks.Contains("CompanionSceneLifecycleRuntime.Initialize(modConfig)") "RuntimeHooks must initialize direct scene-replacement cleanup."
     Assert-True ($companionSceneLifecycleRuntime.Contains("SceneManager.sceneUnloaded += OnSceneUnloaded") -and $companionSceneLifecycleRuntime.Contains("SceneManager.activeSceneChanged += OnActiveSceneChanged")) "Companion lifecycle cleanup must observe both scene unload and the guarded active-scene fallback."
     Assert-True $companionSceneLifecycleRuntime.Contains("!CompanionSceneApi.IsSceneLoaded(previousHandle)") "Additive scene activation must not clear companions while the tracked battle scene is loaded."
-    Assert-True ($companionSceneLifecycleRuntime.Contains("ProjectionRuntime.ClearBattle(source)") -and $companionSceneLifecycleRuntime.Contains("SpiritRuntime.ClearBattle(source)")) "Direct scene replacement must clear both companion implementations."
+    Assert-True ($companionSceneLifecycleRuntime.Contains("ProjectionRuntime.ClearBattle(source, sweepVisualOrphans: false)") -and $companionSceneLifecycleRuntime.Contains("SpiritRuntime.ClearBattle(source, sweepVisualOrphans: false)")) "Direct scene replacement must clear tracked companion state without duplicate presenter sweeps."
     Assert-True $companionSceneLifecycleRuntime.Contains("CompanionAuthorityService.InvalidateBattleEpoch") "Direct scene replacement must invalidate late network state."
     Assert-True ($companionSceneApi.Contains("SceneManager.MoveGameObjectToScene") -and $companionSceneApi.Contains("SceneManager.sceneCount") -and -not $companionSceneApi.Contains("GetSceneByHandle")) "Companion scene ownership must use APIs present in the current Managed contract."
     Assert-True ($projectionSummonService.Contains("CompanionSceneApi.MoveToOwnerScene") -and $spiritSummonService.Contains("CompanionSceneApi.MoveToOwnerScene") -and $projectionTurnCoordinator.Contains("CompanionSceneApi.MoveToOwnerScene")) "Companion actors and their turn anchor must inherit the owner's scene lifetime."
@@ -2223,12 +2305,16 @@ function Invoke-SourceAssertions {
     Assert-True ($projectionRuntime.Contains('RunCleanupStep("NetworkDedupe"') -and $spiritRuntime.Contains('RunCleanupStep("CaptureDedupe"')) "Companion cleanup must reset all battle-scoped duplicate sets."
     Assert-True ($companionSceneLifecycleRuntime.Contains('SunExpHookRegistry.Before(') -and $companionSceneLifecycleRuntime.Contains('"GameEntryUI.Init"')) "Returning directly to the main menu must run companion cleanup through the safe hook registry."
     Assert-True ($companionSceneLifecycleRuntime.Contains('"TopBarUI.ReturnToMenu"') -and $companionSceneLifecycleRuntime.Contains('"GameApp.ReturnToMenu"')) "Companion cleanup must run before confirmed end-of-frame return and retain a direct-return fallback."
-    Assert-True ($companionSceneLifecycleRuntime.Contains('"SuppressPresentation"') -and $companionSceneLifecycleRuntime.Contains("SchedulePostCleanupAudit(source)")) "Menu-exit cleanup must suppress the last rendered frame and audit residual objects on the next frame."
+    Assert-True ($companionSceneLifecycleRuntime.Contains('"SuppressPresentation"') -and $companionSceneLifecycleRuntime.Contains("SchedulePostCleanupAudit(source,")) "Menu-exit cleanup must suppress the last rendered frame and conditionally audit residual objects on the next frame."
     Assert-True ($companionPresentationCleanup.Contains("GetComponentsInChildren<Renderer>(true)") -and $companionPresentationCleanup.Contains("status.actionContent") -and $companionPresentationCleanup.Contains("status.statusBarObj")) "Companion presentation suppression must immediately hide renderers and separately parented fight UI."
-    Assert-True ($companionSceneLifecycleRuntime.Contains("CaptureArtifactSnapshot(source)") -and $companionSceneLifecycleRuntime.Contains("SunExpLog.InfoAlways(message)")) "Main-menu cleanup must emit pre-destroy artifact diagnostics even when debug logging is disabled."
+    Assert-True ($companionSceneLifecycleRuntime.Contains("!cleanupPending && !hasTrackedScenes") -and $companionSceneLifecycleRuntime.Contains("needsOrphanSweep")) "Scene-transition cleanup must deduplicate repeated boundaries and keep orphan scans on a conditional slow path."
+    Assert-True ($companionSceneLifecycleRuntime.Contains("suppression.Total > 0 || !cleanupSucceeded") -and $companionSceneLifecycleRuntime.Contains("SunExpLog.InfoAlways(message)")) "Main-menu residual auditing must remain observable but run only after artifacts or failures."
+    Assert-True ($companionSceneApi.Contains("HasTrackedScenes()") -and $companionPresentationCleanup.Contains("ProjectionRoots")) "Companion cleanup must reuse its synchronous suppression pass as the pre-destroy artifact inventory."
     Assert-True $companionSceneLifecycleRuntime.Contains('FightInitializing = _ => CleanupAfterSceneBoundary("FightInitializing")') "Fight initialization must sweep stale companion state from abnormal scene replacement."
     Assert-True $companionSceneLifecycleRuntime.Contains('FightEnded = _ => CleanupAfterSceneBoundary("FightEnded")') "Normal fight settlement must run the complete companion cleanup pipeline."
     Assert-True (-not $companionSceneLifecycleRuntime.Contains('FightEnding = _ => CompanionSceneApi.ClearTrackedScenes')) "Fight ending must not erase scene tracking before cleanup runs."
+    Assert-True $sunExpPerformanceSettingsSource.Contains("ReadFlag(CountersKey, false)") "SunExp performance counters must be opt-in."
+    Assert-True ($runtimeHooks.Contains("if (SunExpPerformanceSettings.CountersEnabled)") -and $sunExpCombatCardUiWorkloadRuntime.Contains("if (!SunExpPerformanceSettings.CountersEnabled)")) "Pure card-UI measurement hooks must not register outside performance diagnostics mode."
     Assert-True $spiritRuntime.Contains("CommonCardItem.UseChecker.Contains(SpiritCardUseChecker)") "Spirit-card use gating must register idempotently in the native pre-consumption checker."
     Assert-True $spiritRuntime.Contains('ProjectionStateStore.HasForOwner("", owner.InstanceId)') "Spirit cards must reject projection occupancy before native card consumption."
     Assert-True (-not $spiritRuntime.Contains("CardItem.canUse = false")) "Spirit-card eligibility must not toggle the global card-use state."
@@ -2647,7 +2733,8 @@ function Invoke-SourceAssertions {
     Assert-True (-not $endlessSeaIntroBoardRuntime.Contains("WebView")) "Endless Sea intro board must not embed web content."
     Assert-True $solarMemoryStarterDeckRuntime.Contains("SunExpUiPool.AcquireComponent") "Solar memory starter deck list rows must reuse pooled UI."
     Assert-True $solarMemoryStarterDeckRuntime.Contains("deckListDirty.ShouldRefresh") "Solar memory starter deck selected list must skip unchanged rebuilds."
-    Assert-True $solarMemoryBlessingPickerRuntime.Contains("SunExpUiPool.AcquireComponent") "Solar memory blessing picker list rows must reuse pooled UI."
+    Assert-True $solarMemoryBlessingPickerRuntime.Contains("SunExpUiPool.AcquireConfiguredComponent") "Solar memory blessing picker list rows must bind pooled UI before activation."
+    Assert-True $solarMemoryBlessingPickerRuntime.Contains("selectedRows") "Solar memory blessing picker selected rows must reconcile incrementally."
     Assert-True $solarMemoryBlessingPickerRuntime.Contains("candidateListDirty.ShouldRefresh") "Solar memory blessing candidates must skip unchanged rebuilds."
     Assert-True $solarMemoryStarterDeckRuntime.Contains("SunExpUiSprites.Button") "Solar memory starter deck must use cached shared button sprites."
     Assert-True $solarMemorySetupFlowRuntime.Contains("SunExpUiSprites.Button") "Solar memory setup flow must use cached shared button sprites."

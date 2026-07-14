@@ -41,12 +41,12 @@ public static class SpiritRuntime
         SunExpLog.Info("Spirit runtime initialized");
     }
 
-    internal static void ClearBattle(string source)
+    internal static void ClearBattle(string source, bool sweepVisualOrphans = true)
     {
         RunCleanupStep("SummonDedupe", source, SpiritSummonService.ResetBattleSynchronization);
         RunCleanupStep("CaptureDedupe", source, SpiritCaptureService.ResetBattleSynchronization);
         RunCleanupStep("StateStore", source, () => SpiritStateStore.ClearAll(source));
-        RunCleanupStep("VisualProxies", source, () => SpiritAttachmentPresenter.ClearAll(source));
+        RunCleanupStep("VisualProxies", source, () => SpiritAttachmentPresenter.ClearAll(source, sweepVisualOrphans));
         RunCleanupStep("UseGates", source, ResetUseGates);
     }
 

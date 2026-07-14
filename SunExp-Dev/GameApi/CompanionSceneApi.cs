@@ -77,6 +77,14 @@ public static class CompanionSceneApi
         }
     }
 
+    public static bool HasTrackedScenes()
+    {
+        lock (SyncRoot)
+        {
+            return BattleSceneHandles.Count > 0;
+        }
+    }
+
     public static bool IsSceneLoaded(int sceneHandle)
     {
         try

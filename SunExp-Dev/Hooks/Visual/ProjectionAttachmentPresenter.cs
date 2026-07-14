@@ -157,7 +157,7 @@ public static class ProjectionAttachmentPresenter
         UnityEngine.Object.Destroy(proxy);
     }
 
-    public static void ClearAll(string source)
+    public static void ClearAll(string source, bool sweepOrphans = true)
     {
         var proxies = new List<GameObject>(Proxies.Values);
         Proxies.Clear();
@@ -172,18 +172,21 @@ public static class ProjectionAttachmentPresenter
             UnityEngine.Object.Destroy(proxy);
         }
 
-        foreach (var visual in Resources.FindObjectsOfTypeAll<ProjectionVisualProxy>())
+        if (sweepOrphans)
         {
-            var proxy = visual?.gameObject;
-            if (proxy == null
-                || !proxy.scene.IsValid()
-                || !proxy.name.StartsWith("SunExp_ProjectionVisualProxy:", StringComparison.Ordinal))
+            foreach (var visual in Resources.FindObjectsOfTypeAll<ProjectionVisualProxy>())
             {
-                continue;
-            }
+                var proxy = visual?.gameObject;
+                if (proxy == null
+                    || !proxy.scene.IsValid()
+                    || !proxy.name.StartsWith("SunExp_ProjectionVisualProxy:", StringComparison.Ordinal))
+                {
+                    continue;
+                }
 
-            proxy.SetActive(false);
-            UnityEngine.Object.Destroy(proxy);
+                proxy.SetActive(false);
+                UnityEngine.Object.Destroy(proxy);
+            }
         }
 
         SunExpLog.Debug("[ProjectionAttachment] cleared from " + source + ": count=" + proxies.Count);

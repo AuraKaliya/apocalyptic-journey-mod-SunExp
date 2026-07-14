@@ -27,7 +27,7 @@ public static class FieldRuntime
         SunExpBattleLifecycleRouter.Register("FieldRuntime", new SunExpBattleLifecycleSubscription
         {
             FightInitializing = context => ResetFightState("FightInitializing"),
-            FightInitialized = OnFightInitialized,
+            FightOpening = OnFightOpening,
             FightEnding = context => ResetFightState("FightEnding"),
             FightEnded = context => ResetFightState("FightEnded")
         });
@@ -35,27 +35,45 @@ public static class FieldRuntime
         SunExpLog.Info("Field runtime initialized");
     }
 
-    private static void OnFightInitialized(ModHookContext context)
+    private static void OnFightOpening(ModHookContext context)
     {
         try
         {
             if (!FieldApi.IsAuthoritativeFieldWriter())
             {
-                FieldNetworkSync.RequestSnapshot("FightInitialized");
-                FieldBuffHudRuntime.RequestRefresh("FightInitialized.ClientSnapshotPending");
+                FieldNetworkSync.RequestSnapshot("FightOpening");
+                FieldBuffHudRuntime.RequestRefresh("FightOpening.ClientSnapshotPending");
                 return;
             }
 
             var executor = FightPlayer.Instance?.Status?.MirrorSc as ScriptExecutor;
-            var applied = FieldStartSourceService.ApplyFightStartSources(executor, "FightInitialized");
-            if (applied > 0)
+            var fieldChanged = false;
+            RunOpeningStep(
+                "RelicOpeningEffects",
+                () => RelicOpeningEffectService.Apply(executor, "FightOpening"));
+            RunOpeningStep(
+                "FieldStartCoordinator",
+                () => fieldChanged = FieldStartCoordinator.ResolveAndCommit(executor, "FightOpening"));
+            if (fieldChanged)
             {
-                FieldBuffHudRuntime.RequestRefresh("FightInitialized");
+                FieldBuffHudRuntime.RequestRefresh("FightOpening");
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Field runtime start-source replay failed", ex);
+            SunExpLog.Error("Field runtime opening-field coordination failed", ex);
+        }
+    }
+
+    private static void RunOpeningStep(string step, Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("Field opening step failed: " + step, ex);
         }
     }
 

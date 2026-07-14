@@ -908,6 +908,7 @@ public static class SunExpHardTagRuntime
     private static bool HasAnySunExpHardTag()
     {
         return SunExpHardTagState.Active(SunExpHardTagIds.ScorchedWorld)
+            || SunExpHardTagState.Active(SunExpHardTagIds.SamsaraGarden)
             || SunExpHardTagState.Active(SunExpHardTagIds.BlackSunCalamity)
             || SunExpHardTagState.Active(SunExpHardTagIds.WhiteRadianceCourt)
             || SunExpHardTagState.Active(SunExpHardTagIds.SunsetExpedition)

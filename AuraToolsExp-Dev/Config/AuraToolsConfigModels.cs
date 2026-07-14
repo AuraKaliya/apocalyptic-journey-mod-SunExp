@@ -529,7 +529,7 @@ public sealed class DamageMeterSettings
     public string Hotkey { get; set; } = "F8";
 
     [JsonProperty("showPanelByDefault")]
-    public bool ShowPanelByDefault { get; set; } = true;
+    public bool ShowPanelByDefault { get; set; }
 
     [JsonProperty("friendlyOnly")]
     public bool FriendlyOnly { get; set; }
@@ -579,7 +579,7 @@ public sealed class DamageMeterSettings
     public void Normalize()
     {
         Hotkey = string.IsNullOrWhiteSpace(Hotkey) ? "F8" : Hotkey.Trim();
-        ShowPanelByDefault = true;
+        ShowPanelByDefault = false;
         IncludeUnknownTeam = !FriendlyOnly;
         CountShieldLoss = true;
         MaxRows = FixedMaxRows;
@@ -1041,10 +1041,13 @@ public sealed class AuraToolsSkinSettings
 public sealed class AuraToolsLoggingSettings
 {
     [JsonProperty("schemaVersion")]
-    public int SchemaVersion { get; set; } = 3;
+    public int SchemaVersion { get; set; } = 4;
 
     [JsonProperty("enabled")]
     public bool Enabled { get; set; } = true;
+
+    [JsonProperty("performanceDiagnostics")]
+    public bool PerformanceDiagnostics { get; set; }
 
     [JsonProperty("fileNamePattern")]
     public string FileNamePattern { get; set; } = "AuraTools-{date}.log";
@@ -1087,7 +1090,7 @@ public sealed class AuraToolsLoggingSettings
         var loadedSchemaVersion = SchemaVersion;
         var shouldMigrateHighVolumeDefaults = loadedSchemaVersion < 2 && LooksLikeLegacyHighVolumeDefaults();
         var shouldMigrateWarningOnlyDefaults = loadedSchemaVersion < 3 && LooksLikeWarningOnlyDefaults();
-        SchemaVersion = Math.Max(3, SchemaVersion);
+        SchemaVersion = Math.Max(4, SchemaVersion);
         if (shouldMigrateHighVolumeDefaults || shouldMigrateWarningOnlyDefaults)
         {
             MinimumLevel = LoggingLevelNames.Info;

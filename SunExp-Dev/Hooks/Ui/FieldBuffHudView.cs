@@ -14,20 +14,24 @@ public sealed class FieldBuffHudView : MonoBehaviour
     public const string RootName = "SunExp_FieldBuffHud";
 
     private const float RootWidth = 164f;
-    private const float RootHeight = 154f;
-    private const float IconFrameSize = 76f;
+    private const float RootHeight = 128f;
     private const float IconSize = 64f;
+    private const float NameSectionHeight = 32f;
+    private const float NameSectionInset = 3f;
+    private const float DividerInset = 12f;
+    private const float DividerHeight = 1f;
     private const float MultiplayerAvoidanceAt1080 = 150f;
-    private static readonly Color PanelTint = new(0.08f, 0.07f, 0.05f, 0.78f);
-    private static readonly Color IconFrameTint = new(0.12f, 0.08f, 0.045f, 0.94f);
-    private static readonly Color StackTint = new(0.18f, 0.11f, 0.045f, 0.92f);
-    private static readonly Color TextColor = new(1f, 0.96f, 0.86f, 1f);
-    private static readonly Color MutedText = new(0.95f, 0.78f, 0.42f, 1f);
+    private static readonly Color PanelTint = new(0.055f, 0.045f, 0.03f, 0.84f);
+    private static readonly Color NameSectionTint = new(0.018f, 0.014f, 0.01f, 0.78f);
+    private static readonly Color DividerTint = new(0.88f, 0.66f, 0.3f, 0.62f);
+    private static readonly Color StackTextColor = new(0.95f, 0.78f, 0.42f, 1f);
+    private static readonly Color NameTextColor = new(1f, 0.96f, 0.86f, 1f);
+    private static readonly Color StackOutlineColor = new(0.04f, 0.025f, 0.01f, 0.96f);
 
     private RectTransform? rectTransform;
     private Image? icon;
-    private TMP_Text? nameText;
     private TMP_Text? stackText;
+    private TMP_Text? nameText;
     private FieldBuffHudTooltipView? tooltip;
     private FieldBuffSnapshot currentSnapshot = FieldBuffSnapshot.Empty;
     private bool pointerInside;
@@ -106,11 +110,12 @@ public sealed class FieldBuffHudView : MonoBehaviour
         group.interactable = true;
         group.blocksRaycasts = true;
 
-        SunExpUiBuilder.ApplyPanelImage(gameObject, SunExpUiSprites.Panel("[FieldBuffHud]"), PanelTint);
-        CreateHitArea();
+        var panel = SunExpUiBuilder.ApplyPanelImage(gameObject, SunExpUiSprites.Panel("[FieldBuffHud]"), PanelTint);
+        panel.raycastTarget = false;
         CreateIcon();
-        CreateStackBar();
-        CreateName();
+        CreateStackText();
+        CreateNameSection();
+        CreateHitArea();
         EnsureTooltip();
     }
 
@@ -137,81 +142,92 @@ public sealed class FieldBuffHudView : MonoBehaviour
 
     private void CreateIcon()
     {
-        var frameRect = SunExpUiBuilder.CreateRect(
-            "IconFrame",
+        var iconRect = SunExpUiBuilder.CreateRect(
+            "Icon",
             transform,
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
-            new Vector2(IconFrameSize, IconFrameSize));
-        frameRect.anchoredPosition = new Vector2(0f, -14f);
-        var frameImage = SunExpUiBuilder.ApplyPanelImage(frameRect.gameObject, SunExpUiSprites.Panel("[FieldBuffHud.Icon]"), IconFrameTint);
-        frameImage.raycastTarget = false;
-
-        var iconRect = SunExpUiBuilder.CreateRect(
-            "Icon",
-            frameRect,
-            new Vector2(0.5f, 0.5f),
-            new Vector2(0.5f, 0.5f),
-            new Vector2(0.5f, 0.5f),
             new Vector2(IconSize, IconSize));
+        iconRect.anchoredPosition = new Vector2(0f, -6f);
         icon = iconRect.gameObject.AddComponent<Image>();
         icon.raycastTarget = false;
         icon.preserveAspect = true;
     }
 
-    private void CreateStackBar()
+    private void CreateStackText()
     {
         var stackRect = SunExpUiBuilder.CreateRect(
-            "StackBar",
+            "Stacks",
             transform,
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
-            new Vector2(96f, 24f));
-        stackRect.anchoredPosition = new Vector2(0f, -94f);
-        var image = SunExpUiBuilder.ApplyLabelImage(stackRect.gameObject, SunExpUiSprites.Label("[FieldBuffHud.Stack]"), StackTint);
-        image.raycastTarget = false;
-
-        stackText = CreateHudText(stackRect, "Stacks", 17f, MutedText, new Vector2(90f, 22f));
-    }
-
-    private void CreateName()
-    {
-        var nameRect = SunExpUiBuilder.CreateRect(
-            "NameBar",
-            transform,
-            new Vector2(0.5f, 1f),
-            new Vector2(0.5f, 1f),
-            new Vector2(0.5f, 1f),
-            new Vector2(146f, 32f));
-        nameRect.anchoredPosition = new Vector2(0f, -122f);
-        var image = SunExpUiBuilder.ApplyLabelImage(nameRect.gameObject, SunExpUiSprites.Label("[FieldBuffHud.Name]"), StackTint);
-        image.raycastTarget = false;
-
-        nameText = CreateHudText(nameRect, "Name", 18f, TextColor, new Vector2(138f, 28f));
-    }
-
-    private static TMP_Text CreateHudText(RectTransform parent, string name, float fontSize, Color color, Vector2 size)
-    {
-        var textRect = SunExpUiBuilder.CreateRect(
-            name,
-            parent,
-            new Vector2(0.5f, 0.5f),
-            new Vector2(0.5f, 0.5f),
-            new Vector2(0.5f, 0.5f),
-            size);
-        var text = AuraUiComponents.ConfigureTmpText(
-            textRect.gameObject,
+            new Vector2(80f, 22f));
+        stackRect.anchoredPosition = new Vector2(0f, -72f);
+        stackText = AuraUiComponents.ConfigureTmpText(
+            stackRect.gameObject,
             "",
-            fontSize,
-            Math.Max(12f, fontSize - 4f),
+            17f,
+            13f,
             TextAnchor.MiddleCenter,
-            color,
+            StackTextColor,
             true,
             SunExpUiTheme.Current);
-        text.fontStyle = FontStyles.Bold;
-        return text;
+        stackText.fontStyle = FontStyles.Bold;
+        stackText.outlineColor = StackOutlineColor;
+        stackText.outlineWidth = 0.24f;
+        stackText.raycastTarget = false;
+    }
+
+    private void CreateNameSection()
+    {
+        var sectionRect = SunExpUiBuilder.CreateRect(
+            "NameSection",
+            transform,
+            Vector2.zero,
+            new Vector2(1f, 0f),
+            new Vector2(0.5f, 0f),
+            new Vector2(-NameSectionInset * 2f, NameSectionHeight - NameSectionInset));
+        sectionRect.anchoredPosition = new Vector2(0f, NameSectionInset);
+
+        var sectionImage = sectionRect.gameObject.AddComponent<Image>();
+        sectionImage.color = NameSectionTint;
+        sectionImage.raycastTarget = false;
+
+        var dividerRect = SunExpUiBuilder.CreateRect(
+            "Divider",
+            sectionRect,
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(RootWidth - DividerInset * 2f, DividerHeight));
+        var dividerImage = dividerRect.gameObject.AddComponent<Image>();
+        dividerImage.color = DividerTint;
+        dividerImage.raycastTarget = false;
+
+        var nameRect = SunExpUiBuilder.CreateRect(
+            "Name",
+            sectionRect,
+            Vector2.zero,
+            Vector2.one,
+            new Vector2(0.5f, 0.5f),
+            Vector2.zero);
+        nameRect.offsetMin = new Vector2(8f, 2f);
+        nameRect.offsetMax = new Vector2(-8f, -2f);
+        nameText = AuraUiComponents.ConfigureTmpText(
+            nameRect.gameObject,
+            "",
+            18f,
+            13f,
+            TextAnchor.MiddleCenter,
+            NameTextColor,
+            true,
+            SunExpUiTheme.Current);
+        nameText.fontStyle = FontStyles.Bold;
+        nameText.outlineColor = StackOutlineColor;
+        nameText.outlineWidth = 0.12f;
+        nameText.raycastTarget = false;
     }
 
     private void EnsureTooltip()
@@ -289,7 +305,7 @@ public sealed class FieldBuffHudView : MonoBehaviour
     {
         try
         {
-            var iconPath = FieldEffectRegistry.RuntimeSpecFor(snapshot.Field).IconPath;
+            var iconPath = FieldEffectRegistry.RuntimeSpecFor(snapshot.Field).HudIconPathForStacks(snapshot.Stacks);
             return string.IsNullOrWhiteSpace(iconPath)
                 ? null
                 : SunExpResourceCache.Load<Sprite>(iconPath, true, "field.buff.hud");

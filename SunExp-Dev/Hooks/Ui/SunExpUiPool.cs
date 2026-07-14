@@ -71,6 +71,66 @@ public static class SunExpUiPool
         return component;
     }
 
+    public static T AcquireConfiguredComponent<T>(
+        string key,
+        Transform parent,
+        string instanceName,
+        Func<Transform, string, T> create,
+        Action<T> configureBeforeActivation)
+        where T : UnityEngine.Component
+    {
+        if (parent == null)
+        {
+            throw new ArgumentNullException(nameof(parent));
+        }
+
+        if (configureBeforeActivation == null)
+        {
+            throw new ArgumentNullException(nameof(configureBeforeActivation));
+        }
+
+        var normalizedKey = NormalizeKey(key);
+        GameObject? go = null;
+        if (SunExpPerformanceSettings.UiPoolEnabled && Pools.TryGetValue(normalizedKey, out var stack))
+        {
+            while (stack.Count > 0 && go == null)
+            {
+                go = stack.Pop();
+            }
+        }
+
+        T component;
+        if (go != null)
+        {
+            SunExpPerformanceCounters.Record("UiPool.Acquire.Hit");
+            go.name = instanceName;
+            go.transform.SetParent(parent, false);
+            RestoreReusableTree(go);
+            component = go.GetComponent<T>() ?? go.AddComponent<T>();
+        }
+        else
+        {
+            SunExpPerformanceCounters.Record("UiPool.Acquire.Miss");
+            component = create(parent, instanceName);
+            go = component.gameObject;
+            go.SetActive(false);
+        }
+
+        var item = go.GetComponent<SunExpPooledUiItem>() ?? go.AddComponent<SunExpPooledUiItem>();
+        item.PoolKey = normalizedKey;
+        try
+        {
+            configureBeforeActivation(component);
+            go.SetActive(true);
+            return component;
+        }
+        catch
+        {
+            go.SetActive(false);
+            throw;
+        }
+    }
+
     public static void ReleaseOrDestroyChildren(Transform? parent, string source, string logPrefix)
     {
         if (parent == null)

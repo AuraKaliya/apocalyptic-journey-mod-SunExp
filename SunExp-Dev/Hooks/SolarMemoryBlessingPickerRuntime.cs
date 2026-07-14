@@ -29,7 +29,8 @@ public static class SolarMemoryBlessingPickerRuntime
     private const float TierColumnWidth = 58f;
     private const float InlineButtonWidth = 96f;
     private const float MainButtonWidth = 112f;
-    private const float ButtonHeight = 34f;
+    private const float FooterHeight = 64f;
+    private const float ButtonHeight = 40f;
 
     private static readonly Color Gold = new(0.82f, 0.72f, 0.42f);
     private static readonly Color PaleGold = new(0.93f, 0.86f, 0.58f);
@@ -44,6 +45,7 @@ public static class SolarMemoryBlessingPickerRuntime
     private static readonly Dictionary<int, List<string>> selectedByTier = new();
     private static readonly Dictionary<string, Sprite?> blessIconCache = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<int, Text> tierCounterTexts = new();
+    private static readonly List<BlessingRowView> selectedRows = new();
     private static readonly SunExpDirtyState candidateListDirty = new();
     private static readonly SunExpDirtyState selectedListDirty = new();
     private static GameObject? activePanel;
@@ -162,7 +164,7 @@ public static class SolarMemoryBlessingPickerRuntime
         var listRow = CreateLayoutObject("ListRow", window.transform);
         var listElement = listRow.AddComponent<LayoutElement>();
         listElement.flexibleHeight = 1f;
-        listElement.minHeight = 420f;
+        listElement.minHeight = 380f;
         var listLayout = listRow.AddComponent<HorizontalLayoutGroup>();
         listLayout.spacing = 34f;
         listLayout.childControlWidth = true;
@@ -176,16 +178,18 @@ public static class SolarMemoryBlessingPickerRuntime
         selectedListDirty.Reset();
 
         var footer = CreateLayoutObject("Footer", window.transform);
-        footer.AddComponent<LayoutElement>().preferredHeight = 44f;
+        var footerElement = footer.AddComponent<LayoutElement>();
+        footerElement.minHeight = FooterHeight;
+        footerElement.preferredHeight = FooterHeight;
         ApplyPanelImage(footer, FooterTint);
         var footerLayout = footer.AddComponent<HorizontalLayoutGroup>();
-        footerLayout.padding = new RectOffset(14, 14, 5, 5);
+        footerLayout.padding = new RectOffset(14, 14, 12, 12);
         footerLayout.spacing = 9f;
         footerLayout.childControlHeight = true;
         footerLayout.childControlWidth = true;
-        footerLayout.childForceExpandHeight = true;
+        footerLayout.childForceExpandHeight = false;
         footerLayout.childForceExpandWidth = false;
-        hintText = AddTextBlock(footer.transform, "", 14, TextAnchor.MiddleCenter, PaleGold, 34f, 1f);
+        hintText = AddTextBlock(footer.transform, "", 14, TextAnchor.MiddleCenter, PaleGold, ButtonHeight, 1f);
 
         var footerButtons = CreateLayoutObject("FooterButtons", footer.transform);
         var footerButtonsElement = footerButtons.AddComponent<LayoutElement>();
@@ -198,7 +202,7 @@ public static class SolarMemoryBlessingPickerRuntime
         footerButtonsLayout.childControlWidth = true;
         footerButtonsLayout.childControlHeight = true;
         footerButtonsLayout.childForceExpandWidth = false;
-        footerButtonsLayout.childForceExpandHeight = true;
+        footerButtonsLayout.childForceExpandHeight = false;
 
         CreateButton(footerButtons.transform, "\u81ea\u52a8\u586b\u5145", new Vector2(MainButtonWidth, ButtonHeight), AutoFillSelection);
         CreateButton(footerButtons.transform, "\u6e05\u7a7a", new Vector2(MainButtonWidth, ButtonHeight), ClearSelection);
@@ -344,18 +348,57 @@ public static class SolarMemoryBlessingPickerRuntime
             return;
         }
 
-        ClearChildren(selectedListContent);
+        var desired = new List<(BlessingEntry Entry, int Tier, int Index)>();
         foreach (var tier in OrderedTiers())
         {
             for (var i = 0; i < selectedByTier[tier].Count; i++)
             {
-                var index = i;
                 var id = selectedByTier[tier][i];
                 var entry = FindEntry(id);
                 if (entry != null)
                 {
-                    CreateSelectedRow(selectedListContent, entry, tier, index);
+                    desired.Add((entry, tier, i));
                 }
+            }
+        }
+
+        for (var i = 0; i < desired.Count; i++)
+        {
+            var item = desired[i];
+            if (i < selectedRows.Count && selectedRows[i] != null)
+            {
+                var row = selectedRows[i];
+                row.gameObject.name = "Selected-" + item.Entry.Id + "-" + item.Index;
+                if (row.transform.parent != selectedListContent)
+                {
+                    row.transform.SetParent(selectedListContent, false);
+                }
+
+                BindSelectedRow(row, item.Entry, item.Tier, item.Index);
+                continue;
+            }
+
+            var created = CreateSelectedRow(selectedListContent, item.Entry, item.Tier, item.Index);
+            if (i < selectedRows.Count)
+            {
+                selectedRows[i] = created;
+            }
+            else
+            {
+                selectedRows.Add(created);
+            }
+        }
+
+        for (var i = selectedRows.Count - 1; i >= desired.Count; i--)
+        {
+            var row = selectedRows[i];
+            selectedRows.RemoveAt(i);
+            if (row != null)
+            {
+                SunExpUiPool.Release(
+                    row.gameObject,
+                    "SolarMemoryBlessingPicker.RefreshSelectedList",
+                    "[SolarMemoryBlessingPicker]");
             }
         }
     }
@@ -384,20 +427,26 @@ public static class SolarMemoryBlessingPickerRuntime
 
     private static void CreateCandidateRow(Transform parent, BlessingEntry entry)
     {
-        var row = AcquireBlessingRow(parent, "Candidate-" + entry.Id);
-        row.Bind(
+        AcquireBlessingRow(parent, "Candidate-" + entry.Id, row => row.Bind(
             entry.Name,
             TierLabel(entry.Tier),
             entry.Description,
             TryLoadBlessIcon(entry),
             entry.Tier.ToString(),
             "\u6dfb\u52a0",
-            () => AddBlessing(entry));
+            () => AddBlessing(entry)));
     }
 
-    private static void CreateSelectedRow(Transform parent, BlessingEntry entry, int tier, int index)
+    private static BlessingRowView CreateSelectedRow(Transform parent, BlessingEntry entry, int tier, int index)
     {
-        var row = AcquireBlessingRow(parent, "Selected-" + entry.Id + "-" + index);
+        return AcquireBlessingRow(
+            parent,
+            "Selected-" + entry.Id + "-" + index,
+            row => BindSelectedRow(row, entry, tier, index));
+    }
+
+    private static void BindSelectedRow(BlessingRowView row, BlessingEntry entry, int tier, int index)
+    {
         row.Bind(
             entry.Name,
             TierLabel(entry.Tier),
@@ -599,7 +648,7 @@ public static class SolarMemoryBlessingPickerRuntime
         element.preferredHeight = ButtonHeight;
         var image = ApplyButtonImage(go);
         var button = go.AddComponent<Button>();
-        button.targetGraphic = image;
+        AuraUiButtonFeedback.Apply(button, image, PaleGold);
         button.onClick.AddListener(() =>
         {
             activeTier = tier;
@@ -705,7 +754,7 @@ public static class SolarMemoryBlessingPickerRuntime
         element.preferredHeight = 32f;
         var image = ApplyInlineButtonImage(go);
         var button = go.AddComponent<Button>();
-        button.targetGraphic = image;
+        AuraUiButtonFeedback.Apply(button, image, PaleGold);
         button.onClick.AddListener(() => action());
         AddTextFill(go.transform, label, 14, TextAnchor.MiddleCenter, PaleGold);
         return button;
@@ -722,7 +771,7 @@ public static class SolarMemoryBlessingPickerRuntime
         element.preferredHeight = size.y;
         var image = ApplyButtonImage(go);
         var button = go.AddComponent<Button>();
-        button.targetGraphic = image;
+        AuraUiButtonFeedback.Apply(button, image, PaleGold);
         button.onClick.AddListener(() => action());
         AddTextFill(go.transform, label, 14, TextAnchor.MiddleCenter, PaleGold);
         return button;
@@ -983,6 +1032,7 @@ public static class SolarMemoryBlessingPickerRuntime
     {
         ClearChildren(candidateListContent);
         ClearChildren(selectedListContent);
+        selectedRows.Clear();
     }
 
     private static void UpdateHint(string message)
@@ -993,13 +1043,17 @@ public static class SolarMemoryBlessingPickerRuntime
         }
     }
 
-    private static BlessingRowView AcquireBlessingRow(Transform parent, string name)
+    private static BlessingRowView AcquireBlessingRow(
+        Transform parent,
+        string name,
+        Action<BlessingRowView> configureBeforeActivation)
     {
-        return SunExpUiPool.AcquireComponent(
+        return SunExpUiPool.AcquireConfiguredComponent(
             "SolarMemoryBlessingPicker.Row",
             parent,
             name,
-            CreateBlessingRowTemplate);
+            CreateBlessingRowTemplate,
+            configureBeforeActivation);
     }
 
     private static BlessingRowView CreateBlessingRowTemplate(Transform parent, string name)

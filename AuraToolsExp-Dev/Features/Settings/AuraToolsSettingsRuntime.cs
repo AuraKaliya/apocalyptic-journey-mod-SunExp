@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using AuraShared.Core;
+using AuraUi.Shared;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.Audio;
 using AuraToolsExp.Dll.Features.DamageMeter;
@@ -31,6 +32,8 @@ public static class AuraToolsSettingsRuntime
     private const string AuraTabButtonName = "AuraToolsSettingsTabButton";
     private const string AuraPanelName = "AuraToolsSettingsPanel";
     private const float AuraTabHeight = 60f;
+    private const float AuraTabTextSize = 20f;
+    private const float AuraTabMinimumTextSize = 18f;
     private static GameObject? activePanel;
     private static Transform? activePanelHost;
     private static Transform? activeTabParent;
@@ -38,6 +41,7 @@ public static class AuraToolsSettingsRuntime
     private static bool loggedHookRegistration;
     private static bool loggedInjectionSuccess;
     private static bool loggedNoTabParent;
+    private static bool loggedNativeTabCloneFallback;
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -90,7 +94,7 @@ public static class AuraToolsSettingsRuntime
             var parent = ResolveTabParent(setting);
             activeTabParent = parent;
             var panelHost = ResolvePanelHost(setting, parent);
-            EnsureTabButton(parent);
+            EnsureTabButton(setting, parent);
             BindNativeTabsToHide(parent);
             EnsurePanel(setting, parent, panelHost);
             if (!loggedInjectionSuccess)
@@ -145,53 +149,84 @@ public static class AuraToolsSettingsRuntime
         return found ?? setting.transform;
     }
 
-    private static void EnsureTabButton(Transform? tabParent)
+    private static void EnsureTabButton(SettingUI setting, Transform? tabParent)
     {
         if (tabParent == null)
         {
             return;
         }
 
+        var template = setting.KeyButton;
         var existing = tabParent.Find(AuraTabButtonName);
-        if (existing == null)
+        if (existing != null && template != null && AuraUiNativeButtonCloneAdapter.IsOwnedClone(template, existing.gameObject))
         {
-            var buttonObject = CreatePlainTabButton(tabParent);
-            buttonObject.transform.SetAsLastSibling();
-            AdjustTabSize(buttonObject);
+            var configured = AuraUiNativeButtonCloneAdapter.TryConfigureClone(
+                template,
+                existing.gameObject,
+                AuraToolsIds.SettingsTabName,
+                ShowAuraPanel,
+                AuraTabTextSize,
+                AuraTabMinimumTextSize);
+            if (configured.Success)
+            {
+                existing.SetAsLastSibling();
+                AdjustTabSize(existing.gameObject);
+                existing.gameObject.SetActive(true);
+                return;
+            }
+
+            RejectUnsafeTabClone(existing.gameObject, configured.FailureReason);
+            existing = null;
+        }
+
+        if (existing != null && existing.GetComponent<ButtonManager>() != null)
+        {
+            RejectUnsafeTabClone(existing.gameObject, "existing native-style button has no matching ownership marker");
+            existing = null;
+        }
+
+        GameObject buttonObject;
+        if (existing != null)
+        {
+            buttonObject = existing.gameObject;
             ConfigureTabButton(buttonObject);
         }
         else
         {
-            existing.SetAsLastSibling();
-            AdjustTabSize(existing.gameObject);
-            ConfigureTabButton(existing.gameObject);
+            AuraUiNativeButtonCloneResult? cloneResult = null;
+            if (template != null)
+            {
+                cloneResult = AuraUiNativeButtonCloneAdapter.TryClone(new AuraUiNativeButtonCloneRequest
+                {
+                    Template = template,
+                    Parent = tabParent,
+                    CloneName = AuraTabButtonName,
+                    Label = AuraToolsIds.SettingsTabName,
+                    OnClick = ShowAuraPanel,
+                    TextSizeOverride = AuraTabTextSize,
+                    MinimumTextSizeOverride = AuraTabMinimumTextSize
+                });
+            }
+
+            if (cloneResult != null && cloneResult.Success && cloneResult.Root != null)
+            {
+                buttonObject = cloneResult.Root;
+            }
+            else
+            {
+                LogNativeTabCloneFallback(cloneResult?.FailureReason ?? "SettingUI.KeyButton is unavailable");
+                buttonObject = CreatePlainTabButton(tabParent);
+                ConfigureTabButton(buttonObject);
+            }
         }
+
+        buttonObject.transform.SetAsLastSibling();
+        AdjustTabSize(buttonObject);
+        buttonObject.SetActive(true);
     }
 
     private static void ConfigureTabButton(GameObject buttonObject)
     {
-        var manager = buttonObject.GetComponent<ButtonManager>();
-        if (manager != null)
-        {
-            manager.onClick.RemoveAllListeners();
-            manager.onDoubleClick.RemoveAllListeners();
-            manager.onRightClick.RemoveAllListeners();
-            manager.enableText = true;
-            manager.buttonText = AuraToolsIds.SettingsTabName;
-            manager.Interactable(true);
-            manager.onClick.AddListener(ShowAuraPanel);
-            manager.UpdateUI();
-            SetTabVisualText(buttonObject, AuraToolsIds.SettingsTabName);
-
-            var nativeButton = buttonObject.GetComponent<Button>();
-            if (nativeButton != null)
-            {
-                nativeButton.onClick.RemoveAllListeners();
-            }
-
-            return;
-        }
-
         var button = buttonObject.GetComponent<Button>();
         if (button != null)
         {
@@ -206,21 +241,32 @@ public static class AuraToolsSettingsRuntime
             button.onClick.AddListener(ShowAuraPanel);
         }
 
+        if (button.targetGraphic != null)
+        {
+            AuraUiButtonFeedback.Apply(button, button.targetGraphic, AuraToolsUi.Accent);
+        }
+
         RemoveTextChildren(buttonObject.transform);
         AuraToolsUi.AddFillText(buttonObject.transform, AuraToolsIds.SettingsTabName, AuraToolsUi.TabFontSize, TextAnchor.MiddleCenter, AuraToolsUi.Accent);
     }
 
-    private static void SetTabVisualText(GameObject buttonObject, string label)
+    private static void RejectUnsafeTabClone(GameObject buttonObject, string reason)
     {
-        foreach (var text in buttonObject.GetComponentsInChildren<TMP_Text>(true))
+        LogNativeTabCloneFallback(reason);
+        buttonObject.SetActive(false);
+        buttonObject.name = AuraTabButtonName + "-Rejected";
+        Object.Destroy(buttonObject);
+    }
+
+    private static void LogNativeTabCloneFallback(string reason)
+    {
+        if (loggedNativeTabCloneFallback)
         {
-            text.text = label;
+            return;
         }
 
-        foreach (var text in buttonObject.GetComponentsInChildren<Text>(true))
-        {
-            text.text = label;
-        }
+        loggedNativeTabCloneFallback = true;
+        AuraToolsLog.Warn("[Settings] native KeyButton style clone rejected; using Aura fallback. reason=" + reason);
     }
 
     private static void BindNativeTabsToHide(Transform? tabParent)
@@ -800,6 +846,21 @@ public static class AuraToolsSettingsRuntime
         }, content =>
         {
             var settings = AuraToolsConfigService.Logging;
+            var diagnosticsRow = CreateInlineRow(content, "PerformanceDiagnosticsRow");
+            AuraToolsUi.AddToggle(diagnosticsRow.transform, settings.PerformanceDiagnostics, value =>
+            {
+                settings.PerformanceDiagnostics = value;
+                AuraToolsConfigService.SaveLogging();
+            });
+            AuraToolsUi.AddText(
+                diagnosticsRow.transform,
+                "性能诊断（重启后生效；会启用高频计数与基准钩子）",
+                AuraToolsUi.BodyFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.Text,
+                AuraToolsUi.TextMinHeight,
+                1f);
+
             var row = CreateInlineRow(content, "LoggingRow");
             var levelLabels = new List<string> { "Debug", "Info", "Warning", "Error" };
             AuraToolsUi.AddText(row.transform, "最低等级", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 0f, 90f);
@@ -1017,7 +1078,7 @@ public static class AuraToolsSettingsRuntime
         contentLayout.childForceExpandHeight = false;
         var state = box.AddComponent<AuraToolsFoldoutState>();
         state.Expanded = FoldoutStates.TryGetValue(title, out var expanded) && expanded;
-        content.SetActive(state.Expanded);
+        AuraToolsUi.SetFoldoutExpanded(content, state.Expanded, box.transform);
         Text? foldoutLabel = null;
         void UpdateFoldoutLabel()
         {
@@ -1031,12 +1092,12 @@ public static class AuraToolsSettingsRuntime
         {
             state.Expanded = !state.Expanded;
             FoldoutStates[title] = state.Expanded;
-            content.SetActive(state.Expanded);
+            AuraToolsUi.SetFoldoutExpanded(content, state.Expanded, box.transform);
             UpdateFoldoutLabel();
         }
 
         var headerButton = header.AddComponent<Button>();
-        headerButton.targetGraphic = headerImage;
+        AuraUiButtonFeedback.Apply(headerButton, headerImage, AuraToolsUi.Accent);
         headerButton.onClick.AddListener(ToggleFoldout);
         var foldoutButton = AuraToolsUi.AddButton(header.transform, state.Expanded ? "收起" : "展开", ToggleFoldout, AuraToolsUi.ButtonMinWidth, AuraToolsUi.ButtonHeight);
         foldoutLabel = foldoutButton.GetComponentInChildren<Text>();

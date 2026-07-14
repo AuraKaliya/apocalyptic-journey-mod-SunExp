@@ -24,7 +24,8 @@ public static class SolarMemoryStarterDeckRuntime
     private const float CardIconSize = 32f;
     private const float InlineButtonWidth = 96f;
     private const float MainButtonWidth = 112f;
-    private const float ButtonHeight = 34f;
+    private const float FooterHeight = 64f;
+    private const float ButtonHeight = 40f;
     private static readonly Color Gold = new(0.82f, 0.72f, 0.42f);
     private static readonly Color PaleGold = new(0.93f, 0.86f, 0.58f);
     private static readonly Color DimGold = new(0.55f, 0.46f, 0.25f);
@@ -326,7 +327,7 @@ public static class SolarMemoryStarterDeckRuntime
         var listRow = CreateLayoutObject("ListRow", window.transform);
         var listElement = listRow.AddComponent<LayoutElement>();
         listElement.flexibleHeight = 1f;
-        listElement.minHeight = 420f;
+        listElement.minHeight = 400f;
         var listLayout = listRow.AddComponent<HorizontalLayoutGroup>();
         listLayout.spacing = 34f;
         listLayout.childControlWidth = true;
@@ -344,16 +345,18 @@ public static class SolarMemoryStarterDeckRuntime
         deckListDirty.Reset();
 
         var footer = CreateLayoutObject("Footer", window.transform);
-        footer.AddComponent<LayoutElement>().preferredHeight = 44f;
+        var footerElement = footer.AddComponent<LayoutElement>();
+        footerElement.minHeight = FooterHeight;
+        footerElement.preferredHeight = FooterHeight;
         ApplyPanelImage(footer, FooterTint);
         var footerLayout = footer.AddComponent<HorizontalLayoutGroup>();
-        footerLayout.padding = new RectOffset(14, 14, 5, 5);
+        footerLayout.padding = new RectOffset(14, 14, 12, 12);
         footerLayout.spacing = 9f;
         footerLayout.childControlHeight = true;
         footerLayout.childControlWidth = true;
-        footerLayout.childForceExpandHeight = true;
+        footerLayout.childForceExpandHeight = false;
         footerLayout.childForceExpandWidth = false;
-        hintText = AddTextBlock(footer.transform, "", 14, TextAnchor.MiddleCenter, PaleGold, 34f, 1f);
+        hintText = AddTextBlock(footer.transform, "", 14, TextAnchor.MiddleCenter, PaleGold, ButtonHeight, 1f);
 
         var footerButtons = CreateLayoutObject("FooterButtons", footer.transform);
         var footerButtonsElement = footerButtons.AddComponent<LayoutElement>();
@@ -366,7 +369,7 @@ public static class SolarMemoryStarterDeckRuntime
         footerButtonsLayout.childControlWidth = true;
         footerButtonsLayout.childControlHeight = true;
         footerButtonsLayout.childForceExpandWidth = false;
-        footerButtonsLayout.childForceExpandHeight = true;
+        footerButtonsLayout.childForceExpandHeight = false;
 
         CreateButton(footerButtons.transform, "\u81ea\u52a8\u586b\u5145", new Vector2(MainButtonWidth, ButtonHeight), () =>
         {
@@ -579,7 +582,7 @@ public static class SolarMemoryStarterDeckRuntime
         element.preferredHeight = 32f;
         var image = ApplyInlineButtonImage(go);
         var button = go.AddComponent<Button>();
-        button.targetGraphic = image;
+        AuraUiButtonFeedback.Apply(button, image, PaleGold);
         button.onClick.AddListener(() => action());
         AddTextFill(go.transform, label, 14, TextAnchor.MiddleCenter, PaleGold);
         return button;
@@ -596,7 +599,7 @@ public static class SolarMemoryStarterDeckRuntime
         element.preferredHeight = size.y;
         var image = ApplyButtonImage(go);
         var button = go.AddComponent<Button>();
-        button.targetGraphic = image;
+        AuraUiButtonFeedback.Apply(button, image, PaleGold);
         button.onClick.AddListener(() => action());
         AddTextFill(go.transform, label, 14, TextAnchor.MiddleCenter, PaleGold);
         return button;

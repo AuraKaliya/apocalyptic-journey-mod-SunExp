@@ -8,6 +8,7 @@ namespace SunExp.Dll.GameApi;
 
 public static class StatusApi
 {
+    private const string NativeHealDamageType = "Heal";
     private const string NativeRebirthBuff = "buff_rebirth";
 
     public static bool HasNativeResurrectionAvailable(IStatusManager? status)
@@ -29,6 +30,35 @@ public static class StatusApi
     public static int Defence(IStatusManager? status)
     {
         return Math.Max(0, status?.Defend ?? ReadInt(status, "Defend"));
+    }
+
+    public static bool IsAlive(IStatusManager? status)
+    {
+        return status != null && status.CurHp > 0 && status.state != IStatusManager.State.Dead;
+    }
+
+    public static bool TryHeal(IStatusManager? target, int amount)
+    {
+        if (!IsAlive(target) || amount <= 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            target!.Heal(amount, NativeHealDamageType);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[StatusApi] native heal failed: target="
+                + (target!.InstanceId ?? "")
+                + ", amount="
+                + amount
+                + ", error="
+                + ex.Message);
+            return false;
+        }
     }
 
     public static float DynamicFloat(IStatusManager? status, string key, float fallback = 0f)
@@ -143,11 +173,6 @@ public static class StatusApi
             SunExpLog.Error("Star Clay Doll manual resurrection failed", ex);
             return false;
         }
-    }
-
-    private static bool IsAlive(IStatusManager status)
-    {
-        return status.CurHp > 0 && status.state != IStatusManager.State.Dead;
     }
 
     private static void SyncPlayerRoleTable(IStatusManager status, int nextMax)

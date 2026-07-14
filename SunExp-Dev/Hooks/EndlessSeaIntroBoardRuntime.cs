@@ -385,17 +385,13 @@ public static class EndlessSeaIntroBoardRuntime
         var panel = CreateLayoutObject("Theme_" + profile.Id, parent);
         var image = SunExpUiBuilder.ApplyLabelImage(panel, SunExpUiSprites.Label("[EndlessSeaIntro]"), DeckTint, true);
         var button = panel.AddComponent<Button>();
-        button.targetGraphic = image;
-        button.colors = new ColorBlock
-        {
-            normalColor = Color.white,
-            highlightedColor = DeckHoverTint,
-            pressedColor = DeckPressedTint,
-            selectedColor = DeckHoverTint,
-            disabledColor = new Color(0.45f, 0.45f, 0.45f, 0.7f),
-            colorMultiplier = 1f,
-            fadeDuration = 0.1f
-        };
+        AuraUiButtonFeedback.Apply(
+            button,
+            image,
+            Color.white,
+            DeckHoverTint,
+            DeckPressedTint,
+            new Color(0.45f, 0.45f, 0.45f, 0.7f));
         button.onClick.AddListener(() =>
         {
             MarkSelectedTheme(panel);

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraUi.Shared;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
 using UnityEngine;
@@ -166,7 +167,7 @@ public static class EndlessAbyssShockPanel
         optionImages[id] = images.TintTarget;
 
         var button = go.AddComponent<Button>();
-        button.targetGraphic = images.ButtonTarget;
+        AuraUiButtonFeedback.Apply(button, images.ButtonTarget, Gold);
         button.onClick.AddListener(() => ToggleOption(id));
     }
 

@@ -347,8 +347,22 @@ internal static class AuraToolsDamageMeterUi
             AuraToolsUi.Accent,
             30f,
             1f);
+        var headerActions = CreateLayout("HeaderActions", header.transform);
+        var headerActionsElement = headerActions.AddComponent<LayoutElement>();
+        headerActionsElement.minWidth = 146f;
+        headerActionsElement.preferredWidth = 146f;
+        headerActionsElement.minHeight = 30f;
+        headerActionsElement.preferredHeight = 30f;
+        headerActionsElement.flexibleWidth = 0f;
+        var headerActionsLayout = headerActions.AddComponent<HorizontalLayoutGroup>();
+        headerActionsLayout.spacing = AuraToolsUi.Theme.Metrics.SmallSpacing;
+        headerActionsLayout.childControlWidth = true;
+        headerActionsLayout.childControlHeight = true;
+        headerActionsLayout.childForceExpandWidth = false;
+        headerActionsLayout.childForceExpandHeight = true;
+
         historyButton = AddButton(
-            header.transform,
+            headerActions.transform,
             "查看历史",
             () => ShowHistory(
                 AuraToolsDamageMeterRuntime.History,
@@ -356,7 +370,7 @@ internal static class AuraToolsDamageMeterUi
             82f,
             30f);
         historyButton.interactable = false;
-        AddButton(header.transform, "收起", () => AuraToolsDamageMeterRuntime.SetVisible(false), 58f, 30f);
+        AddButton(headerActions.transform, "收起", () => AuraToolsDamageMeterRuntime.SetVisible(false), 58f, 30f);
 
         columns = CreateLayout("Columns", panel.transform);
         SetHeight(columns, 22f);
@@ -1230,7 +1244,7 @@ internal static class AuraToolsDamageMeterUi
         element.preferredHeight = height;
         var image = ApplyButtonImage(go, new Color(0.16f, 0.13f, 0.21f, 0.98f));
         var button = go.AddComponent<Button>();
-        button.targetGraphic = image;
+        AuraUiButtonFeedback.Apply(button, image, AuraToolsUi.Accent);
         button.onClick.AddListener(() => action());
         var text = AddFillText(go.transform, label, 13, TextAnchor.MiddleCenter, AuraToolsUi.Text);
         text.rectTransform.offsetMin = Vector2.zero;

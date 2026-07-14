@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using AuraUi.Shared;
 using System.Linq;
 using Data.Save;
 using SunExp.Dll.Infrastructure;
@@ -181,7 +182,7 @@ public static class EndlessAbyssMilestoneRewardPanel
             enabled ? SoftText : new Color(0.58f, 0.58f, 0.58f));
 
         var button = go.AddComponent<Button>();
-        button.targetGraphic = images.ButtonTarget;
+        AuraUiButtonFeedback.Apply(button, images.ButtonTarget, Gold);
         button.interactable = enabled;
         button.onClick.AddListener(() => RunAction(action, "RewardCard:" + title));
     }

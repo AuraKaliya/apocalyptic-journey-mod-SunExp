@@ -8,7 +8,21 @@ public static class AuraToolsOperationTelemetry
 {
     public static IDisposable Track(string operation, double slowThresholdMs = 50d)
     {
+        if (!AuraToolsPerformanceSettings.DiagnosticsEnabled)
+        {
+            return NoOpScope.Instance;
+        }
+
         return new OperationScope(operation ?? "", Math.Max(1d, slowThresholdMs));
+    }
+
+    private sealed class NoOpScope : IDisposable
+    {
+        public static readonly NoOpScope Instance = new();
+
+        public void Dispose()
+        {
+        }
     }
 
     private sealed class OperationScope : IDisposable

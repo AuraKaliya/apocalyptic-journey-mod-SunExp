@@ -224,7 +224,7 @@ void TestDamageMeterSettingsNormalization()
     var settings = new DamageMeterSettings
     {
         FriendlyOnly = true,
-        ShowPanelByDefault = false,
+        ShowPanelByDefault = true,
         IncludeUnknownTeam = true,
         CountShieldLoss = false,
         MaxRows = 12,
@@ -236,7 +236,7 @@ void TestDamageMeterSettingsNormalization()
     };
 
     settings.Normalize();
-    Assert(settings.ShowPanelByDefault, "DPS panel is always enabled by default");
+    Assert(!settings.ShowPanelByDefault, "DPS panel is always collapsed by default");
     Assert(!settings.IncludeUnknownTeam, "friendly-only DPS excludes unknown-team damage");
     Assert(settings.CountShieldLoss, "shield damage display is always enabled");
     Assert(settings.MaxRows == 6, "DPS row count uses the fixed default");
@@ -268,7 +268,8 @@ void TestLoggingSettingsNormalization()
 {
     var defaults = new AuraToolsLoggingSettings();
     defaults.Normalize();
-    Assert(defaults.SchemaVersion == 3, "logging settings use the low-overhead schema");
+    Assert(defaults.SchemaVersion == 4, "logging settings use the opt-in performance-diagnostics schema");
+    Assert(!defaults.PerformanceDiagnostics, "performance diagnostics default to disabled");
     Assert(defaults.MinimumLevel == LoggingLevelNames.Info, "logging defaults keep AuraTools lifecycle logs visible");
     Assert(!defaults.MirrorUnityLog && !defaults.MirrorCommandsLog, "logging defaults do not mirror high-volume logs");
     Assert(defaults.EnabledSources.SequenceEqual(new[] { "AuraTools" }), "logging defaults to the AuraTools source only");
@@ -288,7 +289,7 @@ void TestLoggingSettingsNormalization()
         MaxQueueLength = 4096
     };
     legacy.Normalize();
-    Assert(legacy.SchemaVersion == 3, "legacy logging settings migrate schema");
+    Assert(legacy.SchemaVersion == 4, "legacy logging settings migrate schema");
     Assert(legacy.MinimumLevel == LoggingLevelNames.Info
            && !legacy.MirrorUnityLog
            && !legacy.MirrorCommandsLog
@@ -306,7 +307,7 @@ void TestLoggingSettingsNormalization()
         MirrorCommandsLog = true
     };
     legacyInfoMirror.Normalize();
-    Assert(legacyInfoMirror.SchemaVersion == 3
+    Assert(legacyInfoMirror.SchemaVersion == 4
            && legacyInfoMirror.MinimumLevel == LoggingLevelNames.Info
            && !legacyInfoMirror.MirrorUnityLog
            && !legacyInfoMirror.MirrorCommandsLog
@@ -325,7 +326,7 @@ void TestLoggingSettingsNormalization()
         MaxQueueLength = 1024
     };
     warningOnly.Normalize();
-    Assert(warningOnly.SchemaVersion == 3
+    Assert(warningOnly.SchemaVersion == 4
            && warningOnly.MinimumLevel == LoggingLevelNames.Info
            && !warningOnly.MirrorUnityLog
            && !warningOnly.MirrorCommandsLog,
@@ -333,7 +334,8 @@ void TestLoggingSettingsNormalization()
 
     var custom = new AuraToolsLoggingSettings
     {
-        SchemaVersion = 3,
+        SchemaVersion = 4,
+        PerformanceDiagnostics = true,
         MinimumLevel = LoggingLevelNames.Debug,
         MirrorUnityLog = true,
         MirrorCommandsLog = false,
@@ -343,13 +345,14 @@ void TestLoggingSettingsNormalization()
         MaxQueueLength = 2048
     };
     custom.Normalize();
-    Assert(custom.MinimumLevel == LoggingLevelNames.Debug
+    Assert(custom.PerformanceDiagnostics
+           && custom.MinimumLevel == LoggingLevelNames.Debug
            && custom.MirrorUnityLog
            && !custom.MirrorCommandsLog
            && custom.EnabledSources.SequenceEqual(new[] { "AuraTools", "Unity" })
            && custom.StackTraceMode == LoggingStackTraceModes.All
            && custom.MaxQueueLength == 2048,
-        "schema-v3 custom logging choices are preserved");
+        "schema-v4 custom logging and diagnostics choices are preserved");
 }
 
 void TestDamageSettlementCgSettingsAndLayout()
@@ -613,8 +616,18 @@ void TestRuntimeArchitectureGuards()
 
     var damageMeterCounters = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/DamageMeterPerformanceCounters.cs");
     Assert(damageMeterCounters.Contains("[DamageMeter:perf]", StringComparison.Ordinal)
-           && damageMeterCounters.Contains("LogIntervalMs = 10000", StringComparison.Ordinal),
-        "damage meter performance counters must aggregate before logging");
+           && damageMeterCounters.Contains("LogIntervalMs = 10000", StringComparison.Ordinal)
+           && damageMeterCounters.Contains("AuraToolsPerformanceSettings.DiagnosticsEnabled", StringComparison.Ordinal),
+        "damage meter performance counters must aggregate only while diagnostics are enabled");
+
+    var performanceSettings = ReadRepoText("AuraToolsExp-Dev/Infrastructure/AuraToolsPerformanceSettings.cs");
+    var auraToolsLog = ReadRepoText("AuraToolsExp-Dev/Infrastructure/AuraToolsLog.cs");
+    var cardUiBenchmark = ReadRepoText("AuraToolsExp-Dev/Features/Diagnostics/AuraToolsCardUiBenchmarkRuntime.cs");
+    Assert(performanceSettings.Contains("PerformanceDiagnostics", StringComparison.Ordinal)
+           && auraToolsLog.Contains("public static void Performance", StringComparison.Ordinal)
+           && cardUiBenchmark.Contains("if (!AuraToolsPerformanceSettings.DiagnosticsEnabled)", StringComparison.Ordinal)
+           && damageMeterRuntime.Contains("if (AuraToolsPerformanceSettings.DiagnosticsEnabled)", StringComparison.Ordinal),
+        "AuraTools pure benchmark and damage-text diagnostic hooks must be opt-in and use a dedicated visible log channel");
 
     var damageMeterFightIndex = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/Resolution/DamageMeterFightIndex.cs");
     var damageMeterResolvers = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/Resolution/DamageMeterResolvers.cs");
@@ -696,6 +709,9 @@ void TestRuntimeArchitectureGuards()
            && damageMeterUi.Contains("ShowCurrentDetails", StringComparison.Ordinal)
            && !damageMeterUi.Contains("details.onClick.AddListener(()", StringComparison.Ordinal),
         "damage meter UI rows must refresh by diff and bind click listeners once");
+    Assert(damageMeterRuntime.Contains("Visible = AuraToolsConfigService.MatchExperience.DamageMeter.ShowPanelByDefault", StringComparison.Ordinal)
+           && damageMeterUi.Contains("var panelVisible = available && AuraToolsDamageMeterRuntime.Visible", StringComparison.Ordinal),
+        "damage meter availability must preserve the normalized collapsed-by-default presentation state");
 
     var damageRunLedger = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/Model/DamageRunLedger.cs");
     Assert(damageRunLedger.Contains("grandTotalCacheVersion", StringComparison.Ordinal)
@@ -745,15 +761,17 @@ void TestRuntimeArchitectureGuards()
         "starter deck must not skip the whole feature for multiplayer world-simulation runs");
 
     var matchSettings = ReadRepoText("AuraToolsExp/Config/MatchExperienceSettings.json");
-    Assert(matchSettings.Contains("\"loadHistoryOnStartup\": false", StringComparison.Ordinal)
+    Assert(matchSettings.Contains("\"showPanelByDefault\": false", StringComparison.Ordinal)
+           && matchSettings.Contains("\"loadHistoryOnStartup\": false", StringComparison.Ordinal)
            && matchSettings.Contains("\"captureTeamAvatars\": false", StringComparison.Ordinal)
            && matchSettings.Contains("\"uiRefreshIntervalMs\": 1000", StringComparison.Ordinal)
            && matchSettings.Contains("\"submitBatchIntervalMs\": 250", StringComparison.Ordinal)
            && matchSettings.Contains("\"maxEventsPerBatch\": 24", StringComparison.Ordinal),
-        "packaged damage meter config defaults to lazy history, no hot-path avatar capture, throttled UI, and batched networking");
+        "packaged damage meter config defaults to a collapsed panel, lazy history, no hot-path avatar capture, throttled UI, and batched networking");
 
     var loggingSettings = ReadRepoText("AuraToolsExp/Config/LoggingSettings.json");
     Assert(loggingSettings.Contains("\"minimumLevel\": \"Info\"", StringComparison.Ordinal)
+           && loggingSettings.Contains("\"performanceDiagnostics\": false", StringComparison.Ordinal)
            && loggingSettings.Contains("\"mirrorUnityLog\": false", StringComparison.Ordinal)
            && loggingSettings.Contains("\"mirrorCommandsLog\": false", StringComparison.Ordinal),
         "packaged logging config keeps AuraTools lifecycle logs visible without high-volume mirrors");

@@ -57,11 +57,11 @@ public static class ProjectionRuntime
         SunExpHookRegistry.After(config, target, action, "Projection");
     }
 
-    internal static void ClearBattle(string source)
+    internal static void ClearBattle(string source, bool sweepVisualOrphans = true)
     {
-        RunCleanupStep("TurnCoordinator", source, () => ProjectionTurnCoordinator.ClearBattle(source));
+        RunCleanupStep("TurnCoordinator", source, () => ProjectionTurnCoordinator.ClearBattle(source, sweepVisualOrphans));
         RunCleanupStep("StateStore", source, () => ProjectionActivationService.ClearBattle(source));
-        RunCleanupStep("VisualProxies", source, () => ProjectionAttachmentPresenter.ClearAll(source));
+        RunCleanupStep("VisualProxies", source, () => ProjectionAttachmentPresenter.ClearAll(source, sweepVisualOrphans));
         RunCleanupStep("RoleSelection", source, () => ProjectionUiApi.CloseRoleSelection(source));
         RunCleanupStep("NetworkDedupe", source, ProjectionSummonService.ResetBattleSynchronization);
         RunCleanupStep("UseGate", source, ResetProjectionUseGate);

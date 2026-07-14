@@ -154,8 +154,11 @@ public static class AuraToolsDamageMeterRuntime
         RegisterBefore("StatusManager.Hit", BeforeHit);
         RegisterAfter("StatusManager.Hit", AfterHit);
         RegisterAfter("DamageText.Create", AfterDamageTextCreate);
-        RegisterAfter("DamageText.InternalExecute", AfterDamageTextInternalExecute);
-        RegisterAfter("FightUI.EnqueueDamageText", AfterFightUiEnqueueDamageText);
+        if (AuraToolsPerformanceSettings.DiagnosticsEnabled)
+        {
+            RegisterAfter("DamageText.InternalExecute", AfterDamageTextInternalExecute);
+            RegisterAfter("FightUI.EnqueueDamageText", AfterFightUiEnqueueDamageText);
+        }
         RegisterBefore("ScriptExecutor.PureChangeHp", BeforePureChangeHp);
         RegisterAfter("ScriptExecutor.PureChangeHp", AfterPureChangeHp);
         RegisterBefore("StatusManager.set_CurHp", BeforeSetCurHp);

@@ -259,7 +259,7 @@ public static class SunExpUiComponents
         image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
         image.color = image.sprite != null ? Color.white : fallback;
         var button = go.AddComponent<Button>();
-        button.targetGraphic = image;
+        AuraUiButtonFeedback.Apply(button, image, Theme.Accent);
         button.onClick.AddListener(() => action());
         AddTextFill(go.transform, label, fontSize, TextAnchor.MiddleCenter, textColor);
         return button;

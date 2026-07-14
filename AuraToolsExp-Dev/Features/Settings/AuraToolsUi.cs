@@ -119,6 +119,33 @@ internal static class AuraToolsUi
         return element;
     }
 
+    public static bool SetActiveIfChanged(GameObject value, bool active)
+    {
+        if (value.activeSelf == active)
+        {
+            return false;
+        }
+
+        value.SetActive(active);
+        return true;
+    }
+
+    public static void SetFoldoutExpanded(GameObject content, bool expanded, Transform? layoutRoot = null)
+    {
+        SetActiveIfChanged(content, expanded);
+
+        if (content.transform.parent is RectTransform parentRect)
+        {
+            LayoutRebuilder.MarkLayoutForRebuild(parentRect);
+        }
+
+        if (layoutRoot is RectTransform layoutRect
+            && !ReferenceEquals(layoutRect, content.transform.parent))
+        {
+            LayoutRebuilder.MarkLayoutForRebuild(layoutRect);
+        }
+    }
+
     public static Text AddText(Transform parent, string value, int fontSize, TextAnchor anchor, Color color, float preferredHeight = TextMinHeight, float flexibleWidth = 0f, float preferredWidth = 0f)
     {
         var go = CreateLayout("Text", parent);
@@ -161,7 +188,7 @@ internal static class AuraToolsUi
         element.flexibleHeight = 0f;
         var image = AddButtonImage(go, new Color(0.16f, 0.13f, 0.22f, 0.98f));
         var button = go.AddComponent<Button>();
-        button.targetGraphic = image;
+        AuraUiButtonFeedback.Apply(button, image, Accent);
         button.onClick.AddListener(() => action());
         AddFillText(go.transform, label, ButtonFontSize, TextAnchor.MiddleCenter, Text);
         return button;
@@ -259,7 +286,7 @@ internal static class AuraToolsUi
         caption.text = normalizedLabels[currentIndex];
 
         var button = root.AddComponent<Button>();
-        button.targetGraphic = image;
+        AuraUiButtonFeedback.Apply(button, image, Accent);
         button.onClick.AddListener(() =>
         {
             ShowSelectPopup(root, normalizedLabels, currentIndex, index =>
@@ -453,7 +480,7 @@ internal static class AuraToolsUi
             SetFixedHeight(row, rowHeight);
             var image = AddImage(row, index == selectedIndex ? Header : Row);
             var button = row.AddComponent<Button>();
-            button.targetGraphic = image;
+            AuraUiButtonFeedback.Apply(button, image, Accent);
             button.onClick.AddListener(() =>
             {
                 selected(index);

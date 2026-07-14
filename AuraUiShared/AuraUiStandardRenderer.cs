@@ -192,12 +192,7 @@ public sealed class AuraUiContext
         image.type = image.sprite == null ? Image.Type.Simple : Image.Type.Sliced;
 
         var button = root.AddComponent<Button>();
-        button.targetGraphic = image;
-        var colors = button.colors;
-        colors.normalColor = Color.white;
-        colors.highlightedColor = Theme.ControlHighlighted;
-        colors.pressedColor = Theme.Accent;
-        button.colors = colors;
+        AuraUiButtonFeedback.Apply(button, image, Theme);
         if (onClick != null)
         {
             button.onClick.AddListener(onClick);

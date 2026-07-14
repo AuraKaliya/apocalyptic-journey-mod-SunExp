@@ -251,6 +251,20 @@ public static class FieldApi
         return changed;
     }
 
+    public static bool CommitOpeningField(SunExpFieldId field, int stacks, string source)
+    {
+        if (!IsAuthoritativeFieldWriter() || field == SunExpFieldId.None || stacks <= 0)
+        {
+            return false;
+        }
+
+        return SetSharedFieldStateAuthoritative(
+            field,
+            stacks,
+            string.IsNullOrWhiteSpace(source) ? "FieldApi.CommitOpeningField" : source,
+            broadcast: true);
+    }
+
     public static bool IsSharedFieldActive(string fieldId)
     {
         return IsSharedFieldActive(ParseFieldId(fieldId));

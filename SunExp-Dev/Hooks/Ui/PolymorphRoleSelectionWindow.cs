@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraUi.Shared;
 using SunExp.Dll.Hooks;
 using SunExp.Dll.Hooks.Visual;
 using SunExp.Dll.Infrastructure;
@@ -230,7 +231,7 @@ public static class PolymorphRoleSelectionWindow
         var nameText = AddTextBlock(root.transform, "", 15, TextAnchor.MiddleCenter, TextColor, 32f);
         var lockText = AddTextBlock(root.transform, "", 11, TextAnchor.MiddleCenter, Gold, 18f);
         var button = root.AddComponent<Button>();
-        button.targetGraphic = background;
+        AuraUiButtonFeedback.Apply(button, background, Gold);
 
         var view = root.AddComponent<RoleCardView>();
         view.Initialize(image, nameText, lockText, button);
@@ -250,7 +251,7 @@ public static class PolymorphRoleSelectionWindow
         image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
         image.color = image.sprite != null ? Color.white : new Color(0.08f, 0.075f, 0.12f, 0.98f);
         var button = go.AddComponent<Button>();
-        button.targetGraphic = image;
+        AuraUiButtonFeedback.Apply(button, image, Gold);
         button.onClick.AddListener(() => action());
         AddTextFill(go.transform, label, 14, TextAnchor.MiddleCenter, TextColor);
         return button;

@@ -107,7 +107,7 @@ public static class ProjectionTurnCoordinator
         }
     }
 
-    public static void ClearBattle(string source)
+    public static void ClearBattle(string source, bool sweepStaleAnchors = true)
     {
         lock (SyncRoot)
         {
@@ -127,7 +127,10 @@ public static class ProjectionTurnCoordinator
             anchor = null;
         }
 
-        CleanupStaleAnchors();
+        if (sweepStaleAnchors)
+        {
+            CleanupStaleAnchors();
+        }
 
         SunExpPerformanceCounters.Record("ProjectionTurnCoordinator.Cleared");
         SunExpLog.Debug("[ProjectionTurn] coordinator cleared from " + source + ".");

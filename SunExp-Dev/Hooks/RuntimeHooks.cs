@@ -24,7 +24,10 @@ public static class RuntimeHooks
         RunHookStep("card presentation bridge", SunExpCardPresentationLifecycleBridge.Initialize);
         RunHookStep("card presentation invalidation", () => SunExpCardPresentationInvalidationRuntime.Initialize(modConfig));
         RunHookStep("battle reward card presentation", () => BattleRewardCardPresentationRuntime.Initialize(modConfig));
-        RunHookStep("combat card UI workload", () => SunExpCombatCardUiWorkloadRuntime.Initialize(modConfig));
+        if (SunExpPerformanceSettings.CountersEnabled)
+        {
+            RunHookStep("combat card UI workload", () => SunExpCombatCardUiWorkloadRuntime.Initialize(modConfig));
+        }
         RunHookStep("combat card view pool", () => Ui.SunExpCombatCardViewPool.Initialize(modConfig));
         RunHookStep("status buff handlers", () =>
         {

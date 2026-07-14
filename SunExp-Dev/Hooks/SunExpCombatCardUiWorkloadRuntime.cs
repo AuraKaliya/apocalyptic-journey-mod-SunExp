@@ -15,6 +15,12 @@ public static class SunExpCombatCardUiWorkloadRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
+        if (!SunExpPerformanceSettings.CountersEnabled)
+        {
+            SunExpLog.Info("Combat card UI workload diagnostics disabled");
+            return;
+        }
+
         RegisterMeasured(modConfig, SunExpHookTargets.FightUiCreateCardItem);
         RegisterMeasured(modConfig, SunExpHookTargets.FightUiCreateCardItemInternal);
         RegisterMeasured(modConfig, SunExpHookTargets.FightUiUpdateCardMsg);

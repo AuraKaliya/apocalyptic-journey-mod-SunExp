@@ -42,7 +42,7 @@
   "damageMeter": {
     "enabled": false,
     "hotkey": "F8",
-    "showPanelByDefault": true,
+    "showPanelByDefault": false,
     "friendlyOnly": false,
     "includeUnknownTeam": true,
     "countShieldLoss": true,

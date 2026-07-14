@@ -14,6 +14,7 @@ public static class CompanionSceneLifecycleRuntime
     private static readonly object CleanupGate = new();
     private static bool initialized;
     private static bool cleanupInProgress;
+    private static bool cleanupPending = true;
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -88,6 +89,7 @@ public static class CompanionSceneLifecycleRuntime
 
     internal static void CleanupAfterSceneBoundary(string source)
     {
+        var hasTrackedScenes = CompanionSceneApi.HasTrackedScenes();
         lock (CleanupGate)
         {
             if (cleanupInProgress)
@@ -95,35 +97,55 @@ public static class CompanionSceneLifecycleRuntime
                 return;
             }
 
+            if (!cleanupPending && !hasTrackedScenes)
+            {
+                SunExpPerformanceCounters.Record("CompanionScene.CleanupDeduplicated");
+                SunExpLog.Debug("[CompanionScene] duplicate cleanup boundary skipped: source=" + source);
+                return;
+            }
+
             cleanupInProgress = true;
         }
 
+        var cleanupStarted = SunExpPerformanceCounters.Timestamp();
         try
         {
-            var artifacts = CaptureArtifactSnapshot(source);
             var suppression = default(CompanionPresentationSuppression);
-            RunCleanupStep(
+            var cleanupSucceeded = RunCleanupStep(
                 "SuppressPresentation",
                 source,
                 () => suppression = CompanionPresentationCleanup.SuppressAll(source));
-            RunCleanupStep("InvalidateBattleEpoch", source, CompanionAuthorityService.InvalidateBattleEpoch);
-            RunCleanupStep("Projection", source, () => ProjectionRuntime.ClearBattle(source));
-            RunCleanupStep("Spirit", source, () => SpiritRuntime.ClearBattle(source));
-            RunCleanupStep("CompanionState", source, CompanionBattleStateStore.Clear);
-            RunCleanupStep("OrphanedObjects", source, DestroyOrphanedCompanionObjects);
-            RunCleanupStep("ProjectionProxies", source, () => ProjectionAttachmentPresenter.ClearAll(source));
-            RunCleanupStep("SpiritProxies", source, () => SpiritAttachmentPresenter.ClearAll(source));
+            cleanupSucceeded &= RunCleanupStep("InvalidateBattleEpoch", source, CompanionAuthorityService.InvalidateBattleEpoch);
+            cleanupSucceeded &= RunCleanupStep("Projection", source, () => ProjectionRuntime.ClearBattle(source, sweepVisualOrphans: false));
+            cleanupSucceeded &= RunCleanupStep("Spirit", source, () => SpiritRuntime.ClearBattle(source, sweepVisualOrphans: false));
+            cleanupSucceeded &= RunCleanupStep("CompanionState", source, CompanionBattleStateStore.Clear);
+
+            var needsOrphanSweep = !suppression.Available || suppression.Total > 0 || !cleanupSucceeded;
+            if (needsOrphanSweep)
+            {
+                cleanupSucceeded &= RunCleanupStep("OrphanedObjects", source, DestroyOrphanedCompanionObjects);
+                cleanupSucceeded &= RunCleanupStep("ProjectionProxies", source, () => ProjectionAttachmentPresenter.ClearAll(source));
+                cleanupSucceeded &= RunCleanupStep("SpiritProxies", source, () => SpiritAttachmentPresenter.ClearAll(source));
+            }
+
             SunExpPerformanceCounters.Record("CompanionScene.Cleared");
-            LogCleanupSummary(source, artifacts, suppression);
-            SchedulePostCleanupAudit(source);
+            LogCleanupSummary(source, suppression, cleanupSucceeded, needsOrphanSweep);
+            SchedulePostCleanupAudit(source, suppression.Total > 0 || !cleanupSucceeded);
         }
         finally
         {
             CompanionSceneApi.ClearTrackedScenes(source);
             lock (CleanupGate)
             {
+                cleanupPending = false;
                 cleanupInProgress = false;
             }
+
+            SunExpPerformanceCounters.RecordHotspot(
+                "CompanionScene.Cleanup",
+                cleanupStarted,
+                "source=" + source,
+                slowWarningMilliseconds: 8.0);
         }
     }
 
@@ -197,26 +219,29 @@ public static class CompanionSceneLifecycleRuntime
 
     private static void LogCleanupSummary(
         string source,
-        CompanionArtifactSnapshot artifacts,
-        CompanionPresentationSuppression suppression)
+        CompanionPresentationSuppression suppression,
+        bool cleanupSucceeded,
+        bool orphanSweep)
     {
-        var message = artifacts.Available
+        var message = suppression.Available
             ? "[CompanionScene] cleanup boundary processed: source=" + source
-              + ", projectionRoots=" + artifacts.ProjectionRoots
-              + ", spiritRoots=" + artifacts.SpiritRoots
-              + ", turnAnchors=" + artifacts.TurnAnchors
-              + ", projectionProxies=" + artifacts.ProjectionProxies
-              + ", spiritProxies=" + artifacts.SpiritProxies
+              + ", projectionRoots=" + suppression.ProjectionRoots
+              + ", spiritRoots=" + suppression.SpiritRoots
+              + ", turnAnchors=" + suppression.TurnAnchors
+              + ", projectionProxies=" + suppression.ProjectionProxies
+              + ", spiritProxies=" + suppression.SpiritProxies
               + ", suppressedActorRoots=" + suppression.ActorRoots
               + ", suppressedProxyRoots=" + suppression.ProxyRoots
               + ", suppressedRenderers=" + suppression.Renderers
               + ", suppressedUi=" + suppression.UiObjects
+              + ", orphanSweep=" + orphanSweep
+              + ", success=" + cleanupSucceeded
             : "[CompanionScene] cleanup boundary processed: source=" + source
-              + ", artifactCounts=unavailable";
+              + ", artifactCounts=unavailable"
+              + ", orphanSweep=" + orphanSweep
+              + ", success=" + cleanupSucceeded;
 
-        if (!artifacts.Available
-            || artifacts.Total > 0
-            || source.StartsWith("GameEntryUI.", StringComparison.Ordinal))
+        if (!suppression.Available || suppression.Total > 0 || !cleanupSucceeded)
         {
             SunExpLog.InfoAlways(message);
             return;
@@ -225,9 +250,9 @@ public static class CompanionSceneLifecycleRuntime
         SunExpLog.Info(message);
     }
 
-    private static void SchedulePostCleanupAudit(string source)
+    private static void SchedulePostCleanupAudit(string source, bool required)
     {
-        if (!IsMenuExitBoundary(source))
+        if (!required || !IsMenuExitBoundary(source))
         {
             return;
         }
@@ -252,11 +277,24 @@ public static class CompanionSceneLifecycleRuntime
                 if (!remaining.Available || remaining.Total > 0)
                 {
                     SunExpLog.Warn(message);
+                    MarkCleanupPending();
+                    if (remaining.Available && remaining.Total > 0)
+                    {
+                        CleanupAfterSceneBoundary(source + ":post-audit-recovery");
+                    }
                     return;
                 }
 
                 SunExpLog.InfoAlways(message);
             });
+    }
+
+    private static void MarkCleanupPending()
+    {
+        lock (CleanupGate)
+        {
+            cleanupPending = true;
+        }
     }
 
     private static bool IsMenuExitBoundary(string source)
@@ -266,16 +304,18 @@ public static class CompanionSceneLifecycleRuntime
                || string.Equals(source, "GameEntryUI.Init", StringComparison.Ordinal);
     }
 
-    private static void RunCleanupStep(string step, string source, Action action)
+    private static bool RunCleanupStep(string step, string source, Action action)
     {
         try
         {
             action();
             SunExpPerformanceCounters.Record("CompanionScene.CleanupStep." + step);
+            return true;
         }
         catch (Exception ex)
         {
             SunExpLog.Error("Companion scene cleanup step failed: " + step + " @ " + source, ex);
+            return false;
         }
     }
 

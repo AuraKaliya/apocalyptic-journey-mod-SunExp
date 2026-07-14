@@ -10,6 +10,7 @@ using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.Settings;
 using AuraToolsExp.Dll.Infrastructure;
+using AuraUi.Shared;
 using UiRaycastSafetyShared;
 using UnityEngine;
 using UnityEngine.UI;
@@ -147,7 +148,7 @@ public static class AuraToolsModSyncRuntime
                 new Vector2(ButtonWidth, ButtonHeight));
             AuraToolsUi.AddButtonImage(buttonRoot, new Color(0.16f, 0.13f, 0.22f, 0.98f));
             var button = buttonRoot.AddComponent<Button>();
-            button.targetGraphic = buttonRoot.GetComponent<Image>();
+            AuraUiButtonFeedback.Apply(button, buttonRoot.GetComponent<Image>(), AuraToolsUi.Accent);
             button.onClick.AddListener(ShowOverlay);
             AuraToolsUi.AddFillText(buttonRoot.transform, "MOD配置", AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, AuraToolsUi.Text);
         }

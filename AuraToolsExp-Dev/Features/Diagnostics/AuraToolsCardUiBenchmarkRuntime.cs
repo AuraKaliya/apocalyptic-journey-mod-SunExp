@@ -22,10 +22,16 @@ public static class AuraToolsCardUiBenchmarkRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
+        if (!AuraToolsPerformanceSettings.DiagnosticsEnabled)
+        {
+            AuraToolsLog.Debug("[CardUiBenchmark] performance diagnostics disabled.");
+            return;
+        }
+
         Register(modConfig, "CardItem.DataUpdate");
         Register(modConfig, "AttackCardItem.DataUpdate");
         RegisterKeywordDisplay(modConfig);
-        AuraToolsLog.Debug("[CardUiBenchmark] slow-card incremental benchmark initialized.");
+        AuraToolsLog.Performance("[CardUiBenchmark] slow-card incremental benchmark initialized.");
     }
 
     private static void RegisterKeywordDisplay(ModConfig modConfig)
@@ -131,7 +137,7 @@ public static class AuraToolsCardUiBenchmarkRuntime
             ? iconValue ?? ""
             : "";
         var iconBytes = TryGetModFileLength(iconPath);
-        AuraToolsLog.Debug("[CardUiBenchmark] card="
+        AuraToolsLog.Performance("[CardUiBenchmark] card="
                            + id
                            + ", fullDataUpdateMs="
                            + fullMilliseconds.ToString("0.###")
@@ -190,7 +196,7 @@ public static class AuraToolsCardUiBenchmarkRuntime
         {
             var sprite = AuraToolsResourceCache.Load<Sprite>(iconPath, true);
             var texture = sprite?.texture;
-            AuraToolsLog.Debug("[CardUiBenchmark.IconDecodeProbe] card="
+            AuraToolsLog.Performance("[CardUiBenchmark.IconDecodeProbe] card="
                                + cardId
                                + ", iconDecodeMs="
                                + ElapsedMilliseconds(started).ToString("0.###")
@@ -205,7 +211,7 @@ public static class AuraToolsCardUiBenchmarkRuntime
         }
         catch (Exception ex)
         {
-            AuraToolsLog.Debug("[CardUiBenchmark.IconDecodeProbe] failed: card=" + cardId + ", error=" + ex.Message);
+            AuraToolsLog.Performance("[CardUiBenchmark.IconDecodeProbe] failed: card=" + cardId + ", error=" + ex.Message);
         }
     }
 

@@ -176,7 +176,8 @@ public static class FamiliarBlessingEffectRuntime
             "BattleRewardExtraChoice",
             "BurnTriggeredEmber",
             "BurnStackToEmber",
-            "EmberOffsetBurnTransfer"
+            "EmberOffsetBurnTransfer",
+            "CombatStartField"
         };
         return SelectedEffects()
             .Select(entry => entry.Effect.Kind ?? "")
@@ -195,6 +196,28 @@ public static class FamiliarBlessingEffectRuntime
     {
         var set = new HashSet<string>(kinds ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
         return SelectedEffects().Any(entry => set.Contains(entry.Effect.Kind ?? ""));
+    }
+
+    public static IReadOnlyList<FieldStartGrant> OpeningFieldGrants()
+    {
+        var grants = new List<FieldStartGrant>();
+        foreach (var entry in SelectedEffects("CombatStartField"))
+        {
+            var field = FieldEffectRegistry.FieldIdFromBuffId(entry.Effect.Value);
+            var amount = Math.Max(0, entry.Effect.Amount);
+            if (field == SunExpFieldId.None || amount <= 0)
+            {
+                continue;
+            }
+
+            grants.Add(new FieldStartGrant(
+                "blessing." + entry.Blessing.Id + "." + entry.Index,
+                field,
+                amount,
+                entry.Index));
+        }
+
+        return grants;
     }
 
     public static void ApplyBattleRewardExtraChoices(Witch.UI.Window.BattleRewardsUI? rewardUi)

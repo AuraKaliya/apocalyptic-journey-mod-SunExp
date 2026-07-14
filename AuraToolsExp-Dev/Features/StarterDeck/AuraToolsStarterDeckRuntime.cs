@@ -5,6 +5,7 @@ using AuraJourney.Shared;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
+using AuraUi.Shared;
 using Data.Save;
 using StarterDeckArbiter.Shared;
 using UnityEngine;
@@ -1568,7 +1569,9 @@ public static class AuraToolsStarterDeckEditor
         private readonly List<string> editingDeck = new();
         private readonly List<string> autoFillCandidates = new();
         private readonly List<StarterDeckCardPackGroup> candidateGroups = new();
+        private readonly Dictionary<string, CandidateGroupView> candidateGroupViews = new(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> expandedCandidateGroups = new(StringComparer.OrdinalIgnoreCase);
+        private readonly List<SelectedCardRowView> selectedRowViews = new();
         private readonly StarterDeckLocalProfileSettings profile;
         private readonly string editingRoleId;
         private Transform? candidateContent;
@@ -1607,7 +1610,7 @@ public static class AuraToolsStarterDeckEditor
 
             var candidatePanel = CreateColumn(body.transform, "按卡包选择", out _);
             candidateContent = candidatePanel;
-            RefreshCandidateGroups();
+            BuildCandidateGroups();
 
             var selectedPanel = CreateColumn(body.transform, "当前预设", out counterText);
             selectedContent = selectedPanel;
@@ -1663,60 +1666,103 @@ public static class AuraToolsStarterDeckEditor
             return Settings.AuraToolsUi.CreateScroll(column.transform, title);
         }
 
-        private void RefreshCandidateGroups()
+        private void BuildCandidateGroups()
         {
-            if (candidateContent == null)
+            if (candidateContent == null || candidateGroupViews.Count > 0)
             {
                 return;
             }
 
-            Settings.AuraToolsUi.ClearChildren(candidateContent);
             foreach (var group in candidateGroups)
             {
-                CreateCandidateGroup(candidateContent, group);
+                var view = CreateCandidateGroup(candidateContent, group);
+                candidateGroupViews[group.PackId] = view;
             }
         }
 
-        private void CreateCandidateGroup(Transform parent, StarterDeckCardPackGroup group)
+        private CandidateGroupView CreateCandidateGroup(Transform parent, StarterDeckCardPackGroup group)
         {
             var expanded = expandedCandidateGroups.Contains(group.PackId);
-            var header = Settings.AuraToolsUi.CreateLayout("Pack-" + group.PackId, parent);
+            var root = Settings.AuraToolsUi.CreateLayout("PackGroup-" + group.PackId, parent);
+            var rootLayout = root.AddComponent<VerticalLayoutGroup>();
+            rootLayout.spacing = 8f;
+            rootLayout.childControlWidth = true;
+            rootLayout.childControlHeight = true;
+            rootLayout.childForceExpandWidth = true;
+            rootLayout.childForceExpandHeight = false;
+
+            var header = Settings.AuraToolsUi.CreateLayout("Pack-" + group.PackId, root.transform);
             Settings.AuraToolsUi.SetFixedHeight(header, 34f);
             var image = Settings.AuraToolsUi.AddImage(header, Settings.AuraToolsUi.Header);
             var button = header.AddComponent<Button>();
-            button.targetGraphic = image;
+            AuraUiButtonFeedback.Apply(button, image, Settings.AuraToolsUi.Accent);
             button.onClick.AddListener(() => ToggleCandidateGroup(group.PackId));
             var layout = header.AddComponent<HorizontalLayoutGroup>();
             layout.padding = new RectOffset(10, 10, 2, 2);
             layout.childControlWidth = true;
             layout.childControlHeight = true;
             layout.childForceExpandHeight = false;
-            Settings.AuraToolsUi.AddText(header.transform, (expanded ? "\u25be " : "\u25b8 ") + group.DisplayName, Settings.AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, Settings.AuraToolsUi.Accent, Settings.AuraToolsUi.TextMinHeight, 1f);
+            var titleText = Settings.AuraToolsUi.AddText(header.transform, CandidateGroupTitle(group, expanded), Settings.AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, Settings.AuraToolsUi.Accent, Settings.AuraToolsUi.TextMinHeight, 1f);
             Settings.AuraToolsUi.AddText(header.transform, group.CardIds.Count.ToString(), Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleRight, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 0f, 52f);
 
-            if (!expanded)
+            var cardContent = Settings.AuraToolsUi.CreateLayout("PackCards-" + group.PackId, root.transform);
+            var cardLayout = cardContent.AddComponent<VerticalLayoutGroup>();
+            cardLayout.spacing = 8f;
+            cardLayout.childControlWidth = true;
+            cardLayout.childControlHeight = true;
+            cardLayout.childForceExpandWidth = true;
+            cardLayout.childForceExpandHeight = false;
+
+            var view = new CandidateGroupView(root, cardContent, titleText, group);
+            if (expanded)
             {
-                return;
+                EnsureCandidateRows(view);
             }
 
-            foreach (var cardId in group.CardIds)
-            {
-                CreateCandidateRow(parent, cardId);
-            }
+            Settings.AuraToolsUi.SetFoldoutExpanded(cardContent, expanded, root.transform);
+            return view;
         }
 
         private void ToggleCandidateGroup(string packId)
         {
-            if (expandedCandidateGroups.Contains(packId))
+            if (!candidateGroupViews.TryGetValue(packId, out var view))
             {
-                expandedCandidateGroups.Remove(packId);
+                return;
+            }
+
+            var expanded = !expandedCandidateGroups.Contains(packId);
+            if (expanded)
+            {
+                expandedCandidateGroups.Add(packId);
+                EnsureCandidateRows(view);
             }
             else
             {
-                expandedCandidateGroups.Add(packId);
+                expandedCandidateGroups.Remove(packId);
             }
 
-            RefreshCandidateGroups();
+            view.TitleText.text = CandidateGroupTitle(view.Group, expanded);
+            Settings.AuraToolsUi.SetFoldoutExpanded(view.CardContent, expanded, view.Root.transform);
+        }
+
+        private static string CandidateGroupTitle(StarterDeckCardPackGroup group, bool expanded)
+        {
+            return (expanded ? "\u25be " : "\u25b8 ") + group.DisplayName;
+        }
+
+        private void EnsureCandidateRows(CandidateGroupView view)
+        {
+            if (view.RowsBuilt)
+            {
+                return;
+            }
+
+            foreach (var cardId in view.Group.CardIds)
+            {
+                CreateCandidateRow(view.CardContent.transform, cardId);
+            }
+
+            view.RowsBuilt = true;
         }
 
         private void CreateCandidateRow(Transform parent, string cardId)
@@ -1746,24 +1792,21 @@ public static class AuraToolsStarterDeckEditor
                 return;
             }
 
-            Settings.AuraToolsUi.ClearChildren(selectedContent);
-            for (var i = 0; i < editingDeck.Count; i++)
+            while (selectedRowViews.Count < editingDeck.Count)
             {
-                var index = i;
-                var cardId = editingDeck[i];
-                var row = CreateRow(selectedContent, "Selected-" + index);
-                CreateCardIconCell(row.transform, cardId, (index + 1).ToString());
-                Settings.AuraToolsUi.AddText(row.transform, AuraToolsStarterDeckRuntime.CardDisplayNameWithSpecialMarker(cardId), Settings.AuraToolsUi.BodyFontSize, TextAnchor.MiddleCenter, Settings.AuraToolsUi.Text, Settings.AuraToolsUi.TextMinHeight, 1f);
-                Settings.AuraToolsUi.AddText(row.transform, AuraToolsStarterDeckRuntime.CardRarity(cardId), Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 0f, AuraToolsStarterDeckRuntime.CardRarityColumnWidth);
-                Settings.AuraToolsUi.AddText(row.transform, AuraToolsStarterDeckRuntime.CardCost(cardId), Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 0f, AuraToolsStarterDeckRuntime.CardCostColumnWidth);
-                Settings.AuraToolsUi.AddButton(row.transform, "移除", () =>
+                selectedRowViews.Add(CreateSelectedRow(selectedContent, selectedRowViews.Count));
+            }
+
+            for (var i = 0; i < selectedRowViews.Count; i++)
+            {
+                var view = selectedRowViews[i];
+                var visible = i < editingDeck.Count;
+                if (visible)
                 {
-                    if (index >= 0 && index < editingDeck.Count)
-                    {
-                        editingDeck.RemoveAt(index);
-                        RefreshSelected();
-                    }
-                }, 70f, 30f);
+                    BindSelectedRow(view, i, editingDeck[i]);
+                }
+
+                Settings.AuraToolsUi.SetActiveIfChanged(view.Root, visible);
             }
 
             var size = CurrentDeckSize();
@@ -1774,6 +1817,76 @@ public static class AuraToolsStarterDeckEditor
             }
 
             SetHint(editingDeck.Count == size ? "预设完整，可以保存。" : "需要配置满 " + size + " 张牌。");
+        }
+
+        private SelectedCardRowView CreateSelectedRow(Transform parent, int slot)
+        {
+            var row = CreateRow(parent, "SelectedSlot-" + slot);
+            var icon = CreateCardIconCellView(row.transform);
+            var nameText = Settings.AuraToolsUi.AddText(row.transform, "", Settings.AuraToolsUi.BodyFontSize, TextAnchor.MiddleCenter, Settings.AuraToolsUi.Text, Settings.AuraToolsUi.TextMinHeight, 1f);
+            var rarityText = Settings.AuraToolsUi.AddText(row.transform, "", Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 0f, AuraToolsStarterDeckRuntime.CardRarityColumnWidth);
+            var costText = Settings.AuraToolsUi.AddText(row.transform, "", Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 0f, AuraToolsStarterDeckRuntime.CardCostColumnWidth);
+            var view = new SelectedCardRowView(row, icon, nameText, rarityText, costText);
+            Settings.AuraToolsUi.AddButton(row.transform, "移除", () => RemoveSelectedRow(view), 70f, 30f);
+            return view;
+        }
+
+        private static void BindSelectedRow(SelectedCardRowView view, int index, string cardId)
+        {
+            view.Index = index;
+            view.Root.name = "Selected-" + index;
+            BindCardIconCell(view.Icon, cardId, (index + 1).ToString());
+            view.NameText.text = AuraToolsStarterDeckRuntime.CardDisplayNameWithSpecialMarker(cardId);
+            view.RarityText.text = AuraToolsStarterDeckRuntime.CardRarity(cardId);
+            view.CostText.text = AuraToolsStarterDeckRuntime.CardCost(cardId);
+        }
+
+        private void RemoveSelectedRow(SelectedCardRowView view)
+        {
+            var index = view.Index;
+            if (index < 0 || index >= editingDeck.Count)
+            {
+                return;
+            }
+
+            editingDeck.RemoveAt(index);
+            RefreshSelected();
+        }
+
+        private sealed class CandidateGroupView
+        {
+            public CandidateGroupView(GameObject root, GameObject cardContent, Text titleText, StarterDeckCardPackGroup group)
+            {
+                Root = root;
+                CardContent = cardContent;
+                TitleText = titleText;
+                Group = group;
+            }
+
+            public GameObject Root { get; }
+            public GameObject CardContent { get; }
+            public Text TitleText { get; }
+            public StarterDeckCardPackGroup Group { get; }
+            public bool RowsBuilt { get; set; }
+        }
+
+        private sealed class SelectedCardRowView
+        {
+            public SelectedCardRowView(GameObject root, CardIconCellView icon, Text nameText, Text rarityText, Text costText)
+            {
+                Root = root;
+                Icon = icon;
+                NameText = nameText;
+                RarityText = rarityText;
+                CostText = costText;
+            }
+
+            public GameObject Root { get; }
+            public CardIconCellView Icon { get; }
+            public Text NameText { get; }
+            public Text RarityText { get; }
+            public Text CostText { get; }
+            public int Index { get; set; } = -1;
         }
 
         private void Save()
@@ -1835,7 +1948,12 @@ public static class AuraToolsStarterDeckEditor
 
     private static void CreateCardIconCell(Transform parent, string cardId, string fallbackText)
     {
-        var sprite = AuraToolsStarterDeckRuntime.TryLoadCardIcon(cardId);
+        var view = CreateCardIconCellView(parent);
+        BindCardIconCell(view, cardId, fallbackText);
+    }
+
+    private static CardIconCellView CreateCardIconCellView(Transform parent)
+    {
         var cell = Settings.AuraToolsUi.CreateLayout("CardIcon", parent);
         var element = Settings.AuraToolsUi.EnsureLayoutElement(cell);
         element.minWidth = AuraToolsStarterDeckRuntime.CardImageColumnWidth;
@@ -1845,19 +1963,39 @@ public static class AuraToolsStarterDeckEditor
         element.flexibleWidth = 0f;
         element.flexibleHeight = 0f;
 
-        if (sprite == null)
-        {
-            Settings.AuraToolsUi.AddImage(cell, new Color(0.025f, 0.022f, 0.045f, 0.98f));
-            Settings.AuraToolsUi.AddFillText(cell.transform, fallbackText, Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, Settings.AuraToolsUi.Accent);
-            return;
-        }
-
+        var background = Settings.AuraToolsUi.AddImage(cell, new Color(0.025f, 0.022f, 0.045f, 0.98f));
         var icon = Settings.AuraToolsUi.CreateRect("Image", cell.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(AuraToolsStarterDeckRuntime.CardIconSize, AuraToolsStarterDeckRuntime.CardIconSize));
         var image = icon.AddComponent<Image>();
-        image.sprite = sprite;
         image.preserveAspect = true;
         image.raycastTarget = false;
         image.color = Color.white;
+        var fallback = Settings.AuraToolsUi.AddFillText(cell.transform, "", Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, Settings.AuraToolsUi.Accent);
+        return new CardIconCellView(background, image, fallback);
+    }
+
+    private static void BindCardIconCell(CardIconCellView view, string cardId, string fallbackText)
+    {
+        var sprite = AuraToolsStarterDeckRuntime.TryLoadCardIcon(cardId);
+        var hasIcon = sprite != null;
+        view.Background.enabled = !hasIcon;
+        view.Image.sprite = sprite;
+        view.Fallback.text = fallbackText;
+        Settings.AuraToolsUi.SetActiveIfChanged(view.Image.gameObject, hasIcon);
+        Settings.AuraToolsUi.SetActiveIfChanged(view.Fallback.gameObject, !hasIcon);
+    }
+
+    private sealed class CardIconCellView
+    {
+        public CardIconCellView(Image background, Image image, Text fallback)
+        {
+            Background = background;
+            Image = image;
+            Fallback = fallback;
+        }
+
+        public Image Background { get; }
+        public Image Image { get; }
+        public Text Fallback { get; }
     }
 
     private static GameObject CreateRow(Transform parent, string name)

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraUi.Shared;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
@@ -223,7 +224,7 @@ public static class FamiliarGrowthPanel
         AddTextBlock(row.transform, instance.Name + selected + "\nLv." + instance.Level + "  " + instance.InstanceId,
             13, TextAnchor.MiddleLeft, Pale, 46f, 1f);
         var button = row.AddComponent<Button>();
-        button.targetGraphic = row.GetComponent<Image>();
+        AuraUiButtonFeedback.Apply(button, row.GetComponent<Image>(), Pale);
         button.onClick.AddListener(() =>
         {
             focusedInstanceId = instance.InstanceId;
@@ -450,7 +451,7 @@ public static class FamiliarGrowthPanel
         image.color = image.sprite != null ? Color.white : new Color(0.08f, 0.07f, 0.16f, 0.96f);
 
         var button = go.AddComponent<Button>();
-        button.targetGraphic = image;
+        AuraUiButtonFeedback.Apply(button, image, Gold);
         button.onClick.AddListener(() =>
         {
             if (!editingName)
@@ -745,7 +746,7 @@ public static class FamiliarGrowthPanel
         }
 
         var button = go.AddComponent<Button>();
-        button.targetGraphic = image;
+        AuraUiButtonFeedback.Apply(button, image, Pale);
         button.interactable = interactable;
         button.onClick.AddListener(() => action());
         AddTextFill(go.transform, label, 13, TextAnchor.MiddleCenter, interactable ? Pale : Red);

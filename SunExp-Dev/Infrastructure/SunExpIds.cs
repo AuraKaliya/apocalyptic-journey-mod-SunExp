@@ -67,6 +67,7 @@ public static class SunExpIds
     public const string Ember = "SunExp_sunexp_ember";
     public const string EmberCloak = "SunExp_sunexp_ember_cloak";
     public const string ScorchingCanopy = "SunExp_sunexp_scorching_canopy";
+    public const string SamsaraGarden = "SunExp_sunexp_samsara_garden";
     public const string BodyBurn = "SunExp_sunexp_body_burn";
     public const string OriginCoreRadiance = "SunExp_sunexp_origin_core_radiance";
     public const string CycleGatheredFlame = "SunExp_sunexp_cycle_gathered_flame";

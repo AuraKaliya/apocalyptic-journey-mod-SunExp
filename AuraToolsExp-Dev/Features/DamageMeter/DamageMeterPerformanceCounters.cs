@@ -8,8 +8,9 @@ internal static class DamageMeterPerformanceCounters
 {
     private const long LogIntervalMs = 10000;
     private static readonly double TimestampToMs = 1000d / Stopwatch.Frequency;
-    private static long windowStartedAtMs = NowMs();
-    private static long nextLogAtMs = windowStartedAtMs + LogIntervalMs;
+    private static long windowStartedAtMs;
+    private static long nextLogAtMs;
+    private static bool active;
     private static int hitHooks;
     private static int damageTextCreateHooks;
     private static int damageTextExecuteHooks;
@@ -36,7 +37,7 @@ internal static class DamageMeterPerformanceCounters
 
     public static long StartSample()
     {
-        return Stopwatch.GetTimestamp();
+        return EnsureEnabled() ? Stopwatch.GetTimestamp() : 0L;
     }
 
     public static long ElapsedMs(long startedAt)
@@ -51,41 +52,81 @@ internal static class DamageMeterPerformanceCounters
 
     public static void RecordHitHook()
     {
+        if (!EnsureEnabled())
+        {
+            return;
+        }
+
         hitHooks++;
     }
 
     public static void RecordDamageTextCreateHook()
     {
+        if (!EnsureEnabled())
+        {
+            return;
+        }
+
         damageTextCreateHooks++;
     }
 
     public static void RecordDamageTextExecuteHook()
     {
+        if (!EnsureEnabled())
+        {
+            return;
+        }
+
         damageTextExecuteHooks++;
     }
 
     public static void RecordDamageTextEnqueueHook()
     {
+        if (!EnsureEnabled())
+        {
+            return;
+        }
+
         damageTextEnqueueHooks++;
     }
 
     public static void RecordPureHpHook()
     {
+        if (!EnsureEnabled())
+        {
+            return;
+        }
+
         pureHpHooks++;
     }
 
     public static void RecordHpSetterHook()
     {
+        if (!EnsureEnabled())
+        {
+            return;
+        }
+
         hpSetterHooks++;
     }
 
     public static void RecordBuffHook()
     {
+        if (!EnsureEnabled())
+        {
+            return;
+        }
+
         buffHooks++;
     }
 
     public static void RecordSubmitted(bool localApplied)
     {
+        if (!EnsureEnabled())
+        {
+            return;
+        }
+
         submittedEvents++;
         if (localApplied)
         {
@@ -95,6 +136,11 @@ internal static class DamageMeterPerformanceCounters
 
     public static void RecordPendingBatch(int pendingCount)
     {
+        if (!EnsureEnabled())
+        {
+            return;
+        }
+
         pendingBatches++;
         if (pendingCount > maxPendingBatch)
         {
@@ -104,6 +150,11 @@ internal static class DamageMeterPerformanceCounters
 
     public static void RecordBatchFlush(int eventCount, int commandCount, long elapsedMs)
     {
+        if (!EnsureEnabled())
+        {
+            return;
+        }
+
         batchFlushes++;
         batchCommands += Math.Max(0, commandCount);
         batchFlushTotalMs += Math.Max(0, elapsedMs);
@@ -120,6 +171,11 @@ internal static class DamageMeterPerformanceCounters
 
     public static void RecordUiRefresh(long elapsedMs, int visibleRows, bool inFight)
     {
+        if (!EnsureEnabled())
+        {
+            return;
+        }
+
         uiRefreshes++;
         uiRefreshTotalMs += Math.Max(0, elapsedMs);
         uiRowsMax = Math.Max(uiRowsMax, Math.Max(0, visibleRows));
@@ -131,6 +187,11 @@ internal static class DamageMeterPerformanceCounters
 
     public static void RecordSnapshot(long elapsedMs, int beforeBytes, int afterBytes, bool compacted)
     {
+        if (!EnsureEnabled())
+        {
+            return;
+        }
+
         snapshots++;
         snapshotTotalMs += Math.Max(0, elapsedMs);
         snapshotMaxBytes = Math.Max(snapshotMaxBytes, Math.Max(beforeBytes, afterBytes));
@@ -142,6 +203,11 @@ internal static class DamageMeterPerformanceCounters
 
     public static void MaybeLog()
     {
+        if (!EnsureEnabled())
+        {
+            return;
+        }
+
         var now = NowMs();
         if (now < nextLogAtMs)
         {
@@ -157,7 +223,7 @@ internal static class DamageMeterPerformanceCounters
             || batchFlushes > 0)
         {
             var elapsed = Math.Max(1, now - windowStartedAtMs);
-            AuraToolsLog.Debug("[DamageMeter:perf] windowMs="
+            AuraToolsLog.Performance("[DamageMeter:perf] windowMs="
                                + elapsed
                                + ", hooks(hit/textCreate/textExecute/textEnqueue/pure/set/buff)="
                                + hitHooks + "/" + damageTextCreateHooks + "/" + damageTextExecuteHooks + "/" + damageTextEnqueueHooks
@@ -181,6 +247,24 @@ internal static class DamageMeterPerformanceCounters
     private static long Average(long total, int count)
     {
         return count <= 0 ? 0 : total / count;
+    }
+
+    private static bool EnsureEnabled()
+    {
+        if (!AuraToolsPerformanceSettings.DiagnosticsEnabled)
+        {
+            active = false;
+            return false;
+        }
+
+        if (active)
+        {
+            return true;
+        }
+
+        active = true;
+        ResetWindow(NowMs());
+        return true;
     }
 
     private static void ResetWindow(long now)

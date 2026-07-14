@@ -113,6 +113,7 @@ Assert-Contains $damageMeter 'RegisterAfter("DamageText.Create", AfterDamageText
 Assert-NotContains $damageMeter 'RegisterBefore("DamageText.Create"' "DamageMeter must not put native damage text creation behind a before-hook."
 Assert-Contains $damageMeter 'RegisterAfter("DamageText.InternalExecute", AfterDamageTextInternalExecute)' "DamageMeter diagnostics must observe native damage-text command execution."
 Assert-Contains $damageMeter 'RegisterAfter("FightUI.EnqueueDamageText", AfterFightUiEnqueueDamageText)' "DamageMeter diagnostics must observe the native damage-text UI queue."
+Assert-Contains $damageMeter "if (AuraToolsPerformanceSettings.DiagnosticsEnabled)" "Pure damage-text diagnostics hooks must not register during normal gameplay."
 
 $sharedRuntimeProject = Read-RepoText "AuraSharedRuntime-Dev\Aura.Shared.csproj"
 Assert-Contains $sharedRuntimeProject "..\AuraUiShared\*.cs" "AuraUiShared must be packaged into Aura.Shared.dll."

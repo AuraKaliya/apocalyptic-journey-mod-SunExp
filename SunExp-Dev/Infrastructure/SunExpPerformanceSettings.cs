@@ -115,14 +115,14 @@ public static class SunExpPerformanceSettings
 
         try
         {
-            cachedCountersEnabled = ReadFlag(CountersKey, true);
+            cachedCountersEnabled = ReadFlag(CountersKey, false);
             cachedWunaOrbitFireEnabled = ReadFlag(WunaOrbitFireEnabledKey, false)
                 && !ReadFlag(WunaOrbitFireDisabledKey, false);
             cachedUiPoolEnabled = ReadFlag(UiPoolKey, true);
         }
         catch
         {
-            cachedCountersEnabled = true;
+            cachedCountersEnabled = false;
             cachedWunaOrbitFireEnabled = false;
             cachedUiPoolEnabled = true;
         }

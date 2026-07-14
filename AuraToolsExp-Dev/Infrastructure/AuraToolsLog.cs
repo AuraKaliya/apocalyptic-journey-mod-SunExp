@@ -18,6 +18,14 @@ public static class AuraToolsLog
         AuraSharedLog.DebugLog(Tag, message, IsDebugEnabled());
     }
 
+    public static void Performance(string message)
+    {
+        if (AuraToolsPerformanceSettings.DiagnosticsEnabled)
+        {
+            AuraSharedLog.Info(Tag, message);
+        }
+    }
+
     public static void DebugOnce(string key, string message)
     {
         AuraSharedLog.DebugOnce(Tag, key, message);

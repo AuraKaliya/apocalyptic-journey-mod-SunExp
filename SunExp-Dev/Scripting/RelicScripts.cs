@@ -160,7 +160,8 @@ public static class RelicScripts
 
     private static void RegisterBlazingCrownHeart(ScriptExecutor self)
     {
-        // Fight-start and fight-reset replay is owned by FieldStartSourceService.
+        // Rebuilt combat statuses receive the non-field effect from RelicOpeningEffectService.
+        // Its field grant is registered separately through RelicFieldStartSourceService.
     }
 
     private static void RegisterSolarPrism(ScriptExecutor self)

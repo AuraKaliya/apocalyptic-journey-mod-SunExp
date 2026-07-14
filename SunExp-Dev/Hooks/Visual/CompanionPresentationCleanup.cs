@@ -16,22 +16,28 @@ internal static class CompanionPresentationCleanup
         var suppressedUi = new HashSet<int>();
         var result = new MutableSuppression();
 
-        SuppressActors<ProjectionOtherObj>(suppressedRoots, suppressedUi, result);
-        SuppressActors<SpiritOtherObj>(suppressedRoots, suppressedUi, result);
-        SuppressActors<ProjectionTurnAnchorObj>(suppressedRoots, suppressedUi, result);
+        SuppressActors<ProjectionOtherObj>(suppressedRoots, suppressedUi, result, CompanionArtifactKind.Projection);
+        SuppressActors<SpiritOtherObj>(suppressedRoots, suppressedUi, result, CompanionArtifactKind.Spirit);
+        SuppressActors<ProjectionTurnAnchorObj>(suppressedRoots, suppressedUi, result, CompanionArtifactKind.TurnAnchor);
         SuppressVisualProxies(suppressedRoots, result);
 
         return new CompanionPresentationSuppression(
             result.ActorRoots,
             result.ProxyRoots,
             result.Renderers,
-            result.UiObjects);
+            result.UiObjects,
+            result.ProjectionRoots,
+            result.SpiritRoots,
+            result.TurnAnchors,
+            result.ProjectionProxies,
+            result.SpiritProxies);
     }
 
     private static void SuppressActors<T>(
         HashSet<int> suppressedRoots,
         HashSet<int> suppressedUi,
-        MutableSuppression result)
+        MutableSuppression result,
+        CompanionArtifactKind kind)
         where T : UnityEngine.Component
     {
         foreach (var component in Resources.FindObjectsOfTypeAll<T>())
@@ -43,7 +49,10 @@ internal static class CompanionPresentationCleanup
             }
 
             SuppressStatusUi(root.GetComponent<StatusManager>(), suppressedUi, result);
-            SuppressRoot(root, suppressedRoots, result, isProxy: false);
+            if (SuppressRoot(root, suppressedRoots, result, isProxy: false))
+            {
+                CountActor(kind, result);
+            }
         }
     }
 
@@ -57,7 +66,10 @@ internal static class CompanionPresentationCleanup
                 continue;
             }
 
-            SuppressRoot(root, suppressedRoots, result, isProxy: true);
+            if (SuppressRoot(root, suppressedRoots, result, isProxy: true))
+            {
+                CountProxy(root.name, result);
+            }
         }
 
         // Retain a name-based fallback for a proxy whose marker component was
@@ -70,7 +82,10 @@ internal static class CompanionPresentationCleanup
                 continue;
             }
 
-            SuppressRoot(root, suppressedRoots, result, isProxy: true);
+            if (SuppressRoot(root, suppressedRoots, result, isProxy: true))
+            {
+                CountProxy(root.name, result);
+            }
         }
     }
 
@@ -107,7 +122,7 @@ internal static class CompanionPresentationCleanup
         }
     }
 
-    private static void SuppressRoot(
+    private static bool SuppressRoot(
         GameObject root,
         HashSet<int> suppressedRoots,
         MutableSuppression result,
@@ -115,7 +130,7 @@ internal static class CompanionPresentationCleanup
     {
         if (!suppressedRoots.Add(root.GetInstanceID()))
         {
-            return;
+            return false;
         }
 
         foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
@@ -136,6 +151,36 @@ internal static class CompanionPresentationCleanup
         {
             result.ActorRoots++;
         }
+
+        return true;
+    }
+
+    private static void CountActor(CompanionArtifactKind kind, MutableSuppression result)
+    {
+        switch (kind)
+        {
+            case CompanionArtifactKind.Projection:
+                result.ProjectionRoots++;
+                break;
+            case CompanionArtifactKind.Spirit:
+                result.SpiritRoots++;
+                break;
+            case CompanionArtifactKind.TurnAnchor:
+                result.TurnAnchors++;
+                break;
+        }
+    }
+
+    private static void CountProxy(string name, MutableSuppression result)
+    {
+        if (name.StartsWith(ProjectionProxyPrefix, StringComparison.Ordinal))
+        {
+            result.ProjectionProxies++;
+        }
+        else if (name.StartsWith(SpiritProxyPrefix, StringComparison.Ordinal))
+        {
+            result.SpiritProxies++;
+        }
     }
 
     private static bool IsCompanionProxy(string name)
@@ -151,18 +196,47 @@ internal static class CompanionPresentationCleanup
         public int ProxyRoots;
         public int Renderers;
         public int UiObjects;
+        public int ProjectionRoots;
+        public int SpiritRoots;
+        public int TurnAnchors;
+        public int ProjectionProxies;
+        public int SpiritProxies;
+    }
+
+    private enum CompanionArtifactKind
+    {
+        Projection,
+        Spirit,
+        TurnAnchor
     }
 }
 
 internal readonly struct CompanionPresentationSuppression
 {
-    public CompanionPresentationSuppression(int actorRoots, int proxyRoots, int renderers, int uiObjects)
+    public CompanionPresentationSuppression(
+        int actorRoots,
+        int proxyRoots,
+        int renderers,
+        int uiObjects,
+        int projectionRoots,
+        int spiritRoots,
+        int turnAnchors,
+        int projectionProxies,
+        int spiritProxies)
     {
+        Available = true;
         ActorRoots = actorRoots;
         ProxyRoots = proxyRoots;
         Renderers = renderers;
         UiObjects = uiObjects;
+        ProjectionRoots = projectionRoots;
+        SpiritRoots = spiritRoots;
+        TurnAnchors = turnAnchors;
+        ProjectionProxies = projectionProxies;
+        SpiritProxies = spiritProxies;
     }
+
+    public bool Available { get; }
 
     public int ActorRoots { get; }
 
@@ -171,4 +245,16 @@ internal readonly struct CompanionPresentationSuppression
     public int Renderers { get; }
 
     public int UiObjects { get; }
+
+    public int ProjectionRoots { get; }
+
+    public int SpiritRoots { get; }
+
+    public int TurnAnchors { get; }
+
+    public int ProjectionProxies { get; }
+
+    public int SpiritProxies { get; }
+
+    public int Total => ProjectionRoots + SpiritRoots + TurnAnchors + ProjectionProxies + SpiritProxies;
 }

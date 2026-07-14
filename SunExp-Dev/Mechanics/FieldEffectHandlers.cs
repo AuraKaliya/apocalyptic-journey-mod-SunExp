@@ -1,26 +1,97 @@
 using System;
+using System.Collections.Generic;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 
 namespace SunExp.Dll.Mechanics;
 
+public sealed class FieldRoundStartContext
+{
+    public FieldRoundStartContext(
+        ScriptExecutor executor,
+        FieldBuffSnapshot snapshot,
+        IReadOnlyList<IStatusManager> targets,
+        string source)
+    {
+        Executor = executor;
+        Snapshot = snapshot;
+        Targets = targets ?? Array.Empty<IStatusManager>();
+        Source = source ?? "";
+    }
+
+    public ScriptExecutor Executor { get; }
+
+    public FieldBuffSnapshot Snapshot { get; }
+
+    public IReadOnlyList<IStatusManager> Targets { get; }
+
+    public string Source { get; }
+}
+
 public static class FieldEffectHandlers
 {
+    private static readonly IReadOnlyDictionary<SunExpFieldId, Func<FieldRoundStartContext, bool>> RoundStartHandlers =
+        new Dictionary<SunExpFieldId, Func<FieldRoundStartContext, bool>>
+        {
+            [SunExpFieldId.ScorchingCanopy] = TriggerScorchingCanopyRoundStart,
+            [SunExpFieldId.SamsaraGarden] = TriggerSamsaraGardenRoundStart
+        };
+
     public static bool ResolveRoundStart(ScriptExecutor? executor, FieldBuffSnapshot snapshot, string source)
     {
-        if (snapshot == null
+        if (executor == null
+            || snapshot == null
             || !snapshot.IsActive
             || !FieldApi.CanResolveFieldEffects()
-            || FieldEffectRegistry.DefinitionFor(snapshot.Field)?.HasRoundStartHandler != true)
+            || FieldEffectRegistry.DefinitionFor(snapshot.Field)?.HasRoundStartHandler != true
+            || !RoundStartHandlers.TryGetValue(snapshot.Field, out var handler))
         {
             return false;
         }
 
-        return snapshot.Field switch
+        var targets = ExecutorApi.AllCombatTargets(executor, includeSelf: true);
+        return handler(new FieldRoundStartContext(executor, snapshot, targets, source));
+    }
+
+    public static int ApplyToAllCombatants(
+        FieldRoundStartContext context,
+        Func<IStatusManager, bool> effect,
+        string effectId)
+    {
+        if (context == null || effect == null)
         {
-            SunExpFieldId.ScorchingCanopy => TriggerScorchingCanopyRoundStart(executor, snapshot, source),
-            _ => false
-        };
+            return 0;
+        }
+
+        var applied = 0;
+        foreach (var target in context.Targets)
+        {
+            if (target == null)
+            {
+                continue;
+            }
+
+            try
+            {
+                if (effect(target))
+                {
+                    applied++;
+                }
+            }
+            catch (Exception ex)
+            {
+                SunExpLog.Warn("[FieldEffect] target failed: field="
+                    + context.Snapshot.Slug
+                    + ", effect="
+                    + (effectId ?? "")
+                    + ", target="
+                    + (target.InstanceId ?? "")
+                    + ", error="
+                    + ex.Message);
+            }
+        }
+
+        return applied;
     }
 
     public static bool HandleBuffAdded(IStatusManager? target, string buffId, int amount, string source)
@@ -46,28 +117,75 @@ public static class FieldEffectHandlers
         };
     }
 
-    private static bool TriggerScorchingCanopyRoundStart(ScriptExecutor? executor, FieldBuffSnapshot snapshot, string source)
+    private static bool TriggerScorchingCanopyRoundStart(FieldRoundStartContext context)
     {
-        var count = Math.Max(0, snapshot.Stacks);
-        if (executor == null || count <= 0)
+        var count = Math.Max(0, context.Snapshot.Stacks);
+        if (count <= 0)
         {
             return false;
         }
 
-        var applied = 0;
-        foreach (var target in ExecutorApi.AllCombatTargets(executor, includeSelf: true))
-        {
-            target.AddBuff(SunExpIds.Burn, count);
-            applied++;
-        }
+        var applied = ApplyToAllCombatants(
+            context,
+            target =>
+            {
+                target.AddBuff(SunExpIds.Burn, count);
+                return true;
+            },
+            "burn");
 
-        ClearSelfBurnIfProtected(executor);
+        ClearSelfBurnIfProtected(context.Executor);
         SunExpLog.Debug("[FieldEffect] scorching canopy round start: stacks="
             + count
             + ", targets="
             + applied
             + ", source="
-            + (source ?? ""));
+            + context.Source);
+        return applied > 0;
+    }
+
+    private static bool TriggerSamsaraGardenRoundStart(FieldRoundStartContext context)
+    {
+        var stacks = Math.Max(0, context.Snapshot.Stacks);
+        if (stacks <= 0)
+        {
+            return false;
+        }
+
+        var healPercent = stacks * 5;
+        var atUpperBound = context.Snapshot.MaxStacks > 0 && stacks >= context.Snapshot.MaxStacks;
+        var applied = ApplyToAllCombatants(
+            context,
+            target =>
+            {
+                if (!StatusApi.IsAlive(target))
+                {
+                    return false;
+                }
+
+                var maxHp = Math.Max(1, StatusApi.MaxHp(target));
+                var heal = (int)Math.Max(1L, (long)maxHp * healPercent / 100L);
+                var resolved = StatusApi.TryHeal(target, heal);
+                if (atUpperBound)
+                {
+                    target.AddBuff(SunExpIds.Rebirth, 30);
+                    resolved = true;
+                }
+
+                return resolved;
+            },
+            "heal-and-rebirth");
+
+        SunExpLog.Debug("[FieldEffect] samsara garden round start: stacks="
+            + stacks
+            + ", healPercent="
+            + healPercent
+            + ", rebirth="
+            + (atUpperBound ? 30 : 0)
+            + ", targets="
+            + applied
+            + ", source="
+            + context.Source);
         return applied > 0;
     }
 

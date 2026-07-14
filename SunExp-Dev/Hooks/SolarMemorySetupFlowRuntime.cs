@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using AuraUi.Shared;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks.Ui;
 using SunExp.Dll.Infrastructure;
@@ -102,8 +103,10 @@ public static class SolarMemorySetupFlowRuntime
             new Vector2(-70f, 58f));
         row.anchoredPosition = new Vector2(0f, y);
         ApplyPanelImage(row.gameObject, RowTint, true);
-        AddText(row, "Name", label, 21, FontStyle.Bold, TextAnchor.MiddleLeft, Color.white, new Vector2(24f, 0f), new Vector2(180f, 52f));
-        AddText(row, "Role", OriginRoleLabel(key), 16, FontStyle.Bold, TextAnchor.MiddleCenter, Gold, new Vector2(214f, 0f), new Vector2(74f, 52f));
+        var nameText = AddText(row, "Name", label, 21, FontStyle.Bold, TextAnchor.MiddleLeft, Color.white, Vector2.zero, new Vector2(140f, 52f));
+        AnchorTextFromLeft(nameText, 24f);
+        var roleText = AddText(row, "Role", OriginRoleLabel(key), 16, FontStyle.Bold, TextAnchor.MiddleCenter, Gold, Vector2.zero, new Vector2(74f, 52f));
+        AnchorTextFromLeft(roleText, 182f);
 
         var controls = CreateRect("Controls-" + key, row, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
             new Vector2(340f, 44f));
@@ -470,10 +473,19 @@ public static class SolarMemorySetupFlowRuntime
         image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
         image.color = image.sprite != null ? Color.white : new Color(0.05f, 0.05f, 0.22f, 0.96f);
         var button = rect.gameObject.AddComponent<Button>();
-        button.targetGraphic = image;
+        AuraUiButtonFeedback.Apply(button, image, PaleGold);
         button.onClick.AddListener(new UnityAction(action));
         AddText(rect, "Text", label, 16, FontStyle.Bold, TextAnchor.MiddleCenter, PaleGold, Vector2.zero, size);
         return rect;
+    }
+
+    private static void AnchorTextFromLeft(Text text, float x)
+    {
+        var rect = (RectTransform)text.transform;
+        rect.anchorMin = new Vector2(0f, 0.5f);
+        rect.anchorMax = new Vector2(0f, 0.5f);
+        rect.pivot = new Vector2(0f, 0.5f);
+        rect.anchoredPosition = new Vector2(x, 0f);
     }
 
     private static RectTransform CreateLayoutBox(Transform parent, string name, Vector2 size)
@@ -495,7 +507,7 @@ public static class SolarMemorySetupFlowRuntime
         image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
         image.color = image.sprite != null ? Color.white : new Color(0.05f, 0.05f, 0.22f, 0.96f);
         var button = rect.gameObject.AddComponent<Button>();
-        button.targetGraphic = image;
+        AuraUiButtonFeedback.Apply(button, image, PaleGold);
         button.onClick.AddListener(new UnityAction(action));
         AddText(rect, "Text", label, 18, FontStyle.Bold, TextAnchor.MiddleCenter, PaleGold, Vector2.zero, size);
         return button;

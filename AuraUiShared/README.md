@@ -28,6 +28,24 @@ Existing `UnityEngine.UI.Text` call sites remain supported through `AuraUiCompon
 That compatibility path resolves the source font from the game's TMP font asset. New or migrated UI
 should use `ConfigureTmpText` or `AuraUiContext`.
 
+`AuraUiNativeButtonCloneAdapter` provides a fail-closed bridge for exact game-native buttons. It
+clones one `ButtonManager` visual shell, replaces its normal/highlighted/disabled labels with
+Aura-owned TMP nodes, clears inherited action events, and verifies that changing the clone did not
+alter the template label. A label owner rejects later template/localization writes without polling
+layout work when the text is already correct. Consumers supply any game-specific behaviour cleanup
+callback and retain their own fallback UI when validation fails.
+Consumers may provide `TextSizeOverride` and `MinimumTextSizeOverride` when a
+longer custom label must fit a native visual shell. The adapter applies that
+range to `ButtonManager` and all three owned TMP state labels, so later native
+refreshes cannot restore the template's larger size.
+
+`AuraUiButtonFeedback` supplies the shared Hover/Press/Disabled color state, synchronizes the
+initial normal/disabled tint before first render to prevent foldout activation flashes, and reuses the game's
+button sounds through an interactability-aware relay. It intentionally skips native
+`ButtonManager` controls so native fades, ripples, and audio remain single-owned. Consumer-specific
+button factories should apply this helper instead of defining unrelated `ColorBlock` and sound
+behavior at each call site.
+
 ## Font policy
 
 The native bridge loads the game's `HarmonyOS_Sans_Medium SDF` through the shared resource cache.

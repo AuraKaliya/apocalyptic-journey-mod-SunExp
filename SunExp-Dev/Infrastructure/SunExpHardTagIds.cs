@@ -5,6 +5,7 @@ namespace SunExp.Dll.Infrastructure;
 public static class SunExpHardTagIds
 {
     public const string ScorchedWorld = "sunexp_scorched_world";
+    public const string SamsaraGarden = "sunexp_samsara_garden";
     public const string BlackSunCalamity = "sunexp_black_sun_calamity";
     public const string WhiteRadianceCourt = "sunexp_white_radiance_court";
     public const string SunsetExpedition = "sunexp_sunset_expedition";
@@ -50,6 +51,7 @@ public static class SunExpHardTagIds
         return value switch
         {
             "solar_memory_scorched_world" => ScorchedWorld,
+            "solar_memory_samsara_garden" => SamsaraGarden,
             "solar_memory_black_sun_calamity" => BlackSunCalamity,
             "solar_memory_white_radiance_court" => WhiteRadianceCourt,
             "solar_memory_sunset_expedition" => SunsetExpedition,

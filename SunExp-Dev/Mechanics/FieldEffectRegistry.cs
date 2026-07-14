@@ -20,6 +20,8 @@ public sealed class FieldEffectDefinition
         SunExpFieldId field,
         string slug,
         string buffId,
+        string hudIconPath,
+        int maxVisualTier,
         int fallbackMaxStacks,
         bool hasRoundStartHandler,
         bool hasBuffAddedPolicy)
@@ -27,6 +29,8 @@ public sealed class FieldEffectDefinition
         Field = field;
         Slug = slug ?? "";
         BuffId = buffId ?? "";
+        HudIconPath = hudIconPath ?? "";
+        MaxVisualTier = Math.Max(1, maxVisualTier);
         FallbackMaxStacks = Math.Max(1, fallbackMaxStacks);
         HasRoundStartHandler = hasRoundStartHandler;
         HasBuffAddedPolicy = hasBuffAddedPolicy;
@@ -37,6 +41,10 @@ public sealed class FieldEffectDefinition
     public string Slug { get; }
 
     public string BuffId { get; }
+
+    public string HudIconPath { get; }
+
+    public int MaxVisualTier { get; }
 
     public int FallbackMaxStacks { get; }
 
@@ -75,14 +83,12 @@ public sealed class FieldEffectRuntimeSpec
         FieldEffectDefinition definition,
         int maxStacks,
         string displayName,
-        string description,
-        string iconPath)
+        string description)
     {
         Definition = definition;
         MaxStacks = Math.Max(1, maxStacks);
         DisplayName = string.IsNullOrWhiteSpace(displayName) ? definition.BuffId : displayName;
         Description = description ?? "";
-        IconPath = iconPath ?? "";
     }
 
     public FieldEffectDefinition Definition { get; }
@@ -101,7 +107,17 @@ public sealed class FieldEffectRuntimeSpec
 
     public string Description { get; }
 
-    public string IconPath { get; }
+    public string HudIconPath => Definition.HudIconPath;
+
+    public int VisualTierForStacks(int stacks)
+    {
+        return Math.Min(Definition.MaxVisualTier, Math.Max(1, stacks));
+    }
+
+    public string HudIconPathForStacks(int stacks)
+    {
+        return VisualTierForStacks(stacks) > 0 ? HudIconPath : "";
+    }
 }
 
 public static class FieldEffectRegistry
@@ -112,9 +128,20 @@ public static class FieldEffectRegistry
             SunExpFieldId.ScorchingCanopy,
             "scorching_canopy",
             SunExpIds.ScorchingCanopy,
+            hudIconPath: "Mods/SunExp/ModResource/Images/Buff/Area/\u707c\u70ed\u5929\u5e55",
+            maxVisualTier: 9,
             fallbackMaxStacks: 9,
             hasRoundStartHandler: true,
-            hasBuffAddedPolicy: true)
+            hasBuffAddedPolicy: true),
+        [SunExpFieldId.SamsaraGarden] = new FieldEffectDefinition(
+            SunExpFieldId.SamsaraGarden,
+            "samsara_garden",
+            SunExpIds.SamsaraGarden,
+            hudIconPath: "Mods/SunExp/ModResource/Images/Buff/Area/\u8f6e\u56de\u82b1\u5ead",
+            maxVisualTier: 4,
+            fallbackMaxStacks: 5,
+            hasRoundStartHandler: true,
+            hasBuffAddedPolicy: false)
     };
     private static readonly object Sync = new();
     private static volatile Dictionary<SunExpFieldId, FieldEffectRuntimeSpec> RuntimeSpecs = BuildFallbackSpecs();
@@ -158,12 +185,11 @@ public static class FieldEffectRegistry
         var definition = DefinitionFor(field);
         return definition == null
             ? new FieldEffectRuntimeSpec(
-                new FieldEffectDefinition(SunExpFieldId.None, "", "", 1, false, false),
+                new FieldEffectDefinition(SunExpFieldId.None, "", "", "", 1, 1, false, false),
                 1,
                 "",
-                "",
                 "")
-            : new FieldEffectRuntimeSpec(definition, definition.FallbackMaxStacks, definition.BuffId, "", "");
+            : new FieldEffectRuntimeSpec(definition, definition.FallbackMaxStacks, definition.BuffId, "");
     }
 
     public static string FieldBuffId(SunExpFieldId field)
@@ -184,6 +210,11 @@ public static class FieldEffectRegistry
     public static int MaxStacks(SunExpFieldId field)
     {
         return RuntimeSpecFor(field).MaxStacks;
+    }
+
+    public static int VisualTierForStacks(SunExpFieldId field, int stacks)
+    {
+        return RuntimeSpecFor(field).VisualTierForStacks(stacks);
     }
 
     public static FieldEffectPolicyFlags PolicyFlags(SunExpFieldId field)
@@ -239,7 +270,6 @@ public static class FieldEffectRegistry
                 definition,
                 definition.FallbackMaxStacks,
                 definition.BuffId,
-                "",
                 "");
         }
 
@@ -251,18 +281,18 @@ public static class FieldEffectRegistry
         var maxStacks = definition.FallbackMaxStacks;
         var displayName = definition.BuffId;
         var description = "";
-        var iconPath = "";
         try
         {
             var data = Singleton<GameConfigManager>.Instance.GetOne(DataType.Buff, definition.BuffId);
             maxStacks = Math.Max(1, DictionaryUtil.ParseInt(DictionaryUtil.Get(data, "UpperBound"), definition.FallbackMaxStacks));
-            iconPath = DictionaryUtil.Get(data, "Icon");
             displayName = data.Localize("Name");
             description = data.Localize("Description");
             if (string.IsNullOrWhiteSpace(description) || description == "Description")
             {
                 description = data.Localize("Tips");
             }
+
+            description = description.Description();
         }
         catch (Exception ex)
         {
@@ -274,6 +304,6 @@ public static class FieldEffectRegistry
                 + ex.Message);
         }
 
-        return new FieldEffectRuntimeSpec(definition, maxStacks, displayName, description, iconPath);
+        return new FieldEffectRuntimeSpec(definition, maxStacks, displayName, description);
     }
 }
