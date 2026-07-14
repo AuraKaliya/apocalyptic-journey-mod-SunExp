@@ -237,8 +237,8 @@ Resource -> Registry -> cross-process write mutex
 
 `tools/Test-SharedDllPackaging.ps1` 校验：
 
-- `SunExp`、`SanGuoShaExp`、`AuraToolsExp` 打包的 `Aura.Shared.dll` 与共享构建产物
-  SHA-256 一致；
+- `SunExp`、`SanGuoShaExp`、`AuraToolsExp` 以及仍参与组合测试的共享运行时原型所打包的
+  `Aura.Shared.dll`，都与共享构建产物 SHA-256 一致；
 - 产品和测试消费者引用 `AuraSharedRuntime-Dev/Aura.Shared.csproj`；
 - 消费者项目不私自链接共享源码。
 

@@ -13,6 +13,8 @@ namespace AuraToolsExp.Dll.Features.Settings;
 
 internal static class AuraToolsUi
 {
+    public static AuraUiTheme Theme => AuraToolsUiTheme.Current;
+
     private const string ButtonSpritePath = "Mods/AuraToolsExp/ui-img/button-\u4e5d\u5bab\u683c.png";
     private const string PanelSpritePath = "Mods/AuraToolsExp/ui-img/background-\u4e5d\u5bab\u683c.png";
     public static readonly Color Background = new(0.03f, 0.025f, 0.05f, 0.96f);

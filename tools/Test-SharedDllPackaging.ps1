@@ -19,7 +19,12 @@ $expectedHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $sharedDll).Hash
 $packagedDlls = @(
     "SunExp\Scripts\Aura.Shared.dll",
     "SanGuoShaExp\Scripts\Aura.Shared.dll",
-    "AuraToolsExp\Scripts\Aura.Shared.dll"
+    "AuraToolsExp\Scripts\Aura.Shared.dll",
+    "TestMods\SkinExp\Scripts\Aura.Shared.dll",
+    "TestMods\BackgroundAudioReplaceExp\Scripts\Aura.Shared.dll",
+    "TestMods\CardUseCialloExp\Scripts\Aura.Shared.dll",
+    "TestMods\ChatExp\Scripts\Aura.Shared.dll",
+    "TestMods\SkillCGExp\Scripts\Aura.Shared.dll"
 )
 
 foreach ($relative in $packagedDlls) {

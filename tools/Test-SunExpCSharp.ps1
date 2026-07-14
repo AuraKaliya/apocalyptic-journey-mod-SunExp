@@ -1529,6 +1529,7 @@ function Invoke-SourceAssertions {
     $spiritAttachmentPresenter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Visual\SpiritAttachmentPresenter.cs"))
     $companionSceneApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\CompanionSceneApi.cs"))
     $companionSceneLifecycleRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\CompanionSceneLifecycleRuntime.cs"))
+    $companionPresentationCleanup = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Visual\CompanionPresentationCleanup.cs"))
     $projectionIntentPresenter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Visual\ProjectionIntentPresenter.cs"))
     $pooledCardExitAnimator = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Visual\PooledCardExitAnimator.cs"))
     $projectionTurnCoordinator = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionTurnCoordinator.cs"))
@@ -1811,7 +1812,10 @@ function Invoke-SourceAssertions {
     Assert-True $fieldBuffHudRuntime.Contains("FieldNetworkSync.RequestSnapshot") "Field HUD must request a repair snapshot when a non-host client has no local field state."
     Assert-True $fieldBuffHudView.Contains("FieldBuffHudTooltipView.Create") "Field HUD must create a hover tooltip."
     Assert-True $fieldBuffHudView.Contains("FieldBuffHudHoverProbe") "Field HUD must use pointer events for hover."
-    Assert-True $fieldBuffHudView.Contains("private const float RootWidth = 136f") "Field HUD must use a compact vertical badge layout."
+    Assert-True $fieldBuffHudView.Contains("private const float RootWidth = 164f") "Field HUD must use the enlarged compact vertical badge layout."
+    Assert-True $fieldBuffHudView.Contains("ConfigureTmpText") "Field HUD labels must use the shared game-font TMP component."
+    Assert-True $fieldBuffHudTooltipView.Contains("DescriptionHeight = Height * 0.5f") "Field HUD tooltip body must reserve half of the floating panel height."
+    Assert-True $fieldBuffHudTooltipView.Contains("21f, FontStyles.Normal") "Field HUD tooltip body must use the enlarged approved font size."
     Assert-True $fieldBuffHudView.Contains('"NameBar"') "Field HUD must keep the field buff name inside the HUD panel."
     Assert-True $fieldBuffHudView.Contains("group.blocksRaycasts = true") "Field HUD must allow its local hotspot to receive hover raycasts."
     Assert-True $fieldBuffHudView.Contains("FieldEffectRegistry.RuntimeSpecFor(snapshot.Field).DisplayName") "Field HUD must render display data from the prewarmed runtime spec."
@@ -2217,6 +2221,17 @@ function Invoke-SourceAssertions {
     Assert-True ($projectionSummonService.Contains("CompanionSceneApi.MoveToOwnerScene") -and $spiritSummonService.Contains("CompanionSceneApi.MoveToOwnerScene") -and $projectionTurnCoordinator.Contains("CompanionSceneApi.MoveToOwnerScene")) "Companion actors and their turn anchor must inherit the owner's scene lifetime."
     Assert-True ($projectionAttachmentPresenter.Contains("public static void ClearAll") -and $spiritAttachmentPresenter.Contains("public static void ClearAll")) "Both companion presenters must expose an orphan-safe proxy sweep."
     Assert-True ($projectionRuntime.Contains('RunCleanupStep("NetworkDedupe"') -and $spiritRuntime.Contains('RunCleanupStep("CaptureDedupe"')) "Companion cleanup must reset all battle-scoped duplicate sets."
+    Assert-True ($companionSceneLifecycleRuntime.Contains('SunExpHookRegistry.Before(') -and $companionSceneLifecycleRuntime.Contains('"GameEntryUI.Init"')) "Returning directly to the main menu must run companion cleanup through the safe hook registry."
+    Assert-True ($companionSceneLifecycleRuntime.Contains('"TopBarUI.ReturnToMenu"') -and $companionSceneLifecycleRuntime.Contains('"GameApp.ReturnToMenu"')) "Companion cleanup must run before confirmed end-of-frame return and retain a direct-return fallback."
+    Assert-True ($companionSceneLifecycleRuntime.Contains('"SuppressPresentation"') -and $companionSceneLifecycleRuntime.Contains("SchedulePostCleanupAudit(source)")) "Menu-exit cleanup must suppress the last rendered frame and audit residual objects on the next frame."
+    Assert-True ($companionPresentationCleanup.Contains("GetComponentsInChildren<Renderer>(true)") -and $companionPresentationCleanup.Contains("status.actionContent") -and $companionPresentationCleanup.Contains("status.statusBarObj")) "Companion presentation suppression must immediately hide renderers and separately parented fight UI."
+    Assert-True ($companionSceneLifecycleRuntime.Contains("CaptureArtifactSnapshot(source)") -and $companionSceneLifecycleRuntime.Contains("SunExpLog.InfoAlways(message)")) "Main-menu cleanup must emit pre-destroy artifact diagnostics even when debug logging is disabled."
+    Assert-True $companionSceneLifecycleRuntime.Contains('FightInitializing = _ => CleanupAfterSceneBoundary("FightInitializing")') "Fight initialization must sweep stale companion state from abnormal scene replacement."
+    Assert-True $companionSceneLifecycleRuntime.Contains('FightEnded = _ => CleanupAfterSceneBoundary("FightEnded")') "Normal fight settlement must run the complete companion cleanup pipeline."
+    Assert-True (-not $companionSceneLifecycleRuntime.Contains('FightEnding = _ => CompanionSceneApi.ClearTrackedScenes')) "Fight ending must not erase scene tracking before cleanup runs."
+    Assert-True $spiritRuntime.Contains("CommonCardItem.UseChecker.Contains(SpiritCardUseChecker)") "Spirit-card use gating must register idempotently in the native pre-consumption checker."
+    Assert-True $spiritRuntime.Contains('ProjectionStateStore.HasForOwner("", owner.InstanceId)') "Spirit cards must reject projection occupancy before native card consumption."
+    Assert-True (-not $spiritRuntime.Contains("CardItem.canUse = false")) "Spirit-card eligibility must not toggle the global card-use state."
     Assert-True $runtimeHooks.Contains("CompanionIntentRegistry.Load(modConfig)") "RuntimeHooks must load companion intent registry before projection combat hooks."
     Assert-True $runtimeHooks.Contains("CompanionThreatRuntime.Initialize(modConfig)") "RuntimeHooks must initialize companion threat targeting."
     Assert-True $entry.Contains("SunExp.Dll.Scripting.ProjectionScripts") "Entry must register ProjectionScripts for CSV action calls."

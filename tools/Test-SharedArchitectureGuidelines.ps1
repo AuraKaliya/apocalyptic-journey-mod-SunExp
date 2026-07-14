@@ -11,7 +11,7 @@ function Read-RepoText {
         throw "Required file is missing: $RelativePath"
     }
 
-    return Get-Content -Raw -LiteralPath $path
+    return [System.IO.File]::ReadAllText($path)
 }
 
 function Require-Text {
@@ -210,6 +210,26 @@ $sharedModalHost = Read-RepoText "AuraUiShared\AuraUiModalHost.cs"
 Require-Text $sharedModalHost "CreateFullscreenRoot" "Shared UI modal host must own fullscreen modal root creation."
 Require-Text $sharedModalHost "UiRaycastSafeDestroyRuntime" "Shared UI modal host must close transient UI through raycast-safe cleanup."
 
+$sharedUiTheme = Read-RepoText "AuraUiShared\AuraUiTheme.cs"
+$sharedUiRegistry = Read-RepoText "AuraUiShared\AuraUiStyleRegistry.cs"
+$sharedUiNativeBridge = Read-RepoText "AuraUiShared\AuraUiNativeBridge.cs"
+$sharedUiComponents = Read-RepoText "AuraUiShared\AuraUiComponents.cs"
+$sharedUiRenderer = Read-RepoText "AuraUiShared\AuraUiStandardRenderer.cs"
+Require-Text $sharedUiTheme "AuraUiStyleIds" "AuraUiShared must expose owner-qualified stable style ids."
+Require-Text $sharedUiTheme "WitchNative" "AuraUiShared must keep the game-native style separate from Aura default styling."
+Require-Text $sharedUiRegistry "RegisterDerived" "AuraUiShared must support consumer-owned derived styles."
+Require-Text $sharedUiNativeBridge "HarmonyOS_Sans_Medium SDF" "AuraUiShared must resolve the game's HarmonyOS TMP font asset."
+Require-Text $sharedUiNativeBridge "ResolveLegacyFont" "AuraUiShared must keep a legacy Text compatibility font bridge."
+Require-Text $sharedUiComponents "ConfigureTmpText" "AuraUiShared must expose its standard TMP text component."
+Require-Text $sharedUiRenderer "class AuraUiContext" "AuraUiShared styles must be scoped by a UI context instead of mutable global state."
+Require-Text $sharedUiRenderer "CreateButton" "AuraUiShared must expose a standard button surface."
+Require-Text $sharedUiRenderer "CreateToggle" "AuraUiShared must expose a standard toggle surface."
+Require-Text $sharedUiRenderer "CreateInput" "AuraUiShared must expose a standard TMP input surface."
+Require-Text $sharedUiRenderer "CreateDropdown" "AuraUiShared must expose a standard TMP dropdown surface."
+Require-Text $sharedUiRenderer "CreateScrollArea" "AuraUiShared must expose a standard scroll/list surface."
+Require-Text $sharedUiRenderer "CreateTooltip" "AuraUiShared must expose a non-blocking tooltip surface."
+Require-Text $sharedUiRenderer "CreateToast" "AuraUiShared must expose a non-blocking toast surface."
+
 $sharedRoots = @(
     "AuraAudioShared",
     "AudioArbiterShared",
@@ -282,7 +302,11 @@ Require-Text $guidelines "Ownership And Mutability" "Shared guidelines must docu
 Require-Text $guidelines "Conflict And Candidate Policy" "Shared guidelines must document conflict and candidate policy."
 Require-Text $guidelines "Resolution Priority" "Shared guidelines must document resolution priority."
 
-$audit = Read-RepoText "docs\SunExp\04-Aura共享层与核心层接入.md"
+$auditFile = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot "docs\SunExp") -File -Filter "04-Aura*.md")
+if ($auditFile.Count -ne 1) {
+    throw "Expected exactly one SunExp Aura shared-layer audit document."
+}
+$audit = [System.IO.File]::ReadAllText($auditFile[0].FullName)
 Require-Text $audit "AuraCgShared" "Shared architecture audit must include AuraCgShared."
 Require-Text $audit "provider identity" "Shared architecture audit must include provider identity findings."
 

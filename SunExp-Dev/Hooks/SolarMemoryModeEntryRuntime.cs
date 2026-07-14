@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Reflection;
+using AuraUi.Shared;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
@@ -438,7 +439,7 @@ public static class SolarMemoryModeEntryRuntime
     private static void ConfigureText(Text text, string value, int fontSize, FontStyle style, TextAnchor alignment, Color color)
     {
         text.text = value;
-        text.font = cachedFont ??= Resources.GetBuiltinResource<Font>("Arial.ttf");
+        text.font = cachedFont ??= AuraUiNativeBridge.ResolveLegacyFont();
         text.fontSize = fontSize;
         text.fontStyle = style;
         text.alignment = alignment;

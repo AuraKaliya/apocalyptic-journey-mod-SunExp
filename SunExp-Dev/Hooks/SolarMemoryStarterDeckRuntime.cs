@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AuraShared.Core;
+using AuraUi.Shared;
 using StarterDeckArbiter.Shared;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks.Ui;
@@ -720,7 +721,7 @@ public static class SolarMemoryStarterDeckRuntime
     {
         var text = go.AddComponent<Text>();
         text.text = value;
-        text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        text.font = AuraUiNativeBridge.ResolveLegacyFont();
         text.fontSize = fontSize;
         text.alignment = TextAnchor.MiddleCenter;
         text.color = color;

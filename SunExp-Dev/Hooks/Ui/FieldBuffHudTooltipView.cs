@@ -1,6 +1,8 @@
 using System;
+using AuraUi.Shared;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Mechanics;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -8,8 +10,9 @@ namespace SunExp.Dll.Hooks.Ui;
 
 public sealed class FieldBuffHudTooltipView : MonoBehaviour
 {
-    private const float Width = 386f;
-    private const float Height = 232f;
+    private const float Width = 420f;
+    private const float Height = 260f;
+    internal const float DescriptionHeight = Height * 0.5f;
     private static readonly Color PanelTint = new(0.035f, 0.028f, 0.018f, 0.96f);
     private static readonly Color HeaderTint = new(0.16f, 0.095f, 0.035f, 0.96f);
     private static readonly Color BodyTint = new(0.07f, 0.052f, 0.03f, 0.9f);
@@ -18,9 +21,9 @@ public sealed class FieldBuffHudTooltipView : MonoBehaviour
     private static readonly Color MutedTextColor = new(0.78f, 0.66f, 0.46f, 1f);
 
     private RectTransform? rectTransform;
-    private Text? titleText;
-    private Text? subtitleText;
-    private Text? descriptionText;
+    private TMP_Text? titleText;
+    private TMP_Text? subtitleText;
+    private TMP_Text? descriptionText;
     private string lastContentKey = "";
 
     public static FieldBuffHudTooltipView Create(Transform parent, RectTransform hudRect)
@@ -88,28 +91,29 @@ public sealed class FieldBuffHudTooltipView : MonoBehaviour
         SunExpUiBuilder.ApplyPanelImage(gameObject, SunExpUiSprites.Panel("[FieldBuffHud.Tooltip]"), PanelTint);
 
         var layout = gameObject.AddComponent<VerticalLayoutGroup>();
-        layout.padding = new RectOffset(10, 10, 8, 8);
-        layout.spacing = 5f;
+        layout.padding = new RectOffset(12, 12, 12, 12);
+        layout.spacing = 6f;
         layout.childControlWidth = true;
         layout.childControlHeight = true;
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = false;
 
-        titleText = CreateTextBlock(transform, "Title", "", 32f, 18, FontStyle.Bold, TextAnchor.MiddleLeft, TitleColor, HeaderTint);
-        subtitleText = CreateTextBlock(transform, "Subtitle", "", 26f, 13, FontStyle.Bold, TextAnchor.MiddleLeft, MutedTextColor, BodyTint);
-        descriptionText = CreateTextBlock(transform, "Description", "", 142f, 14, FontStyle.Normal, TextAnchor.UpperLeft, TextColor, BodyTint);
+        titleText = CreateTextBlock(transform, "Title", "", 44f, 24f, FontStyles.Bold, TextAnchor.MiddleLeft, TitleColor, HeaderTint, true);
+        subtitleText = CreateTextBlock(transform, "Subtitle", "", 34f, 18f, FontStyles.Bold, TextAnchor.MiddleLeft, MutedTextColor, BodyTint, true);
+        descriptionText = CreateTextBlock(transform, "Description", "", DescriptionHeight, 21f, FontStyles.Normal, TextAnchor.UpperLeft, TextColor, BodyTint, false);
     }
 
-    private static Text CreateTextBlock(
+    private static TMP_Text CreateTextBlock(
         Transform parent,
         string name,
         string value,
         float height,
-        int fontSize,
-        FontStyle style,
+        float fontSize,
+        FontStyles style,
         TextAnchor anchor,
         Color textColor,
-        Color tint)
+        Color tint,
+        bool autoSize)
     {
         var go = new GameObject(name, typeof(RectTransform));
         go.transform.SetParent(parent, false);
@@ -127,22 +131,20 @@ public sealed class FieldBuffHudTooltipView : MonoBehaviour
         var textRect = textGo.GetComponent<RectTransform>();
         textRect.anchorMin = Vector2.zero;
         textRect.anchorMax = Vector2.one;
-        textRect.offsetMin = new Vector2(9f, 0f);
-        textRect.offsetMax = new Vector2(-9f, 0f);
+        textRect.offsetMin = new Vector2(11f, 4f);
+        textRect.offsetMax = new Vector2(-11f, -4f);
 
-        var text = textGo.AddComponent<Text>();
-        text.text = value;
-        text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-        text.fontSize = fontSize;
+        var text = AuraUiComponents.ConfigureTmpText(
+            textGo,
+            value,
+            fontSize,
+            Math.Max(13f, fontSize - 5f),
+            anchor,
+            textColor,
+            autoSize,
+            SunExpUiTheme.Current);
         text.fontStyle = style;
-        text.alignment = anchor;
-        text.color = textColor;
-        text.horizontalOverflow = HorizontalWrapMode.Wrap;
-        text.verticalOverflow = VerticalWrapMode.Overflow;
-        text.resizeTextForBestFit = true;
-        text.resizeTextMinSize = Math.Max(10, fontSize - 4);
-        text.resizeTextMaxSize = fontSize;
-        text.raycastTarget = false;
+        text.overflowMode = TextOverflowModes.Overflow;
         return text;
     }
 

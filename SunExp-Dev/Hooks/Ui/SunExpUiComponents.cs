@@ -7,6 +7,8 @@ namespace SunExp.Dll.Hooks.Ui;
 
 public static class SunExpUiComponents
 {
+    public static AuraUiTheme Theme => SunExpUiTheme.Current;
+
     public sealed class ScrollArea
     {
         public ScrollArea(GameObject root, RectTransform viewport, RectTransform content, ScrollRect scroll)

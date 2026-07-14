@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraUi.Shared;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks.Ui;
 using SunExp.Dll.Infrastructure;
@@ -847,7 +848,7 @@ public static class SolarMemoryBlessingPickerRuntime
     {
         var text = go.AddComponent<Text>();
         text.text = value;
-        text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        text.font = AuraUiNativeBridge.ResolveLegacyFont();
         text.fontSize = fontSize;
         text.alignment = anchor;
         text.color = color;

@@ -109,6 +109,10 @@ Assert-NotContains $auraToolsSkillCg 'RegisterBefore("GameEntryUI.StartGame"' "A
 $damageMeter = Read-RepoText "AuraToolsExp-Dev\Features\DamageMeter\AuraToolsDamageMeterRuntime.cs"
 Assert-Contains $damageMeter "AuraBattleLifecycleRouter.Register" "DamageMeter battle hooks must use the shared battle lifecycle router."
 Assert-NotContains $damageMeter 'RegisterBefore("FightInit.Init"' "DamageMeter must not own a private fight-init hook when shared lifecycle exists."
+Assert-Contains $damageMeter 'RegisterAfter("DamageText.Create", AfterDamageTextCreate)' "DamageMeter must observe DamageText.Create only after native command creation completes."
+Assert-NotContains $damageMeter 'RegisterBefore("DamageText.Create"' "DamageMeter must not put native damage text creation behind a before-hook."
+Assert-Contains $damageMeter 'RegisterAfter("DamageText.InternalExecute", AfterDamageTextInternalExecute)' "DamageMeter diagnostics must observe native damage-text command execution."
+Assert-Contains $damageMeter 'RegisterAfter("FightUI.EnqueueDamageText", AfterFightUiEnqueueDamageText)' "DamageMeter diagnostics must observe the native damage-text UI queue."
 
 $sharedRuntimeProject = Read-RepoText "AuraSharedRuntime-Dev\Aura.Shared.csproj"
 Assert-Contains $sharedRuntimeProject "..\AuraUiShared\*.cs" "AuraUiShared must be packaged into Aura.Shared.dll."

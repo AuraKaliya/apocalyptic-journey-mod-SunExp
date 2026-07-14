@@ -11,7 +11,7 @@ namespace SunExp.Dll.Hooks;
 
 public static class SpiritRuntime
 {
-    private static readonly Dictionary<string, bool> UseGate = new(StringComparer.Ordinal);
+    private static readonly Func<CommonCardItem, bool> SpiritCardUseChecker = CanUseSpiritCard;
     private static readonly Dictionary<int, bool> AttackUseGate = new();
 
     public static void Initialize(ModConfig modConfig)
@@ -19,10 +19,7 @@ public static class SpiritRuntime
         ProjectionIntentPresenter.Initialize();
         SpiritAttachmentPresenter.Initialize();
         SpiritCardFaceRuntime.Initialize();
-        RegisterBefore(modConfig, SunExpHookTargets.CommonCardItemOnBeginDrag, context => GateUse(context, "OnBeginDrag"));
-        RegisterAfter(modConfig, SunExpHookTargets.CommonCardItemOnBeginDrag, context => RestoreUse(context, "OnBeginDrag"));
-        RegisterBefore(modConfig, SunExpHookTargets.CommonCardItemUseCardDirectly, context => GateUse(context, "UseCardDirectly"));
-        RegisterAfter(modConfig, SunExpHookTargets.CommonCardItemUseCardDirectly, context => RestoreUse(context, "UseCardDirectly"));
+        RegisterSpiritCardUseChecker();
         RegisterBefore(modConfig, SunExpHookTargets.AttackCardItemTrueUse, GateCaptureUse);
         RegisterAfter(modConfig, SunExpHookTargets.AttackCardItemTrueUse, RestoreCaptureUse);
         RegisterAfter(modConfig, SunExpHookTargets.EnemyManagerAddEnemy, ObserveEnemyAdded);
@@ -67,32 +64,41 @@ public static class SpiritRuntime
 
     private static void ResetUseGates()
     {
-        foreach (var previous in UseGate.Values)
-        {
-            CardItem.canUse = previous;
-            break;
-        }
-
-        UseGate.Clear();
         AttackUseGate.Clear();
     }
 
-    private static void GateUse(ModHookContext context, string source)
+    private static void RegisterSpiritCardUseChecker()
     {
-        if (context.Target is not CardItem card || !SpiritCardFactory.IsSpiritCard(card.dataConfig))
+        if (!CommonCardItem.UseChecker.Contains(SpiritCardUseChecker))
         {
-            return;
+            CommonCardItem.UseChecker.Add(SpiritCardUseChecker);
         }
+    }
 
-        var owner = FightPlayer.Instance?.Status;
-        if (SpiritSummonService.CanSummon(card.dataConfig, owner, out var reason))
+    private static bool CanUseSpiritCard(CommonCardItem card)
+    {
+        try
         {
-            return;
-        }
+            if (card == null || !SpiritCardFactory.IsSpiritCard(card.dataConfig))
+            {
+                return true;
+            }
 
-        UseGate[Key(card, source)] = CardItem.canUse;
-        CardItem.canUse = false;
-        PlayerApi.ShowCaption("精灵：" + reason);
+            var owner = card.status ?? FightPlayer.Instance?.Status;
+            if (owner == null || !ProjectionStateStore.HasForOwner("", owner.InstanceId))
+            {
+                return true;
+            }
+
+            PlayerApi.ShowCaption("精灵：投影位置已被占用。");
+            SunExpPerformanceCounters.Record("Spirit.CardUseRejected.ProjectionOccupied");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("Spirit card use preflight failed: " + ex.Message);
+            return true;
+        }
     }
 
     private static void GateCaptureUse(ModHookContext context)
@@ -124,17 +130,6 @@ public static class SpiritRuntime
         AttackUseGate.Remove(card.GetInstanceID());
     }
 
-    private static void RestoreUse(ModHookContext context, string source)
-    {
-        if (context.Target is not CardItem card || !UseGate.TryGetValue(Key(card, source), out var previous))
-        {
-            return;
-        }
-
-        CardItem.canUse = previous;
-        UseGate.Remove(Key(card, source));
-    }
-
     private static void ObserveEnemyAdded(ModHookContext context)
     {
         var enemyId = context.Arguments != null && context.Arguments.Length > 0
@@ -153,8 +148,6 @@ public static class SpiritRuntime
         SpiritStateStore.RetireIfDead(status, source);
         SpiritAttachmentPresenter.RefreshByOwner(status, source);
     }
-
-    private static string Key(CardItem card, string source) => source + ":" + card.GetInstanceID();
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {

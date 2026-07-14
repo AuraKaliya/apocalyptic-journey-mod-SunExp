@@ -1,4 +1,5 @@
 using System;
+using AuraUi.Shared;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -78,7 +79,7 @@ public static class SunExpUiBuilder
 
         var text = rect.gameObject.AddComponent<Text>();
         text.text = value;
-        text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        text.font = AuraUiNativeBridge.ResolveLegacyFont();
         text.fontSize = fontSize;
         text.fontStyle = style;
         text.alignment = alignment;

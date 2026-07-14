@@ -11,7 +11,9 @@ internal static class DamageMeterPerformanceCounters
     private static long windowStartedAtMs = NowMs();
     private static long nextLogAtMs = windowStartedAtMs + LogIntervalMs;
     private static int hitHooks;
-    private static int damageTextHooks;
+    private static int damageTextCreateHooks;
+    private static int damageTextExecuteHooks;
+    private static int damageTextEnqueueHooks;
     private static int pureHpHooks;
     private static int hpSetterHooks;
     private static int buffHooks;
@@ -52,9 +54,19 @@ internal static class DamageMeterPerformanceCounters
         hitHooks++;
     }
 
-    public static void RecordDamageTextHook()
+    public static void RecordDamageTextCreateHook()
     {
-        damageTextHooks++;
+        damageTextCreateHooks++;
+    }
+
+    public static void RecordDamageTextExecuteHook()
+    {
+        damageTextExecuteHooks++;
+    }
+
+    public static void RecordDamageTextEnqueueHook()
+    {
+        damageTextEnqueueHooks++;
     }
 
     public static void RecordPureHpHook()
@@ -136,7 +148,8 @@ internal static class DamageMeterPerformanceCounters
             return;
         }
 
-        var hooks = hitHooks + damageTextHooks + pureHpHooks + hpSetterHooks + buffHooks;
+        var hooks = hitHooks + damageTextCreateHooks + damageTextExecuteHooks + damageTextEnqueueHooks
+                    + pureHpHooks + hpSetterHooks + buffHooks;
         if (hooks > 0
             || submittedEvents > 0
             || uiRefreshes > 0
@@ -146,8 +159,9 @@ internal static class DamageMeterPerformanceCounters
             var elapsed = Math.Max(1, now - windowStartedAtMs);
             AuraToolsLog.Debug("[DamageMeter:perf] windowMs="
                                + elapsed
-                               + ", hooks(hit/text/pure/set/buff)="
-                               + hitHooks + "/" + damageTextHooks + "/" + pureHpHooks + "/" + hpSetterHooks + "/" + buffHooks
+                               + ", hooks(hit/textCreate/textExecute/textEnqueue/pure/set/buff)="
+                               + hitHooks + "/" + damageTextCreateHooks + "/" + damageTextExecuteHooks + "/" + damageTextEnqueueHooks
+                               + "/" + pureHpHooks + "/" + hpSetterHooks + "/" + buffHooks
                                + ", submit="
                                + submittedEvents
                                + ", local="
@@ -174,7 +188,9 @@ internal static class DamageMeterPerformanceCounters
         windowStartedAtMs = now;
         nextLogAtMs = now + LogIntervalMs;
         hitHooks = 0;
-        damageTextHooks = 0;
+        damageTextCreateHooks = 0;
+        damageTextExecuteHooks = 0;
+        damageTextEnqueueHooks = 0;
         pureHpHooks = 0;
         hpSetterHooks = 0;
         buffHooks = 0;

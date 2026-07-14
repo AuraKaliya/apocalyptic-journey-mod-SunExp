@@ -5,6 +5,7 @@ using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using AuraToolsExp.Dll.Features.Settings;
 using AuraToolsExp.Dll.Infrastructure;
+using AuraUi.Shared;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -1208,7 +1209,7 @@ internal static class AuraToolsDamageMeterUi
     private static Text ConfigureText(GameObject go, string value, int fontSize, TextAnchor anchor, Color color)
     {
         var text = go.AddComponent<Text>();
-        text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        text.font = AuraUiNativeBridge.ResolveLegacyFont();
         text.text = value;
         text.fontSize = fontSize;
         text.color = color;

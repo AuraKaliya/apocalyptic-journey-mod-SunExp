@@ -1,4 +1,5 @@
 using System;
+using TMPro;
 using UiRaycastSafetyShared;
 using UnityEngine;
 using UnityEngine.UI;
@@ -47,7 +48,7 @@ public static class AuraUiComponents
         bool resizeForBestFit = false)
     {
         var text = go.AddComponent<Text>();
-        text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        AuraUiNativeBridge.Apply(text);
         text.text = value;
         text.fontSize = Math.Max(fontSize, minimumFontSize);
         text.color = color;
@@ -59,6 +60,35 @@ public static class AuraUiComponents
         {
             text.resizeTextMinSize = Math.Max(10, fontSize - 5);
             text.resizeTextMaxSize = fontSize;
+        }
+
+        text.raycastTarget = false;
+        return text;
+    }
+
+    public static TextMeshProUGUI ConfigureTmpText(
+        GameObject go,
+        string value,
+        float fontSize,
+        float minimumFontSize,
+        TextAnchor anchor,
+        Color color,
+        bool resizeForBestFit = false,
+        AuraUiTheme? theme = null)
+    {
+        var text = go.AddComponent<TextMeshProUGUI>();
+        AuraUiNativeBridge.Apply(text, theme);
+        text.text = value;
+        text.fontSize = Math.Max(fontSize, minimumFontSize);
+        text.color = color;
+        text.alignment = AuraUiNativeBridge.ToTmpAlignment(anchor);
+        text.textWrappingMode = TextWrappingModes.Normal;
+        text.overflowMode = TextOverflowModes.Truncate;
+        text.enableAutoSizing = resizeForBestFit;
+        if (resizeForBestFit)
+        {
+            text.fontSizeMin = Math.Max(8f, minimumFontSize);
+            text.fontSizeMax = Math.Max(fontSize, minimumFontSize);
         }
 
         text.raycastTarget = false;

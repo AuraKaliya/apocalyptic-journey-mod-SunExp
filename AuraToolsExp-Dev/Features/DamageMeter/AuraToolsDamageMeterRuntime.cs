@@ -153,7 +153,9 @@ public static class AuraToolsDamageMeterRuntime
 
         RegisterBefore("StatusManager.Hit", BeforeHit);
         RegisterAfter("StatusManager.Hit", AfterHit);
-        RegisterBefore("DamageText.Create", BeforeDamageTextCreate);
+        RegisterAfter("DamageText.Create", AfterDamageTextCreate);
+        RegisterAfter("DamageText.InternalExecute", AfterDamageTextInternalExecute);
+        RegisterAfter("FightUI.EnqueueDamageText", AfterFightUiEnqueueDamageText);
         RegisterBefore("ScriptExecutor.PureChangeHp", BeforePureChangeHp);
         RegisterAfter("ScriptExecutor.PureChangeHp", AfterPureChangeHp);
         RegisterBefore("StatusManager.set_CurHp", BeforeSetCurHp);
@@ -1316,10 +1318,11 @@ public static class AuraToolsDamageMeterRuntime
         });
     }
 
-    private static void BeforeDamageTextCreate(ModHookContext context)
+    private static void AfterDamageTextCreate(ModHookContext context)
     {
         RunHook("damage text", () =>
         {
+            DamageMeterPerformanceCounters.RecordDamageTextCreateHook();
             if (!CaptureEnabled
                 || context.Arguments == null
                 || context.Arguments.Length == 0
@@ -1328,7 +1331,6 @@ public static class AuraToolsDamageMeterRuntime
                 return;
             }
 
-            DamageMeterPerformanceCounters.RecordDamageTextHook();
             var frameIndex = FindHitFrame(data);
             if (frameIndex < 0)
             {
@@ -1614,6 +1616,16 @@ public static class AuraToolsDamageMeterRuntime
             BuffFrames.RemoveAt(index);
             BuffAttribution.CompleteApplication(trackerId);
         });
+    }
+
+    private static void AfterDamageTextInternalExecute(ModHookContext context)
+    {
+        DamageMeterPerformanceCounters.RecordDamageTextExecuteHook();
+    }
+
+    private static void AfterFightUiEnqueueDamageText(ModHookContext context)
+    {
+        DamageMeterPerformanceCounters.RecordDamageTextEnqueueHook();
     }
 
     private static void BeforeStatusAddBuff(ModHookContext context)

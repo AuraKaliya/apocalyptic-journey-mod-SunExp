@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using AuraShared.Core;
+using AuraUi.Shared;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
 using UnityEngine;
@@ -938,7 +939,7 @@ public static class ModeChoiceLayoutRuntime
 
         var text = label.GetComponent<Text>();
         text.text = definition.DisplayName;
-        text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        text.font = AuraUiNativeBridge.ResolveLegacyFont();
         text.fontSize = 24;
         text.alignment = TextAnchor.MiddleCenter;
         text.color = new Color(0.97f, 0.88f, 0.62f, 1f);

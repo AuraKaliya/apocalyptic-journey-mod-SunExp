@@ -1,7 +1,9 @@
 using System;
+using AuraUi.Shared;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -11,10 +13,10 @@ public sealed class FieldBuffHudView : MonoBehaviour
 {
     public const string RootName = "SunExp_FieldBuffHud";
 
-    private const float RootWidth = 136f;
-    private const float RootHeight = 128f;
-    private const float IconFrameSize = 62f;
-    private const float IconSize = 52f;
+    private const float RootWidth = 164f;
+    private const float RootHeight = 154f;
+    private const float IconFrameSize = 76f;
+    private const float IconSize = 64f;
     private const float MultiplayerAvoidanceAt1080 = 150f;
     private static readonly Color PanelTint = new(0.08f, 0.07f, 0.05f, 0.78f);
     private static readonly Color IconFrameTint = new(0.12f, 0.08f, 0.045f, 0.94f);
@@ -24,8 +26,8 @@ public sealed class FieldBuffHudView : MonoBehaviour
 
     private RectTransform? rectTransform;
     private Image? icon;
-    private Text? nameText;
-    private Text? stackText;
+    private TMP_Text? nameText;
+    private TMP_Text? stackText;
     private FieldBuffHudTooltipView? tooltip;
     private FieldBuffSnapshot currentSnapshot = FieldBuffSnapshot.Empty;
     private bool pointerInside;
@@ -142,7 +144,7 @@ public sealed class FieldBuffHudView : MonoBehaviour
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
             new Vector2(IconFrameSize, IconFrameSize));
-        frameRect.anchoredPosition = new Vector2(0f, -12f);
+        frameRect.anchoredPosition = new Vector2(0f, -14f);
         var frameImage = SunExpUiBuilder.ApplyPanelImage(frameRect.gameObject, SunExpUiSprites.Panel("[FieldBuffHud.Icon]"), IconFrameTint);
         frameImage.raycastTarget = false;
 
@@ -166,22 +168,12 @@ public sealed class FieldBuffHudView : MonoBehaviour
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
-            new Vector2(78f, 20f));
-        stackRect.anchoredPosition = new Vector2(0f, -78f);
+            new Vector2(96f, 24f));
+        stackRect.anchoredPosition = new Vector2(0f, -94f);
         var image = SunExpUiBuilder.ApplyLabelImage(stackRect.gameObject, SunExpUiSprites.Label("[FieldBuffHud.Stack]"), StackTint);
         image.raycastTarget = false;
 
-        stackText = SunExpUiBuilder.AddText(
-            stackRect,
-            "Stacks",
-            "",
-            14,
-            FontStyle.Bold,
-            TextAnchor.MiddleCenter,
-            MutedText,
-            Vector2.zero,
-            new Vector2(72f, 18f),
-            4);
+        stackText = CreateHudText(stackRect, "Stacks", 17f, MutedText, new Vector2(90f, 22f));
     }
 
     private void CreateName()
@@ -192,22 +184,34 @@ public sealed class FieldBuffHudView : MonoBehaviour
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
-            new Vector2(120f, 26f));
-        nameRect.anchoredPosition = new Vector2(0f, -98f);
+            new Vector2(146f, 32f));
+        nameRect.anchoredPosition = new Vector2(0f, -122f);
         var image = SunExpUiBuilder.ApplyLabelImage(nameRect.gameObject, SunExpUiSprites.Label("[FieldBuffHud.Name]"), StackTint);
         image.raycastTarget = false;
 
-        nameText = SunExpUiBuilder.AddText(
-            nameRect,
-            "Name",
+        nameText = CreateHudText(nameRect, "Name", 18f, TextColor, new Vector2(138f, 28f));
+    }
+
+    private static TMP_Text CreateHudText(RectTransform parent, string name, float fontSize, Color color, Vector2 size)
+    {
+        var textRect = SunExpUiBuilder.CreateRect(
+            name,
+            parent,
+            new Vector2(0.5f, 0.5f),
+            new Vector2(0.5f, 0.5f),
+            new Vector2(0.5f, 0.5f),
+            size);
+        var text = AuraUiComponents.ConfigureTmpText(
+            textRect.gameObject,
             "",
-            15,
-            FontStyle.Bold,
+            fontSize,
+            Math.Max(12f, fontSize - 4f),
             TextAnchor.MiddleCenter,
-            TextColor,
-            Vector2.zero,
-            new Vector2(112f, 22f),
-            5);
+            color,
+            true,
+            SunExpUiTheme.Current);
+        text.fontStyle = FontStyles.Bold;
+        return text;
     }
 
     private void EnsureTooltip()

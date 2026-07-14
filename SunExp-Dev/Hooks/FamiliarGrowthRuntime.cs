@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Reflection;
+using AuraUi.Shared;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks.Ui;
 using SunExp.Dll.Infrastructure;
@@ -558,7 +559,7 @@ public static class FamiliarGrowthRuntime
 
         var text = textTransform.GetComponent<Text>() ?? textTransform.gameObject.AddComponent<Text>();
         text.text = ButtonText;
-        text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        text.font = AuraUiNativeBridge.ResolveLegacyFont();
         text.fontSize = 18;
         text.alignment = TextAnchor.MiddleCenter;
         text.color = new Color(0.98f, 0.92f, 0.78f);
