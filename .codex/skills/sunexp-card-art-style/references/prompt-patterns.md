@@ -1,62 +1,89 @@
-# Prompt Patterns
+# Stage Prompt Patterns
 
-Use one prompt per card or relic.
+Run one image operation per target per stage. Stage 2 must edit the stage-1
+image, and stage 3 must edit the stage-2 image. Do not replace either edit with
+a fresh text-only generation.
 
-## Card Prompt
+When creating a series benchmark, use the bundled example art as style
+references. After benchmark approval, use both the bundled example art and the
+approved benchmark image for stages 2 and 3.
 
-```text
-Generate a 512x512 square card artwork icon.
-Card: <Chinese name> / <English name>, <type/rarity>, <pack theme>.
-Use this staged design process: first imagine a complex theme-specific motif,
-then compress it into a readable silhouette, then reduce it to 2-3 subject
-colors, then remove small details and render it as expressive brush strokes.
-Very dark navy background, single centered symbolic subject, only 2-3 object
-colors total chosen from the card pack palette, no fine details, no text, no
-border, no UI frame.
-Visual subject: <one richer symbolic motif with 2-3 theme-specific components>.
-Pack palette: <background>, <main>, <shadow>, <optional accent>.
-Strong compressed silhouette, painterly massing, thick rough brush strokes,
-visible bristle edges, readable when tiny.
-Avoid gradients, many colors, tiny ornaments, realistic rendering, scenery,
-characters, lettering, and clean vector geometry.
-```
-
-If output looks too detailed, ask for fewer shapes, larger silhouette, less
-texture, and only chosen palette colors. If it looks too generic, combine two
-or three theme-specific components before simplifying.
-
-## Relic Prompt
+## Stage 1: Card Theme Image
 
 ```text
-Generate a simplified 512x512 square game relic icon.
-Relic: <Chinese name> / <English name>, <rarity>, <pack theme>.
-Pure solid black #000000 background, one centered physical item, strong
-silhouette, readable at 32x32, no text, no numbers, no runes, no border,
-no UI frame, no scenery, no character.
-Visual subject: <one clear item based on the relic name/tips/effect>.
-Theme accents: <pack-specific accents, not a strict 2-3 color limit>.
-Large readable object shapes, broad painted facets/details, generous black
-padding, item occupies about 60-75% of the canvas.
-Avoid tiny ornaments, labels, dense sparks, complex mechanisms, realistic scene
-rendering, background glow, and edge cropping.
+Generate a high-quality 1:1 card artwork image.
+Card name: <name>.
+Card effect: <effect>.
+Pack palette: <palette>.
+Visual theme: <theme derived from the name, effect, and palette>.
+
+Develop the visual theme into a complete, complex image before simplification.
+The subject matter is otherwise unrestricted. Use a pure solid black #000000
+background. Do not include a UI frame, card frame, or vector geometry. Give the
+subject a readable, organic silhouette and a characteristic outer contour made
+from painted masses. Do not construct the subject as a logo, emblem, diagram,
+geometric line drawing, circle arrangement, regular polygon, or ring pattern.
 ```
 
-## Gold Dream Palette
+## Stage 1: Relic Theme Image
 
-- `background`: flat midnight violet near `RGB(4,2,48)`.
-- `main`: bright cream gold near `RGB(253,251,200)`.
-- `shadow`: ochre gold near `RGB(229,179,64)`.
-- `accent`: tiny mint-green accent for false-gold curves, debt magic, or ward
-  marks.
+```text
+Generate a high-quality 1:1 relic artwork image.
+Relic name: <name>.
+Relic effect: <effect>.
+Pack palette: <palette>.
+Visual theme: <physical item derived from the name, effect, and palette>.
 
-Keep GoldExp gold-dream card subjects mostly gold. Avoid many-color treasure
-scenes, gradients, scenery, or frame-like borders.
+Depict a clear physical item and develop it into a complete, complex image
+before simplification. Use a pure solid black #000000 background. Do not
+include a UI frame, card frame, or vector geometry. Give the item a readable,
+organic silhouette and a characteristic outer contour made from painted
+masses. Do not construct the item as a logo, emblem, diagram, geometric line
+drawing, circle arrangement, regular polygon, or ring pattern.
+```
 
-## Accepted GoldExp Subject Mappings
+## Stage 2: Hand-Painted Simplification
 
-- `镀金护符`: cracked gold coin ring + hanging contract tag + central ward flame.
-- `金梦押注`: overlapping false-gold coins + betting crescent + torn contract chip.
-- `乾坤一掷`: diagonal thrown-coin comet + cracked fragments + trailing contract ribbon.
-- `赌金雨`: arcing rain of uneven fake coins + mint splash + dissolving gold dust.
-- `空头支票`: torn golden blank check/contract + diagonal slash + false-gold chips.
-- `黄金时代`: old false-gold coin + radiant crown-sunburst + broken coin rays.
+Attach the stage-1 image, the bundled example art, and the approved benchmark
+image when one exists.
+
+```text
+Edit the stage-1 image rather than inventing a replacement composition.
+Preserve its subject, meaning, composition, and readable organic silhouette.
+Use the attached example art for hand-painted brush character and the approved
+benchmark for series palette and complexity.
+
+Stylize, brush-paint, and simplify the image. Reduce the foreground to 4-6
+visually distinct colors from the pack palette, excluding the pure-black
+background. Merge secondary structures and reduce detail while preserving the
+main forms. Use visible painterly strokes instead of smooth vector edges. Do
+not turn the subject into a logo, emblem, diagram, geometric line drawing,
+circle arrangement, regular polygon, or ring pattern. Keep the background pure
+solid black #000000 and keep the canvas 1:1.
+```
+
+## Stage 3: Coarse Final Stylization
+
+Attach the stage-2 image, the bundled example art, and the approved benchmark
+image when one exists.
+
+```text
+Edit the stage-2 image rather than generating a new composition. Preserve its
+subject identity, main composition, and readable organic silhouette. Use the
+attached example art for final brush treatment and the approved benchmark for
+series palette and complexity.
+
+Reduce the foreground to 3-5 visually distinct colors from the pack palette,
+excluding the pure-black background, and do not increase the previous color
+count. Delete tiny details, merge fragmented color patches, and express the
+remaining forms with large, coarse, rough hand-painted strokes. Preserve the
+characteristic outer contour. Do not replace organic forms with circles,
+straight lines, regular polygons, rings, vector geometry, or diagram-like
+marks. Keep the background pure solid black #000000 and keep the canvas 1:1.
+```
+
+## Stage 4: Resize
+
+Stage 4 is not an image-generation prompt. Resize the accepted stage-3 image
+proportionally to `256x256` with high-quality downsampling and no crop or visual
+changes.

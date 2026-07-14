@@ -31,6 +31,40 @@ Use a 25-64 character `short_description`, then run
 
 ---
 
+## [ERR-20260714-001] card-art-skill-path-assumption
+
+**Logged**: 2026-07-14T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: docs
+
+### Summary
+An inspection command assumed shipped mod resource paths were rooted directly at `SunExp/ModResource` and `GoldExp/ModResource`.
+
+### Error
+```text
+rg: GoldExp: system cannot find the file specified
+rg: SunExp/ModResource/Data/Card: system cannot find the path specified
+```
+
+### Context
+- Command attempted while reviewing `.codex/skills/sunexp-card-art-style`.
+- This workspace contains `SunExp`, `SunExp-Dev`, and `GoldExp-Dev`; resource ownership must be discovered before querying fixed paths.
+- `rg --files` on Windows emits backslash-separated paths, so slash-only filters can also miss results.
+
+### Suggested Fix
+Discover resource roots with `rg --files` or `Get-ChildItem` first, then use separator-agnostic filters such as `[\\/]`.
+
+### Metadata
+- Reproducible: yes
+- Related Files: .codex/skills/sunexp-card-art-style/SKILL.md
+
+### Resolution
+- **Resolved**: 2026-07-14T00:00:00+08:00
+- **Notes**: Switched to repository discovery instead of assuming the documented example paths exist verbatim in the current checkout.
+
+---
+
 ## [ERR-20260708-002] aura-ui-modal-host-missing-system-using
 
 **Logged**: 2026-07-08T20:20:00+08:00

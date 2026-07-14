@@ -1,4 +1,4 @@
 interface:
-  display_name: "Witch Mod Art Style"
-  short_description: "Draw theme-first card art and relic icons for Witch mods."
-  default_prompt: "Use $sunexp-card-art-style to redesign SunExp or GoldExp card art and relic icons from current names, pack themes, mechanics, and accepted style references while preserving the correct card-vs-relic rules."
+  display_name: "Witch Staged Card Art"
+  short_description: "Draw hand-painted card and relic art through an approved benchmark and four real stages."
+  default_prompt: "Use $sunexp-card-art-style to create one per-series benchmark first, wait for approval, then draw each card or relic through separate theme, hand-painted simplification, coarse stylization, and 256x256 resize stages without rarity-based complexity or geometric line art."

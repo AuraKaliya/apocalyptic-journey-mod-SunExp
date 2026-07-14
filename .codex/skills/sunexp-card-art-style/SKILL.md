@@ -1,77 +1,116 @@
 ---
 name: sunexp-card-art-style
-description: Project-local skill for generating, redesigning, replacing, reviewing, or batching Witch's Apocalyptic Journey mod card-face images and relic icons, especially SunExp and GoldExp artwork under ModResource/Images. Use when deriving art from current card/relic names, pack themes, mechanics, accepted references, contact sheets, or user feedback about card art style. Cards use theme-first silhouettes and compact pack palettes; relics use pure-black 32x32-readable centered item silhouettes.
+description: Project-local skill for drawing or redesigning Witch's Apocalyptic Journey card art and relic icons with a required per-series benchmark approval gate and a real four-step image workflow. Use when artwork must start from the current name, effect, and pack palette; preserve an organic readable silhouette on pure black; be progressively hand-painted and simplified; and finish at 256x256 without rarity-based complexity changes.
 ---
 
-# Witch Mod Card And Relic Art Style
+# Witch Mod Card And Relic Art
 
-Use this skill inside this repository for card-face artwork, relic icons, and
-contact-sheet review. Pair it with `imagegen` when generating bitmap assets.
-Pair it with `sunexp-mod-dev` when CSV icon paths or validation matter. Use
-`sunexp-visual-runtime-dev` instead for VisualBundles, shaders, card frame
-effects, Skill CG playback, or runtime visual application.
+Use this skill inside this repository for card art and relic icons. Pair it with
+`imagegen` for stages 1-3. Pair it with `sunexp-mod-dev` only when installing
+the approved final image into mod resources. Runtime frames, shaders, visual
+bundles, and skill CG are outside this skill.
 
-## Reference Images
+## Example Art
 
-Use bundled references only as style anchors:
+Use these bundled images as the only global style examples:
 
-- `assets/reference-minimal-eclipse.png`: minimum-detail card style.
-- `assets/reference-finisher-collapse.png`: high-rarity finisher card style.
-- `assets/reference-relic-morning-shard.png`: approved pure-black relic style.
-- `assets/reference-relic-blazing-sundial.png`: complex but readable relic style.
+- `assets/reference-ember-cloak-card.png`
+- `assets/reference-solar-scorching-light.png`
+- `assets/reference-stellar-overture-turn.png`
+- `assets/reference-spirit-ball.png`
 
-Do not copy these subjects unless the target has the same meaning.
+They define hand-painted treatment, brush character, silhouette handling, and
+the target level of simplification. They do not define the new subject or the
+series palette. Do not copy their shapes or reconstruct a target from circles,
+straight lines, regular polygons, rings, or other geometric line work.
 
-## Choose The Asset Mode
+## Definitions
 
-- Card art: symbolic square card-face image under paths such as
-  `SunExp/ModResource/Images/Card/SunExp` or
-  `GoldExp/ModResource/Images/Card/GoldExp`. Use one centered motif, dark field,
-  compact pack palette, and readability at `128x128`.
-- Relic icon: physical item icon under paths such as
-  `SunExp/ModResource/Images/Relic/SunExp` or
-  `GoldExp/ModResource/Images/Relic/GoldExp`. Use pure black background,
-  centered object, and readability at `32x32`.
+- A `series` is the target's `PackBelong` card pack.
+- A `benchmark image` is the first approved final image for a series.
+- Foreground color counts exclude the pure-black background and count visually
+  distinct painted colors rather than minor antialiasing pixels.
 
-## Workflow
+## Series Approval Gate
 
-1. Read current names, English names, effects, pack ownership, and icon paths
-   from the relevant `SunExp` or `GoldExp` Data/Text CSVs.
-2. Derive the visual subject from current mechanics and theme. Ignore old art
-   unless the user explicitly asks for an edit.
-3. Confirm or define the card-pack palette before final card generation.
-4. Generate one image per target. Do not batch distinct cards in one vague
-   prompt.
-5. Save final images to the exact CSV `Icon` paths unless path changes were
-   requested.
-6. Create or update a contact sheet outside the game resource folder.
-7. Run image and project validation.
+Before drawing a complete series:
 
-## Core Rules
+1. Select one representative card or relic from the series.
+2. Complete all four drawing stages for that one target.
+3. Reverse-analyze and score the result with
+   `references/asset-validation.md`.
+4. Present the benchmark image, analysis, and score for review.
+5. Stop and wait for explicit approval before drawing the rest of the series.
+6. After approval, use that benchmark image as a required reference for every
+   remaining target in the series.
 
-- Cards are readable painted emblems, not full illustrations.
-- Card subject colors should stay within 2-3 colors from the pack palette.
-- Build cards from theme-specific silhouette first; do not start from generic
-  geometry and add style afterward.
-- Avoid text, numbers, readable runes, UI frames, scenery, characters, clean
-  vector geometry, and tiny ornaments.
-- Relics must be centered physical items on pure solid black `#000000`
-  backgrounds, including outer-edge pixels.
-- Relics have no strict color-count limit, but must stay readable at `32x32`.
+Do not generate a whole series before its benchmark is approved. Match every
+target to the benchmark's complexity regardless of rarity. Never use rarity to
+add or remove colors, shapes, details, effects, or brushwork.
 
-## References
+## Four-Step Drawing Workflow
 
-- `references/prompt-patterns.md`: card/relic prompt templates, Gold Dream
-  palette, and accepted GoldExp subject mappings.
-- `references/asset-validation.md`: dimension, mode, black-edge, contact-sheet,
-  and CSV path validation expectations.
+### 1. Complex Theme Image
 
-## Validation
+Read the current card or relic name and effect, then read the series pack
+palette. Derive a visual theme and generate an actual high-quality `1:1` image.
 
-For SunExp assets, run:
+- A card theme has no additional subject restriction.
+- A relic theme must depict a physical item.
+- The background must be pure solid black `#000000`.
+- Do not include a UI frame, card frame, or vector geometry.
+- Give the subject a readable, organic silhouette and characteristic outer
+  contour. Build it from painted masses, not geometric lines.
 
-```powershell
-.codex\skills\sunexp-mod-dev\scripts\validate-sunexp.ps1
+This stage establishes the full subject, composition, and visual meaning before
+any color or detail compression.
+
+### 2. Hand-Painted Simplification
+
+Edit the stage-1 image instead of generating a replacement from text. Reference
+the example art and, after series approval, the benchmark image.
+
+- Preserve the subject, composition, and silhouette.
+- Stylize the image with visible hand-painted brushwork.
+- Reduce the foreground to `4-6` visually distinct colors.
+- Merge secondary structures and reduce detail.
+- Do not convert the subject into an emblem or geometric line drawing.
+
+### 3. Coarse Final Stylization
+
+Edit the stage-2 image and reference the same example art and approved
+benchmark image.
+
+- Reduce the foreground to `3-5` visually distinct colors and never increase
+  the stage-2 count.
+- Delete tiny details and merge fragmented color patches.
+- Convert the remaining forms into large, coarse, rough hand-painted strokes.
+- Preserve the readable silhouette and the identity of the subject.
+- Do not replace organic contours with circles, straight lines, regular
+  polygons, rings, or diagram-like marks.
+
+Stages 1-3 are three separate image operations. Never collapse them into one
+prompt that merely describes a staged process.
+
+### 4. Final Resize
+
+Resize the stage-3 image proportionally to exactly `256x256`. Use high-quality
+downsampling. Do not regenerate, crop, redraw, recolor, or recompose it during
+this step.
+
+## Working Artifacts
+
+Keep reviewable stages outside shipped mod resources:
+
+```text
+tools/previews/card-art/<series>/<target>/
+  01-theme-source.png
+  02-painted-4-6.png
+  03-coarse-3-5.png
+  04-final-256.png
+  review.md
 ```
 
-Also verify every replaced card/relic PNG is `512x512` and `RGB` or `RGBA`.
+Only install `04-final-256.png` after it passes the hard gates and scoring rules
+in `references/asset-validation.md`. Use `references/prompt-patterns.md` for the
+stage-specific generation and edit prompts.
