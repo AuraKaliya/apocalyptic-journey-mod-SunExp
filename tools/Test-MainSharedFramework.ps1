@@ -21,7 +21,7 @@ foreach ($project in $mainProjects) {
         throw "Main shared consumer must reference Aura.Shared instead of linked shared source: $project"
     }
 
-    if ($text -match 'Compile Include="[^"]*(AuraSharedCore|AuraAudioShared|AuraLogShared|AuraJourneyShared|AuraSkinShared|AudioArbiterShared|BattleBgmArbiterShared|StarterDeckArbiterShared|UiRaycastSafetyShared|UiTransitionGuardShared|AuraCgShared|AuraOnlineShared)') {
+    if ($text -match 'Compile Include="[^"]*(AuraSharedCore|AuraAudioShared|AuraLogShared|AuraJourneyShared|AuraSkinShared|AudioArbiterShared|BattleBgmArbiterShared|StarterDeckArbiterShared|UiRaycastSafetyShared|UiTransitionGuardShared|AuraCgShared|AuraDirectorShared|AuraDirectorDetour-Dev|AuraOnlineShared)') {
         throw "Main shared consumer still links shared source directly: $project"
     }
 }

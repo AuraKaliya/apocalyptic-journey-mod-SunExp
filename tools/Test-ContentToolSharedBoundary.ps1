@@ -75,6 +75,8 @@ $sharedRoots = @(
     "AudioArbiterShared",
     "BattleBgmArbiterShared",
     "AuraCgShared",
+    "AuraDirectorShared",
+    "AuraDirectorDetour-Dev",
     "AuraJourneyShared",
     "AuraLogShared",
     "AuraOnlineShared",

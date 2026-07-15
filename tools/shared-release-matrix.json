@@ -33,6 +33,13 @@
       "enabled": true
     },
     {
+      "id": "director-detour-technical-probe",
+      "kind": "script",
+      "path": "tools/Test-AuraDirectorDetour.ps1",
+      "enabled": true,
+      "passConfiguration": true
+    },
+    {
       "id": "auratools-feature-tests",
       "kind": "script",
       "path": "tools/Test-AuraToolsExp.ps1",

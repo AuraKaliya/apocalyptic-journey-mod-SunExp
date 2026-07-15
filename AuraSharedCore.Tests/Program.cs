@@ -1,6 +1,7 @@
 using AuraShared.Core;
 using AuraJourney.Shared;
 using AuraOnline.Shared;
+using AuraDirector.Shared;
 using Newtonsoft.Json.Linq;
 
 var assertions = 0;
@@ -170,6 +171,7 @@ try
     TestOnlineChatContracts();
     TestAuthoritativeSyncContracts();
     TestObjectPoolContracts();
+    TestDirectorContracts();
 
     Console.WriteLine($"AuraSharedCore tests passed: {assertions} assertions.");
 }
@@ -204,6 +206,85 @@ void TestObjectPoolContracts()
     var disposed = new List<string>();
     pool.Clear(value => disposed.Add(value.Name));
     Assert(disposed.SequenceEqual(new[] { "dispose" }) && pool.Count("attack") == 0, "object pool clear disposes idle values and removes buckets");
+}
+
+void TestDirectorContracts()
+{
+    var request = DirectorRequest(2);
+    var first = AuraDirectorPlanCompiler.Compile(request);
+    var second = AuraDirectorPlanCompiler.Compile(DirectorRequest(2));
+    Assert(first.Success && first.Descriptor != null && first.Cues.Count == 8, "director compiles four cues per actor");
+    Assert(first.Descriptor!.Actors.Select(actor => actor.ActorKey).SequenceEqual(new[] { "player-a", "e0" }),
+        "director preserves caller actor order");
+    var portraits = first.Cues.Where(cue => cue.CueKind == AuraDirectorCueKind.PortraitSlide).ToArray();
+    Assert(portraits[0].Direction == AuraDirectorDirection.RightToLeft
+           && portraits[1].Direction == AuraDirectorDirection.LeftToRight,
+        "director alternates portrait direction from right to left first");
+    Assert(first.Descriptor.PlanHash == second.Descriptor!.PlanHash,
+        "director plan hash is deterministic");
+
+    var changedOrder = DirectorRequest(2);
+    changedOrder.Actors.Reverse();
+    var changed = AuraDirectorPlanCompiler.Compile(changedOrder);
+    Assert(changed.Success && changed.Descriptor!.PlanHash != first.Descriptor.PlanHash,
+        "director plan hash covers actor order");
+
+    var compact = AuraDirectorPlanCompiler.Compile(DirectorRequest(9));
+    var compactPortrait = compact.Cues.First(cue => cue.CueKind == AuraDirectorCueKind.PortraitSlide);
+    Assert(compact.Success && compactPortrait.EnterSeconds == 0.25d && compactPortrait.HoldSeconds == 0.15d,
+        "director uses compact timing beyond eight actors");
+
+    var duplicate = DirectorRequest(2);
+    duplicate.Actors[1].ActorKey = duplicate.Actors[0].ActorKey;
+    Assert(AuraDirectorPlanCompiler.Compile(duplicate).RejectionCode == "actor-key-duplicate",
+        "director rejects duplicate battle actor identities");
+
+    var overLimit = DirectorRequest(AuraDirectorPlanCompiler.MaximumActorCount + 1);
+    Assert(AuraDirectorPlanCompiler.Compile(overLimit).RejectionCode == "actors-over-limit",
+        "director fails open instead of truncating oversized casts");
+
+    var state = new AuraDirectorSessionStateMachine();
+    Assert(state.TryAdvance(AuraDirectorSessionState.Preparing)
+           && !state.TryAdvance(AuraDirectorSessionState.Playing)
+           && state.TryBeginRelease("test-abort")
+           && !state.TryBeginRelease("duplicate")
+           && state.TryMarkReleased()
+           && state.IsReleased
+           && state.ReleaseReason == "test-abort",
+        "director session release is ordered and idempotent");
+    Assert(typeof(IAuraDirectorNativeStartHold).GetProperty(nameof(IAuraDirectorNativeStartHold.NativeTarget)) != null
+           && typeof(IAuraDirectorNativeStartHoldSink).GetMethod(nameof(IAuraDirectorNativeStartHoldSink.TryAccept)) != null,
+        "director exposes a backend-independent native start hold contract");
+}
+
+AuraDirectorRequest DirectorRequest(int actorCount)
+{
+    var request = new AuraDirectorRequest
+    {
+        OwnerModId = "Tests",
+        RequestId = "opening",
+        BattleSessionId = 7
+    };
+    for (var i = 0; i < actorCount; i++)
+    {
+        var player = i == 0;
+        request.Actors.Add(new AuraDirectorActorRef
+        {
+            ActorKey = player ? "player-a" : "e" + (i - 1),
+            ActorKind = player ? AuraDirectorActorKind.Player : AuraDirectorActorKind.Enemy,
+            Side = player ? AuraDirectorActorSide.Friendly : AuraDirectorActorSide.Hostile,
+            OwnerPlayerId = player ? "player-a" : "",
+            ContentOwnerModId = "Tests",
+            ContentId = player ? "role-a" : "enemy-" + (i - 1),
+            Resource = new AuraDirectorResourceRef
+            {
+                ProviderId = "aura.cg",
+                OwnerModId = "Tests",
+                ResourceId = player ? "role-a-portrait" : "enemy-" + (i - 1) + "-portrait"
+            }
+        });
+    }
+    return request;
 }
 
 AuraSharedInstallRequest Request(string owner, string system, string id, string package, long version, string source, string destination)

@@ -161,6 +161,32 @@ $removedCoverMode = (-join @("fullscreen", "Cover", "Fade"))
 if ($cgRuntimeText.Contains($removedCoverMode) -or $cgRegistryText.Contains($removedCoverMode)) {
     throw "AuraCgShared must use fullscreenFade plus fit=cover instead of the removed cover-specific mode."
 }
+
+$directorModelsText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirectorShared\AuraDirectorModels.cs")
+$directorCompilerText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirectorShared\AuraDirectorPlanCompiler.cs")
+$directorProbeText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirectorShared\AuraDirectorNativeStartBarrierProbe.cs")
+$directorStartGateText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirectorShared\AuraDirectorStartGateContracts.cs")
+foreach ($required in @("AuraDirectorRequest", "AuraDirectorActorRef", "AuraDirectorPlanDescriptor", "AuraDirectorSessionStateMachine", "IAuraDirectorNativeStartHold", "IAuraDirectorNativeStartHoldSink")) {
+    $allDirectorText = $directorModelsText + $directorCompilerText + $directorStartGateText + (Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirectorShared\AuraDirectorSessionState.cs"))
+    if (-not $allDirectorText.Contains($required)) {
+        throw "AuraDirectorShared contract is missing: $required"
+    }
+}
+foreach ($required in @("alternating-portrait-v1", "MaximumActorCount = 32", "ComputeHash", "actor-key-duplicate")) {
+    if (-not $directorCompilerText.Contains($required)) {
+        throw "AuraDirectorShared deterministic plan compiler is missing: $required"
+    }
+}
+foreach ($required in @("native-hook-not-cancellable", "ModHookContext", "Supported = false")) {
+    if (-not $directorProbeText.Contains($required)) {
+        throw "AuraDirectorShared native capability probe is missing: $required"
+    }
+}
+foreach ($forbidden in @("readyCount", "ActionQueue", "Time.timeScale", "Harmony", "MonoMod")) {
+    if ($directorModelsText.Contains($forbidden) -or $directorCompilerText.Contains($forbidden) -or $directorProbeText.Contains($forbidden)) {
+        throw "AuraDirectorShared must not use rejected native progression workaround: $forbidden"
+    }
+}
 foreach ($required in @("FocusX", "FocusY", "SafeScale", "CalculateCoverImageOffset")) {
     if (-not $cgRuntimeText.Contains($required)) {
         throw "AuraCgShared cover-focus contract is missing: $required"
@@ -422,7 +448,7 @@ $sharedConsumerProjects = @(
     "TestMods\CardUseCialloExp-Dev\CardUseCialloExp.Dll.csproj",
     "TestMods\ChatExp-Dev\ChatExp.Dll.csproj"
 )
-$linkedSharedPattern = 'Compile Include="[^"]*(AuraSharedCore|AuraAudioShared|AuraLogShared|AuraJourneyShared|AuraSkinShared|AudioArbiterShared|BattleBgmArbiterShared|StarterDeckArbiterShared|UiRaycastSafetyShared|UiTransitionGuardShared|AuraCgShared|AuraOnlineShared)'
+$linkedSharedPattern = 'Compile Include="[^"]*(AuraSharedCore|AuraAudioShared|AuraLogShared|AuraJourneyShared|AuraSkinShared|AudioArbiterShared|BattleBgmArbiterShared|StarterDeckArbiterShared|UiRaycastSafetyShared|UiTransitionGuardShared|AuraCgShared|AuraDirectorShared|AuraDirectorDetour-Dev|AuraOnlineShared)'
 foreach ($relativeProject in $sharedConsumerProjects) {
     $consumerText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot $relativeProject)
     if (-not $consumerText.Contains("AuraSharedRuntime-Dev\Aura.Shared.csproj")) {

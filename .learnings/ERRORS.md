@@ -383,3 +383,102 @@ First locate candidate filenames with `rg --files` or `rg -l`, then search only 
 - **Notes**: Narrowed analysis to ShopUI, ShopItem, OutsiderShopUI, OutsideShopItem, map flow, and currency persistence classes.
 
 ---
+
+## [ERR-20260715-004] powershell-assembly-resolve-recursion
+
+**Logged**: 2026-07-15T15:10:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: infra
+
+### Summary
+Loading `Aura.Shared.dll` through a PowerShell `AssemblyResolve` scriptblock recursively re-entered the resolver and overflowed the PowerShell process stack.
+
+### Error
+```text
+Stack overflow ... DynamicClass.lambda_method9 ... AssemblyLoadContext.InvokeResolveEvent
+Exit code: -1073741571
+```
+
+### Context
+- The ad hoc harness attempted to invoke the native start-barrier capability probe outside Unity.
+- Resolving managed game dependencies from inside PowerShell's resolver callback recursively triggered the same callback.
+- The product assembly itself still built successfully; the failure was isolated to the external reflection harness.
+
+### Suggested Fix
+Use a small compiled probe harness with explicit dependency references and deterministic load paths, or rely on compile-time and source-contract checks until an in-game probe host is available. Do not install a PowerShell `AssemblyResolve` scriptblock for this dependency graph.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraDirectorShared/AuraDirectorNativeStartBarrierProbe.cs
+
+### Resolution
+- **Resolved**: 2026-07-15T15:12:00+08:00
+- **Notes**: Did not retry the unsafe resolver path; retained build validation and source-level capability assertions.
+
+---
+
+## [ERR-20260715-005] repeated-powershell-search-quoting-errors
+
+**Logged**: 2026-07-15T15:20:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+Two repository search attempts failed because one reused an invalid Windows wildcard path and another embedded an improperly quoted regular expression in PowerShell.
+
+### Error
+```text
+rg: *.ps1: The filename, directory name, or volume label syntax is incorrect. (os error 123)
+ParserError: Missing expression after unary operator ','.
+```
+
+### Context
+- The first command repeated the directory-wildcard mistake already recorded in `ERR-20260715-002`.
+- The second mixed PowerShell double-quoted syntax with regex quote characters.
+
+### Suggested Fix
+Pass a concrete search root with `-g '*.ps1'` and use a single-quoted regex. Normalize expected no-match exit code 1 when searches run in a batch.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools
+
+### Resolution
+- **Resolved**: 2026-07-15T15:22:00+08:00
+- **Notes**: Re-ran the search against the concrete `tools` root with single-quoted globs.
+
+---
+
+## [ERR-20260715-006] harmony-242-unpatch-api-drift
+
+**Logged**: 2026-07-15T16:05:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: dependencies
+
+### Summary
+The isolated Detour backend initially used `Harmony.UnpatchSelf()`, which is not present in Lib.Harmony 2.4.2.
+
+### Error
+```text
+CS1061: 'Harmony' does not contain a definition for 'UnpatchSelf'
+```
+
+### Context
+- The technical spike intentionally selected the current Lib.Harmony 2.4.2 package.
+- Reflection over its net35-compatible `0Harmony.dll` showed `UnpatchAll(string harmonyID)` and targeted `Unpatch` overloads instead.
+
+### Suggested Fix
+Inspect the installed package API rather than relying on examples from older Harmony versions. Unpatch by the backend's unique owner ID so unrelated MOD patches remain intact.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraDirectorDetour-Dev/AuraDirectorReadyToStartDetourBackend.cs
+
+### Resolution
+- **Resolved**: 2026-07-15T16:08:00+08:00
+- **Notes**: Replaced backend cleanup paths with `harmony.UnpatchAll(HarmonyId)`; a follow-up compile caught and corrected the same stale call in the fixture test.
+
+---

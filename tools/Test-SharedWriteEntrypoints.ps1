@@ -6,6 +6,8 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $roots = @(
     "AuraAudioShared",
     "AuraCgShared",
+    "AuraDirectorShared",
+    "AuraDirectorDetour-Dev",
     "AuraJourneyShared",
     "AuraLogShared",
     "AuraSkinShared",

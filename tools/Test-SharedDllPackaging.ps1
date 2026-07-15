@@ -39,7 +39,7 @@ foreach ($relative in $packagedDlls) {
     }
 }
 
-$sharedSourcePattern = 'Compile Include="[^"]*(AuraSharedCore|AuraAudioShared|AuraLogShared|AuraJourneyShared|AuraSkinShared|AudioArbiterShared|BattleBgmArbiterShared|StarterDeckArbiterShared|UiRaycastSafetyShared|UiTransitionGuardShared|AuraCgShared|AuraOnlineShared)'
+$sharedSourcePattern = 'Compile Include="[^"]*(AuraSharedCore|AuraAudioShared|AuraLogShared|AuraJourneyShared|AuraSkinShared|AudioArbiterShared|BattleBgmArbiterShared|StarterDeckArbiterShared|UiRaycastSafetyShared|UiTransitionGuardShared|AuraCgShared|AuraDirectorShared|AuraDirectorDetour-Dev|AuraOnlineShared)'
 $consumerProjects = @(
     "SunExp-Dev\SunExp.Dll.csproj",
     "SanGuoShaExp-Dev\SanGuoShaExp.Dll.csproj",
