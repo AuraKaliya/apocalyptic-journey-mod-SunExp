@@ -31,6 +31,71 @@ Use a 25-64 character `short_description`, then run
 
 ---
 
+## [ERR-20260715-004] dimension-shop-missing-runtime-reference
+
+**Logged**: 2026-07-15T15:10:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: build
+
+### Summary
+The first Dimension Shop build omitted the assembly and namespace needed by newly referenced game types.
+
+### Error
+```text
+Loxodon.Framework.Obfuscation types and GameEntryUI could not be resolved.
+```
+
+### Context
+- `DimensionShopGameApi` reaches `GameRuntimeData`, whose dependency graph requires the Loxodon obfuscation assembly.
+- `DimensionShopService` uses `GameEntryUI`, which lives in `Witch.UI.Window`.
+
+### Suggested Fix
+When a new GameApi facade crosses into another managed assembly, inspect the type's assembly before the first build and add the matching project reference and namespace together.
+
+### Metadata
+- Reproducible: yes
+- Related Files: SunExp-Dev/SunExp.Dll.csproj, SunExp-Dev/Mechanics/DimensionShopService.cs
+
+### Resolution
+- **Resolved**: 2026-07-15T15:13:00+08:00
+- **Notes**: Added `Loxodon.Framework.Obfuscation.dll` and `using Witch.UI.Window`; the release build now completes with zero warnings and errors.
+
+---
+
+## [ERR-20260715-005] powershell-source-assertion-quoting
+
+**Logged**: 2026-07-15T15:27:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: test
+
+### Summary
+A PowerShell source assertion used C-style escaped quotes and a second assertion named a method that did not exist.
+
+### Error
+```text
+The term '\ + DimensionShopGameApi.LocalPlayerScope()' is not recognized.
+Dimension shop UI must expose the crystal-priced refresh action.
+```
+
+### Context
+- PowerShell does not use backslash to escape quotes in a double-quoted string.
+- The implemented service method is `Refresh`, not `TryRefresh`.
+
+### Suggested Fix
+Use a single-quoted PowerShell literal when asserting C# text that contains double quotes, and verify exact symbols with `rg` before adding source assertions.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Test-SunExpArchitecture.ps1
+
+### Resolution
+- **Resolved**: 2026-07-15T15:29:00+08:00
+- **Notes**: Corrected the literal and method name; the architecture gate passes.
+
+---
+
 ## [ERR-20260714-001] card-art-skill-path-assumption
 
 **Logged**: 2026-07-14T00:00:00+08:00
@@ -220,5 +285,101 @@ Run shared release gates and shared core test harnesses serially, or give parall
 ### Metadata
 - Reproducible: yes
 - Related Files: tools\Test-SharedReleaseGate.ps1, tools\Test-AuraSharedCore.ps1
+
+---
+
+## [ERR-20260715-001] parallel-inventory-rg-no-match
+
+**Logged**: 2026-07-15T14:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+A parallel repository inventory call failed because `rg --files -g AGENTS.md` returned exit code 1 when no file matched.
+
+### Error
+```text
+Script error: Exit code: 1
+```
+
+### Context
+- The no-match search ran inside `Promise.all`, so one expected `rg` exit code hid the other successful command results.
+- The repository contains no matching `AGENTS.md` file.
+
+### Suggested Fix
+Normalize expected `rg` no-match results with `if ($LASTEXITCODE -eq 1) { exit 0 }` before using the command in a parallel batch.
+
+### Metadata
+- Reproducible: yes
+- Related Files: none
+
+### Resolution
+- **Resolved**: 2026-07-15T14:01:00+08:00
+- **Notes**: Re-ran the inventory with explicit no-match handling.
+
+---
+
+## [ERR-20260715-002] powershell-rg-directory-wildcard
+
+**Logged**: 2026-07-15T14:05:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+Passing `.codex\skills\sunexp-*` as an rg path is invalid on Windows because rg does not expand that directory wildcard.
+
+### Error
+```text
+rg: .codex\skills\sunexp-*: The filename, directory name, or volume label syntax is incorrect. (os error 123)
+```
+
+### Context
+- The intended search covered several sibling skill directories.
+- The invalid path also caused an otherwise useful search command to return exit code 1.
+
+### Suggested Fix
+Search the concrete parent directory and constrain matches with rg globs, or enumerate explicit directories in PowerShell before invoking rg.
+
+### Metadata
+- Reproducible: yes
+- Related Files: .codex/skills
+
+### Resolution
+- **Resolved**: 2026-07-15T14:06:00+08:00
+- **Notes**: Re-ran searches against `.codex\skills` or explicit paths.
+
+---
+
+## [ERR-20260715-003] broad-parallel-decompile-search-timeout
+
+**Logged**: 2026-07-15T14:08:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+A broad content search across the whole decompile snapshot timed out and caused the enclosing parallel batch to discard completed results.
+
+### Error
+```text
+command timed out after 34099 milliseconds
+```
+
+### Context
+- The search mixed broad `Truth`, currency, price, and shop terms across multiple large decompiled assemblies.
+- The commands ran under `Promise.all`, so the timeout rejected the combined result.
+
+### Suggested Fix
+First locate candidate filenames with `rg --files` or `rg -l`, then search only the small set of relevant classes with a longer timeout.
+
+### Metadata
+- Reproducible: yes
+- Related Files: 开发参考资料/反编译文件夹v1.0.23816797
+
+### Resolution
+- **Resolved**: 2026-07-15T14:09:00+08:00
+- **Notes**: Narrowed analysis to ShopUI, ShopItem, OutsiderShopUI, OutsideShopItem, map flow, and currency persistence classes.
 
 ---

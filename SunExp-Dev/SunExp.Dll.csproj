@@ -100,6 +100,10 @@
       <HintPath>$(DllPath)\MemoryPack.Core.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="Loxodon.Framework.Obfuscation">
+      <HintPath>$(DllPath)\Loxodon.Framework.Obfuscation.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="DOTween">
       <HintPath>$(DllPath)\DOTween.dll</HintPath>
       <Private>false</Private>

@@ -65,6 +65,7 @@ function New-ProjectXml {
     $mapNodeTextureFitService = Join-Path $RepoRoot "SunExp-Dev\Mechanics\MapNodeTextureFitService.cs"
     $modeChoiceDragRange = Join-Path $RepoRoot "SunExp-Dev\Mechanics\ModeChoiceDragRange.cs"
     $spiritProfileIdentityResolver = Join-Path $RepoRoot "SunExp-Dev\Mechanics\SpiritProfileIdentityResolver.cs"
+    $dimensionShopRandom = Join-Path $RepoRoot "SunExp-Dev\Mechanics\DimensionShopRandom.cs"
 
 @"
 <Project Sdk="Microsoft.NET.Sdk">
@@ -115,6 +116,7 @@ function New-ProjectXml {
     <Compile Include="$mapNodeTextureFitService" />
     <Compile Include="$modeChoiceDragRange" />
     <Compile Include="$spiritProfileIdentityResolver" />
+    <Compile Include="$dimensionShopRandom" />
     <Compile Include="$SourceDir\Tests.cs" />
   </ItemGroup>
 </Project>
@@ -537,6 +539,7 @@ internal static class Program
         TestSpiritProfileIdentityResolver();
         TestLoneerStateOwnership();
         TestStarScoreWindow();
+        TestDimensionShopRandom();
 
         Console.WriteLine("SunExp C# tests passed: " + assertions + " assertions.");
     }
@@ -868,6 +871,29 @@ internal static class Program
             new MapNodeTextureBounds(320, 476, 0, 0, 0, 0),
             MapNodeCardArtFitMode.StretchLegacy);
         False(legacy.ShouldApplyTransform, "Legacy mode leaves native MapItem transform untouched");
+    }
+
+    private static void TestDimensionShopRandom()
+    {
+        Equal(-1, DimensionShopRandom.Index("run", "card", 0, 0), "Dimension shop random handles empty pools");
+        Equal(
+            DimensionShopRandom.Index("run", "card", 0, 4),
+            DimensionShopRandom.Index("run", "card", 0, 4),
+            "Dimension shop initial shelves are deterministic for the same run seed");
+        Equal(
+            DimensionShopRandom.Index("run", "card", 0, 4),
+            DimensionShopRandom.Index("run", "card", -5, 4),
+            "Dimension shop random clamps invalid counters to the initial draw");
+
+        var cardSequence = Enumerable.Range(0, 64)
+            .Select(counter => DimensionShopRandom.Index("run|player", "refresh.card", counter, 4))
+            .ToArray();
+        var relicSequence = Enumerable.Range(0, 64)
+            .Select(counter => DimensionShopRandom.Index("run|player", "refresh.relic", counter, 4))
+            .ToArray();
+        True(cardSequence.All(index => index >= 0 && index < 4), "Dimension shop random indices stay inside the configured pool");
+        False(cardSequence.SequenceEqual(relicSequence), "Dimension shop card and relic refreshes use independent deterministic streams");
+        True(cardSequence.Distinct().Count() < cardSequence.Length, "Dimension shop draws permit repeated products instead of tracking a no-repeat bag");
     }
 
     private static void TestModeChoiceDragRange()

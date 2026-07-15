@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "cardPrice": 8,
+  "relicPrice": 8,
+  "refreshPrice": 1,
+  "cardPackIds": [
+    "SunExp_sunexp_cardpack_more_dimensions"
+  ],
+  "includeCardIds": [],
+  "excludeCardIds": [],
+  "relicIds": [
+    "relic_24"
+  ]
+}

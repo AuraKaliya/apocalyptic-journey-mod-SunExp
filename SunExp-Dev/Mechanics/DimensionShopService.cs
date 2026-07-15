@@ -1,0 +1,585 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Data.Save;
+using SunExp.Dll.GameApi;
+using SunExp.Dll.Infrastructure;
+using Witch;
+using Witch.Core;
+using Witch.UI.Window;
+
+namespace SunExp.Dll.Mechanics;
+
+public sealed class DimensionShopItemView
+{
+    public string Id { get; set; } = "";
+
+    public string Name { get; set; } = "";
+
+    public string Description { get; set; } = "";
+
+    public string IconPath { get; set; } = "";
+
+    public int Price { get; set; }
+
+    public string Status { get; set; } = "";
+
+    public bool CanBuy { get; set; }
+}
+
+public sealed class DimensionShopViewState
+{
+    public int Truth { get; set; }
+
+    public int RefreshPrice { get; set; }
+
+    public int RefreshCount { get; set; }
+
+    public bool CanRefresh { get; set; }
+
+    public DimensionShopItemView Card { get; set; } = new();
+
+    public DimensionShopItemView Relic { get; set; } = new();
+}
+
+public static class DimensionShopService
+{
+    private static readonly object Gate = new();
+    private static bool transactionRunning;
+
+    public static bool IsWorldSimulationRun()
+    {
+        try
+        {
+            var save = GameSaveManager.GetNowSave() ?? GameEntryUI.selectedSave;
+            if (save != null)
+            {
+                return string.Equals(save.modeType, SunExpIds.NativeNormalModeType, StringComparison.OrdinalIgnoreCase)
+                       && !IsFlagSet(save.GameVars, SunExpIds.SolarMemoryModeKey)
+                       && !IsFlagSet(save.GameVars, SunExpIds.EndlessSeaModeKey);
+            }
+
+            return MapManager.Instance?.ModeMapManager is NormalMapManager
+                   && GameSaveManager.GetValue<string>(SunExpIds.SolarMemoryModeKey) != "1"
+                   && GameSaveManager.GetValue<string>(SunExpIds.EndlessSeaModeKey) != "1";
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public static bool EnsureRunSnapshot(string source)
+    {
+        if (!IsWorldSimulationRun())
+        {
+            return false;
+        }
+
+        var save = GameSaveManager.GetNowSave() ?? GameEntryUI.selectedSave;
+        if (save == null)
+        {
+            return false;
+        }
+
+        save.GameVars ??= new Dictionary<string, string>();
+        if (IsFlagSet(save.GameVars, SunExpIds.DimensionShopRunInitializedKey))
+        {
+            return true;
+        }
+
+        var cards = BuildCardPool();
+        var relics = BuildRelicPool();
+        save.GameVars[SunExpIds.DimensionShopRunSeedKey] = string.IsNullOrWhiteSpace(save.Seed)
+            ? GameSaveManager.GetSeed().ToString()
+            : save.Seed;
+        save.GameVars[SunExpIds.DimensionShopCardPoolKey] = JoinIds(cards);
+        save.GameVars[SunExpIds.DimensionShopRelicPoolKey] = JoinIds(relics);
+        save.GameVars[SunExpIds.DimensionShopRunInitializedKey] = "1";
+        SunExpLog.Info("[DimensionShop] run snapshot initialized from "
+                       + source
+                       + "; cards="
+                       + cards.Count
+                       + "; relics="
+                       + relics.Count
+                       + ".");
+        return true;
+    }
+
+    public static DimensionShopViewState View()
+    {
+        EnsurePlayerState("View");
+        var config = DimensionShopConfigStore.Current;
+        var cardId = PlayerValue(SunExpIds.DimensionShopCurrentCardKey);
+        var relicId = PlayerValue(SunExpIds.DimensionShopCurrentRelicKey);
+        var cardBought = PlayerValue(SunExpIds.DimensionShopCardBoughtKey) == "1";
+        var boughtRelics = BoughtRelics();
+        var truth = DimensionShopGameApi.TruthBalance();
+
+        return new DimensionShopViewState
+        {
+            Truth = truth,
+            RefreshPrice = config.RefreshPrice,
+            RefreshCount = PlayerInt(SunExpIds.DimensionShopRefreshCountKey),
+            CanRefresh = truth >= config.RefreshPrice && (CardPool().Count > 0 || EligibleRelics(boughtRelics).Count > 0),
+            Card = BuildItem(DataType.Card, cardId, config.CardPrice, cardBought ? "\u5df2\u8d2d\u4e70" : "", !cardBought),
+            Relic = BuildRelicItem(relicId, config.RelicPrice, boughtRelics)
+        };
+    }
+
+    public static bool BuyCard(out string message)
+    {
+        lock (Gate)
+        {
+            if (transactionRunning)
+            {
+                message = "\u5546\u5e97\u6b63\u5728\u7ed3\u7b97\uff0c\u8bf7\u7a0d\u5019\u3002";
+                return false;
+            }
+
+            transactionRunning = true;
+        }
+
+        try
+        {
+            EnsurePlayerState("BuyCard");
+            var cardId = PlayerValue(SunExpIds.DimensionShopCurrentCardKey);
+            if (string.IsNullOrWhiteSpace(cardId) || PlayerValue(SunExpIds.DimensionShopCardBoughtKey) == "1")
+            {
+                message = "\u5f53\u524d\u5361\u724c\u5df2\u65e0\u6cd5\u8d2d\u4e70\u3002";
+                return false;
+            }
+
+            var price = DimensionShopConfigStore.Current.CardPrice;
+            if (!DimensionShopGameApi.TrySpendTruth(price))
+            {
+                message = "\u771f\u7406\u4e4b\u6676\u4e0d\u8db3\u3002";
+                return false;
+            }
+
+            SetPlayerValue(SunExpIds.DimensionShopCardBoughtKey, "1");
+            if (!DimensionShopGameApi.TryGrantCardToReserve(cardId, out var error))
+            {
+                SetPlayerValue(SunExpIds.DimensionShopCardBoughtKey, "0");
+                DimensionShopGameApi.RefundTruth(price);
+                DimensionShopGameApi.PersistRole("DimensionShop.BuyCard.Rollback");
+                message = error == "reserve is full"
+                    ? "\u5361\u724c\u4ed3\u5e93\u5df2\u6ee1\uff0c\u65e0\u6cd5\u8d2d\u4e70\u3002"
+                    : "\u5361\u724c\u53d1\u653e\u5931\u8d25\uff0c\u672a\u6263\u9664\u771f\u7406\u4e4b\u6676\u3002";
+                return false;
+            }
+
+            DimensionShopGameApi.PersistRole("DimensionShop.BuyCard.State");
+            message = "\u8d2d\u4e70\u6210\u529f\uff1a" + DisplayName(DataType.Card, cardId);
+            return true;
+        }
+        finally
+        {
+            lock (Gate)
+            {
+                transactionRunning = false;
+            }
+        }
+    }
+
+    public static bool BuyRelic(out string message)
+    {
+        lock (Gate)
+        {
+            if (transactionRunning)
+            {
+                message = "\u5546\u5e97\u6b63\u5728\u7ed3\u7b97\uff0c\u8bf7\u7a0d\u5019\u3002";
+                return false;
+            }
+
+            transactionRunning = true;
+        }
+
+        try
+        {
+            EnsurePlayerState("BuyRelic");
+            var relicId = PlayerValue(SunExpIds.DimensionShopCurrentRelicKey);
+            var bought = BoughtRelics();
+            if (string.IsNullOrWhiteSpace(relicId))
+            {
+                message = "\u5f53\u524d\u6ca1\u6709\u53ef\u8d2d\u4e70\u7684\u9057\u7269\u3002";
+                return false;
+            }
+
+            if (bought.Contains(Canonical(relicId)))
+            {
+                message = "\u8be5\u9057\u7269\u672c\u5c40\u5df2\u552e\u7f44\u3002";
+                return false;
+            }
+
+            if (DimensionShopGameApi.HasRelic(relicId))
+            {
+                message = "\u4f60\u5df2\u7ecf\u643a\u5e26\u8be5\u9057\u7269\u3002";
+                return false;
+            }
+
+            var price = DimensionShopConfigStore.Current.RelicPrice;
+            if (!DimensionShopGameApi.TrySpendTruth(price))
+            {
+                message = "\u771f\u7406\u4e4b\u6676\u4e0d\u8db3\u3002";
+                return false;
+            }
+
+            bought.Add(Canonical(relicId));
+            SetPlayerValue(SunExpIds.DimensionShopBoughtRelicsKey, JoinIds(bought));
+            if (!DimensionShopGameApi.TryGrantRelicToWarehouse(relicId, out _))
+            {
+                bought.Remove(Canonical(relicId));
+                SetPlayerValue(SunExpIds.DimensionShopBoughtRelicsKey, JoinIds(bought));
+                DimensionShopGameApi.RefundTruth(price);
+                DimensionShopGameApi.PersistRole("DimensionShop.BuyRelic.Rollback");
+                message = "\u9057\u7269\u53d1\u653e\u5931\u8d25\uff0c\u672a\u6263\u9664\u771f\u7406\u4e4b\u6676\u3002";
+                return false;
+            }
+
+            DimensionShopGameApi.PersistRole("DimensionShop.BuyRelic.State");
+            message = "\u8d2d\u4e70\u6210\u529f\uff1a" + DisplayName(DataType.Relic, relicId);
+            return true;
+        }
+        finally
+        {
+            lock (Gate)
+            {
+                transactionRunning = false;
+            }
+        }
+    }
+
+    public static bool Refresh(out string message)
+    {
+        lock (Gate)
+        {
+            if (transactionRunning)
+            {
+                message = "\u5546\u5e97\u6b63\u5728\u7ed3\u7b97\uff0c\u8bf7\u7a0d\u5019\u3002";
+                return false;
+            }
+
+            transactionRunning = true;
+        }
+
+        try
+        {
+            EnsurePlayerState("Refresh");
+            var cards = CardPool();
+            var boughtRelics = BoughtRelics();
+            var relics = EligibleRelics(boughtRelics);
+            if (cards.Count == 0 && relics.Count == 0)
+            {
+                message = "\u5f53\u524d\u6ca1\u6709\u53ef\u5237\u65b0\u7684\u5546\u54c1\u3002";
+                return false;
+            }
+
+            var price = DimensionShopConfigStore.Current.RefreshPrice;
+            if (!DimensionShopGameApi.TrySpendTruth(price))
+            {
+                message = "\u771f\u7406\u4e4b\u6676\u4e0d\u8db3\u3002";
+                return false;
+            }
+
+            var next = PlayerInt(SunExpIds.DimensionShopRefreshCountKey) + 1;
+            var seed = RunSeed() + "|" + DimensionShopGameApi.LocalPlayerScope();
+            SetPlayerValue(SunExpIds.DimensionShopRefreshCountKey, next.ToString());
+            SetPlayerValue(SunExpIds.DimensionShopCurrentCardKey, Pick(cards, seed, "refresh.card", next));
+            SetPlayerValue(SunExpIds.DimensionShopCurrentRelicKey, Pick(relics, seed, "refresh.relic", next));
+            SetPlayerValue(SunExpIds.DimensionShopCardBoughtKey, "0");
+            DimensionShopGameApi.PersistRole("DimensionShop.Refresh");
+            message = "\u8d27\u67b6\u5df2\u5237\u65b0\u3002";
+            return true;
+        }
+        finally
+        {
+            lock (Gate)
+            {
+                transactionRunning = false;
+            }
+        }
+    }
+
+    private static void EnsurePlayerState(string source)
+    {
+        EnsureRunSnapshot(source);
+        var role = RoleTable.Instance;
+        if (role == null)
+        {
+            return;
+        }
+
+        role.SpecialVarMap ??= new Dictionary<string, string>();
+        if (role.SpecialVarMap.TryGetValue(SunExpIds.DimensionShopPlayerInitializedKey, out var initialized)
+            && initialized == "1")
+        {
+            return;
+        }
+
+        var seed = RunSeed();
+        SetPlayerValue(SunExpIds.DimensionShopCurrentCardKey, Pick(CardPool(), seed, "initial.card", 0));
+        SetPlayerValue(SunExpIds.DimensionShopCurrentRelicKey, Pick(RelicPool(), seed, "initial.relic", 0));
+        SetPlayerValue(SunExpIds.DimensionShopCardBoughtKey, "0");
+        SetPlayerValue(SunExpIds.DimensionShopRefreshCountKey, "0");
+        SetPlayerValue(SunExpIds.DimensionShopBoughtRelicsKey, "");
+        SetPlayerValue(SunExpIds.DimensionShopPlayerInitializedKey, "1");
+        DimensionShopGameApi.PersistRole("DimensionShop.PlayerInitialize");
+    }
+
+    private static DimensionShopItemView BuildRelicItem(string id, int price, HashSet<string> bought)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return EmptyItem(price, "\u6682\u65e0\u53ef\u8d2d\u4e70\u9057\u7269");
+        }
+
+        var canonical = Canonical(id);
+        if (bought.Contains(canonical))
+        {
+            return BuildItem(DataType.Relic, id, price, "\u5df2\u552e\u7f44", false);
+        }
+
+        if (DimensionShopGameApi.HasRelic(id))
+        {
+            return BuildItem(DataType.Relic, id, price, "\u5df2\u62e5\u6709", false);
+        }
+
+        return BuildItem(DataType.Relic, id, price, "", true);
+    }
+
+    private static DimensionShopItemView BuildItem(DataType type, string id, int price, string status, bool enabled)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return EmptyItem(price, type == DataType.Card ? "\u5361\u724c\u6c60\u4e3a\u7a7a" : "\u9057\u7269\u6c60\u4e3a\u7a7a");
+        }
+
+        var row = SunExpConfigIndex.Row(type, id);
+        if (row == null)
+        {
+            return EmptyItem(price, "\u5546\u54c1\u6570\u636e\u4e0d\u53ef\u7528");
+        }
+
+        var description = Localized(row, "Description");
+        var attribute = Localized(row, "AttributeText");
+        if (!string.IsNullOrWhiteSpace(attribute) && !description.Contains(attribute))
+        {
+            description = string.IsNullOrWhiteSpace(description) ? attribute : description + "\n" + attribute;
+        }
+
+        var canBuy = enabled && DimensionShopGameApi.TruthBalance() >= price;
+        if (enabled && !canBuy && string.IsNullOrWhiteSpace(status))
+        {
+            status = "\u771f\u7406\u4e4b\u6676\u4e0d\u8db3";
+        }
+
+        return new DimensionShopItemView
+        {
+            Id = id,
+            Name = Localized(row, "Name", id),
+            Description = description,
+            IconPath = DictionaryUtil.Get(row, "Icon"),
+            Price = price,
+            Status = status,
+            CanBuy = canBuy
+        };
+    }
+
+    private static DimensionShopItemView EmptyItem(int price, string status)
+    {
+        return new DimensionShopItemView
+        {
+            Price = price,
+            Status = status,
+            CanBuy = false
+        };
+    }
+
+    private static List<string> BuildCardPool()
+    {
+        var config = DimensionShopConfigStore.Current;
+        var packs = new HashSet<string>(config.CardPackIds, StringComparer.OrdinalIgnoreCase);
+        var excluded = new HashSet<string>(config.ExcludeCardIds.Select(CardApi.ResolveCardId), StringComparer.Ordinal);
+        var result = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var row in SunExpConfigIndex.Rows(DataType.Card))
+        {
+            var id = DictionaryUtil.Get(row, "Id");
+            var pack = DictionaryUtil.Get(row, "PackBelong");
+            if (string.IsNullOrWhiteSpace(id)
+                || id.StartsWith("*", StringComparison.Ordinal)
+                || !packs.Any(source => CardPackMatches(pack, source)))
+            {
+                continue;
+            }
+
+            var resolved = CardApi.ResolveCardId(id);
+            if (!string.IsNullOrWhiteSpace(resolved) && !excluded.Contains(resolved))
+            {
+                result.Add(resolved);
+            }
+        }
+
+        foreach (var id in config.IncludeCardIds.Select(CardApi.ResolveCardId))
+        {
+            if (!string.IsNullOrWhiteSpace(id)
+                && !excluded.Contains(id)
+                && SunExpConfigIndex.Row(DataType.Card, id) != null)
+            {
+                result.Add(id);
+            }
+        }
+
+        return result.OrderBy(id => id, StringComparer.Ordinal).ToList();
+    }
+
+    private static List<string> BuildRelicPool()
+    {
+        return DimensionShopConfigStore.Current.RelicIds
+            .Where(id => !string.IsNullOrWhiteSpace(id) && SunExpConfigIndex.Row(DataType.Relic, id) != null)
+            .Select(Canonical)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(id => id, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    private static List<string> CardPool()
+    {
+        return RunIds(SunExpIds.DimensionShopCardPoolKey, DataType.Card);
+    }
+
+    private static List<string> RelicPool()
+    {
+        return RunIds(SunExpIds.DimensionShopRelicPoolKey, DataType.Relic);
+    }
+
+    private static List<string> EligibleRelics(HashSet<string> bought)
+    {
+        return RelicPool()
+            .Where(id => !bought.Contains(Canonical(id)) && !DimensionShopGameApi.HasRelic(id))
+            .ToList();
+    }
+
+    private static List<string> RunIds(string key, DataType type)
+    {
+        EnsureRunSnapshot("RunIds:" + key);
+        var save = GameSaveManager.GetNowSave() ?? GameEntryUI.selectedSave;
+        if (save?.GameVars == null || !save.GameVars.TryGetValue(key, out var value))
+        {
+            return new List<string>();
+        }
+
+        return SplitIds(value)
+            .Where(id => SunExpConfigIndex.Row(type, id) != null)
+            .ToList();
+    }
+
+    private static string RunSeed()
+    {
+        var save = GameSaveManager.GetNowSave() ?? GameEntryUI.selectedSave;
+        if (save?.GameVars != null
+            && save.GameVars.TryGetValue(SunExpIds.DimensionShopRunSeedKey, out var seed)
+            && !string.IsNullOrWhiteSpace(seed))
+        {
+            return seed;
+        }
+
+        return save?.Seed ?? GameSaveManager.GetSeed().ToString();
+    }
+
+    private static string Pick(IReadOnlyList<string> values, string seed, string stream, int counter)
+    {
+        var index = DimensionShopRandom.Index(seed, stream, counter, values.Count);
+        return index >= 0 ? values[index] : "";
+    }
+
+    private static HashSet<string> BoughtRelics()
+    {
+        return new HashSet<string>(
+            SplitIds(PlayerValue(SunExpIds.DimensionShopBoughtRelicsKey)).Select(Canonical),
+            StringComparer.Ordinal);
+    }
+
+    private static string PlayerValue(string key)
+    {
+        var map = RoleTable.Instance?.SpecialVarMap;
+        return map != null && map.TryGetValue(key, out var value) ? value ?? "" : "";
+    }
+
+    private static int PlayerInt(string key)
+    {
+        return DictionaryUtil.ParseInt(PlayerValue(key));
+    }
+
+    private static void SetPlayerValue(string key, string value)
+    {
+        var role = RoleTable.Instance;
+        if (role == null)
+        {
+            return;
+        }
+
+        role.SpecialVarMap ??= new Dictionary<string, string>();
+        role.SpecialVarMap[key] = value ?? "";
+    }
+
+    private static string DisplayName(DataType type, string id)
+    {
+        var row = SunExpConfigIndex.Row(type, id);
+        return row == null ? id : Localized(row, "Name", id);
+    }
+
+    private static string Localized(Dictionary<string, string> row, string field, string fallback = "")
+    {
+        try
+        {
+            var value = row.Localize(field);
+            return string.IsNullOrWhiteSpace(value) ? fallback : value;
+        }
+        catch
+        {
+            var value = DictionaryUtil.Get(row, field);
+            return string.IsNullOrWhiteSpace(value) ? fallback : value;
+        }
+    }
+
+    private static bool CardPackMatches(string rowPack, string sourcePack)
+    {
+        if (string.IsNullOrWhiteSpace(rowPack) || string.IsNullOrWhiteSpace(sourcePack))
+        {
+            return false;
+        }
+
+        const string prefix = "SunExp_sunexp_";
+        return string.Equals(rowPack, sourcePack, StringComparison.OrdinalIgnoreCase)
+               || string.Equals(rowPack, prefix + sourcePack, StringComparison.OrdinalIgnoreCase)
+               || sourcePack.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+               && string.Equals(rowPack, sourcePack.Substring(prefix.Length), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsFlagSet(IDictionary<string, string>? values, string key)
+    {
+        return values != null && values.TryGetValue(key, out var value) && value == "1";
+    }
+
+    private static string Canonical(string id)
+    {
+        return DimensionShopGameApi.CanonicalId(id);
+    }
+
+    private static string JoinIds(IEnumerable<string> ids)
+    {
+        return string.Join("|", ids.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal));
+    }
+
+    private static List<string> SplitIds(string value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? new List<string>()
+            : value.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Select(id => id.Trim())
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+    }
+}

@@ -92,6 +92,7 @@ $requiredFiles = @(
     "SunExp-Dev\GameApi\ProjectionUiApi.cs",
     "SunExp-Dev\GameApi\FamiliarGrowthApi.cs",
     "SunExp-Dev\GameApi\SunExpResourceCache.cs",
+    "SunExp-Dev\GameApi\DimensionShopGameApi.cs",
     "SunExp-Dev\Infrastructure\SunExpDirtyState.cs",
     "SunExp-Dev\Infrastructure\SunExpPerformanceSettings.cs",
     "SunExp-Dev\Infrastructure\SunExpPerformanceCounters.cs",
@@ -106,6 +107,11 @@ $requiredFiles = @(
     "SunExp-Dev\Mechanics\DuskAfterheatRecoveryService.cs",
     "SunExp-Dev\Mechanics\ProjectionTurnCoordinator.cs",
     "SunExp-Dev\Mechanics\ProjectionTurnAnchorObj.cs",
+    "SunExp-Dev\Mechanics\DimensionShopConfig.cs",
+    "SunExp-Dev\Mechanics\DimensionShopRandom.cs",
+    "SunExp-Dev\Mechanics\DimensionShopService.cs",
+    "SunExp-Dev\Hooks\DimensionShopRuntime.cs",
+    "SunExp-Dev\Hooks\Ui\DimensionShopPanel.cs",
     "SunExp-Dev\Hooks\Ui\PooledCombatCardViewMarker.cs",
     "SunExp-Dev\Hooks\Ui\SunExpCombatCardViewPool.cs",
     "SunExp-Dev\Hooks\Visual\PooledCardExitAnimator.cs",
@@ -462,6 +468,13 @@ $endlessSeaMapViewPresenter = Read-RepoText "SunExp-Dev\Hooks\Ui\EndlessSeaMapVi
 $endlessSeaNetworkSync = Read-RepoText "SunExp-Dev\Network\EndlessSeaNetworkSync.cs"
 $sunExpNetworkRuntime = Read-RepoText "SunExp-Dev\Network\SunExpNetworkRuntime.cs"
 $mapNodeCardArtRuntime = Read-RepoText "SunExp-Dev\Hooks\MapNodeCardArtRuntime.cs"
+$dimensionShopRuntime = Read-RepoText "SunExp-Dev\Hooks\DimensionShopRuntime.cs"
+$dimensionShopPanel = Read-RepoText "SunExp-Dev\Hooks\Ui\DimensionShopPanel.cs"
+$dimensionShopService = Read-RepoText "SunExp-Dev\Mechanics\DimensionShopService.cs"
+$dimensionShopGameApi = Read-RepoText "SunExp-Dev\GameApi\DimensionShopGameApi.cs"
+$dimensionShopConfigSource = Read-RepoText "SunExp-Dev\Mechanics\DimensionShopConfig.cs"
+$dimensionShopMapData = Read-RepoText "SunExp\Data\Map\sunexp.csv"
+$dimensionShopConfig = (Read-RepoText "SunExp\dimension_shop.config.json") | ConvertFrom-Json
 $projectionRuntime = Read-RepoText "SunExp-Dev\Hooks\ProjectionRuntime.cs"
 $runtimeHooks = Read-RepoText "SunExp-Dev\Hooks\RuntimeHooks.cs"
 $sunExpHookTargets = Read-RepoText "SunExp-Dev\Hooks\SunExpHookTargets.cs"
@@ -659,6 +672,27 @@ Assert-Contains $runtimeHooks "EndlessSeaIntroBoardRuntime.Initialize(modConfig)
 Assert-Contains $runtimeHooks "StarScoreHudRuntime.Initialize(modConfig)" "RuntimeHooks must initialize star score HUD hooks."
 Assert-Contains $runtimeHooks "CardVisualSkinRuntime.Initialize(modConfig)" "RuntimeHooks must initialize card visual skin hooks."
 Assert-Contains $runtimeHooks "ProjectionRuntime.Initialize(modConfig)" "RuntimeHooks must initialize projection combat hooks."
+Assert-Contains $entrySource "DimensionShopConfigStore.Load(modConfig)" "Entry must load the dimension shop config before runtime hooks initialize."
+Assert-Contains $runtimeHooks "DimensionShopRuntime.Initialize(modConfig)" "RuntimeHooks must initialize the dimension shop map and route hooks."
+Assert-Contains $dimensionShopRuntime 'RegisterAfter(modConfig, "NormalMapManager.RandomGenerate"' "Dimension shop must inject its guaranteed candidate after native first-layer generation."
+Assert-Contains $dimensionShopRuntime 'RegisterBefore(modConfig, "MapSelectUI.ReadyToSelect"' "Dimension shop must repair the guaranteed candidate before map selection is displayed."
+Assert-Contains $dimensionShopRuntime 'RegisterAfter(modConfig, "Commands.load"' "Dimension shop must route its custom map node after native loading."
+Assert-Contains $dimensionShopRuntime "AdventureStarting = _ => DimensionShopService.EnsureRunSnapshot" "Dimension shop pools must be snapshotted when an Adventure starts."
+Assert-Contains $dimensionShopRuntime "NodeDice = previous.NodeDice" "Dimension shop injection must preserve the replaced candidate's map RNG value."
+Assert-Contains $dimensionShopRuntime "SunExpIds.DimensionShopNodeId" "Dimension shop must use an isolated custom node id instead of the native shop route."
+Assert-Contains $dimensionShopService "CardPackMatches(pack, source)" "Dimension shop card pools must be built directly from configured card-pack membership."
+Assert-NotContains $dimensionShopService "UseCardPack" "Dimension shop card pools must not depend on the player's enabled or unlocked packs."
+Assert-Contains $dimensionShopService 'RunSeed() + "|" + DimensionShopGameApi.LocalPlayerScope()' "Dimension shop refresh streams must be player-local in multiplayer."
+Assert-Contains $dimensionShopService "!bought.Contains(Canonical(id)) && !DimensionShopGameApi.HasRelic(id)" "Relic refresh eligibility must exclude both purchased and currently carried relics."
+Assert-Contains $dimensionShopGameApi "role?.relicList" "Dimension shop relic ownership checks must inspect equipped relics."
+Assert-Contains $dimensionShopGameApi "role?.WithoutArmedRelicList" "Dimension shop relic ownership checks must inspect the relic warehouse."
+Assert-Contains $dimensionShopPanel "DimensionShopService.Refresh" "Dimension shop UI must expose the crystal-priced refresh action."
+Assert-Contains $dimensionShopMapData "dimension_shop,Build,Breaks_dimension_shop,-1,7" "Dimension shop map data must remain isolated from native random generation."
+Assert-True ($dimensionShopConfig.cardPrice -eq 8) "Dimension shop cards must cost 8 Truth crystals."
+Assert-True ($dimensionShopConfig.relicPrice -eq 8) "Dimension shop relics must cost 8 Truth crystals."
+Assert-True ($dimensionShopConfig.refreshPrice -eq 1) "Dimension shop refreshes must cost 1 Truth crystal."
+Assert-True (@($dimensionShopConfig.relicIds).Count -eq 1 -and $dimensionShopConfig.relicIds[0] -eq "relic_24") "Dimension shop's initial relic pool must contain only Broken Dial."
+Assert-Contains $dimensionShopConfigSource "Math.Max(0, document.RefreshPrice)" "Dimension shop config must reject negative refresh prices."
 Assert-Contains $runtimeHooks "RunHookStep(" "RuntimeHooks must isolate runtime initialization into logged hook steps."
 Assert-Contains $runtimeHooks "AuraSharedHooks.RunStep" "RuntimeHooks must use the shared step guard for hook initialization."
 Assert-Contains $runtimeHooks "SunExpBattleLifecycleRouter.Initialize(modConfig)" "RuntimeHooks must initialize the shared battle lifecycle router before feature handlers register."

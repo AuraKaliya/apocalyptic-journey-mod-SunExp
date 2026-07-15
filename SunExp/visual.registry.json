@@ -125,6 +125,19 @@
   ],
   "mapNodeArt": [
     {
+      "id": "dimension_shop.map_card",
+      "texturePath": "Mods/SunExp/ModResource/Images/CardPack/more_dimensions.png",
+      "fitMode": "ContainTrimmed",
+      "mapIds": [
+        "SunExp_sunexp_dimension_shop",
+        "dimension_shop"
+      ],
+      "levelIds": [],
+      "enemyIds": [],
+      "priority": 100,
+      "enabled": true
+    },
+    {
       "id": "solar_memory.second_sun.map_card",
       "texturePath": "Mods/SunExp/ModResource/AnimationLib/SecondSunWeel_e/Map/Map_00.png",
       "fitMode": "ContainTrimmed",
