@@ -1,8 +1,23 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Newtonsoft.Json;
 
 namespace SunExp.Dll.Mechanics;
+
+public static class FamiliarBlessingCategory
+{
+    public const string Growth = "growth";
+    public const string FinalGeneric = "final-generic";
+    public const string FinalSpecies = "final-species";
+    public const string FinalTag = "final-tag";
+}
+
+public static class FamiliarChoiceKind
+{
+    public const string Growth = "growth";
+    public const string Final = "final";
+}
 
 public sealed class FamiliarSpeciesSpec
 {
@@ -17,7 +32,7 @@ public sealed class FamiliarSpeciesSpec
         string nativeBlessingId)
     {
         SpeciesId = FamiliarId.NormalizeSpeciesId(speciesId);
-        FullSpeciesId = string.IsNullOrWhiteSpace(fullSpeciesId) ? SpeciesId : fullSpeciesId.Trim();
+        FullSpeciesId = FamiliarId.NormalizeFullSpeciesId(fullSpeciesId, SpeciesId);
         DisplayName = string.IsNullOrWhiteSpace(displayName) ? SpeciesId : displayName.Trim();
         Description = description?.Trim() ?? "";
         IconPath = iconPath?.Trim() ?? "";
@@ -42,7 +57,7 @@ public sealed class FamiliarSpeciesSpec
 
     public string NativeBlessingId { get; }
 
-    public string BodyInstanceId => FamiliarId.BodyInstanceId(SpeciesId);
+    public string BodyInstanceId => FullSpeciesId;
 }
 
 public sealed class FamiliarInstance
@@ -50,6 +65,8 @@ public sealed class FamiliarInstance
     public string InstanceId { get; set; } = "";
 
     public string SpeciesId { get; set; } = "";
+
+    public string FullSpeciesId { get; set; } = "";
 
     public string Name { get; set; } = "";
 
@@ -59,17 +76,40 @@ public sealed class FamiliarInstance
 
     public int Aptitude { get; set; }
 
-    public List<string> Blessings { get; set; } = new();
+    public List<string> GrowthBlessingIds { get; set; } = new();
+
+    public string FinalBlessingId { get; set; } = "";
 
     public List<FamiliarBlessingChoice> PendingBlessingChoices { get; set; } = new();
 
     public int BlessingRollIndex { get; set; }
 
-    public bool IsBody { get; set; }
+    public int RebirthCount { get; set; }
 
-    public int CreatedVersion { get; set; } = 1;
+    public int CreatedVersion { get; set; } = FamiliarRosterService.CurrentVersion;
 
-    public bool Deleted { get; set; }
+    [JsonProperty("Blessings")]
+    public List<string> LegacyBlessings { get; set; } = new();
+
+    [JsonProperty("IsBody")]
+    public bool LegacyIsBody { get; set; }
+
+    [JsonProperty("Deleted")]
+    public bool LegacyDeleted { get; set; }
+
+    public bool ShouldSerializeLegacyBlessings() => false;
+
+    public bool ShouldSerializeLegacyIsBody() => false;
+
+    public bool ShouldSerializeLegacyDeleted() => false;
+
+    public IReadOnlyList<string> AllBlessingIds()
+    {
+        return GrowthBlessingIds
+            .Concat(string.IsNullOrWhiteSpace(FinalBlessingId) ? Array.Empty<string>() : new[] { FinalBlessingId })
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+    }
 
     public FamiliarInstance Clone()
     {
@@ -77,16 +117,20 @@ public sealed class FamiliarInstance
         {
             InstanceId = InstanceId,
             SpeciesId = SpeciesId,
+            FullSpeciesId = FullSpeciesId,
             Name = Name,
             Level = Level,
             Experience = Experience,
             Aptitude = Aptitude,
-            Blessings = Blessings.ToList(),
+            GrowthBlessingIds = GrowthBlessingIds.ToList(),
+            FinalBlessingId = FinalBlessingId,
             PendingBlessingChoices = PendingBlessingChoices.Select(choice => choice.Clone()).ToList(),
             BlessingRollIndex = BlessingRollIndex,
-            IsBody = IsBody,
+            RebirthCount = RebirthCount,
             CreatedVersion = CreatedVersion,
-            Deleted = Deleted
+            LegacyBlessings = LegacyBlessings.ToList(),
+            LegacyIsBody = LegacyIsBody,
+            LegacyDeleted = LegacyDeleted
         };
     }
 }
@@ -99,6 +143,8 @@ public sealed class FamiliarBlessingChoice
 
     public int Tier { get; set; }
 
+    public string Kind { get; set; } = FamiliarChoiceKind.Growth;
+
     public List<string> BlessingIds { get; set; } = new();
 
     public FamiliarBlessingChoice Clone()
@@ -108,6 +154,7 @@ public sealed class FamiliarBlessingChoice
             ChoiceId = ChoiceId,
             Level = Level,
             Tier = Tier,
+            Kind = Kind,
             BlessingIds = BlessingIds.ToList()
         };
     }
@@ -115,29 +162,56 @@ public sealed class FamiliarBlessingChoice
 
 public sealed class FamiliarRosterDocument
 {
-    public int Version { get; set; } = 1;
-
-    public string SelectedInstanceId { get; set; } = "";
-
-    public Dictionary<string, int> NextSerialBySpecies { get; set; } = new(StringComparer.Ordinal);
+    public int Version { get; set; } = FamiliarRosterService.CurrentVersion;
 
     public List<FamiliarInstance> Instances { get; set; } = new();
+
+    [JsonProperty("SelectedInstanceId")]
+    public string LegacySelectedInstanceId { get; set; } = "";
+
+    [JsonProperty("NextSerialBySpecies")]
+    public Dictionary<string, int> LegacyNextSerialBySpecies { get; set; } = new(StringComparer.Ordinal);
+
+    public bool ShouldSerializeLegacySelectedInstanceId() => false;
+
+    public bool ShouldSerializeLegacyNextSerialBySpecies() => false;
 }
 
 public sealed class FamiliarBlessingRegistryDocument
 {
+    public int SchemaVersion { get; set; } = 2;
+
+    public string OwnerModId { get; set; } = "";
+
     public List<FamiliarBlessingDefinition> Blessings { get; set; } = new();
+
+    public List<FamiliarSpeciesGrowthProfile> SpeciesProfiles { get; set; } = new();
+}
+
+public sealed class FamiliarSpeciesGrowthProfile
+{
+    public string FullSpeciesId { get; set; } = "";
+
+    public string SpeciesId { get; set; } = "";
+
+    public List<string> Tags { get; set; } = new();
+
+    public List<string> FinalBlessingIds { get; set; } = new();
 }
 
 public sealed class FamiliarBlessingDefinition
 {
     public string Id { get; set; } = "";
 
+    public string OwnerModId { get; set; } = "";
+
     public string Name { get; set; } = "";
 
     public string Description { get; set; } = "";
 
     public string IconPath { get; set; } = "";
+
+    public string Category { get; set; } = FamiliarBlessingCategory.Growth;
 
     public int Tier { get; set; } = 1;
 
@@ -152,6 +226,8 @@ public sealed class FamiliarBlessingDefinition
     public int MaxRank { get; set; } = 1;
 
     public List<string> AllowedSpecies { get; set; } = new();
+
+    public List<string> RequiredTags { get; set; } = new();
 
     public List<string> Tags { get; set; } = new();
 
@@ -190,6 +266,22 @@ public readonly struct FamiliarExperienceResult
     public bool LeveledUp => Instance.Level > OldLevel;
 }
 
+public readonly struct FamiliarRebirthResult
+{
+    public FamiliarRebirthResult(FamiliarInstance instance, int oldAptitude, int aptitudeFloor)
+    {
+        Instance = instance;
+        OldAptitude = oldAptitude;
+        AptitudeFloor = aptitudeFloor;
+    }
+
+    public FamiliarInstance Instance { get; }
+
+    public int OldAptitude { get; }
+
+    public int AptitudeFloor { get; }
+}
+
 public interface IFamiliarProfileStore
 {
     FamiliarRosterDocument Load();
@@ -212,16 +304,24 @@ public static class FamiliarId
         return Sanitize(value).ToLowerInvariant();
     }
 
-    public static string BodyInstanceId(string speciesId)
+    public static string NormalizeFullSpeciesId(string? fullSpeciesId, string? fallbackSpeciesId = null)
     {
-        var normalized = NormalizeSpeciesId(speciesId);
-        return normalized.Length == 0 ? "" : normalized + "-000";
+        var value = (fullSpeciesId ?? "").Trim();
+        return value.Length > 0 ? value : NormalizeSpeciesId(fallbackSpeciesId);
     }
 
-    public static string InstanceId(string speciesId, int serial)
+    public static string BodyInstanceId(string fullSpeciesId)
     {
-        var normalized = NormalizeSpeciesId(speciesId);
-        return normalized.Length == 0 ? "" : normalized + "-" + Math.Max(0, serial).ToString("000");
+        return NormalizeFullSpeciesId(fullSpeciesId);
+    }
+
+    public static bool Matches(string? candidate, FamiliarSpeciesSpec species)
+    {
+        var value = (candidate ?? "").Trim();
+        return value.Length > 0
+               && (string.Equals(value, species.FullSpeciesId, StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(NormalizeSpeciesId(value), species.SpeciesId, StringComparison.OrdinalIgnoreCase)
+                   || value.EndsWith("_" + species.SpeciesId, StringComparison.OrdinalIgnoreCase));
     }
 
     public static string Sanitize(string? value)

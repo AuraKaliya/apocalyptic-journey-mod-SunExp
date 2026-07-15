@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using AuraShared.Core;
 using Newtonsoft.Json;
 using SunExp.Dll.Infrastructure;
 using Witch.Mod;
@@ -11,33 +12,56 @@ namespace SunExp.Dll.Mechanics;
 public static class FamiliarBlessingRegistry
 {
     private static readonly object SyncRoot = new();
-    private static FamiliarBlessingRegistryDocument document = BuiltInDocument();
+    private static readonly HashSet<string> SupportedEffectKinds = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "BattleWinGold",
+        "BattleRewardExtraChoice",
+        "BeforeLethalStarClayBody",
+        "BurnStackToEmber",
+        "BurnTriggeredEmber",
+        "CombatStartBuff",
+        "CombatStartDraw",
+        "CombatStartEnemyBuffRandom",
+        "CombatStartField",
+        "CombatStartHeal",
+        "CombatStartResource",
+        "CombatStartShield",
+        "EmberOffsetBurnTransfer",
+        "FirstActionResource",
+        "FirstDamageTargetBuff",
+        "FirstStarScoreExtraBlessing",
+        "RunDiceBonus"
+    };
+
+    private static FamiliarBlessingRegistryDocument document = Normalize(BuiltInDocument());
 
     public static void Load(ModConfig modConfig)
     {
         lock (SyncRoot)
         {
-            var fallback = BuiltInDocument();
-            var path = Path.Combine(modConfig.DirectoryName, SunExpIds.FamiliarBlessingRegistryFile);
-            if (!File.Exists(path))
+            var merged = new FamiliarBlessingRegistryDocument { SchemaVersion = 2, OwnerModId = SunExpIds.ModId };
+            MergeInto(merged, BuiltInDocument(), "built-in");
+            var mainPath = Path.Combine(modConfig.DirectoryName, SunExpIds.FamiliarBlessingRegistryFile);
+            if (TryRead(mainPath, SunExpIds.ModId, out var main))
             {
-                document = Normalize(fallback, fallback);
-                SunExpLog.Warn("[FamiliarGrowth] missing blessing registry; using built-in familiar blessings.");
-                return;
+                MergeInto(merged, main, mainPath);
+            }
+            else
+            {
+                SunExpLog.Warn("[FamiliarGrowth] missing or invalid main blessing registry; using built-in fallback.");
             }
 
-            try
+            foreach (var path in ExtensionRegistryPaths(modConfig.DirectoryName))
             {
-                var loaded = JsonConvert.DeserializeObject<FamiliarBlessingRegistryDocument>(File.ReadAllText(path))
-                             ?? new FamiliarBlessingRegistryDocument();
-                document = Normalize(loaded, new FamiliarBlessingRegistryDocument());
-                SunExpLog.Info("[FamiliarGrowth] loaded familiar blessing registry from " + path);
+                if (TryRead(path, Path.GetFileName(Path.GetDirectoryName(path)) ?? "External", out var extension))
+                {
+                    MergeInto(merged, extension, path);
+                }
             }
-            catch (Exception ex)
-            {
-                document = Normalize(fallback, fallback);
-                SunExpLog.Warn("[FamiliarGrowth] failed to load blessing registry; using built-in blessings: " + ex.Message);
-            }
+
+            document = Normalize(merged);
+            SunExpLog.Info("[FamiliarGrowth] loaded blessing registry: blessings=" + document.Blessings.Count
+                           + ", speciesProfiles=" + document.SpeciesProfiles.Count + ".");
         }
     }
 
@@ -52,59 +76,113 @@ public static class FamiliarBlessingRegistry
     public static FamiliarBlessingDefinition? Find(string blessingId)
     {
         var id = (blessingId ?? "").Trim();
-        if (id.Length == 0)
-        {
-            return null;
-        }
-
         lock (SyncRoot)
         {
-            return document.Blessings.FirstOrDefault(blessing => SameId(blessing.Id, id));
+            return document.Blessings.FirstOrDefault(blessing => string.Equals(blessing.Id, id, StringComparison.Ordinal));
         }
     }
 
-    public static IReadOnlyList<FamiliarBlessingDefinition> UnlocksFor(FamiliarInstance instance)
+    public static IReadOnlyList<FamiliarBlessingDefinition> GrowthEligible(FamiliarInstance instance, int milestone, int maxTier)
     {
-        return EligibleFor(instance);
-    }
-
-    public static IReadOnlyList<FamiliarBlessingDefinition> EligibleFor(FamiliarInstance instance)
-    {
-        if (instance == null)
-        {
-            return Array.Empty<FamiliarBlessingDefinition>();
-        }
-
-        var speciesId = FamiliarId.NormalizeSpeciesId(instance.SpeciesId);
         lock (SyncRoot)
         {
             return document.Blessings
-                .Where(blessing => blessing.RequiredLevel <= Math.Max(1, instance.Level)
-                                   && AllowsSpecies(blessing, speciesId))
+                .Where(IsGrowth)
+                .Where(blessing => blessing.RequiredLevel <= milestone && blessing.Tier <= maxTier)
+                .Where(blessing => Allows(blessing, instance))
                 .OrderBy(blessing => blessing.Tier)
-                .ThenBy(blessing => blessing.RequiredLevel)
                 .ThenBy(blessing => blessing.Id, StringComparer.Ordinal)
                 .ToArray();
         }
     }
 
-    public static bool Allows(FamiliarBlessingDefinition blessing, string speciesId)
+    public static IReadOnlyList<FamiliarBlessingDefinition> GenericFinals(FamiliarInstance instance)
     {
-        return AllowsSpecies(blessing, FamiliarId.NormalizeSpeciesId(speciesId));
+        lock (SyncRoot)
+        {
+            return document.Blessings
+                .Where(blessing => string.Equals(blessing.Category, FamiliarBlessingCategory.FinalGeneric, StringComparison.Ordinal))
+                .Where(blessing => Allows(blessing, instance))
+                .OrderBy(blessing => blessing.Id, StringComparer.Ordinal)
+                .ToArray();
+        }
+    }
+
+    public static IReadOnlyList<FamiliarBlessingDefinition> SpecificFinals(FamiliarInstance instance)
+    {
+        lock (SyncRoot)
+        {
+            var profile = FindProfile(instance);
+            if (profile != null && profile.FinalBlessingIds.Count > 0)
+            {
+                var ids = new HashSet<string>(profile.FinalBlessingIds, StringComparer.Ordinal);
+                var explicitFinals = document.Blessings.Where(blessing => ids.Contains(blessing.Id) && IsFinal(blessing)).ToArray();
+                if (explicitFinals.Length > 0)
+                {
+                    return explicitFinals;
+                }
+            }
+
+            if (profile != null && profile.Tags.Count > 0)
+            {
+                var tags = new HashSet<string>(profile.Tags, StringComparer.OrdinalIgnoreCase);
+                var tagged = document.Blessings
+                    .Where(blessing => string.Equals(blessing.Category, FamiliarBlessingCategory.FinalTag, StringComparison.Ordinal))
+                    .Where(blessing => blessing.RequiredTags.Count > 0 && blessing.RequiredTags.Any(tags.Contains))
+                    .ToArray();
+                if (tagged.Length > 0)
+                {
+                    return tagged;
+                }
+            }
+
+            return document.Blessings
+                .Where(blessing => string.Equals(blessing.Category, FamiliarBlessingCategory.FinalSpecies, StringComparison.Ordinal))
+                .Where(blessing => AllowsSpecies(blessing, instance))
+                .ToArray();
+        }
+    }
+
+    public static bool IsGrowth(FamiliarBlessingDefinition blessing)
+    {
+        return string.Equals(blessing.Category, FamiliarBlessingCategory.Growth, StringComparison.Ordinal);
+    }
+
+    public static bool IsFinal(FamiliarBlessingDefinition blessing)
+    {
+        return string.Equals(blessing.Category, FamiliarBlessingCategory.FinalGeneric, StringComparison.Ordinal)
+               || string.Equals(blessing.Category, FamiliarBlessingCategory.FinalSpecies, StringComparison.Ordinal)
+               || string.Equals(blessing.Category, FamiliarBlessingCategory.FinalTag, StringComparison.Ordinal);
+    }
+
+    public static bool Allows(FamiliarBlessingDefinition blessing, FamiliarInstance instance)
+    {
+        if (blessing == null || instance == null)
+        {
+            return false;
+        }
+
+        if (blessing.AllowedSpecies.Count > 0 && !AllowsSpecies(blessing, instance))
+        {
+            return false;
+        }
+
+        if (string.Equals(blessing.Category, FamiliarBlessingCategory.FinalTag, StringComparison.Ordinal))
+        {
+            var profile = FindProfile(instance);
+            return profile != null && blessing.RequiredTags.Any(required => profile.Tags.Contains(required, StringComparer.OrdinalIgnoreCase));
+        }
+
+        return true;
     }
 
     public static bool HasTag(FamiliarInstance instance, string tag)
     {
         var wanted = (tag ?? "").Trim();
-        if (instance == null || wanted.Length == 0)
-        {
-            return false;
-        }
-
-        var blessings = new HashSet<string>(instance.Blessings ?? new List<string>(), StringComparer.Ordinal);
+        var blessings = new HashSet<string>(instance?.AllBlessingIds() ?? Array.Empty<string>(), StringComparer.Ordinal);
         lock (SyncRoot)
         {
-            return document.Blessings.Any(blessing =>
+            return wanted.Length > 0 && document.Blessings.Any(blessing =>
                 blessings.Contains(blessing.Id)
                 && blessing.Tags.Any(value => string.Equals(value, wanted, StringComparison.OrdinalIgnoreCase)));
         }
@@ -113,27 +191,135 @@ public static class FamiliarBlessingRegistry
     public static bool HasEffect(FamiliarInstance instance, string effectKind)
     {
         var wanted = (effectKind ?? "").Trim();
-        if (instance == null || wanted.Length == 0)
-        {
-            return false;
-        }
-
-        var blessings = new HashSet<string>(instance.Blessings ?? new List<string>(), StringComparer.Ordinal);
+        var blessings = new HashSet<string>(instance?.AllBlessingIds() ?? Array.Empty<string>(), StringComparer.Ordinal);
         lock (SyncRoot)
         {
-            return document.Blessings.Any(blessing =>
+            return wanted.Length > 0 && document.Blessings.Any(blessing =>
                 blessings.Contains(blessing.Id)
                 && blessing.Effects.Any(effect => string.Equals(effect.Kind, wanted, StringComparison.OrdinalIgnoreCase)));
         }
     }
 
-    private static FamiliarBlessingRegistryDocument Normalize(
-        FamiliarBlessingRegistryDocument loaded,
-        FamiliarBlessingRegistryDocument fallback)
+    private static FamiliarSpeciesGrowthProfile? FindProfile(FamiliarInstance instance)
     {
-        var result = new FamiliarBlessingRegistryDocument();
-        var map = new Dictionary<string, FamiliarBlessingDefinition>(StringComparer.Ordinal);
-        foreach (var blessing in fallback.Blessings.Concat(loaded.Blessings ?? new List<FamiliarBlessingDefinition>()))
+        return document.SpeciesProfiles.FirstOrDefault(profile =>
+            string.Equals(profile.FullSpeciesId, instance.FullSpeciesId, StringComparison.OrdinalIgnoreCase)
+            || (!string.IsNullOrWhiteSpace(profile.SpeciesId)
+                && string.Equals(FamiliarId.NormalizeSpeciesId(profile.SpeciesId), FamiliarId.NormalizeSpeciesId(instance.SpeciesId), StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private static bool AllowsSpecies(FamiliarBlessingDefinition blessing, FamiliarInstance instance)
+    {
+        return blessing.AllowedSpecies.Count == 0
+               || blessing.AllowedSpecies.Contains("*")
+               || blessing.AllowedSpecies.Any(value =>
+                   string.Equals(value, instance.FullSpeciesId, StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(FamiliarId.NormalizeSpeciesId(value), FamiliarId.NormalizeSpeciesId(instance.SpeciesId), StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool TryRead(string path, string defaultOwner, out FamiliarBlessingRegistryDocument result)
+    {
+        result = new FamiliarBlessingRegistryDocument();
+        if (!File.Exists(path))
+        {
+            return false;
+        }
+
+        try
+        {
+            result = JsonConvert.DeserializeObject<FamiliarBlessingRegistryDocument>(File.ReadAllText(path))
+                     ?? new FamiliarBlessingRegistryDocument();
+            if (string.IsNullOrWhiteSpace(result.OwnerModId))
+            {
+                result.OwnerModId = defaultOwner;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[FamiliarGrowth] ignored invalid registry " + path + ": " + ex.Message);
+            return false;
+        }
+    }
+
+    private static IEnumerable<string> ExtensionRegistryPaths(string ownModDirectory)
+    {
+        var modsDirectory = AuraSharedPaths.ModsDirectory;
+        if (string.IsNullOrWhiteSpace(modsDirectory) || !Directory.Exists(modsDirectory))
+        {
+            yield break;
+        }
+
+        string ownFull;
+        try
+        {
+            ownFull = Path.GetFullPath(ownModDirectory);
+        }
+        catch
+        {
+            ownFull = ownModDirectory;
+        }
+
+        foreach (var directory in Directory.GetDirectories(modsDirectory))
+        {
+            string full;
+            try
+            {
+                full = Path.GetFullPath(directory);
+            }
+            catch
+            {
+                continue;
+            }
+
+            if (string.Equals(full, ownFull, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var path = Path.Combine(full, SunExpIds.FamiliarBlessingRegistryFile);
+            if (File.Exists(path))
+            {
+                yield return path;
+            }
+        }
+    }
+
+    private static void MergeInto(FamiliarBlessingRegistryDocument target, FamiliarBlessingRegistryDocument source, string sourceName)
+    {
+        var owner = string.IsNullOrWhiteSpace(source.OwnerModId) ? SunExpIds.ModId : source.OwnerModId.Trim();
+        foreach (var blessing in source.Blessings ?? new List<FamiliarBlessingDefinition>())
+        {
+            blessing.OwnerModId = string.IsNullOrWhiteSpace(blessing.OwnerModId) ? owner : blessing.OwnerModId.Trim();
+            var unsupported = blessing.Effects?.FirstOrDefault(effect => !SupportedEffectKinds.Contains(effect.Kind ?? ""));
+            if (unsupported != null)
+            {
+                SunExpLog.Warn("[FamiliarGrowth] rejected blessing " + blessing.Id + " from " + sourceName
+                               + ": unsupported effect " + unsupported.Kind + ".");
+                continue;
+            }
+
+            target.Blessings.RemoveAll(existing => string.Equals(existing.Id, blessing.Id, StringComparison.Ordinal));
+            target.Blessings.Add(blessing);
+        }
+
+        foreach (var profile in source.SpeciesProfiles ?? new List<FamiliarSpeciesGrowthProfile>())
+        {
+            target.SpeciesProfiles.RemoveAll(existing =>
+                string.Equals(existing.FullSpeciesId, profile.FullSpeciesId, StringComparison.OrdinalIgnoreCase));
+            target.SpeciesProfiles.Add(profile);
+        }
+    }
+
+    private static FamiliarBlessingRegistryDocument Normalize(FamiliarBlessingRegistryDocument source)
+    {
+        var result = new FamiliarBlessingRegistryDocument
+        {
+            SchemaVersion = Math.Max(2, source.SchemaVersion),
+            OwnerModId = string.IsNullOrWhiteSpace(source.OwnerModId) ? SunExpIds.ModId : source.OwnerModId.Trim()
+        };
+        foreach (var blessing in source.Blessings ?? new List<FamiliarBlessingDefinition>())
         {
             var id = (blessing.Id ?? "").Trim();
             if (id.Length == 0)
@@ -142,16 +328,19 @@ public static class FamiliarBlessingRegistry
             }
 
             blessing.Id = id;
+            blessing.OwnerModId = string.IsNullOrWhiteSpace(blessing.OwnerModId) ? result.OwnerModId : blessing.OwnerModId.Trim();
             blessing.Name = string.IsNullOrWhiteSpace(blessing.Name) ? id : blessing.Name.Trim();
             blessing.Description = blessing.Description?.Trim() ?? "";
             blessing.IconPath = blessing.IconPath?.Trim() ?? "";
+            blessing.Category = NormalizeCategory(blessing.Category);
             blessing.Tier = Math.Max(1, Math.Min(5, blessing.Tier));
             blessing.Weight = Math.Max(0, blessing.Weight);
-            blessing.Pool = string.IsNullOrWhiteSpace(blessing.Pool) ? "common" : FamiliarId.Sanitize(blessing.Pool).ToLowerInvariant();
+            blessing.Pool = string.IsNullOrWhiteSpace(blessing.Pool) ? "common" : blessing.Pool.Trim();
             blessing.ExclusiveGroup = blessing.ExclusiveGroup?.Trim() ?? "";
-            blessing.RequiredLevel = Math.Max(1, blessing.RequiredLevel);
-            blessing.MaxRank = Math.Max(1, blessing.MaxRank);
+            blessing.RequiredLevel = Math.Max(1, Math.Min(FamiliarRosterService.MaxLevel, blessing.RequiredLevel));
+            blessing.MaxRank = 1;
             blessing.AllowedSpecies = NormalizeList(blessing.AllowedSpecies, allowWildcard: true);
+            blessing.RequiredTags = NormalizeList(blessing.RequiredTags, allowWildcard: false);
             blessing.Tags = NormalizeList(blessing.Tags, allowWildcard: false);
             blessing.Effects ??= new List<FamiliarBlessingEffect>();
             foreach (var effect in blessing.Effects)
@@ -162,20 +351,40 @@ public static class FamiliarBlessingRegistry
                 effect.Amount = Math.Max(0, effect.Amount);
             }
 
-            if (blessing.AllowedSpecies.Count == 0)
-            {
-                blessing.AllowedSpecies.Add("*");
-            }
-
-            map[id] = blessing;
+            result.Blessings.RemoveAll(existing => string.Equals(existing.Id, blessing.Id, StringComparison.Ordinal));
+            result.Blessings.Add(blessing);
         }
 
-        result.Blessings = map.Values
-            .OrderBy(blessing => blessing.Tier)
-            .ThenBy(blessing => blessing.RequiredLevel)
-            .ThenBy(blessing => blessing.Id, StringComparer.Ordinal)
-            .ToList();
+        foreach (var profile in source.SpeciesProfiles ?? new List<FamiliarSpeciesGrowthProfile>())
+        {
+            profile.FullSpeciesId = FamiliarId.NormalizeFullSpeciesId(profile.FullSpeciesId, profile.SpeciesId);
+            profile.SpeciesId = FamiliarId.NormalizeSpeciesId(profile.SpeciesId.Length > 0 ? profile.SpeciesId : profile.FullSpeciesId);
+            profile.Tags = NormalizeList(profile.Tags, allowWildcard: false);
+            profile.FinalBlessingIds = (profile.FinalBlessingIds ?? new List<string>())
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Select(id => id.Trim())
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+            if (profile.FullSpeciesId.Length > 0)
+            {
+                result.SpeciesProfiles.RemoveAll(existing =>
+                    string.Equals(existing.FullSpeciesId, profile.FullSpeciesId, StringComparison.OrdinalIgnoreCase));
+                result.SpeciesProfiles.Add(profile);
+            }
+        }
+
+        result.Blessings = result.Blessings.OrderBy(item => item.Category).ThenBy(item => item.Tier).ThenBy(item => item.Id).ToList();
         return result;
+    }
+
+    private static string NormalizeCategory(string category)
+    {
+        var value = (category ?? "").Trim().ToLowerInvariant();
+        return value == FamiliarBlessingCategory.FinalGeneric
+               || value == FamiliarBlessingCategory.FinalSpecies
+               || value == FamiliarBlessingCategory.FinalTag
+            ? value
+            : FamiliarBlessingCategory.Growth;
     }
 
     private static List<string> NormalizeList(IEnumerable<string>? values, bool allowWildcard)
@@ -183,9 +392,13 @@ public static class FamiliarBlessingRegistry
         var result = new List<string>();
         foreach (var value in values ?? Array.Empty<string>())
         {
-            var text = (value ?? "").Trim();
-            var clean = allowWildcard && text == "*" ? "*" : FamiliarId.NormalizeSpeciesId(text);
-            if (clean.Length > 0 && !result.Contains(clean))
+            var clean = (value ?? "").Trim();
+            if (clean.Length == 0 || (!allowWildcard && clean == "*"))
+            {
+                continue;
+            }
+
+            if (!result.Contains(clean, StringComparer.OrdinalIgnoreCase))
             {
                 result.Add(clean);
             }
@@ -194,64 +407,18 @@ public static class FamiliarBlessingRegistry
         return result;
     }
 
-    private static bool AllowsSpecies(FamiliarBlessingDefinition blessing, string speciesId)
-    {
-        return blessing.AllowedSpecies.Contains("*")
-               || blessing.AllowedSpecies.Any(value => string.Equals(value, speciesId, StringComparison.Ordinal));
-    }
-
-    private static bool SameId(string? left, string? right)
-    {
-        return string.Equals(left ?? "", right ?? "", StringComparison.Ordinal);
-    }
-
     private static FamiliarBlessingRegistryDocument BuiltInDocument()
     {
         return new FamiliarBlessingRegistryDocument
         {
+            SchemaVersion = 2,
+            OwnerModId = SunExpIds.ModId,
             Blessings = new List<FamiliarBlessingDefinition>
             {
-                new()
-                {
-                    Id = "sunexp.familiar.bond_spark",
-                    Name = "\u7f81\u7eca\u5fae\u5149",
-                    Description = "\u8fd9\u53ea\u4f7f\u9b54\u5df2\u7ecf\u80fd\u7a33\u5b9a\u56de\u5e94\u547c\u5524\u3002",
-                    RequiredLevel = 2,
-                    AllowedSpecies = new List<string> { "*" },
-                    Tags = new List<string> { "growth", "bond" }
-                },
-                new()
-                {
-                    Id = "sunexp.familiar.dusk_afterheat_focus",
-                    Name = "\u4f59\u70ed\u4eb2\u548c",
-                    Description = "\u9ec4\u660f\u66f4\u5bb9\u6613\u4fdd\u7559\u707c\u70e7\u7184\u706d\u524d\u7684\u4f59\u6e29\u3002",
-                    RequiredLevel = 3,
-                    AllowedSpecies = new List<string> { "dusk" },
-                    Tags = new List<string> { "dusk", "afterheat" }
-                },
-                new()
-                {
-                    Id = "sunexp.familiar.star_clay_memory",
-                    Name = "\u661f\u6ce5\u8bb0\u5fc6",
-                    Description = "\u661f\u6ce5\u4eba\u5080\u5b66\u4f1a\u628a\u4e00\u70b9\u5149\u7559\u5230\u4e0b\u4e00\u6b21\u884c\u52a8\u91cc\u3002",
-                    RequiredLevel = 3,
-                    AllowedSpecies = new List<string> { "star_clay_doll" },
-                    Tags = new List<string> { "star_clay", "starlight" }
-                },
-                new()
-                {
-                    Id = "sunexp.familiar.manifest",
-                    Name = "\u73b0\u5f62",
-                    Description = "\u89e3\u9501\u4f5c\u4e3a\u53cb\u65b9\u5355\u4f4d\u73b0\u5f62\u7684\u7cfb\u7edf\u6743\u9650\u3002",
-                    RequiredLevel = 5,
-                    AllowedSpecies = new List<string> { "*" },
-                    Tags = new List<string> { "manifest", "combat" },
-                    Effects = new List<FamiliarBlessingEffect>
-                    {
-                        new() { Kind = "ManifestEnable" },
-                        new() { Kind = "CompanionIntentPoolPatch", Pool = "projection.default" }
-                    }
-                }
+                new() { Id = "*familiar_guard_paw", Name = "防护", Description = "战斗开始时，获得10点护盾。", Category = FamiliarBlessingCategory.Growth, Tier = 1, RequiredLevel = 2, Effects = new List<FamiliarBlessingEffect> { new() { Kind = "CombatStartShield", Amount = 10 } } },
+                new() { Id = "*familiar_first_aid", Name = "治疗", Description = "战斗开始时，恢复5点生命。", Category = FamiliarBlessingCategory.Growth, Tier = 1, RequiredLevel = 2, Effects = new List<FamiliarBlessingEffect> { new() { Kind = "CombatStartHeal", Amount = 5 } } },
+                new() { Id = "*familiar_reward_omen", Name = "奖赏预感", Description = "战斗奖励额外出现1个选择。", Category = FamiliarBlessingCategory.FinalGeneric, Tier = 5, RequiredLevel = 8, Effects = new List<FamiliarBlessingEffect> { new() { Kind = "BattleRewardExtraChoice", Amount = 1 } } },
+                new() { Id = "*familiar_law_of_luck", Name = "幸运之骰", Description = "本轮冒险中，数值骰和检定骰获得少量加成。", Category = FamiliarBlessingCategory.FinalGeneric, Tier = 5, RequiredLevel = 8, Effects = new List<FamiliarBlessingEffect> { new() { Kind = "RunDiceBonus", Amount = 1 } } }
             }
         };
     }

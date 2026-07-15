@@ -7,7 +7,7 @@ public static class SunExpIds
     public const string ModLogTag = "SunExp.DLL";
     public const string FamiliarBlessingRegistryFile = "familiar.blessing.registry.json";
     public const string FamiliarProfileDirectory = "FamiliarGrowthProfiles";
-    public const string FamiliarRunSelectedInstanceKey = "SunExp_FamiliarRunSelectedInstance";
+    public const string FamiliarRunActivePartnerKey = "SunExp_FamiliarRunActivePartner";
 
     public const string SunCardVisualSkinId = "sunexp.card_visual.sun";
     public const string MorningStarCardVisualSkinId = "sunexp.card_visual.morning_star";

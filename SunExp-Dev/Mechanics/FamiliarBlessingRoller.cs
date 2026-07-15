@@ -6,22 +6,30 @@ namespace SunExp.Dll.Mechanics;
 
 public static class FamiliarBlessingRoller
 {
-    public const int BodyDefaultAptitude = 70;
-    public const int ChoiceSize = 3;
+    public const int HighChoiceAptitude = 70;
+    public const int LowChoiceSize = 2;
+    public const int HighChoiceSize = 3;
 
     public static int NormalizeAptitude(int aptitude)
     {
         return Math.Max(0, Math.Min(100, aptitude));
     }
 
+    public static int AptitudeFloor(int rebirthCount)
+    {
+        return Math.Min(70, 30 + Math.Max(0, rebirthCount) * 5);
+    }
+
+    public static int RollAptitude(string fullSpeciesId, int rebirthCount)
+    {
+        var floor = AptitudeFloor(rebirthCount);
+        var range = 101 - floor;
+        return floor + StableHash(FamiliarId.NormalizeFullSpeciesId(fullSpeciesId) + "|rebirth|" + Math.Max(0, rebirthCount)) % range;
+    }
+
     public static int DefaultAptitude(FamiliarInstance instance)
     {
-        if (instance.IsBody || string.Equals(instance.InstanceId, FamiliarId.BodyInstanceId(instance.SpeciesId), StringComparison.Ordinal))
-        {
-            return BodyDefaultAptitude;
-        }
-
-        return StableHash(instance.InstanceId + "|aptitude") % 101;
+        return RollAptitude(instance.FullSpeciesId.Length > 0 ? instance.FullSpeciesId : instance.SpeciesId, instance.RebirthCount);
     }
 
     public static string AptitudeLabel(int aptitude)
@@ -50,14 +58,14 @@ public static class FamiliarBlessingRoller
         return "普通";
     }
 
+    public static int ChoiceSize(int aptitude)
+    {
+        return NormalizeAptitude(aptitude) >= HighChoiceAptitude ? HighChoiceSize : LowChoiceSize;
+    }
+
     public static int MaxTierForAptitude(int aptitude)
     {
         var value = NormalizeAptitude(aptitude);
-        if (value >= 90)
-        {
-            return 5;
-        }
-
         if (value >= 70)
         {
             return 4;
@@ -68,32 +76,40 @@ public static class FamiliarBlessingRoller
             return 3;
         }
 
-        return value >= 30 ? 2 : 1;
-    }
-
-    public static FamiliarBlessingChoice? CreateChoice(FamiliarInstance instance, int level)
-    {
-        var owned = new HashSet<string>(instance.Blessings ?? new List<string>(), StringComparer.Ordinal);
-        foreach (var pendingId in (instance.PendingBlessingChoices ?? new List<FamiliarBlessingChoice>())
-                     .SelectMany(choice => choice.BlessingIds ?? new List<string>()))
+        if (value >= 30)
         {
-            if (!string.IsNullOrWhiteSpace(pendingId))
-            {
-                owned.Add(pendingId.Trim());
-            }
+            return 2;
         }
 
+        return 1;
+    }
+
+    public static int MaxTierForMilestone(int milestone)
+    {
+        if (milestone >= 6)
+        {
+            return 4;
+        }
+
+        return milestone >= 4 ? 3 : 2;
+    }
+
+    public static FamiliarBlessingChoice? CreateChoice(FamiliarInstance instance, int milestone)
+    {
+        return milestone >= FamiliarRosterService.FinalBlessingLevel
+            ? CreateFinalChoice(instance, milestone)
+            : CreateGrowthChoice(instance, milestone);
+    }
+
+    private static FamiliarBlessingChoice? CreateGrowthChoice(FamiliarInstance instance, int milestone)
+    {
+        var owned = new HashSet<string>(instance.AllBlessingIds(), StringComparer.Ordinal);
         var blockedGroups = FamiliarBlessingRegistry.All()
             .Where(blessing => owned.Contains(blessing.Id) && !string.IsNullOrWhiteSpace(blessing.ExclusiveGroup))
             .Select(blessing => blessing.ExclusiveGroup)
             .ToHashSet(StringComparer.Ordinal);
-
-        var speciesId = FamiliarId.NormalizeSpeciesId(instance.SpeciesId);
-        var maxTier = MaxTierForAptitude(instance.Aptitude);
-        var available = FamiliarBlessingRegistry.All()
-            .Where(blessing => blessing.RequiredLevel <= Math.Max(1, level))
-            .Where(blessing => blessing.Tier <= maxTier)
-            .Where(blessing => FamiliarBlessingRegistry.Allows(blessing, speciesId))
+        var maxTier = Math.Min(MaxTierForAptitude(instance.Aptitude), MaxTierForMilestone(milestone));
+        var available = FamiliarBlessingRegistry.GrowthEligible(instance, milestone, maxTier)
             .Where(blessing => !owned.Contains(blessing.Id))
             .Where(blessing => string.IsNullOrWhiteSpace(blessing.ExclusiveGroup) || !blockedGroups.Contains(blessing.ExclusiveGroup))
             .Where(blessing => blessing.Weight > 0)
@@ -103,27 +119,68 @@ public static class FamiliarBlessingRoller
             return null;
         }
 
-        var random = new Random(StableHash(instance.InstanceId + "|" + level + "|" + instance.BlessingRollIndex));
+        var random = RandomFor(instance, milestone);
         var selected = new List<FamiliarBlessingDefinition>();
-        while (selected.Count < ChoiceSize && selected.Count < available.Count)
+        var newestTier = available.Max(blessing => blessing.Tier);
+        var newest = PickWeighted(available.Where(blessing => blessing.Tier == newestTier).ToList(), instance.Aptitude, random);
+        if (newest != null)
         {
-            var tier = RollAvailableTier(instance.Aptitude, available, selected, random);
-            var candidate = PickWeighted(
-                available.Where(blessing => blessing.Tier == tier && selected.All(item => item.Id != blessing.Id)).ToList(),
-                random);
-            if (candidate == null)
-            {
-                candidate = PickWeighted(available.Where(blessing => selected.All(item => item.Id != blessing.Id)).ToList(), random);
-            }
+            selected.Add(newest);
+        }
 
-            if (candidate == null)
+        while (selected.Count < ChoiceSize(instance.Aptitude) && selected.Count < available.Count)
+        {
+            var next = PickWeighted(available.Where(blessing => selected.All(item => item.Id != blessing.Id)).ToList(), instance.Aptitude, random);
+            if (next == null)
             {
                 break;
             }
 
-            selected.Add(candidate);
+            selected.Add(next);
         }
 
+        return BuildChoice(instance, milestone, FamiliarChoiceKind.Growth, selected);
+    }
+
+    private static FamiliarBlessingChoice? CreateFinalChoice(FamiliarInstance instance, int milestone)
+    {
+        var random = RandomFor(instance, milestone);
+        var generic = FamiliarBlessingRegistry.GenericFinals(instance).Where(item => item.Weight > 0).ToList();
+        var specific = FamiliarBlessingRegistry.SpecificFinals(instance).Where(item => item.Weight > 0).ToList();
+        var selected = new List<FamiliarBlessingDefinition>();
+        var specificPick = PickWeighted(specific, instance.Aptitude, random);
+        var genericPick = PickWeighted(generic, instance.Aptitude, random);
+        if (specificPick != null)
+        {
+            selected.Add(specificPick);
+        }
+
+        if (genericPick != null && selected.All(item => item.Id != genericPick.Id))
+        {
+            selected.Add(genericPick);
+        }
+
+        var union = specific.Concat(generic).GroupBy(item => item.Id, StringComparer.Ordinal).Select(group => group.First()).ToList();
+        while (selected.Count < ChoiceSize(instance.Aptitude) && selected.Count < union.Count)
+        {
+            var next = PickWeighted(union.Where(item => selected.All(chosen => chosen.Id != item.Id)).ToList(), instance.Aptitude, random);
+            if (next == null)
+            {
+                break;
+            }
+
+            selected.Add(next);
+        }
+
+        return BuildChoice(instance, milestone, FamiliarChoiceKind.Final, selected);
+    }
+
+    private static FamiliarBlessingChoice? BuildChoice(
+        FamiliarInstance instance,
+        int milestone,
+        string kind,
+        IReadOnlyList<FamiliarBlessingDefinition> selected)
+    {
         if (selected.Count == 0)
         {
             return null;
@@ -131,100 +188,57 @@ public static class FamiliarBlessingRoller
 
         return new FamiliarBlessingChoice
         {
-            ChoiceId = "choice-" + Math.Max(0, instance.BlessingRollIndex).ToString("000"),
-            Level = Math.Max(1, level),
+            ChoiceId = "choice-r" + Math.Max(0, instance.RebirthCount).ToString("000")
+                       + "-m" + Math.Max(1, milestone).ToString("00")
+                       + "-" + Math.Max(0, instance.BlessingRollIndex).ToString("000"),
+            Level = milestone,
             Tier = selected.Max(blessing => blessing.Tier),
+            Kind = kind,
             BlessingIds = selected.Select(blessing => blessing.Id).ToList()
         };
     }
 
-    private static int RollAvailableTier(
+    private static FamiliarBlessingDefinition? PickWeighted(
+        IReadOnlyList<FamiliarBlessingDefinition> candidates,
         int aptitude,
-        IReadOnlyList<FamiliarBlessingDefinition> available,
-        IReadOnlyList<FamiliarBlessingDefinition> selected,
         Random random)
-    {
-        var selectedIds = new HashSet<string>(selected.Select(item => item.Id), StringComparer.Ordinal);
-        var availableTiers = available
-            .Where(blessing => !selectedIds.Contains(blessing.Id))
-            .Select(blessing => blessing.Tier)
-            .Distinct()
-            .ToHashSet();
-        var weights = TierWeights(aptitude)
-            .Where(entry => availableTiers.Contains(entry.Tier) && entry.Weight > 0)
-            .ToList();
-        if (weights.Count == 0)
-        {
-            return availableTiers.OrderBy(tier => tier).FirstOrDefault();
-        }
-
-        var total = weights.Sum(entry => entry.Weight);
-        var roll = random.Next(0, Math.Max(1, total));
-        foreach (var entry in weights)
-        {
-            if (roll < entry.Weight)
-            {
-                return entry.Tier;
-            }
-
-            roll -= entry.Weight;
-        }
-
-        return weights[weights.Count - 1].Tier;
-    }
-
-    private static FamiliarBlessingDefinition? PickWeighted(IReadOnlyList<FamiliarBlessingDefinition> candidates, Random random)
     {
         if (candidates.Count == 0)
         {
             return null;
         }
 
-        var total = candidates.Sum(item => Math.Max(0, item.Weight));
+        var weights = candidates.Select(candidate => Math.Max(0, candidate.Weight) * TierWeight(aptitude, candidate.Tier)).ToArray();
+        var total = weights.Sum();
         if (total <= 0)
         {
             return candidates[random.Next(0, candidates.Count)];
         }
 
         var roll = random.Next(0, total);
-        foreach (var candidate in candidates)
+        for (var i = 0; i < candidates.Count; i++)
         {
-            var weight = Math.Max(0, candidate.Weight);
-            if (roll < weight)
+            if (roll < weights[i])
             {
-                return candidate;
+                return candidates[i];
             }
 
-            roll -= weight;
+            roll -= weights[i];
         }
 
         return candidates[candidates.Count - 1];
     }
 
-    private static IReadOnlyList<(int Tier, int Weight)> TierWeights(int aptitude)
+    private static int TierWeight(int aptitude, int tier)
     {
-        var value = NormalizeAptitude(aptitude);
-        if (value >= 90)
-        {
-            return new[] { (1, 10), (2, 20), (3, 20), (4, 30), (5, 20) };
-        }
+        var maxTier = MaxTierForAptitude(aptitude);
+        return tier >= maxTier ? 5 : tier == maxTier - 1 ? 3 : 1;
+    }
 
-        if (value >= 70)
-        {
-            return new[] { (1, 20), (2, 20), (3, 30), (4, 30) };
-        }
-
-        if (value >= 50)
-        {
-            return new[] { (1, 40), (2, 30), (3, 30) };
-        }
-
-        if (value >= 30)
-        {
-            return new[] { (1, 75), (2, 25) };
-        }
-
-        return new[] { (1, 100) };
+    private static Random RandomFor(FamiliarInstance instance, int milestone)
+    {
+        return new Random(StableHash(
+            instance.FullSpeciesId + "|" + instance.RebirthCount + "|" + milestone + "|" + instance.BlessingRollIndex));
     }
 
     private static int StableHash(string value)

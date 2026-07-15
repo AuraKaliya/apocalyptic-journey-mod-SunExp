@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.Infrastructure;
 
 namespace SunExp.Dll.Mechanics;
 
@@ -9,12 +8,15 @@ public static class FamiliarGrowthService
 {
     private static readonly object SyncRoot = new();
     private static IFamiliarProfileStore? store;
+    private static string currentPartnerId = "";
+    private static FamiliarInstance? runSnapshot;
 
     public static void Configure(IFamiliarProfileStore profileStore)
     {
         lock (SyncRoot)
         {
             store = profileStore;
+            runSnapshot = null;
             var document = LoadAndNormalize(out var changed);
             if (changed)
             {
@@ -27,7 +29,13 @@ public static class FamiliarGrowthService
     {
         lock (SyncRoot)
         {
-            return Clone(LoadAndNormalize(out var changed), saveIfChanged: changed);
+            var document = LoadAndNormalize(out var changed);
+            if (changed)
+            {
+                Save(document);
+            }
+
+            return Clone(document);
         }
     }
 
@@ -36,7 +44,109 @@ public static class FamiliarGrowthService
         return FamiliarSpeciesCatalog.AllSpecies();
     }
 
-    public static FamiliarInstance? Selected()
+    public static string CurrentPartnerId()
+    {
+        lock (SyncRoot)
+        {
+            return currentPartnerId;
+        }
+    }
+
+    public static FamiliarInstance? RefreshCurrentPartner(string partnerId)
+    {
+        lock (SyncRoot)
+        {
+            var spec = FamiliarSpeciesCatalog.Find(partnerId);
+            currentPartnerId = spec?.FullSpeciesId ?? "";
+            return BodyCore(currentPartnerId);
+        }
+    }
+
+    public static FamiliarInstance? BeginRun(string partnerId)
+    {
+        lock (SyncRoot)
+        {
+            var spec = FamiliarSpeciesCatalog.Find(partnerId);
+            currentPartnerId = spec?.FullSpeciesId ?? "";
+            runSnapshot = BodyCore(currentPartnerId);
+            return runSnapshot?.Clone();
+        }
+    }
+
+    public static FamiliarInstance? Active()
+    {
+        lock (SyncRoot)
+        {
+            return runSnapshot?.Clone() ?? BodyCore(currentPartnerId);
+        }
+    }
+
+    public static FamiliarInstance? Body(string partnerId)
+    {
+        lock (SyncRoot)
+        {
+            var spec = FamiliarSpeciesCatalog.Find(partnerId);
+            return BodyCore(spec?.FullSpeciesId ?? partnerId);
+        }
+    }
+
+    public static bool Rename(string partnerId, string name)
+    {
+        lock (SyncRoot)
+        {
+            var document = LoadAndNormalize(out _);
+            if (!FamiliarRosterService.Rename(document, partnerId, name))
+            {
+                return false;
+            }
+
+            Save(document);
+            return true;
+        }
+    }
+
+    public static FamiliarExperienceResult? GrantExperience(string partnerId, int amount)
+    {
+        lock (SyncRoot)
+        {
+            var document = LoadAndNormalize(out _);
+            var instance = FamiliarRosterService.Find(document, partnerId);
+            if (instance == null)
+            {
+                return null;
+            }
+
+            var result = FamiliarRosterService.GrantExperience(instance, amount);
+            Save(document);
+            return result;
+        }
+    }
+
+    public static FamiliarExperienceResult? GrantActiveExperience(int amount)
+    {
+        lock (SyncRoot)
+        {
+            var id = runSnapshot?.FullSpeciesId ?? currentPartnerId;
+            return id.Length == 0 ? null : GrantExperience(id, amount);
+        }
+    }
+
+    public static bool ChooseBlessing(string partnerId, string choiceId, string blessingId)
+    {
+        lock (SyncRoot)
+        {
+            var document = LoadAndNormalize(out _);
+            if (!FamiliarRosterService.ChooseBlessing(document, partnerId, choiceId, blessingId))
+            {
+                return false;
+            }
+
+            Save(document);
+            return true;
+        }
+    }
+
+    public static bool CanRebirth(string partnerId)
     {
         lock (SyncRoot)
         {
@@ -46,152 +156,73 @@ public static class FamiliarGrowthService
                 Save(document);
             }
 
-            return FamiliarRosterService.Selected(document)?.Clone();
+            return FamiliarRosterService.CanRebirth(FamiliarRosterService.Find(document, partnerId));
         }
     }
 
-    public static FamiliarInstance? Create(string speciesId)
+    public static FamiliarRebirthResult? Rebirth(string partnerId)
     {
         lock (SyncRoot)
         {
-            var species = FamiliarSpeciesCatalog.Find(speciesId);
-            if (species == null)
+            var document = LoadAndNormalize(out _);
+            var result = FamiliarRosterService.Rebirth(document, partnerId);
+            if (result == null)
             {
                 return null;
             }
 
-            var document = LoadAndNormalize(out _);
-            var instance = FamiliarRosterService.Create(document, species);
-            Save(document);
-            return instance.Clone();
-        }
-    }
-
-    public static bool Delete(string instanceId)
-    {
-        lock (SyncRoot)
-        {
-            var document = LoadAndNormalize(out _);
-            if (!FamiliarRosterService.Delete(document, instanceId))
-            {
-                return false;
-            }
-
-            Save(document);
-            return true;
-        }
-    }
-
-    public static bool Rename(string instanceId, string name)
-    {
-        lock (SyncRoot)
-        {
-            var document = LoadAndNormalize(out _);
-            if (!FamiliarRosterService.Rename(document, instanceId, name))
-            {
-                return false;
-            }
-
-            Save(document);
-            return true;
-        }
-    }
-
-    public static bool Select(string instanceId)
-    {
-        lock (SyncRoot)
-        {
-            var document = LoadAndNormalize(out _);
-            if (!FamiliarRosterService.Select(document, instanceId))
-            {
-                return false;
-            }
-
-            Save(document);
-            return true;
-        }
-    }
-
-    public static FamiliarExperienceResult? GrantExperience(string instanceId, int amount)
-    {
-        lock (SyncRoot)
-        {
-            var document = LoadAndNormalize(out _);
-            var instance = FamiliarRosterService.Find(document, instanceId);
-            if (instance == null)
-            {
-                return null;
-            }
-
-            var result = FamiliarRosterService.GrantExperience(instance, amount);
             Save(document);
             return result;
         }
     }
 
-    public static FamiliarExperienceResult? GrantSelectedExperience(int amount)
+    public static bool ActiveHasBlessing(string blessingId)
     {
-        lock (SyncRoot)
-        {
-            var document = LoadAndNormalize(out _);
-            var instance = FamiliarRosterService.Selected(document);
-            if (instance == null)
-            {
-                return null;
-            }
-
-            var result = FamiliarRosterService.GrantExperience(instance, amount);
-            Save(document);
-            return result;
-        }
+        var active = Active();
+        return active != null && active.AllBlessingIds().Contains(blessingId ?? "", StringComparer.Ordinal);
     }
 
-    public static bool ChooseBlessing(string instanceId, string choiceId, string blessingId)
+    public static bool ActiveHasTag(string tag)
     {
-        lock (SyncRoot)
-        {
-            var document = LoadAndNormalize(out _);
-            if (!FamiliarRosterService.ChooseBlessing(document, instanceId, choiceId, blessingId))
-            {
-                return false;
-            }
-
-            Save(document);
-            return true;
-        }
+        var active = Active();
+        return active != null && FamiliarBlessingRegistry.HasTag(active, tag);
     }
 
-    public static bool SelectedHasBlessing(string blessingId)
+    public static bool ActiveHasEffect(string effectKind)
     {
-        var selected = Selected();
-        return selected != null && selected.Blessings.Contains(blessingId ?? "", StringComparer.Ordinal);
-    }
-
-    public static bool SelectedHasTag(string tag)
-    {
-        var selected = Selected();
-        return selected != null && FamiliarBlessingRegistry.HasTag(selected, tag);
-    }
-
-    public static bool SelectedHasEffect(string effectKind)
-    {
-        var selected = Selected();
-        return selected != null && FamiliarBlessingRegistry.HasEffect(selected, effectKind);
+        var active = Active();
+        return active != null && FamiliarBlessingRegistry.HasEffect(active, effectKind);
     }
 
     public static IReadOnlyList<FamiliarBlessingDefinition> BlessingsFor(FamiliarInstance instance)
     {
-        if (instance == null || instance.Blessings == null || instance.Blessings.Count == 0)
+        if (instance == null)
         {
             return Array.Empty<FamiliarBlessingDefinition>();
         }
 
-        var ids = new HashSet<string>(instance.Blessings, StringComparer.Ordinal);
+        var ids = new HashSet<string>(instance.AllBlessingIds(), StringComparer.Ordinal);
         return FamiliarBlessingRegistry.All()
             .Where(blessing => ids.Contains(blessing.Id))
             .OrderBy(blessing => blessing.RequiredLevel)
             .ThenBy(blessing => blessing.Id, StringComparer.Ordinal)
             .ToArray();
+    }
+
+    private static FamiliarInstance? BodyCore(string partnerId)
+    {
+        if (string.IsNullOrWhiteSpace(partnerId))
+        {
+            return null;
+        }
+
+        var document = LoadAndNormalize(out var changed);
+        if (changed)
+        {
+            Save(document);
+        }
+
+        return FamiliarRosterService.Find(document, partnerId)?.Clone();
     }
 
     private static FamiliarRosterDocument LoadAndNormalize(out bool changed)
@@ -206,18 +237,11 @@ public static class FamiliarGrowthService
         store?.Save(document);
     }
 
-    private static FamiliarRosterDocument Clone(FamiliarRosterDocument source, bool saveIfChanged)
+    private static FamiliarRosterDocument Clone(FamiliarRosterDocument source)
     {
-        if (saveIfChanged)
-        {
-            Save(source);
-        }
-
         return new FamiliarRosterDocument
         {
             Version = source.Version,
-            SelectedInstanceId = source.SelectedInstanceId,
-            NextSerialBySpecies = new Dictionary<string, int>(source.NextSerialBySpecies, StringComparer.Ordinal),
             Instances = source.Instances.Select(instance => instance.Clone()).ToList()
         };
     }

@@ -27,7 +27,7 @@ public static class PartnerApi
         RemoveMatchingStrings(Member(role, "ExtraordinaryBlessings"), localId, fullId);
     }
 
-    private static string CurrentPartnerId()
+    public static string CurrentPartnerId()
     {
         var partner = StaticMember(FindType("GameEntryUI"), "partner");
         return DataConfigId(partner);

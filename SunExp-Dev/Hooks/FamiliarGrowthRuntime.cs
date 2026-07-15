@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Reflection;
+using AuraShared.Core;
 using AuraUi.Shared;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks.Ui;
@@ -35,7 +36,8 @@ public static class FamiliarGrowthRuntime
         RegisterAfter(modConfig, "HouseManager.ChangeUIShow", EnsureLibraryButton);
         RegisterAfter(modConfig, "HouseManager.OpenWindowByIndex", EnsureLibraryButton);
         RegisterAfter(modConfig, "HouseManager.OpenLibrary", EnsureLibraryButton);
-        RegisterAfter(modConfig, "GameEntryUI.NormalGame", MarkSelectedForRun);
+        RegisterAfter(modConfig, "GameEntryUI.NormalGame", MarkActiveForRun);
+        RegisterBefore(modConfig, SunExpHookTargets.FightWinResetStates, GrantBattleWinExperience);
         SunExpHookRegistry.Before(modConfig, SunExpHookTargets.StatusManagerHit, OnStatusHitBefore, "FamiliarGrowth");
         SunExpHookRegistry.After(modConfig, SunExpHookTargets.StatusManagerHit, OnStatusHitAfter, "FamiliarGrowth");
         SunExpCombatActionRouter.RegisterActionEventHandler(
@@ -49,17 +51,23 @@ public static class FamiliarGrowthRuntime
             context => FamiliarBlessingEffectRuntime.ApplyBattleRewardExtraChoices(context.RewardUi)));
         SunExpBattleLifecycleRouter.Register("FamiliarGrowth", new SunExpBattleLifecycleSubscription
         {
+            AdventureStarting = MarkActiveForRun,
             FightInitialized = ApplySelectedCombatStartEffects,
             PlayerRoundStarted = context => FamiliarBlessingEffectRuntime.BeginPlayerRound(),
-            FightEnding = context => FamiliarBlessingEffectRuntime.EndEpoch(),
-            FightEnded = GrantBattleWinExperience
+            FightEnding = context => FamiliarBlessingEffectRuntime.EndEpoch()
         });
         SunExpLog.Info(LogPrefix + " runtime initialized.");
     }
 
     public static void OpenPanel()
     {
+        FamiliarGrowthApi.RefreshCurrentPartner();
         FamiliarGrowthPanel.Open();
+    }
+
+    private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
+    {
+        SunExpHookRegistry.Before(config, target, action, "FamiliarGrowth");
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
@@ -165,18 +173,18 @@ public static class FamiliarGrowthRuntime
         }
     }
 
-    private static void MarkSelectedForRun(ModHookContext context)
+    private static void MarkActiveForRun(ModHookContext context)
     {
         try
         {
             FamiliarBlessingEffectRuntime.BeginRun();
-            var selected = FamiliarGrowthApi.Selected();
-            PlayerApi.SetGameVar(SunExpIds.FamiliarRunSelectedInstanceKey, selected?.InstanceId ?? "");
-            SunExpLog.Info(LogPrefix + " selected run familiar: " + (selected?.InstanceId ?? "none"));
+            var active = FamiliarGrowthApi.BeginRunFromCurrentPartner();
+            PlayerApi.SetGameVar(SunExpIds.FamiliarRunActivePartnerKey, active?.FullSpeciesId ?? "");
+            SunExpLog.Info(LogPrefix + " active run familiar: " + (active?.FullSpeciesId ?? "none"));
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn(LogPrefix + " failed to mark selected familiar: " + ex.Message);
+            SunExpLog.Warn(LogPrefix + " failed to snapshot active familiar: " + ex.Message);
         }
     }
 
@@ -184,8 +192,21 @@ public static class FamiliarGrowthRuntime
     {
         try
         {
+            var active = FamiliarGrowthApi.Active();
+            if (active == null
+                || !AuraLifecycleOperationLedger.TryClaimBattleOperation(
+                    SunExpIds.ModId,
+                    "FamiliarGrowth",
+                    "VictoryProgress",
+                    active.FullSpeciesId,
+                    "progress",
+                    "experience-and-victory-effects"))
+            {
+                return;
+            }
+
             ApplySelectedBattleWinEffects();
-            var result = FamiliarGrowthApi.GrantSelectedExperience(FamiliarRosterService.BattleWinExperience);
+            var result = FamiliarGrowthApi.GrantActiveExperience(FamiliarRosterService.BattleWinExperience);
             if (result == null)
             {
                 return;
@@ -269,13 +290,13 @@ public static class FamiliarGrowthRuntime
 
     private static void ApplySelectedBattleWinEffects()
     {
-        var selected = FamiliarGrowthApi.Selected();
-        if (selected == null)
+        var active = FamiliarGrowthApi.Active();
+        if (active == null)
         {
             return;
         }
 
-        var gold = FamiliarGrowthService.BlessingsFor(selected)
+        var gold = FamiliarGrowthService.BlessingsFor(active)
             .SelectMany(blessing => blessing.Effects)
             .Where(effect => string.Equals(effect.Kind, "BattleWinGold", StringComparison.OrdinalIgnoreCase))
             .Sum(effect => Math.Max(0, effect.Amount));

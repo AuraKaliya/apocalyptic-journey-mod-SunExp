@@ -169,9 +169,6 @@ public static class FamiliarBlessingEffectRuntime
             "FirstActionResource",
             "FirstStarScoreExtraBlessing",
             "BeforeLethalStarClayBody",
-            "ManifestEnable",
-            "SpeciesManifest",
-            "CompanionIntentPoolPatch",
             "RunDiceBonus",
             "BattleRewardExtraChoice",
             "BurnTriggeredEmber",
@@ -347,7 +344,7 @@ public static class FamiliarBlessingEffectRuntime
 
     private static IEnumerable<SelectedEffect> SelectedEffects(string kind = "")
     {
-        var selected = FamiliarGrowthService.Selected();
+        var selected = FamiliarGrowthService.Active();
         if (selected == null)
         {
             yield break;

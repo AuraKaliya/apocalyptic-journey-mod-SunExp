@@ -29,19 +29,21 @@ public static class FamiliarSpeciesCatalog
 
     public static FamiliarSpeciesSpec? Find(string speciesId)
     {
-        var normalized = FamiliarId.NormalizeSpeciesId(speciesId);
-        if (normalized.Length == 0)
+        var value = (speciesId ?? "").Trim();
+        if (value.Length == 0)
         {
             return null;
         }
 
-        return AllSpecies().FirstOrDefault(spec => string.Equals(spec.SpeciesId, normalized, StringComparison.Ordinal));
+        return AllSpecies().FirstOrDefault(spec => FamiliarId.Matches(value, spec));
     }
 
     private static FamiliarSpeciesSpec ToSpec(Dictionary<string, string> row)
     {
         var id = DictionaryUtil.Get(row, "Id");
-        var speciesId = FamiliarId.NormalizeSpeciesId(id);
+        var nativeBlessingId = DictionaryUtil.Get(row, "Bless");
+        var fullSpeciesId = FullPartnerId(id, nativeBlessingId);
+        var speciesId = LocalPartnerId(id, fullSpeciesId);
         if (speciesId.Length == 0 || string.Equals(speciesId, "id", StringComparison.OrdinalIgnoreCase))
         {
             return EmptySpec();
@@ -49,7 +51,7 @@ public static class FamiliarSpeciesCatalog
 
         return new FamiliarSpeciesSpec(
             speciesId,
-            FullPartnerId(id),
+            fullSpeciesId,
             DisplayName(row, speciesId),
             Description(row),
             FirstNonEmpty(
@@ -58,7 +60,7 @@ public static class FamiliarSpeciesCatalog
                 DictionaryUtil.Get(row, "Model")),
             DictionaryUtil.Get(row, "Model"),
             DictionaryUtil.Get(row, "Animation"),
-            DictionaryUtil.Get(row, "Bless"));
+            nativeBlessingId);
     }
 
     private static string DisplayName(Dictionary<string, string> data, string fallback)
@@ -92,12 +94,44 @@ public static class FamiliarSpeciesCatalog
         }
     }
 
-    private static string FullPartnerId(string id)
+    private static string FullPartnerId(string id, string nativeBlessingId)
     {
         var value = (id ?? "").Trim();
-        return value.StartsWith("SunExp_sunexp_", StringComparison.Ordinal)
-            ? value
-            : "SunExp_sunexp_" + FamiliarId.NormalizeSpeciesId(value);
+        if (value.Length == 0)
+        {
+            return "";
+        }
+
+        var blessing = (nativeBlessingId ?? "").Trim();
+        var marker = "_" + value;
+        var markerIndex = blessing.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (markerIndex > 0)
+        {
+            var prefix = blessing.Substring(0, markerIndex + 1);
+            if (prefix.TrimEnd('_').Count(ch => ch == '_') >= 1)
+            {
+                return value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ? value : prefix + value;
+            }
+        }
+
+        return value;
+    }
+
+    private static string LocalPartnerId(string id, string fullSpeciesId)
+    {
+        var value = (id ?? "").Trim();
+        var full = (fullSpeciesId ?? "").Trim();
+        if (full.Length > value.Length && full.EndsWith("_" + value, StringComparison.OrdinalIgnoreCase))
+        {
+            return FamiliarId.Sanitize(value).ToLowerInvariant();
+        }
+
+        if (value.StartsWith("SunExp_sunexp_", StringComparison.OrdinalIgnoreCase))
+        {
+            return FamiliarId.NormalizeSpeciesId(value);
+        }
+
+        return FamiliarId.Sanitize(value).ToLowerInvariant();
     }
 
     private static FamiliarSpeciesSpec EmptySpec()

@@ -40,6 +40,7 @@ public static class FamiliarGrowthPanel
     private static Text? hintText;
     private static Sprite? renameIcon;
     private static string focusedInstanceId = "";
+    private static string confirmingRebirthId = "";
     private static bool editingName;
 
     public static bool IsOpen => activePanel != null;
@@ -50,9 +51,11 @@ public static class FamiliarGrowthPanel
         {
             Close();
             var roster = FamiliarGrowthApi.Roster();
-            focusedInstanceId = string.IsNullOrWhiteSpace(roster.SelectedInstanceId)
-                ? roster.Instances.FirstOrDefault(instance => !instance.Deleted)?.InstanceId ?? ""
-                : roster.SelectedInstanceId;
+            var currentPartnerId = FamiliarGrowthApi.CurrentPartnerId();
+            focusedInstanceId = roster.Instances.FirstOrDefault(instance =>
+                                    string.Equals(instance.FullSpeciesId, currentPartnerId, StringComparison.OrdinalIgnoreCase))?.InstanceId
+                                ?? roster.Instances.FirstOrDefault()?.InstanceId
+                                ?? "";
             ShowPanel();
         }
         catch (Exception ex)
@@ -73,6 +76,7 @@ public static class FamiliarGrowthPanel
         actionContent = null;
         titleNameInput = null;
         hintText = null;
+        confirmingRebirthId = "";
         editingName = false;
     }
 
@@ -106,7 +110,7 @@ public static class FamiliarGrowthPanel
         headerLayout.childControlHeight = true;
         headerLayout.childForceExpandHeight = false;
         AddTextBlock(header.transform, "\u4f7f\u9b54\u6863\u6848", 27, TextAnchor.MiddleCenter, Gold, 34f);
-        AddTextBlock(header.transform, "\u57f9\u517b\u5df2\u6ce8\u518c\u4f7f\u9b54\u79cd\u7c7b\u7684\u72ec\u7acb\u4e2a\u4f53\u3002", 14, TextAnchor.MiddleCenter, Pale, 24f);
+        AddTextBlock(header.transform, "培养原生 Partner 本体；当前选择的 Partner 会在下轮冒险生效。", 14, TextAnchor.MiddleCenter, Pale, 24f);
 
         var body = CreateLayoutObject("Body", window.transform);
         var bodyElement = body.AddComponent<LayoutElement>();
@@ -158,19 +162,19 @@ public static class FamiliarGrowthPanel
 
         ClearChildren(listContent);
         var roster = FamiliarGrowthApi.Roster();
-        var species = FamiliarGrowthService.Species().ToDictionary(spec => spec.SpeciesId, StringComparer.Ordinal);
+        var species = FamiliarGrowthService.Species();
         if (roster.Instances.Count == 0)
         {
             AddTextBlock(listContent, "\u5c1a\u672a\u767b\u8bb0\u4f7f\u9b54\u3002", 15, TextAnchor.MiddleCenter, Gold, 46f);
             return;
         }
 
-        foreach (var instance in roster.Instances.Where(instance => !instance.Deleted)
-                     .OrderBy(instance => instance.SpeciesId, StringComparer.Ordinal)
-                     .ThenBy(instance => instance.InstanceId, StringComparer.Ordinal))
+        var activePartnerId = FamiliarGrowthApi.CurrentPartnerId();
+        foreach (var instance in roster.Instances
+                     .OrderBy(instance => instance.FullSpeciesId, StringComparer.OrdinalIgnoreCase))
         {
-            species.TryGetValue(instance.SpeciesId, out var spec);
-            CreateInstanceRow(listContent, instance, spec, roster.SelectedInstanceId);
+            var spec = species.FirstOrDefault(item => FamiliarId.Matches(instance.FullSpeciesId, item));
+            CreateInstanceRow(listContent, instance, spec, activePartnerId);
         }
     }
 
@@ -185,22 +189,22 @@ public static class FamiliarGrowthPanel
         ClearChildren(actionContent);
         titleNameInput = null;
         var roster = FamiliarGrowthApi.Roster();
-        var instance = roster.Instances.FirstOrDefault(item => !item.Deleted && string.Equals(item.InstanceId, focusedInstanceId, StringComparison.Ordinal))
-                       ?? roster.Instances.FirstOrDefault(item => !item.Deleted);
+        var instance = roster.Instances.FirstOrDefault(item => string.Equals(item.InstanceId, focusedInstanceId, StringComparison.Ordinal))
+                       ?? roster.Instances.FirstOrDefault();
         if (instance == null)
         {
             AddTextBlock(detailContent, "\u6ca1\u6709\u53ef\u7528\u4e2a\u4f53\u3002", 16, TextAnchor.MiddleCenter, Gold, 48f);
-            RefreshActions(null, "");
+            RefreshActions(null);
             return;
         }
 
         focusedInstanceId = instance.InstanceId;
-        var spec = FamiliarGrowthService.Species().FirstOrDefault(item => string.Equals(item.SpeciesId, instance.SpeciesId, StringComparison.Ordinal));
+        var spec = FamiliarGrowthService.Species().FirstOrDefault(item => FamiliarId.Matches(instance.FullSpeciesId, item));
         CreateDetail(instance, spec);
-        RefreshActions(instance, roster.SelectedInstanceId);
+        RefreshActions(instance);
     }
 
-    private static void CreateInstanceRow(Transform parent, FamiliarInstance instance, FamiliarSpeciesSpec? species, string selectedId)
+    private static void CreateInstanceRow(Transform parent, FamiliarInstance instance, FamiliarSpeciesSpec? species, string activePartnerId)
     {
         var row = CreateLayoutObject("Familiar-" + instance.InstanceId, parent);
         row.AddComponent<LayoutElement>().preferredHeight = RowHeight;
@@ -218,8 +222,8 @@ public static class FamiliarGrowthPanel
         layout.childForceExpandWidth = false;
 
         CreateIconCell(row.transform, species, instance.Level.ToString());
-        var selected = string.Equals(selectedId, instance.InstanceId, StringComparison.Ordinal)
-            ? "  [\u968f\u884c]"
+        var selected = string.Equals(activePartnerId, instance.FullSpeciesId, StringComparison.OrdinalIgnoreCase)
+            ? "  [当前使魔]"
             : "";
         AddTextBlock(row.transform, instance.Name + selected + "\nLv." + instance.Level + "  " + instance.InstanceId,
             13, TextAnchor.MiddleLeft, Pale, 46f, 1f);
@@ -228,6 +232,7 @@ public static class FamiliarGrowthPanel
         button.onClick.AddListener(() =>
         {
             focusedInstanceId = instance.InstanceId;
+            confirmingRebirthId = "";
             editingName = false;
             RefreshAll();
         });
@@ -267,7 +272,8 @@ public static class FamiliarGrowthPanel
         AddInfo(detailContent, "\u7b49\u7ea7", "Lv." + instance.Level + " / " + FamiliarRosterService.MaxLevel);
         AddInfo(detailContent, "\u7ecf\u9a8c", ExperienceText(instance));
         AddInfo(detailContent, "\u8d44\u8d28", FamiliarBlessingRoller.AptitudeLabel(instance.Aptitude) + " (" + instance.Aptitude + ")");
-        AddInfo(detailContent, "\u672c\u4f53/\u5316\u8eab", instance.IsBody ? "\u672c\u4f53" : "\u5316\u8eab");
+        AddInfo(detailContent, "重生次数", instance.RebirthCount.ToString());
+        AddInfo(detailContent, "祝福节点", "Lv.2 / 4 / 6 成长，Lv.8 最终，Lv.10 重生");
         if (species != null && !string.IsNullOrWhiteSpace(species.NativeBlessingId))
         {
             AddInfo(detailContent, "\u539f\u751f\u795d\u798f", BlessingDisplayName(species.NativeBlessingId));
@@ -277,7 +283,7 @@ public static class FamiliarGrowthPanel
         CreateBlessingList(detailContent, instance);
     }
 
-    private static void RefreshActions(FamiliarInstance? instance, string selectedId)
+    private static void RefreshActions(FamiliarInstance? instance)
     {
         if (actionContent == null)
         {
@@ -291,48 +297,38 @@ public static class FamiliarGrowthPanel
             return;
         }
 
-        AddTextBlock(actionContent, "\u64cd\u4f5c", 14, TextAnchor.MiddleLeft, Gold, ButtonHeight, 0f, 80f);
-        CreateButton(actionContent, "\u968f\u884c", new Vector2(92f, ButtonHeight), () =>
+        AddTextBlock(actionContent, "进度", 14, TextAnchor.MiddleLeft, Gold, ButtonHeight, 0f, 64f);
+        var next = instance.PendingBlessingChoices.FirstOrDefault();
+        var progress = next != null
+            ? "待选择 Lv." + next.Level + (next.Kind == FamiliarChoiceKind.Final ? " 最终祝福" : " 成长祝福")
+            : instance.Level >= FamiliarRosterService.RebirthLevel
+                ? "已达到重生等级"
+                : "胜利后获得经验，下一节点自动生成祝福候选";
+        AddTextBlock(actionContent, progress, 13, TextAnchor.MiddleLeft, Pale, ButtonHeight, 1f);
+        if (!FamiliarGrowthApi.CanRebirth(instance.InstanceId))
         {
-            FamiliarGrowthApi.Select(instance.InstanceId);
-            UpdateHint("\u5df2\u9009\u62e9 " + instance.Name + "\u968f\u884c\u3002");
-            RefreshAll();
-        }, !string.Equals(instance.InstanceId, selectedId, StringComparison.Ordinal));
-        CreateButton(actionContent, "\u8bad\u7ec3+10", new Vector2(92f, ButtonHeight), () =>
+            return;
+        }
+
+        var confirming = string.Equals(confirmingRebirthId, instance.InstanceId, StringComparison.Ordinal);
+        CreateButton(actionContent, confirming ? "确认重生" : "重生", new Vector2(104f, ButtonHeight), () =>
         {
-            var result = FamiliarGrowthApi.GrantExperience(instance.InstanceId, FamiliarRosterService.DefaultTrainingExperience);
-            UpdateHint(result?.LeveledUp == true
-                ? "\u8bad\u7ec3\u5b8c\u6210\uff1aLv." + result.Value.Instance.Level
-                : "\u8bad\u7ec3\u5b8c\u6210\uff1a\u7ecf\u9a8c+" + FamiliarRosterService.DefaultTrainingExperience);
-            RefreshAll();
-        });
-        CreateButton(actionContent, "\u767b\u8bb0\u540c\u7c7b", new Vector2(96f, ButtonHeight), () =>
-        {
-            var created = FamiliarGrowthApi.Create(instance.SpeciesId);
-            if (created != null)
+            if (!string.Equals(confirmingRebirthId, instance.InstanceId, StringComparison.Ordinal))
             {
-                focusedInstanceId = created.InstanceId;
-                editingName = false;
-                UpdateHint("\u5df2\u767b\u8bb0 " + created.Name + "\u3002");
+                confirmingRebirthId = instance.InstanceId;
+                UpdateHint("再次点击确认重生：等级、资质与祝福将被重置。");
+                RefreshAll();
+                return;
             }
 
+            var result = FamiliarGrowthApi.Rebirth(instance.InstanceId);
+            confirmingRebirthId = "";
+            UpdateHint(result == null
+                ? "重生条件尚未满足。"
+                : "重生完成：资质 " + result.Value.OldAptitude + " → " + result.Value.Instance.Aptitude
+                  + "（本次保底 " + result.Value.AptitudeFloor + "）");
             RefreshAll();
         });
-        CreateButton(actionContent, "\u5220\u9664", new Vector2(86f, ButtonHeight), () =>
-        {
-            if (FamiliarGrowthApi.Delete(instance.InstanceId))
-            {
-                focusedInstanceId = FamiliarGrowthApi.Roster().SelectedInstanceId;
-                editingName = false;
-                UpdateHint("\u5df2\u5220\u9664\u4e2a\u4f53\u3002");
-            }
-            else
-            {
-                UpdateHint("\u672c\u4f53\u65e0\u6cd5\u5220\u9664\u3002");
-            }
-
-            RefreshAll();
-        }, !instance.IsBody);
     }
 
     private static void CreatePendingBlessingList(Transform parent, FamiliarInstance instance)
@@ -348,7 +344,9 @@ public static class FamiliarGrowthPanel
         {
             var choiceTitle = CreateLayoutObject("BlessingChoice-" + choice.ChoiceId, parent);
             choiceTitle.AddComponent<LayoutElement>().preferredHeight = 30f;
-            AddTextFill(choiceTitle.transform, "Lv." + choice.Level + "  \u5019\u9009\uff08\u6700\u9ad8 " + choice.Tier + "\u9636\uff09",
+            AddTextFill(choiceTitle.transform, "Lv." + choice.Level + "  "
+                + (choice.Kind == FamiliarChoiceKind.Final ? "最终祝福" : "成长祝福")
+                + "候选（最高 " + choice.Tier + "阶）",
                 14, TextAnchor.MiddleLeft, Green);
 
             foreach (var blessingId in choice.BlessingIds)
