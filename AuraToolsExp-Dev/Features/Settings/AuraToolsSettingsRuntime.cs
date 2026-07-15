@@ -726,6 +726,12 @@ public static class AuraToolsSettingsRuntime
             AuraToolsUi.AddText(policyRow.transform, "说明：没有本地角色卡组时，会自动使用角色所属 MOD 注册的推荐开局卡组；没有推荐时再回退到全局卡组。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
         }, starterDeckEnabled ? new Color(0.58f, 0.94f, 0.62f, 1f) : AuraToolsUi.MutedText);
 
+        CreateToggleModule(parent, "卡牌刷新", AuraToolsConfigService.MatchExperience.CardRefresh.Enabled, value =>
+        {
+            AuraToolsConfigService.MatchExperience.CardRefresh.Enabled = value;
+            AuraToolsConfigService.SaveMatchExperience();
+        }, AuraToolsConfigService.MatchExperience.CardRefresh.Enabled ? AuraToolsUi.SuccessText : AuraToolsUi.MutedText);
+
         var feast = AuraToolsConfigService.MatchExperience.Feast;
         CreateSubmodule(parent, "一键美餐", feast.Enabled, value =>
         {
@@ -1104,6 +1110,30 @@ public static class AuraToolsSettingsRuntime
         UpdateFoldoutLabel();
 
         buildContent(content.transform);
+    }
+
+    private static void CreateToggleModule(Transform parent, string title, bool enabled, Action<bool> setEnabled, Color? titleColor = null)
+    {
+        var box = AuraToolsUi.CreateLayout("ToggleModule-" + title, parent);
+        AuraToolsUi.AddPanelImage(box, AuraToolsUi.Panel);
+        var element = box.AddComponent<LayoutElement>();
+        element.minHeight = AuraToolsUi.ModuleHeaderHeight + 12f;
+        element.preferredHeight = AuraToolsUi.ModuleHeaderHeight + 12f;
+
+        var layout = box.AddComponent<HorizontalLayoutGroup>();
+        layout.padding = new RectOffset(8, 8, 6, 6);
+        layout.spacing = 8f;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
+
+        AuraToolsUi.AddToggle(box.transform, enabled, value =>
+        {
+            setEnabled(value);
+            RebuildPanel(activePanel!.transform);
+        });
+        AuraToolsUi.AddText(box.transform, title, AuraToolsUi.ModuleTitleFontSize, TextAnchor.MiddleLeft, titleColor ?? AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
     }
 
     private static GameObject CreateInlineRow(Transform parent, string name)

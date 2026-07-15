@@ -3,6 +3,7 @@ using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using AuraToolsExp.Dll.Features.DamageMeter.Input;
 using AuraToolsExp.Dll.Features.DamageMeter.Network;
 using AuraToolsExp.Dll.Features.DamageMeter.SettlementCg;
+using AuraToolsExp.Dll.Features.CardRefresh;
 using AuraToolsExp.Dll.Features.SafeBox;
 using AuraToolsExp.Dll.Infrastructure;
 
@@ -23,6 +24,7 @@ TestDeterministicAllocation();
 TestHotkeyNames();
 TestInputFaultGate();
 TestDamageMeterSettingsNormalization();
+TestCardRefreshSettingsAndPoolPolicy();
 TestLoggingSettingsNormalization();
 TestDamageSettlementCgSettingsAndLayout();
 TestDamageSettlementCgPayloadOrdering();
@@ -33,7 +35,7 @@ TestRpcPayloadBudgetUsesUtf8Bytes();
 TestDamageMeterAuthorityPolicy();
 TestRuntimeArchitectureGuards();
 
-Console.WriteLine($"AuraToolsExp damage meter tests passed: {assertions} assertions.");
+Console.WriteLine($"AuraToolsExp tests passed: {assertions} assertions.");
 return;
 
 void TestRoundAndDpt()
@@ -262,6 +264,36 @@ void TestDamageMeterSettingsNormalization()
            && settings.SubmitBatchIntervalMs == 1000
            && settings.MaxEventsPerBatch == 64,
         "DPS performance knobs are clamped to runtime-safe bounds");
+}
+
+void TestCardRefreshSettingsAndPoolPolicy()
+{
+    var settings = new AuraToolsMatchExperienceSettings
+    {
+        SchemaVersion = 1,
+        CardRefresh = null!
+    };
+    settings.Normalize();
+    Assert(settings.SchemaVersion == 7, "match-experience settings migrate to the card-refresh schema");
+    Assert(settings.CardRefresh != null && !settings.CardRefresh.Enabled,
+        "card refresh is restored with a disabled default during normalization");
+
+    var candidates = new[] { "a", "b", "c", "d", "e", "f" };
+    var alternatives = CardRefreshPoolPolicy.PreferDifferentChoices(
+        candidates,
+        new[] { "a", "b", "c" },
+        3,
+        id => id);
+    Assert(alternatives.SequenceEqual(new[] { "d", "e", "f" }),
+        "refresh excludes the visible trio when a full alternative trio exists");
+
+    var fallback = CardRefreshPoolPolicy.PreferDifferentChoices(
+        candidates.Take(4),
+        new[] { "a", "b", "c" },
+        3,
+        id => id);
+    Assert(fallback.SequenceEqual(candidates.Take(4)),
+        "refresh falls back to the full eligible pool when alternatives are insufficient");
 }
 
 void TestLoggingSettingsNormalization()
@@ -573,6 +605,25 @@ void TestDamageMeterAuthorityPolicy()
 
 void TestRuntimeArchitectureGuards()
 {
+    var cardRefreshRuntime = ReadRepoText("AuraToolsExp-Dev/Features/CardRefresh/AuraToolsCardRefreshRuntime.cs");
+    var cardRefreshNativeApi = ReadRepoText("AuraToolsExp-Dev/Features/CardRefresh/CardChoiceRefreshNativeApi.cs");
+    var matchExperienceConfig = ReadRepoText("AuraToolsExp/Config/MatchExperienceSettings.json");
+    Assert(cardRefreshRuntime.Contains("AuraUiNativeButtonCloneAdapter.TryClone", StringComparison.Ordinal)
+           && cardRefreshRuntime.Contains("RegisterBefore(modConfig, \"CardChoiceUI.Start\"", StringComparison.Ordinal)
+           && cardRefreshRuntime.Contains("RegisterAfter(modConfig, \"CardChoiceUI.Start\"", StringComparison.Ordinal)
+           && cardRefreshRuntime.Contains("BeforeCardChoiceUiSelect", StringComparison.Ordinal),
+        "card refresh uses shared hooks and the native button clone at the card-choice lifecycle boundaries");
+    Assert(cardRefreshRuntime.Contains("CaptureCleanTemplates", StringComparison.Ordinal)
+           && cardRefreshRuntime.Contains("CloneCurrentDice", StringComparison.Ordinal)
+           && cardRefreshNativeApi.Contains("DiceCopyConstructor?.Invoke", StringComparison.Ordinal)
+           && cardRefreshNativeApi.Contains("new RandomPool(pool, dice).DrawByRarity", StringComparison.Ordinal)
+           && cardRefreshNativeApi.Contains("manager.CardPackCheck", StringComparison.Ordinal),
+        "card refresh recreates clean choice items and uses a window-local clone of the native reward draw pipeline");
+    Assert(matchExperienceConfig.Contains("\"schemaVersion\": 7", StringComparison.Ordinal)
+           && matchExperienceConfig.Contains("\"cardRefresh\"", StringComparison.Ordinal)
+           && matchExperienceConfig.Contains("\"enabled\": false", StringComparison.Ordinal),
+        "shipped card refresh configuration is present and disabled by default");
+
     var damageMeterRuntime = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/AuraToolsDamageMeterRuntime.cs");
     Assert(!damageMeterRuntime.Contains("EnsureOutOfRunHistoryLoaded();", StringComparison.Ordinal),
         "damage history load must be source-tagged and lazy");

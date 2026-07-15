@@ -230,7 +230,7 @@ public sealed class AudioRoleSettings
 public sealed class AuraToolsMatchExperienceSettings
 {
     [JsonProperty("schemaVersion")]
-    public int SchemaVersion { get; set; } = 6;
+    public int SchemaVersion { get; set; } = 7;
 
     [JsonProperty("starterDeck")]
     public StarterDeckSettings StarterDeck { get; set; } = new();
@@ -247,10 +247,13 @@ public sealed class AuraToolsMatchExperienceSettings
     [JsonProperty("damageMeter")]
     public DamageMeterSettings DamageMeter { get; set; } = new();
 
+    [JsonProperty("cardRefresh")]
+    public CardRefreshSettings CardRefresh { get; set; } = new();
+
     public void Normalize()
     {
         var loadedSchemaVersion = SchemaVersion;
-        SchemaVersion = Math.Max(6, SchemaVersion);
+        SchemaVersion = Math.Max(7, SchemaVersion);
         StarterDeck ??= new StarterDeckSettings();
         SafeBox ??= new SafeBoxSettings();
         ModSync ??= new ModSyncSettings();
@@ -261,10 +264,17 @@ public sealed class AuraToolsMatchExperienceSettings
         }
 
         DamageMeter ??= new DamageMeterSettings();
+        CardRefresh ??= new CardRefreshSettings();
         StarterDeck.Normalize();
         Feast.Normalize();
         DamageMeter.Normalize();
     }
+}
+
+public sealed class CardRefreshSettings
+{
+    [JsonProperty("enabled")]
+    public bool Enabled { get; set; }
 }
 
 public sealed class StarterDeckSettings
