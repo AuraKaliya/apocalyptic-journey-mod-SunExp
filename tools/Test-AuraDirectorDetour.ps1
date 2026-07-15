@@ -66,7 +66,13 @@ foreach ($relative in $shippedScriptRoots) {
     }
 }
 
-dotnet run --project $testProject -c $Configuration /p:ManagedPath="$ManagedPath" -- $ManagedPath
+dotnet build $testProject -c $Configuration /p:ManagedPath="$ManagedPath" /v:minimal
+if ($LASTEXITCODE -ne 0) {
+    throw "AuraDirector detour test build failed."
+}
+
+$testExe = Join-Path $repoRoot "AuraDirectorDetour.Tests\bin\$Configuration\net472\AuraDirectorDetour.Tests.exe"
+& $testExe $ManagedPath
 if ($LASTEXITCODE -ne 0) {
     throw "AuraDirector detour tests failed."
 }

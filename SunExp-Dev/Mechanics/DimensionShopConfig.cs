@@ -9,7 +9,7 @@ namespace SunExp.Dll.Mechanics;
 
 public sealed class DimensionShopConfigDocument
 {
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } = 2;
 
     public int CardPrice { get; set; } = 8;
 
@@ -24,6 +24,10 @@ public sealed class DimensionShopConfigDocument
     public string[] ExcludeCardIds { get; set; } = Array.Empty<string>();
 
     public string[] RelicIds { get; set; } = { SunExpIds.BrokenDialRelicId };
+
+    public string ShopkeeperPortraitResourcePath { get; set; } = "";
+
+    public string ShopkeeperPortraitNodePath { get; set; } = "";
 }
 
 public static class DimensionShopConfigStore
@@ -81,6 +85,8 @@ public static class DimensionShopConfigStore
         document.IncludeCardIds = NormalizeIds(document.IncludeCardIds);
         document.ExcludeCardIds = NormalizeIds(document.ExcludeCardIds);
         document.RelicIds = NormalizeIds(document.RelicIds, SunExpIds.BrokenDialRelicId);
+        document.ShopkeeperPortraitResourcePath = (document.ShopkeeperPortraitResourcePath ?? "").Trim();
+        document.ShopkeeperPortraitNodePath = (document.ShopkeeperPortraitNodePath ?? "").Trim();
         return document;
     }
 

@@ -59,6 +59,7 @@ function New-ProjectXml {
     $starScoreDisplaySnapshot = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreDisplaySnapshot.cs"
     $starScoreCadenceCatalog = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreCadenceCatalog.cs"
     $starScoreCombatState = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreCombatState.cs"
+    $starScoreArrivalCueService = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreArrivalCueService.cs"
     $mapNodeCardArtFitMode = Join-Path $RepoRoot "SunExp-Dev\Mechanics\MapNodeCardArtFitMode.cs"
     $mapNodeCardArtFitResult = Join-Path $RepoRoot "SunExp-Dev\Mechanics\MapNodeCardArtFitResult.cs"
     $mapNodeTextureBounds = Join-Path $RepoRoot "SunExp-Dev\Mechanics\MapNodeTextureBounds.cs"
@@ -110,6 +111,7 @@ function New-ProjectXml {
     <Compile Include="$starScoreDisplaySnapshot" />
     <Compile Include="$starScoreCadenceCatalog" />
     <Compile Include="$starScoreCombatState" />
+    <Compile Include="$starScoreArrivalCueService" />
     <Compile Include="$mapNodeCardArtFitMode" />
     <Compile Include="$mapNodeCardArtFitResult" />
     <Compile Include="$mapNodeTextureBounds" />
@@ -539,6 +541,7 @@ internal static class Program
         TestSpiritProfileIdentityResolver();
         TestLoneerStateOwnership();
         TestStarScoreWindow();
+        TestStarScoreArrivalCueService();
         TestDimensionShopRandom();
 
         Console.WriteLine("SunExp C# tests passed: " + assertions + " assertions.");
@@ -1411,6 +1414,28 @@ internal static class Program
         True(candidates.Any(row => row.DisplayText == "\u542f\u627f\u8f6c\uff1a\u8c03\u5f8b\u3002\u81ea\u8eab\u4f59\u97f3+1\uff1b\u53cb\u65b9\u5168\u4f53\u4f59\u97f3+1"), "Candidate list includes the named tuning cadence");
     }
 
+    private static void TestStarScoreArrivalCueService()
+    {
+        StarScoreArrivalCueService.Clear();
+        var card = new DataConfig(new Dictionary<string, string>
+        {
+            ["Id"] = SunExpIds.StellarOvertureStartCardId
+        });
+        StarScoreArrivalCueService.Record(card, StarScoreNote.Opening, 0, false, "score-owner");
+        StarScoreArrivalCueService.Record(card, StarScoreNote.Sustain, 1, false, "score-owner");
+        StarScoreArrivalCueService.Record(card, StarScoreNote.Turn, 2, true, "score-owner");
+        StarScoreArrivalCueService.Record(card, StarScoreNote.Close, 1, false, "score-owner");
+
+        var cues = StarScoreArrivalCueService.Consume(card);
+        Equal(4, cues.Count, "Card-use FX cue ledger retains every actual extra execution note");
+        Equal(0, cues[0].SlotIndex, "First note cue targets slot one");
+        Equal(2, cues[2].SlotIndex, "Cadence-completing cue targets slot three");
+        True(cues[2].CompletesCadence, "Third note cue marks the cadence preview extension point");
+        True(cues[0].Sequence < cues[3].Sequence, "Card-use FX cues preserve execution order");
+        Equal(0, StarScoreArrivalCueService.Consume(card).Count, "Card-use FX cue ledger is consumed exactly once");
+        Equal(3, StarScoreArrivalCueService.MaxVisibleRibbonCount, "Card-use FX limits one use to three visible ribbons");
+    }
+
     private static FakeDataConfig NewConfig(
         IDictionary<string, string>? data = null,
         IDictionary<string, string>? vars = null)
@@ -1667,6 +1692,16 @@ function Invoke-SourceAssertions {
     $solarMemoryContentIsolationRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryContentIsolationRuntime.cs"))
     $solarMemoryMapItemAnimationRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryMapItemAnimationRuntime.cs"))
     $mapNodeCardArtRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\MapNodeCardArtRuntime.cs"))
+    $dimensionShopRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\DimensionShopRuntime.cs"))
+    $dimensionShopGameApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\DimensionShopGameApi.cs"))
+    $dimensionShopPanel = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\DimensionShopPanel.cs"))
+    $dimensionShopNativeSkin = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\DimensionShopNativeSkin.cs"))
+    $sharedUiNativeInteraction = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "AuraUiShared\AuraUiNativeInteraction.cs"))
+    $sharedUiNativeGameItems = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "AuraUiShared\AuraUiNativeGameItemAdapter.cs"))
+    $sharedUiNativeOverlayVisibility = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "AuraUiShared\AuraUiNativeOverlayVisibility.cs"))
+    $sharedUiModalHost = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "AuraUiShared\AuraUiModalHost.cs"))
+    $dimensionShopService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\DimensionShopService.cs"))
+    $dimensionShopConfigSource = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\DimensionShopConfig.cs"))
     $mapNodeCardArtRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\MapNodeCardArtRegistry.cs"))
     $visualRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\VisualRegistry.cs"))
     $visualRegistryJson = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\visual.registry.json"))
@@ -2128,6 +2163,46 @@ function Invoke-SourceAssertions {
     Assert-True $runtimeHooks.Contains("LoneerRuntime.Initialize(modConfig)") "RuntimeHooks must initialize Loneer's card-action runtime."
     Assert-True $runtimeHooks.Contains("SolarMemoryMapItemAnimationRuntime.Initialize(modConfig)") "RuntimeHooks must initialize solar memory map-item animation fallback hooks."
     Assert-True $runtimeHooks.Contains("MapNodeCardArtRuntime.Initialize(modConfig)") "RuntimeHooks must initialize generic map-node card art hooks after animation fallback hooks."
+    Assert-True ($runtimeHooks.IndexOf("DimensionShopRuntime.Initialize(modConfig)", [System.StringComparison]::Ordinal) -lt $runtimeHooks.IndexOf("MapNodeCardArtRuntime.Initialize(modConfig)", [System.StringComparison]::Ordinal)) "Dimension shop MapItem compatibility must register before generic map-node card art hooks."
+    Assert-True $dimensionShopRuntime.Contains('RegisterBefore(modConfig, "MapItem.Init", PrepareDimensionShopMapItem);') "Dimension shop must prepare its custom map node for native MapItem initialization."
+    Assert-True $dimensionShopRuntime.Contains('RegisterAfter(modConfig, "MapItem.Init", RestoreDimensionShopMapItem);') "Dimension shop must restore its custom map node after native MapItem initialization."
+    Assert-True ($dimensionShopRuntime.Contains('node.data["NodeId"] = NativeMapItemNodeId;') -and $dimensionShopRuntime.Contains('node.data["NodeId"] = originalNodeId;')) "Dimension shop MapItem compatibility must be a reversible NodeId mapping."
+    Assert-True ($dimensionShopRuntime.Contains('RegisterBefore(modConfig, "MapSelectUI.SetNodes", RestoreBeforeMapSelectionBoundary);') -and $dimensionShopRuntime.Contains('RegisterBefore(modConfig, "MapItem.OnPointerDown", RestoreBeforeMapItemBoundary);')) "Dimension shop must restore residual native NodeIds before persistence or user interaction."
+    Assert-True ($dimensionShopRuntime.Contains('RegisterBefore(modConfig, "Commands.load", PrepareDimensionShopRoute);') -and $dimensionShopRuntime.Contains("DimensionShopGameApi.CloseNativeBreakFallback()")) "Dimension shop must recover a residual native NodeId that reaches command routing."
+    Assert-True ($dimensionShopGameApi.Contains('GameObject.Find("Breaks")') -and $dimensionShopGameApi.Contains("background.SetActive(true)")) "Dimension shop route recovery must remove the native break screen and restore the adventure background."
+    Assert-True $dimensionShopPanel.Contains("DimensionShopNativeSkin.TryCreate") "Dimension shop must prefer the official ShopUI visual shell while retaining fallback orchestration."
+    Assert-True ($dimensionShopPanel.Contains("SunExpModalHost.NativeUiParent()") -and $dimensionShopPanel.Contains("SunExpModalHost.CreateNativeFullscreenRoot") -and -not $dimensionShopPanel.Contains("SunExpModalHost.ModalParent()") -and $sharedUiModalHost.Contains("return UIManager.Instance?.canvasTf;")) "Dimension shop must share the official main Canvas with Tooltip and Floating Window instead of rendering above them."
+    Assert-True ($dimensionShopNativeSkin.Contains('NativeShopResourcePath = "UI/ShopUI"') -and $dimensionShopNativeSkin.Contains("source.ItemPrefab") -and $dimensionShopNativeSkin.Contains("source.SellCardPrefab") -and $dimensionShopNativeSkin.Contains("source.TopRelicPrefab")) "Dimension shop native skin must source official ShopUI visual templates."
+    Assert-True ($dimensionShopNativeSkin.Contains("AuraUiNativeGameItemAdapter.AdoptShopItem(holder)") -and $dimensionShopNativeSkin.Contains("nativeItem.Init(new DataConfig(item.Id, type))") -and -not $dimensionShopNativeSkin.Contains("ShowUI<ShopUI>")) "Dimension shop offers must initialize through a real ShopItem without activating the ShopUI controller."
+    Assert-True ($dimensionShopNativeSkin.Contains("AuraUiNativeButtonBinding.NeutralizeTree") -and $sharedUiNativeInteraction.Contains("target.onClick = new UnityEvent()") -and $sharedUiNativeInteraction.Contains("unityButton.onClick = new Button.ButtonClickedEvent()")) "Dimension shop native visual clones must sever persistent native button listeners through AuraUiShared."
+    Assert-True ($dimensionShopNativeSkin.Contains("MakeReadOnly") -and -not $dimensionShopNativeSkin.Contains(".TryBuy(")) "Dimension shop held-item visuals must remain read-only and must not invoke native purchases."
+    Assert-True (-not $dimensionShopNativeSkin.Contains("belongsToGameAssembly") -and -not $dimensionShopNativeSkin.Contains("GetComponentsInChildren<MonoBehaviour>(true)") -and -not $dimensionShopNativeSkin.Contains("GetComponentsInChildren<EventTrigger>") -and -not $dimensionShopNativeSkin.Contains("trigger.triggers?.Clear()")) "Dimension shop must retain native UI components and CardItem EventTrigger hover actions."
+    Assert-True ($dimensionShopNativeSkin.Contains("GetComponentsInChildren<TutorialSpotlightUI>(true)") -and $dimensionShopNativeSkin.Contains("UnityEngine.Object.DestroyImmediate(tutorialRoot)")) "Dimension shop must remove the native ShopUI tutorial overlay and its raycast blocker as a complete subtree."
+    Assert-True (-not $dimensionShopNativeSkin.Contains("if (!item.Equipped")) "Dimension shop held-relic rendering must include owned unequipped relics."
+    Assert-True $dimensionShopPanel.Contains("native ShopUI render failed; switching to fallback panel") "Dimension shop must recover from native render incompatibility inside the active modal."
+    Assert-True ($dimensionShopNativeSkin.Contains("grid.constraintCount = 3") -and $dimensionShopNativeSkin.Contains("Instantiate(offerTemplate, shopRoot") -and $dimensionShopNativeSkin.Contains("Instantiate(heldCardTemplate, heldCardRoot")) "Dimension shop must use a native three-column offer grid and complete native offer/backpack visual prefabs."
+    Assert-True ($sharedUiNativeGameItems.Contains("AuraUiSafeSellItem : SellItem") -and $sharedUiNativeGameItems.Contains("AuraUiSafeRelicItem : RelicItemConfig") -and $sharedUiNativeGameItems.Contains("EnsureTooltip")) "AuraUiShared must retain native item initialization and tooltip ownership while replacing only unsafe action meaning."
+    Assert-True ($dimensionShopNativeSkin.Contains("nativeItem.Init(item.Equipped, NativeConfig(item, DataType.Card))") -and $dimensionShopNativeSkin.Contains("nativeItem.Init(NativeConfig(item, DataType.Relic))") -and $dimensionShopService.Contains("NativeConfig = config")) "Dimension shop backpack entries must initialize from their exact native DataConfig instances."
+    Assert-True ($dimensionShopNativeSkin.Contains("LogNativeComponentTopology") -and $dimensionShopNativeSkin.Contains("DimensionShopGameApi.VerifyTooltipVisible") -and $dimensionShopGameApi.Contains("native overlay verified visible") -and $dimensionShopGameApi.Contains('"floating-card"') -and $dimensionShopGameApi.Contains('"floating-relic"') -and -not $dimensionShopNativeSkin.Contains("native KeywordDisplay shown") -and -not $dimensionShopNativeSkin.Contains("right-click reached native")) "Dimension shop diagnostics must verify rendered overlay visibility rather than report pointer-event arrival as success."
+    Assert-True ($sharedUiNativeOverlayVisibility.Contains("SharesRootCanvas") -and $sharedUiNativeOverlayVisibility.Contains("IsVisibleAbove") -and $sharedUiNativeOverlayVisibility.Contains("sameRootCanvas") -and $sharedUiNativeOverlayVisibility.Contains("aboveAnchor") -and $dimensionShopGameApi.Contains("AuraUiNativeOverlayVisibility.SharesRootCanvas") -and $dimensionShopGameApi.Contains("AuraUiNativeOverlayVisibility.IsVisibleAbove")) "AuraUiShared must verify that native overlays share the anchor Canvas and render above its UI branch."
+    Assert-True ($sharedUiNativeInteraction.Contains("class AuraUiNativeItemAnchor") -and $sharedUiNativeInteraction.Contains("onRightClick: surface.InvokeRight") -and $sharedUiNativeInteraction.Contains("lastRightFrame == frame") -and $sharedUiNativeInteraction.Contains("tooltip.enabled = true")) "AuraUiShared anchored item binding must restore exact tooltip and right-click response without double dispatch."
+    Assert-True ($sharedUiNativeGameItems.Contains("manager.enableIcon = sprite != null") -and $sharedUiNativeGameItems.Contains("manager.SetIcon(sprite)") -and $dimensionShopNativeSkin.Contains('"val/Disabled/Title"')) "Dimension shop icon and price state must explicitly cover null and disabled native states."
+    Assert-True ($dimensionShopNativeSkin.Contains("item.State == DimensionShopItemState.Empty") -and $dimensionShopNativeSkin.Contains("image.raycastTarget = false") -and -not $dimensionShopNativeSkin.Contains("ConfigureRelicOffer")) "Dimension shop must omit empty native products and keep status overlays from blocking native hover."
+    Assert-True ($dimensionShopNativeSkin.Contains('Require(holder.transform, "val")') -and $dimensionShopNativeSkin.Contains("AuraUiNativeButtonBinding.TryBind")) "Dimension shop product prices must bind the exact native price ButtonManager through AuraUiShared."
+    Assert-True ($dimensionShopNativeSkin.Contains('refreshButton.SetLabel("\u5237\u65b0 " + state.RefreshPrice)') -and -not $dimensionShopNativeSkin.Contains("refreshInteraction.transform.parent")) "Dimension shop refresh labels must render the effective configured price on the bound native button."
+    Assert-True ($dimensionShopNativeSkin.Contains("label: null") -and -not $dimensionShopNativeSkin.Contains('"\u79bb\u5f00"')) "Dimension shop exit control must preserve the official native icon instead of replacing it with a text label."
+    Assert-True ($sharedUiNativeInteraction.Contains("string? label") -and $sharedUiNativeInteraction.Contains("if (label != null)") -and -not $sharedUiNativeInteraction.Contains("HasCompleteVisualState")) "AuraUiShared native button binding must support icon-only and partial-state controls without rejecting the native shell."
+    Assert-True (-not $dimensionShopNativeSkin.Contains("class DimensionShopNativeInteraction") -and -not $dimensionShopNativeSkin.Contains("class DimensionShopHeldCardInteraction")) "Dimension shop must not retain private duplicates of shared native pointer interaction components."
+    Assert-True ($dimensionShopNativeSkin.Contains("goldBalanceText.text") -and $dimensionShopNativeSkin.Contains("truthBalanceText.text") -and $dimensionShopNativeSkin.Contains('OfferCurrencyIconPath = "val/Icon"')) "Dimension shop must show both currencies and bind product prices to the exact native currency icon node."
+    Assert-True (-not $dimensionShopNativeSkin.Contains("ReplaceCurrencyIcon") -and -not $dimensionShopNativeSkin.Contains("FindCurrencyIcon")) "Dimension shop currency rendering must not guess image nodes by name or shape."
+    Assert-True ($dimensionShopService.Contains("public static bool SellCard(string instanceId") -and $dimensionShopService.Contains("role.cardList.Remove(card)") -and $dimensionShopService.Contains("role.UnCardList.Remove(card)") -and $dimensionShopService.Contains("role.Money += baseGold")) "Dimension shop card sales must settle by instance and reward gold only."
+    Assert-True ($dimensionShopService.Contains("public static bool SellRelic(string instanceId") -and $dimensionShopService.Contains("public static bool UnequipRelic(string instanceId") -and $dimensionShopGameApi.Contains("ShowRelicMenu")) "Dimension shop relics must expose safe sale and take-off actions through the host floating menu."
+    Assert-True ($dimensionShopService.Contains('tags.IndexOf("Eternal"') -and $dimensionShopService.Contains("role.cardList.Count <= role.CardBottomCount")) "Dimension shop card sales must preserve native Eternal and minimum-deck restrictions."
+    Assert-True ($dimensionShopGameApi.Contains("TruthCurrencySprite") -and $dimensionShopGameApi.Contains('TruthCurrencyResourcePath = "Icon/UI_Icons/Native/Icon/\u771f\u7406\u4e4b\u6676"') -and -not $dimensionShopGameApi.Contains("CurrencySpriteNear") -and $dimensionShopGameApi.Contains("GetFloatingWindow")) "Dimension shop currency and context-menu integrations must use explicit host APIs and stay behind the GameApi facade."
+    Assert-True ($dimensionShopService.Contains("public enum DimensionShopItemState") -and $dimensionShopService.Contains("HeldCards = BuildHeldCards()") -and $dimensionShopService.Contains("HeldRelics = BuildHeldRelics()")) "Dimension shop view state must expose typed offer states and held-item snapshots."
+    Assert-True ($dimensionShopService.Contains("Description = SafeItemDescription(config)") -and $dimensionShopService.Contains('Tips = SafeLocalizedField(config, "Tips")')) "Dimension shop held cards and relics must expose localized hover-tooltip content."
+    Assert-True ($dimensionShopConfigSource.Contains("ShopkeeperPortraitResourcePath") -and $dimensionShopConfigSource.Contains("ShopkeeperPortraitNodePath")) "Dimension shop config must expose replaceable native shopkeeper portrait settings."
+    Assert-True $sunExpProject.Contains('<Reference Include="Plugins">') "SunExp must reference the host UI plugin assembly used by native ShopUI controls."
     Assert-True $starScoreService.Contains("public static event Action<StarScoreDisplaySnapshot>? Changed") "Star score mechanics must publish typed display snapshots for UI runtimes."
     Assert-True $starScoreService.Contains("PublishChanged(self.Self, state, isCadencePreview: true") "Star score HUD must receive a full three-note cadence preview before state collapse."
     Assert-True $starScoreState.Contains("public StarScoreDisplaySnapshot Snapshot") "Star score combat state must expose a display snapshot instead of leaking mutable note lists."

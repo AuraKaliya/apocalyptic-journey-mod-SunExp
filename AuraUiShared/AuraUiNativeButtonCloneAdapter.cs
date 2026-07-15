@@ -371,11 +371,14 @@ public static class AuraUiNativeButtonCloneAdapter
         var labelOwner = cloneRoot.GetComponent<AuraUiNativeButtonLabelOwner>()
                          ?? cloneRoot.AddComponent<AuraUiNativeButtonLabelOwner>();
 
-        manager.onClick.RemoveAllListeners();
-        manager.onDoubleClick.RemoveAllListeners();
-        manager.onRightClick.RemoveAllListeners();
-        manager.onHover.RemoveAllListeners();
-        manager.onLeave.RemoveAllListeners();
+        // RemoveAllListeners only clears runtime listeners. Native prefab buttons
+        // can carry persistent inspector listeners (for example, CardChoiceUI's
+        // skip/close action), so cloned buttons must own fresh event instances.
+        manager.onClick = new UnityEvent();
+        manager.onDoubleClick = new UnityEvent();
+        manager.onRightClick = new UnityEvent();
+        manager.onHover = new UnityEvent();
+        manager.onLeave = new UnityEvent();
         manager.enableText = true;
         manager.SetText(label ?? "");
         manager.Interactable(true);
@@ -394,7 +397,7 @@ public static class AuraUiNativeButtonCloneAdapter
         var unityButton = cloneRoot.GetComponent<Button>();
         if (unityButton != null)
         {
-            unityButton.onClick.RemoveAllListeners();
+            unityButton.onClick = new Button.ButtonClickedEvent();
         }
 
         if (!sourceSnapshot.Matches(template))

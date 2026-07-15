@@ -13,12 +13,37 @@ public static class AuraUiModalHost
         return UIManager.Instance?.upperCanvasTf ?? UIManager.Instance?.canvasTf;
     }
 
+    /// <summary>
+    /// Resolves the same UI plane used by the game's ordinary UI screens,
+    /// Tooltip, and Floating Window. Native screens that rely on those global
+    /// overlays must use this parent instead of the upper modal canvas.
+    /// </summary>
+    public static Transform? NativeUiParent()
+    {
+        return UIManager.Instance?.canvasTf;
+    }
+
     public static GameObject? CreateFullscreenRoot(string name, Color blockerColor, Action<string>? warn = null)
     {
         var parent = ModalParent();
         if (parent == null)
         {
             warn?.Invoke("[AuraUi] modal parent unavailable for " + name + ".");
+            return null;
+        }
+
+        return CreateFullscreenRoot(name, parent, blockerColor);
+    }
+
+    public static GameObject? CreateNativeFullscreenRoot(
+        string name,
+        Color blockerColor,
+        Action<string>? warn = null)
+    {
+        var parent = NativeUiParent();
+        if (parent == null)
+        {
+            warn?.Invoke("[AuraUi] native UI parent unavailable for " + name + ".");
             return null;
         }
 

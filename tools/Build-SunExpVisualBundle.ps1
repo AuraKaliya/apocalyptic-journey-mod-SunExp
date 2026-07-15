@@ -277,6 +277,7 @@ $arguments = @(
 )
 
 $previousBundleOutput = $env:SUNEXP_VISUAL_BUNDLE_OUTPUT
+$bundleWriteTimeBefore = if (Test-Path -LiteralPath $bundlePath) { (Get-Item -LiteralPath $bundlePath).LastWriteTimeUtc } else { [DateTime]::MinValue }
 try {
     $env:SUNEXP_VISUAL_BUNDLE_OUTPUT = $bundlePath
     & $unity @arguments
@@ -286,12 +287,15 @@ finally {
     $env:SUNEXP_VISUAL_BUNDLE_OUTPUT = $previousBundleOutput
 }
 
-if ([string]::IsNullOrWhiteSpace([string]$unityExitCode) -and (Wait-ForBundle $bundlePath 2)) {
+if ([string]::IsNullOrWhiteSpace([string]$unityExitCode) -and
+    (Wait-ForBundle $bundlePath 2) -and
+    (Get-Item -LiteralPath $bundlePath).LastWriteTimeUtc -gt $bundleWriteTimeBefore) {
     $unityExitCode = 0
 }
 
 if ($unityExitCode -ne 0) {
-    if ((Wait-ForBundle $bundlePath 30) -or (Test-UnityLogBuiltBundle $logPath -and (Wait-ForBundle $bundlePath 10))) {
+    $bundleUpdated = (Test-Path -LiteralPath $bundlePath) -and (Get-Item -LiteralPath $bundlePath).LastWriteTimeUtc -gt $bundleWriteTimeBefore
+    if (($bundleUpdated -and (Wait-ForBundle $bundlePath 2)) -or (Test-UnityLogBuiltBundle $logPath -and $bundleUpdated)) {
         Write-Warning "Unity returned exit code $unityExitCode after producing the visual bundle. See $logPath"
     }
     else {

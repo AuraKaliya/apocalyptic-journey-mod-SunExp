@@ -18,6 +18,8 @@ public static class SunExpIds
     public const string CardFrameHoloFlowVisualEffectId = CardFaceFoilHoloVisualEffectId;
     public const string BlazingCrownCollapseHoloEffectBindingId = "sunexp.card_visual_effect.blazing_crown_collapse.holo_flow";
     public const string StellarOvertureStardustEffectBindingId = "sunexp.card_visual_effect.stellar_overture.stardust";
+    public const string StellarOvertureCardUseFxId = "stellar-overture-star-trail";
+    public const string StellarOvertureCardUseVisualEffectId = CardFaceStardustVisualEffectId;
     public const string SunCardFramePath = "Mods/SunExp/ModResource/Images/UI/\u65e5\u8000-\u5361\u68461.png";
     public const string SunCardBackgroundPath = "Mods/SunExp/ModResource/Images/UI/\u5361\u9762\u80cc\u666f.png";
     public const string MorningStarCardFramePath = "Mods/SunExp/ModResource/Images/UI/\u6668\u661f-\u5361\u68461.png";

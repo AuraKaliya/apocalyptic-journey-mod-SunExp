@@ -10,6 +10,7 @@ public sealed class StarScoreHudShaderController : MonoBehaviour
 {
     private const float LightFadeSeconds = 0.22f;
     private const float CadencePulseSeconds = 0.42f;
+    private const float SlotPulseSeconds = 0.18f;
     private static readonly Color DimFrameColor = new(0.34f, 0.35f, 0.43f, 1f);
     private static readonly Color LitColor = Color.white;
     private static readonly Color PulseColor = new(1f, 0.86f, 0.44f, 1f);
@@ -19,6 +20,8 @@ public sealed class StarScoreHudShaderController : MonoBehaviour
     private readonly Material?[] litMaterials = new Material?[3];
     private readonly float[] currentLit = new float[3];
     private readonly float[] targetLit = new float[3];
+    private readonly float[] slotPulseUntil = new float[3];
+    private readonly float[] slotPulseStrength = new float[3];
 
     private Image? dimFrame;
     private float pulseUntil;
@@ -75,6 +78,18 @@ public sealed class StarScoreHudShaderController : MonoBehaviour
         }
     }
 
+    public void PulseSlot(int slotIndex, float strength)
+    {
+        if (slotIndex < 0 || slotIndex >= slotPulseUntil.Length)
+        {
+            return;
+        }
+
+        slotPulseUntil[slotIndex] = Time.unscaledTime + SlotPulseSeconds;
+        slotPulseStrength[slotIndex] = Mathf.Clamp(strength, 1f, 2.5f);
+        enabled = true;
+    }
+
     private void Update()
     {
         var delta = Mathf.Max(Time.unscaledDeltaTime, 0f);
@@ -113,13 +128,15 @@ public sealed class StarScoreHudShaderController : MonoBehaviour
         var maxLit = 0f;
         for (var i = 0; i < litGroups.Length; i++)
         {
+            var slotPulse = SlotPulseAmount(i);
+            var combinedPulse = Mathf.Max(pulse, slotPulse);
             maxLit = Mathf.Max(maxLit, currentLit[i]);
             if (litGroups[i] != null)
             {
                 litGroups[i].alpha = currentLit[i];
             }
 
-            var tint = Color.Lerp(LitColor, PulseColor, pulse);
+            var tint = Color.Lerp(LitColor, PulseColor, Mathf.Clamp01(combinedPulse));
             if (litImages[i] != null)
             {
                 litImages[i].color = tint;
@@ -132,9 +149,9 @@ public sealed class StarScoreHudShaderController : MonoBehaviour
             }
 
             material.SetFloat(StarScoreHudShaderIds.LitAmount, currentLit[i]);
-            material.SetFloat(StarScoreHudShaderIds.Pulse, pulse);
+            material.SetFloat(StarScoreHudShaderIds.Pulse, combinedPulse);
             material.SetFloat(StarScoreHudShaderIds.FlowTime, flowTime);
-            material.SetFloat(StarScoreHudShaderIds.FlowStrength, Mathf.Max(currentLit[i], pulse));
+            material.SetFloat(StarScoreHudShaderIds.FlowStrength, Mathf.Max(currentLit[i], combinedPulse));
             material.SetColor(StarScoreHudShaderIds.Tint, tint);
         }
 
@@ -142,6 +159,17 @@ public sealed class StarScoreHudShaderController : MonoBehaviour
         {
             dimFrame.color = Color.Lerp(DimFrameColor, new Color(0.42f, 0.41f, 0.48f, 1f), maxLit * 0.18f + pulse * 0.12f);
         }
+    }
+
+    private float SlotPulseAmount(int slotIndex)
+    {
+        if (slotIndex < 0 || slotIndex >= slotPulseUntil.Length || slotPulseUntil[slotIndex] <= Time.unscaledTime)
+        {
+            return 0f;
+        }
+
+        var remaining = Mathf.Clamp01((slotPulseUntil[slotIndex] - Time.unscaledTime) / SlotPulseSeconds);
+        return Mathf.Sin(remaining * Mathf.PI) * slotPulseStrength[slotIndex];
     }
 
     private bool IsStable(float pulse)
@@ -153,6 +181,11 @@ public sealed class StarScoreHudShaderController : MonoBehaviour
 
         for (var i = 0; i < currentLit.Length; i++)
         {
+            if (slotPulseUntil[i] > Time.unscaledTime)
+            {
+                return false;
+            }
+
             if (Mathf.Abs(currentLit[i] - targetLit[i]) > 0.001f)
             {
                 return false;

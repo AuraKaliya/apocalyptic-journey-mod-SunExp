@@ -299,6 +299,12 @@ public static class StarScoreService
 
         state.Record(note, 3);
         var notes = state.Notes.ToList();
+        StarScoreArrivalCueService.Record(
+            self.dataConfig,
+            note,
+            notes.Count - 1,
+            notes.Count == 3,
+            self.Self?.InstanceId ?? "");
         SyncScoreBuff(self, notes.Count);
         if (notes.Count == 3)
         {

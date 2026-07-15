@@ -72,6 +72,7 @@ function Assert-NotContains {
 
 $sharedRoots = @(
     "AuraAudioShared",
+    "AuraCardUseFxShared",
     "AudioArbiterShared",
     "BattleBgmArbiterShared",
     "AuraCgShared",

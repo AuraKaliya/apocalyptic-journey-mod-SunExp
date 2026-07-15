@@ -11,9 +11,19 @@ public static class SunExpModalHost
         return AuraUiModalHost.ModalParent();
     }
 
+    public static Transform? NativeUiParent()
+    {
+        return AuraUiModalHost.NativeUiParent();
+    }
+
     public static GameObject? CreateFullscreenRoot(string name, Color blockerColor)
     {
         return AuraUiModalHost.CreateFullscreenRoot(name, blockerColor, SunExpLog.Warn);
+    }
+
+    public static GameObject? CreateNativeFullscreenRoot(string name, Color blockerColor)
+    {
+        return AuraUiModalHost.CreateNativeFullscreenRoot(name, blockerColor, SunExpLog.Warn);
     }
 
     public static GameObject CreateFullscreenRoot(string name, Transform parent, Color blockerColor)

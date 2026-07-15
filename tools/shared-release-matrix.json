@@ -66,7 +66,7 @@
     "operationLog": "Logs/Operations/yyyyMMdd.jsonl",
     "lockOrder": ["Resource", "Registry", "WriteMutex"]
   },
-  "adapterSurfaces": ["Skin", "Audio", "CG", "Log", "Journey"],
+  "adapterSurfaces": ["Skin", "Audio", "CG", "CardUseFx", "Log", "Journey"],
   "releaseScenarios": [
     "SunExp only",
     "SunExp + AuraToolsExp",

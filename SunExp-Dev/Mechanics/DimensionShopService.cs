@@ -10,6 +10,17 @@ using Witch.UI.Window;
 
 namespace SunExp.Dll.Mechanics;
 
+public enum DimensionShopItemState
+{
+    Available,
+    InsufficientTruth,
+    Purchased,
+    SoldOut,
+    Owned,
+    Empty,
+    Unavailable
+}
+
 public sealed class DimensionShopItemView
 {
     public string Id { get; set; } = "";
@@ -25,10 +36,43 @@ public sealed class DimensionShopItemView
     public string Status { get; set; } = "";
 
     public bool CanBuy { get; set; }
+
+    public DimensionShopItemState State { get; set; }
+}
+
+public sealed class DimensionShopHeldItemView
+{
+    public DataConfig? NativeConfig { get; set; }
+
+    public string InstanceId { get; set; } = "";
+
+    public string Id { get; set; } = "";
+
+    public string Name { get; set; } = "";
+
+    public string IconPath { get; set; } = "";
+
+    public string Cost { get; set; } = "";
+
+    public string Description { get; set; } = "";
+
+    public string Tips { get; set; } = "";
+
+    public string EnchantmentIconPath { get; set; } = "";
+
+    public int Rarity { get; set; }
+
+    public int SellPrice { get; set; }
+
+    public bool CanSell { get; set; }
+
+    public bool Equipped { get; set; }
 }
 
 public sealed class DimensionShopViewState
 {
+    public int Gold { get; set; }
+
     public int Truth { get; set; }
 
     public int RefreshPrice { get; set; }
@@ -40,6 +84,10 @@ public sealed class DimensionShopViewState
     public DimensionShopItemView Card { get; set; } = new();
 
     public DimensionShopItemView Relic { get; set; } = new();
+
+    public IReadOnlyList<DimensionShopHeldItemView> HeldCards { get; set; } = Array.Empty<DimensionShopHeldItemView>();
+
+    public IReadOnlyList<DimensionShopHeldItemView> HeldRelics { get; set; } = Array.Empty<DimensionShopHeldItemView>();
 }
 
 public static class DimensionShopService
@@ -118,12 +166,20 @@ public static class DimensionShopService
 
         return new DimensionShopViewState
         {
+            Gold = DimensionShopGameApi.GoldBalance(),
             Truth = truth,
             RefreshPrice = config.RefreshPrice,
             RefreshCount = PlayerInt(SunExpIds.DimensionShopRefreshCountKey),
             CanRefresh = truth >= config.RefreshPrice && (CardPool().Count > 0 || EligibleRelics(boughtRelics).Count > 0),
-            Card = BuildItem(DataType.Card, cardId, config.CardPrice, cardBought ? "\u5df2\u8d2d\u4e70" : "", !cardBought),
-            Relic = BuildRelicItem(relicId, config.RelicPrice, boughtRelics)
+            Card = BuildItem(
+                DataType.Card,
+                cardId,
+                config.CardPrice,
+                truth,
+                cardBought ? DimensionShopItemState.Purchased : DimensionShopItemState.Available),
+            Relic = BuildRelicItem(relicId, config.RelicPrice, truth, boughtRelics),
+            HeldCards = BuildHeldCards(),
+            HeldRelics = BuildHeldRelics()
         };
     }
 
@@ -327,38 +383,200 @@ public static class DimensionShopService
         DimensionShopGameApi.PersistRole("DimensionShop.PlayerInitialize");
     }
 
-    private static DimensionShopItemView BuildRelicItem(string id, int price, HashSet<string> bought)
+    private static DimensionShopItemView BuildRelicItem(string id, int price, int truth, HashSet<string> bought)
     {
         if (string.IsNullOrWhiteSpace(id))
         {
-            return EmptyItem(price, "\u6682\u65e0\u53ef\u8d2d\u4e70\u9057\u7269");
+            return EmptyItem(price, "\u6682\u65e0\u53ef\u8d2d\u4e70\u9057\u7269", DimensionShopItemState.Empty);
         }
 
         var canonical = Canonical(id);
         if (bought.Contains(canonical))
         {
-            return BuildItem(DataType.Relic, id, price, "\u5df2\u552e\u7f44", false);
+            return BuildItem(DataType.Relic, id, price, truth, DimensionShopItemState.SoldOut);
         }
 
         if (DimensionShopGameApi.HasRelic(id))
         {
-            return BuildItem(DataType.Relic, id, price, "\u5df2\u62e5\u6709", false);
+            return BuildItem(DataType.Relic, id, price, truth, DimensionShopItemState.Owned);
         }
 
-        return BuildItem(DataType.Relic, id, price, "", true);
+        return BuildItem(DataType.Relic, id, price, truth, DimensionShopItemState.Available);
     }
 
-    private static DimensionShopItemView BuildItem(DataType type, string id, int price, string status, bool enabled)
+    public static bool SellCard(string instanceId, out string message)
+    {
+        lock (Gate)
+        {
+            if (transactionRunning)
+            {
+                message = "\u5546\u5e97\u6b63\u5728\u7ed3\u7b97\uff0c\u8bf7\u7a0d\u5019\u3002";
+                return false;
+            }
+
+            transactionRunning = true;
+        }
+
+        try
+        {
+            var role = RoleTable.Instance;
+            var card = FindHeldCard(role, instanceId);
+            if (role == null || card == null)
+            {
+                message = "\u8be5\u5361\u724c\u5df2\u4e0d\u5728\u80cc\u5305\u4e2d\u3002";
+                return false;
+            }
+
+            var equipped = role.cardList.Contains(card);
+            if (!CanSellCard(role, card, equipped, out message))
+            {
+                return false;
+            }
+
+            var sellPrice = SellDisplayPrice(role, card);
+            var baseGold = 20 * Math.Max(1, DictionaryUtil.GetInt(card.data, "Rarity", 1));
+            role.cardList.Remove(card);
+            role.UnCardList.Remove(card);
+            role.Money += baseGold;
+            DimensionShopGameApi.PersistRole("DimensionShop.SellCard");
+            message = "\u51fa\u552e\u6210\u529f\uff1a" + CardName(card) + "\uff0c\u83b7\u5f97 " + sellPrice + " \u91d1\u5e01\u3002";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("[DimensionShop] card sale failed", ex);
+            message = "\u5361\u724c\u51fa\u552e\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002";
+            return false;
+        }
+        finally
+        {
+            lock (Gate)
+            {
+                transactionRunning = false;
+            }
+        }
+    }
+
+    public static bool SellRelic(string instanceId, out string message)
+    {
+        lock (Gate)
+        {
+            if (transactionRunning)
+            {
+                message = "\u5546\u5e97\u6b63\u5728\u7ed3\u7b97\uff0c\u8bf7\u7a0d\u5019\u3002";
+                return false;
+            }
+
+            transactionRunning = true;
+        }
+
+        try
+        {
+            var role = RoleTable.Instance;
+            var relic = FindHeldRelic(role, instanceId);
+            if (role == null || relic == null)
+            {
+                message = "\u8be5\u9057\u7269\u5df2\u4e0d\u5728\u80cc\u5305\u4e2d\u3002";
+                return false;
+            }
+
+            var sellPrice = RelicSellDisplayPrice(role, relic);
+            var baseGold = 70 * Math.Max(1, DictionaryUtil.GetInt(relic.data, "Rarity", 1));
+            role.relicList.Remove(relic);
+            role.WithoutArmedRelicList.Remove(relic);
+            if (!string.IsNullOrWhiteSpace(relic.InstanceID))
+            {
+                role.enchasedDict?.Remove(relic.InstanceID);
+            }
+
+            role.Money += baseGold;
+            DimensionShopGameApi.PersistRole("DimensionShop.SellRelic");
+            message = "\u51fa\u552e\u6210\u529f\uff1a"
+                      + ItemName(relic)
+                      + "\uff0c\u83b7\u5f97 "
+                      + sellPrice
+                      + " \u91d1\u5e01\u3002";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("[DimensionShop] relic sale failed", ex);
+            message = "\u9057\u7269\u51fa\u552e\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002";
+            return false;
+        }
+        finally
+        {
+            lock (Gate)
+            {
+                transactionRunning = false;
+            }
+        }
+    }
+
+    public static bool UnequipRelic(string instanceId, out string message)
+    {
+        lock (Gate)
+        {
+            if (transactionRunning)
+            {
+                message = "\u5546\u5e97\u6b63\u5728\u7ed3\u7b97\uff0c\u8bf7\u7a0d\u5019\u3002";
+                return false;
+            }
+
+            transactionRunning = true;
+        }
+
+        try
+        {
+            var role = RoleTable.Instance;
+            var relic = role?.relicList.FirstOrDefault(item =>
+                string.Equals(item?.InstanceID, instanceId, StringComparison.Ordinal));
+            if (role == null || relic == null)
+            {
+                message = "\u8be5\u9057\u7269\u5df2\u672a\u88c5\u5907\u3002";
+                return false;
+            }
+
+            role.relicList.Remove(relic);
+            role.WithoutArmedRelicList.Add(relic);
+            DimensionShopGameApi.PersistRole("DimensionShop.UnequipRelic");
+            message = "\u5df2\u8131\u4e0b\u9057\u7269\uff1a" + ItemName(relic) + "\u3002";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("[DimensionShop] relic unequip failed", ex);
+            message = "\u9057\u7269\u8131\u4e0b\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002";
+            return false;
+        }
+        finally
+        {
+            lock (Gate)
+            {
+                transactionRunning = false;
+            }
+        }
+    }
+
+    private static DimensionShopItemView BuildItem(
+        DataType type,
+        string id,
+        int price,
+        int truth,
+        DimensionShopItemState state)
     {
         if (string.IsNullOrWhiteSpace(id))
         {
-            return EmptyItem(price, type == DataType.Card ? "\u5361\u724c\u6c60\u4e3a\u7a7a" : "\u9057\u7269\u6c60\u4e3a\u7a7a");
+            return EmptyItem(
+                price,
+                type == DataType.Card ? "\u5361\u724c\u6c60\u4e3a\u7a7a" : "\u9057\u7269\u6c60\u4e3a\u7a7a",
+                DimensionShopItemState.Empty);
         }
 
         var row = SunExpConfigIndex.Row(type, id);
         if (row == null)
         {
-            return EmptyItem(price, "\u5546\u54c1\u6570\u636e\u4e0d\u53ef\u7528");
+            return EmptyItem(price, "\u5546\u54c1\u6570\u636e\u4e0d\u53ef\u7528", DimensionShopItemState.Unavailable);
         }
 
         var description = Localized(row, "Description");
@@ -368,9 +586,10 @@ public static class DimensionShopService
             description = string.IsNullOrWhiteSpace(description) ? attribute : description + "\n" + attribute;
         }
 
-        var canBuy = enabled && DimensionShopGameApi.TruthBalance() >= price;
-        if (enabled && !canBuy && string.IsNullOrWhiteSpace(status))
+        var status = StatusText(state);
+        if (state == DimensionShopItemState.Available && truth < price)
         {
+            state = DimensionShopItemState.InsufficientTruth;
             status = "\u771f\u7406\u4e4b\u6676\u4e0d\u8db3";
         }
 
@@ -382,17 +601,206 @@ public static class DimensionShopService
             IconPath = DictionaryUtil.Get(row, "Icon"),
             Price = price,
             Status = status,
-            CanBuy = canBuy
+            CanBuy = state == DimensionShopItemState.Available,
+            State = state
         };
     }
 
-    private static DimensionShopItemView EmptyItem(int price, string status)
+    private static DimensionShopItemView EmptyItem(int price, string status, DimensionShopItemState state)
     {
         return new DimensionShopItemView
         {
             Price = price,
             Status = status,
-            CanBuy = false
+            CanBuy = false,
+            State = state
+        };
+    }
+
+    private static IReadOnlyList<DimensionShopHeldItemView> BuildHeldCards()
+    {
+        var role = RoleTable.Instance;
+        if (role == null)
+        {
+            return Array.Empty<DimensionShopHeldItemView>();
+        }
+
+        var result = new List<DimensionShopHeldItemView>();
+        AddHeldItems(result, role, role.cardList, equipped: true, DataType.Card);
+        AddHeldItems(result, role, role.UnCardList, equipped: false, DataType.Card);
+        return result;
+    }
+
+    private static IReadOnlyList<DimensionShopHeldItemView> BuildHeldRelics()
+    {
+        var role = RoleTable.Instance;
+        if (role == null)
+        {
+            return Array.Empty<DimensionShopHeldItemView>();
+        }
+
+        var result = new List<DimensionShopHeldItemView>();
+        AddHeldItems(result, role, role.relicList, equipped: true, DataType.Relic);
+        AddHeldItems(result, role, role.WithoutArmedRelicList, equipped: false, DataType.Relic);
+        return result;
+    }
+
+    private static void AddHeldItems(
+        ICollection<DimensionShopHeldItemView> target,
+        RoleTable role,
+        IEnumerable<DataConfig>? source,
+        bool equipped,
+        DataType type)
+    {
+        if (source == null)
+        {
+            return;
+        }
+
+        foreach (var config in source)
+        {
+            if (config == null || config.data == null)
+            {
+                continue;
+            }
+
+            var row = config.data;
+
+            var id = DictionaryUtil.Get(row, "Id");
+            var rarity = Math.Max(1, DictionaryUtil.GetInt(row, "Rarity", 1));
+            var instanceId = config.InstanceID ?? "";
+            var enchantmentIcon = "";
+            if (!string.IsNullOrWhiteSpace(instanceId)
+                && role.enchasedDict != null
+                && role.enchasedDict.TryGetValue(instanceId, out var enchantment))
+            {
+                enchantmentIcon = DictionaryUtil.Get(enchantment?.data, "Icon");
+            }
+
+            target.Add(new DimensionShopHeldItemView
+            {
+                NativeConfig = config,
+                InstanceId = instanceId,
+                Id = id,
+                Name = SafeLocalizedField(config, "Name", id),
+                IconPath = DictionaryUtil.Get(row, "Icon"),
+                Cost = type == DataType.Card ? DictionaryUtil.Get(row, "Expend", "0") : "",
+                Description = SafeItemDescription(config),
+                Tips = SafeLocalizedField(config, "Tips"),
+                EnchantmentIconPath = enchantmentIcon,
+                Rarity = rarity,
+                SellPrice = type == DataType.Card
+                    ? SellDisplayPrice(role, config)
+                    : RelicSellDisplayPrice(role, config),
+                CanSell = type == DataType.Relic || CanSellCard(role, config, equipped, out _),
+                Equipped = equipped
+            });
+        }
+    }
+
+    private static DataConfig? FindHeldCard(RoleTable? role, string instanceId)
+    {
+        if (role == null || string.IsNullOrWhiteSpace(instanceId))
+        {
+            return null;
+        }
+
+        return role.cardList.FirstOrDefault(card => string.Equals(card?.InstanceID, instanceId, StringComparison.Ordinal))
+               ?? role.UnCardList.FirstOrDefault(card => string.Equals(card?.InstanceID, instanceId, StringComparison.Ordinal));
+    }
+
+    private static DataConfig? FindHeldRelic(RoleTable? role, string instanceId)
+    {
+        if (role == null || string.IsNullOrWhiteSpace(instanceId))
+        {
+            return null;
+        }
+
+        return role.relicList.FirstOrDefault(relic => string.Equals(relic?.InstanceID, instanceId, StringComparison.Ordinal))
+               ?? role.WithoutArmedRelicList.FirstOrDefault(relic => string.Equals(relic?.InstanceID, instanceId, StringComparison.Ordinal));
+    }
+
+    private static bool CanSellCard(RoleTable role, DataConfig card, bool equipped, out string message)
+    {
+        var tags = DictionaryUtil.Get(card?.Vars, "Tag", DictionaryUtil.Get(card?.data, "Tag"));
+        if (tags.IndexOf("Eternal", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            message = "\u8be5\u5361\u724c\u65e0\u6cd5\u79fb\u9664\u3002";
+            return false;
+        }
+
+        if (equipped && role.cardList.Count <= role.CardBottomCount)
+        {
+            message = "\u4e3b\u724c\u7ec4\u5361\u724c\u6570\u91cf\u5df2\u8fbe\u4e0b\u9650\u3002";
+            return false;
+        }
+
+        message = "";
+        return true;
+    }
+
+    private static int SellDisplayPrice(RoleTable role, DataConfig card)
+    {
+        var rarity = Math.Max(1, DictionaryUtil.GetInt(card?.data, "Rarity", 1));
+        return Math.Max(0, (int)(20f * rarity * role.MoneyCal));
+    }
+
+    private static int RelicSellDisplayPrice(RoleTable role, DataConfig relic)
+    {
+        var rarity = Math.Max(1, DictionaryUtil.GetInt(relic?.data, "Rarity", 1));
+        return Math.Max(0, (int)(70f * rarity * role.MoneyCal));
+    }
+
+    private static string CardName(DataConfig card)
+    {
+        var id = DictionaryUtil.Get(card?.data, "Id");
+        var row = card?.data as Dictionary<string, string>;
+        return row == null ? DictionaryUtil.Get(card?.data, "Name", id) : Localized(row, "Name", id);
+    }
+
+    private static string ItemName(DataConfig item)
+    {
+        var id = DictionaryUtil.Get(item?.data, "Id");
+        var row = item?.data as Dictionary<string, string>;
+        return row == null ? DictionaryUtil.Get(item?.data, "Name", id) : Localized(row, "Name", id);
+    }
+
+    private static string SafeItemDescription(DataConfig item)
+    {
+        try
+        {
+            return item.Description() ?? "";
+        }
+        catch
+        {
+            return DictionaryUtil.Get(item?.data, "Description");
+        }
+    }
+
+    private static string SafeLocalizedField(DataConfig item, string field, string fallback = "")
+    {
+        try
+        {
+            if (item?.data != null && item.data.ContainsKey(field))
+            {
+                return item.data.Localize(field);
+            }
+        }
+        catch
+        {
+        }
+
+        return DictionaryUtil.Get(item?.data, field, fallback);
+    }
+
+    private static string StatusText(DimensionShopItemState state)
+    {
+        return state switch
+        {
+            DimensionShopItemState.Purchased => "\u5df2\u8d2d\u4e70",
+            DimensionShopItemState.SoldOut => "\u5df2\u552e\u7f44",
+            DimensionShopItemState.Owned => "\u5df2\u62e5\u6709",
+            _ => ""
         };
     }
 

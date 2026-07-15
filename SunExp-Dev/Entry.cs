@@ -7,6 +7,7 @@ using AuraSkin.Shared;
 using StarterDeckArbiter.Shared;
 using Witch.Mod;
 using SunExp.Dll.Features.SkillCg;
+using SunExp.Dll.Features;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks;
 using SunExp.Dll.Infrastructure;
@@ -33,6 +34,7 @@ public static class Entry
         RunStep("endless abyss evolution traits", () => EndlessAbyssEvolutionTraitRegistry.Load(modConfig));
         RunStep("card visual skin registry", CardVisualSkinApi.RegisterSunExpDefaults);
         RunStep("card visual effect registry", CardVisualEffectApi.RegisterSunExpDefaults);
+        RunStep("card use effect runtime", () => SunExpCardUseFxRuntime.Initialize(modConfig));
         RunStep("CG registry", () => AuraCgRegistryRuntime.RegisterManifest(modConfig, "SunExp"));
         RunStep("skill CG runtime", () => SunExpSkillCgRuntime.Initialize(modConfig));
         RunStep("starter deck profiles", () => StarterDeckArbiterRuntime.RegisterProfileManifest(modConfig, "SunExp"));

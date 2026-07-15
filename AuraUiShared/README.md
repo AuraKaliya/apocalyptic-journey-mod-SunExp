@@ -46,6 +46,53 @@ button sounds through an interactability-aware relay. It intentionally skips nat
 button factories should apply this helper instead of defining unrelated `ColorBlock` and sound
 behavior at each call site.
 
+`AuraUiNativeButtonBinding` adopts a `ButtonManager` that already belongs to a consumer-cloned native
+visual tree. It replaces inherited click, right-click, hover, and leave events, then exposes stable label,
+text-color, and interactability updates while leaving the native Normal/Highlight/Disabled transition
+under `ButtonManager` ownership. Use the clone adapter when cloning an individual button; use the binding
+when a larger native window or item template has already been cloned. Pass a non-null label when the
+consumer owns the button text. Pass `null` for icon-only controls such as a native close button; the
+binding then preserves the cloned icon and serialized text settings. Missing optional text or disabled
+visual states do not reject the native shell, so a local prefab variation cannot force the whole window
+onto a fallback layout.
+
+`AuraUiPointerSurface` supplies semantic-free pointer enter, exit, left-click, and right-click callbacks.
+It ensures an explicit raycast graphic on the bound object without disabling descendant graphics, so
+native tooltip and scroll-view event chains can keep working. Consumers provide the action meaning and
+remain responsible for content-specific validation and settlement.
+
+`AuraUiNativeItemSurface` combines that pointer lifecycle with an optional cloned `ButtonManager`.
+It clears inherited actions but keeps the manager interactable so native Normal/Highlight/Disabled,
+ripple, and audio presentation continues to respond. `SetIcon` delegates to `ButtonManager.SetIcon`,
+which updates every native visual state. The consumer still owns tooltip content and all purchase,
+sale, equipment, or other domain actions.
+
+`AuraUiNativeItemAnchor` preserves the exact event target, serialized host `KeywordDisplay`, and
+exact native `ButtonManager` before a consumer removes unsafe game-business behaviours from a cloned
+item template. Cloned anchors keep Unity-remapped references. Binding an item surface through the
+anchor installs actions on both the original event target and its exact native manager with same-frame
+duplicate suppression, while explicitly re-enabling the captured tooltip. Consumers should capture
+these anchors before sanitizing a native item tree instead of guessing a parent holder or first
+descendant button after the native components are gone.
+
+`AuraUiNativeGameItemAdapter` is the preferred route when a host item component can be retained.
+It preserves the real `ShopItem` initializer for products and replaces unsafe backpack settlement
+components with `AuraUiSafeSellItem : SellItem` and
+`AuraUiSafeRelicItem : RelicItemConfig`. Consumers call the inherited native `Init` method so the
+game remains responsible for localized text, card/relic icons, rarity state, `KeywordDisplay`, and
+the serialized event target. The safe subclasses override only pointer action meaning and never call
+the game's gold purchase/sale implementations. `ApplyButtonIcon` accepts `null` and updates the
+normal, highlighted, and disabled `ButtonManager` states, preventing pooled or template sprites from
+leaking into an empty state.
+
+Native screens that use the game's global `Tooltip` or `Floating Window` must be hosted through
+`AuraUiModalHost.NativeUiParent` / `CreateNativeFullscreenRoot`. Those overlays and ordinary
+`UIManager.ShowUI` screens live on `UIManager.canvasTf`; placing the owning screen on
+`upperCanvasTf` makes callbacks fire while the overlay remains hidden underneath the upper Canvas.
+Normal Aura modal windows continue to use `ModalParent`. `AuraUiNativeOverlayVisibility` can verify
+that an invoked native overlay is active, shares the anchor's root Canvas, and renders above the
+anchor branch; event entry alone is not visibility proof.
+
 ## Font policy
 
 The native bridge loads the game's `HarmonyOS_Sans_Medium SDF` through the shared resource cache.

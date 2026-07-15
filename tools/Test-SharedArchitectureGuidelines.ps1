@@ -167,6 +167,20 @@ Require-Text $cardLifecycleRouter "ThenBy\(handler => handler\.Id, StringCompare
 Require-Text $cardLifecycleRouter "CommonCardItemTrueUse" "AuraCardLifecycleRouter must own common-card use hooks."
 Require-Text $cardLifecycleRouter "CardItemInit" "AuraCardLifecycleRouter must own card-item refresh hooks."
 
+$cardUseFxRegistry = Read-RepoText "AuraCardUseFxShared\AuraCardUseFxRegistry.cs"
+$cardUseFxRuntime = Read-RepoText "AuraCardUseFxShared\AuraCardUseFxRuntime.cs"
+$cardUseFxRibbon = Read-RepoText "AuraCardUseFxShared\AuraBezierRibbonGraphic.cs"
+Require-Text $cardUseFxRegistry "OwnerModId" "Card-use FX entries must retain owner-qualified identity."
+Require-Text $cardUseFxRegistry "WriteShared" "Card-use FX registry writes must route through AuraShared Core."
+Require-Text $cardUseFxRegistry "OrderByDescending\(entry => entry\.Priority\)" "Card-use FX resolution must be priority deterministic."
+Require-Text $cardUseFxRuntime 'FightUI\.DoCardUseAnimation' "Card-use FX bridge must scope the native central-card animation."
+Require-Text $cardUseFxRuntime 'ICard\.SetCardStyle' "Card-use FX bridge must capture the nested native central clone."
+Require-Text $cardUseFxRuntime "DedupeSeconds" "Card-use FX presentation triggers must have bounded duplicate suppression."
+Require-Text $cardUseFxRibbon "raycastTarget = false" "Shared Bezier ribbons must never intercept UI input."
+if ($cardUseFxRuntime.Contains("SunExp")) {
+    throw "Shared card-use FX runtime must not contain SunExp content semantics."
+}
+
 $lifecycleSession = Read-RepoText "AuraSharedCore\AuraLifecycleSessionRuntime.cs"
 Require-Text $lifecycleSession "BeginBattleSession" "Shared lifecycle session runtime must own battle session start."
 Require-Text $lifecycleSession "RestartBattleSession" "Shared lifecycle session runtime must advance the battle epoch when FightInit.Init restarts an active fight."
@@ -209,11 +223,17 @@ Require-Text $authoritativeSync "AcceptRemoteSnapshotSession" "Shared authoritat
 $sharedModalHost = Read-RepoText "AuraUiShared\AuraUiModalHost.cs"
 Require-Text $sharedModalHost "CreateFullscreenRoot" "Shared UI modal host must own fullscreen modal root creation."
 Require-Text $sharedModalHost "UiRaycastSafeDestroyRuntime" "Shared UI modal host must close transient UI through raycast-safe cleanup."
+Require-Text $sharedModalHost "NativeUiParent" "Shared UI host must expose the game's ordinary UI plane for native overlays."
+Require-Text $sharedModalHost "return UIManager\.Instance\?\.canvasTf;" "Shared native UI host must share the host Canvas used by Tooltip and Floating Window."
+Require-Text $sharedModalHost "CreateNativeFullscreenRoot" "Shared UI host must create fullscreen native-plane roots without changing modal defaults."
 
 $sharedUiTheme = Read-RepoText "AuraUiShared\AuraUiTheme.cs"
 $sharedUiRegistry = Read-RepoText "AuraUiShared\AuraUiStyleRegistry.cs"
 $sharedUiNativeBridge = Read-RepoText "AuraUiShared\AuraUiNativeBridge.cs"
 $sharedUiNativeButtonClone = Read-RepoText "AuraUiShared\AuraUiNativeButtonCloneAdapter.cs"
+$sharedUiNativeInteraction = Read-RepoText "AuraUiShared\AuraUiNativeInteraction.cs"
+$sharedUiNativeGameItems = Read-RepoText "AuraUiShared\AuraUiNativeGameItemAdapter.cs"
+$sharedUiNativeOverlayVisibility = Read-RepoText "AuraUiShared\AuraUiNativeOverlayVisibility.cs"
 $sharedUiButtonFeedback = Read-RepoText "AuraUiShared\AuraUiButtonFeedback.cs"
 $sharedUiComponents = Read-RepoText "AuraUiShared\AuraUiComponents.cs"
 $sharedUiRenderer = Read-RepoText "AuraUiShared\AuraUiStandardRenderer.cs"
@@ -231,6 +251,42 @@ Require-Text $sharedUiNativeButtonClone "AuraUiOwnedNativeButtonText" "AuraUiSha
 Require-Text $sharedUiNativeButtonClone "TextSizeOverride" "AuraUiShared native button cloning must expose consumer-scoped text sizing."
 Require-Text $sharedUiNativeButtonClone "MinimumTextSizeOverride" "AuraUiShared native button cloning must expose an optional auto-fit minimum size."
 Require-Text $sharedUiNativeButtonClone "enableAutoSizing" "AuraUiShared native button labels must preserve configured auto-fit behavior across native refreshes."
+Require-Text $sharedUiNativeButtonClone "manager\.onClick\s*=\s*new UnityEvent\(\)" "AuraUiShared native button clones must sever serialized native click listeners."
+Require-Text $sharedUiNativeButtonClone "manager\.onDoubleClick\s*=\s*new UnityEvent\(\)" "AuraUiShared native button clones must sever serialized native double-click listeners."
+Require-Text $sharedUiNativeButtonClone "manager\.onRightClick\s*=\s*new UnityEvent\(\)" "AuraUiShared native button clones must sever serialized native right-click listeners."
+Require-Text $sharedUiNativeButtonClone "manager\.onHover\s*=\s*new UnityEvent\(\)" "AuraUiShared native button clones must sever serialized native hover listeners."
+Require-Text $sharedUiNativeButtonClone "manager\.onLeave\s*=\s*new UnityEvent\(\)" "AuraUiShared native button clones must sever serialized native leave listeners."
+Require-Text $sharedUiNativeButtonClone "unityButton\.onClick\s*=\s*new Button\.ButtonClickedEvent\(\)" "AuraUiShared native Unity buttons must sever serialized native click listeners."
+Require-Text $sharedUiNativeInteraction "class AuraUiNativeButtonBinding" "AuraUiShared must expose a reusable binding for ButtonManagers inside consumer-cloned native trees."
+Require-Text $sharedUiNativeInteraction "NeutralizeTree" "AuraUiShared native button binding must neutralize inherited native events before consumer activation."
+Require-Text $sharedUiNativeInteraction "bool disable = true" "AuraUiShared tree neutralization must let native-visual consumers preserve interaction states explicitly."
+Require-Text $sharedUiNativeInteraction "target\.onRightClick\s*=\s*new UnityEvent\(\)" "AuraUiShared adopted native buttons must sever serialized native right-click listeners."
+Require-Text $sharedUiNativeInteraction "target\.SetText\(label" "AuraUiShared adopted native buttons must own all native visual-state labels through ButtonManager."
+Require-Text $sharedUiNativeInteraction "string\? label" "AuraUiShared adopted native buttons must support icon-only controls without a synthetic label."
+Require-Text $sharedUiNativeInteraction "if \(label != null\)" "AuraUiShared icon-only native buttons must preserve their cloned icon and text configuration."
+if ($sharedUiNativeInteraction -match "HasCompleteVisualState") {
+    throw "AuraUiShared adopted native buttons must not reject a whole native shell because optional visual states are absent."
+}
+Require-Text $sharedUiNativeInteraction "class AuraUiPointerSurface" "AuraUiShared must expose semantic-free pointer enter, exit, left-click, and right-click callbacks."
+Require-Text $sharedUiNativeInteraction "class AuraUiNativeItemSurface" "AuraUiShared must combine native ButtonManager presentation with semantic-free item callbacks."
+Require-Text $sharedUiNativeInteraction "class AuraUiNativeItemAnchor" "AuraUiShared must preserve exact native event, tooltip, and ButtonManager anchors before consumer sanitization."
+Require-Text $sharedUiNativeInteraction "KeywordDisplay\? tooltip" "AuraUiShared native item anchors must retain the host's serialized tooltip reference."
+Require-Text $sharedUiNativeInteraction "anchor\.VisualManager" "AuraUiShared anchored item binding must use the captured exact ButtonManager instead of a descendant guess."
+Require-Text $sharedUiNativeInteraction "onRightClick: surface\.InvokeRight" "AuraUiShared anchored item binding must route right-click through the exact native ButtonManager event."
+Require-Text $sharedUiNativeInteraction "lastRightFrame == frame" "AuraUiShared anchored item binding must suppress duplicate native-manager and pointer-surface clicks in one frame."
+Require-Text $sharedUiNativeInteraction "tooltip\.enabled\s*=\s*true" "AuraUiShared native item anchors must explicitly restore captured tooltip response."
+Require-Text $sharedUiNativeInteraction "manager\.SetIcon\(sprite\)" "AuraUiShared native item icons must update all ButtonManager visual states through the host API."
+Require-Text $sharedUiNativeGameItems "AuraUiSafeSellItem\s*:\s*SellItem" "AuraUiShared must provide a native SellItem-derived safe presenter."
+Require-Text $sharedUiNativeGameItems "AuraUiSafeRelicItem\s*:\s*RelicItemConfig" "AuraUiShared must provide a native RelicItemConfig-derived safe presenter."
+Require-Text $sharedUiNativeGameItems "public override void ShowFloatingWindow\(\)" "AuraUiShared native-derived presenters must replace unsafe host settlement menus."
+Require-Text $sharedUiNativeGameItems "manager\.enableIcon\s*=\s*sprite != null" "AuraUiShared native item icon updates must clear empty states instead of retaining template sprites."
+Require-Text $sharedUiNativeGameItems "item\.keywordDisplay\s*=\s*EnsureTooltip\(item\)" "AuraUiShared native presenters must preserve the host KeywordDisplay before native Init."
+Require-Text $sharedUiNativeOverlayVisibility "SharesRootCanvas" "AuraUiShared must reject native overlays hosted on a different root Canvas."
+Require-Text $sharedUiNativeOverlayVisibility "IsVisibleAbove" "AuraUiShared must expose actual native overlay visibility verification."
+Require-Text $sharedUiNativeOverlayVisibility "aboveAnchor" "AuraUiShared native overlay verification must include render-order checks."
+Require-Text $sharedUiNativeOverlayVisibility "effectiveAlpha" "AuraUiShared native overlay verification must reject fully transparent overlays."
+Require-Text $sharedUiNativeInteraction "EnsureRaycastTarget" "AuraUiShared pointer surfaces must establish an explicit raycast target."
+Require-Text $sharedUiNativeInteraction "graphic\.raycastTarget\s*=\s*true" "AuraUiShared pointer surfaces must enable their exact hit graphic."
 Require-Text $sharedUiButtonFeedback "ButtonSound" "AuraUiShared buttons must reuse the game's button sound component."
 Require-Text $sharedUiButtonFeedback "IsInteractable" "AuraUiShared button sounds must be gated by Selectable interactability."
 Require-Text $sharedUiButtonFeedback "GetComponent<ButtonManager>" "AuraUiShared feedback must not duplicate native ButtonManager behavior."
@@ -248,6 +304,7 @@ Require-Text $sharedUiRenderer "CreateToast" "AuraUiShared must expose a non-blo
 
 $sharedRoots = @(
     "AuraAudioShared",
+    "AuraCardUseFxShared",
     "AudioArbiterShared",
     "BattleBgmArbiterShared",
     "AuraCgShared",

@@ -75,6 +75,34 @@ public sealed class StarScoreHudView : MonoBehaviour
         SunExpUiSafety.CloseTransient(gameObject, source, "[StarScoreHud]");
     }
 
+    public bool TryGetSlotScreenPoint(int slotIndex, out Vector2 screenPoint)
+    {
+        screenPoint = default;
+        if (slotIndex < 0 || slotIndex >= noteIcons.Length || noteIcons[slotIndex] == null)
+        {
+            return false;
+        }
+
+        var slotRect = noteIcons[slotIndex].rectTransform;
+        var canvas = GetComponentInParent<Canvas>();
+        var camera = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
+        screenPoint = RectTransformUtility.WorldToScreenPoint(camera, slotRect.TransformPoint(slotRect.rect.center));
+        return true;
+    }
+
+    public void PulseSlot(int slotIndex, float strength)
+    {
+        shaderController?.PulseSlot(slotIndex, strength);
+    }
+
+    public void ExtendCadencePreviewUntil(float unscaledTime)
+    {
+        if (currentSnapshot is { IsCadencePreview: true } && holdUntil > Time.unscaledTime)
+        {
+            holdUntil = Mathf.Max(holdUntil, unscaledTime);
+        }
+    }
+
     private void Update()
     {
         if (pendingSnapshot != null && Time.unscaledTime >= holdUntil)

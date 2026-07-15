@@ -126,6 +126,22 @@ public static class StarScoreHudRuntime
         SunExpTransientUiRegistry.Unregister("StarScoreHud");
     }
 
+    public static bool TryGetSlotScreenPoint(int slotIndex, out Vector2 screenPoint)
+    {
+        screenPoint = default;
+        return activeView != null && activeView.TryGetSlotScreenPoint(slotIndex, out screenPoint);
+    }
+
+    public static void PulseSlot(int slotIndex, float strength)
+    {
+        activeView?.PulseSlot(slotIndex, strength);
+    }
+
+    public static void ExtendCadencePreviewUntil(float unscaledTime)
+    {
+        activeView?.ExtendCadencePreviewUntil(unscaledTime);
+    }
+
     private static void ScheduleHostRetry()
     {
         if (hostRetryCount >= MaxHostRetryCount)

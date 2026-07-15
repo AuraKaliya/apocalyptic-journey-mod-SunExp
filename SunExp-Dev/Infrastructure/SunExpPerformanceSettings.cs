@@ -63,6 +63,8 @@ public static class SunExpPerformanceSettings
 
     public static float CardFrameEffectQualityScale => CardFaceEffectQualityScale;
 
+    public static int CardUseFxRibbonSamples => 32;
+
     public static int WunaCoreSections => 96;
 
     public static int WunaDetailTongues => 3;

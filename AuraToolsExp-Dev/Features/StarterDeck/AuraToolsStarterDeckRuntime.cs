@@ -93,6 +93,7 @@ public static class AuraToolsStarterDeckRuntime
     {
         return GetCardCatalogSnapshot("registered-cards")
             .AllCards
+            .Where(card => !card.IsExcludedDerivedCard)
             .Where(card => includeSystemSkillCards || !card.IsSystemSkillCard)
             .Select(card => card.Id)
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -105,6 +106,7 @@ public static class AuraToolsStarterDeckRuntime
         return GetCardCatalogSnapshot("explicit-cards")
             .AllCards
             .Where(card => !card.IsHidden)
+            .Where(card => !card.IsExcludedDerivedCard)
             .Where(card => includeSystemSkillCards || !card.IsSystemSkillCard)
             .Select(card => card.Id)
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -117,6 +119,7 @@ public static class AuraToolsStarterDeckRuntime
         return GetCardCatalogSnapshot("hidden-cards")
             .AllCards
             .Where(card => card.IsHidden)
+            .Where(card => !card.IsExcludedDerivedCard)
             .Where(card => includeSystemSkillCards || !card.IsSystemSkillCard)
             .Select(card => card.Id)
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -456,7 +459,7 @@ public static class AuraToolsStarterDeckRuntime
         var deck = profile.CardIds
             .Where(id => !string.IsNullOrWhiteSpace(id))
             .Where(IsValidCard)
-            .Where(id => !IsSystemSkillCard(id))
+            .Where(id => !IsStarterDeckExcludedCard(id))
             .Take(profile.DeckSize)
             .ToList();
 
@@ -862,11 +865,12 @@ public static class AuraToolsStarterDeckRuntime
     {
         try
         {
+            var gameConfig = Singleton<GameConfigManager>.Instance;
             var packDisplayNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var existingPacks = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var selectablePacks = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var row in Singleton<GameConfigManager>.Instance.GetTable(DataType.CardPack).Getlines())
+            foreach (var row in gameConfig.GetTable(DataType.CardPack).Getlines())
             {
                 if (!row.TryGetValue("Id", out var packId) || string.IsNullOrWhiteSpace(packId) || !IsValidPackForCurrentLobby(packId))
                 {
@@ -888,9 +892,12 @@ public static class AuraToolsStarterDeckRuntime
             var hiddenCards = new List<string>();
             var skillCards = new List<string>();
             var systemSkillCards = new List<string>();
+            var excludedDerivedCards = new List<string>();
             var otherCards = new List<string>();
+            var careerSkillCardIds = StarterDeckCardClassification.BuildCareerSkillCardIds(
+                gameConfig.GetTable(DataType.Career).Getlines());
 
-            foreach (var row in Singleton<GameConfigManager>.Instance.GetTable(DataType.Card).Getlines())
+            foreach (var row in gameConfig.GetTable(DataType.Card).Getlines())
             {
                 if (!row.TryGetValue("Id", out var id) || string.IsNullOrWhiteSpace(id))
                 {
@@ -898,16 +905,16 @@ public static class AuraToolsStarterDeckRuntime
                 }
 
                 id = id.Trim();
-                row.TryGetValue("PackBelong", out var rawPackId);
                 row.TryGetValue("Action", out var action);
                 row.TryGetValue("Icon", out var iconPath);
                 row.TryGetValue("Rarity", out var rarity);
                 row.TryGetValue("Expend", out var cost);
 
-                var packId = (rawPackId ?? "").Trim();
+                var packId = StarterDeckCardClassification.ResolveEffectivePackId(row, gameConfig.GetPackBelong);
                 var isHidden = IsSpecialCardId(id);
-                var isSkillCard = IsSkillLikeCard(id, packId, action, iconPath);
-                var isSystemSkillCard = IsSystemSkillCard(id, packId, action, iconPath);
+                var isSkillCard = StarterDeckCardClassification.IsCareerSkillCard(id, careerSkillCardIds);
+                var isSystemSkillCard = isSkillCard;
+                var isExcludedDerivedCard = StarterDeckCardClassification.IsExcludedDerivedCard(row);
                 var isLocked = IsRuntimeLocked(id);
                 var displayName = RowDisplayName(row, id);
 
@@ -922,6 +929,7 @@ public static class AuraToolsStarterDeckRuntime
                     isHidden,
                     isSkillCard,
                     isSystemSkillCard,
+                    isExcludedDerivedCard,
                     isLocked);
                 allCards.Add(entry);
 
@@ -938,6 +946,12 @@ public static class AuraToolsStarterDeckRuntime
                 if (isSystemSkillCard)
                 {
                     systemSkillCards.Add(id);
+                    continue;
+                }
+
+                if (isExcludedDerivedCard)
+                {
+                    excludedDerivedCards.Add(id);
                     continue;
                 }
 
@@ -983,14 +997,16 @@ public static class AuraToolsStarterDeckRuntime
                 selectableCards,
                 SortedDistinctCards(hiddenCards),
                 SortedDistinctCards(skillCards),
-                SortedDistinctCards(systemSkillCards));
+                SortedDistinctCards(systemSkillCards),
+                SortedDistinctCards(excludedDerivedCards));
             AuraToolsLog.Info(
                 "[StarterDeck] built card catalog from " + source
                 + ": cards=" + snapshot.AllCards.Count
                 + ", selectable=" + snapshot.SelectableCardIds.Count
                 + ", groups=" + snapshot.SelectableGroups.Count
                 + ", skills=" + snapshot.SkillCardIds.Count
-                + ", systemSkills=" + snapshot.SystemSkillCardIds.Count);
+                + ", systemSkills=" + snapshot.SystemSkillCardIds.Count
+                + ", excludedDerived=" + snapshot.ExcludedDerivedCardIds.Count);
             return snapshot;
         }
         catch (Exception ex)
@@ -1025,48 +1041,9 @@ public static class AuraToolsStarterDeckRuntime
         return row.TryGetValue("Name", out var name) && !string.IsNullOrWhiteSpace(name) ? name : fallback;
     }
 
-    private static bool IsSkillLikeCard(string id, string packId, string? action, string? iconPath)
+    private static bool IsStarterDeckExcludedCard(string cardId)
     {
-        var normalizedIcon = (iconPath ?? "").Replace('\\', '/');
-        return string.Equals((action ?? "").Trim(), "Skill", StringComparison.OrdinalIgnoreCase)
-               || normalizedIcon.IndexOf("/Skill/", StringComparison.OrdinalIgnoreCase) >= 0
-               || normalizedIcon.StartsWith("Images/Skill/", StringComparison.OrdinalIgnoreCase)
-               || IsSystemSkillCard(id, packId, action, iconPath);
-    }
-
-    private static bool IsSystemSkillCard(string id, string packId, string? action, string? iconPath)
-    {
-        var normalizedId = NormalizeLocalCardId(id);
-        var normalizedIcon = (iconPath ?? "").Replace('\\', '/');
-        var hasSkillAction = string.Equals((action ?? "").Trim(), "Skill", StringComparison.OrdinalIgnoreCase);
-        var hasSkillIcon = normalizedIcon.IndexOf("/Skill/", StringComparison.OrdinalIgnoreCase) >= 0
-                           || normalizedIcon.StartsWith("Images/Skill/", StringComparison.OrdinalIgnoreCase);
-        return string.IsNullOrWhiteSpace(packId) && (hasSkillAction || hasSkillIcon)
-               || normalizedId.StartsWith("*wuna_", StringComparison.OrdinalIgnoreCase)
-               || normalizedId.StartsWith("*loneer_", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsSystemSkillCard(string cardId)
-    {
-        return GetCardCatalogSnapshot("system-skill-check").IsSystemSkillCard(cardId);
-    }
-
-    private static string NormalizeLocalCardId(string id)
-    {
-        if (string.IsNullOrWhiteSpace(id))
-        {
-            return "";
-        }
-
-        var normalized = id.Trim();
-        var slash = normalized.LastIndexOf('/');
-        if (slash >= 0 && slash + 1 < normalized.Length)
-        {
-            normalized = normalized.Substring(slash + 1);
-        }
-
-        var marker = normalized.IndexOf("_*", StringComparison.Ordinal);
-        return marker >= 0 && marker + 1 < normalized.Length ? normalized.Substring(marker + 1) : normalized;
+        return GetCardCatalogSnapshot("starter-deck-exclusion-check").IsStarterDeckExcluded(cardId);
     }
 
     private static bool IsRuntimeLocked(string id)
@@ -1389,10 +1366,12 @@ internal sealed class StarterDeckCardCatalogSnapshot
         new List<string>(),
         new List<string>(),
         new List<string>(),
+        new List<string>(),
         new List<string>());
 
     private readonly Dictionary<string, StarterDeckCardCatalogEntry> cardsById;
     private readonly HashSet<string> systemSkillCardIds;
+    private readonly HashSet<string> starterDeckExcludedCardIds;
 
     public StarterDeckCardCatalogSnapshot(
         List<StarterDeckCardCatalogEntry> allCards,
@@ -1400,7 +1379,8 @@ internal sealed class StarterDeckCardCatalogSnapshot
         List<string> selectableCardIds,
         List<string> hiddenCardIds,
         List<string> skillCardIds,
-        List<string> systemSkillCardIds)
+        List<string> systemSkillCardIds,
+        List<string> excludedDerivedCardIds)
     {
         AllCards = allCards ?? new List<StarterDeckCardCatalogEntry>();
         SelectableGroups = selectableGroups ?? new List<StarterDeckCardPackGroup>();
@@ -1408,10 +1388,13 @@ internal sealed class StarterDeckCardCatalogSnapshot
         HiddenCardIds = hiddenCardIds ?? new List<string>();
         SkillCardIds = skillCardIds ?? new List<string>();
         SystemSkillCardIds = systemSkillCardIds ?? new List<string>();
+        ExcludedDerivedCardIds = excludedDerivedCardIds ?? new List<string>();
         cardsById = AllCards
             .GroupBy(card => card.Id, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
         this.systemSkillCardIds = new HashSet<string>(SystemSkillCardIds, StringComparer.OrdinalIgnoreCase);
+        starterDeckExcludedCardIds = new HashSet<string>(SystemSkillCardIds, StringComparer.OrdinalIgnoreCase);
+        starterDeckExcludedCardIds.UnionWith(ExcludedDerivedCardIds);
     }
 
     public List<StarterDeckCardCatalogEntry> AllCards { get; }
@@ -1426,6 +1409,8 @@ internal sealed class StarterDeckCardCatalogSnapshot
 
     public List<string> SystemSkillCardIds { get; }
 
+    public List<string> ExcludedDerivedCardIds { get; }
+
     public bool TryGetCard(string cardId, out StarterDeckCardCatalogEntry? card)
     {
         card = null;
@@ -1435,6 +1420,11 @@ internal sealed class StarterDeckCardCatalogSnapshot
     public bool IsSystemSkillCard(string cardId)
     {
         return !string.IsNullOrWhiteSpace(cardId) && systemSkillCardIds.Contains(cardId);
+    }
+
+    public bool IsStarterDeckExcluded(string cardId)
+    {
+        return !string.IsNullOrWhiteSpace(cardId) && starterDeckExcludedCardIds.Contains(cardId);
     }
 
     public List<StarterDeckCardPackGroup> CloneSelectableGroups()
@@ -1458,6 +1448,7 @@ internal sealed class StarterDeckCardCatalogEntry
         bool isHidden,
         bool isSkillCard,
         bool isSystemSkillCard,
+        bool isExcludedDerivedCard,
         bool isLocked)
     {
         Id = id ?? "";
@@ -1470,6 +1461,7 @@ internal sealed class StarterDeckCardCatalogEntry
         IsHidden = isHidden;
         IsSkillCard = isSkillCard;
         IsSystemSkillCard = isSystemSkillCard;
+        IsExcludedDerivedCard = isExcludedDerivedCard;
         IsLocked = isLocked;
     }
 
@@ -1492,6 +1484,8 @@ internal sealed class StarterDeckCardCatalogEntry
     public bool IsSkillCard { get; }
 
     public bool IsSystemSkillCard { get; }
+
+    public bool IsExcludedDerivedCard { get; }
 
     public bool IsLocked { get; }
 }

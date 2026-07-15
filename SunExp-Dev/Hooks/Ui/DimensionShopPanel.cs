@@ -22,6 +22,7 @@ public static class DimensionShopPanel
     private static Text? balanceText;
     private static Text? hintText;
     private static Button? refreshButton;
+    private static DimensionShopNativeSkin? nativeSkin;
     private static bool busy;
 
     public static bool IsOpen => activePanel != null;
@@ -36,28 +37,43 @@ public static class DimensionShopPanel
 
         try
         {
-            var parent = SunExpModalHost.ModalParent();
+            var parent = SunExpModalHost.NativeUiParent();
             if (parent == null)
             {
-                SunExpLog.Warn("[DimensionShop] modal parent is unavailable from " + source + ".");
+                SunExpLog.Warn("[DimensionShop] native UI parent is unavailable from " + source + ".");
                 DimensionShopGameApi.AdvanceMap();
                 return;
             }
 
-            activePanel = SunExpModalHost.CreateFullscreenRoot(PanelName, parent, new Color(0f, 0f, 0f, 0.72f));
+            activePanel = SunExpModalHost.CreateNativeFullscreenRoot(
+                PanelName,
+                new Color(0f, 0f, 0f, 0.72f));
+            if (activePanel == null)
+            {
+                SunExpLog.Warn("[DimensionShop] native UI root could not be created from " + source + ".");
+                DimensionShopGameApi.AdvanceMap();
+                return;
+            }
             SunExpTransientUiRegistry.Register("DimensionShop", Close);
-            var window = SunExpUiComponents.CreateVerticalWindow(
-                "Window",
-                activePanel.transform,
-                ResolveWindowSize(parent),
-                SunExpUiSprites.Panel("[DimensionShop]"),
-                WindowTint,
-                new RectOffset(24, 24, 20, 18),
-                14f);
+            if (DimensionShopNativeSkin.TryCreate(
+                    activePanel.transform,
+                    () => Purchase(DimensionShopService.BuyCard),
+                    () => Purchase(DimensionShopService.BuyRelic),
+                    SellCard,
+                    SellRelic,
+                    UnequipRelic,
+                    Refresh,
+                    Leave,
+                    out nativeSkin))
+            {
+                Render();
+                SunExpLog.Info(nativeSkin != null
+                    ? "[DimensionShop] opened with native ShopUI skin from " + source + "."
+                    : "[DimensionShop] native ShopUI render was incompatible; opened fallback panel from " + source + ".");
+                return;
+            }
 
-            CreateHeader(window.transform);
-            productRoot = CreateProductRoot(window.transform);
-            CreateFooter(window.transform);
+            CreateFallbackPanel();
             Render();
             SunExpLog.Info("[DimensionShop] opened from " + source + ".");
         }
@@ -71,6 +87,8 @@ public static class DimensionShopPanel
 
     public static void Close(string source)
     {
+        nativeSkin?.Dispose();
+        nativeSkin = null;
         if (productRoot != null)
         {
             SunExpUiPool.ReleaseOrDestroyChildren(productRoot, "DimensionShop.Close", "[DimensionShop]");
@@ -172,12 +190,28 @@ public static class DimensionShopPanel
 
     private static void Render()
     {
+        var view = DimensionShopService.View();
+        if (nativeSkin != null)
+        {
+            try
+            {
+                nativeSkin.Render(view, busy);
+                return;
+            }
+            catch (Exception ex)
+            {
+                SunExpLog.Warn("[DimensionShop] native ShopUI render failed; switching to fallback panel: " + ex.Message);
+                nativeSkin.Dispose();
+                nativeSkin = null;
+                CreateFallbackPanel();
+            }
+        }
+
         if (productRoot == null)
         {
             return;
         }
 
-        var view = DimensionShopService.View();
         SunExpUiPool.ReleaseOrDestroyChildren(productRoot, "DimensionShop.Render", "[DimensionShop]");
         balanceText!.text = "\u771f\u7406\u4e4b\u6676  " + view.Truth;
         CreateProductCard(productRoot, "\u5361\u724c", view.Card, DimensionShopService.BuyCard);
@@ -192,6 +226,28 @@ public static class DimensionShopPanel
         {
             refreshButton.interactable = view.CanRefresh && !busy;
         }
+    }
+
+    private static void CreateFallbackPanel()
+    {
+        if (activePanel == null || productRoot != null)
+        {
+            return;
+        }
+
+        var parent = activePanel.transform.parent ?? activePanel.transform;
+        var window = SunExpUiComponents.CreateVerticalWindow(
+            "Window",
+            activePanel.transform,
+            ResolveWindowSize(parent),
+            SunExpUiSprites.Panel("[DimensionShop]"),
+            WindowTint,
+            new RectOffset(24, 24, 20, 18),
+            14f);
+
+        CreateHeader(window.transform);
+        productRoot = CreateProductRoot(window.transform);
+        CreateFooter(window.transform);
     }
 
     private static void CreateProductCard(
@@ -320,6 +376,87 @@ public static class DimensionShopPanel
         }
     }
 
+    private static void SellCard(string instanceId)
+    {
+        if (busy)
+        {
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            DimensionShopGameApi.HideFloatingWindow();
+            DimensionShopService.SellCard(instanceId, out var message);
+            busy = false;
+            Render();
+            SetHint(message);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("[DimensionShop] card sale failed", ex);
+            SetHint("\u5361\u724c\u51fa\u552e\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002");
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private static void SellRelic(string instanceId)
+    {
+        if (busy)
+        {
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            DimensionShopGameApi.HideFloatingWindow();
+            DimensionShopService.SellRelic(instanceId, out var message);
+            busy = false;
+            Render();
+            SetHint(message);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("[DimensionShop] relic sale failed", ex);
+            SetHint("\u9057\u7269\u51fa\u552e\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002");
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private static void UnequipRelic(string instanceId)
+    {
+        if (busy)
+        {
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            DimensionShopGameApi.HideFloatingWindow();
+            DimensionShopService.UnequipRelic(instanceId, out var message);
+            busy = false;
+            Render();
+            SetHint(message);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("[DimensionShop] relic unequip failed", ex);
+            SetHint("\u9057\u7269\u8131\u4e0b\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002");
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
     private static void Leave()
     {
         if (busy)
@@ -334,6 +471,7 @@ public static class DimensionShopPanel
 
     private static void SetHint(string value)
     {
+        nativeSkin?.SetHint(value);
         if (hintText != null)
         {
             hintText.text = value ?? "";

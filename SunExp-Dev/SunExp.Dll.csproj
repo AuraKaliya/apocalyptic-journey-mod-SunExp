@@ -92,6 +92,10 @@
       <HintPath>$(DllPath)\Witch.Core.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="Plugins">
+      <HintPath>$(DllPath)\Plugins.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="ZLinq">
       <HintPath>$(DllPath)\ZLinq.dll</HintPath>
       <Private>false</Private>

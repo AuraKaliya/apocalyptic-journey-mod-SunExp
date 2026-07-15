@@ -5,6 +5,7 @@ using AuraToolsExp.Dll.Features.DamageMeter.Network;
 using AuraToolsExp.Dll.Features.DamageMeter.SettlementCg;
 using AuraToolsExp.Dll.Features.CardRefresh;
 using AuraToolsExp.Dll.Features.SafeBox;
+using AuraToolsExp.Dll.Features.StarterDeck;
 using AuraToolsExp.Dll.Infrastructure;
 
 var assertions = 0;
@@ -33,6 +34,7 @@ TestSkillCgPresentationNormalization();
 TestSafeBoxDataCompatibility();
 TestRpcPayloadBudgetUsesUtf8Bytes();
 TestDamageMeterAuthorityPolicy();
+TestStarterDeckCardClassification();
 TestRuntimeArchitectureGuards();
 
 Console.WriteLine($"AuraToolsExp tests passed: {assertions} assertions.");
@@ -786,6 +788,7 @@ void TestRuntimeArchitectureGuards()
         "SkillCG must not preload registered CG during fight start");
 
     var starterDeckRuntime = ReadRepoText("AuraToolsExp-Dev/Features/StarterDeck/AuraToolsStarterDeckRuntime.cs");
+    var starterDeckClassification = ReadRepoText("AuraToolsExp-Dev/Features/StarterDeck/StarterDeckCardClassification.cs");
     Assert(starterDeckRuntime.Contains("RegisterBefore(modConfig, \"PlayerManager.CmdSyncRoleTable\"", StringComparison.Ordinal)
            && starterDeckRuntime.Contains("ApplyStarterDeckBeforeRoleSubmit", StringComparison.Ordinal)
            && starterDeckRuntime.Contains("context.Arguments?.OfType<RoleTable>().FirstOrDefault()", StringComparison.Ordinal),
@@ -810,6 +813,20 @@ void TestRuntimeArchitectureGuards()
         "starter deck multiplayer path must guard by local player role-table ownership");
     Assert(!starterDeckRuntime.Contains("multiplayer world-simulation keeps native per-player decks", StringComparison.Ordinal),
         "starter deck must not skip the whole feature for multiplayer world-simulation runs");
+    Assert(starterDeckRuntime.Contains("BuildCareerSkillCardIds", StringComparison.Ordinal)
+           && starterDeckRuntime.Contains("gameConfig.GetPackBelong", StringComparison.Ordinal)
+           && starterDeckRuntime.Contains("IsExcludedDerivedCard", StringComparison.Ordinal),
+        "starter deck catalog uses authoritative career references, host pack ownership, and independent derived-card exclusion");
+    Assert(!starterDeckRuntime.Contains("hasSkillAction", StringComparison.Ordinal)
+           && !starterDeckRuntime.Contains("hasSkillIcon", StringComparison.Ordinal)
+           && !starterDeckRuntime.Contains("IsSkillLikeCard", StringComparison.Ordinal),
+        "starter deck classification must not infer career skills from Action or icon presentation fields");
+    Assert(starterDeckClassification.Contains("\"衍生牌\"", StringComparison.Ordinal)
+           && !starterDeckClassification.Contains("SunExp_wuna_wuna_coronation_token", StringComparison.Ordinal),
+        "derived-card filtering is semantic and does not make AuraTools depend on a SunExp content id");
+    var wunaCardText = ReadRepoText("SunExp/Text/Card/wuna.csv");
+    Assert(wunaCardText.Contains("*wuna_coronation_token,TRUE,衍生牌", StringComparison.Ordinal),
+        "Radiance Coronation keeps the content-owned derived-card marker consumed by the generic filter");
 
     var matchSettings = ReadRepoText("AuraToolsExp/Config/MatchExperienceSettings.json");
     Assert(matchSettings.Contains("\"showPanelByDefault\": false", StringComparison.Ordinal)
@@ -1141,6 +1158,93 @@ void TestSafeBoxDataCompatibility()
         "complete SafeBox card data is left unchanged");
     Assert(!completeChanged && completeId == "card" && safeComplete["Expend"] == "2",
         "complete SafeBox card data keeps original values");
+}
+
+void TestStarterDeckCardClassification()
+{
+    var careerRows = new List<IDictionary<string, string>>
+    {
+        new Dictionary<string, string>
+        {
+            ["Id"] = "career_1",
+            ["SkillScript"] = "not_a_card_id",
+            ["Skill1"] = "careercard_1",
+            ["Skill2"] = "custom_skill_a; custom_skill_b|custom_skill_c"
+        }
+    };
+    var careerSkillCardIds = StarterDeckCardClassification.BuildCareerSkillCardIds(careerRows);
+    Assert(careerSkillCardIds.SetEquals(new[]
+        {
+            "careercard_1",
+            "custom_skill_a",
+            "custom_skill_b",
+            "custom_skill_c"
+        }),
+        "starter deck career skills come from numbered Career.SkillN references only");
+
+    var ordinaryActionSkillCardIds = new[]
+    {
+        "burningcard_1",
+        "burningcard_2",
+        "burningcard_3",
+        "burningcard_4",
+        "card_13",
+        "card_15",
+        "card_9",
+        "healcard_7",
+        "perceivecard_6"
+    };
+    foreach (var cardId in ordinaryActionSkillCardIds)
+    {
+        var row = new Dictionary<string, string>
+        {
+            ["Id"] = cardId,
+            ["Action"] = "Skill",
+            ["Type"] = cardId == "card_13" ? "消耗攻击牌" : "技能牌"
+        };
+        Assert(!StarterDeckCardClassification.ShouldExcludeFromStarterDeck(cardId, row, careerSkillCardIds),
+            cardId + " Action=Skill remains a normal starter-deck card");
+        Assert(StarterDeckCardClassification.ResolveEffectivePackId(row)
+               == StarterDeckCardClassification.DefaultCardPackId,
+            cardId + " inherits the host default card pack");
+    }
+
+    var careerSkillRow = new Dictionary<string, string>
+    {
+        ["Id"] = "careercard_1",
+        ["Action"] = "Attack",
+        ["Type"] = "职业技能"
+    };
+    Assert(StarterDeckCardClassification.ShouldExcludeFromStarterDeck(
+            "careercard_*1",
+            careerSkillRow,
+            careerSkillCardIds),
+        "Career.SkillN reference excludes a career skill regardless of Action");
+
+    var coronationToken = new Dictionary<string, string>
+    {
+        ["Id"] = "SunExp_wuna_wuna_coronation_token",
+        ["Action"] = "Skill",
+        ["Type"] = "衍生牌"
+    };
+    Assert(!StarterDeckCardClassification.IsCareerSkillCard(
+            coronationToken["Id"],
+            careerSkillCardIds),
+        "Radiance Coronation is not mislabeled as a career skill");
+    Assert(StarterDeckCardClassification.IsExcludedDerivedCard(coronationToken)
+           && StarterDeckCardClassification.ShouldExcludeFromStarterDeck(
+               coronationToken["Id"],
+               coronationToken,
+               careerSkillCardIds),
+        "Radiance Coronation is independently excluded as a derived card");
+
+    var explicitPack = new Dictionary<string, string> { ["PackBelong"] = " cardpack_7 " };
+    Assert(StarterDeckCardClassification.ResolveEffectivePackId(explicitPack) == "cardpack_7",
+        "explicit card-pack ownership is preserved");
+    Assert(StarterDeckCardClassification.ResolveEffectivePackId(
+               new Dictionary<string, string>(),
+               _ => "cardpack_host") == "cardpack_host",
+        "host card-pack resolution takes precedence");
 }
 
 DamageLedger NewLedger()

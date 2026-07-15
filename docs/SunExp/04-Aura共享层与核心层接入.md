@@ -44,6 +44,7 @@ SunExp 注册自己拥有的内容和资源；AuraToolsExp 读取共享声明、
 | `AudioArbiterShared` | 共享领域层 | 音频 provider、匹配、优先级、原音抑制和表现 RPC |
 | `BattleBgmArbiterShared` | 共享领域层 | 冒险/战斗 BGM provider 与切换仲裁 |
 | `AuraCgShared` | 共享领域层 | CG 注册、激活、播放请求、网络 relay、去重和 session |
+| `AuraCardUseFxShared` | 共享领域层 | 卡牌使用特效注册、中央用牌副本捕获、优先级解析与展示触发去重 |
 | `AuraSkinShared` | 共享领域层 | 皮肤包、注册、选择存储、资源重定向和 UI Hook |
 | `StarterDeckArbiterShared` | 共享领域层 | 起始卡组 profile、校验和 resolution policy |
 | `AuraOnlineShared` | 共享领域层 | 在线聊天、MOD 快照和主机同步 session 基础 |

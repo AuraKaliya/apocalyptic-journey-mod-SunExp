@@ -162,6 +162,19 @@ if ($cgRuntimeText.Contains($removedCoverMode) -or $cgRegistryText.Contains($rem
     throw "AuraCgShared must use fullscreenFade plus fit=cover instead of the removed cover-specific mode."
 }
 
+$cardUseFxRegistryText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraCardUseFxShared\AuraCardUseFxRegistry.cs")
+$cardUseFxRuntimeText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraCardUseFxShared\AuraCardUseFxRuntime.cs")
+foreach ($required in @("AuraCardUseFxRegistryRuntime", "AuraCardUseFxRegistryEntry", "QualifiedEffectId", "WriteShared", "Resolve")) {
+    if (-not $cardUseFxRegistryText.Contains($required)) {
+        throw "AuraCardUseFxShared registry contract is missing: $required"
+    }
+}
+foreach ($required in @("FightUI.DoCardUseAnimation", "ICard.SetCardStyle", "DedupeSeconds", "ClearTransient", "Triggered")) {
+    if (-not $cardUseFxRuntimeText.Contains($required)) {
+        throw "AuraCardUseFxShared trigger contract is missing: $required"
+    }
+}
+
 $directorModelsText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirectorShared\AuraDirectorModels.cs")
 $directorCompilerText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirectorShared\AuraDirectorPlanCompiler.cs")
 $directorProbeText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirectorShared\AuraDirectorNativeStartBarrierProbe.cs")
@@ -448,7 +461,7 @@ $sharedConsumerProjects = @(
     "TestMods\CardUseCialloExp-Dev\CardUseCialloExp.Dll.csproj",
     "TestMods\ChatExp-Dev\ChatExp.Dll.csproj"
 )
-$linkedSharedPattern = 'Compile Include="[^"]*(AuraSharedCore|AuraAudioShared|AuraLogShared|AuraJourneyShared|AuraSkinShared|AudioArbiterShared|BattleBgmArbiterShared|StarterDeckArbiterShared|UiRaycastSafetyShared|UiTransitionGuardShared|AuraCgShared|AuraDirectorShared|AuraDirectorDetour-Dev|AuraOnlineShared)'
+$linkedSharedPattern = 'Compile Include="[^"]*(AuraSharedCore|AuraAudioShared|AuraCardUseFxShared|AuraLogShared|AuraJourneyShared|AuraSkinShared|AudioArbiterShared|BattleBgmArbiterShared|StarterDeckArbiterShared|UiRaycastSafetyShared|UiTransitionGuardShared|AuraCgShared|AuraDirectorShared|AuraDirectorDetour-Dev|AuraOnlineShared)'
 foreach ($relativeProject in $sharedConsumerProjects) {
     $consumerText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot $relativeProject)
     if (-not $consumerText.Contains("AuraSharedRuntime-Dev\Aura.Shared.csproj")) {

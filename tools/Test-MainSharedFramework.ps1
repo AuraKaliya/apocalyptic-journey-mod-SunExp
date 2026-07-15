@@ -21,7 +21,7 @@ foreach ($project in $mainProjects) {
         throw "Main shared consumer must reference Aura.Shared instead of linked shared source: $project"
     }
 
-    if ($text -match 'Compile Include="[^"]*(AuraSharedCore|AuraAudioShared|AuraLogShared|AuraJourneyShared|AuraSkinShared|AudioArbiterShared|BattleBgmArbiterShared|StarterDeckArbiterShared|UiRaycastSafetyShared|UiTransitionGuardShared|AuraCgShared|AuraDirectorShared|AuraDirectorDetour-Dev|AuraOnlineShared)') {
+    if ($text -match 'Compile Include="[^"]*(AuraSharedCore|AuraAudioShared|AuraCardUseFxShared|AuraLogShared|AuraJourneyShared|AuraSkinShared|AudioArbiterShared|BattleBgmArbiterShared|StarterDeckArbiterShared|UiRaycastSafetyShared|UiTransitionGuardShared|AuraCgShared|AuraDirectorShared|AuraDirectorDetour-Dev|AuraOnlineShared)') {
         throw "Main shared consumer still links shared source directly: $project"
     }
 }
@@ -83,6 +83,12 @@ if (-not ($auraToolsStarterDeckRuntime.Contains('"GameEntryUI.Init"')) -or -not 
 }
 if (-not ($auraToolsStarterDeckRuntime.Contains("BuildRegisteredExplicitCardIds")) -or -not ($auraToolsStarterDeckRuntime.Contains("BuildRegisteredHiddenCardIds")) -or -not ($auraToolsStarterDeckRuntime.Contains("BuildRegisteredSkillCardIds")) -or -not ($auraToolsStarterDeckRuntime.Contains("SystemSkillCardIds"))) {
     throw "AuraTools starter deck card catalog must keep explicit, hidden, skill, and system skill card tables."
+}
+if (-not ($auraToolsStarterDeckRuntime.Contains("StarterDeckCardClassification.BuildCareerSkillCardIds")) -or -not ($auraToolsStarterDeckRuntime.Contains("gameConfig.GetPackBelong")) -or -not ($auraToolsStarterDeckRuntime.Contains("IsExcludedDerivedCard"))) {
+    throw "AuraTools starter deck classification must use Career.SkillN references, effective host pack ownership, and independent derived-card exclusion."
+}
+if ($auraToolsStarterDeckRuntime.Contains("hasSkillAction") -or $auraToolsStarterDeckRuntime.Contains("hasSkillIcon") -or $auraToolsStarterDeckRuntime.Contains("IsSkillLikeCard")) {
+    throw "AuraTools starter deck classification must not infer career skills from Action or icon presentation fields."
 }
 if (-not ($auraToolsStarterDeckRuntime.Contains("expandedCandidateGroups")) -or -not ($auraToolsStarterDeckRuntime.Contains("candidateGroupViews")) -or -not ($auraToolsStarterDeckRuntime.Contains("EnsureCandidateRows")) -or -not ($auraToolsStarterDeckRuntime.Contains("ToggleCandidateGroup"))) {
     throw "AuraTools starter deck pack groups must keep stable, lazily-built foldout views."
