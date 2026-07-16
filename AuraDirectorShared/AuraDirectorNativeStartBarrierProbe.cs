@@ -5,15 +5,6 @@ using Witch.Core;
 
 namespace AuraDirector.Shared;
 
-public sealed class AuraDirectorCapabilityProbeResult
-{
-    public bool Supported { get; set; }
-
-    public string Code { get; set; } = "";
-
-    public string Detail { get; set; } = "";
-}
-
 public static class AuraDirectorNativeStartBarrierProbe
 {
     public const string UnsupportedHookCode = "native-hook-not-cancellable";

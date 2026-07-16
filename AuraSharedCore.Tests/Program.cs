@@ -255,6 +255,9 @@ void TestDirectorContracts()
     Assert(typeof(IAuraDirectorNativeStartHold).GetProperty(nameof(IAuraDirectorNativeStartHold.NativeTarget)) != null
            && typeof(IAuraDirectorNativeStartHoldSink).GetMethod(nameof(IAuraDirectorNativeStartHoldSink.TryAccept)) != null,
         "director exposes a backend-independent native start hold contract");
+    Assert(typeof(IAuraDirectorStartGateProvider).GetMethod(nameof(IAuraDirectorStartGateProvider.Install)) != null
+           && typeof(IAuraDirectorRequestSource).GetMethod(nameof(IAuraDirectorRequestSource.BuildRequest)) != null,
+        "director exposes provider and local request-source contracts");
 }
 
 AuraDirectorRequest DirectorRequest(int actorCount)

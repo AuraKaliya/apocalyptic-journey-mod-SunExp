@@ -15,6 +15,10 @@ $backendProjectText = Get-Content -Raw -LiteralPath $backendProject
 $backendSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirectorDetour-Dev\AuraDirectorReadyToStartDetourBackend.cs")
 $registrySource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirectorDetour-Dev\AuraDirectorOneShotHoldRegistry.cs")
 $sharedProject = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedRuntime-Dev\Aura.Shared.csproj")
+$runtimeSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirectorShared\AuraDirectorRuntime.cs")
+$sunExpSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Features\Director\SunExpDirectorRuntime.cs")
+$sunExpEntry = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Entry.cs")
+$sunExpProject = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "SunExp-Dev\SunExp.Dll.csproj")
 
 foreach ($required in @(
     "FightManager.ReadyToStart",
@@ -47,8 +51,47 @@ if (-not $backendProjectText.Contains('PackageReference Include="Lib.Harmony" Ve
     throw "The isolated detour backend must pin its reviewed Harmony version."
 }
 
+foreach ($required in @(
+    "IAuraDirectorNativeStartHoldSink",
+    "Time.unscaledTime",
+    'Finish(session, "hard-timeout")',
+    "session.Hold.TryRelease",
+    "NativeBattleSpriteProviderId",
+    "SilhouetteSprite"
+)) {
+    if (-not $runtimeSource.Contains($required)) {
+        throw "AuraDirector local runtime contract is missing: $required"
+    }
+}
+if ($runtimeSource.Contains("Time.timeScale")) {
+    throw "AuraDirector local runtime must not mutate global time scale."
+}
+
+foreach ($required in @(
+    "FightPlayer.Instance?.Status",
+    "EnemyManager.Instance?.enemyList",
+    "Battle.OpeningDirector",
+    "InputAndProgression",
+    "NativeBattleSpriteProviderId"
+)) {
+    if (-not $sunExpSource.Contains($required)) {
+        throw "SunExp director request-source contract is missing: $required"
+    }
+}
+if (-not $sunExpEntry.Contains('RunStep("director runtime"')) {
+    throw "SunExp must initialize the local director runtime."
+}
+foreach ($required in @(
+    "AuraDirectorDetour-Dev\Aura.Director.DetourBackend.csproj",
+    "Aura.Director.DetourBackend.dll",
+    "0Harmony.dll"
+)) {
+    if (-not $sunExpProject.Contains($required)) {
+        throw "SunExp director packaging contract is missing: $required"
+    }
+}
+
 $shippedScriptRoots = @(
-    "SunExp\Scripts",
     "SanGuoShaExp\Scripts",
     "AuraToolsExp\Scripts",
     "TestMods\SkinExp\Scripts",
@@ -61,8 +104,15 @@ foreach ($relative in $shippedScriptRoots) {
     $scriptsPath = Join-Path $repoRoot $relative
     foreach ($technicalBinary in @("0Harmony.dll", "Aura.Director.DetourBackend.dll")) {
         if (Test-Path -LiteralPath (Join-Path $scriptsPath $technicalBinary) -PathType Leaf) {
-            throw "Technical Detour binary must not be packaged before production approval: $relative\$technicalBinary"
+            throw "AuraDirector provider must remain scoped to SunExp: $relative\$technicalBinary"
         }
+    }
+}
+
+$sunExpScripts = Join-Path $repoRoot "SunExp\Scripts"
+foreach ($runtimeBinary in @("0Harmony.dll", "Aura.Director.DetourBackend.dll")) {
+    if (-not (Test-Path -LiteralPath (Join-Path $sunExpScripts $runtimeBinary) -PathType Leaf)) {
+        throw "SunExp director runtime binary is missing: SunExp\Scripts\$runtimeBinary"
     }
 }
 
@@ -77,4 +127,4 @@ if ($LASTEXITCODE -ne 0) {
     throw "AuraDirector detour tests failed."
 }
 
-Write-Host "AuraDirector isolated detour validation passed."
+Write-Host "AuraDirector local runtime and scoped detour validation passed."

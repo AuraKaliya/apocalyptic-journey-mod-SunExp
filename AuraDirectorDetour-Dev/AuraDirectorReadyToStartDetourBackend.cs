@@ -8,7 +8,7 @@ using HarmonyLib;
 
 namespace AuraDirector.Detour;
 
-public sealed class AuraDirectorReadyToStartDetourBackend : IDisposable
+public sealed class AuraDirectorReadyToStartDetourBackend : IAuraDirectorStartGateProvider, IDisposable
 {
     public const string BackendId = "AuraDirector.ReadyToStart.Harmony.v1";
     public const string HarmonyId = "AuraDirector.Shared.ReadyToStart.Harmony.v1";
@@ -28,6 +28,13 @@ public sealed class AuraDirectorReadyToStartDetourBackend : IDisposable
     }
 
     public bool IsInstalled { get; private set; }
+
+    public string ProviderId => BackendId;
+
+    public AuraDirectorCapabilityProbeResult ProbeCapability()
+    {
+        return Probe();
+    }
 
     public int HeldCount => registry?.HeldCount ?? 0;
 

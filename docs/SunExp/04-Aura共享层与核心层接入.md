@@ -44,7 +44,7 @@ SunExp 注册自己拥有的内容和资源；AuraToolsExp 读取共享声明、
 | `AudioArbiterShared` | 共享领域层 | 音频 provider、匹配、优先级、原音抑制和表现 RPC |
 | `BattleBgmArbiterShared` | 共享领域层 | 冒险/战斗 BGM provider 与切换仲裁 |
 | `AuraCgShared` | 共享领域层 | CG 注册、激活、播放请求、网络 relay、去重和 session |
-| `AuraCardUseFxShared` | 共享领域层 | 卡牌使用特效注册、中央用牌副本捕获、优先级解析与展示触发去重 |
+| `AuraCardUseFxShared` | 共享领域层 | 卡牌使用特效注册、本地成功出牌提交、观察者中央副本捕获、源位置快照、表现范围解析与触发去重 |
 | `AuraSkinShared` | 共享领域层 | 皮肤包、注册、选择存储、资源重定向和 UI Hook |
 | `StarterDeckArbiterShared` | 共享领域层 | 起始卡组 profile、校验和 resolution policy |
 | `AuraOnlineShared` | 共享领域层 | 在线聊天、MOD 快照和主机同步 session 基础 |
@@ -165,7 +165,11 @@ Journey 共享层不应知道 `SolarMemory` 的专有剧情判断；它只执行
 
 `AuraSkinRuntime` 负责包注册、skin registry、选择存储、资源重定向和 UI Hook。SunExp 提供乌娜等角色的共享皮肤包和 manifest，不让工具 MOD扫描私有路径猜测皮肤。
 
-### 6.6 UI 安全
+### 6.6 卡牌使用特效
+
+`AuraCardUseFxShared` 的 v2 manifest 使用 `presentationScope` 区分 `ownerLocal`、`observers` 和 `all`。本地通道在真实卡牌 `TrueUse` 前捕获屏幕位置，并以 `FightUI.CallActionAnimation` 作为成功提交点；观察者通道继续消费 `FightUI.DoCardUseAnimation` 的中央卡牌副本。表现消费者必须使用源位置快照，不能依赖随后可能被焚毁或移入弃牌堆的卡牌对象。
+
+### 6.7 UI 安全
 
 `AuraUiShared` 提供无业务语义的 UI 构造能力；SunExp 的 `SunExpUiComponents` 在此之上提供本 MOD 风格。`UiRaycastSafetyShared` 与 `UiTransitionGuardShared` 解决临时 Overlay 关闭后原生 UI 仍被射线或 GraphicRegistry 阻塞的问题。
 

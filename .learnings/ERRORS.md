@@ -313,10 +313,12 @@ Normalize expected `rg` no-match results with `if ($LASTEXITCODE -eq 1) { exit 0
 ### Metadata
 - Reproducible: yes
 - Related Files: none
+- Recurrence-Count: 3
+- Last-Seen: 2026-07-16
 
 ### Resolution
 - **Resolved**: 2026-07-15T14:01:00+08:00
-- **Notes**: Re-ran the inventory with explicit no-match handling.
+- **Notes**: Re-ran the inventory with explicit no-match handling. The pattern recurred on 2026-07-16 in an AGENTS.md inventory and a compound binary-symbol probe; both follow-ups normalized expected no-match results.
 
 ---
 
@@ -377,10 +379,12 @@ First locate candidate filenames with `rg --files` or `rg -l`, then search only 
 ### Metadata
 - Reproducible: yes
 - Related Files: 开发参考资料/反编译文件夹v1.0.23816797
+- Recurrence-Count: 2
+- Last-Seen: 2026-07-16
 
 ### Resolution
 - **Resolved**: 2026-07-15T14:09:00+08:00
-- **Notes**: Narrowed analysis to ShopUI, ShopItem, OutsiderShopUI, OutsideShopItem, map flow, and currency persistence classes.
+- **Notes**: Narrowed analysis to ShopUI, ShopItem, OutsiderShopUI, OutsideShopItem, map flow, and currency persistence classes. On 2026-07-16, the same broad-search pattern recurred while locating ModHookContext; the successful retry targeted the four exact decompiled files.
 
 ---
 
@@ -480,5 +484,61 @@ Inspect the installed package API rather than relying on examples from older Har
 ### Resolution
 - **Resolved**: 2026-07-15T16:08:00+08:00
 - **Notes**: Replaced backend cleanup paths with `harmony.UnpatchAll(HarmonyId)`; a follow-up compile caught and corrected the same stale call in the fixture test.
+
+---
+
+## [ERR-20260716-001] director-provider-registration-signature
+
+**Logged**: 2026-07-16T17:20:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: code
+
+### Summary
+The first SunExp integration build omitted the owner MOD argument required by `AuraDirectorRuntime.RegisterStartGateProvider`.
+
+### Error
+```text
+CS7036: No argument was provided for the required parameter 'provider' of RegisterStartGateProvider(string, IAuraDirectorStartGateProvider)
+```
+
+### Suggested Fix
+Read the new public signature at the call site before compiling integrations, and keep the owner identity explicit for shared provider registration.
+
+### Metadata
+- Reproducible: yes
+- Related Files: SunExp-Dev/Features/Director/SunExpDirectorRuntime.cs
+
+### Resolution
+- **Resolved**: 2026-07-16T17:21:00+08:00
+- **Notes**: Passed `SunExpIds.ModId` as the owner and rebuilt successfully.
+
+---
+
+## [ERR-20260716-002] shared-packaging-stale-prototype-copies
+
+**Logged**: 2026-07-16T17:35:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+The first shared release gate failed because prototype MOD roots still contained the previous `Aura.Shared.dll` build.
+
+### Error
+```text
+Packaged Aura.Shared.dll hash mismatch: TestMods\SkinExp\Scripts\Aura.Shared.dll
+```
+
+### Suggested Fix
+After changing shared runtime sources, rebuild every consumer listed by `Test-SharedDllPackaging.ps1`, not only the three main consumers.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Test-SharedDllPackaging.ps1
+
+### Resolution
+- **Resolved**: 2026-07-16T17:37:00+08:00
+- **Notes**: Rebuilt all five prototype consumers, propagated the shared binary, and reran the complete release gate successfully.
 
 ---

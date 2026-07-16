@@ -1,9 +1,9 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "ownerModId": "SunExp",
   "protocol": {
     "minVersion": 1,
-    "preferredVersion": 1
+    "preferredVersion": 2
   },
   "entries": [
     {
@@ -20,6 +20,7 @@
         "stellar_overture_close"
       ],
       "visualEffectId": "sunexp.card_visual_effect.stardust_overture",
+      "presentationScope": "ownerLocal",
       "stackMode": "stack",
       "exclusiveGroup": "",
       "priority": 100,

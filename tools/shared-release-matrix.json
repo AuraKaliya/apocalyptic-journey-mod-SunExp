@@ -33,7 +33,7 @@
       "enabled": true
     },
     {
-      "id": "director-detour-technical-probe",
+      "id": "director-local-runtime",
       "kind": "script",
       "path": "tools/Test-AuraDirectorDetour.ps1",
       "enabled": true,
@@ -66,7 +66,7 @@
     "operationLog": "Logs/Operations/yyyyMMdd.jsonl",
     "lockOrder": ["Resource", "Registry", "WriteMutex"]
   },
-  "adapterSurfaces": ["Skin", "Audio", "CG", "CardUseFx", "Log", "Journey"],
+  "adapterSurfaces": ["Skin", "Audio", "CG", "CardUseFx", "Director", "Log", "Journey"],
   "releaseScenarios": [
     "SunExp only",
     "SunExp + AuraToolsExp",

@@ -1,63 +1,55 @@
-# Aura Director v1 Technical Validation
+# Aura Director v1 Local Runtime
 
 ## Decision
 
-The shared director belongs in `AuraDirectorShared` and is packaged into
-`Aura.Shared.dll`. The official Mod hook remains unable to gate progression.
-An isolated Harmony backend has now passed technical validation for the current
-game assembly, but is not packaged or enabled in a production MOD yet.
+The shared director lives in `AuraDirectorShared` and is packaged into
+`Aura.Shared.dll`. SunExp now enables the reviewed Harmony start-gate provider
+for the verified game build and ships its provider binaries only in
+`SunExp/Scripts`.
 
-## Verified Native Path
+The first production scope is local-first: every client independently builds
+and plays its own opening. There is no director RPC, peer plan agreement, or
+host-owned playback in this version. Native `ReadyToStart` synchronization
+still provides the eventual battle-start barrier between peers.
 
-The current battle startup path is:
+## Runtime Flow
 
-1. `FightManager.Init` constructs player and enemy action state.
-2. Every peer calls `FightManager.ReadyToStart`.
-3. The server-side user code increments a private `readyCount`.
-4. The server changes the fight type to `FightType.Start`.
-5. `Fight_Start.Init` starts `FightManager.DOAllAction`.
+1. The provider intercepts the local `FightManager.ReadyToStart()` call.
+2. `SunExpBattleOpeningRequestSource` builds the ordered cast from the local
+   player followed by `EnemyManager.enemyList`.
+3. `AuraDirectorPlanCompiler` validates the request and creates deterministic
+   alternating portrait cues.
+4. A screen-space overlay blocks local input and progression while cues play.
+5. Actor portraits use their current battle-body sprite. A generated generic
+   silhouette is used when the body or sprite cannot be resolved.
+6. Completion, user skip, timeout, destroyed battle target, or runtime teardown
+   releases the native hold exactly once.
 
-The current `Witch.Core.ModHookContext` exposes only `Target` and `Arguments`.
-`Modifiable` invokes before/after callbacks as observational actions, catches
-callback exceptions, and does not expose Rougamo's `MethodContext` or its
-`ReplaceReturnValue` control to Mods. Therefore a Mod cannot cancel or defer
-`ReadyToStart` through the supported hook API.
+The overlay advances with `Time.unscaledTime`; it never changes
+`Time.timeScale`. SunExp scales the hard timeout with cast size from 12 to 30
+seconds, and the compiler clamps all requests to the shared 5-60 second safety
+range.
 
-## No-Go Boundary
+## Fail-Open Boundary
 
-The following workarounds are explicitly rejected:
+An unverified `Witch.dll`, provider conflict, patch failure, missing cast,
+compile rejection, overlay construction failure, or request-source exception
+returns control to the original `ReadyToStart()` call. The runtime does not
+read or mutate private `readyCount`, `fightType`, or `ActionQueue` state.
 
-- mutate private `readyCount`;
-- rewrite `fightType` or `ActionQueue`;
-- stop native coroutines;
-- write `Time.timeScale`;
-- introduce Harmony, MonoMod, or another detour dependency without a separate
-  reviewed decision.
+## Current Scope
 
-`AuraDirectorNativeStartBarrierProbe.Probe()` records this capability as
-`native-hook-not-cancellable`. An incompatible backend must fail open and must
-not interfere with unrelated shared initialization.
+Enabled:
 
-## Preserved Development Output
+- local player plus current enemy cast;
+- native battle sprites with generic silhouette fallback;
+- local input blocking, skip, timeout, and cleanup;
+- feature switch `SunExp/Battle.OpeningDirector`;
+- SunExp-only provider packaging.
 
-The safe, backend-independent v1 contract remains implemented:
+Deferred:
 
-- normalized serializable actor/resource/request models;
-- deterministic `alternating-portrait-v1` cue compilation;
-- regular and compact timing profiles;
-- actor-count, identity, resource, and strategy validation;
-- deterministic plan hashing for future peer comparison;
-- idempotent director-session release state.
-
-No battle-start invoker, visual overlay, input lease, network barrier, or Skill
-CG migration is enabled while the progression gate is unsupported.
-
-## Resume Gate
-
-Runtime integration may resume only through one of these verified paths:
-
-1. the game exposes a cancellable/replaceable Mod hook for the startup call;
-2. the game exposes a supported pre-start readiness extension point; or
-3. the isolated, capability-probed Detour backend validated in
-   `aura-director-detour-validation.md` is explicitly promoted from technical
-   probe to a packaged provider after its runtime integration review.
+- synchronized director plans and clocks;
+- late join and reconnect playback;
+- content-owned portrait providers and authored cue profiles;
+- migration of Skill CG into the director timeline.

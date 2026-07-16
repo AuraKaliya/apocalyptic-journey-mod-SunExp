@@ -49,7 +49,8 @@ public static class SunExpCardUseFxRuntime
         try
         {
             if (!string.Equals(trigger.Entry.OwnerModId, SunExpIds.ModId, StringComparison.OrdinalIgnoreCase)
-                || !string.Equals(trigger.Entry.EffectId, SunExpIds.StellarOvertureCardUseFxId, StringComparison.OrdinalIgnoreCase))
+                || !string.Equals(trigger.Entry.EffectId, SunExpIds.StellarOvertureCardUseFxId, StringComparison.OrdinalIgnoreCase)
+                || trigger.Channel != AuraCardUseFxTriggerChannel.LocalCommitted)
             {
                 return;
             }
@@ -63,7 +64,7 @@ public static class SunExpCardUseFxRuntime
 
             var visible = cues.Take(StarScoreArrivalCueService.MaxVisibleRibbonCount).ToList();
             var overflow = Math.Max(0, cues.Count - visible.Count);
-            StarScoreCardUseFxPresenter.Play(trigger.SourceTransform, visible, overflow, trigger.Entry.VisualEffectId);
+            StarScoreCardUseFxPresenter.Play(trigger.SourceSnapshot, visible, overflow, trigger.Entry.VisualEffectId);
         }
         catch (Exception ex)
         {

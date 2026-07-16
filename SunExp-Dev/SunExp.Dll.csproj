@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\AuraSharedRuntime-Dev\Aura.Shared.csproj" Private="true" ReferenceOutputAssembly="true" />
+    <ProjectReference Include="..\AuraDirectorDetour-Dev\Aura.Director.DetourBackend.csproj" Private="true" ReferenceOutputAssembly="true" />
   </ItemGroup>
 
   <ItemGroup>
@@ -126,6 +127,15 @@
   <Target Name="CopyAuraSharedDllToMod" AfterTargets="Build">
     <MakeDir Directories="$(ModScriptsPath)" />
     <Copy SourceFiles="..\AuraSharedRuntime-Dev\bin\$(Configuration)\net472\Aura.Shared.dll" DestinationFiles="$(ModScriptsPath)\Aura.Shared.dll" SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="CopyAuraDirectorProviderToMod" AfterTargets="Build">
+    <MakeDir Directories="$(ModScriptsPath)" />
+    <ItemGroup>
+      <AuraDirectorRuntimeBinary Include="..\AuraDirectorDetour-Dev\bin\$(Configuration)\net472\Aura.Director.DetourBackend.dll" />
+      <AuraDirectorRuntimeBinary Include="..\AuraDirectorDetour-Dev\bin\$(Configuration)\net472\0Harmony.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(AuraDirectorRuntimeBinary)" DestinationFolder="$(ModScriptsPath)" SkipUnchangedFiles="true" />
   </Target>
 
 </Project>

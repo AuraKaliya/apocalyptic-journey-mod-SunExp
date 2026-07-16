@@ -13,14 +13,14 @@ public static class StarScoreCardUseFxPresenter
 {
     private static StarScoreCardUseFxRunner? runner;
 
-    public static void Play(Transform sourceTransform, IReadOnlyList<StarScoreArrivalCue> cues, int overflowCount, string visualEffectId)
+    public static void Play(AuraCardUseFxSourceSnapshot sourceSnapshot, IReadOnlyList<StarScoreArrivalCue> cues, int overflowCount, string visualEffectId)
     {
-        if (sourceTransform == null || cues == null || cues.Count == 0)
+        if (sourceSnapshot == null || !sourceSnapshot.IsValid || cues == null || cues.Count == 0)
         {
             return;
         }
 
-        EnsureRunner().Play(sourceTransform, cues, Math.Max(0, overflowCount), visualEffectId);
+        EnsureRunner().Play(sourceSnapshot, cues, Math.Max(0, overflowCount), visualEffectId);
     }
 
     public static void Clear(string source)
@@ -63,15 +63,15 @@ internal sealed class StarScoreCardUseFxRunner : MonoBehaviour
     private RectTransform? overlayRect;
     private GameObject? overlayRoot;
 
-    public void Play(Transform sourceTransform, IReadOnlyList<StarScoreArrivalCue> cues, int overflowCount, string visualEffectId)
+    public void Play(AuraCardUseFxSourceSnapshot sourceSnapshot, IReadOnlyList<StarScoreArrivalCue> cues, int overflowCount, string visualEffectId)
     {
-        if (!TryScreenPoint(sourceTransform, out var sourceScreenPoint))
+        if (sourceSnapshot == null || !sourceSnapshot.IsValid)
         {
             return;
         }
 
         EnsureOverlay();
-        StartCoroutine(PlayFaceSweep(sourceTransform, visualEffectId));
+        StartCoroutine(PlayFaceSweep(sourceSnapshot, visualEffectId));
         var lastArrival = Time.unscaledTime + FirstEmitDelaySeconds
                           + RibbonStaggerSeconds * Math.Max(0, cues.Count - 1) + FlightSeconds;
         if (HasCadenceCompletion(cues))
@@ -82,7 +82,7 @@ internal sealed class StarScoreCardUseFxRunner : MonoBehaviour
         for (var index = 0; index < cues.Count; index++)
         {
             var strength = index == cues.Count - 1 ? 1f + overflowCount * 0.28f : 1f;
-            StartCoroutine(PlayRibbon(sourceScreenPoint, cues[index], FirstEmitDelaySeconds + RibbonStaggerSeconds * index, strength, visualEffectId));
+            StartCoroutine(PlayRibbon(sourceSnapshot.ScreenPoint, cues[index], FirstEmitDelaySeconds + RibbonStaggerSeconds * index, strength, visualEffectId));
         }
     }
 
@@ -101,17 +101,33 @@ internal sealed class StarScoreCardUseFxRunner : MonoBehaviour
         SunExpLog.Debug("[CardUseFx] presentation cleared: " + source);
     }
 
-    private IEnumerator PlayFaceSweep(Transform source, string visualEffectId)
+    private IEnumerator PlayFaceSweep(AuraCardUseFxSourceSnapshot sourceSnapshot, string visualEffectId)
     {
-        var face = source.Find("Front/icon") ?? source.Find("Front/background") ?? source;
-        if (face == null || face is not RectTransform)
+        if (overlayRect == null
+            || !RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                overlayRect,
+                sourceSnapshot.ScreenPoint,
+                null,
+                out var localCenter))
         {
             yield break;
         }
 
         var material = CardUseFxMaterials.CreateFaceSweepMaterial(visualEffectId);
+        var container = new GameObject("SunExp_CardUseFx_FaceSweepClip", typeof(RectTransform), typeof(RectMask2D));
+        container.transform.SetParent(overlayRect, false);
+        var containerRect = container.GetComponent<RectTransform>();
+        containerRect.anchorMin = new Vector2(0.5f, 0.5f);
+        containerRect.anchorMax = new Vector2(0.5f, 0.5f);
+        containerRect.pivot = new Vector2(0.5f, 0.5f);
+        containerRect.anchoredPosition = localCenter;
+        containerRect.sizeDelta = new Vector2(
+            Mathf.Max(16f, sourceSnapshot.ScreenSize.x),
+            Mathf.Max(16f, sourceSnapshot.ScreenSize.y));
+        containerRect.localRotation = Quaternion.Euler(0f, 0f, sourceSnapshot.RotationZ);
+
         var go = new GameObject("SunExp_CardUseFx_FaceSweep", typeof(RectTransform), typeof(RawImage));
-        go.transform.SetParent(face, false);
+        go.transform.SetParent(containerRect, false);
         go.transform.SetAsLastSibling();
         var rect = go.GetComponent<RectTransform>();
         rect.anchorMin = Vector2.zero;
@@ -127,19 +143,18 @@ internal sealed class StarScoreCardUseFxRunner : MonoBehaviour
         var fallbackWidth = 0f;
         if (fallbackSweep)
         {
-            var parentRect = (RectTransform)face;
-            fallbackWidth = Mathf.Max(1f, parentRect.rect.width);
+            fallbackWidth = Mathf.Max(1f, containerRect.rect.width);
             rect.anchorMin = new Vector2(0.5f, 0.5f);
             rect.anchorMax = new Vector2(0.5f, 0.5f);
             rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = new Vector2(fallbackWidth * 0.22f, Mathf.Max(1f, parentRect.rect.height) * 1.35f);
+            rect.sizeDelta = new Vector2(fallbackWidth * 0.22f, Mathf.Max(1f, containerRect.rect.height) * 1.35f);
             rect.localRotation = Quaternion.Euler(0f, 0f, -17f);
             rect.anchoredPosition = new Vector2(-fallbackWidth * 0.7f, 0f);
             image.color = new Color(0.86f, 0.94f, 1f, 0.24f);
         }
 
         var elapsed = 0f;
-        while (elapsed < FaceSweepSeconds && go != null)
+        while (elapsed < FaceSweepSeconds && container != null)
         {
             elapsed += Mathf.Max(0f, Time.unscaledDeltaTime);
             var progress = Mathf.Clamp01(elapsed / FaceSweepSeconds);
@@ -156,7 +171,7 @@ internal sealed class StarScoreCardUseFxRunner : MonoBehaviour
             yield return null;
         }
 
-        if (go != null) Destroy(go);
+        if (container != null) Destroy(container);
         if (material != null) Destroy(material);
     }
 
@@ -269,18 +284,6 @@ internal sealed class StarScoreCardUseFxRunner : MonoBehaviour
         ribbon.gameObject.SetActive(false);
         if (ribbonPool.Count < RibbonPoolCapacity) ribbonPool.Push(ribbon);
         else Destroy(ribbon.gameObject);
-    }
-
-    private static bool TryScreenPoint(Transform source, out Vector2 point)
-    {
-        point = default;
-        if (source == null) return false;
-        var visual = source.Find("Front/icon") ?? source.Find("Front/background") ?? source;
-        var world = visual is RectTransform rect ? rect.TransformPoint(rect.rect.center) : visual.position;
-        var canvas = source.GetComponentInParent<Canvas>();
-        var camera = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
-        point = RectTransformUtility.WorldToScreenPoint(camera, world);
-        return true;
     }
 
     private static (Vector2 First, Vector2 Second) Controls(Vector2 start, Vector2 end, int slot, long sequence)

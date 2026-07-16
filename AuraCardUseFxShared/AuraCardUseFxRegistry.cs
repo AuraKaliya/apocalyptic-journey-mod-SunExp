@@ -12,7 +12,7 @@ public static class AuraCardUseFxRegistryRuntime
 {
     public const string RegistryAuthorityId = "AuraCardUseFxShared";
     public const string RegistryFileName = "card-use-fx.registry.json";
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     private static readonly object CacheGate = new();
     private static AuraCardUseFxRegistryDocument? cachedDocument;
@@ -213,10 +213,32 @@ public static class AuraCardUseFxStackModes
     public const string Exclusive = "exclusive";
 }
 
+public static class AuraCardUseFxPresentationScopes
+{
+    public const string OwnerLocal = "ownerLocal";
+    public const string Observers = "observers";
+    public const string All = "all";
+
+    public static string Normalize(string value)
+    {
+        if (string.Equals(value, OwnerLocal, StringComparison.OrdinalIgnoreCase))
+        {
+            return OwnerLocal;
+        }
+
+        if (string.Equals(value, All, StringComparison.OrdinalIgnoreCase))
+        {
+            return All;
+        }
+
+        return Observers;
+    }
+}
+
 public sealed class AuraCardUseFxManifest
 {
     [JsonProperty("schemaVersion")]
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } = AuraCardUseFxRegistryRuntime.CurrentSchemaVersion;
 
     [JsonProperty("ownerModId")]
     public string OwnerModId { get; set; } = "";
@@ -315,6 +337,9 @@ public sealed class AuraCardUseFxRegistryEntry
     [JsonProperty("visualEffectId")]
     public string VisualEffectId { get; set; } = "";
 
+    [JsonProperty("presentationScope")]
+    public string PresentationScope { get; set; } = AuraCardUseFxPresentationScopes.Observers;
+
     [JsonProperty("stackMode")]
     public string StackMode { get; set; } = AuraCardUseFxStackModes.Stack;
 
@@ -336,6 +361,7 @@ public sealed class AuraCardUseFxRegistryEntry
         EffectId = (EffectId ?? "").Trim();
         DisplayName = (DisplayName ?? "").Trim();
         VisualEffectId = (VisualEffectId ?? "").Trim();
+        PresentationScope = AuraCardUseFxPresentationScopes.Normalize(PresentationScope);
         ExclusiveGroup = (ExclusiveGroup ?? "").Trim();
         StackMode = string.Equals(StackMode, AuraCardUseFxStackModes.Exclusive, StringComparison.OrdinalIgnoreCase)
             ? AuraCardUseFxStackModes.Exclusive

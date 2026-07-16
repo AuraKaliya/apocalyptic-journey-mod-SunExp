@@ -164,12 +164,12 @@ if ($cgRuntimeText.Contains($removedCoverMode) -or $cgRegistryText.Contains($rem
 
 $cardUseFxRegistryText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraCardUseFxShared\AuraCardUseFxRegistry.cs")
 $cardUseFxRuntimeText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraCardUseFxShared\AuraCardUseFxRuntime.cs")
-foreach ($required in @("AuraCardUseFxRegistryRuntime", "AuraCardUseFxRegistryEntry", "QualifiedEffectId", "WriteShared", "Resolve")) {
+foreach ($required in @("AuraCardUseFxRegistryRuntime", "AuraCardUseFxRegistryEntry", "QualifiedEffectId", "WriteShared", "Resolve", "AuraCardUseFxPresentationScopes", "PresentationScope", "CurrentSchemaVersion = 2")) {
     if (-not $cardUseFxRegistryText.Contains($required)) {
         throw "AuraCardUseFxShared registry contract is missing: $required"
     }
 }
-foreach ($required in @("FightUI.DoCardUseAnimation", "ICard.SetCardStyle", "DedupeSeconds", "ClearTransient", "Triggered")) {
+foreach ($required in @("AuraCardLifecycleRouter", "AuraCombatActionRouter", "LocalCommitted", "FightUI.DoCardUseAnimation", "ICard.SetCardStyle", "DedupeSeconds", "ClearTransient", "Triggered")) {
     if (-not $cardUseFxRuntimeText.Contains($required)) {
         throw "AuraCardUseFxShared trigger contract is missing: $required"
     }

@@ -7,6 +7,7 @@ using AuraSkin.Shared;
 using StarterDeckArbiter.Shared;
 using Witch.Mod;
 using SunExp.Dll.Features.SkillCg;
+using SunExp.Dll.Features.Director;
 using SunExp.Dll.Features;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks;
@@ -29,6 +30,7 @@ public static class Entry
         RunStep("shared resource package", () => RegisterSharedResourcePackage(modConfig));
         RunStep("shared registry", () => AuraSharedRegistry.RegisterManifest(modConfig, "SunExp"));
         RunStep("visual registry", () => VisualRegistry.Load(modConfig));
+        RunStep("director runtime", () => SunExpDirectorRuntime.Initialize(modConfig));
         RunStep("endless abyss config", () => EndlessAbyssConfigStore.Load(modConfig));
         RunStep("dimension shop config", () => DimensionShopConfigStore.Load(modConfig));
         RunStep("endless abyss evolution traits", () => EndlessAbyssEvolutionTraitRegistry.Load(modConfig));
@@ -65,6 +67,7 @@ public static class Entry
     private static void RegisterSharedFeatureDefaults()
     {
         AuraFeatureSwitchRuntime.RegisterFeature(SunExpIds.ModId, "Battle.StartTraitBuffs", defaultEnabled: true, "SunExp default");
+        AuraFeatureSwitchRuntime.RegisterFeature(SunExpIds.ModId, "Battle.OpeningDirector", defaultEnabled: true, "SunExp default");
         AuraFeatureSwitchRuntime.RegisterFeature(SunExpIds.ModId, "SolarMemory", defaultEnabled: true, "SunExp default");
     }
 

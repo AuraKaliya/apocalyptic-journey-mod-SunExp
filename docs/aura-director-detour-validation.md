@@ -1,22 +1,21 @@
-# Aura Director Detour Technical Validation
+# Aura Director Detour Validation
 
 ## Decision
 
-The Harmony Detour route is technically viable for the current game build.
-This is a conditional Go for implementing the director runtime behind an
-optional provider. It is not approval to ship or auto-enable the dependency in
-every MOD.
+The Harmony route is approved for the SunExp local director on the verified
+game build. It remains an optional provider outside `Aura.Shared.dll`; no other
+MOD receives or auto-enables the dependency.
 
 ## Scope
 
-The probe patches only the public, argument-free
+The provider patches only the public, argument-free
 `FightManager.ReadyToStart()` method. It does not read or mutate `readyCount`,
-`fightType`, `ActionQueue`, `DOAllAction`, or any other private progression
-surface.
+`fightType`, `ActionQueue`, `DOAllAction`, or any private progression surface.
 
-The backend lives in `AuraDirectorDetour-Dev` and depends on Lib.Harmony 2.4.2.
-`Aura.Shared.dll` contains only the backend-independent hold/sink contracts and
-does not reference Harmony or the optional backend assembly.
+The backend lives in `AuraDirectorDetour-Dev` and pins Lib.Harmony 2.4.2.
+`Aura.Shared.dll` contains the backend-independent provider, hold, sink, request
+source, session, compiler, and presentation contracts without referencing
+Harmony or the optional backend assembly.
 
 ## Verified Build
 
@@ -32,29 +31,19 @@ Installation failure leaves the original method enabled.
 
 ## Verified Behavior
 
-The automated probe verifies:
+The automated gate verifies suppression and one-shot re-entry, duplicate hold
+and release handling, sink failure-open behavior, teardown release, patch owner
+installation and removal, target fingerprinting, runtime timeout and cleanup
+contracts, local cast construction, silhouette fallback, and SunExp-only binary
+packaging.
 
-1. a Harmony Prefix suppresses the first original call;
-2. duplicate calls while held share one hold;
-3. releasing re-enters the public method through a one-shot bypass;
-4. the original executes exactly once;
-5. duplicate release is idempotent;
-6. a rejected or throwing sink fails open;
-7. shutdown releases all outstanding holds before unpatching;
-8. unpatching restores the original method;
-9. Harmony installs on and uninstalls from the current real game method;
-10. the backend never enters the production `Aura.Shared.dll` dependency graph.
+## Packaging
 
-## Remaining Runtime Work
-
-The probe does not yet play CG, block input, build a battle cast, distribute a
-plan, synchronize network time, or package `0Harmony.dll`. Those belong to the
-next runtime integration phase.
-
-Before production packaging, the provider must add battle-session ownership,
-timeout release, scene/disconnect cleanup, multiplayer plan agreement,
-conflicting-patch diagnostics, and an explicit enable/disable policy. Only one
-provider may own the global patch.
+`SunExp-Dev/SunExp.Dll.csproj` builds the provider project and copies
+`Aura.Director.DetourBackend.dll` plus `0Harmony.dll` to `SunExp/Scripts`.
+The release test rejects those binaries from every other shipped MOD script
+root. Multiplayer plan distribution is intentionally deferred; each client
+owns only its local opening and local hold.
 
 ## Dependency References
 
