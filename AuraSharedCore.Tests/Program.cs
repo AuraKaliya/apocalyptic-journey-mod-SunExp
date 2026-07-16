@@ -245,11 +245,36 @@ void TestDirectorContracts()
     var second = AuraDirectorPlanCompiler.Compile(DirectorRequest(2));
     Assert(first.Success && first.Descriptor != null && first.Cues.Count == 8, "director compiles four cues per actor");
     Assert(first.Descriptor!.Actors.Select(actor => actor.ActorKey).SequenceEqual(new[] { "player-a", "e0" }),
-        "director preserves caller actor order");
+        "director side strategy groups friendly actors before hostile actors");
     var portraits = first.Cues.Where(cue => cue.CueKind == AuraDirectorCueKind.PortraitSlide).ToArray();
+    Assert(Math.Abs(portraits[0].StartSeconds - AuraDirectorPlanCompiler.OpeningDelaySeconds) < 0.001d
+           && Math.Abs(first.Descriptor.DurationSeconds - 2.8d) < 0.001d,
+        "director side strategy delays the opening by 0.3 seconds and includes it in plan duration");
     Assert(portraits[0].Direction == AuraDirectorDirection.RightToLeft
-           && portraits[1].Direction == AuraDirectorDirection.LeftToRight,
-        "director alternates portrait direction from right to left first");
+           && Math.Abs(portraits[0].StartXRatio - 1.15d) < 0.001d
+           && Math.Abs(portraits[0].FocusXRatio - 1d / 3d) < 0.001d
+           && Math.Abs(portraits[0].EndXRatio + 0.15d) < 0.001d,
+        "director sends friendly portraits from screen right through the left third");
+    Assert(portraits[1].Direction == AuraDirectorDirection.LeftToRight
+           && Math.Abs(portraits[1].StartXRatio + 0.15d) < 0.001d
+           && Math.Abs(portraits[1].FocusXRatio - 2d / 3d) < 0.001d
+           && Math.Abs(portraits[1].EndXRatio - 1.15d) < 0.001d,
+        "director mirrors hostile portraits through the right third");
+    var enemyCast = AuraDirectorPlanCompiler.Compile(DirectorRequest(4));
+    Assert(enemyCast.Success
+           && enemyCast.Cues
+               .Where(cue => cue.CueKind == AuraDirectorCueKind.PortraitSlide)
+               .Skip(1)
+               .All(cue => cue.Direction == AuraDirectorDirection.LeftToRight
+                           && Math.Abs(cue.FocusXRatio - 2d / 3d) < 0.001d),
+        "director gives every hostile actor the same mirrored route");
+    var mixedCast = DirectorRequest(4);
+    mixedCast.Actors[2].Side = AuraDirectorActorSide.Friendly;
+    var groupedMixedCast = AuraDirectorPlanCompiler.Compile(mixedCast);
+    Assert(groupedMixedCast.Success
+           && groupedMixedCast.Descriptor!.Actors.Select(actor => actor.ActorKey)
+               .SequenceEqual(new[] { "player-a", "e1", "e0", "e2" }),
+        "director preserves source order within stable friendly and hostile groups");
     Assert(first.Descriptor.PlanHash == second.Descriptor!.PlanHash,
         "director plan hash is deterministic");
     Assert(first.Envelope != null
@@ -287,11 +312,41 @@ void TestDirectorContracts()
     Assert(AuraDirectorPlanCompiler.Compile(oversizedExtensions).RejectionCode == "extensions-invalid",
         "director rejects oversized extension maps");
 
-    var changedOrder = DirectorRequest(2);
-    changedOrder.Actors.Reverse();
-    var changed = AuraDirectorPlanCompiler.Compile(changedOrder);
-    Assert(changed.Success && changed.Descriptor!.PlanHash != first.Descriptor.PlanHash,
-        "director plan hash covers actor order");
+    var reversedSides = DirectorRequest(2);
+    reversedSides.Actors.Reverse();
+    var regrouped = AuraDirectorPlanCompiler.Compile(reversedSides);
+    Assert(regrouped.Success
+           && regrouped.Descriptor!.Actors.Select(actor => actor.ActorKey).SequenceEqual(new[] { "player-a", "e0" })
+           && regrouped.Descriptor.PlanHash == first.Descriptor.PlanHash,
+        "director side grouping canonicalizes cross-side caller order");
+
+    var originalEnemyOrder = AuraDirectorPlanCompiler.Compile(DirectorRequest(3));
+    var changedEnemyOrder = DirectorRequest(3);
+    (changedEnemyOrder.Actors[1], changedEnemyOrder.Actors[2]) =
+        (changedEnemyOrder.Actors[2], changedEnemyOrder.Actors[1]);
+    var changed = AuraDirectorPlanCompiler.Compile(changedEnemyOrder);
+    Assert(changed.Success && changed.Descriptor!.PlanHash != originalEnemyOrder.Descriptor!.PlanHash,
+        "director preserves and hashes caller order within one side");
+
+    var alternating = DirectorRequest(2);
+    alternating.Actors.Reverse();
+    alternating.Strategy = new AuraDirectorStrategyRef
+    {
+        StrategyId = AuraDirectorPlanCompiler.AlternatingPortraitStrategyId,
+        StrategyVersion = AuraDirectorPlanCompiler.AlternatingPortraitStrategyVersion,
+        ProfileId = AuraDirectorPlanCompiler.DefaultOpeningProfileId
+    };
+    var alternatingPlan = AuraDirectorPlanCompiler.Compile(alternating);
+    var alternatingPortraits = alternatingPlan.Cues
+        .Where(cue => cue.CueKind == AuraDirectorCueKind.PortraitSlide)
+        .ToArray();
+    Assert(alternatingPlan.Success
+           && alternatingPlan.Descriptor!.Actors.Select(actor => actor.ActorKey).SequenceEqual(new[] { "e0", "player-a" })
+           && alternatingPortraits[0].StartSeconds == 0d
+           && alternatingPortraits[0].Direction == AuraDirectorDirection.RightToLeft
+           && alternatingPortraits[1].Direction == AuraDirectorDirection.LeftToRight
+           && alternatingPortraits.All(cue => Math.Abs(cue.FocusXRatio - 0.5d) < 0.001d),
+        "director retains the explicit alternating portrait v1 strategy");
 
     var compact = AuraDirectorPlanCompiler.Compile(DirectorRequest(9));
     var compactPortrait = compact.Cues.First(cue => cue.CueKind == AuraDirectorCueKind.PortraitSlide);

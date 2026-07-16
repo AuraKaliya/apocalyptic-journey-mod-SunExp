@@ -37,8 +37,11 @@ installation and removal, target fingerprinting, runtime timeout and cleanup
 contracts, local cast construction, silhouette fallback, and SunExp-only binary
 packaging. The source contract also rejects legacy `UnityEngine.Input` polling
 and requires the Input System skip path, cue-driven letterbox playback, and the
-10-pixel mesh-bound portrait layout. Pure layout assertions cover asymmetric
-sprite bounds and height-priority wide portraits.
+10-pixel mesh-bound portrait layout. The gates also require the side-portrait
+v2 strategy, its 0.3-second pre-roll, transparent input shield, and playback-
+relative skip debounce. Pure assertions cover friendly-first stable grouping,
+mirrored one-third routes, legacy alternating-v1 compatibility, asymmetric
+sprite bounds, and height-priority wide portraits.
 
 ## Packaging
 

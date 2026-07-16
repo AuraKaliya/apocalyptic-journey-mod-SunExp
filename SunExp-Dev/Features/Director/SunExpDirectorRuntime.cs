@@ -83,7 +83,12 @@ public static class SunExpDirectorRuntime
                 RequestId = "battle-opening:" + battleSessionId,
                 BattleSessionId = battleSessionId,
                 Actors = actors,
-                Strategy = new AuraDirectorStrategyRef(),
+                Strategy = new AuraDirectorStrategyRef
+                {
+                    StrategyId = AuraDirectorPlanCompiler.SidePortraitStrategyId,
+                    StrategyVersion = AuraDirectorPlanCompiler.SidePortraitStrategyVersion,
+                    ProfileId = AuraDirectorPlanCompiler.SidePortraitOpeningProfileId
+                },
                 BlockingMode = AuraDirectorBlockingMode.InputAndProgression,
                 FailurePolicy = AuraDirectorFailurePolicy.ContinueWithSilentCue,
                 HardTimeoutSeconds = Math.Min(30d, Math.Max(12d, 3d + actors.Count * 0.85d))

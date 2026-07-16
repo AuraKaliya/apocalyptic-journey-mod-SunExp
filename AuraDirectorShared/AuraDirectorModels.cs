@@ -118,11 +118,11 @@ public sealed class AuraDirectorActorRef
 [Serializable]
 public sealed class AuraDirectorStrategyRef
 {
-    public string StrategyId { get; set; } = AuraDirectorPlanCompiler.AlternatingPortraitStrategyId;
+    public string StrategyId { get; set; } = AuraDirectorPlanCompiler.SidePortraitStrategyId;
 
-    public int StrategyVersion { get; set; } = AuraDirectorPlanCompiler.AlternatingPortraitStrategyVersion;
+    public int StrategyVersion { get; set; } = AuraDirectorPlanCompiler.SidePortraitStrategyVersion;
 
-    public string ProfileId { get; set; } = AuraDirectorPlanCompiler.DefaultOpeningProfileId;
+    public string ProfileId { get; set; } = AuraDirectorPlanCompiler.SidePortraitOpeningProfileId;
 
     public AuraDirectorStrategyRef Normalized()
     {

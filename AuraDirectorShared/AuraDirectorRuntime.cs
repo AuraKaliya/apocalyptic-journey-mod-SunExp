@@ -331,12 +331,11 @@ public static class AuraDirectorRuntime
 
         private IEnumerator PlaySession(ActiveSession session)
         {
-            if (!IsCurrent(session) || !session.State.TryAdvance(AuraDirectorSessionState.Playing))
+            if (!IsCurrent(session))
             {
                 yield break;
             }
 
-            overlay.Show();
             var portraitCues = session.Cues
                 .Where(cue => cue.CueKind == AuraDirectorCueKind.PortraitSlide)
                 .OrderBy(cue => cue.StartSeconds)
@@ -352,6 +351,21 @@ public static class AuraDirectorRuntime
                 .OrderBy(cue => cue.StartSeconds)
                 .ThenBy(cue => cue.CueId, StringComparer.Ordinal)
                 .ToArray();
+
+            var openingDelaySeconds = Math.Max(0d, portraitCues.FirstOrDefault()?.StartSeconds ?? 0d);
+            if (openingDelaySeconds > 0d)
+            {
+                overlay.PrepareInputBlock();
+                yield return overlay.Wait(openingDelaySeconds, () => IsCurrent(session));
+            }
+
+            if (!IsCurrent(session) || !session.State.TryAdvance(AuraDirectorSessionState.Playing))
+            {
+                yield break;
+            }
+
+            session.MarkPlaybackStarted();
+            overlay.Show();
 
             foreach (var cue in portraitCues)
             {
@@ -418,7 +432,8 @@ public static class AuraDirectorRuntime
                 return;
             }
 
-            if (Time.unscaledTime - session.StartedAt >= SkipDebounceSeconds
+            if (session.State.State == AuraDirectorSessionState.Playing
+                && Time.unscaledTime - session.PlaybackStartedAt >= SkipDebounceSeconds
                 && WasSkipPressedThisFrame())
             {
                 Finish(session, "user-skip");
@@ -639,9 +654,16 @@ public static class AuraDirectorRuntime
 
             public float Deadline { get; }
 
+            public float PlaybackStartedAt { get; private set; } = float.PositiveInfinity;
+
             public AuraDirectorSessionStateMachine State { get; } = new();
 
             public Coroutine? Coroutine { get; set; }
+
+            public void MarkPlaybackStarted()
+            {
+                PlaybackStartedAt = Time.unscaledTime;
+            }
         }
     }
 
@@ -776,6 +798,29 @@ public static class AuraDirectorRuntime
             group.blocksRaycasts = true;
             group.interactable = true;
             SetLetterboxRatio(0d);
+        }
+
+        public void PrepareInputBlock()
+        {
+            if (!EnsureCreated() || root == null || group == null)
+            {
+                return;
+            }
+
+            if (portrait != null)
+            {
+                portrait.enabled = false;
+                portrait.ClearSprite();
+            }
+            activePortrait = null;
+            activeFocusBarRatio = 0d;
+            layoutScreenWidth = 0;
+            layoutScreenHeight = 0;
+            SetLetterboxRatio(0d);
+            root.SetActive(true);
+            group.alpha = 0f;
+            group.blocksRaycasts = true;
+            group.interactable = true;
         }
 
         public void Hide()

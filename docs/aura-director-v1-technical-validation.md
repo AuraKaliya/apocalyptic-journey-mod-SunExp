@@ -19,24 +19,33 @@ still provides the eventual battle-start barrier between peers.
 ## Runtime Flow
 
 1. The provider intercepts the local `FightManager.ReadyToStart()` call.
-2. `SunExpBattleOpeningRequestSource` builds the ordered cast from the local
-   player followed by `EnemyManager.enemyList`.
-3. `AuraDirectorPlanCompiler` validates the request and creates deterministic
-   alternating portrait, letterbox, and wait cues.
-4. A screen-space overlay blocks local input and progression while cues play.
-5. Actor portraits use their current battle-body sprite mesh. The presenter
+2. `SunExpBattleOpeningRequestSource` builds the local player and current
+   `EnemyManager.enemyList` cast and explicitly selects the side-portrait v2
+   strategy.
+3. `AuraDirectorPlanCompiler` validates the request, stably groups friendly
+   actors before hostile actors, preserves order inside each side, and creates
+   deterministic portrait, letterbox, and wait cues. Neutral actors follow the
+   two battle sides.
+4. The side-portrait v2 plan starts its first cue after a 0.3-second unscaled
+   delay. A transparent screen-space input shield is active during the delay;
+   the visible overlay appears only when playback starts.
+5. Friendly portraits enter from screen right, focus at the left third, and
+   exit through screen left. Hostile portraits use the mirrored route through
+   the right third.
+6. Actor portraits use their current battle-body sprite mesh. The presenter
    preserves native renderer flips, recenters asymmetric mesh bounds, and fits
    the visible mesh height between the expanded letterbox edges with 10 pixels
    of clearance above and below. Height takes priority for wide actors; their
    offscreen slide positions account for the focused portrait width.
-6. Letterbox expansion and relaxation run concurrently with portrait entry and
+7. Letterbox expansion and relaxation run concurrently with portrait entry and
    exit, and the compiled wait cue supplies the inter-actor gap.
-7. Escape, Space, Enter, Numpad Enter, or the left mouse button skip through
-   Unity's Input System. A polling failure disables skip input once without
-   interrupting playback or native release.
-8. A generated generic silhouette is used when the body or sprite cannot be
+8. Escape, Space, Enter, Numpad Enter, or the left mouse button skip through
+   Unity's Input System. Skip debounce begins when visible playback starts. A
+   polling failure disables skip input once without interrupting playback or
+   native release.
+9. A generated generic silhouette is used when the body or sprite cannot be
    resolved.
-9. Completion, user skip, timeout, destroyed battle target, or runtime teardown
+10. Completion, user skip, timeout, destroyed battle target, or runtime teardown
    releases the native hold exactly once.
 
 The overlay advances with `Time.unscaledTime`; it never changes
@@ -54,6 +63,10 @@ newer than itself, preserves bounded unknown extensions, and rejects oversized
 or malformed extension maps. Enum and cue behavior remain owned by the
 compiler; extensions cannot silently acquire execution authority.
 
+The default strategy is `side-portrait-v2` with profile `opening-side-v2`.
+Explicit `alternating-portrait-v1` requests remain supported with their original
+caller order, centered focus, alternating directions, and no opening delay.
+
 ## Fail-Open Boundary
 
 An unverified `Witch.dll`, provider conflict, patch failure, missing cast,
@@ -66,6 +79,8 @@ read or mutate private `readyCount`, `fightType`, or `ActionQueue` state.
 Enabled:
 
 - local player plus current enemy cast;
+- 0.3-second unscaled pre-roll with transparent input blocking;
+- friendly-first stable side grouping and mirrored one-third focus routes;
 - native battle sprites with generic silhouette fallback;
 - cue-driven letterbox expansion, relaxation, and inter-actor waits;
 - mesh-bound portrait focus with 10-pixel vertical clearance;

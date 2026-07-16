@@ -197,7 +197,7 @@ foreach ($required in @("AuraDirectorRequest", "AuraDirectorActorRef", "AuraDire
         throw "AuraDirectorShared contract is missing: $required"
     }
 }
-foreach ($required in @("alternating-portrait-v1", "MaximumActorCount = 32", "ComputeHash", "actor-key-duplicate")) {
+foreach ($required in @("alternating-portrait-v1", "side-portrait-v2", "OpeningDelaySeconds = 0.3d", "MaximumActorCount = 32", "ComputeHash", "actor-key-duplicate")) {
     if (-not $directorCompilerText.Contains($required)) {
         throw "AuraDirectorShared deterministic plan compiler is missing: $required"
     }

@@ -18,11 +18,17 @@ public static class AuraDirectorPlanCompiler
     public const string AlternatingPortraitStrategyId = "alternating-portrait-v1";
     public const int AlternatingPortraitStrategyVersion = 1;
     public const string DefaultOpeningProfileId = "opening-default-v1";
+    public const string SidePortraitStrategyId = "side-portrait-v2";
+    public const int SidePortraitStrategyVersion = 2;
+    public const string SidePortraitOpeningProfileId = "opening-side-v2";
+    public const double OpeningDelaySeconds = 0.3d;
 
     private const double FocusBarRatio = 0.13d;
     private const double StartOutsideRatio = 1.15d;
     private const double EndOutsideRatio = -0.15d;
-    private const double FocusXRatio = 0.5d;
+    private const double CenterFocusXRatio = 0.5d;
+    private const double FriendlyFocusXRatio = 1d / 3d;
+    private const double HostileFocusXRatio = 2d / 3d;
 
     public static AuraDirectorCompileResult Compile(AuraDirectorRequest? request)
     {
@@ -84,9 +90,9 @@ public static class AuraDirectorPlanCompiler
         }
 
         var strategy = (request.Strategy ?? new AuraDirectorStrategyRef()).Normalized();
-        if (!string.Equals(strategy.StrategyId, AlternatingPortraitStrategyId, StringComparison.Ordinal)
-            || strategy.StrategyVersion != AlternatingPortraitStrategyVersion
-            || !string.Equals(strategy.ProfileId, DefaultOpeningProfileId, StringComparison.Ordinal))
+        var usesAlternatingStrategy = IsAlternatingStrategy(strategy);
+        var usesSideStrategy = IsSideStrategy(strategy);
+        if (!usesAlternatingStrategy && !usesSideStrategy)
         {
             return AuraDirectorCompileResult.Rejected("strategy-unsupported");
         }
@@ -117,20 +123,33 @@ public static class AuraDirectorPlanCompiler
             actors.Add(actor);
         }
 
+        if (usesSideStrategy)
+        {
+            actors = actors
+                .Select((actor, index) => new { Actor = actor, Index = index })
+                .OrderBy(item => SidePlaybackOrder(item.Actor.Side))
+                .ThenBy(item => item.Index)
+                .Select(item => item.Actor)
+                .ToList();
+        }
+
         var compact = actors.Count > 8;
         var enter = compact ? 0.25d : 0.35d;
         var hold = compact ? 0.15d : 0.45d;
         var exit = compact ? 0.25d : 0.35d;
         var gap = compact ? 0.05d : 0.10d;
-        var cursor = 0d;
+        var cursor = usesSideStrategy ? OpeningDelaySeconds : 0d;
         var cues = new List<AuraDirectorCue>(actors.Count * 4);
 
         for (var i = 0; i < actors.Count; i++)
         {
             var actor = actors[i];
-            var direction = i % 2 == 0 ? AuraDirectorDirection.RightToLeft : AuraDirectorDirection.LeftToRight;
+            var direction = usesSideStrategy
+                ? DirectionForSide(actor.Side, i)
+                : AlternatingDirection(i);
             var startX = direction == AuraDirectorDirection.RightToLeft ? StartOutsideRatio : EndOutsideRatio;
             var endX = direction == AuraDirectorDirection.RightToLeft ? EndOutsideRatio : StartOutsideRatio;
+            var focusX = usesSideStrategy ? FocusForSide(actor.Side) : CenterFocusXRatio;
             var prefix = "actor-" + i.ToString(CultureInfo.InvariantCulture);
 
             cues.Add(new AuraDirectorCue
@@ -159,7 +178,7 @@ public static class AuraDirectorPlanCompiler
                 HoldSeconds = hold,
                 ExitSeconds = exit,
                 StartXRatio = startX,
-                FocusXRatio = FocusXRatio,
+                FocusXRatio = focusX,
                 EndXRatio = endX
             });
             cues.Add(new AuraDirectorCue
@@ -209,6 +228,57 @@ public static class AuraDirectorPlanCompiler
         };
         descriptor.PlanHash = ComputeHash(descriptor, cues);
         return AuraDirectorCompileResult.Accepted(descriptor, cues);
+    }
+
+    private static bool IsAlternatingStrategy(AuraDirectorStrategyRef strategy)
+    {
+        return string.Equals(strategy.StrategyId, AlternatingPortraitStrategyId, StringComparison.Ordinal)
+               && strategy.StrategyVersion == AlternatingPortraitStrategyVersion
+               && string.Equals(strategy.ProfileId, DefaultOpeningProfileId, StringComparison.Ordinal);
+    }
+
+    private static bool IsSideStrategy(AuraDirectorStrategyRef strategy)
+    {
+        return string.Equals(strategy.StrategyId, SidePortraitStrategyId, StringComparison.Ordinal)
+               && strategy.StrategyVersion == SidePortraitStrategyVersion
+               && string.Equals(strategy.ProfileId, SidePortraitOpeningProfileId, StringComparison.Ordinal);
+    }
+
+    private static int SidePlaybackOrder(AuraDirectorActorSide side)
+    {
+        return side switch
+        {
+            AuraDirectorActorSide.Friendly => 0,
+            AuraDirectorActorSide.Hostile => 1,
+            _ => 2
+        };
+    }
+
+    private static AuraDirectorDirection DirectionForSide(AuraDirectorActorSide side, int index)
+    {
+        return side switch
+        {
+            AuraDirectorActorSide.Friendly => AuraDirectorDirection.RightToLeft,
+            AuraDirectorActorSide.Hostile => AuraDirectorDirection.LeftToRight,
+            _ => AlternatingDirection(index)
+        };
+    }
+
+    private static double FocusForSide(AuraDirectorActorSide side)
+    {
+        return side switch
+        {
+            AuraDirectorActorSide.Friendly => FriendlyFocusXRatio,
+            AuraDirectorActorSide.Hostile => HostileFocusXRatio,
+            _ => CenterFocusXRatio
+        };
+    }
+
+    private static AuraDirectorDirection AlternatingDirection(int index)
+    {
+        return index % 2 == 0
+            ? AuraDirectorDirection.RightToLeft
+            : AuraDirectorDirection.LeftToRight;
     }
 
     private static string ComputeHash(AuraDirectorPlanDescriptor descriptor, IReadOnlyList<AuraDirectorCue> cues)

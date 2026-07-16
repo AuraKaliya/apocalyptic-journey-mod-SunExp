@@ -66,7 +66,9 @@ foreach ($required in @(
     "AuraDirectorPortraitLayout.Calculate",
     "AuraDirectorPortraitGraphic",
     "FocusBarRatio",
-    "AuraDirectorCueKind.Wait"
+    "AuraDirectorCueKind.Wait",
+    "PrepareInputBlock",
+    "PlaybackStartedAt"
 )) {
     if (-not $runtimeSource.Contains($required)) {
         throw "AuraDirector local runtime contract is missing: $required"
@@ -87,7 +89,9 @@ foreach ($required in @(
     "schema-version-unsupported",
     "reader-version-unsupported",
     "NormalizeExtensions",
-    "AppendExtensions"
+    "AppendExtensions",
+    "SidePortraitStrategyId",
+    "OpeningDelaySeconds"
 )) {
     if (-not $compilerSource.Contains($required)) {
         throw "AuraDirector compiler compatibility contract is missing: $required"
@@ -107,7 +111,8 @@ foreach ($required in @(
     "EnemyManager.Instance?.enemyList",
     "Battle.OpeningDirector",
     "InputAndProgression",
-    "NativeBattleSpriteProviderId"
+    "NativeBattleSpriteProviderId",
+    "SidePortraitStrategyId"
 )) {
     if (-not $sunExpSource.Contains($required)) {
         throw "SunExp director request-source contract is missing: $required"
