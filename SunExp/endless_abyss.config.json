@@ -1,12 +1,37 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "gaze": {
     "initialLevel": 1,
     "choiceStep": 3,
     "maxRequiredChoices": 3,
     "endlessMinLevel": 5,
-    "endlessPassiveIncreasePerShock": 1,
-    "hpGrowthPerGaze": 0.08
+    "endlessPassiveIncreasePerShock": 1
+  },
+  "enemyScaling": {
+    "hpLinearPerFloor": 0.14,
+    "hpQuadraticPerFloor": 0.007,
+    "attackLinearPerFloor": 0.025,
+    "attackQuadraticPerFloor": 0.0007,
+    "endlessStartFloor": 7,
+    "endlessHpMultiplier": 1.3,
+    "endlessAttackMultiplier": 1.12,
+    "cycleFloorCount": 6,
+    "cycleHpGrowth": 0.05,
+    "cycleAttackGrowth": 0.02,
+    "hpSoftCap": 80.0,
+    "hpSoftCapOverflowRatio": 0.25,
+    "attackSoftCap": 8.0,
+    "attackSoftCapOverflowRatio": 0.25,
+    "gazeHpGrowth": 0.025,
+    "gazeHpGrowthCap": 0.5,
+    "gazeAttackGrowth": 0.0075,
+    "gazeAttackGrowthCap": 0.15,
+    "eliteHpMultiplier": 1.12,
+    "eliteAttackMultiplier": 1.05,
+    "bossHpMultiplier": 1.2,
+    "bossAttackMultiplier": 1.08,
+    "endlessBossHpMultiplier": 1.3,
+    "endlessBossAttackMultiplier": 1.12
   },
   "shock": {
     "stealthMinFloor": 1,

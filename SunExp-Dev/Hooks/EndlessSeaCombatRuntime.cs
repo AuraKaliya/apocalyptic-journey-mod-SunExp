@@ -20,7 +20,7 @@ public static class EndlessSeaCombatRuntime
         });
         SunExpStatusLifecycleRouter.Register("EndlessSeaCombat", new SunExpStatusLifecycleSubscription
         {
-            AfterEnemyInit = ScaleEnemyHpAfterInit
+            AfterEnemyInit = ScaleEnemyAfterInit
         });
         RegisterAfter(modConfig, "FightManager.Init", AddEndlessExtraEnemiesAfterFightInit);
         RegisterAfter(modConfig, SunExpHookTargets.FightWinInit, ApplyOriginBattleEndEffects);
@@ -31,7 +31,7 @@ public static class EndlessSeaCombatRuntime
         SunExpHookRegistry.After(config, target, action, "EndlessSeaCombat");
     }
 
-    private static void ScaleEnemyHpAfterInit(ModHookContext context)
+    private static void ScaleEnemyAfterInit(ModHookContext context)
     {
         try
         {
@@ -44,14 +44,22 @@ public static class EndlessSeaCombatRuntime
             }
 
             var floor = EndlessSeaModeRuntime.CurrentFloor();
-            var multiplier = HpMultiplier(floor);
+            var nodeKind = EndlessSeaRewardPlan.CurrentNodeKind();
+            var scaling = EndlessAbyssEnemyScalingService.Calculate(
+                floor,
+                EndlessAbyssGazeService.CurrentLevel(),
+                nodeKind,
+                EndlessAbyssConfigStore.Current.EnemyScaling);
             var oldMaxHp = Math.Max(1, enemy.MaxHp);
             var oldCurHp = Math.Max(1, enemy.CurHp);
-            var nextMaxHp = ScaleHp(oldMaxHp, multiplier);
-            var nextCurHp = Math.Min(nextMaxHp, ScaleHp(oldCurHp, multiplier));
+            var oldAttack = Math.Max(0, enemy.Attack);
+            var nextMaxHp = ScaleValue(oldMaxHp, scaling.HpMultiplier, 1);
+            var nextCurHp = Math.Min(nextMaxHp, ScaleValue(oldCurHp, scaling.HpMultiplier, 1));
+            var nextAttack = ScaleValue(oldAttack, scaling.AttackMultiplier, 0);
 
             enemy.MaxHp = nextMaxHp;
             enemy.CurHp = nextCurHp;
+            enemy.Attack = nextAttack;
             status.MaxHp = nextMaxHp;
             status.CurHp = nextCurHp;
             MarkScaled(status, floor);
@@ -59,9 +67,13 @@ public static class EndlessSeaCombatRuntime
             ApplyEndlessAbyssEnemyModifiers(enemy, floor, "Enemy.Init");
 
             SunExpLog.Info("[EndlessSeaCombat] scaled enemy HP x"
-                + multiplier.ToString("0.###")
+                + scaling.HpMultiplier.ToString("0.###")
+                + ", ATK x"
+                + scaling.AttackMultiplier.ToString("0.###")
                 + "; floor="
                 + floor
+                + "; node="
+                + nodeKind
                 + "; id="
                 + DictionaryUtil.Get(enemy.data, "Id")
                 + "; instance="
@@ -70,11 +82,15 @@ public static class EndlessSeaCombatRuntime
                 + oldMaxHp
                 + "->"
                 + nextMaxHp
+                + "; attack="
+                + oldAttack
+                + "->"
+                + nextAttack
                 + ".");
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Endless Sea enemy HP scaling failed", ex);
+            SunExpLog.Error("Endless Sea enemy scaling failed", ex);
         }
     }
 
@@ -140,20 +156,10 @@ public static class EndlessSeaCombatRuntime
         }
     }
 
-    private static double HpMultiplier(int floor)
+    private static int ScaleValue(int value, double multiplier, int minimum)
     {
-        var normalized = Math.Max(1, floor);
-        var earlyGrowth = Math.Max(0, normalized - 1) * 0.12;
-        var lateGrowth = Math.Max(0, normalized - 10) * 0.03;
-        var gazeGrowth = Math.Max(0, EndlessAbyssGazeService.CurrentLevel() - 1)
-            * EndlessAbyssConfigStore.Current.Gaze.HpGrowthPerGaze;
-        return Math.Min(20.0, 1.0 + earlyGrowth + lateGrowth + gazeGrowth);
-    }
-
-    private static int ScaleHp(int value, double multiplier)
-    {
-        var scaled = Math.Round(Math.Max(1, value) * multiplier);
-        return (int)Math.Max(1, Math.Min(int.MaxValue, scaled));
+        var scaled = Math.Round(Math.Max(minimum, value) * multiplier);
+        return (int)Math.Max(minimum, Math.Min(int.MaxValue, scaled));
     }
 
     private static bool AlreadyScaled(StatusManager status)
@@ -186,7 +192,7 @@ public static class EndlessSeaCombatRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("Endless Sea enemy HP status transfer refresh failed: " + ex.Message);
+            SunExpLog.Warn("Endless Sea enemy status transfer refresh failed: " + ex.Message);
         }
     }
 }

@@ -9,9 +9,11 @@ namespace SunExp.Dll.Mechanics;
 
 public sealed class EndlessAbyssConfigDocument
 {
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } = 2;
 
     public EndlessAbyssGazeConfig Gaze { get; set; } = new();
+
+    public EndlessAbyssEnemyScalingConfig EnemyScaling { get; set; } = new();
 
     public EndlessAbyssShockConfig Shock { get; set; } = new();
 
@@ -36,8 +38,6 @@ public sealed class EndlessAbyssGazeConfig
     public int EndlessMinLevel { get; set; } = 5;
 
     public int EndlessPassiveIncreasePerShock { get; set; } = 1;
-
-    public double HpGrowthPerGaze { get; set; } = 0.08;
 }
 
 public sealed class EndlessAbyssShockConfig
@@ -169,6 +169,7 @@ public static class EndlessAbyssConfigStore
     {
         document ??= new EndlessAbyssConfigDocument();
         document.Gaze ??= new EndlessAbyssGazeConfig();
+        document.EnemyScaling ??= new EndlessAbyssEnemyScalingConfig();
         document.Shock ??= new EndlessAbyssShockConfig();
         document.Milestones ??= new EndlessAbyssMilestoneConfig();
         document.Rewards ??= new EndlessAbyssRewardConfig();
@@ -180,7 +181,7 @@ public static class EndlessAbyssConfigStore
         document.Gaze.MaxRequiredChoices = Math.Max(1, Math.Min(3, document.Gaze.MaxRequiredChoices));
         document.Gaze.EndlessMinLevel = Math.Max(document.Gaze.InitialLevel, document.Gaze.EndlessMinLevel);
         document.Gaze.EndlessPassiveIncreasePerShock = Math.Max(0, document.Gaze.EndlessPassiveIncreasePerShock);
-        document.Gaze.HpGrowthPerGaze = Math.Max(0.0, Math.Min(1.0, document.Gaze.HpGrowthPerGaze));
+        NormalizeEnemyScaling(document.EnemyScaling);
         document.Shock.StealthMinFloor = Math.Max(1, document.Shock.StealthMinFloor);
         document.Shock.AnnihilationCardCount = Math.Max(1, document.Shock.AnnihilationCardCount);
         document.Shock.CrackCardCount = Math.Max(1, document.Shock.CrackCardCount);
@@ -196,6 +197,39 @@ public static class EndlessAbyssConfigStore
         document.Rewards.OtherDimensionCardIds ??= Array.Empty<string>();
         document.RewardPools = NormalizeRewardPools(document.RewardPools);
         return document;
+    }
+
+    private static void NormalizeEnemyScaling(EndlessAbyssEnemyScalingConfig config)
+    {
+        config.HpLinearPerFloor = Clamp(config.HpLinearPerFloor, 0.0, 5.0);
+        config.HpQuadraticPerFloor = Clamp(config.HpQuadraticPerFloor, 0.0, 1.0);
+        config.AttackLinearPerFloor = Clamp(config.AttackLinearPerFloor, 0.0, 1.0);
+        config.AttackQuadraticPerFloor = Clamp(config.AttackQuadraticPerFloor, 0.0, 0.5);
+        config.EndlessStartFloor = Math.Max(1, config.EndlessStartFloor);
+        config.EndlessHpMultiplier = Clamp(config.EndlessHpMultiplier, 1.0, 10.0);
+        config.EndlessAttackMultiplier = Clamp(config.EndlessAttackMultiplier, 1.0, 10.0);
+        config.CycleFloorCount = Math.Max(1, config.CycleFloorCount);
+        config.CycleHpGrowth = Clamp(config.CycleHpGrowth, 0.0, 1.0);
+        config.CycleAttackGrowth = Clamp(config.CycleAttackGrowth, 0.0, 1.0);
+        config.HpSoftCap = Math.Max(1.0, config.HpSoftCap);
+        config.HpSoftCapOverflowRatio = Clamp(config.HpSoftCapOverflowRatio, 0.0, 1.0);
+        config.AttackSoftCap = Math.Max(1.0, config.AttackSoftCap);
+        config.AttackSoftCapOverflowRatio = Clamp(config.AttackSoftCapOverflowRatio, 0.0, 1.0);
+        config.GazeHpGrowth = Clamp(config.GazeHpGrowth, 0.0, 1.0);
+        config.GazeHpGrowthCap = Clamp(config.GazeHpGrowthCap, 0.0, 10.0);
+        config.GazeAttackGrowth = Clamp(config.GazeAttackGrowth, 0.0, 1.0);
+        config.GazeAttackGrowthCap = Clamp(config.GazeAttackGrowthCap, 0.0, 10.0);
+        config.EliteHpMultiplier = Clamp(config.EliteHpMultiplier, 1.0, 10.0);
+        config.EliteAttackMultiplier = Clamp(config.EliteAttackMultiplier, 1.0, 10.0);
+        config.BossHpMultiplier = Clamp(config.BossHpMultiplier, 1.0, 10.0);
+        config.BossAttackMultiplier = Clamp(config.BossAttackMultiplier, 1.0, 10.0);
+        config.EndlessBossHpMultiplier = Clamp(config.EndlessBossHpMultiplier, 1.0, 10.0);
+        config.EndlessBossAttackMultiplier = Clamp(config.EndlessBossAttackMultiplier, 1.0, 10.0);
+    }
+
+    private static double Clamp(double value, double min, double max)
+    {
+        return Math.Max(min, Math.Min(max, value));
     }
 
     private static EndlessAbyssRewardPoolConfig[] NormalizeRewardPools(EndlessAbyssRewardPoolConfig[] pools)

@@ -67,6 +67,8 @@ function New-ProjectXml {
     $modeChoiceDragRange = Join-Path $RepoRoot "SunExp-Dev\Mechanics\ModeChoiceDragRange.cs"
     $spiritProfileIdentityResolver = Join-Path $RepoRoot "SunExp-Dev\Mechanics\SpiritProfileIdentityResolver.cs"
     $dimensionShopRandom = Join-Path $RepoRoot "SunExp-Dev\Mechanics\DimensionShopRandom.cs"
+    $endlessSeaNodeKind = Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessSeaNodeKind.cs"
+    $endlessAbyssEnemyScaling = Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssEnemyScalingService.cs"
 
 @"
 <Project Sdk="Microsoft.NET.Sdk">
@@ -119,6 +121,8 @@ function New-ProjectXml {
     <Compile Include="$modeChoiceDragRange" />
     <Compile Include="$spiritProfileIdentityResolver" />
     <Compile Include="$dimensionShopRandom" />
+    <Compile Include="$endlessSeaNodeKind" />
+    <Compile Include="$endlessAbyssEnemyScaling" />
     <Compile Include="$SourceDir\Tests.cs" />
   </ItemGroup>
 </Project>
@@ -543,6 +547,7 @@ internal static class Program
         TestStarScoreWindow();
         TestStarScoreArrivalCueService();
         TestDimensionShopRandom();
+        TestEndlessAbyssEnemyScaling();
 
         Console.WriteLine("SunExp C# tests passed: " + assertions + " assertions.");
     }
@@ -561,6 +566,42 @@ internal static class Program
 
         True(DictionaryUtil.ContainsToken("Burnout, " + WhiteRadiance + " ,Froze", SunExpIds.WhiteRadianceTag), "ContainsToken trims comma-separated tokens");
         False(DictionaryUtil.ContainsToken(WhiteRadiance + "\u5316", SunExpIds.WhiteRadianceTag), "ContainsToken requires exact token matches");
+    }
+
+    private static void TestEndlessAbyssEnemyScaling()
+    {
+        var config = new EndlessAbyssEnemyScalingConfig();
+        var floorOne = EndlessAbyssEnemyScalingService.Calculate(1, 1, EndlessSeaNodeKind.Monster, config);
+        var floorSix = EndlessAbyssEnemyScalingService.Calculate(6, 1, EndlessSeaNodeKind.Monster, config);
+        var floorSeven = EndlessAbyssEnemyScalingService.Calculate(7, 1, EndlessSeaNodeKind.Monster, config);
+        var floorThirteen = EndlessAbyssEnemyScalingService.Calculate(13, 1, EndlessSeaNodeKind.Monster, config);
+
+        Approximately(1.0f, (float)floorOne.HpMultiplier, 0.0001f, "Endless Abyss HP scaling starts from the first floor baseline");
+        Approximately(1.0f, (float)floorOne.AttackMultiplier, 0.0001f, "Endless Abyss attack scaling starts from the first floor baseline");
+        Approximately(1.875f, (float)floorSix.HpMultiplier, 0.0001f, "Endless Abyss HP grows on every pre-endless floor");
+        Approximately(1.1425f, (float)floorSix.AttackMultiplier, 0.0001f, "Endless Abyss attack grows on every pre-endless floor");
+        Approximately(2.7196f, (float)floorSeven.HpMultiplier, 0.0001f, "Endless Abyss floor seven applies the configured HP phase jump");
+        Approximately(1.316224f, (float)floorSeven.AttackMultiplier, 0.0001f, "Endless Abyss floor seven applies the configured attack phase jump");
+        Approximately(5.03412f, (float)floorThirteen.HpMultiplier, 0.0001f, "Endless Abyss applies its first six-floor HP cycle after floor seven");
+        Approximately(1.6002739f, (float)floorThirteen.AttackMultiplier, 0.0001f, "Endless Abyss applies its first six-floor attack cycle after floor seven");
+
+        var floorEighty = EndlessAbyssEnemyScalingService.Calculate(80, 1, EndlessSeaNodeKind.Monster, config);
+        Approximately(88.98844f, (float)floorEighty.HpMultiplier, 0.0001f, "Endless Abyss HP overflow is compressed after its soft cap");
+        Approximately(8.549733f, (float)floorEighty.AttackMultiplier, 0.0001f, "Endless Abyss attack overflow is compressed after its soft cap");
+
+        var cappedGaze = EndlessAbyssEnemyScalingService.Calculate(1, 100, EndlessSeaNodeKind.Monster, config);
+        Approximately(1.5f, (float)cappedGaze.HpMultiplier, 0.0001f, "Endless Abyss gaze HP growth is capped independently");
+        Approximately(1.15f, (float)cappedGaze.AttackMultiplier, 0.0001f, "Endless Abyss gaze attack growth is capped independently");
+
+        var elite = EndlessAbyssEnemyScalingService.Calculate(1, 1, EndlessSeaNodeKind.Elite, config);
+        var boss = EndlessAbyssEnemyScalingService.Calculate(1, 1, EndlessSeaNodeKind.Boss, config);
+        var endlessBoss = EndlessAbyssEnemyScalingService.Calculate(1, 1, EndlessSeaNodeKind.EndlessBoss, config);
+        Approximately(1.12f, (float)elite.HpMultiplier, 0.0001f, "Endless Abyss elite nodes apply their HP factor");
+        Approximately(1.05f, (float)elite.AttackMultiplier, 0.0001f, "Endless Abyss elite nodes apply their attack factor");
+        Approximately(1.2f, (float)boss.HpMultiplier, 0.0001f, "Endless Abyss boss nodes apply their HP factor");
+        Approximately(1.08f, (float)boss.AttackMultiplier, 0.0001f, "Endless Abyss boss nodes apply their attack factor");
+        Approximately(1.3f, (float)endlessBoss.HpMultiplier, 0.0001f, "Endless Abyss endless boss nodes apply their HP factor");
+        Approximately(1.12f, (float)endlessBoss.AttackMultiplier, 0.0001f, "Endless Abyss endless boss nodes apply their attack factor");
     }
 
     private static void TestSolarMemoryIsolationIds()
@@ -1729,6 +1770,7 @@ function Invoke-SourceAssertions {
     $endlessSeaCardAffixService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessSeaCardAffixService.cs"))
     $endlessSeaCombatRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\EndlessSeaCombatRuntime.cs"))
     $endlessAbyssConfig = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssConfig.cs"))
+    $endlessAbyssEnemyScaling = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssEnemyScalingService.cs"))
     $endlessAbyssConfigJson = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\endless_abyss.config.json"))
     $endlessAbyssCurseService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssCurseService.cs"))
     $endlessAbyssGazePressureService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssGazePressureService.cs"))
@@ -3256,6 +3298,10 @@ function Invoke-SourceAssertions {
     Assert-True $endlessSeaCardAffixService.Contains("role.UnCardList") "Endless Sea card affix service must normalize reserve cards."
     Assert-True $endlessSeaCombatRuntime.Contains("EndlessAbyssEnemyInjectionService.TryInjectAfterFightInit") "Endless Sea combat runtime must delegate extra enemy injection to a SunExp-owned service."
     Assert-True (-not $endlessSeaCombatRuntime.Contains("CmdAddEnemy")) "Endless Sea combat runtime must not directly issue native enemy-add commands."
+    Assert-True $endlessSeaCombatRuntime.Contains("EndlessAbyssEnemyScalingService.Calculate") "Endless Sea combat runtime must delegate enemy growth to the configured scaling service."
+    Assert-True $endlessSeaCombatRuntime.Contains("enemy.Attack = nextAttack") "Endless Sea enemy growth must scale attack together with HP."
+    Assert-True $endlessAbyssEnemyScaling.Contains("normalizedFloor >= endlessStartFloor") "Endless Abyss enemy scaling must apply a distinct endless-phase jump."
+    Assert-True $endlessAbyssEnemyScaling.Contains("CycleFloorCount") "Endless Abyss enemy scaling must continue growing in configured floor cycles."
     Assert-True $endlessAbyssEnemyInjectionService.Contains("EnemyApi.IsClientOnlyDynamicEnemyObserver()") "Endless Abyss extra enemy planning must be skipped on client-only observers."
     Assert-True $endlessAbyssEnemyInjectionService.Contains("EnemyApi.AddDynamicEnemyAuthoritative") "Endless Abyss extra enemies must use the SunExp-owned EnemyApi wrapper."
     Assert-True $enemyApi.Contains("PlayerManager.Instance") "EnemyApi must own the multiplayer authority check for dynamic enemy adds."
@@ -3263,8 +3309,11 @@ function Invoke-SourceAssertions {
     Assert-True $enemyApi.Contains("manager.AddEnemy(enemyId)") "EnemyApi must follow the game's native dynamic enemy-add entry point."
     Assert-True (-not $enemyApi.Contains("CmdAddEnemy")) "EnemyApi must not call CmdAddEnemy directly."
     Assert-True $endlessAbyssConfig.Contains("RewardPools") "Endless Abyss config must expose independent reward pool definitions."
+    Assert-True $endlessAbyssConfig.Contains("EnemyScaling") "Endless Abyss config must expose enemy growth settings independently."
     Assert-True $endlessAbyssConfig.Contains("OtherDimensionCardPoolId") "Endless Abyss milestone rewards must address a configured reward pool instead of a hard-coded card pack."
     Assert-True $endlessAbyssConfigJson.Contains('"rewardPools"') "Endless Abyss shipped config must define reward pools."
+    Assert-True $endlessAbyssConfigJson.Contains('"enemyScaling"') "Endless Abyss shipped config must define enemy growth settings."
+    Assert-True $endlessAbyssConfigJson.Contains('"endlessStartFloor": 7') "Endless Abyss shipped config must begin its phase jump at floor seven."
     Assert-True $endlessAbyssConfigJson.Contains('"milestone.other_dimension.cards"') "Endless Abyss shipped config must bind the other-dimension milestone reward to its independent pool."
     Assert-True $endlessAbyssConfigJson.Contains('"SunExp_sunexp_cardpack_more_dimensions"') "Endless Abyss default other-dimension pool must be initialized from the More Dimensions card pack."
     Assert-True $endlessAbyssConfigJson.Contains('"heart_change"') "Endless Abyss legacy other-dimension fallback must include Heart Change."
