@@ -519,7 +519,7 @@ Read the new public signature at the call site before compiling integrations, an
 
 **Logged**: 2026-07-16T17:35:00+08:00
 **Priority**: low
-**Status**: resolved
+**Status**: pending
 **Area**: infra
 
 ### Summary
@@ -536,9 +536,44 @@ After changing shared runtime sources, rebuild every consumer listed by `Test-Sh
 ### Metadata
 - Reproducible: yes
 - Related Files: tools/Test-SharedDllPackaging.ps1
+- Recurrence-Count: 2
 
 ### Resolution
 - **Resolved**: 2026-07-16T17:37:00+08:00
 - **Notes**: Rebuilt all five prototype consumers, propagated the shared binary, and reran the complete release gate successfully.
+
+### Recurrence
+- **Observed**: 2026-07-16T14:26:00+08:00
+- **Notes**: A clean-source release-gate run rebuilt `Aura.Shared.dll` to 902144 bytes while all five prototype packages remained at 901120 bytes; the packaging hash gate failed again.
+
+---
+
+## [ERR-20260716-003] powershell-inventory-batch-failure
+
+**Logged**: 2026-07-16T14:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+The first repository inventory batches stopped when an expected `rg` no-match and an invalid PowerShell pipeline caused non-zero exits.
+
+### Error
+```text
+rg returned exit code 1 when no AGENTS.md existed.
+ParserError: An empty pipe element is not allowed.
+```
+
+### Suggested Fix
+Use `Get-ChildItem` for optional-file discovery, collect PowerShell rows before piping to `Format-Table`, and use `Promise.allSettled` so one independent inventory command does not hide other results.
+
+### Metadata
+- Reproducible: yes
+- Related Files: .learnings/ERRORS.md
+- Recurrence-Count: 6
+
+### Resolution
+- **Resolved**: 2026-07-16T14:30:00+08:00
+- **Notes**: Re-ran the inventory with a valid row accumulator and failure-isolated command orchestration.
 
 ---
