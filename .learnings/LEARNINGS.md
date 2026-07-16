@@ -22,3 +22,26 @@ Split shared packaging validation into required active consumers and optional pr
 - Tags: release-gate, prototypes, shared-runtime
 
 ---
+
+## [LRN-20260716-002] correction
+
+**Logged**: 2026-07-16T18:20:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: backend
+
+### Summary
+Endless Abyss active evacuation is intentionally available on every floor and counts as a successful mode clear.
+
+### Details
+Do not impose the earlier proposed floor-seven gate. Once the opening theme deck is committed and the run reaches stable map planning, evacuation may settle even at floor one with zero completed nodes. Multiplayer remains host-authoritative and the first release has no client request or vote flow.
+
+### Suggested Action
+Keep eligibility tied to stable lifecycle state and unresolved pressure/reward gates, not floor number or completed-node count.
+
+### Metadata
+- Source: user_feedback
+- Related Files: SunExp-Dev/Hooks/EndlessAbyssEvacuationRuntime.cs, SunExp-Dev/Mechanics/EndlessAbyssEvacuationDepth.cs
+- Tags: endless-abyss, evacuation, multiplayer, settlement
+
+---

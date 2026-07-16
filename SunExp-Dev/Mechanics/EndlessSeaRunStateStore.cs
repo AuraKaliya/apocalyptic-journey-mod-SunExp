@@ -16,6 +16,7 @@ public static class EndlessSeaRunPhase
     public const string InBattle = "InBattle";
     public const string Reward = "Reward";
     public const string BetweenFloors = "BetweenFloors";
+    public const string Evacuating = "Evacuating";
     public const string Ended = "Ended";
 }
 
@@ -43,6 +44,11 @@ public static class EndlessSeaRunStateStore
         Set(saveInfo, SunExpIds.EndlessSeaRunVersionKey, Version);
         Set(saveInfo, SunExpIds.EndlessSeaRunPhaseKey, EndlessSeaRunPhase.Intro);
         Set(saveInfo, SunExpIds.EndlessSeaRunEndedKey, "0");
+        Set(saveInfo, SunExpIds.EndlessAbyssEvacuationTokenKey, "");
+        Set(saveInfo, SunExpIds.EndlessAbyssEvacuationReasonKey, "");
+        Set(saveInfo, SunExpIds.EndlessAbyssEvacuationFloorKey, "0");
+        Set(saveInfo, SunExpIds.EndlessAbyssEvacuationDepthKey, "0");
+        Set(saveInfo, SunExpIds.EndlessAbyssEvacuationAtKey, "");
         EndlessAbyssGazeService.Initialize(saveInfo);
         EndlessAbyssRunLedger.Initialize(saveInfo);
         Touch(saveInfo);
@@ -97,6 +103,11 @@ public static class EndlessSeaRunStateStore
         changed |= Ensure(saveInfo, SunExpIds.EndlessSeaRunVersionKey, Version);
         changed |= Ensure(saveInfo, SunExpIds.EndlessSeaRunPhaseKey, DefaultPhase(saveInfo));
         changed |= Ensure(saveInfo, SunExpIds.EndlessSeaRunEndedKey, "0");
+        changed |= Ensure(saveInfo, SunExpIds.EndlessAbyssEvacuationTokenKey, "");
+        changed |= Ensure(saveInfo, SunExpIds.EndlessAbyssEvacuationReasonKey, "");
+        changed |= Ensure(saveInfo, SunExpIds.EndlessAbyssEvacuationFloorKey, "0");
+        changed |= Ensure(saveInfo, SunExpIds.EndlessAbyssEvacuationDepthKey, "0");
+        changed |= Ensure(saveInfo, SunExpIds.EndlessAbyssEvacuationAtKey, "");
         changed |= Ensure(saveInfo, SunExpIds.EndlessAbyssGazeLevelKey, EndlessAbyssGazeService.InitialLevel.ToString(CultureInfo.InvariantCulture));
         changed |= Ensure(saveInfo, SunExpIds.EndlessAbyssLedgerKey, "{\"Entries\":[]}");
         changed |= Ensure(saveInfo, SunExpIds.EndlessAbyssPendingShockKey, "");
@@ -128,6 +139,68 @@ public static class EndlessSeaRunStateStore
             Touch(saveInfo);
             SunExpLog.Debug("[EndlessSeaRunState] phase=" + phase + " from " + source);
         }
+    }
+
+    public static string CurrentPhase()
+    {
+        var saveInfo = GameSaveManager.GetNowSave();
+        return IsEndlessSeaSave(saveInfo) && saveInfo?.GameVars != null
+            ? Value(saveInfo, SunExpIds.EndlessSeaRunPhaseKey)
+            : "";
+    }
+
+    public static bool IsEvacuating()
+    {
+        return string.Equals(CurrentPhase(), EndlessSeaRunPhase.Evacuating, StringComparison.Ordinal);
+    }
+
+    public static bool BeginEvacuation(
+        string token,
+        int floor,
+        int depth,
+        string evacuatedAt,
+        string source)
+    {
+        var saveInfo = GameSaveManager.GetNowSave();
+        if (!IsEndlessSeaSave(saveInfo)
+            || saveInfo?.GameVars == null
+            || string.IsNullOrWhiteSpace(token)
+            || Value(saveInfo, SunExpIds.EndlessSeaRunEndedKey) == "1")
+        {
+            return false;
+        }
+
+        var phase = Value(saveInfo, SunExpIds.EndlessSeaRunPhaseKey);
+        if (string.Equals(phase, EndlessSeaRunPhase.Evacuating, StringComparison.Ordinal))
+        {
+            return string.Equals(
+                Value(saveInfo, SunExpIds.EndlessAbyssEvacuationTokenKey),
+                token,
+                StringComparison.Ordinal);
+        }
+
+        if (!string.Equals(phase, EndlessSeaRunPhase.MapPlanning, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        Set(saveInfo, SunExpIds.EndlessSeaRunPhaseKey, EndlessSeaRunPhase.Evacuating);
+        Set(saveInfo, SunExpIds.EndlessAbyssEvacuationTokenKey, token.Trim());
+        Set(saveInfo, SunExpIds.EndlessAbyssEvacuationReasonKey, "Evacuation");
+        Set(saveInfo, SunExpIds.EndlessAbyssEvacuationFloorKey, Math.Max(1, floor).ToString(CultureInfo.InvariantCulture));
+        Set(saveInfo, SunExpIds.EndlessAbyssEvacuationDepthKey, Math.Max(0, depth).ToString(CultureInfo.InvariantCulture));
+        Set(saveInfo, SunExpIds.EndlessAbyssEvacuationAtKey, evacuatedAt ?? "");
+        Touch(saveInfo);
+        SunExpLog.Info("[EndlessAbyssEvacuation] prepared from "
+            + source
+            + "; floor="
+            + Math.Max(1, floor)
+            + "; depth="
+            + Math.Max(0, depth)
+            + "; token="
+            + token
+            + ".");
+        return true;
     }
 
     public static void MarkEnded(string source)

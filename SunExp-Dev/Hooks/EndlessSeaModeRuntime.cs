@@ -70,7 +70,10 @@ public static class EndlessSeaModeRuntime
             }
 
             EndlessSeaRunStateStore.RepairCurrentRun("NormalMapManager.MapItemInit:before");
-            EndlessSeaRunStateStore.MarkPhase(EndlessSeaRunPhase.MapPlanning, "NormalMapManager.MapItemInit:before");
+            if (!EndlessSeaRunStateStore.IsEvacuating())
+            {
+                EndlessSeaRunStateStore.MarkPhase(EndlessSeaRunPhase.MapPlanning, "NormalMapManager.MapItemInit:before");
+            }
             EndlessSeaOriginService.EnsureOriginCaps("NormalMapManager.MapItemInit:before");
             EndlessSeaMapBuilder.EnsureFloorMapState(manager, CurrentFloor(), "NormalMapManager.MapItemInit:before");
         }

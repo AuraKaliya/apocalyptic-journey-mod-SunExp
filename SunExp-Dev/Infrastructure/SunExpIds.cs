@@ -382,6 +382,11 @@ public static class SunExpIds
     public const string EndlessSeaRunPhaseKey = "SunExp_EndlessSeaRunPhase";
     public const string EndlessSeaRunEndedKey = "SunExp_EndlessSeaRunEnded";
     public const string EndlessSeaRunUpdatedAtKey = "SunExp_EndlessSeaRunUpdatedAt";
+    public const string EndlessAbyssEvacuationTokenKey = "SunExp_EndlessAbyssEvacuationToken";
+    public const string EndlessAbyssEvacuationReasonKey = "SunExp_EndlessAbyssEvacuationReason";
+    public const string EndlessAbyssEvacuationFloorKey = "SunExp_EndlessAbyssEvacuationFloor";
+    public const string EndlessAbyssEvacuationDepthKey = "SunExp_EndlessAbyssEvacuationDepth";
+    public const string EndlessAbyssEvacuationAtKey = "SunExp_EndlessAbyssEvacuationAt";
     public const string EndlessSeaStarterDeckBaselineMarker = "SunExpEndlessSeaStarterDeckBaseline";
     public const string EndlessSeaAutoBurnoutMarker = "SunExpEndlessSeaAutoBurnout";
     public const string EndlessAbyssConfigFile = "endless_abyss.config.json";

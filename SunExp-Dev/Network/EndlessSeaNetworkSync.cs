@@ -5,6 +5,7 @@ using AuraShared.Core;
 using Data.Save;
 using Network.Command;
 using Newtonsoft.Json;
+using SunExp.Dll.Hooks;
 using SunExp.Dll.Hooks.Ui;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
@@ -16,7 +17,7 @@ namespace SunExp.Dll.Network;
 [Serializable]
 public sealed class EndlessSeaStateSnapshot
 {
-    public const int CurrentProtocolVersion = 2;
+    public const int CurrentProtocolVersion = 3;
 
     public int ProtocolVersion { get; set; } = CurrentProtocolVersion;
     public string HostSession { get; set; } = "";
@@ -30,6 +31,11 @@ public sealed class EndlessSeaStateSnapshot
     public string StarterDeckApplied { get; set; } = "";
     public int GazeLevel { get; set; }
     public string PendingShockJson { get; set; } = "";
+    public string EvacuationToken { get; set; } = "";
+    public string EvacuationReason { get; set; } = "";
+    public int EvacuationFloor { get; set; }
+    public int EvacuationDepth { get; set; }
+    public string EvacuationAt { get; set; } = "";
     public string FloorPlanHash { get; set; } = "";
     public string FloorPlanJson { get; set; } = "";
 
@@ -57,6 +63,11 @@ public sealed class EndlessSeaStateSnapshot
             StarterDeckApplied = ReadString(SunExpIds.EndlessSeaStarterDeckAppliedKey),
             GazeLevel = Math.Max(0, ReadInt(SunExpIds.EndlessAbyssGazeLevelKey)),
             PendingShockJson = ReadString(SunExpIds.EndlessAbyssPendingShockKey),
+            EvacuationToken = ReadString(SunExpIds.EndlessAbyssEvacuationTokenKey),
+            EvacuationReason = ReadString(SunExpIds.EndlessAbyssEvacuationReasonKey),
+            EvacuationFloor = Math.Max(0, ReadInt(SunExpIds.EndlessAbyssEvacuationFloorKey)),
+            EvacuationDepth = Math.Max(0, ReadInt(SunExpIds.EndlessAbyssEvacuationDepthKey)),
+            EvacuationAt = ReadString(SunExpIds.EndlessAbyssEvacuationAtKey),
             FloorPlanHash = Hash(canonicalPlan),
             FloorPlanJson = floorPlan
         };
@@ -289,6 +300,12 @@ public static class EndlessSeaNetworkSync
         return EndlessSeaStateSnapshot.Capture(HostSession, Math.Max(1, hostGeneration), includePlan);
     }
 
+    internal static EndlessSeaStateSnapshot CaptureNextAuthoritative(bool includePlan)
+    {
+        hostGeneration++;
+        return CaptureAuthoritative(includePlan);
+    }
+
     internal static void AcceptRemoteSnapshot(EndlessSeaStateSnapshot? snapshot, string source)
     {
         if (snapshot == null
@@ -323,6 +340,11 @@ public static class EndlessSeaNetworkSync
         Set(SunExpIds.EndlessSeaStarterDeckAppliedKey, snapshot.StarterDeckApplied ?? "");
         Set(SunExpIds.EndlessAbyssGazeLevelKey, Math.Max(0, snapshot.GazeLevel).ToString());
         Set(SunExpIds.EndlessAbyssPendingShockKey, snapshot.PendingShockJson ?? "");
+        Set(SunExpIds.EndlessAbyssEvacuationTokenKey, snapshot.EvacuationToken ?? "");
+        Set(SunExpIds.EndlessAbyssEvacuationReasonKey, snapshot.EvacuationReason ?? "");
+        Set(SunExpIds.EndlessAbyssEvacuationFloorKey, Math.Max(0, snapshot.EvacuationFloor).ToString());
+        Set(SunExpIds.EndlessAbyssEvacuationDepthKey, Math.Max(0, snapshot.EvacuationDepth).ToString());
+        Set(SunExpIds.EndlessAbyssEvacuationAtKey, snapshot.EvacuationAt ?? "");
 
         if (!string.IsNullOrWhiteSpace(snapshot.FloorPlanJson)
             && string.Equals(EndlessSeaStateSnapshot.Hash(snapshot.FloorPlanJson), snapshot.FloorPlanHash, StringComparison.Ordinal)
@@ -334,6 +356,20 @@ public static class EndlessSeaNetworkSync
         }
 
         pendingProjection = snapshot;
+        if (string.Equals(snapshot.RunPhase, EndlessSeaRunPhase.Evacuating, StringComparison.Ordinal))
+        {
+            EndlessAbyssEvacuationRuntime.ReceiveAuthoritative(
+                new EndlessAbyssEvacuationResolution
+                {
+                    RunId = snapshot.RunId ?? "",
+                    Token = snapshot.EvacuationToken ?? "",
+                    Reason = snapshot.EvacuationReason ?? "",
+                    Floor = snapshot.EvacuationFloor,
+                    SettlementDepth = snapshot.EvacuationDepth,
+                    EvacuatedAt = snapshot.EvacuationAt ?? ""
+                },
+                source + ":snapshot");
+        }
         SunExpLog.Debug("[EndlessSeaSync] accepted host snapshot; floor=" + snapshot.Floor
             + "; generation=" + snapshot.Generation
             + "; source=" + source + ".");

@@ -53,6 +53,7 @@ public static class RuntimeHooks
         RunHookStep("endless sea post battle", () => EndlessSeaRewardRuntime.InitializePostBattleHooks(modConfig));
         RunHookStep("endless sea card affix", () => EndlessSeaCardAffixRuntime.Initialize(modConfig));
         RunHookStep("endless sea intro board", () => EndlessSeaIntroBoardRuntime.Initialize(modConfig));
+        RunHookStep("endless abyss evacuation", () => EndlessAbyssEvacuationRuntime.Initialize(modConfig));
         RunHookStep("dimension shop", () => DimensionShopRuntime.Initialize(modConfig));
         RunHookStep("battle reward adjustment", () => BattleRewardAdjustmentRuntime.Initialize(modConfig));
         RunHookStep("solar memory content isolation", () => SolarMemoryContentIsolationRuntime.Initialize(modConfig));

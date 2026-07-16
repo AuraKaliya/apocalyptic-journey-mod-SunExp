@@ -713,6 +713,7 @@ public static class EndlessSeaIntroBoardRuntime
             SetSaveValue(SunExpIds.EndlessSeaStarterDeckModeKey, profile.Id);
             EndlessSeaRunStateStore.MarkPhase(EndlessSeaRunPhase.MapPlanning, "EndlessSeaIntroBoard.ApplyStarterDeck");
             ClosePanel();
+            EndlessAbyssEvacuationButtonRuntime.Refresh();
             SunExpFrameDispatcher.RunOnceNextFrame(
                 "EndlessAbyss.MapPanels.AfterStarterDeck",
                 () => EndlessSeaModeRuntime.TryOpenAbyssMapPanels("EndlessSeaIntroBoard.ApplyStarterDeck"));

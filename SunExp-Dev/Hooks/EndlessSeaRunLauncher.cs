@@ -78,10 +78,16 @@ public static class EndlessSeaRunLauncher
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = false;
 
-        AddTextBlock(window.transform, "\u901a\u5929\u4e4b\u5854", 28, FontStyle.Bold, TextAnchor.MiddleCenter, PromptTitle, 42f);
+        var resumingEvacuation = string.Equals(
+            saveInfo.GetValue<string>(SunExpIds.EndlessSeaRunPhaseKey),
+            EndlessSeaRunPhase.Evacuating,
+            StringComparison.Ordinal);
+        AddTextBlock(window.transform, SunExpIds.EndlessAbyssTitle, 28, FontStyle.Bold, TextAnchor.MiddleCenter, PromptTitle, 42f);
         AddTextBlock(
             window.transform,
-            "\u68c0\u6d4b\u5230\u672a\u5b8c\u6210\u7684\u6311\u6218\u3002\u662f\u5426\u7ee7\u7eed\u4e0a\u6b21\u8fdb\u5ea6\uff1f",
+            resumingEvacuation
+                ? "\u68c0\u6d4b\u5230\u5c1a\u672a\u5b8c\u6210\u7684\u64a4\u79bb\u7ed3\u7b97\u3002\u662f\u5426\u7ee7\u7eed\u7ed3\u7b97\uff1f"
+                : "\u68c0\u6d4b\u5230\u672a\u5b8c\u6210\u7684\u6311\u6218\u3002\u662f\u5426\u7ee7\u7eed\u4e0a\u6b21\u8fdb\u5ea6\uff1f",
             18,
             FontStyle.Normal,
             TextAnchor.MiddleCenter,
@@ -100,7 +106,7 @@ public static class EndlessSeaRunLauncher
         buttonLayout.childForceExpandWidth = false;
         buttonLayout.childForceExpandHeight = true;
 
-        CreatePromptButton(buttons.transform, "\u7ee7\u7eed\u6311\u6218", () =>
+        CreatePromptButton(buttons.transform, resumingEvacuation ? "\u7ee7\u7eed\u7ed3\u7b97" : "\u7ee7\u7eed\u6311\u6218", () =>
         {
             CloseContinuePrompt();
             ContinueRun(modeChoice, saveInfo);

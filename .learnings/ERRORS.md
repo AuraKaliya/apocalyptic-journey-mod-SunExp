@@ -31,6 +31,38 @@ Use a 25-64 character `short_description`, then run
 
 ---
 
+## [ERR-20260716-006] sunexp-toolbar-button-namespace
+
+**Logged**: 2026-07-16T18:30:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: frontend
+
+### Summary
+The first Endless Abyss evacuation build could not resolve `ButtonManager` because the cloned AuraTools implementation relied on a namespace not imported in the new SunExp UI runtime.
+
+### Error
+```text
+CS0246: The type or namespace name 'ButtonManager' could not be found.
+```
+
+### Context
+- Attempted `dotnet build SunExp-Dev/SunExp.Dll.csproj -c Release --no-restore`.
+- The TopBar clone pattern was adapted from `AuraToolsSafeBoxRuntime.cs`.
+
+### Suggested Fix
+Resolve `ButtonManager` from the current Managed contract and import its declaring namespace before rebuilding.
+
+### Metadata
+- Reproducible: yes
+- Related Files: SunExp-Dev/Hooks/Ui/EndlessAbyssEvacuationButtonRuntime.cs
+
+### Resolution
+- **Resolved**: 2026-07-16T18:34:00+08:00
+- **Notes**: Imported `Michsky.MUIP`, rebuilt the shipped DLL with zero warnings, and retained the native TopBar template pattern.
+
+---
+
 ## [ERR-20260716-004] flight-glyph-cache-namespace
 
 **Logged**: 2026-07-16T16:06:00+08:00
@@ -404,10 +436,17 @@ Search the concrete parent directory and constrain matches with rg globs, or enu
 ### Metadata
 - Reproducible: yes
 - Related Files: .codex/skills
+- Recurrence-Count: 3
 
 ### Resolution
 - **Resolved**: 2026-07-15T14:06:00+08:00
 - **Notes**: Re-ran searches against `.codex\skills` or explicit paths.
+
+### Recurrence
+- **Observed**: 2026-07-16T18:05:00+08:00
+- **Notes**: Passed `Aura*Shared`, `*ArbiterShared`, and `Ui*Shared` as rg directory arguments during a performance scan; use explicit directory arrays on Windows.
+- **Observed**: 2026-07-16T18:35:00+08:00
+- **Notes**: Reused `Aura*Shared` in a cache-lifecycle search; future repository searches must enumerate the concrete shared directories.
 
 ---
 
@@ -436,7 +475,7 @@ First locate candidate filenames with `rg --files` or `rg -l`, then search only 
 ### Metadata
 - Reproducible: yes
 - Related Files: 开发参考资料/反编译文件夹v1.0.23816797
-- Recurrence-Count: 2
+- Recurrence-Count: 3
 - Last-Seen: 2026-07-16
 
 ### Resolution
@@ -602,6 +641,8 @@ After changing shared runtime sources, rebuild every consumer listed by `Test-Sh
 ### Recurrence
 - **Observed**: 2026-07-16T14:26:00+08:00
 - **Notes**: A clean-source release-gate run rebuilt `Aura.Shared.dll` to 902144 bytes while all five prototype packages remained at 901120 bytes; the packaging hash gate failed again.
+- **Observed**: 2026-07-16T18:45:00+08:00
+- **Notes**: Building the SunExp evacuation feature refreshed the shared project output and SunExp package while the SanGuoShaExp and AuraToolsExp packages retained the earlier hash; resolved through the main-consumer build before final validation.
 
 ---
 
@@ -627,10 +668,16 @@ Use `Get-ChildItem` for optional-file discovery, collect PowerShell rows before 
 ### Metadata
 - Reproducible: yes
 - Related Files: .learnings/ERRORS.md
-- Recurrence-Count: 6
+- Recurrence-Count: 8
 
 ### Resolution
 - **Resolved**: 2026-07-16T14:30:00+08:00
 - **Notes**: Re-ran the inventory with a valid row accumulator and failure-isolated command orchestration.
+
+### Recurrence
+- **Observed**: 2026-07-16T17:55:00+08:00
+- **Notes**: Repeated the invalid direct `foreach (...) { ... } | Format-Table` form in a parallel inventory batch; fixed by accumulating rows first and using failure-isolated orchestration.
+- **Observed**: 2026-07-16T18:10:00+08:00
+- **Notes**: Repeated the same invalid direct `foreach (...) { ... } | Format-Table` form while counting test-project LOC; collect `$rows` before formatting.
 
 ---

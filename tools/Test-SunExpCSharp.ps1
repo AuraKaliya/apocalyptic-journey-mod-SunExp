@@ -69,6 +69,7 @@ function New-ProjectXml {
     $dimensionShopRandom = Join-Path $RepoRoot "SunExp-Dev\Mechanics\DimensionShopRandom.cs"
     $endlessSeaNodeKind = Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessSeaNodeKind.cs"
     $endlessAbyssEnemyScaling = Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssEnemyScalingService.cs"
+    $endlessAbyssEvacuationDepth = Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssEvacuationDepth.cs"
 
 @"
 <Project Sdk="Microsoft.NET.Sdk">
@@ -123,6 +124,7 @@ function New-ProjectXml {
     <Compile Include="$dimensionShopRandom" />
     <Compile Include="$endlessSeaNodeKind" />
     <Compile Include="$endlessAbyssEnemyScaling" />
+    <Compile Include="$endlessAbyssEvacuationDepth" />
     <Compile Include="$SourceDir\Tests.cs" />
   </ItemGroup>
 </Project>
@@ -548,6 +550,7 @@ internal static class Program
         TestStarScoreArrivalCueService();
         TestDimensionShopRandom();
         TestEndlessAbyssEnemyScaling();
+        TestEndlessAbyssEvacuationDepth();
 
         Console.WriteLine("SunExp C# tests passed: " + assertions + " assertions.");
     }
@@ -602,6 +605,16 @@ internal static class Program
         Approximately(1.08f, (float)boss.AttackMultiplier, 0.0001f, "Endless Abyss boss nodes apply their attack factor");
         Approximately(1.3f, (float)endlessBoss.HpMultiplier, 0.0001f, "Endless Abyss endless boss nodes apply their HP factor");
         Approximately(1.12f, (float)endlessBoss.AttackMultiplier, 0.0001f, "Endless Abyss endless boss nodes apply their attack factor");
+    }
+
+    private static void TestEndlessAbyssEvacuationDepth()
+    {
+        Equal(0, EndlessAbyssEvacuationDepth.Calculate(1, 0), "Endless Abyss evacuation is available before the first node");
+        Equal(5, EndlessAbyssEvacuationDepth.Calculate(1, 5), "Endless Abyss evacuation preserves first-floor node progress");
+        Equal(6, EndlessAbyssEvacuationDepth.Calculate(2, 0), "Endless Abyss evacuation includes completed prior floors");
+        Equal(39, EndlessAbyssEvacuationDepth.Calculate(7, 3), "Endless Abyss evacuation projects floor and node progress into native depth");
+        Equal(0, EndlessAbyssEvacuationDepth.Calculate(0, -3), "Endless Abyss evacuation normalizes invalid floor and level values");
+        Equal(int.MaxValue, EndlessAbyssEvacuationDepth.Calculate(int.MaxValue, int.MaxValue), "Endless Abyss evacuation depth saturates instead of overflowing");
     }
 
     private static void TestSolarMemoryIsolationIds()
@@ -1756,6 +1769,10 @@ function Invoke-SourceAssertions {
     $endlessSeaModeRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\EndlessSeaModeRuntime.cs"))
     $endlessSeaMapViewPresenter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\EndlessSeaMapViewPresenter.cs"))
     $endlessSeaNetworkSync = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Network\EndlessSeaNetworkSync.cs"))
+    $endlessAbyssEvacuationRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\EndlessAbyssEvacuationRuntime.cs"))
+    $endlessAbyssEvacuationButtonRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\EndlessAbyssEvacuationButtonRuntime.cs"))
+    $endlessAbyssEvacuationService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssEvacuationService.cs"))
+    $endlessAbyssEvacuationRpc = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Network\RpcEndlessAbyssEvacuation.cs"))
     $sunExpNetworkRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Network\SunExpNetworkRuntime.cs"))
     $endlessSeaFloorPlanner = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessSeaFloorPlanner.cs"))
     $endlessSeaMapBuilder = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessSeaMapBuilder.cs"))
@@ -3241,6 +3258,21 @@ function Invoke-SourceAssertions {
     Assert-True $endlessSeaRunStateStore.Contains('Set(saveInfo, SunExpIds.EndlessSeaFloorPlanKey, "")') "Endless Sea saves must initialize the persisted floor plan slot."
     Assert-True $endlessSeaRunStateStore.Contains("EndlessSeaRunIdKey") "Endless Sea saves must persist a run id."
     Assert-True $endlessSeaRunStateStore.Contains("EndlessSeaRunPhaseKey") "Endless Sea saves must persist a phase."
+    Assert-True $endlessSeaRunStateStore.Contains("EndlessSeaRunPhase.Evacuating") "Endless Sea saves must preserve the pending evacuation settlement phase."
+    Assert-True $runtimeHooks.Contains("EndlessAbyssEvacuationRuntime.Initialize(modConfig)") "RuntimeHooks must initialize Endless Abyss evacuation."
+    Assert-True $endlessAbyssEvacuationButtonRuntime.Contains('buttons?.Find("CardBack")') "Endless Abyss evacuation must clone the native TopBar card button template."
+    Assert-True $endlessAbyssEvacuationButtonRuntime.Contains("EndlessAbyssEvacuationButtonRelay") "Endless Abyss evacuation must replace cloned native button listeners with a dedicated relay."
+    Assert-True $endlessAbyssEvacuationRuntime.Contains("EndlessSeaRunPhase.MapPlanning") "Endless Abyss evacuation must only start from stable map planning."
+    Assert-True $endlessAbyssEvacuationRuntime.Contains("EndlessAbyssShockService.PendingRequest()") "Endless Abyss evacuation must not bypass pending shock resolution."
+    Assert-True $endlessAbyssEvacuationRuntime.Contains("EndlessAbyssMilestoneRewardService.CanClaimCurrentFloor()") "Endless Abyss evacuation must not bypass pending milestone rewards."
+    Assert-True $endlessAbyssEvacuationRuntime.Contains("GameExitUI.loss = false") "Endless Abyss evacuation must settle as a successful mode clear."
+    Assert-True $endlessAbyssEvacuationRuntime.Contains('"GameExitUI.ReturnAsync"') "Endless Abyss evacuation must arm finalization only when the settlement is accepted."
+    Assert-True $endlessAbyssEvacuationRuntime.Contains('"GameApp.ReturnToMenu"') "Endless Abyss evacuation must persist Ended immediately before the native menu return."
+    Assert-True $endlessAbyssEvacuationService.Contains("EndlessAbyssEvacuationDepth.Calculate") "Endless Abyss evacuation must delegate total-depth projection to its pure calculator."
+    Assert-True $endlessAbyssEvacuationRpc.Contains("serverSender.IsLobbyHost") "Endless Abyss evacuation RPC must require bound lobby-host authority."
+    Assert-True $endlessAbyssEvacuationRpc.Contains("TryCaptureStored(RequestedToken") "Endless Abyss evacuation RPC must publish server-stored state instead of trusting its payload."
+    Assert-True $endlessSeaNetworkSync.Contains("CurrentProtocolVersion = 3") "Endless Sea snapshots must version the evacuation state extension."
+    Assert-True $endlessSeaNetworkSync.Contains("EvacuationDepth") "Endless Sea snapshots must carry authoritative evacuation settlement depth."
     Assert-True $endlessSeaRunLauncher.Contains('saveInfo.GameVars[GameVar.ExLockDes.ToString()] = "0"') "Endless Sea saves must not pre-lock editable map slots."
     Assert-True $endlessSeaFloorPlanner.Contains("EndlessSeaNodeKind.Monster") "Endless Sea floor planner must fix the native start slot as a monster."
     Assert-True $endlessSeaFloorPlanner.Contains("EndlessSeaNodeKind.Boss") "Endless Sea floor planner must fix the final boss slot."
@@ -3270,6 +3302,7 @@ function Invoke-SourceAssertions {
     Assert-True $endlessSeaIntroBoardRuntime.Contains("AddTextFill(header.transform") "Endless Sea intro board must render a header subtitle."
     Assert-True $endlessSeaIntroBoardRuntime.Contains("SetDeckButtonsInteractable(false)") "Endless Sea deck application must disable buttons while applying."
     Assert-True $endlessSeaIntroBoardRuntime.Contains("SetDeckButtonsInteractable(true)") "Endless Sea deck application must restore buttons on retryable failure."
+    Assert-True $endlessSeaIntroBoardRuntime.Contains("EndlessAbyssEvacuationButtonRuntime.Refresh()") "Endless Sea starter-deck completion must reveal the all-floor evacuation button immediately."
     Assert-True $endlessSeaStarterDeckCatalog.Contains("public const int FixedDeckSize = 11") "Endless Sea hardcoded starter decks must keep an 11-card fixed package."
     Assert-True $endlessSeaStarterDeckCatalog.Contains("public const int ThemeDeckSize = 4") "Endless Sea hardcoded starter decks must add a 4-card theme package."
     Assert-True $endlessSeaStarterDeckCatalog.Contains("public const int DeckSize = FixedDeckSize + ThemeDeckSize") "Endless Sea hardcoded starter decks must total fixed plus theme cards."
