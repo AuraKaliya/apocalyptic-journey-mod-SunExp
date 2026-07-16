@@ -39,6 +39,7 @@
 
 - [技术文档蓝图](00-documentation-blueprint.md)
 - [模块覆盖矩阵](00-module-coverage-matrix.md)
+- [Aura/SunExp 复杂模块拆分评审](../architecture-complex-module-review-2026-07-16.md)
 
 ## 功能模块文档
 

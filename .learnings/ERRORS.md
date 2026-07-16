@@ -670,7 +670,7 @@ Use `Get-ChildItem` for optional-file discovery, collect PowerShell rows before 
 ### Metadata
 - Reproducible: yes
 - Related Files: .learnings/ERRORS.md
-- Recurrence-Count: 9
+- Recurrence-Count: 11
 
 ### Resolution
 - **Resolved**: 2026-07-16T14:30:00+08:00
@@ -683,5 +683,7 @@ Use `Get-ChildItem` for optional-file discovery, collect PowerShell rows before 
 - **Notes**: Repeated the same invalid direct `foreach (...) { ... } | Format-Table` form while counting test-project LOC; collect `$rows` before formatting.
 - **Observed**: 2026-07-16T20:12:00+08:00
 - **Notes**: Combined optional `rg`/`git config` probes without normalizing their expected exit code 1, causing the whole inspection cell to report failure.
+- **Observed**: 2026-07-16T20:45:00+08:00
+- **Notes**: Twice piped a top-level PowerShell `foreach` expression directly into `Format-Table` during architecture inventory; assign the loop output to `$rows` before piping.
 
 ---
