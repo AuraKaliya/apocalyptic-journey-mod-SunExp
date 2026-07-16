@@ -32,12 +32,12 @@ public static class EndlessSeaSaveCacheRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("endless sea save cache " + message));
+        SunExpHookRegistry.After(config, target, action, "EndlessSeaSaveCache");
     }
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterBefore(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("endless sea save cache " + message));
+        SunExpHookRegistry.Before(config, target, action, "EndlessSeaSaveCache");
     }
 
     private static void ProtectSeaSavesBeforeNativeDelete(ModHookContext context)

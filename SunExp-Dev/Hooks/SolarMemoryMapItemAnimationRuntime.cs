@@ -27,12 +27,12 @@ public static class SolarMemoryMapItemAnimationRuntime
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterBefore(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Solar memory map item animation " + message));
+        SunExpHookRegistry.Before(config, target, action, "SolarMemoryMapItemAnimation");
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Solar memory map item animation " + message));
+        SunExpHookRegistry.After(config, target, action, "SolarMemoryMapItemAnimation");
     }
 
     private static void PrepareMapItemAnimation(ModHookContext context)

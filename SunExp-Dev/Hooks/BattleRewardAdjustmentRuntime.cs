@@ -29,6 +29,6 @@ public static class BattleRewardAdjustmentRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Battle reward adjustment " + message));
+        SunExpHookRegistry.After(config, target, action, "BattleRewardAdjustment");
     }
 }

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using AuraJourney.Shared;
 using Data.Save;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks.Ui;
@@ -28,7 +27,6 @@ public static class SolarMemoryModeRuntime
     private static bool handlingSolarMemoryFightAbort;
     private static bool solarMemoryStorySettlementPending;
     private static bool solarMemorySaintWunaBossTransitioning;
-    private static bool? lastPublishedActiveMode;
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -1571,25 +1569,7 @@ public static class SolarMemoryModeRuntime
 
     public static bool IsSolarMemoryRun()
     {
-        var active = GameSaveManager.GetValue<string>(SunExpIds.SolarMemoryModeKey) == "1";
-        PublishActiveModeIfChanged(active, "SolarMemoryModeRuntime.IsSolarMemoryRun");
-        return active;
-    }
-
-    private static void PublishActiveModeIfChanged(bool active, string source)
-    {
-        if (lastPublishedActiveMode.HasValue && lastPublishedActiveMode.Value == active)
-        {
-            return;
-        }
-
-        lastPublishedActiveMode = active;
-        AuraJourneyRuntime.PublishActiveMode(
-            SunExpIds.ModId,
-            SolarMemoryJourneyApi.JourneyId,
-            "solar-memory",
-            active,
-            source);
+        return GameSaveManager.GetValue<string>(SunExpIds.SolarMemoryModeKey) == "1";
     }
 
     private static List<Dictionary<string, string>> VisibleCardPacks()

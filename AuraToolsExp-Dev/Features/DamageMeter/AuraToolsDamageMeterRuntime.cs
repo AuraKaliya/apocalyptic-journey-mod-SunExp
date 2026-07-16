@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Reflection;
-using AuraJourney.Shared;
+using AuraMode.Shared;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.DamageMeter.Capture;
@@ -685,9 +685,14 @@ public static class AuraToolsDamageMeterRuntime
 
     private static PlayModeInfo ResolvePlayMode()
     {
-        if (IsSolarMemoryMode())
+        var activeMode = AuraModeRuntime.Current(AuraToolsIds.ModId);
+        if (activeMode != null)
         {
-            return new PlayModeInfo("SunExp.SolarMemory", "日耀回忆");
+            var fallbackName = activeMode.Display?.FallbackName;
+            var displayName = string.IsNullOrWhiteSpace(fallbackName)
+                ? activeMode.ModeId
+                : fallbackName!;
+            return new PlayModeInfo(activeMode.ModeId, displayName);
         }
 
         var modeType = ReadLobbyModeType();
@@ -739,18 +744,6 @@ public static class AuraToolsDamageMeterRuntime
         try
         {
             return GameExitUI.loss;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static bool IsSolarMemoryMode()
-    {
-        try
-        {
-            return AuraJourneyRuntime.IsJourneyActive("AuraTools", "SunExp", "SunExp.SolarMemory");
         }
         catch
         {
@@ -2261,12 +2254,11 @@ public static class AuraToolsDamageMeterRuntime
             return;
         }
 
-        HookRegistrations.Add(AuraSharedHooks.RegisterBeforeRouted(
+        HookRegistrations.Add(AuraToolsHookRegistry.BeforeRouted(
             modConfig,
             target,
             action,
-            warn: AuraToolsLog.Warn,
-            safeInvoke: true));
+            "DamageMeter"));
     }
 
     private static void RegisterAfter(string target, Action<ModHookContext> action)
@@ -2276,12 +2268,11 @@ public static class AuraToolsDamageMeterRuntime
             return;
         }
 
-        HookRegistrations.Add(AuraSharedHooks.RegisterAfterRouted(
+        HookRegistrations.Add(AuraToolsHookRegistry.AfterRouted(
             modConfig,
             target,
             action,
-            warn: AuraToolsLog.Warn,
-            safeInvoke: true));
+            "DamageMeter"));
     }
 
     private static void RunHook(string name, Action action)

@@ -611,8 +611,8 @@ void TestRuntimeArchitectureGuards()
     var cardRefreshNativeApi = ReadRepoText("AuraToolsExp-Dev/Features/CardRefresh/CardChoiceRefreshNativeApi.cs");
     var matchExperienceConfig = ReadRepoText("AuraToolsExp/Config/MatchExperienceSettings.json");
     Assert(cardRefreshRuntime.Contains("AuraUiNativeButtonCloneAdapter.TryClone", StringComparison.Ordinal)
-           && cardRefreshRuntime.Contains("RegisterBefore(modConfig, \"CardChoiceUI.Start\"", StringComparison.Ordinal)
-           && cardRefreshRuntime.Contains("RegisterAfter(modConfig, \"CardChoiceUI.Start\"", StringComparison.Ordinal)
+           && cardRefreshRuntime.Contains("AuraToolsHookRegistry.Before(modConfig, \"CardChoiceUI.Start\"", StringComparison.Ordinal)
+           && cardRefreshRuntime.Contains("AuraToolsHookRegistry.After(modConfig, \"CardChoiceUI.Start\"", StringComparison.Ordinal)
            && cardRefreshRuntime.Contains("BeforeCardChoiceUiSelect", StringComparison.Ordinal),
         "card refresh uses shared hooks and the native button clone at the card-choice lifecycle boundaries");
     Assert(cardRefreshRuntime.Contains("CaptureCleanTemplates", StringComparison.Ordinal)

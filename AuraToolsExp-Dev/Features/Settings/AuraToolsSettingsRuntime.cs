@@ -124,7 +124,7 @@ public static class AuraToolsSettingsRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, warn: AuraToolsLog.Warn);
+        AuraToolsHookRegistry.After(config, target, action, "Settings");
     }
 
     private static Transform? ResolveTabParent(SettingUI setting)

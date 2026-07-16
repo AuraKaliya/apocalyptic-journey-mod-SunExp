@@ -15,7 +15,8 @@ public static class AuraDirectorRuntime
     private const string GlobalObjectName = "AuraDirector.Global";
     private const string ComponentFullName = "AuraDirector.Shared.AuraDirectorRuntime+AuraDirectorComponent";
 
-    public const int CurrentRuntimeProtocolVersion = 2;
+    public const int CurrentRuntimeProtocolVersion = AuraDirectorProtocol.CurrentRuntimeProtocolVersion;
+    public const int MinimumSupportedRuntimeProtocolVersion = AuraDirectorProtocol.MinimumSupportedRuntimeProtocolVersion;
     public const string NativeBattleSpriteProviderId = "AuraDirector.NativeBattleSprite.v1";
 
     public static void Initialize(ModConfig modConfig, string ownerModId)
@@ -52,7 +53,8 @@ public static class AuraDirectorRuntime
                 }
 
                 if (component is AuraDirectorComponent compatible
-                    && compatible.ProtocolVersion == CurrentRuntimeProtocolVersion)
+                    && compatible.ProtocolVersion >= MinimumSupportedRuntimeProtocolVersion
+                    && compatible.MinimumSupportedProtocolVersion <= CurrentRuntimeProtocolVersion)
                 {
                     return compatible;
                 }
@@ -103,6 +105,8 @@ public static class AuraDirectorRuntime
 
         public int ProtocolVersion => CurrentRuntimeProtocolVersion;
 
+        public int MinimumSupportedProtocolVersion => MinimumSupportedRuntimeProtocolVersion;
+
         public bool RegisterRequestSource(string ownerModId, IAuraDirectorRequestSource source)
         {
             if (source == null || string.IsNullOrWhiteSpace(source.SourceId))
@@ -145,6 +149,9 @@ public static class AuraDirectorRuntime
             }
 
             var capability = provider.ProbeCapability();
+            capability.ProviderId = string.IsNullOrWhiteSpace(capability.ProviderId)
+                ? provider.ProviderId
+                : capability.ProviderId.Trim();
             if (!capability.Supported)
             {
                 AuraSharedLog.Warn(
@@ -153,11 +160,27 @@ public static class AuraDirectorRuntime
                     false);
                 return capability;
             }
+            if (!IsCompatible(capability))
+            {
+                return Unsupported(
+                    "start-gate-provider-protocol-incompatible",
+                    "The start-gate provider protocol range does not overlap the director runtime.");
+            }
 
             var installed = provider.Install(this);
+            installed.ProviderId = string.IsNullOrWhiteSpace(installed.ProviderId)
+                ? provider.ProviderId
+                : installed.ProviderId.Trim();
             if (!installed.Supported)
             {
                 return installed;
+            }
+            if (!IsCompatible(installed))
+            {
+                provider.Uninstall("provider-protocol-incompatible");
+                return Unsupported(
+                    "start-gate-install-protocol-incompatible",
+                    "The installed start-gate provider protocol range does not overlap the director runtime.");
             }
 
             lock (gate)
@@ -169,6 +192,16 @@ public static class AuraDirectorRuntime
                 "Start-gate provider installed: " + provider.ProviderId + ", owner=" + ownerModId + ".",
                 false);
             return installed;
+        }
+
+        private static bool IsCompatible(AuraDirectorCapabilityProbeResult capability)
+        {
+            var contractId = string.IsNullOrWhiteSpace(capability.ContractId)
+                ? AuraDirectorProtocol.ContractId
+                : capability.ContractId.Trim();
+            return string.Equals(contractId, AuraDirectorProtocol.ContractId, StringComparison.Ordinal)
+                   && capability.ProtocolVersion >= MinimumSupportedRuntimeProtocolVersion
+                   && capability.MinimumSupportedProtocolVersion <= CurrentRuntimeProtocolVersion;
         }
 
         public bool TryAccept(IAuraDirectorNativeStartHold hold)

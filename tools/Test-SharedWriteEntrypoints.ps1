@@ -11,11 +11,11 @@ $roots = @(
     "AuraDirectorDetour-Dev",
     "AuraJourneyShared",
     "AuraLogShared",
+    "AuraModeShared",
     "AuraSkinShared",
     "AuraToolsExp-Dev",
     "SanGuoShaExp-Dev",
-    "SunExp-Dev",
-    "TestMods"
+    "SunExp-Dev"
 )
 
 $allowed = @(
@@ -27,9 +27,7 @@ $allowed = @(
     "SunExp-Dev\GameApi\FamiliarGrowthApi.cs",
     "SunExp-Dev\Mechanics\EndlessAbyssRunLedger.cs",
     "SunExp-Dev\Mechanics\EndlessAbyssShockService.cs",
-    "SunExp-Dev\Mechanics\EndlessSeaFloorPlanStore.cs",
-    "TestMods\ChatExp-Dev\GameApi\AuraChatHostModSyncService.cs",
-    "TestMods\LogExp-Dev\Infrastructure\LogFileWriter.cs"
+    "SunExp-Dev\Mechanics\EndlessSeaFloorPlanStore.cs"
 )
 
 $patterns = @(

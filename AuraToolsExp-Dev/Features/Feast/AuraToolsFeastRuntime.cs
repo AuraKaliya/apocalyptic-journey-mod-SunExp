@@ -559,12 +559,12 @@ public static class AuraToolsFeastRuntime
 
     private static void RegisterAfter(ModConfig modConfig, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(modConfig, target, action, warn: AuraToolsLog.Warn);
+        AuraToolsHookRegistry.After(modConfig, target, action, "Feast");
     }
 
     private static void RegisterBefore(ModConfig modConfig, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterBefore(modConfig, target, action, warn: AuraToolsLog.Warn);
+        AuraToolsHookRegistry.Before(modConfig, target, action, "Feast");
     }
 
     private static AuraToolsFeastDriver EnsureDriver()

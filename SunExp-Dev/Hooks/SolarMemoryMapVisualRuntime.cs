@@ -17,6 +17,6 @@ public static class SolarMemoryMapVisualRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Solar memory map visual " + message));
+        SunExpHookRegistry.After(config, target, action, "SolarMemoryMapVisual");
     }
 }

@@ -44,7 +44,8 @@ public static class EndlessSeaModeEntryRuntime
             110,
             ConfigureRegisteredEntry,
             EndlessSeaRunLauncher.Start,
-            SunExpIds.EndlessSeaTitle));
+            SunExpIds.EndlessSeaTitle,
+            SunExpIds.EndlessAbyssSemanticModeId));
     }
 
     private static void ConfigureRegisteredEntry(GameObject entry, ModeChoiceUI modeChoice)

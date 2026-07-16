@@ -118,7 +118,7 @@ public static class EndlessSeaRewardRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Endless Sea reward " + message));
+        SunExpHookRegistry.After(config, target, action, "EndlessSeaReward");
     }
 
     private sealed class RewardReplacementState

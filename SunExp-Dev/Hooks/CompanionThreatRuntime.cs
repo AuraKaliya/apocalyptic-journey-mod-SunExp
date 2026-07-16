@@ -17,7 +17,7 @@ public static class CompanionThreatRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("CompanionThreat " + message));
+        SunExpHookRegistry.After(config, target, action, "CompanionThreat");
     }
 
     private static void ExtendEnemyTargetsAfterSetStatus(ModHookContext context)

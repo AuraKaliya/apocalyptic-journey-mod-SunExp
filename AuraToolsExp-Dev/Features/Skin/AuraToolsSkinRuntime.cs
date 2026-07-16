@@ -119,10 +119,10 @@ public static class AuraToolsSkinRuntime
 
     private static void RegisterHooks(ModConfig modConfig)
     {
-        AuraSharedHooks.RegisterAfter(modConfig, "GameEntryUI.UpdateLobby", _ => BroadcastLocalSelection(), warn: AuraToolsLog.Warn);
-        AuraSharedHooks.RegisterAfter(modConfig, "GameEntryUI.ChangeRole", _ => BroadcastLocalSelection(), warn: AuraToolsLog.Warn);
-        AuraSharedHooks.RegisterAfter(modConfig, "TopBarUI.ChangeCareer", _ => BroadcastLocalSelection(), warn: AuraToolsLog.Warn);
-        AuraSharedHooks.RegisterAfter(modConfig, "TopBarUI.ChangeCareerAvator", _ => BroadcastLocalSelection(), warn: AuraToolsLog.Warn);
+        AuraToolsHookRegistry.After(modConfig, "GameEntryUI.UpdateLobby", _ => BroadcastLocalSelection(), "Skin");
+        AuraToolsHookRegistry.After(modConfig, "GameEntryUI.ChangeRole", _ => BroadcastLocalSelection(), "Skin");
+        AuraToolsHookRegistry.After(modConfig, "TopBarUI.ChangeCareer", _ => BroadcastLocalSelection(), "Skin");
+        AuraToolsHookRegistry.After(modConfig, "TopBarUI.ChangeCareerAvator", _ => BroadcastLocalSelection(), "Skin");
     }
 
     private static void ConfigureFromSettings()

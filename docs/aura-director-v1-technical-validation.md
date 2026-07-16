@@ -5,9 +5,11 @@
 The shared director lives in `AuraDirectorShared` and is packaged into
 `Aura.Shared.dll`. SunExp enables the reviewed Harmony start-gate provider for
 the verified game build and ships its provider binaries only in
-`SunExp/Scripts`. The local runtime component protocol is version 2; the
-deterministic plan protocol remains version 1 because the cue schema and plan
-hash contract did not change.
+`SunExp/Scripts`. The local runtime component protocol is version 2. The
+deterministic plan envelope is schema version 2 and can read schema version 1.
+Requests and compiled plans carry a stable contract id, schema/read-range,
+bounded extension fields, and a self-contained descriptor plus cue envelope.
+The plan hash covers those compatibility fields in deterministic key order.
 
 The first production scope is local-first: every client independently builds
 and plays its own opening. There is no director RPC, peer plan agreement, or
@@ -41,6 +43,16 @@ The overlay advances with `Time.unscaledTime`; it never changes
 `Time.timeScale`. SunExp scales the hard timeout with cast size from 12 to 30
 seconds, and the compiler clamps all requests to the shared 5-60 second safety
 range.
+
+## Compatibility Boundary
+
+The runtime and optional start-gate provider advertise overlapping protocol
+ranges instead of requiring exact version equality. A provider is installed
+only when its contract id matches and its range overlaps the local runtime.
+The plan compiler accepts only the supported schema range, rejects readers
+newer than itself, preserves bounded unknown extensions, and rejects oversized
+or malformed extension maps. Enum and cue behavior remain owned by the
+compiler; extensions cannot silently acquire execution authority.
 
 ## Fail-Open Boundary
 

@@ -10,14 +10,14 @@ DLL；不得各自编译私有共享源码。首个兼容消费者创建持久�
 `AuraShared.Global`，后续消费者通过反射 JSON 协议复用该组件。
 
 Core 负责共享路径、存储、资源注册、包事务、变更序列、诊断、通用 Hook、
-生命周期、调度和网络安全基础；Audio、CG、Skin、Journey、StarterDeck 等领域
+生命周期、调度和网络安全基础；Audio、CG、Skin、Journey、Mode、StarterDeck 等领域
 组件负责各自业务协议与仲裁；SunExp、AuraToolsExp 等消费者负责内容和工具语义。
 
 ## Compatibility（兼容性）
 
 - `CurrentProtocolVersion`: 2
 - `MinimumSupportedProtocolVersion`: 2
-- `BuildId`: `aura-shared-core-2026-06-22-v2`
+- `BuildId`: `aura-shared-core-v2-<assembly-mvid>`
 
 运行时复用条件是：
 
@@ -29,8 +29,9 @@ Core 负责共享路径、存储、资源注册、包事务、变更序列、诊
 形状兼容时，即使 `BuildId` 不同也应复用组件并记录警告。只有协议区间或必要方法
 不兼容时，才为当前消费者禁用共享服务并记录错误；不得让无关游戏初始化崩溃。
 
-保持线协议兼容但改变实现时应更新 `BuildId`。改变反射方法、JSON 字段语义或兼容
-区间时，应同步评估并更新协议版本，而不是仅改 `BuildId`。
+`BuildId` 由实际加载程序集的 MVID 派生，因此实现产物变化后不再依赖人工更新常量。
+改变反射方法、JSON 字段语义或兼容区间时，仍应同步评估并更新协议版本；MVID 只
+标识构建身份，不代替协议版本。
 
 ## Stable Component Methods（稳定组件方法）
 

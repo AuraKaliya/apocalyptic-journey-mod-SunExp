@@ -31,6 +31,8 @@
     <Compile Include="..\AuraJourneyShared\AuraJourneyMapNodeDataBuilder.cs" Link="Journey\AuraJourneyMapNodeDataBuilder.cs" />
     <Compile Include="..\AuraJourneyShared\AuraJourneySyncProjection.cs" Link="Journey\AuraJourneySyncProjection.cs" />
     <Compile Include="..\AuraJourneyShared\AuraJourneyStateReducer.cs" Link="Journey\AuraJourneyStateReducer.cs" />
+    <Compile Include="..\AuraModeShared\AuraModeModels.cs" Link="Mode\AuraModeModels.cs" />
+    <Compile Include="..\AuraModeShared\AuraModePolicyEvaluator.cs" Link="Mode\AuraModePolicyEvaluator.cs" />
     <Compile Include="..\AuraOnlineShared\*.cs" Exclude="..\AuraOnlineShared\AuraOnlineHostModSyncSession.cs;..\AuraOnlineShared\AuraOnlineLocalModManifestBuilder.cs" Link="Online\%(Filename)%(Extension)" />
     <Compile Include="..\AuraDirectorShared\AuraDirectorModels.cs" Link="Director\AuraDirectorModels.cs" />
     <Compile Include="..\AuraDirectorShared\AuraDirectorPlanCompiler.cs" Link="Director\AuraDirectorPlanCompiler.cs" />

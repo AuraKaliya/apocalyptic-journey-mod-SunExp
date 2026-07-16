@@ -33,12 +33,12 @@ public static class SolarMemoryContentIsolationRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, warn: message => SunExpLog.Warn("Solar memory isolation " + message));
+        SunExpHookRegistry.After(config, target, action, "SolarMemoryContentIsolation");
     }
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterBefore(config, target, action, warn: message => SunExpLog.Warn("Solar memory isolation " + message));
+        SunExpHookRegistry.Before(config, target, action, "SolarMemoryContentIsolation");
     }
 
     private static void SanitizeGeneratedMap(ModHookContext context)

@@ -31,8 +31,8 @@ public static class AuraToolsCardRefreshRuntime
         }
 
         initialized = true;
-        AuraSharedHooks.RegisterBefore(modConfig, "CardChoiceUI.Start", BeforeCardChoiceStart, warn: AuraToolsLog.Warn);
-        AuraSharedHooks.RegisterAfter(modConfig, "CardChoiceUI.Start", AfterCardChoiceStart, warn: AuraToolsLog.Warn);
+        AuraToolsHookRegistry.Before(modConfig, "CardChoiceUI.Start", BeforeCardChoiceStart, "CardRefresh");
+        AuraToolsHookRegistry.After(modConfig, "CardChoiceUI.Start", AfterCardChoiceStart, "CardRefresh");
         selectionSubscription = AuraCardLifecycleRouter.Register(
             modConfig,
             AuraToolsIds.ModId,

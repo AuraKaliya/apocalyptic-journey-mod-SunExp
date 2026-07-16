@@ -43,6 +43,7 @@ public static class Entry
         RunStep("shared skin runtime", () => AuraSkinRuntime.Initialize(modConfig, "SunExp"));
         RunStep("shared skin package", () => RegisterSkinPackage(modConfig));
         RunStep("journey runtime", () => SolarMemoryJourneyApi.Initialize(modConfig));
+        RunStep("mode runtime", () => SunExpModeApi.Initialize(modConfig));
         RunStep("audio runtime", () => AudioApi.Initialize(modConfig));
         RunStep("ui transition guard", () => UiTransitionGuardRuntime.Initialize(modConfig, "SunExp"));
         RunStep("performance runtime", () => SunExpFrameScheduler.Initialize(modConfig));

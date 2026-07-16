@@ -11,12 +11,11 @@ public static class EmberAdventureStateRuntime
 {
     public static void Initialize(ModConfig modConfig)
     {
-        AuraSharedHooks.RegisterAfter(
+        SunExpHookRegistry.After(
             modConfig,
             "Fight_Start.Init",
             RestoreForLocalPlayer,
-            SunExpLog.Debug,
-            message => SunExpLog.Warn("Ember adventure state " + message));
+            "EmberAdventureState");
     }
 
     private static void RestoreForLocalPlayer(ModHookContext context)

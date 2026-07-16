@@ -81,7 +81,6 @@ $roleCommit = Read-RepoText "SunExp-Dev\Network\RpcSolarMemoryRoleCommit.cs"
 $roleCommitApi = Read-RepoText "SunExp-Dev\GameApi\SolarMemoryRoleCommitApi.cs"
 $sunSkillCgRuntime = Read-RepoText "SunExp-Dev\Features\SkillCg\SunExpSkillCgRuntime.cs"
 $auraCgRuntime = Read-RepoText "AuraCgShared\AuraCgRuntime.cs"
-$skillCgPrototypeRuntime = Read-RepoText "TestMods\SkillCGExp-Dev\Hooks\SkillCgRuntime.cs"
 $audioArbiter = Read-RepoText "AudioArbiterShared\AudioArbiterRuntime.cs"
 
 Assert-Contains $auraEntry "AuraToolsRpcAuthorityRuntime.Initialize(modConfig)" "AuraToolsExp Entry must initialize RPC authority binding."
@@ -232,7 +231,4 @@ Assert-Contains $auraCgRuntime "public string CgId" "Shared Skill CG network eve
 Assert-Contains $auraCgRuntime "RpcSkillCgFightSession" "Shared Skill CG must synchronize a host-owned fight session token."
 Assert-Contains $auraCgRuntime "stale fight session" "Shared Skill CG host relay must reject late commands from another fight session."
 Assert-Contains $sunSkillCgRuntime "SkillCgArbiterRuntime.RequestCg(SunExpIds.ModId, request, syncRemote: true)" "SunExp Skill CG must delegate synchronized playback to the shared Skill CG runtime."
-Assert-Contains $skillCgPrototypeRuntime "using AuraCg.Shared;" "SkillCGExp prototype must consume the current shared CG runtime."
-Assert-True (-not (Test-Path -LiteralPath (Join-Path $repoRoot "TestMods\SkillCGExp-Dev\Hooks\SkillCgArbiterRuntime.cs"))) "Retired SkillCGExp private arbiter must be removed."
-
 Write-Host "Network RPC authority assertions passed."

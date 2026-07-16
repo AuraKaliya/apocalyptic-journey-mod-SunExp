@@ -1297,12 +1297,12 @@ public static class AuraToolsModSyncRuntime
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterBefore(config, target, action, AuraToolsLog.Info, AuraToolsLog.Warn, safeInvoke: true);
+        AuraToolsHookRegistry.Before(config, target, action, "ModSync");
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, AuraToolsLog.Info, AuraToolsLog.Warn, safeInvoke: true);
+        AuraToolsHookRegistry.After(config, target, action, "ModSync");
     }
 
     private readonly struct CellSpec

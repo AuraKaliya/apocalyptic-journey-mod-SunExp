@@ -59,7 +59,7 @@ public static class EndlessSeaIntroBoardRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Endless Sea intro " + message));
+        SunExpHookRegistry.After(config, target, action, "EndlessSeaIntro");
     }
 
     private static void TryShowIntroBoard(ModHookContext context)

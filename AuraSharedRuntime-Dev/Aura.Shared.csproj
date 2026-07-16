@@ -30,6 +30,7 @@
     <Compile Include="..\AuraDirectorShared\*.cs" Link="AuraDirectorShared\%(Filename)%(Extension)" />
     <Compile Include="..\AuraLogShared\*.cs" Link="AuraLogShared\%(Filename)%(Extension)" />
     <Compile Include="..\AuraJourneyShared\*.cs" Link="AuraJourneyShared\%(Filename)%(Extension)" />
+    <Compile Include="..\AuraModeShared\*.cs" Link="AuraModeShared\%(Filename)%(Extension)" />
     <Compile Include="..\AuraSkinShared\**\*.cs" Link="AuraSkinShared\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\AuraOnlineShared\*.cs" Link="AuraOnlineShared\%(Filename)%(Extension)" />
     <Compile Include="..\AudioArbiterShared\AudioArbiterRuntime.cs" Link="AudioArbiterShared\AudioArbiterRuntime.cs" />

@@ -26,7 +26,7 @@ public static class AnimatedBlessingIconRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Animated blessing icon " + message));
+        SunExpHookRegistry.After(config, target, action, "AnimatedBlessingIcon");
     }
 
     private static void AttachFromContext(ModHookContext context)

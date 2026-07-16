@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -8,8 +9,12 @@ namespace AuraDirector.Shared;
 
 public static class AuraDirectorPlanCompiler
 {
-    public const int CurrentProtocolVersion = 1;
+    public const int CurrentProtocolVersion = AuraDirectorProtocol.CurrentSchemaVersion;
+    public const int MinimumSupportedProtocolVersion = AuraDirectorProtocol.MinimumSupportedSchemaVersion;
     public const int MaximumActorCount = 32;
+    public const int MaximumExtensionCount = 32;
+    public const int MaximumExtensionKeyLength = 64;
+    public const int MaximumExtensionValueLength = 512;
     public const string AlternatingPortraitStrategyId = "alternating-portrait-v1";
     public const int AlternatingPortraitStrategyVersion = 1;
     public const string DefaultOpeningProfileId = "opening-default-v1";
@@ -24,6 +29,37 @@ public static class AuraDirectorPlanCompiler
         if (request == null)
         {
             return AuraDirectorCompileResult.Rejected("request-null");
+        }
+
+        var contractId = AuraDirectorResourceRef.Clean(request.ContractId);
+        if (contractId.Length == 0)
+        {
+            contractId = AuraDirectorProtocol.ContractId;
+        }
+        if (!string.Equals(contractId, AuraDirectorProtocol.ContractId, StringComparison.Ordinal))
+        {
+            return AuraDirectorCompileResult.Rejected("contract-id-unsupported");
+        }
+
+        var schemaVersion = request.SchemaVersion <= 0 ? MinimumSupportedProtocolVersion : request.SchemaVersion;
+        var minimumReader = request.MinimumReaderSchemaVersion <= 0
+            ? MinimumSupportedProtocolVersion
+            : request.MinimumReaderSchemaVersion;
+        if (schemaVersion < MinimumSupportedProtocolVersion || schemaVersion > CurrentProtocolVersion)
+        {
+            return AuraDirectorCompileResult.Rejected("schema-version-unsupported");
+        }
+        if (minimumReader < MinimumSupportedProtocolVersion
+            || minimumReader > CurrentProtocolVersion
+            || minimumReader > schemaVersion)
+        {
+            return AuraDirectorCompileResult.Rejected("reader-version-unsupported");
+        }
+
+        var extensions = NormalizeExtensions(request.Extensions);
+        if (extensions == null)
+        {
+            return AuraDirectorCompileResult.Rejected("extensions-invalid");
         }
 
         var ownerModId = AuraDirectorResourceRef.Clean(request.OwnerModId);
@@ -150,8 +186,16 @@ public static class AuraDirectorPlanCompiler
             cursor += enter + hold + exit + gap;
         }
 
+        foreach (var cue in cues)
+        {
+            cue.SchemaVersion = schemaVersion;
+        }
+
         var descriptor = new AuraDirectorPlanDescriptor
         {
+            ContractId = contractId,
+            SchemaVersion = schemaVersion,
+            MinimumReaderSchemaVersion = minimumReader,
             OwnerModId = ownerModId,
             RequestId = requestId,
             BattleSessionId = request.BattleSessionId,
@@ -160,7 +204,8 @@ public static class AuraDirectorPlanCompiler
             BlockingMode = request.BlockingMode,
             FailurePolicy = request.FailurePolicy,
             HardTimeoutSeconds = Clamp(request.HardTimeoutSeconds, 5d, 60d, 20d),
-            DurationSeconds = cursor
+            DurationSeconds = cursor,
+            Extensions = extensions
         };
         descriptor.PlanHash = ComputeHash(descriptor, cues);
         return AuraDirectorCompileResult.Accepted(descriptor, cues);
@@ -169,7 +214,9 @@ public static class AuraDirectorPlanCompiler
     private static string ComputeHash(AuraDirectorPlanDescriptor descriptor, IReadOnlyList<AuraDirectorCue> cues)
     {
         var canonical = new StringBuilder(1024);
-        Append(canonical, descriptor.ProtocolVersion);
+        Append(canonical, descriptor.ContractId);
+        Append(canonical, descriptor.SchemaVersion);
+        Append(canonical, descriptor.MinimumReaderSchemaVersion);
         Append(canonical, descriptor.OwnerModId);
         Append(canonical, descriptor.RequestId);
         Append(canonical, descriptor.BattleSessionId);
@@ -179,6 +226,7 @@ public static class AuraDirectorPlanCompiler
         Append(canonical, (int)descriptor.BlockingMode);
         Append(canonical, (int)descriptor.FailurePolicy);
         Append(canonical, descriptor.HardTimeoutSeconds);
+        AppendExtensions(canonical, descriptor.Extensions);
         foreach (var actor in descriptor.Actors)
         {
             Append(canonical, actor.ActorKey);
@@ -213,11 +261,58 @@ public static class AuraDirectorPlanCompiler
             Append(canonical, cue.StartXRatio);
             Append(canonical, cue.FocusXRatio);
             Append(canonical, cue.EndXRatio);
+            AppendExtensions(canonical, cue.Extensions);
         }
 
         using var sha256 = SHA256.Create();
         var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(canonical.ToString()));
         return BitConverter.ToString(bytes).Replace("-", "").ToLowerInvariant();
+    }
+
+    private static Dictionary<string, string>? NormalizeExtensions(Dictionary<string, string>? source)
+    {
+        var normalized = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (source == null)
+        {
+            return normalized;
+        }
+        if (source.Count > MaximumExtensionCount)
+        {
+            return null;
+        }
+
+        foreach (var pair in source)
+        {
+            var key = AuraDirectorResourceRef.Clean(pair.Key);
+            var value = pair.Value ?? "";
+            if (key.Length == 0
+                || key.Length > MaximumExtensionKeyLength
+                || value.Length > MaximumExtensionValueLength
+                || normalized.ContainsKey(key))
+            {
+                return null;
+            }
+
+            normalized[key] = value;
+        }
+
+        return normalized;
+    }
+
+    private static void AppendExtensions(StringBuilder builder, IReadOnlyDictionary<string, string>? extensions)
+    {
+        if (extensions == null)
+        {
+            Append(builder, 0);
+            return;
+        }
+
+        Append(builder, extensions.Count);
+        foreach (var pair in extensions.OrderBy(item => item.Key, StringComparer.Ordinal))
+        {
+            Append(builder, pair.Key);
+            Append(builder, pair.Value);
+        }
     }
 
     private static void Append(StringBuilder builder, object? value)

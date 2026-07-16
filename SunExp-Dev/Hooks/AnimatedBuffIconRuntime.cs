@@ -22,7 +22,7 @@ public static class AnimatedBuffIconRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Animated buff icon " + message));
+        SunExpHookRegistry.After(config, target, action, "AnimatedBuffIcon");
     }
 
     private static void AttachFromContext(ModHookContext context)

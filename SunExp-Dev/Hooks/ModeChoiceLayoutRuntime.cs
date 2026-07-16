@@ -52,8 +52,8 @@ public static class ModeChoiceLayoutRuntime
         }
 
         initialized = true;
-        AuraSharedHooks.RegisterAfter(modConfig, "ModeChoiceUI.Init", ApplyRegisteredEntries, SunExpLog.Debug, message => SunExpLog.Warn("mode choice " + message));
-        AuraSharedHooks.RegisterAfter(modConfig, "ModeChoiceUI.DataUpdate", ApplyRegisteredEntries, SunExpLog.Debug, message => SunExpLog.Warn("mode choice " + message));
+        SunExpHookRegistry.After(modConfig, "ModeChoiceUI.Init", ApplyRegisteredEntries, "ModeChoice");
+        SunExpHookRegistry.After(modConfig, "ModeChoiceUI.DataUpdate", ApplyRegisteredEntries, "ModeChoice");
     }
 
     private static void ApplyRegisteredEntries(ModHookContext context)

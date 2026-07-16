@@ -116,7 +116,7 @@ public static class SolarMemoryStarterDeckRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Solar memory starter deck " + message));
+        SunExpHookRegistry.After(config, target, action, "SolarMemoryStarterDeck");
     }
 
     private static void MarkPendingFromRoleInit(ModHookContext context)

@@ -317,6 +317,7 @@ $sharedRoots = @(
     "AuraDirectorDetour-Dev",
     "AuraJourneyShared",
     "AuraLogShared",
+    "AuraModeShared",
     "AuraOnlineShared",
     "AuraSharedCore",
     "AuraSkinShared",
@@ -325,6 +326,16 @@ $sharedRoots = @(
     "UiRaycastSafetyShared",
     "UiTransitionGuardShared"
 )
+
+$resourceCacheText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedResourceCache.cs")
+foreach ($required in @("MaximumEntries", "MaximumReferences", "MaximumEntriesPerOwner", "MaximumReferencesPerOwner", "LinkedList<string>", "EnforceLimitsNoLock", "RemoveEntryNoLock")) {
+    Require-Text $resourceCacheText ([regex]::Escape($required)) "Shared resource cache must enforce bounded global/owner LRU retention: $required"
+}
+
+$modeRuntimeText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraModeShared\AuraModeRuntime.cs")
+foreach ($required in @("RegisterMode", "ActivateMode", "DeactivateMode", "EvaluateStarterDeckMutation", "expectedRevision", "PoliciesEquivalent")) {
+    Require-Text $modeRuntimeText ([regex]::Escape($required)) "AuraMode shared runtime is missing its declarative policy/lifecycle contract: $required"
+}
 
 $rawWriteAllowed = @(
     "AuraSharedCore\AuraSharedStorageCoordinator.cs",

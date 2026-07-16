@@ -136,6 +136,11 @@ foreach ($required in @("AuraSharedResourceBootstrapper", "AuraSharedBootstrapRe
 if ($runtimeText.Contains("&& string.Equals(buildId, CurrentBuildId")) {
     throw "AuraShared compatible global reuse must not depend on exact BuildId equality."
 }
+foreach ($required in @("BuildIdPrefix", "ManifestModule.ModuleVersionId")) {
+    if (-not $runtimeText.Contains($required)) {
+        throw "AuraShared BuildId must identify the actual assembly build: $required"
+    }
+}
 
 foreach ($relative in @(
     "AudioArbiterShared\AudioArbiterRuntime.cs",
@@ -461,13 +466,9 @@ foreach ($required in @("AuraCardLifecyclePhase", "AuraHookRegistry", "Registere
 $sharedConsumerProjects = @(
     "SunExp-Dev\SunExp.Dll.csproj",
     "SanGuoShaExp-Dev\SanGuoShaExp.Dll.csproj",
-    "AuraToolsExp-Dev\AuraToolsExp.Dll.csproj",
-    "TestMods\SkinExp-Dev\SkinExp.Dll.csproj",
-    "TestMods\BackgroundAudioReplaceExp-Dev\BackgroundAudioReplaceExp.Dll.csproj",
-    "TestMods\CardUseCialloExp-Dev\CardUseCialloExp.Dll.csproj",
-    "TestMods\ChatExp-Dev\ChatExp.Dll.csproj"
+    "AuraToolsExp-Dev\AuraToolsExp.Dll.csproj"
 )
-$linkedSharedPattern = 'Compile Include="[^"]*(AuraSharedCore|AuraAudioShared|AuraCardUseFxShared|AuraLogShared|AuraJourneyShared|AuraSkinShared|AudioArbiterShared|BattleBgmArbiterShared|StarterDeckArbiterShared|UiRaycastSafetyShared|UiTransitionGuardShared|AuraCgShared|AuraDirectorShared|AuraDirectorDetour-Dev|AuraOnlineShared)'
+$linkedSharedPattern = 'Compile Include="[^"]*(AuraSharedCore|AuraAudioShared|AuraCardUseFxShared|AuraLogShared|AuraJourneyShared|AuraModeShared|AuraSkinShared|AudioArbiterShared|BattleBgmArbiterShared|StarterDeckArbiterShared|UiRaycastSafetyShared|UiTransitionGuardShared|AuraCgShared|AuraDirectorShared|AuraDirectorDetour-Dev|AuraOnlineShared)'
 foreach ($relativeProject in $sharedConsumerProjects) {
     $consumerText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot $relativeProject)
     if (-not $consumerText.Contains("AuraSharedRuntime-Dev\Aura.Shared.csproj")) {

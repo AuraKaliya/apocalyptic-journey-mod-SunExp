@@ -1,6 +1,7 @@
 using System;
 using AuraCg.Shared;
 using AuraJourney.Shared;
+using AuraMode.Shared;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.Audio;
@@ -29,6 +30,7 @@ public static class Entry
         RunStep("shared core", () => AuraSharedRuntime.Initialize(modConfig, AuraToolsIds.ModId));
         RunStep("shared registry", () => AuraSharedRegistry.RegisterManifest(modConfig, AuraToolsIds.ModId));
         RunStep("journey runtime", () => AuraJourneyRuntime.Initialize(modConfig, AuraToolsIds.ModId));
+        RunStep("mode runtime", () => AuraModeRuntime.Initialize(modConfig, AuraToolsIds.ModId));
         RunStep("rpc authority", () => AuraToolsRpcAuthorityRuntime.Initialize(modConfig));
         RunStep("config", () => AuraToolsConfigService.Initialize(modConfig));
         RunStep("file logging", () => AuraToolsFileLogRuntime.Initialize(modConfig));

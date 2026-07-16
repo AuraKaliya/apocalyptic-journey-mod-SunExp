@@ -36,7 +36,7 @@ public static class AuraToolsCardUiBenchmarkRuntime
 
     private static void RegisterKeywordDisplay(ModConfig modConfig)
     {
-        Registrations.Add(AuraSharedHooks.RegisterBeforeRouted(
+        Registrations.Add(AuraToolsHookRegistry.BeforeRouted(
             modConfig,
             "KeywordDisplay.SetText",
             _ =>
@@ -44,8 +44,8 @@ public static class AuraToolsCardUiBenchmarkRuntime
                 keywordStarts ??= new Stack<long>();
                 keywordStarts.Push(Stopwatch.GetTimestamp());
             },
-            warn: AuraToolsLog.Warn));
-        Registrations.Add(AuraSharedHooks.RegisterAfterRouted(
+            "CardUiBenchmark"));
+        Registrations.Add(AuraToolsHookRegistry.AfterRouted(
             modConfig,
             "KeywordDisplay.SetText",
             _ =>
@@ -61,21 +61,21 @@ public static class AuraToolsCardUiBenchmarkRuntime
                     starts.Peek().KeywordMilliseconds += elapsed;
                 }
             },
-            warn: AuraToolsLog.Warn));
+            "CardUiBenchmark"));
     }
 
     private static void Register(ModConfig modConfig, string target)
     {
-        Registrations.Add(AuraSharedHooks.RegisterBeforeRouted(
+        Registrations.Add(AuraToolsHookRegistry.BeforeRouted(
             modConfig,
             target,
             context => Begin(target, context),
-            warn: AuraToolsLog.Warn));
-        Registrations.Add(AuraSharedHooks.RegisterAfterRouted(
+            "CardUiBenchmark"));
+        Registrations.Add(AuraToolsHookRegistry.AfterRouted(
             modConfig,
             target,
             context => End(target, context),
-            warn: AuraToolsLog.Warn));
+            "CardUiBenchmark"));
     }
 
     private static void Begin(string target, ModHookContext context)

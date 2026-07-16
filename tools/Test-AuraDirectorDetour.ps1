@@ -16,6 +16,8 @@ $backendSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirecto
 $registrySource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirectorDetour-Dev\AuraDirectorOneShotHoldRegistry.cs")
 $sharedProject = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedRuntime-Dev\Aura.Shared.csproj")
 $runtimeSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirectorShared\AuraDirectorRuntime.cs")
+$modelsSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirectorShared\AuraDirectorModels.cs")
+$compilerSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirectorShared\AuraDirectorPlanCompiler.cs")
 $sunExpSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Features\Director\SunExpDirectorRuntime.cs")
 $sunExpEntry = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Entry.cs")
 $sunExpProject = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "SunExp-Dev\SunExp.Dll.csproj")
@@ -58,7 +60,7 @@ foreach ($required in @(
     "session.Hold.TryRelease",
     "NativeBattleSpriteProviderId",
     "SilhouetteSprite",
-    "CurrentRuntimeProtocolVersion = 2",
+    "MinimumSupportedRuntimeProtocolVersion",
     "Keyboard.current",
     "Mouse.current",
     "AuraDirectorPortraitLayout.Calculate",
@@ -68,6 +70,27 @@ foreach ($required in @(
 )) {
     if (-not $runtimeSource.Contains($required)) {
         throw "AuraDirector local runtime contract is missing: $required"
+    }
+}
+foreach ($required in @(
+    "AuraDirectorProtocol",
+    "MinimumReaderSchemaVersion",
+    "AuraDirectorPlanEnvelope",
+    "Extensions"
+)) {
+    if (-not $modelsSource.Contains($required)) {
+        throw "AuraDirector versioned plan envelope contract is missing: $required"
+    }
+}
+foreach ($required in @(
+    "contract-id-unsupported",
+    "schema-version-unsupported",
+    "reader-version-unsupported",
+    "NormalizeExtensions",
+    "AppendExtensions"
+)) {
+    if (-not $compilerSource.Contains($required)) {
+        throw "AuraDirector compiler compatibility contract is missing: $required"
     }
 }
 if ($runtimeSource.Contains("Time.timeScale")) {
@@ -105,12 +128,7 @@ foreach ($required in @(
 
 $shippedScriptRoots = @(
     "SanGuoShaExp\Scripts",
-    "AuraToolsExp\Scripts",
-    "TestMods\SkinExp\Scripts",
-    "TestMods\BackgroundAudioReplaceExp\Scripts",
-    "TestMods\CardUseCialloExp\Scripts",
-    "TestMods\ChatExp\Scripts",
-    "TestMods\SkillCGExp\Scripts"
+    "AuraToolsExp\Scripts"
 )
 foreach ($relative in $shippedScriptRoots) {
     $scriptsPath = Join-Path $repoRoot $relative

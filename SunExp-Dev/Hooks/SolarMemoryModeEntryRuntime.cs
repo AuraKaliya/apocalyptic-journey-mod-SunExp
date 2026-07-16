@@ -44,7 +44,8 @@ public static class SolarMemoryModeEntryRuntime
             100,
             ConfigureRegisteredEntry,
             modeChoice => SolarMemoryRunLauncher.Start(modeChoice, SolarMemoryModeRuntime.InitialPackSelection().ToList()),
-            SunExpIds.SolarMemoryTitle));
+            SunExpIds.SolarMemoryTitle,
+            SunExpIds.SolarMemorySemanticModeId));
     }
 
     private static void ConfigureRegisteredEntry(GameObject entry, ModeChoiceUI modeChoice)

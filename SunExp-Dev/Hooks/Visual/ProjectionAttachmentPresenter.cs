@@ -262,6 +262,19 @@ internal sealed class ProjectionVisualProxy : MonoBehaviour
     private bool hasDisplayedScreenCenter;
     private bool warnedInvalidLayout;
     private bool hasValidLayout;
+    private bool hasLayoutSnapshot;
+    private int lastScreenWidth;
+    private int lastScreenHeight;
+    private Matrix4x4 lastWorldToCameraMatrix;
+    private Matrix4x4 lastProjectionMatrix;
+    private float lastPulseMultiplier;
+    private float lastFocusProgress;
+    private float lastSourceXDirection;
+    private float lastSourceYDirection;
+    private GameObject? lastActionContent;
+    private bool lastActionContentActive;
+    private int lastSortingLayerId;
+    private int lastSortingOrder;
 
     public bool Configure(
         Transform owner,
@@ -386,29 +399,59 @@ internal sealed class ProjectionVisualProxy : MonoBehaviour
 
         HideSourcePresentation();
         SynchronizeVisual();
-        RefreshLocalAabb();
+        var localAabbChanged = RefreshLocalAabb();
         if (!hasLocalAabb
             || !sourceRoot.gameObject.activeInHierarchy
             || !ownerRoot.gameObject.activeInHierarchy)
         {
             proxyRenderer.enabled = false;
+            hasLayoutSnapshot = false;
             return;
         }
 
         if (synchronizedSprite == null)
         {
             proxyRenderer.enabled = false;
+            hasLayoutSnapshot = false;
             return;
         }
 
+        var ownerBoundsChanged = false;
         if (TryOwnerBounds(out var currentOwnerBounds))
         {
+            ownerBoundsChanged = !hasOwnerBounds || !Approximately(lastOwnerBounds, currentOwnerBounds);
             lastOwnerBounds = currentOwnerBounds;
             hasOwnerBounds = true;
         }
 
         var camera = layoutCamera ?? Camera.main;
         layoutCamera = camera;
+        var sourceXDirection = sourceRenderer.transform.localScale.x < 0f ? -1f : 1f;
+        var sourceYDirection = sourceRenderer.transform.localScale.y < 0f ? -1f : 1f;
+        var actionContent = projectionStatus?.actionContent;
+        var actionContentActive = actionContent != null && actionContent.activeInHierarchy;
+        var layoutChanged = !hasLayoutSnapshot
+                            || localAabbChanged
+                            || ownerBoundsChanged
+                            || camera == null
+                            || camera.worldToCameraMatrix != lastWorldToCameraMatrix
+                            || camera.projectionMatrix != lastProjectionMatrix
+                            || Screen.width != lastScreenWidth
+                            || Screen.height != lastScreenHeight
+                            || !Mathf.Approximately(pulseMultiplier, lastPulseMultiplier)
+                            || !Mathf.Approximately(focusProgress, lastFocusProgress)
+                            || !Mathf.Approximately(sourceXDirection, lastSourceXDirection)
+                            || !Mathf.Approximately(sourceYDirection, lastSourceYDirection)
+                            || actionContent != lastActionContent
+                            || actionContentActive != lastActionContentActive
+                            || ownerRenderer.sortingLayerID != lastSortingLayerId
+                            || ownerRenderer.sortingOrder != lastSortingOrder;
+        if (!layoutChanged)
+        {
+            proxyRenderer.enabled = hasValidLayout;
+            return;
+        }
+
         if (!hasOwnerBounds
             || camera == null
             || Screen.height <= 0
@@ -463,12 +506,10 @@ internal sealed class ProjectionVisualProxy : MonoBehaviour
             return;
         }
 
-        var xDirection = sourceRenderer.transform.localScale.x < 0f ? -1f : 1f;
-        var yDirection = sourceRenderer.transform.localScale.y < 0f ? -1f : 1f;
         transform.position = desiredBodyOrigin;
         transform.localScale = new Vector3(
-            displayScale * xDirection,
-            displayScale * yDirection,
+            displayScale * sourceXDirection,
+            displayScale * sourceYDirection,
             1f);
         proxyRenderer.sortingLayerID = ownerRenderer.sortingLayerID;
         proxyRenderer.sortingOrder = ownerRenderer.sortingOrder - 1;
@@ -490,6 +531,12 @@ internal sealed class ProjectionVisualProxy : MonoBehaviour
         hasDisplayedScreenCenter = true;
         proxyRenderer.enabled = true;
         AnchorIntent(displayedBounds, displayedScreen);
+        CaptureLayoutSnapshot(
+            camera,
+            sourceXDirection,
+            sourceYDirection,
+            actionContent,
+            actionContentActive);
     }
 
     private void HideSourcePresentation()
@@ -545,11 +592,11 @@ internal sealed class ProjectionVisualProxy : MonoBehaviour
         proxyRenderer.flipY = sourceRenderer.flipY;
     }
 
-    private void RefreshLocalAabb()
+    private bool RefreshLocalAabb()
     {
         if (sourceCollider == null || sourceRenderer == null)
         {
-            return;
+            return false;
         }
 
         var center = sourceCollider.center;
@@ -561,13 +608,41 @@ internal sealed class ProjectionVisualProxy : MonoBehaviour
             || size.x <= 0.001f
             || size.y <= 0.001f)
         {
-            return;
+            return false;
         }
 
+        var changed = !hasLocalAabb
+                      || !Approximately(localAabbCenter, center)
+                      || !Approximately(localAabbSize, size)
+                      || !Approximately(localBodyPosition, bodyPosition);
         localAabbCenter = center;
         localAabbSize = size;
         localBodyPosition = bodyPosition;
         hasLocalAabb = true;
+        return changed;
+    }
+
+    private void CaptureLayoutSnapshot(
+        Camera camera,
+        float sourceXDirection,
+        float sourceYDirection,
+        GameObject? actionContent,
+        bool actionContentActive)
+    {
+        lastScreenWidth = Screen.width;
+        lastScreenHeight = Screen.height;
+        lastWorldToCameraMatrix = camera.worldToCameraMatrix;
+        lastProjectionMatrix = camera.projectionMatrix;
+        lastPulseMultiplier = pulseMultiplier;
+        lastFocusProgress = focusProgress;
+        lastSourceXDirection = sourceXDirection;
+        lastSourceYDirection = sourceYDirection;
+        lastActionContent = actionContent;
+        lastActionContentActive = actionContentActive;
+        lastSortingLayerId = ownerRenderer?.sortingLayerID ?? 0;
+        lastSortingOrder = ownerRenderer?.sortingOrder ?? 0;
+        hasLayoutSnapshot = true;
+        SunExpPerformanceCounters.Record("ProjectionAttachment.ProxyLayoutApplied");
     }
 
     private bool TryOwnerBounds(out Bounds bounds)
@@ -848,6 +923,17 @@ internal sealed class ProjectionVisualProxy : MonoBehaviour
             && IsFinite(bounds.size)
             && bounds.size.x > 0.001f
             && bounds.size.y > 0.001f;
+    }
+
+    private static bool Approximately(Bounds left, Bounds right)
+    {
+        return Approximately(left.center, right.center)
+               && Approximately(left.size, right.size);
+    }
+
+    private static bool Approximately(Vector3 left, Vector3 right)
+    {
+        return (left - right).sqrMagnitude <= 0.000001f;
     }
 
     private static bool IsFinite(Rect value)

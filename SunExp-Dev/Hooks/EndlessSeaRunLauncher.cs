@@ -156,6 +156,7 @@ public static class EndlessSeaRunLauncher
     {
         CloseContinuePrompt();
         EndlessSeaRunStateStore.RepairSave(saveInfo, "EndlessSeaRunLauncher.Launch");
+        SunExpModeApi.ActivateEndlessAbyss(saveInfo, "EndlessSeaRunLauncher.Launch");
         GameSaveManager.Select(saveInfo);
         GameEntryUI.selectedSave = saveInfo;
         LobbyManager.Instance?.SetLobbyModeType(NativeMapModeType);

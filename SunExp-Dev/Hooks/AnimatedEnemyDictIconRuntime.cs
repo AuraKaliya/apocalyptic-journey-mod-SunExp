@@ -24,7 +24,7 @@ public static class AnimatedEnemyDictIconRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("Animated enemy dictionary icon " + message));
+        SunExpHookRegistry.After(config, target, action, "AnimatedEnemyDictIcon");
     }
 
     private static void AttachFromContext(ModHookContext context)

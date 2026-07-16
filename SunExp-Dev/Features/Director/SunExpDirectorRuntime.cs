@@ -76,6 +76,9 @@ public static class SunExpDirectorRuntime
 
             return new AuraDirectorRequest
             {
+                ContractId = AuraDirectorProtocol.ContractId,
+                SchemaVersion = AuraDirectorProtocol.CurrentSchemaVersion,
+                MinimumReaderSchemaVersion = AuraDirectorProtocol.MinimumSupportedSchemaVersion,
                 OwnerModId = SunExpIds.ModId,
                 RequestId = "battle-opening:" + battleSessionId,
                 BattleSessionId = battleSessionId,

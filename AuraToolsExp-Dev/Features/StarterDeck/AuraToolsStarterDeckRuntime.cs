@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using AuraJourney.Shared;
+using AuraMode.Shared;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
@@ -354,9 +354,17 @@ public static class AuraToolsStarterDeckRuntime
 
     private static bool ShouldSkipForExternalOwner(RoleTable roleTable)
     {
-        if (IsSunExpSolarMemoryRun())
+        var activeMode = AuraModeRuntime.Current(AuraToolsIds.ModId);
+        var policyDecision = AuraModeRuntime.EvaluateStarterDeckMutation(activeMode, AuraToolsIds.ModId);
+        if (!policyDecision.Allowed)
         {
-            AuraToolsLog.Info("[StarterDeck] skipped: SunExp Solar Memory owns this run.");
+            AuraToolsLog.Info("[StarterDeck] skipped: active mode policy owns starter-deck mutation; mode="
+                              + activeMode?.ModeId
+                              + ", provider="
+                              + policyDecision.AuthorityProviderId
+                              + ", policy="
+                              + policyDecision.PolicyId
+                              + ".");
             return true;
         }
 
@@ -376,36 +384,17 @@ public static class AuraToolsStarterDeckRuntime
             return true;
         }
 
-        if (roleTable.SpecialVarMap.TryGetValue(StarterDeckArbiterRuntime.LegacyCardPackAppliedKey + ".Mode", out var legacyMode)
-            && string.Equals(legacyMode, "sunexp-solar-memory", StringComparison.OrdinalIgnoreCase))
-        {
-            AuraToolsLog.Info("[StarterDeck] skipped: CardPackExp compatibility owner is SunExp Solar Memory.");
-            return true;
-        }
-
         return false;
-    }
-
-    private static bool IsSunExpSolarMemoryRun()
-    {
-        try
-        {
-            return AuraJourneyRuntime.IsJourneyActive("AuraTools", "SunExp", "SunExp.SolarMemory");
-        }
-        catch
-        {
-            return false;
-        }
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, message => AuraToolsLog.Info(message), AuraToolsLog.Warn);
+        AuraToolsHookRegistry.After(config, target, action, "StarterDeck");
     }
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterBefore(config, target, action, message => AuraToolsLog.Info(message), AuraToolsLog.Warn);
+        AuraToolsHookRegistry.Before(config, target, action, "StarterDeck");
     }
 
     internal static StarterDeckResolvedProfile? ResolveEffectiveProfileForPreview(string roleId)
@@ -688,7 +677,7 @@ public static class AuraToolsStarterDeckRuntime
         var normalizedRole = RoleCatalog.NormalizeRoleId(roleId);
         var owner = StarterDeckArbiterRuntime.InferOwnerModId(
             normalizedRole,
-            registeredProfiles.Select(profile => profile.OwnerModId).Concat(new[] { "SunExp", "SanGuoShaExp" }));
+            registeredProfiles.Select(profile => profile.OwnerModId));
         if (!string.IsNullOrWhiteSpace(owner))
         {
             return owner;

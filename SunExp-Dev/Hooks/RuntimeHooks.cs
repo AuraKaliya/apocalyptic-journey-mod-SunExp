@@ -41,6 +41,7 @@ public static class RuntimeHooks
         RunHookStep("familiar growth", () => FamiliarGrowthRuntime.Initialize(modConfig));
         RunHookStep("dusk partner", () => DuskPartnerRuntime.Initialize(modConfig));
         RunHookStep("star clay doll", () => StarClayDollRuntime.Initialize(modConfig));
+        RunHookStep("mode context", () => SunExpModeContextRuntime.Initialize(modConfig));
         RunHookStep("solar memory mode", () => SolarMemoryModeRuntime.Initialize(modConfig));
         RunHookStep("solar memory combat", () => SolarMemoryCombatRuntime.Initialize(modConfig));
         RunHookStep("solar memory reward", () => SolarMemoryRewardRuntime.Initialize());

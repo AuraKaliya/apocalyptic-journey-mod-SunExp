@@ -1,5 +1,6 @@
 using AuraShared.Core;
 using AuraJourney.Shared;
+using AuraMode.Shared;
 using AuraOnline.Shared;
 using AuraDirector.Shared;
 using Newtonsoft.Json.Linq;
@@ -171,6 +172,7 @@ try
     TestOnlineChatContracts();
     TestAuthoritativeSyncContracts();
     TestObjectPoolContracts();
+    TestModeContracts();
     TestDirectorContracts();
 
     Console.WriteLine($"AuraSharedCore tests passed: {assertions} assertions.");
@@ -208,6 +210,34 @@ void TestObjectPoolContracts()
     Assert(disposed.SequenceEqual(new[] { "dispose" }) && pool.Count("attack") == 0, "object pool clear disposes idle values and removes buckets");
 }
 
+void TestModeContracts()
+{
+    Assert(AuraModePolicyEvaluator.EvaluateStarterDeckMutation(null, "Tool").Allowed,
+        "mode policy inherits host behavior when no semantic mode is active");
+
+    var snapshot = new AuraActiveModeSnapshot
+    {
+        Status = AuraModeStates.Active,
+        ModeId = "Content:challenge",
+        OwnerModId = "Content",
+        ResolvedPolicies = new AuraModePolicies
+        {
+            StarterDeck = new AuraModeStarterDeckPolicy
+            {
+                MutationAuthority = AuraModeStarterDeckAuthorities.ModeOwnerExclusive,
+                ProviderId = "Content"
+            }
+        }
+    };
+    Assert(AuraModePolicyEvaluator.EvaluateStarterDeckMutation(snapshot, "Content").Allowed
+           && !AuraModePolicyEvaluator.EvaluateStarterDeckMutation(snapshot, "Tool").Allowed,
+        "mode-owner-exclusive starter deck policy is evaluated without content semantics");
+
+    snapshot.ResolvedPolicies.StarterDeck.MutationAuthority = AuraModeStarterDeckAuthorities.OfficialOnly;
+    Assert(!AuraModePolicyEvaluator.EvaluateStarterDeckMutation(snapshot, "Content").Allowed,
+        "official-only starter deck policy rejects every external provider");
+}
+
 void TestDirectorContracts()
 {
     var request = DirectorRequest(2);
@@ -222,6 +252,40 @@ void TestDirectorContracts()
         "director alternates portrait direction from right to left first");
     Assert(first.Descriptor.PlanHash == second.Descriptor!.PlanHash,
         "director plan hash is deterministic");
+    Assert(first.Envelope != null
+           && first.Envelope.ContractId == AuraDirectorProtocol.ContractId
+           && first.Envelope.SchemaVersion == AuraDirectorProtocol.CurrentSchemaVersion
+           && first.Envelope.Cues.Count == first.Cues.Count,
+        "director emits a self-contained versioned plan envelope");
+
+    var legacy = DirectorRequest(2);
+    legacy.SchemaVersion = AuraDirectorProtocol.MinimumSupportedSchemaVersion;
+    legacy.MinimumReaderSchemaVersion = AuraDirectorProtocol.MinimumSupportedSchemaVersion;
+    Assert(AuraDirectorPlanCompiler.Compile(legacy).Success,
+        "director accepts the supported legacy schema");
+
+    var future = DirectorRequest(2);
+    future.SchemaVersion = AuraDirectorProtocol.CurrentSchemaVersion + 1;
+    Assert(AuraDirectorPlanCompiler.Compile(future).RejectionCode == "schema-version-unsupported",
+        "director rejects future schemas it cannot interpret");
+
+    var extensionA = DirectorRequest(2);
+    extensionA.Extensions["z"] = "last";
+    extensionA.Extensions["a"] = "first";
+    var extensionB = DirectorRequest(2);
+    extensionB.Extensions["a"] = "first";
+    extensionB.Extensions["z"] = "last";
+    Assert(AuraDirectorPlanCompiler.Compile(extensionA).Descriptor!.PlanHash
+           == AuraDirectorPlanCompiler.Compile(extensionB).Descriptor!.PlanHash,
+        "director hashes bounded extensions in deterministic key order");
+
+    var oversizedExtensions = DirectorRequest(2);
+    for (var i = 0; i <= AuraDirectorPlanCompiler.MaximumExtensionCount; i++)
+    {
+        oversizedExtensions.Extensions["key-" + i] = "value";
+    }
+    Assert(AuraDirectorPlanCompiler.Compile(oversizedExtensions).RejectionCode == "extensions-invalid",
+        "director rejects oversized extension maps");
 
     var changedOrder = DirectorRequest(2);
     changedOrder.Actors.Reverse();
@@ -294,6 +358,9 @@ AuraDirectorRequest DirectorRequest(int actorCount)
 {
     var request = new AuraDirectorRequest
     {
+        ContractId = AuraDirectorProtocol.ContractId,
+        SchemaVersion = AuraDirectorProtocol.CurrentSchemaVersion,
+        MinimumReaderSchemaVersion = AuraDirectorProtocol.MinimumSupportedSchemaVersion,
         OwnerModId = "Tests",
         RequestId = "opening",
         BattleSessionId = 7

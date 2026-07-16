@@ -19,12 +19,7 @@ $expectedHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $sharedDll).Hash
 $packagedDlls = @(
     "SunExp\Scripts\Aura.Shared.dll",
     "SanGuoShaExp\Scripts\Aura.Shared.dll",
-    "AuraToolsExp\Scripts\Aura.Shared.dll",
-    "TestMods\SkinExp\Scripts\Aura.Shared.dll",
-    "TestMods\BackgroundAudioReplaceExp\Scripts\Aura.Shared.dll",
-    "TestMods\CardUseCialloExp\Scripts\Aura.Shared.dll",
-    "TestMods\ChatExp\Scripts\Aura.Shared.dll",
-    "TestMods\SkillCGExp\Scripts\Aura.Shared.dll"
+    "AuraToolsExp\Scripts\Aura.Shared.dll"
 )
 
 foreach ($relative in $packagedDlls) {
@@ -39,16 +34,11 @@ foreach ($relative in $packagedDlls) {
     }
 }
 
-$sharedSourcePattern = 'Compile Include="[^"]*(AuraSharedCore|AuraAudioShared|AuraCardUseFxShared|AuraLogShared|AuraJourneyShared|AuraSkinShared|AudioArbiterShared|BattleBgmArbiterShared|StarterDeckArbiterShared|UiRaycastSafetyShared|UiTransitionGuardShared|AuraCgShared|AuraDirectorShared|AuraDirectorDetour-Dev|AuraOnlineShared)'
+$sharedSourcePattern = 'Compile Include="[^"]*(AuraSharedCore|AuraAudioShared|AuraCardUseFxShared|AuraLogShared|AuraJourneyShared|AuraModeShared|AuraSkinShared|AudioArbiterShared|BattleBgmArbiterShared|StarterDeckArbiterShared|UiRaycastSafetyShared|UiTransitionGuardShared|AuraCgShared|AuraDirectorShared|AuraDirectorDetour-Dev|AuraOnlineShared)'
 $consumerProjects = @(
     "SunExp-Dev\SunExp.Dll.csproj",
     "SanGuoShaExp-Dev\SanGuoShaExp.Dll.csproj",
-    "AuraToolsExp-Dev\AuraToolsExp.Dll.csproj",
-    "TestMods\SkinExp-Dev\SkinExp.Dll.csproj",
-    "TestMods\BackgroundAudioReplaceExp-Dev\BackgroundAudioReplaceExp.Dll.csproj",
-    "TestMods\CardUseCialloExp-Dev\CardUseCialloExp.Dll.csproj",
-    "TestMods\ChatExp-Dev\ChatExp.Dll.csproj",
-    "TestMods\SkillCGExp-Dev\SkillCGExp.Dll.csproj"
+    "AuraToolsExp-Dev\AuraToolsExp.Dll.csproj"
 )
 
 foreach ($relative in $consumerProjects) {

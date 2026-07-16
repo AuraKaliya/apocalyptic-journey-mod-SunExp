@@ -17,7 +17,7 @@ public static class DialogueFlowRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, SunExpLog.Debug, message => SunExpLog.Warn("dialogue flow " + message));
+        SunExpHookRegistry.After(config, target, action, "DialogueFlow");
     }
 
     private static void OnChooseOptionAfter(ModHookContext context)

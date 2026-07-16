@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using AuraJourney.Shared;
 using Data.Save;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
@@ -66,12 +65,7 @@ public static class SolarMemoryRunLauncher
 
         saveInfo.ItemOpers.PlayerId = Singleton<GameConfigManager>.Instance.PlayerId;
         saveInfo.GameVars[SunExpIds.SolarMemoryModeKey] = "1";
-        AuraJourneyRuntime.PublishActiveMode(
-            SunExpIds.ModId,
-            SolarMemoryJourneyApi.JourneyId,
-            "solar-memory",
-            isActive: true,
-            source: "SolarMemoryRunLauncher.CreateSave");
+        SunExpModeApi.ActivateSolarMemory(saveInfo, "SolarMemoryRunLauncher.CreateSave");
         saveInfo.GameVars[SunExpIds.SolarMemorySelectedPacksKey] = string.Join("|", selectedPacks);
         saveInfo.GameVars[SunExpIds.SolarMemoryOriginPointsKey] = "50";
         saveInfo.GameVars[SunExpIds.SolarMemoryBlessPickCountKey] = "0";

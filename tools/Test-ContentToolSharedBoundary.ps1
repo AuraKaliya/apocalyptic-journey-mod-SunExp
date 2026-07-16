@@ -80,6 +80,7 @@ $sharedRoots = @(
     "AuraDirectorDetour-Dev",
     "AuraJourneyShared",
     "AuraLogShared",
+    "AuraModeShared",
     "AuraOnlineShared",
     "AuraSharedCore",
     "AuraSkinShared",
@@ -90,10 +91,19 @@ $sharedRoots = @(
 )
 
 $auraToolsFiles = @(Get-SourceFiles @("AuraToolsExp-Dev"))
+$sunExpFiles = @(Get-SourceFiles @("SunExp-Dev"))
 $sharedFiles = @(Get-SourceFiles $sharedRoots)
 
 Assert-NoMatches $auraToolsFiles "SunExp-Dev|SunExp\.Dll|using\s+SunExp|CS\.SunExp|SunExpIds|SunExpHook|SunExpUi|SunExpResourceCache" `
     "AuraToolsExp must not depend on SunExp internals."
+
+$auraToolsDirectHooks = @($auraToolsFiles | Where-Object { $_.Name -ne "AuraToolsHookRegistry.cs" })
+Assert-NoMatches $auraToolsDirectHooks "AuraSharedHooks\.(RegisterBefore|RegisterAfter)" `
+    "AuraTools features must register hooks through AuraToolsHookRegistry."
+
+$sunExpDirectHooks = @($sunExpFiles | Where-Object { $_.Name -ne "SunExpHookRegistry.cs" })
+Assert-NoMatches $sunExpDirectHooks "AuraSharedHooks\.(RegisterBefore|RegisterAfter)" `
+    "SunExp features must register hooks through SunExpHookRegistry."
 
 Assert-NoMatches $sharedFiles "SunExpIds|SunExp\.Dll|CS\.SunExp|晨星|EndlessSea|SolarMemory|TongtianTower" `
     "Shared runtimes must not contain SunExp content semantics."
@@ -109,6 +119,17 @@ $auraToolsSkillCg = Read-RepoText "AuraToolsExp-Dev\Features\SkillCg\AuraToolsSk
 Assert-Contains $auraToolsSkillCg "AuraBattleLifecycleRouter.Register" "AuraTools SkillCG must use the shared battle lifecycle router."
 Assert-NotContains $auraToolsSkillCg 'RegisterBefore("GameEntryUI.StartGame"' "AuraTools SkillCG must not own a private adventure-start hook."
 
+$auraToolsSkillCgSettings = Read-RepoText "AuraToolsExp\Config\SkillCgSettings.json"
+Assert-NotContains $auraToolsSkillCgSettings '"SunExp' "AuraTools SkillCG defaults must not embed SunExp content semantics."
+
+$starterDeck = Read-RepoText "AuraToolsExp-Dev\Features\StarterDeck\AuraToolsStarterDeckRuntime.cs"
+Assert-Contains $starterDeck "EvaluateStarterDeckMutation" "AuraTools starter deck must consume the generic active-mode policy decision."
+Assert-NotContains $starterDeck "SolarMemory" "AuraTools starter deck must not branch on a content-owned semantic mode."
+
+$damageMeterMode = Read-RepoText "AuraToolsExp-Dev\Features\DamageMeter\AuraToolsDamageMeterRuntime.cs"
+Assert-Contains $damageMeterMode "AuraModeRuntime.Current" "DamageMeter must resolve semantic mode labels through AuraMode shared state."
+Assert-NotContains $damageMeterMode "SolarMemory" "DamageMeter must not hard-code a content-owned semantic mode."
+
 $damageMeter = Read-RepoText "AuraToolsExp-Dev\Features\DamageMeter\AuraToolsDamageMeterRuntime.cs"
 Assert-Contains $damageMeter "AuraBattleLifecycleRouter.Register" "DamageMeter battle hooks must use the shared battle lifecycle router."
 Assert-NotContains $damageMeter 'RegisterBefore("FightInit.Init"' "DamageMeter must not own a private fight-init hook when shared lifecycle exists."
@@ -120,6 +141,7 @@ Assert-Contains $damageMeter "if (AuraToolsPerformanceSettings.DiagnosticsEnable
 
 $sharedRuntimeProject = Read-RepoText "AuraSharedRuntime-Dev\Aura.Shared.csproj"
 Assert-Contains $sharedRuntimeProject "..\AuraUiShared\*.cs" "AuraUiShared must be packaged into Aura.Shared.dll."
+Assert-Contains $sharedRuntimeProject "..\AuraModeShared\*.cs" "AuraModeShared must be packaged into Aura.Shared.dll."
 
 $auraToolsResourceFiles = @($auraToolsFiles | Where-Object { $_.Name -ne "AuraToolsResourceCache.cs" })
 Assert-NoMatches $auraToolsResourceFiles "ResourceLoader\.Load(?:All)?<" `

@@ -5,12 +5,28 @@ using Witch.Core;
 
 namespace AuraShared.Core;
 
+public sealed class AuraSharedResourceCacheStats
+{
+    public int EntryCount { get; set; }
+    public int ReferenceCount { get; set; }
+    public int CategoryCount { get; set; }
+}
+
 public static class AuraSharedResourceCache
 {
+    public const int MaximumEntries = 512;
+    public const int MaximumReferences = 4096;
+    public const int MaximumEntriesPerOwner = 256;
+    public const int MaximumReferencesPerOwner = 2048;
+
     private static readonly object Gate = new();
     private static readonly Dictionary<string, UnityEngine.Object?> ObjectCache = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, Array?> ObjectArrayCache = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, HashSet<string>> CategoryKeys = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, CacheEntry> Entries = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, OwnerUsage> OwnerUsages = new(StringComparer.Ordinal);
+    private static readonly LinkedList<string> Recency = new();
+    private static int referenceCount;
 
     public static T? Load<T>(
         string ownerModId,
@@ -30,6 +46,7 @@ public static class AuraSharedResourceCache
         {
             if (ObjectCache.TryGetValue(key, out var cached))
             {
+                TouchNoLock(key);
                 return cached as T;
             }
         }
@@ -39,8 +56,7 @@ public static class AuraSharedResourceCache
             var loaded = ResourceLoader.Load<T>(path.Trim(), loadFromMod);
             lock (Gate)
             {
-                ObjectCache[key] = loaded;
-                AddCategoryKey(category, key);
+                StoreNoLock(key, ownerModId, category, loaded, null, 1);
             }
 
             return loaded;
@@ -49,21 +65,10 @@ public static class AuraSharedResourceCache
         {
             lock (Gate)
             {
-                ObjectCache[key] = null;
-                AddCategoryKey(category, key);
+                StoreNoLock(key, ownerModId, category, null, null, 1);
             }
 
-            var owner = NormalizeOwner(ownerModId);
-            var message = "[ResourceCache] load failed: " + typeof(T).Name + " " + path + " (" + ex.Message + ")";
-            if (warn != null)
-            {
-                warn(message);
-            }
-            else
-            {
-                AuraSharedLog.WarnOnce(owner, "resource-load:" + key, message);
-            }
-
+            WarnLoadFailure(ownerModId, warn, "load failed", typeof(T).Name, path, key, ex);
             return null;
         }
     }
@@ -85,6 +90,7 @@ public static class AuraSharedResourceCache
         {
             if (ObjectArrayCache.TryGetValue(key, out var cached))
             {
+                TouchNoLock(key);
                 return cached as T[] ?? Array.Empty<T>();
             }
         }
@@ -94,32 +100,47 @@ public static class AuraSharedResourceCache
             var loaded = ResourceLoader.LoadAll<T>(path.Trim()) ?? Array.Empty<T>();
             lock (Gate)
             {
-                ObjectArrayCache[key] = loaded;
-                AddCategoryKey(category, key);
+                StoreNoLock(key, ownerModId, category, null, loaded, Math.Max(1, loaded.Length));
             }
 
             return loaded;
         }
         catch (Exception ex)
         {
+            var empty = Array.Empty<T>();
             lock (Gate)
             {
-                ObjectArrayCache[key] = Array.Empty<T>();
-                AddCategoryKey(category, key);
+                StoreNoLock(key, ownerModId, category, null, empty, 1);
             }
 
-            var owner = NormalizeOwner(ownerModId);
-            var message = "[ResourceCache] load-all failed: " + typeof(T).Name + " " + path + " (" + ex.Message + ")";
-            if (warn != null)
+            WarnLoadFailure(ownerModId, warn, "load-all failed", typeof(T).Name, path, key, ex);
+            return empty;
+        }
+    }
+
+    public static AuraSharedResourceCacheStats GetStats(string ownerModId = "")
+    {
+        var owner = Normalize(ownerModId);
+        lock (Gate)
+        {
+            if (owner.Length > 0)
             {
-                warn(message);
-            }
-            else
-            {
-                AuraSharedLog.WarnOnce(owner, "resource-load-all:" + key, message);
+                var normalizedOwner = NormalizeOwner(owner);
+                OwnerUsages.TryGetValue(normalizedOwner, out var usage);
+                return new AuraSharedResourceCacheStats
+                {
+                    EntryCount = usage?.EntryCount ?? 0,
+                    ReferenceCount = usage?.ReferenceCount ?? 0,
+                    CategoryCount = CountOwnerCategoriesNoLock(normalizedOwner)
+                };
             }
 
-            return Array.Empty<T>();
+            return new AuraSharedResourceCacheStats
+            {
+                EntryCount = Entries.Count,
+                ReferenceCount = referenceCount,
+                CategoryCount = CategoryKeys.Count
+            };
         }
     }
 
@@ -133,13 +154,27 @@ public static class AuraSharedResourceCache
                 ObjectCache.Clear();
                 ObjectArrayCache.Clear();
                 CategoryKeys.Clear();
+                Entries.Clear();
+                OwnerUsages.Clear();
+                Recency.Clear();
+                referenceCount = 0;
                 return;
             }
 
-            var prefix = owner + "|";
-            RemoveKeys(prefix, ObjectCache);
-            RemoveKeys(prefix, ObjectArrayCache);
-            CategoryKeys.Clear();
+            var normalizedOwner = NormalizeOwner(owner);
+            var remove = new List<string>();
+            foreach (var pair in Entries)
+            {
+                if (string.Equals(pair.Value.OwnerModId, normalizedOwner, StringComparison.Ordinal))
+                {
+                    remove.Add(pair.Key);
+                }
+            }
+
+            foreach (var key in remove)
+            {
+                RemoveEntryNoLock(key);
+            }
         }
     }
 
@@ -158,31 +193,180 @@ public static class AuraSharedResourceCache
                 return;
             }
 
-            foreach (var key in keys)
+            foreach (var key in new List<string>(keys))
             {
-                ObjectCache.Remove(key);
-                ObjectArrayCache.Remove(key);
+                RemoveEntryNoLock(key);
             }
-
-            CategoryKeys.Remove(normalized);
         }
     }
 
-    private static void RemoveKeys<TValue>(string prefix, Dictionary<string, TValue> values)
+    private static void StoreNoLock(
+        string key,
+        string ownerModId,
+        string category,
+        UnityEngine.Object? value,
+        Array? array,
+        int weight)
     {
-        var remove = new List<string>();
-        foreach (var key in values.Keys)
+        var owner = NormalizeOwner(ownerModId);
+        var normalizedWeight = Math.Max(1, weight);
+        RemoveEntryNoLock(key);
+
+        // Oversized arrays are returned to the caller but never retained by the shared cache.
+        if (normalizedWeight > MaximumReferencesPerOwner || normalizedWeight > MaximumReferences)
         {
-            if (key.StartsWith(prefix, StringComparison.Ordinal))
+            return;
+        }
+
+        var normalizedCategory = CategoryKey(owner, category);
+        var node = Recency.AddLast(key);
+        Entries[key] = new CacheEntry(owner, normalizedCategory, normalizedWeight, node);
+        if (array != null)
+        {
+            ObjectArrayCache[key] = array;
+        }
+        else
+        {
+            ObjectCache[key] = value;
+        }
+
+        if (normalizedCategory.Length > 0)
+        {
+            if (!CategoryKeys.TryGetValue(normalizedCategory, out var keys))
             {
-                remove.Add(key);
+                keys = new HashSet<string>(StringComparer.Ordinal);
+                CategoryKeys[normalizedCategory] = keys;
+            }
+
+            keys.Add(key);
+        }
+
+        if (!OwnerUsages.TryGetValue(owner, out var usage))
+        {
+            usage = new OwnerUsage();
+            OwnerUsages[owner] = usage;
+        }
+
+        usage.EntryCount++;
+        usage.ReferenceCount += normalizedWeight;
+        referenceCount += normalizedWeight;
+        EnforceLimitsNoLock(owner);
+    }
+
+    private static void EnforceLimitsNoLock(string owner)
+    {
+        while (Entries.Count > MaximumEntries || referenceCount > MaximumReferences)
+        {
+            if (Recency.First == null)
+            {
+                break;
+            }
+
+            RemoveEntryNoLock(Recency.First.Value);
+        }
+
+        while (OwnerUsages.TryGetValue(owner, out var usage)
+               && (usage.EntryCount > MaximumEntriesPerOwner
+                   || usage.ReferenceCount > MaximumReferencesPerOwner))
+        {
+            var node = Recency.First;
+            while (node != null
+                   && (!Entries.TryGetValue(node.Value, out var entry)
+                       || !string.Equals(entry.OwnerModId, owner, StringComparison.Ordinal)))
+            {
+                node = node.Next;
+            }
+
+            if (node == null)
+            {
+                break;
+            }
+
+            RemoveEntryNoLock(node.Value);
+        }
+    }
+
+    private static void TouchNoLock(string key)
+    {
+        if (!Entries.TryGetValue(key, out var entry) || entry.Node.List == null)
+        {
+            return;
+        }
+
+        Recency.Remove(entry.Node);
+        Recency.AddLast(entry.Node);
+    }
+
+    private static void RemoveEntryNoLock(string key)
+    {
+        ObjectCache.Remove(key);
+        ObjectArrayCache.Remove(key);
+        if (!Entries.TryGetValue(key, out var entry))
+        {
+            return;
+        }
+
+        Entries.Remove(key);
+        if (entry.Node.List != null)
+        {
+            Recency.Remove(entry.Node);
+        }
+
+        referenceCount = Math.Max(0, referenceCount - entry.Weight);
+        if (OwnerUsages.TryGetValue(entry.OwnerModId, out var usage))
+        {
+            usage.EntryCount = Math.Max(0, usage.EntryCount - 1);
+            usage.ReferenceCount = Math.Max(0, usage.ReferenceCount - entry.Weight);
+            if (usage.EntryCount == 0)
+            {
+                OwnerUsages.Remove(entry.OwnerModId);
             }
         }
 
-        foreach (var key in remove)
+        if (entry.CategoryKey.Length > 0 && CategoryKeys.TryGetValue(entry.CategoryKey, out var keys))
         {
-            values.Remove(key);
+            keys.Remove(key);
+            if (keys.Count == 0)
+            {
+                CategoryKeys.Remove(entry.CategoryKey);
+            }
         }
+    }
+
+    private static void WarnLoadFailure(
+        string ownerModId,
+        Action<string>? warn,
+        string operation,
+        string typeName,
+        string path,
+        string key,
+        Exception ex)
+    {
+        var owner = NormalizeOwner(ownerModId);
+        var message = "[ResourceCache] " + operation + ": " + typeName + " " + path + " (" + ex.Message + ")";
+        if (warn != null)
+        {
+            warn(message);
+        }
+        else
+        {
+            AuraSharedLog.WarnOnce(owner, "resource-load:" + key, message);
+        }
+    }
+
+    private static int CountOwnerCategoriesNoLock(string owner)
+    {
+        var prefix = owner + "|";
+        var count = 0;
+        foreach (var key in CategoryKeys.Keys)
+        {
+            if (key.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     private static string CacheKey<T>(string ownerModId, string path, bool loadFromMod, bool all)
@@ -194,26 +378,6 @@ public static class AuraSharedResourceCache
         }
 
         return owner + "|" + typeof(T).FullName + "|" + (all ? "all" : loadFromMod.ToString()) + "|" + path.Trim();
-    }
-
-    private static void AddCategoryKey(string category, string key)
-    {
-        var normalized = Normalize(category);
-        if (normalized.Length == 0 || key.Length == 0)
-        {
-            return;
-        }
-
-        var ownerEnd = key.IndexOf('|');
-        var owner = ownerEnd > 0 ? key.Substring(0, ownerEnd) : "AuraShared";
-        var categoryKey = owner + "|" + normalized;
-        if (!CategoryKeys.TryGetValue(categoryKey, out var keys))
-        {
-            keys = new HashSet<string>(StringComparer.Ordinal);
-            CategoryKeys[categoryKey] = keys;
-        }
-
-        keys.Add(key);
     }
 
     private static string CategoryKey(string ownerModId, string category)
@@ -232,5 +396,27 @@ public static class AuraSharedResourceCache
     private static string Normalize(string value)
     {
         return string.IsNullOrWhiteSpace(value) ? "" : value.Trim();
+    }
+
+    private sealed class CacheEntry
+    {
+        public CacheEntry(string ownerModId, string categoryKey, int weight, LinkedListNode<string> node)
+        {
+            OwnerModId = ownerModId;
+            CategoryKey = categoryKey;
+            Weight = weight;
+            Node = node;
+        }
+
+        public string OwnerModId { get; }
+        public string CategoryKey { get; }
+        public int Weight { get; }
+        public LinkedListNode<string> Node { get; }
+    }
+
+    private sealed class OwnerUsage
+    {
+        public int EntryCount { get; set; }
+        public int ReferenceCount { get; set; }
     }
 }

@@ -273,6 +273,7 @@ public static class SunExpIds
     public const string LoneerGuidanceTag = "指引牌";
 
     public const string SolarMemoryModeKey = "SunExp_SolarMemoryMode";
+    public const string SolarMemorySemanticModeId = "SunExp:solar-memory";
     public const string SolarMemorySelectedPacksKey = "SunExp_SolarMemorySelectedPacks";
     public const string SolarMemoryOriginPointsKey = "SunExp_SolarMemoryOriginPoints";
     public const string SolarMemoryBlessPickCountKey = "SunExp_SolarMemoryBlessPickCount";
@@ -366,6 +367,7 @@ public static class SunExpIds
     public const int SolarMemoryMaxLayer = 3;
 
     public const string EndlessSeaModeKey = "SunExp_EndlessSeaMode";
+    public const string EndlessAbyssSemanticModeId = "SunExp:endless-abyss";
     public const string NativeNormalModeType = "Normal";
     public const string EndlessSeaFloorKey = "SunExp_EndlessSeaFloor";
     public const string EndlessSeaGeneratedFloorKey = "SunExp_EndlessSeaGeneratedFloor";

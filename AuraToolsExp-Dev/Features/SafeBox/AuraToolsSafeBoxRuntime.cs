@@ -76,12 +76,12 @@ public static class AuraToolsSafeBoxRuntime
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterBefore(config, target, action, warn: AuraToolsLog.Warn);
+        AuraToolsHookRegistry.Before(config, target, action, "SafeBox");
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, warn: AuraToolsLog.Warn);
+        AuraToolsHookRegistry.After(config, target, action, "SafeBox");
     }
 
     private static void InjectTopBarButton(ModHookContext context)
