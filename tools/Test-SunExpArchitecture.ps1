@@ -277,6 +277,7 @@ $requiredFiles = @(
     "SunExp-Dev\Hooks\Visual\CardFaceEffectMaterials.cs",
     "SunExp-Dev\Hooks\Visual\CardUseFxMaterials.cs",
     "SunExp-Dev\Hooks\Visual\StarScoreArrivalFlashGraphic.cs",
+    "SunExp-Dev\Hooks\Visual\StarScoreFlightGlyphAssets.cs",
     "SunExp-Dev\Hooks\Visual\StarScoreCardUseFxPresenter.cs",
     "SunExp-Dev\Hooks\Visual\CardFrameEffectApplier.cs",
     "SunExp-Dev\Hooks\Visual\CardFrameEffectMaterials.cs",
@@ -524,6 +525,7 @@ $cardFaceEffectApplier = Read-RepoText "SunExp-Dev\Hooks\Visual\CardFaceEffectAp
 $cardFaceEffectMaterials = Read-RepoText "SunExp-Dev\Hooks\Visual\CardFaceEffectMaterials.cs"
 $cardUseFxMaterials = Read-RepoText "SunExp-Dev\Hooks\Visual\CardUseFxMaterials.cs"
 $starScoreCardUseFxPresenter = Read-RepoText "SunExp-Dev\Hooks\Visual\StarScoreCardUseFxPresenter.cs"
+$starScoreFlightGlyphAssets = Read-RepoText "SunExp-Dev\Hooks\Visual\StarScoreFlightGlyphAssets.cs"
 $starScoreArrivalCueService = Read-RepoText "SunExp-Dev\Mechanics\StarScoreArrivalCueService.cs"
 $sunExpCardUseFxRuntime = Read-RepoText "SunExp-Dev\Features\SunExpCardUseFxRuntime.cs"
 $cardUseFxManifest = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot "SunExp\card-use-effect.registry.json") | ConvertFrom-Json
@@ -1328,6 +1330,7 @@ Assert-Contains $runtimeHooks "SunExpResourcePreloader.Initialize(modConfig)" "R
 Assert-Contains $sunExpResourcePreloader "WarmupTier.Essential" "Adventure preload must separate essential resources from opportunity warmup."
 Assert-Contains $sunExpResourcePreloader "ResourcePreloader.EssentialCompleted" "Adventure preload must report completion of its essential resource phase."
 Assert-Contains $sunExpResourcePreloader "StarScoreHudAssets.StructuralPaths()" "Adventure preload must keep oversized note icons out of structural warmup."
+Assert-Contains $sunExpResourcePreloader "StarScoreFlightGlyphAssets.AllPaths()" "Small flight glyphs must be prewarmed before the first Stellar Overture use."
 Assert-NotContains $sunExpResourcePreloader "PolymorphRoleRegistry.CardFacePaths(12)" "Adventure preload must defer optional polymorph card-face sources until feature demand."
 Assert-Contains $sunExpResourcePreloader "ResourcePreloader.HeavyOptionalDeferred" "Deferred heavy preload work must remain observable."
 Assert-Contains $sunExpResourcePreloader "OpportunityDelayFrames" "Optional role-card warmup must be paced across idle adventure frames."
@@ -1632,6 +1635,17 @@ Assert-NotContains $starScoreCardUseFxPresenter "PlayFaceSweep(Transform" "Card-
 Assert-Contains $starScoreCardUseFxPresenter "group.blocksRaycasts = false" "Card-use FX overlay must never block native UI raycasts."
 Assert-NotContains $starScoreCardUseFxPresenter "GraphicRaycaster" "Card-use FX overlay must not install a GraphicRaycaster."
 Assert-Contains $starScoreCardUseFxPresenter "RibbonPoolCapacity = 8" "Card-use FX must keep a bounded ribbon pool."
+Assert-Contains $starScoreCardUseFxPresenter "GlyphPoolCapacity = 8" "Card-use FX must pool its moving note glyphs."
+Assert-Contains $starScoreCardUseFxPresenter "StaffLineCount = 5" "Stellar Overture ribbons must read as a five-line musical staff."
+Assert-Contains $starScoreCardUseFxPresenter "ConfigureStrands" "Stellar Overture ribbons must configure the shared multi-strand primitive."
+Assert-Contains $starScoreCardUseFxPresenter "0.42f" "Musical staff trails must retain enough length to stay readable in motion."
+Assert-Contains $starScoreCardUseFxPresenter "StarScoreFlightGlyphAssets.IconFor" "Card-use FX must lead each staff with its typed flight glyph."
+Assert-Contains $starScoreCardUseFxPresenter "UpdateGlyph" "Flight glyphs must follow the same Bezier path as their staff."
+Assert-Contains $starScoreFlightGlyphAssets "FilterMode.Bilinear" "Flight glyphs must use smooth downsampling independently from point-filtered HUD badges."
+foreach ($glyph in @("opening", "sustain", "turn", "close")) {
+    Assert-True (Test-Path -LiteralPath (Join-Path $RepoRoot ("SunExp\ModResource\Images\Effects\StarScore\flight_" + $glyph + ".png"))) ("Missing shipped Star Score flight glyph: " + $glyph)
+    Assert-True (Test-Path -LiteralPath (Join-Path $RepoRoot ("SunExp-Dev\VisualAssets\StarScoreFlightGlyphSource256\flight_" + $glyph + ".png"))) ("Missing preserved 256px Star Score flight-glyph source: " + $glyph)
+}
 Assert-Contains $starScoreCardUseFxPresenter "FirstEmitDelaySeconds = 0.10f" "Card-use FX must preserve the approved first emit timing."
 Assert-Contains $starScoreCardUseFxPresenter "FlightSeconds = 0.52f" "Card-use FX must preserve the approved ribbon flight timing."
 Assert-Contains $starScoreCardUseFxPresenter "RibbonStaggerSeconds = 0.09f" "Card-use FX must preserve the approved multi-ribbon stagger."

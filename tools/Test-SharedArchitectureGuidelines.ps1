@@ -182,6 +182,8 @@ Require-Text $cardUseFxRuntime 'ICard\.SetCardStyle' "Card-use FX bridge must ca
 Require-Text $cardUseFxRuntime "DedupeSeconds" "Card-use FX presentation triggers must have bounded duplicate suppression."
 Require-Text $cardUseFxRuntime "AuraCardUseFxSourceSnapshot" "Card-use FX must snapshot its source before native burn or throw destroys the card view."
 Require-Text $cardUseFxRibbon "raycastTarget = false" "Shared Bezier ribbons must never intercept UI input."
+Require-Text $cardUseFxRibbon "ConfigureStrands" "Shared Bezier ribbons must expose semantic-free parallel strand geometry."
+Require-Text $cardUseFxRibbon "EvaluateTangent" "Shared Bezier ribbons must expose path sampling for consumer-owned moving glyphs."
 if ($cardUseFxRuntime.Contains("SunExp")) {
     throw "Shared card-use FX runtime must not contain SunExp content semantics."
 }

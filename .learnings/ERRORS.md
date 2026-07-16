@@ -31,6 +31,63 @@ Use a 25-64 character `short_description`, then run
 
 ---
 
+## [ERR-20260716-004] flight-glyph-cache-namespace
+
+**Logged**: 2026-07-16T16:06:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: build
+
+### Summary
+The first Star Score flight-glyph build omitted the `SunExp.Dll.GameApi` import for `SunExpResourceCache`.
+
+### Error
+```text
+CS0103: The name 'SunExpResourceCache' does not exist in the current context.
+```
+
+### Suggested Fix
+Check the existing resource loader namespace before adding a new visual asset catalog; `SunExpResourceCache` lives in `SunExp.Dll.GameApi`, not Infrastructure.
+
+### Metadata
+- Reproducible: yes
+- Related Files: SunExp-Dev/Hooks/Visual/StarScoreFlightGlyphAssets.cs
+
+### Resolution
+- **Resolved**: 2026-07-16T16:08:00+08:00
+- **Notes**: Added the existing GameApi namespace import and rebuilt.
+
+---
+
+## [ERR-20260716-005] unity-batch-wrapper-exit-mismatch
+
+**Logged**: 2026-07-16T16:19:29+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+The PowerShell visual-bundle wrapper returned exit code 1 with no console output even though Unity completed the requested method, rebuilt the bundle, and logged return code 0.
+
+### Error
+```text
+Build-SunExpVisualBundle.ps1: process exit code 1
+Unity log: Built SunExp visual bundle ... return code 0
+```
+
+### Suggested Fix
+Make the wrapper launch Unity through a process API that reliably captures the real child exit code, then accept success only when both the build marker and updated bundle are present.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Build-SunExpVisualBundle.ps1, SunExp-Dev/VisualAssets/sunexp_visuals.unity-build.log
+
+### Resolution
+- **Resolved**: 2026-07-16T16:21:59+08:00
+- **Notes**: Replaced the direct native invocation with a hidden `Start-Process -Wait -PassThru` launch so the wrapper captures Unity's child exit code without terminating before its artifact checks.
+
+---
+
 ## [ERR-20260715-004] dimension-shop-missing-runtime-reference
 
 **Logged**: 2026-07-15T15:10:00+08:00

@@ -280,8 +280,11 @@ $previousBundleOutput = $env:SUNEXP_VISUAL_BUNDLE_OUTPUT
 $bundleWriteTimeBefore = if (Test-Path -LiteralPath $bundlePath) { (Get-Item -LiteralPath $bundlePath).LastWriteTimeUtc } else { [DateTime]::MinValue }
 try {
     $env:SUNEXP_VISUAL_BUNDLE_OUTPUT = $bundlePath
-    & $unity @arguments
-    $unityExitCode = $LASTEXITCODE
+    $argumentLine = ($arguments | ForEach-Object {
+        if ($_ -match '[\s"]') { '"' + $_.Replace('"', '\"') + '"' } else { $_ }
+    }) -join ' '
+    $unityProcess = Start-Process -FilePath $unity -ArgumentList $argumentLine -WindowStyle Hidden -Wait -PassThru
+    $unityExitCode = $unityProcess.ExitCode
 }
 finally {
     $env:SUNEXP_VISUAL_BUNDLE_OUTPUT = $previousBundleOutput

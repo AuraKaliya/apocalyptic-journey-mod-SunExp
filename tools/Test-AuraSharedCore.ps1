@@ -169,6 +169,7 @@ if ($cgRuntimeText.Contains($removedCoverMode) -or $cgRegistryText.Contains($rem
 
 $cardUseFxRegistryText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraCardUseFxShared\AuraCardUseFxRegistry.cs")
 $cardUseFxRuntimeText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraCardUseFxShared\AuraCardUseFxRuntime.cs")
+$cardUseFxRibbonText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraCardUseFxShared\AuraBezierRibbonGraphic.cs")
 foreach ($required in @("AuraCardUseFxRegistryRuntime", "AuraCardUseFxRegistryEntry", "QualifiedEffectId", "WriteShared", "Resolve", "AuraCardUseFxPresentationScopes", "PresentationScope", "CurrentSchemaVersion = 2")) {
     if (-not $cardUseFxRegistryText.Contains($required)) {
         throw "AuraCardUseFxShared registry contract is missing: $required"
@@ -177,6 +178,11 @@ foreach ($required in @("AuraCardUseFxRegistryRuntime", "AuraCardUseFxRegistryEn
 foreach ($required in @("AuraCardLifecycleRouter", "AuraCombatActionRouter", "LocalCommitted", "FightUI.DoCardUseAnimation", "ICard.SetCardStyle", "DedupeSeconds", "ClearTransient", "Triggered")) {
     if (-not $cardUseFxRuntimeText.Contains($required)) {
         throw "AuraCardUseFxShared trigger contract is missing: $required"
+    }
+}
+foreach ($required in @("ConfigureStrands", "Evaluate", "EvaluateTangent")) {
+    if (-not $cardUseFxRibbonText.Contains($required)) {
+        throw "AuraCardUseFxShared ribbon contract is missing: $required"
     }
 }
 

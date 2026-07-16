@@ -21,6 +21,11 @@ public sealed class AuraBezierRibbonGraphic : MaskableGraphic
     private int samples = 32;
     private Color outerColor = new(0.27f, 0.34f, 0.78f, 0.68f);
     private Color coreColor = new(0.95f, 0.98f, 1f, 0.95f);
+    private int strandCount;
+    private float strandSpacing = 4f;
+    private float strandWidth = 1.25f;
+    private Color strandColor = new(0.72f, 0.69f, 0.91f, 0.72f);
+    private Color centerStrandColor = new(1f, 0.9f, 0.65f, 0.88f);
 
     public AuraBezierRibbonGraphic()
     {
@@ -53,6 +58,21 @@ public sealed class AuraBezierRibbonGraphic : MaskableGraphic
         SetVerticesDirty();
     }
 
+    public void ConfigureStrands(
+        int count,
+        float spacing,
+        float width,
+        Color lineColor,
+        Color centerLineColor)
+    {
+        strandCount = Mathf.Clamp(count, 0, 9);
+        strandSpacing = Mathf.Max(0f, spacing);
+        strandWidth = Mathf.Max(0.5f, width);
+        strandColor = lineColor;
+        centerStrandColor = centerLineColor;
+        SetVerticesDirty();
+    }
+
     public void SetProgress(float value)
     {
         var next = Mathf.Clamp01(value);
@@ -76,6 +96,54 @@ public sealed class AuraBezierRibbonGraphic : MaskableGraphic
         var tailStart = Mathf.Max(0f, progress - tailFraction);
         PopulateBand(vh, outerWidth, outerColor, tailStart, progress, 0);
         PopulateBand(vh, coreWidth, coreColor, tailStart, progress, 1);
+        for (var i = 0; i < strandCount; i++)
+        {
+            var centeredIndex = i - (strandCount - 1) * 0.5f;
+            var tint = strandCount % 2 == 1 && i == strandCount / 2
+                ? centerStrandColor
+                : strandColor;
+            PopulateStrand(vh, centeredIndex * strandSpacing, strandWidth, tint, tailStart, progress, i + 2);
+        }
+    }
+
+    private void PopulateStrand(VertexHelper vh, float offset, float width, Color tint, float from, float to, int layer)
+    {
+        var segmentCount = Math.Max(2, Mathf.CeilToInt(samples * Mathf.Max(0.05f, to - from)));
+        var baseVertex = vh.currentVertCount;
+        for (var i = 0; i <= segmentCount; i++)
+        {
+            var ratio = i / (float)segmentCount;
+            var t = Mathf.Lerp(from, to, ratio);
+            var position = Bezier(t);
+            var tangent = BezierTangent(t);
+            var normal = tangent.sqrMagnitude <= 0.0001f
+                ? Vector2.up
+                : new Vector2(-tangent.y, tangent.x).normalized;
+            var spread = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(ratio * 2.6f));
+            var vertexColor = tint;
+            vertexColor.a *= Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(ratio * 5f));
+            var center = position + normal * offset * spread;
+            var halfWidth = width * 0.5f;
+            vh.AddVert(center - normal * halfWidth, vertexColor, new Vector2(t, layer));
+            vh.AddVert(center + normal * halfWidth, vertexColor, new Vector2(t, layer + 1));
+        }
+
+        for (var i = 0; i < segmentCount; i++)
+        {
+            var index = baseVertex + i * 2;
+            vh.AddTriangle(index, index + 1, index + 2);
+            vh.AddTriangle(index + 1, index + 3, index + 2);
+        }
+    }
+
+    public Vector2 Evaluate(float value)
+    {
+        return Bezier(Mathf.Clamp01(value));
+    }
+
+    public Vector2 EvaluateTangent(float value)
+    {
+        return BezierTangent(Mathf.Clamp01(value));
     }
 
     private void PopulateBand(VertexHelper vh, float width, Color tint, float from, float to, int layer)

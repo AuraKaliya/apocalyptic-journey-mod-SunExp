@@ -52,7 +52,9 @@ internal sealed class StarScoreCardUseFxRunner : MonoBehaviour
     private const float CadenceArrivalPaddingSeconds = 0.12f;
     private const int MaxTargetRetryFrames = 12;
     private const int RibbonPoolCapacity = 8;
-    private static readonly Color OuterIndigo = new(0.27f, 0.34f, 0.78f, 0.68f);
+    private const int GlyphPoolCapacity = 8;
+    private const int StaffLineCount = 5;
+    private static readonly Color OuterIndigo = new(0.22f, 0.19f, 0.58f, 0.24f);
     private static readonly Color StarWhite = new(0.953f, 0.984f, 1f, 0.96f);
     private static readonly Color PaleGold = new(1f, 0.902f, 0.659f, 0.96f);
     private static readonly Color TurnAccent = new(0.91f, 0.35f, 0.68f, 0.92f);
@@ -60,7 +62,11 @@ internal sealed class StarScoreCardUseFxRunner : MonoBehaviour
 
     private readonly Stack<AuraBezierRibbonGraphic> ribbonPool = new();
     private readonly HashSet<AuraBezierRibbonGraphic> activeRibbons = new();
+    private readonly Stack<Image> glyphPool = new();
+    private readonly HashSet<Image> activeGlyphs = new();
     private RectTransform? overlayRect;
+    private RectTransform? ribbonLayerRect;
+    private RectTransform? glyphLayerRect;
     private GameObject? overlayRoot;
 
     public void Play(AuraCardUseFxSourceSnapshot sourceSnapshot, IReadOnlyList<StarScoreArrivalCue> cues, int overflowCount, string visualEffectId)
@@ -91,6 +97,8 @@ internal sealed class StarScoreCardUseFxRunner : MonoBehaviour
         StopAllCoroutines();
         activeRibbons.Clear();
         ribbonPool.Clear();
+        activeGlyphs.Clear();
+        glyphPool.Clear();
         if (overlayRoot != null)
         {
             Destroy(overlayRoot);
@@ -98,6 +106,8 @@ internal sealed class StarScoreCardUseFxRunner : MonoBehaviour
 
         overlayRoot = null;
         overlayRect = null;
+        ribbonLayerRect = null;
+        glyphLayerRect = null;
         SunExpLog.Debug("[CardUseFx] presentation cleared: " + source);
     }
 
@@ -201,19 +211,29 @@ internal sealed class StarScoreCardUseFxRunner : MonoBehaviour
         var ribbon = AcquireRibbon();
         var controls = Controls(localStart, localEnd, cue.SlotIndex, cue.Sequence);
         var scale = Mathf.Clamp(Screen.height / 1080f, 0.75f, 1.5f);
-        ribbon.Configure(localStart, controls.First, controls.Second, localEnd, 16f * scale, 3f * scale,
-            SunExpPerformanceSettings.CardUseFxRibbonSamples, 0.31f, NoteOuterColor(cue.Note), NoteCoreColor(cue.Note));
+        ribbon.Configure(localStart, controls.First, controls.Second, localEnd, 34f * scale, 18f * scale,
+            SunExpPerformanceSettings.CardUseFxRibbonSamples, 0.42f, NoteOuterColor(cue.Note), NoteCoreColor(cue.Note));
+        ribbon.ConfigureStrands(
+            StaffLineCount,
+            4.1f * scale,
+            1.25f * scale,
+            StaffLineColor(cue.Note),
+            StaffCenterLineColor(cue.Note));
         ribbon.material = null;
         ribbon.SetProgress(0f);
+        var glyph = AcquireGlyph(cue.Note, GlyphSize(cue.Note) * scale);
 
         var elapsed = 0f;
         while (elapsed < FlightSeconds && ribbon != null)
         {
             elapsed += Mathf.Max(0f, Time.unscaledDeltaTime);
-            ribbon.SetProgress(SmootherStep(Mathf.Clamp01(elapsed / FlightSeconds)));
+            var progress = SmootherStep(Mathf.Clamp01(elapsed / FlightSeconds));
+            ribbon.SetProgress(progress);
+            UpdateGlyph(glyph, ribbon, progress, GlyphSize(cue.Note) * scale);
             yield return null;
         }
 
+        ReleaseGlyph(glyph);
         ReleaseRibbon(ribbon);
         StarScoreHudRuntime.PulseSlot(cue.SlotIndex, arrivalStrength);
         StartCoroutine(PlayArrivalFlash(localEnd, arrivalStrength));
@@ -221,9 +241,9 @@ internal sealed class StarScoreCardUseFxRunner : MonoBehaviour
 
     private IEnumerator PlayArrivalFlash(Vector2 center, float strength)
     {
-        if (overlayRect == null) yield break;
+        if (glyphLayerRect == null) yield break;
         var go = new GameObject("SunExp_CardUseFx_Arrival", typeof(RectTransform), typeof(StarScoreArrivalFlashGraphic));
-        go.transform.SetParent(overlayRect, false);
+        go.transform.SetParent(glyphLayerRect, false);
         Stretch(go.GetComponent<RectTransform>());
         var graphic = go.GetComponent<StarScoreArrivalFlashGraphic>();
         graphic.Configure(center, strength);
@@ -252,6 +272,8 @@ internal sealed class StarScoreCardUseFxRunner : MonoBehaviour
         group.alpha = 1f;
         group.interactable = false;
         group.blocksRaycasts = false;
+        ribbonLayerRect = CreateLayer("SunExp_CardUseFx_RibbonLayer", overlayRect);
+        glyphLayerRect = CreateLayer("SunExp_CardUseFx_GlyphLayer", overlayRect);
     }
 
     private AuraBezierRibbonGraphic AcquireRibbon()
@@ -266,13 +288,92 @@ internal sealed class StarScoreCardUseFxRunner : MonoBehaviour
         else
         {
             var go = new GameObject("SunExp_CardUseFx_Ribbon", typeof(RectTransform), typeof(AuraBezierRibbonGraphic));
-            go.transform.SetParent(overlayRect, false);
+            go.transform.SetParent(ribbonLayerRect, false);
             Stretch(go.GetComponent<RectTransform>());
             ribbon = go.GetComponent<AuraBezierRibbonGraphic>();
         }
         ribbon.transform.SetAsLastSibling();
         activeRibbons.Add(ribbon);
         return ribbon;
+    }
+
+    private Image? AcquireGlyph(StarScoreNote note, float size)
+    {
+        EnsureOverlay();
+        var sprite = StarScoreFlightGlyphAssets.IconFor(note);
+        if (sprite == null || glyphLayerRect == null)
+        {
+            return null;
+        }
+
+        Image glyph;
+        if (glyphPool.Count > 0)
+        {
+            glyph = glyphPool.Pop();
+            glyph.gameObject.SetActive(true);
+        }
+        else
+        {
+            var go = new GameObject("SunExp_CardUseFx_FlightGlyph", typeof(RectTransform), typeof(Image));
+            go.transform.SetParent(glyphLayerRect, false);
+            glyph = go.GetComponent<Image>();
+            glyph.raycastTarget = false;
+            glyph.preserveAspect = true;
+        }
+
+        glyph.sprite = sprite;
+        glyph.color = Color.white;
+        var rect = glyph.rectTransform;
+        rect.anchorMin = new Vector2(0.5f, 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.sizeDelta = new Vector2(size, size);
+        rect.localScale = Vector3.one;
+        rect.localRotation = Quaternion.identity;
+        glyph.transform.SetAsLastSibling();
+        activeGlyphs.Add(glyph);
+        return glyph;
+    }
+
+    private static void UpdateGlyph(Image? glyph, AuraBezierRibbonGraphic ribbon, float progress, float baseSize)
+    {
+        if (glyph == null)
+        {
+            return;
+        }
+
+        var rect = glyph.rectTransform;
+        rect.anchoredPosition = ribbon.Evaluate(progress);
+        var tangent = ribbon.EvaluateTangent(progress);
+        var angle = tangent.sqrMagnitude <= 0.0001f
+            ? 0f
+            : Mathf.Atan2(tangent.y, tangent.x) * Mathf.Rad2Deg;
+        rect.localRotation = Quaternion.Euler(0f, 0f, Mathf.Clamp(angle * 0.12f, -10f, 10f));
+        var settle = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.82f, 1f, progress));
+        var size = baseSize * Mathf.Lerp(1f, 0.58f, settle);
+        rect.sizeDelta = new Vector2(size, size);
+        glyph.color = new Color(1f, 1f, 1f, Mathf.Lerp(1f, 0.72f, settle));
+    }
+
+    private void ReleaseGlyph(Image? glyph)
+    {
+        if (glyph == null)
+        {
+            return;
+        }
+
+        activeGlyphs.Remove(glyph);
+        glyph.sprite = null;
+        glyph.color = Color.white;
+        glyph.gameObject.SetActive(false);
+        if (glyphPool.Count < GlyphPoolCapacity)
+        {
+            glyphPool.Push(glyph);
+        }
+        else
+        {
+            Destroy(glyph.gameObject);
+        }
     }
 
     private void ReleaseRibbon(AuraBezierRibbonGraphic? ribbon)
@@ -303,17 +404,52 @@ internal sealed class StarScoreCardUseFxRunner : MonoBehaviour
     private static Color NoteOuterColor(StarScoreNote note)
     {
         var accent = note switch { StarScoreNote.Sustain => PaleGold, StarScoreNote.Turn => TurnAccent, StarScoreNote.Close => CloseAccent, _ => StarWhite };
-        return Color.Lerp(OuterIndigo, accent, 0.23f);
+        var color = Color.Lerp(OuterIndigo, accent, 0.12f);
+        color.a = 0.24f;
+        return color;
     }
 
     private static Color NoteCoreColor(StarScoreNote note)
     {
-        return note switch
+        var color = note switch
         {
             StarScoreNote.Sustain => Color.Lerp(StarWhite, PaleGold, 0.28f),
             StarScoreNote.Turn => Color.Lerp(StarWhite, TurnAccent, 0.22f),
             StarScoreNote.Close => Color.Lerp(StarWhite, CloseAccent, 0.24f),
             _ => StarWhite
+        };
+        color.a = 0.18f;
+        return color;
+    }
+
+    private static Color StaffLineColor(StarScoreNote note)
+    {
+        var color = note switch
+        {
+            StarScoreNote.Sustain => Color.Lerp(StarWhite, PaleGold, 0.2f),
+            StarScoreNote.Turn => Color.Lerp(StarWhite, TurnAccent, 0.14f),
+            StarScoreNote.Close => Color.Lerp(StarWhite, CloseAccent, 0.18f),
+            _ => new Color(0.78f, 0.74f, 0.94f, 1f)
+        };
+        color.a = 0.74f;
+        return color;
+    }
+
+    private static Color StaffCenterLineColor(StarScoreNote note)
+    {
+        var color = Color.Lerp(PaleGold, StaffLineColor(note), 0.18f);
+        color.a = 0.92f;
+        return color;
+    }
+
+    private static float GlyphSize(StarScoreNote note)
+    {
+        return note switch
+        {
+            StarScoreNote.Sustain => 68f,
+            StarScoreNote.Turn => 52f,
+            StarScoreNote.Close => 54f,
+            _ => 48f
         };
     }
 
@@ -324,6 +460,15 @@ internal sealed class StarScoreCardUseFxRunner : MonoBehaviour
     }
 
     private static float SmootherStep(float value) => value * value * value * (value * (value * 6f - 15f) + 10f);
+
+    private static RectTransform CreateLayer(string name, RectTransform parent)
+    {
+        var go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        var rect = go.GetComponent<RectTransform>();
+        Stretch(rect);
+        return rect;
+    }
 
     private static void Stretch(RectTransform rect)
     {

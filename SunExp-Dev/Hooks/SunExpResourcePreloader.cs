@@ -362,6 +362,11 @@ public static class SunExpResourcePreloader
             yield return path;
         }
 
+        foreach (var path in StarScoreFlightGlyphAssets.AllPaths())
+        {
+            yield return path;
+        }
+
         foreach (var modeEntryId in new[] { "solar_memory", "endless_abyss" })
         {
             var modeEntry = VisualRegistry.ModeEntry(modeEntryId);
