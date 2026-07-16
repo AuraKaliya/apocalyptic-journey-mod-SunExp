@@ -258,6 +258,36 @@ void TestDirectorContracts()
     Assert(typeof(IAuraDirectorStartGateProvider).GetMethod(nameof(IAuraDirectorStartGateProvider.Install)) != null
            && typeof(IAuraDirectorRequestSource).GetMethod(nameof(IAuraDirectorRequestSource.BuildRequest)) != null,
         "director exposes provider and local request-source contracts");
+
+    var layout = AuraDirectorPortraitLayout.Calculate(
+        1080d,
+        0.13d,
+        -0.75d,
+        -1.5d,
+        0.75d,
+        1.5d);
+    Assert(Math.Abs(layout.BarHeight - 140.4d) < 0.001d
+           && Math.Abs(layout.DisplayHeight - 779.2d) < 0.001d
+           && Math.Abs((1080d - layout.BarHeight * 2d - layout.DisplayHeight) * 0.5d
+                       - AuraDirectorPortraitLayout.VerticalInsetPixels) < 0.001d,
+        "director portrait visible bounds keep ten pixels from expanded letterbox edges");
+
+    var shifted = AuraDirectorPortraitLayout.Calculate(
+        1080d,
+        0.13d,
+        -0.2d,
+        -0.8d,
+        1.8d,
+        1.2d);
+    Assert(Math.Abs(shifted.SourceCenterX - 0.8d) < 0.001d
+           && Math.Abs(shifted.SourceCenterY - 0.2d) < 0.001d
+           && Math.Abs(shifted.DisplayHeight - layout.DisplayHeight) < 0.001d,
+        "director portrait layout recenters asymmetric sprite mesh bounds");
+
+    var rightOutside = AuraDirectorPortraitLayout.ResolveAnchoredX(1.15d, 1920d, 2200d);
+    var leftOutside = AuraDirectorPortraitLayout.ResolveAnchoredX(-0.15d, 1920d, 2200d);
+    Assert(rightOutside >= 2070d && leftOutside <= -2070d,
+        "director keeps height-priority wide portraits fully outside before and after slides");
 }
 
 AuraDirectorRequest DirectorRequest(int actorCount)

@@ -177,6 +177,7 @@ foreach ($required in @("AuraCardLifecycleRouter", "AuraCombatActionRouter", "Lo
 
 $directorModelsText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirectorShared\AuraDirectorModels.cs")
 $directorCompilerText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirectorShared\AuraDirectorPlanCompiler.cs")
+$directorLayoutText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirectorShared\AuraDirectorPortraitLayout.cs")
 $directorProbeText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirectorShared\AuraDirectorNativeStartBarrierProbe.cs")
 $directorStartGateText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirectorShared\AuraDirectorStartGateContracts.cs")
 foreach ($required in @("AuraDirectorRequest", "AuraDirectorActorRef", "AuraDirectorPlanDescriptor", "AuraDirectorSessionStateMachine", "IAuraDirectorNativeStartHold", "IAuraDirectorNativeStartHoldSink")) {
@@ -188,6 +189,11 @@ foreach ($required in @("AuraDirectorRequest", "AuraDirectorActorRef", "AuraDire
 foreach ($required in @("alternating-portrait-v1", "MaximumActorCount = 32", "ComputeHash", "actor-key-duplicate")) {
     if (-not $directorCompilerText.Contains($required)) {
         throw "AuraDirectorShared deterministic plan compiler is missing: $required"
+    }
+}
+foreach ($required in @("VerticalInsetPixels = 10d", "ResolveAnchoredX", "SourceCenterY", "DisplayHeight")) {
+    if (-not $directorLayoutText.Contains($required)) {
+        throw "AuraDirectorShared portrait-focus layout contract is missing: $required"
     }
 }
 foreach ($required in @("native-hook-not-cancellable", "ModHookContext", "Supported = false")) {

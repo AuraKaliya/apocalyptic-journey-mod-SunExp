@@ -3,9 +3,11 @@
 ## Decision
 
 The shared director lives in `AuraDirectorShared` and is packaged into
-`Aura.Shared.dll`. SunExp now enables the reviewed Harmony start-gate provider
-for the verified game build and ships its provider binaries only in
-`SunExp/Scripts`.
+`Aura.Shared.dll`. SunExp enables the reviewed Harmony start-gate provider for
+the verified game build and ships its provider binaries only in
+`SunExp/Scripts`. The local runtime component protocol is version 2; the
+deterministic plan protocol remains version 1 because the cue schema and plan
+hash contract did not change.
 
 The first production scope is local-first: every client independently builds
 and plays its own opening. There is no director RPC, peer plan agreement, or
@@ -18,11 +20,21 @@ still provides the eventual battle-start barrier between peers.
 2. `SunExpBattleOpeningRequestSource` builds the ordered cast from the local
    player followed by `EnemyManager.enemyList`.
 3. `AuraDirectorPlanCompiler` validates the request and creates deterministic
-   alternating portrait cues.
+   alternating portrait, letterbox, and wait cues.
 4. A screen-space overlay blocks local input and progression while cues play.
-5. Actor portraits use their current battle-body sprite. A generated generic
-   silhouette is used when the body or sprite cannot be resolved.
-6. Completion, user skip, timeout, destroyed battle target, or runtime teardown
+5. Actor portraits use their current battle-body sprite mesh. The presenter
+   preserves native renderer flips, recenters asymmetric mesh bounds, and fits
+   the visible mesh height between the expanded letterbox edges with 10 pixels
+   of clearance above and below. Height takes priority for wide actors; their
+   offscreen slide positions account for the focused portrait width.
+6. Letterbox expansion and relaxation run concurrently with portrait entry and
+   exit, and the compiled wait cue supplies the inter-actor gap.
+7. Escape, Space, Enter, Numpad Enter, or the left mouse button skip through
+   Unity's Input System. A polling failure disables skip input once without
+   interrupting playback or native release.
+8. A generated generic silhouette is used when the body or sprite cannot be
+   resolved.
+9. Completion, user skip, timeout, destroyed battle target, or runtime teardown
    releases the native hold exactly once.
 
 The overlay advances with `Time.unscaledTime`; it never changes
@@ -43,6 +55,10 @@ Enabled:
 
 - local player plus current enemy cast;
 - native battle sprites with generic silhouette fallback;
+- cue-driven letterbox expansion, relaxation, and inter-actor waits;
+- mesh-bound portrait focus with 10-pixel vertical clearance;
+- native flip preservation and fully offscreen wide-portrait slide endpoints;
+- Input System keyboard and mouse skip handling;
 - local input blocking, skip, timeout, and cleanup;
 - feature switch `SunExp/Battle.OpeningDirector`;
 - SunExp-only provider packaging.

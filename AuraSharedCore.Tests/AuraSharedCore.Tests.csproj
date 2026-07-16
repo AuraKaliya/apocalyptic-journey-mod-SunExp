@@ -34,6 +34,7 @@
     <Compile Include="..\AuraOnlineShared\*.cs" Exclude="..\AuraOnlineShared\AuraOnlineHostModSyncSession.cs;..\AuraOnlineShared\AuraOnlineLocalModManifestBuilder.cs" Link="Online\%(Filename)%(Extension)" />
     <Compile Include="..\AuraDirectorShared\AuraDirectorModels.cs" Link="Director\AuraDirectorModels.cs" />
     <Compile Include="..\AuraDirectorShared\AuraDirectorPlanCompiler.cs" Link="Director\AuraDirectorPlanCompiler.cs" />
+    <Compile Include="..\AuraDirectorShared\AuraDirectorPortraitLayout.cs" Link="Director\AuraDirectorPortraitLayout.cs" />
     <Compile Include="..\AuraDirectorShared\AuraDirectorSessionState.cs" Link="Director\AuraDirectorSessionState.cs" />
     <Compile Include="..\AuraDirectorShared\AuraDirectorStartGateContracts.cs" Link="Director\AuraDirectorStartGateContracts.cs" />
   </ItemGroup>

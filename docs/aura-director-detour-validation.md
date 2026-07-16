@@ -35,7 +35,10 @@ The automated gate verifies suppression and one-shot re-entry, duplicate hold
 and release handling, sink failure-open behavior, teardown release, patch owner
 installation and removal, target fingerprinting, runtime timeout and cleanup
 contracts, local cast construction, silhouette fallback, and SunExp-only binary
-packaging.
+packaging. The source contract also rejects legacy `UnityEngine.Input` polling
+and requires the Input System skip path, cue-driven letterbox playback, and the
+10-pixel mesh-bound portrait layout. Pure layout assertions cover asymmetric
+sprite bounds and height-priority wide portraits.
 
 ## Packaging
 

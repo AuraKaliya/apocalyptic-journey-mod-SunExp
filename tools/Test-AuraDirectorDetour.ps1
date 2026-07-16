@@ -57,7 +57,14 @@ foreach ($required in @(
     'Finish(session, "hard-timeout")',
     "session.Hold.TryRelease",
     "NativeBattleSpriteProviderId",
-    "SilhouetteSprite"
+    "SilhouetteSprite",
+    "CurrentRuntimeProtocolVersion = 2",
+    "Keyboard.current",
+    "Mouse.current",
+    "AuraDirectorPortraitLayout.Calculate",
+    "AuraDirectorPortraitGraphic",
+    "FocusBarRatio",
+    "AuraDirectorCueKind.Wait"
 )) {
     if (-not $runtimeSource.Contains($required)) {
         throw "AuraDirector local runtime contract is missing: $required"
@@ -65,6 +72,11 @@ foreach ($required in @(
 }
 if ($runtimeSource.Contains("Time.timeScale")) {
     throw "AuraDirector local runtime must not mutate global time scale."
+}
+foreach ($forbidden in @("Input.GetKeyDown", "Input.GetMouseButtonDown", "preserveAspect = true")) {
+    if ($runtimeSource.Contains($forbidden)) {
+        throw "AuraDirector local runtime regressed to rejected input/layout behavior: $forbidden"
+    }
 }
 
 foreach ($required in @(
