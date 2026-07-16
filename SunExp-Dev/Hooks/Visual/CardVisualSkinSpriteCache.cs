@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using UnityEngine;
@@ -8,8 +7,6 @@ namespace SunExp.Dll.Hooks.Visual;
 
 public static class CardVisualSkinSpriteCache
 {
-    private static readonly Dictionary<string, Sprite?> Cache = new(StringComparer.Ordinal);
-
     public static Sprite? Load(string path, string logPrefix)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -17,15 +14,10 @@ public static class CardVisualSkinSpriteCache
             return null;
         }
 
-        if (Cache.TryGetValue(path, out var cached))
-        {
-            return cached;
-        }
-
         Sprite? sprite = null;
         try
         {
-            sprite = SunExpResourceCache.Load<Sprite>(path, true);
+            sprite = SunExpResourceCache.Load<Sprite>(path, true, "visual.card-skin");
             if (sprite == null)
             {
                 SunExpLog.Warn(logPrefix + " sprite missing: " + path);
@@ -40,7 +32,6 @@ public static class CardVisualSkinSpriteCache
             SunExpLog.Warn(logPrefix + " sprite load failed: " + path + " (" + ex.Message + ")");
         }
 
-        Cache[path] = sprite;
         return sprite;
     }
 

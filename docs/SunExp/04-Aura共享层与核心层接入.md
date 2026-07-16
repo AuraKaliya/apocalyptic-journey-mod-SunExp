@@ -185,9 +185,17 @@ Journey 共享层不应知道 `SolarMemory` 的专有剧情判断；它只执行
 
 `AuraSharedFrameScheduler` 是主线程调度器。任务可以触碰 Unity、Witch、Mirror 和 UI，但必须遵守 phase、预算、优先级和分片约束。
 
+普通与键控任务都必须携带 `OwnerId`。共享调度器通过 `GetStats()` 暴露 backlog、owner 分布、历史峰值和泵耗时；`SoftPendingActionLimit` 只告警不丢任务，`MaxPromotionsPerFrame` 则限制单帧队列晋升成本。出现越线时应先定位高产 owner，再把重复任务改为 keyed merge 或 cooperative slice，而不是简单提高水位。
+
 `AuraSharedBackgroundWorkScheduler` 只接受纯 CPU/文件工作和不可变快照。结果回主线程前必须检查 generation，不能把 Unity 对象操作移到 worker 线程。
 
 SunExp 的 `SunExpFrameScheduler` 是内容侧适配和配置入口，不应重新实现一套通用调度器。
+
+### 7.3 资源缓存生命周期
+
+`SunExpResourceCache` 负责给共享 LRU 加上 SunExp owner 和 category。效果纹理与卡面 Sprite 不再维护第二份强引用字典；帧数组、运行时创建的九宫格 Sprite、私有 AssetBundle 等确有派生状态的本地缓存必须提供 `Clear()`。进入 `GameEntryUI.Init` 时，先关闭瞬态 UI，再销毁派生 Sprite、释放 bundle handle，并按 `visual.*` / `ui.sprite-source` 类别清除共享引用。
+
+共享统计中的 `EstimatedBytes` 只用于发现异常增长，可能因 Sprite 共享纹理而重复估算，不能当作精确显存值。实际保留行为仍由 entry/reference LRU 与上述内容侧生命周期共同约束。
 
 ## 8. 配置优先级
 

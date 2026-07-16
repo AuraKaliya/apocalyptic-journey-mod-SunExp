@@ -212,6 +212,15 @@ $sharedResourceCache = Read-RepoText "AuraSharedCore\AuraSharedResourceCache.cs"
 Require-Text $sharedResourceCache "ResourceLoader\.Load<T>" "Shared resource cache must centralize native single-asset loads."
 Require-Text $sharedResourceCache "ResourceLoader\.LoadAll<T>" "Shared resource cache must centralize native multi-asset loads."
 Require-Text $sharedResourceCache "ClearCategory" "Shared resource cache must support category invalidation."
+Require-Text $sharedResourceCache "EstimatedBytes" "Shared resource cache statistics must expose approximate retained memory."
+Require-Text $sharedResourceCache "EstimateObjectBytes" "Shared resource cache must centralize approximate Unity resource sizing."
+
+$sharedFrameScheduler = Read-RepoText "AuraSharedCore\AuraSharedFrameScheduler.cs"
+Require-Text $sharedFrameScheduler "SoftPendingActionLimit" "Shared frame scheduler must expose a soft backlog waterline."
+Require-Text $sharedFrameScheduler "MaxPromotionsPerFrame" "Shared frame scheduler must bound queue promotion work per frame."
+Require-Text $sharedFrameScheduler "AuraSharedFrameSchedulerStats" "Shared frame scheduler must expose backlog and pump diagnostics."
+Require-Text $sharedFrameScheduler "PendingByOwner" "Shared frame scheduler diagnostics must attribute backlog to owners."
+Require-Text $sharedFrameScheduler "Actions are retained" "Shared frame scheduler soft limits must not silently drop queued work."
 
 $sharedRpcAuthority = Read-RepoText "AuraSharedCore\AuraRpcAuthorityRuntime.cs"
 $sharedRpcSender = Read-RepoText "AuraSharedCore\AuraRpcSender.cs"
@@ -246,6 +255,9 @@ $sharedUiComponents = Read-RepoText "AuraUiShared\AuraUiComponents.cs"
 $sharedUiRenderer = Read-RepoText "AuraUiShared\AuraUiStandardRenderer.cs"
 Require-Text $sharedUiTheme "AuraUiStyleIds" "AuraUiShared must expose owner-qualified stable style ids."
 Require-Text $sharedUiTheme "WitchNative" "AuraUiShared must keep the game-native style separate from Aura default styling."
+if ($sharedUiTheme -match "SunExp|AuraToolsExp") {
+    throw "AuraUiShared must not own consumer-specific style ids."
+}
 Require-Text $sharedUiRegistry "RegisterDerived" "AuraUiShared must support consumer-owned derived styles."
 Require-Text $sharedUiNativeBridge "HarmonyOS_Sans_Medium SDF" "AuraUiShared must resolve the game's HarmonyOS TMP font asset."
 Require-Text $sharedUiNativeBridge "ResolveLegacyFont" "AuraUiShared must keep a legacy Text compatibility font bridge."
@@ -330,7 +342,7 @@ $sharedRoots = @(
 )
 
 $resourceCacheText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedResourceCache.cs")
-foreach ($required in @("MaximumEntries", "MaximumReferences", "MaximumEntriesPerOwner", "MaximumReferencesPerOwner", "LinkedList<string>", "EnforceLimitsNoLock", "RemoveEntryNoLock")) {
+foreach ($required in @("MaximumEntries", "MaximumReferences", "MaximumEntriesPerOwner", "MaximumReferencesPerOwner", "LinkedList<string>", "EnforceLimitsNoLock", "RemoveEntryNoLock", "EstimatedBytes")) {
     Require-Text $resourceCacheText ([regex]::Escape($required)) "Shared resource cache must enforce bounded global/owner LRU retention: $required"
 }
 

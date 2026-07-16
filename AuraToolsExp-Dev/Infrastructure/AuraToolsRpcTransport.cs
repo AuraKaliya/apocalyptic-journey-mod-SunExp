@@ -94,9 +94,12 @@ public static class AuraToolsRpcTransport
             return false;
         }
 
-        return AuraSharedFrameScheduler.Enqueue(
-            "RpcTransport.Send:" + source,
-            () => Send(manager, command, source, excludeOwner, measurePayload));
+        return AuraSharedFrameScheduler.Enqueue(new AuraSharedFrameEnqueueRequest
+        {
+            OwnerId = AuraToolsIds.ModId,
+            Source = "RpcTransport.Send:" + source,
+            Action = () => Send(manager, command, source, excludeOwner, measurePayload)
+        });
     }
 
     public static bool SendJsonChunksAsync(

@@ -402,7 +402,7 @@ Normalize expected `rg` no-match results with `if ($LASTEXITCODE -eq 1) { exit 0
 ### Metadata
 - Reproducible: yes
 - Related Files: none
-- Recurrence-Count: 3
+- Recurrence-Count: 4
 - Last-Seen: 2026-07-16
 
 ### Resolution
@@ -447,6 +447,8 @@ Search the concrete parent directory and constrain matches with rg globs, or enu
 - **Notes**: Passed `Aura*Shared`, `*ArbiterShared`, and `Ui*Shared` as rg directory arguments during a performance scan; use explicit directory arrays on Windows.
 - **Observed**: 2026-07-16T18:35:00+08:00
 - **Notes**: Reused `Aura*Shared` in a cache-lifecycle search; future repository searches must enumerate the concrete shared directories.
+- **Observed**: 2026-07-16T20:10:00+08:00
+- **Notes**: Passed `**/.editorconfig` as a PowerShell/rg path while checking line-ending policy; use `rg --files -g .editorconfig` and handle an empty result explicitly.
 
 ---
 
@@ -668,7 +670,7 @@ Use `Get-ChildItem` for optional-file discovery, collect PowerShell rows before 
 ### Metadata
 - Reproducible: yes
 - Related Files: .learnings/ERRORS.md
-- Recurrence-Count: 8
+- Recurrence-Count: 9
 
 ### Resolution
 - **Resolved**: 2026-07-16T14:30:00+08:00
@@ -679,5 +681,7 @@ Use `Get-ChildItem` for optional-file discovery, collect PowerShell rows before 
 - **Notes**: Repeated the invalid direct `foreach (...) { ... } | Format-Table` form in a parallel inventory batch; fixed by accumulating rows first and using failure-isolated orchestration.
 - **Observed**: 2026-07-16T18:10:00+08:00
 - **Notes**: Repeated the same invalid direct `foreach (...) { ... } | Format-Table` form while counting test-project LOC; collect `$rows` before formatting.
+- **Observed**: 2026-07-16T20:12:00+08:00
+- **Notes**: Combined optional `rg`/`git config` probes without normalizing their expected exit code 1, causing the whole inspection cell to report failure.
 
 ---

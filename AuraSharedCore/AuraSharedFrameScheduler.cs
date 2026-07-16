@@ -27,17 +27,28 @@ public static class AuraSharedFrameScheduler
     private static readonly List<KeyedFrameAction> DelayedKeyedActions = new();
     private static readonly SortedDictionary<int, SortedDictionary<int, ReadyKeyedBucket>> ReadyKeyedActions = new();
     private static readonly HashSet<string> PendingKeyedActionKeys = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, int> PendingByOwner = new(StringComparer.Ordinal);
     private static readonly object RunnerGate = new();
     private static FrameSchedulerRunner? runner;
     private static int mainThreadId;
     private static bool isDraining;
     private static long nextSequence;
+    private static int maxObservedPendingActions;
+    private static int softLimitBreaches;
+    private static int pendingActionCount;
+    private static bool softLimitWarningActive;
+    private static double lastPumpElapsedMilliseconds;
+    private static double maxPumpElapsedMilliseconds;
 
     public static int MaxActionsPerFrame { get; set; } = 32;
 
     public static double FrameBudgetMilliseconds { get; set; } = 2.0d;
 
     public static int OwnerQuantum { get; set; } = 8;
+
+    public static int SoftPendingActionLimit { get; set; } = 512;
+
+    public static int MaxPromotionsPerFrame { get; set; } = 128;
 
     public static int PendingMainThreadActions
     {
@@ -63,20 +74,38 @@ public static class AuraSharedFrameScheduler
 
     public static bool Enqueue(string source, Action action)
     {
-        if (action == null)
+        return Enqueue(new AuraSharedFrameEnqueueRequest
+        {
+            OwnerId = DefaultOwnerId,
+            Source = source ?? "",
+            Action = action
+        });
+    }
+
+    public static bool Enqueue(AuraSharedFrameEnqueueRequest? request)
+    {
+        if (request?.Action == null)
         {
             return false;
         }
 
         if (EnsureRunner() == null)
         {
-            SafeInvoke(source, action);
+            SafeInvoke(request.Source, request.Action);
             return false;
         }
 
+        var ownerId = NormalizeOwnerId(request.OwnerId);
+        var warnSoftLimit = false;
         lock (QueueGate)
         {
-            NextMainThreadActions.Enqueue(new FrameAction(source ?? "", action));
+            NextMainThreadActions.Enqueue(new FrameAction(ownerId, request.Source ?? "", request.Action));
+            warnSoftLimit = TrackPendingAddedNoLock(ownerId);
+        }
+
+        if (warnSoftLimit)
+        {
+            LogSoftLimitWarning();
         }
 
         return true;
@@ -89,7 +118,17 @@ public static class AuraSharedFrameScheduler
 
     public static bool RunAfterFramesBudgeted(string source, int frames, Action action)
     {
-        if (action == null)
+        return RunAfterFramesBudgeted(new AuraSharedFrameEnqueueRequest
+        {
+            OwnerId = DefaultOwnerId,
+            Source = source ?? "",
+            Action = action
+        }, frames);
+    }
+
+    public static bool RunAfterFramesBudgeted(AuraSharedFrameEnqueueRequest? request, int frames)
+    {
+        if (request?.Action == null)
         {
             return false;
         }
@@ -97,12 +136,20 @@ public static class AuraSharedFrameScheduler
         var owner = EnsureRunner();
         if (owner == null)
         {
-            SafeInvoke(source, action);
+            SafeInvoke(request.Source, request.Action);
             return false;
         }
 
-        var safeSource = source ?? "";
-        owner.StartManagedCoroutine(DelayFrames(safeSource, Math.Max(0, frames), () => Enqueue(safeSource, action)));
+        var scheduled = new AuraSharedFrameEnqueueRequest
+        {
+            OwnerId = NormalizeOwnerId(request.OwnerId),
+            Source = request.Source ?? "",
+            Action = request.Action
+        };
+        owner.StartManagedCoroutine(DelayFrames(
+            scheduled.Source,
+            Math.Max(0, frames),
+            () => Enqueue(scheduled)));
         return true;
     }
 
@@ -144,6 +191,7 @@ public static class AuraSharedFrameScheduler
         var enqueuedFrame = SafeFrameCount();
         var targetFrame = enqueuedFrame < 0 ? -1 : enqueuedFrame + normalizedDelay;
         KeyedFrameAction scheduled;
+        var warnSoftLimit = false;
         lock (QueueGate)
         {
             var enqueuedDuringDrain = isDraining;
@@ -177,10 +225,33 @@ public static class AuraSharedFrameScheduler
                 ++nextSequence,
                 enqueuedDuringDrain);
             NextKeyedActions.Enqueue(scheduled);
+            warnSoftLimit = TrackPendingAddedNoLock(NormalizeOwnerId(request.OwnerId));
+        }
+
+        if (warnSoftLimit)
+        {
+            LogSoftLimitWarning();
         }
 
         request.OnScheduled?.Invoke(scheduled.ToReport(SafeFrameCount(), immediate: false));
         return true;
+    }
+
+    public static AuraSharedFrameSchedulerStats GetStats()
+    {
+        lock (QueueGate)
+        {
+            return new AuraSharedFrameSchedulerStats
+            {
+                PendingMainThreadActions = CurrentMainThreadActions.Count + NextMainThreadActions.Count,
+                PendingKeyedActions = ReadyKeyedActionCountNoLock() + NextKeyedActions.Count + DelayedKeyedActions.Count,
+                MaxObservedPendingActions = maxObservedPendingActions,
+                SoftLimitBreaches = softLimitBreaches,
+                LastPumpElapsedMilliseconds = lastPumpElapsedMilliseconds,
+                MaxPumpElapsedMilliseconds = maxPumpElapsedMilliseconds,
+                PendingByOwner = new Dictionary<string, int>(PendingByOwner, StringComparer.Ordinal)
+            };
+        }
     }
 
     public static bool StartCoroutine(string source, IEnumerator routine)
@@ -330,15 +401,36 @@ public static class AuraSharedFrameScheduler
         var stopwatch = Stopwatch.StartNew();
         var maxActions = Math.Max(1, MaxActionsPerFrame);
         var budgetMs = Math.Max(0.25d, FrameBudgetMilliseconds);
+        var promotionLimit = Math.Max(1, MaxPromotionsPerFrame);
         var frame = SafeFrameCount();
         lock (QueueGate)
         {
-            while (NextMainThreadActions.Count > 0)
+            var firstQuota = Math.Max(1, (promotionLimit + 1) / 2);
+            var secondQuota = promotionLimit - firstQuota;
+            var keyedFirst = (frame & 1) == 0;
+            var keyedPromoted = keyedFirst
+                ? PromoteReadyKeyedActions(frame, firstQuota)
+                : PromoteReadyKeyedActions(frame, secondQuota);
+            var mainPromoted = keyedFirst
+                ? PromoteMainThreadActionsNoLock(secondQuota)
+                : PromoteMainThreadActionsNoLock(firstQuota);
+            var promotionsRemaining = promotionLimit - keyedPromoted - mainPromoted;
+            if (promotionsRemaining > 0)
             {
-                CurrentMainThreadActions.Enqueue(NextMainThreadActions.Dequeue());
+                if (keyedFirst)
+                {
+                    mainPromoted += PromoteMainThreadActionsNoLock(promotionsRemaining);
+                    promotionsRemaining = promotionLimit - keyedPromoted - mainPromoted;
+                    PromoteReadyKeyedActions(frame, promotionsRemaining);
+                }
+                else
+                {
+                    keyedPromoted += PromoteReadyKeyedActions(frame, promotionsRemaining);
+                    promotionsRemaining = promotionLimit - keyedPromoted - mainPromoted;
+                    PromoteMainThreadActionsNoLock(promotionsRemaining);
+                }
             }
 
-            PromoteReadyKeyedActions(frame);
             isDraining = true;
         }
 
@@ -369,9 +461,12 @@ public static class AuraSharedFrameScheduler
         }
         finally
         {
+            stopwatch.Stop();
             lock (QueueGate)
             {
                 isDraining = false;
+                lastPumpElapsedMilliseconds = stopwatch.Elapsed.TotalMilliseconds;
+                maxPumpElapsedMilliseconds = Math.Max(maxPumpElapsedMilliseconds, lastPumpElapsedMilliseconds);
             }
         }
     }
@@ -383,6 +478,7 @@ public static class AuraSharedFrameScheduler
             if (CurrentMainThreadActions.Count > 0)
             {
                 item = CurrentMainThreadActions.Dequeue();
+                TrackPendingRemovedNoLock(item.OwnerId);
                 return true;
             }
         }
@@ -408,6 +504,7 @@ public static class AuraSharedFrameScheduler
                     var bucket = priorityPair.Value;
                     if (bucket.TryDequeue(out item))
                     {
+                        TrackPendingRemovedNoLock(NormalizeOwnerId(item.Request.OwnerId));
                         if (item.ScopedKey.Length > 0)
                         {
                             PendingKeyedActionKeys.Remove(item.ScopedKey);
@@ -452,9 +549,23 @@ public static class AuraSharedFrameScheduler
         return false;
     }
 
-    private static void PromoteReadyKeyedActions(int frame)
+    private static int PromoteReadyKeyedActions(int frame, int maximumPromotions)
     {
-        while (NextKeyedActions.Count > 0)
+        var promoted = 0;
+        while (promoted < maximumPromotions && DelayedKeyedActions.Count > 0)
+        {
+            var scheduled = DelayedKeyedActions[0];
+            if (!IsKeyedActionReady(scheduled, frame))
+            {
+                break;
+            }
+
+            PopDelayedKeyedActionNoLock();
+            EnqueueReadyKeyedActionNoLock(scheduled);
+            promoted++;
+        }
+
+        while (promoted < maximumPromotions && NextKeyedActions.Count > 0)
         {
             var scheduled = NextKeyedActions.Dequeue();
             if (IsKeyedActionReady(scheduled, frame))
@@ -465,19 +576,23 @@ public static class AuraSharedFrameScheduler
             {
                 PushDelayedKeyedActionNoLock(scheduled);
             }
+
+            promoted++;
         }
 
-        while (DelayedKeyedActions.Count > 0)
+        return promoted;
+    }
+
+    private static int PromoteMainThreadActionsNoLock(int maximumPromotions)
+    {
+        var promoted = 0;
+        while (promoted < maximumPromotions && NextMainThreadActions.Count > 0)
         {
-            var scheduled = DelayedKeyedActions[0];
-            if (!IsKeyedActionReady(scheduled, frame))
-            {
-                break;
-            }
-
-            PopDelayedKeyedActionNoLock();
-            EnqueueReadyKeyedActionNoLock(scheduled);
+            CurrentMainThreadActions.Enqueue(NextMainThreadActions.Dequeue());
+            promoted++;
         }
+
+        return promoted;
     }
 
     private static void EnqueueReadyKeyedActionNoLock(KeyedFrameAction scheduled)
@@ -741,13 +856,70 @@ public static class AuraSharedFrameScheduler
         return string.IsNullOrWhiteSpace(ownerId) ? DefaultOwnerId : ownerId.Trim();
     }
 
+    private static bool TrackPendingAddedNoLock(string ownerId)
+    {
+        var owner = NormalizeOwnerId(ownerId);
+        PendingByOwner.TryGetValue(owner, out var pending);
+        PendingByOwner[owner] = pending + 1;
+        pendingActionCount++;
+
+        var total = pendingActionCount;
+        maxObservedPendingActions = Math.Max(maxObservedPendingActions, total);
+        var limit = SoftPendingActionLimit;
+        if (limit <= 0 || total <= limit || softLimitWarningActive)
+        {
+            return false;
+        }
+
+        softLimitWarningActive = true;
+        softLimitBreaches++;
+        return true;
+    }
+
+    private static void TrackPendingRemovedNoLock(string ownerId)
+    {
+        var owner = NormalizeOwnerId(ownerId);
+        if (PendingByOwner.TryGetValue(owner, out var pending))
+        {
+            if (pending <= 1)
+            {
+                PendingByOwner.Remove(owner);
+            }
+            else
+            {
+                PendingByOwner[owner] = pending - 1;
+            }
+        }
+
+        pendingActionCount = Math.Max(0, pendingActionCount - 1);
+
+        var limit = SoftPendingActionLimit;
+        if (limit <= 0 || pendingActionCount <= Math.Max(1, limit / 2))
+        {
+            softLimitWarningActive = false;
+        }
+    }
+
+    private static void LogSoftLimitWarning()
+    {
+        var stats = GetStats();
+        UnityEngine.Debug.LogWarning("[AuraSharedFrameScheduler] Pending action soft limit exceeded. pending="
+                                     + (stats.PendingMainThreadActions + stats.PendingKeyedActions)
+                                     + ", softLimit="
+                                     + SoftPendingActionLimit
+                                     + ". Actions are retained; inspect PendingByOwner for the producer backlog.");
+    }
+
     private readonly struct FrameAction
     {
-        public FrameAction(string source, Action action)
+        public FrameAction(string ownerId, string source, Action action)
         {
+            OwnerId = ownerId;
             Source = source;
             Action = action;
         }
+
+        public string OwnerId { get; }
 
         public string Source { get; }
 
@@ -934,6 +1106,33 @@ public static class AuraSharedFrameScheduler
             }
         }
     }
+}
+
+public sealed class AuraSharedFrameEnqueueRequest
+{
+    public string OwnerId { get; set; } = "";
+
+    public string Source { get; set; } = "";
+
+    public Action? Action { get; set; }
+}
+
+public sealed class AuraSharedFrameSchedulerStats
+{
+    public int PendingMainThreadActions { get; set; }
+
+    public int PendingKeyedActions { get; set; }
+
+    public int MaxObservedPendingActions { get; set; }
+
+    public int SoftLimitBreaches { get; set; }
+
+    public double LastPumpElapsedMilliseconds { get; set; }
+
+    public double MaxPumpElapsedMilliseconds { get; set; }
+
+    public IReadOnlyDictionary<string, int> PendingByOwner { get; set; }
+        = new Dictionary<string, int>(StringComparer.Ordinal);
 }
 
 public sealed class AuraSharedFrameActionRequest

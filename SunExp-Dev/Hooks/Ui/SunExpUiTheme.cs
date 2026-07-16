@@ -5,8 +5,10 @@ namespace SunExp.Dll.Hooks.Ui;
 
 public static class SunExpUiTheme
 {
+    private const string StyleId = "SunExp:solar";
+
     public static AuraUiTheme Current { get; } = AuraUiStyleRegistry.RegisterDerived(
-        AuraUiStyleIds.SunExpSolar,
+        StyleId,
         AuraUiStyleIds.WitchNative,
         theme =>
         {

@@ -5,8 +5,10 @@ namespace AuraToolsExp.Dll.Features.Settings;
 
 internal static class AuraToolsUiTheme
 {
+    private const string StyleId = "AuraToolsExp:arcane";
+
     public static AuraUiTheme Current { get; } = AuraUiStyleRegistry.RegisterDerived(
-        AuraUiStyleIds.AuraToolsArcane,
+        StyleId,
         AuraUiStyleIds.WitchNative,
         theme =>
         {

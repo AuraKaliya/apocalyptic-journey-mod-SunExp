@@ -108,6 +108,9 @@ Assert-NoMatches $sunExpDirectHooks "AuraSharedHooks\.(RegisterBefore|RegisterAf
 Assert-NoMatches $sharedFiles "SunExpIds|SunExp\.Dll|CS\.SunExp|晨星|EndlessSea|SolarMemory|TongtianTower" `
     "Shared runtimes must not contain SunExp content semantics."
 
+Assert-NoMatches $sharedFiles "AuraUiStyleIds\.(SunExp|AuraTools)|SunExp:solar|AuraToolsExp:arcane" `
+    "Shared UI runtimes must not own consumer-specific style ids."
+
 Assert-NoMatches $sharedFiles '"(?:AuraToolsExp|SunExp|SkinExp|SanGuoShaExp)\.' `
     "Shared runtimes must not hard-code concrete consumer content owner ids."
 

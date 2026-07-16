@@ -1,5 +1,7 @@
 using System;
 using SunExp.Dll.Hooks.Ui;
+using SunExp.Dll.Hooks.Visual;
+using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using UnityEngine;
 using Witch.Core;
@@ -20,7 +22,7 @@ public static class SunExpUiLifecycleRuntime
         RegisterBefore(modConfig, "Fight_Escape.Init", context => CloseAll("Fight_Escape.Init"));
         RegisterBefore(modConfig, "UIManager.CloseUI", CloseForUiManager);
         RegisterBefore(modConfig, "UIBase.Close", CloseForUiBase);
-        RegisterBefore(modConfig, "GameEntryUI.Init", context => CloseAll("GameEntryUI.Init"));
+        RegisterBefore(modConfig, "GameEntryUI.Init", context => ResetForGameEntry("GameEntryUI.Init"));
         RegisterBefore(modConfig, "GameEntryUI.Start", context => CloseAll("GameEntryUI.Start"));
     }
 
@@ -52,6 +54,18 @@ public static class SunExpUiLifecycleRuntime
     private static void CloseAll(string source)
     {
         SunExpTransientUiRegistry.CloseAll(source);
+    }
+
+    private static void ResetForGameEntry(string source)
+    {
+        CloseAll(source);
+        FrameSpriteCache.Clear();
+        SunExpUiSprites.Clear();
+        AssetBundleCache.Clear();
+        SunExpResourceCache.ClearCategory("visual.effect-texture");
+        SunExpResourceCache.ClearCategory("visual.card-skin");
+        SunExpResourceCache.ClearCategory("visual.frame-animation");
+        SunExpResourceCache.ClearCategory("ui.sprite-source");
     }
 
     private static bool ShouldCloseForUi(string name)

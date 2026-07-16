@@ -183,10 +183,12 @@ public static class AuraToolsCardUiBenchmarkRuntime
             return;
         }
 
-        AuraSharedFrameScheduler.RunAfterFramesBudgeted(
-            "AuraTools.CardUiBenchmark.IconDecode." + cardId,
-            15,
-            () => RunIconDecodeProbe(cardId, iconPath, iconBytes));
+        AuraSharedFrameScheduler.RunAfterFramesBudgeted(new AuraSharedFrameEnqueueRequest
+        {
+            OwnerId = AuraToolsIds.ModId,
+            Source = "AuraTools.CardUiBenchmark.IconDecode." + cardId,
+            Action = () => RunIconDecodeProbe(cardId, iconPath, iconBytes)
+        }, 15);
     }
 
     private static void RunIconDecodeProbe(string cardId, string iconPath, long iconBytes)

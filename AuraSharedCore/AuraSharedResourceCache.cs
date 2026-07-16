@@ -10,6 +10,7 @@ public sealed class AuraSharedResourceCacheStats
     public int EntryCount { get; set; }
     public int ReferenceCount { get; set; }
     public int CategoryCount { get; set; }
+    public long EstimatedBytes { get; set; }
 }
 
 public static class AuraSharedResourceCache
@@ -27,6 +28,7 @@ public static class AuraSharedResourceCache
     private static readonly Dictionary<string, OwnerUsage> OwnerUsages = new(StringComparer.Ordinal);
     private static readonly LinkedList<string> Recency = new();
     private static int referenceCount;
+    private static long estimatedBytes;
 
     public static T? Load<T>(
         string ownerModId,
@@ -56,7 +58,7 @@ public static class AuraSharedResourceCache
             var loaded = ResourceLoader.Load<T>(path.Trim(), loadFromMod);
             lock (Gate)
             {
-                StoreNoLock(key, ownerModId, category, loaded, null, 1);
+                StoreNoLock(key, ownerModId, category, loaded, null, 1, EstimateObjectBytes(loaded));
             }
 
             return loaded;
@@ -65,7 +67,7 @@ public static class AuraSharedResourceCache
         {
             lock (Gate)
             {
-                StoreNoLock(key, ownerModId, category, null, null, 1);
+                StoreNoLock(key, ownerModId, category, null, null, 1, 0L);
             }
 
             WarnLoadFailure(ownerModId, warn, "load failed", typeof(T).Name, path, key, ex);
@@ -100,7 +102,14 @@ public static class AuraSharedResourceCache
             var loaded = ResourceLoader.LoadAll<T>(path.Trim()) ?? Array.Empty<T>();
             lock (Gate)
             {
-                StoreNoLock(key, ownerModId, category, null, loaded, Math.Max(1, loaded.Length));
+                StoreNoLock(
+                    key,
+                    ownerModId,
+                    category,
+                    null,
+                    loaded,
+                    Math.Max(1, loaded.Length),
+                    EstimateArrayBytes(loaded));
             }
 
             return loaded;
@@ -110,7 +119,7 @@ public static class AuraSharedResourceCache
             var empty = Array.Empty<T>();
             lock (Gate)
             {
-                StoreNoLock(key, ownerModId, category, null, empty, 1);
+                StoreNoLock(key, ownerModId, category, null, empty, 1, 0L);
             }
 
             WarnLoadFailure(ownerModId, warn, "load-all failed", typeof(T).Name, path, key, ex);
@@ -131,7 +140,8 @@ public static class AuraSharedResourceCache
                 {
                     EntryCount = usage?.EntryCount ?? 0,
                     ReferenceCount = usage?.ReferenceCount ?? 0,
-                    CategoryCount = CountOwnerCategoriesNoLock(normalizedOwner)
+                    CategoryCount = CountOwnerCategoriesNoLock(normalizedOwner),
+                    EstimatedBytes = usage?.EstimatedBytes ?? 0L
                 };
             }
 
@@ -139,7 +149,8 @@ public static class AuraSharedResourceCache
             {
                 EntryCount = Entries.Count,
                 ReferenceCount = referenceCount,
-                CategoryCount = CategoryKeys.Count
+                CategoryCount = CategoryKeys.Count,
+                EstimatedBytes = estimatedBytes
             };
         }
     }
@@ -158,6 +169,7 @@ public static class AuraSharedResourceCache
                 OwnerUsages.Clear();
                 Recency.Clear();
                 referenceCount = 0;
+                estimatedBytes = 0L;
                 return;
             }
 
@@ -206,7 +218,8 @@ public static class AuraSharedResourceCache
         string category,
         UnityEngine.Object? value,
         Array? array,
-        int weight)
+        int weight,
+        long estimatedEntryBytes)
     {
         var owner = NormalizeOwner(ownerModId);
         var normalizedWeight = Math.Max(1, weight);
@@ -220,7 +233,8 @@ public static class AuraSharedResourceCache
 
         var normalizedCategory = CategoryKey(owner, category);
         var node = Recency.AddLast(key);
-        Entries[key] = new CacheEntry(owner, normalizedCategory, normalizedWeight, node);
+        var normalizedEstimatedBytes = Math.Max(0L, estimatedEntryBytes);
+        Entries[key] = new CacheEntry(owner, normalizedCategory, normalizedWeight, normalizedEstimatedBytes, node);
         if (array != null)
         {
             ObjectArrayCache[key] = array;
@@ -249,7 +263,9 @@ public static class AuraSharedResourceCache
 
         usage.EntryCount++;
         usage.ReferenceCount += normalizedWeight;
+        usage.EstimatedBytes = SaturatingAdd(usage.EstimatedBytes, normalizedEstimatedBytes);
         referenceCount += normalizedWeight;
+        estimatedBytes = SaturatingAdd(estimatedBytes, normalizedEstimatedBytes);
         EnforceLimitsNoLock(owner);
     }
 
@@ -313,10 +329,12 @@ public static class AuraSharedResourceCache
         }
 
         referenceCount = Math.Max(0, referenceCount - entry.Weight);
+        estimatedBytes = Math.Max(0L, estimatedBytes - entry.EstimatedBytes);
         if (OwnerUsages.TryGetValue(entry.OwnerModId, out var usage))
         {
             usage.EntryCount = Math.Max(0, usage.EntryCount - 1);
             usage.ReferenceCount = Math.Max(0, usage.ReferenceCount - entry.Weight);
+            usage.EstimatedBytes = Math.Max(0L, usage.EstimatedBytes - entry.EstimatedBytes);
             if (usage.EntryCount == 0)
             {
                 OwnerUsages.Remove(entry.OwnerModId);
@@ -369,6 +387,80 @@ public static class AuraSharedResourceCache
         return count;
     }
 
+    public static long EstimateObjectBytes(UnityEngine.Object? value)
+    {
+        if (value == null)
+        {
+            return 0L;
+        }
+
+        try
+        {
+            switch (value)
+            {
+                case Sprite sprite when sprite.texture != null:
+                    return EstimateTextureBytes(sprite.texture);
+                case Texture texture:
+                    return EstimateTextureBytes(texture);
+                case AudioClip clip:
+                    return SaturatingMultiply(Math.Max(1, clip.samples), Math.Max(1, clip.channels), sizeof(float));
+                case Mesh mesh:
+                    return SaturatingMultiply(Math.Max(1, mesh.vertexCount), 32L);
+                case TextAsset text:
+                    return text.bytes?.LongLength ?? 0L;
+                case GameObject:
+                    return 64L * 1024L;
+                default:
+                    return 4L * 1024L;
+            }
+        }
+        catch
+        {
+            return 0L;
+        }
+    }
+
+    private static long EstimateArrayBytes(Array? values)
+    {
+        if (values == null || values.Length == 0)
+        {
+            return 0L;
+        }
+
+        var total = 0L;
+        foreach (var value in values)
+        {
+            if (value is UnityEngine.Object unityObject)
+            {
+                total = SaturatingAdd(total, EstimateObjectBytes(unityObject));
+            }
+        }
+
+        return total;
+    }
+
+    private static long EstimateTextureBytes(Texture texture)
+    {
+        return SaturatingMultiply(Math.Max(1, texture.width), Math.Max(1, texture.height), 4L);
+    }
+
+    private static long SaturatingMultiply(long left, long right, long multiplier = 1L)
+    {
+        try
+        {
+            return checked(left * right * multiplier);
+        }
+        catch (OverflowException)
+        {
+            return long.MaxValue;
+        }
+    }
+
+    private static long SaturatingAdd(long left, long right)
+    {
+        return long.MaxValue - left < right ? long.MaxValue : left + right;
+    }
+
     private static string CacheKey<T>(string ownerModId, string path, bool loadFromMod, bool all)
     {
         var owner = NormalizeOwner(ownerModId);
@@ -400,17 +492,24 @@ public static class AuraSharedResourceCache
 
     private sealed class CacheEntry
     {
-        public CacheEntry(string ownerModId, string categoryKey, int weight, LinkedListNode<string> node)
+        public CacheEntry(
+            string ownerModId,
+            string categoryKey,
+            int weight,
+            long estimatedBytes,
+            LinkedListNode<string> node)
         {
             OwnerModId = ownerModId;
             CategoryKey = categoryKey;
             Weight = weight;
+            EstimatedBytes = estimatedBytes;
             Node = node;
         }
 
         public string OwnerModId { get; }
         public string CategoryKey { get; }
         public int Weight { get; }
+        public long EstimatedBytes { get; }
         public LinkedListNode<string> Node { get; }
     }
 
@@ -418,5 +517,6 @@ public static class AuraSharedResourceCache
     {
         public int EntryCount { get; set; }
         public int ReferenceCount { get; set; }
+        public long EstimatedBytes { get; set; }
     }
 }

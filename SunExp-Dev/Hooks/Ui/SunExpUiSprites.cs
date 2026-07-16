@@ -17,6 +17,20 @@ public static class SunExpUiSprites
 
     private static readonly Dictionary<string, Sprite?> Cache = new(StringComparer.OrdinalIgnoreCase);
 
+    public static void Clear()
+    {
+        var destroyed = new HashSet<int>();
+        foreach (var sprite in Cache.Values)
+        {
+            if (sprite != null && destroyed.Add(sprite.GetInstanceID()))
+            {
+                UnityEngine.Object.Destroy(sprite);
+            }
+        }
+
+        Cache.Clear();
+    }
+
     public static Sprite? Button(string logPrefix)
     {
         return NineSlice(ButtonSpritePath, new Vector4(14f, 14f, 14f, 14f), logPrefix, new Rect(17f, 16f, 135f, 49f));
@@ -63,7 +77,7 @@ public static class SunExpUiSprites
         Sprite? sprite = null;
         try
         {
-            var source = SunExpResourceCache.Load<Sprite>(path, true);
+            var source = SunExpResourceCache.Load<Sprite>(path, true, "ui.sprite-source");
             if (source == null || source.texture == null)
             {
                 SunExpLog.Warn(logPrefix + " UI sprite missing: " + path);

@@ -14,6 +14,25 @@ public static class AssetBundleCache
     private static readonly Dictionary<string, string[]> AssetNames = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> LoggedMissingAssets = new(StringComparer.OrdinalIgnoreCase);
 
+    public static void Clear(bool unloadAllLoadedObjects = false)
+    {
+        foreach (var bundle in Cache.Values.Where(bundle => bundle != null).Distinct())
+        {
+            try
+            {
+                bundle!.Unload(unloadAllLoadedObjects);
+            }
+            catch (Exception ex)
+            {
+                SunExpLog.Warn("[VisualBundle] unload failed: " + ex.Message);
+            }
+        }
+
+        Cache.Clear();
+        AssetNames.Clear();
+        LoggedMissingAssets.Clear();
+    }
+
     public static T? LoadAsset<T>(string bundlePath, string assetPath, string logPrefix)
         where T : UnityEngine.Object
     {

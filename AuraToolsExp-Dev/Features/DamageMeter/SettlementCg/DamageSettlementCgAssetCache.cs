@@ -116,9 +116,11 @@ internal static class DamageSettlementCgAssetCache
         }
 
         PendingKeys.Add(key);
-        if (!AuraSharedFrameScheduler.Enqueue("SettlementCG.Prepare:" + normalizedRoleId, () =>
+        if (!AuraSharedFrameScheduler.Enqueue(new AuraSharedFrameEnqueueRequest
         {
-            Prepare(normalizedRoleId, playerId, instanceId);
+            OwnerId = AuraToolsIds.ModId,
+            Source = "SettlementCG.Prepare:" + normalizedRoleId,
+            Action = () => Prepare(normalizedRoleId, playerId, instanceId)
         }))
         {
             PendingKeys.Remove(key);
@@ -167,10 +169,12 @@ internal static class DamageSettlementCgAssetCache
                 }
 
                 AttemptedKeys.Remove(key);
-                AuraSharedFrameScheduler.RunAfterFramesBudgeted(
-                    "SettlementCG.PrepareRetry:" + key,
-                    3,
-                    () => Prepare(normalizedRoleId, playerId, instanceId));
+                AuraSharedFrameScheduler.RunAfterFramesBudgeted(new AuraSharedFrameEnqueueRequest
+                {
+                    OwnerId = AuraToolsIds.ModId,
+                    Source = "SettlementCG.PrepareRetry:" + key,
+                    Action = () => Prepare(normalizedRoleId, playerId, instanceId)
+                }, 3);
                 return;
             }
 

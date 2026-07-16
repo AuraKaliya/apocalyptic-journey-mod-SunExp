@@ -11,6 +11,11 @@ public static class FrameSpriteCache
 {
     private static readonly Dictionary<string, Sprite[]> Cache = new(StringComparer.Ordinal);
 
+    public static void Clear()
+    {
+        Cache.Clear();
+    }
+
     public static Sprite[] LoadFrames(FrameSpriteAnimationSpec spec, string logPrefix)
     {
         if (!spec.IsValid)
@@ -29,7 +34,7 @@ public static class FrameSpriteCache
         {
             try
             {
-                var sprite = SunExpResourceCache.Load<Sprite>(path, true);
+                var sprite = SunExpResourceCache.Load<Sprite>(path, true, "visual.frame-animation");
                 if (sprite == null)
                 {
                     SunExpLog.Warn(logPrefix + " animation frame missing: " + path);

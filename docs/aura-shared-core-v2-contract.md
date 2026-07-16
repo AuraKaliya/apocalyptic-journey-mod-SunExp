@@ -154,12 +154,25 @@ Core 负责共享路径、存储、资源注册、包事务、变更序列、诊
 `AuraAuthoritativeSyncRuntime` 只处理 session、token、快照请求节流和去重，不决定任何
 具体玩法状态是否有效。
 
+`AuraSharedFrameScheduler` 的 `SoftPendingActionLimit` 是观测水位，不是拒绝阈值：越线时
+任务仍会保留，并通过 `GetStats()` 暴露主线程/键控 backlog、owner 分布、历史峰值和泵耗时。
+`MaxPromotionsPerFrame` 只限制每帧从待处理队列晋升到可执行队列的数量，避免一次性整理
+超大队列本身吃掉帧预算；生产者仍应使用 owner-qualified key、合并和 cooperative slice
+控制根因。
+
+`AuraSharedResourceCache.GetStats()` 的 `EstimatedBytes` 是治理指标而不是精确的 Unity
+内存账本。纹理按像素近似、音频按解码样本近似，多个 Sprite 共用同一 Texture 时可能
+重复计数。容量淘汰仍以 entry/reference LRU 为行为边界，消费者不得再用无生命周期的
+二级强引用缓存绕过它。
+
 ## Ownership And Mutability（所有权与可变性）
 
 - 每个注册项必须有稳定的 `ownerModId` 和 owner-qualified domain id。
 - 内容 MOD 安装并注册自己拥有的资源；工具 MOD 可以读取注册表、注册工具自有扩展和
   保存本地覆盖，但不能改写外部 MOD 的注册源或伪造所有权。
 - Core 只维护 identity、ownership、revision 和事务，不解释资源内容。
+- Core 只声明 `Default`、`WitchNative` 等共享 UI style id；消费者品牌 style id 必须由
+  各自 MOD 定义并注册，不能反向固化到 `AuraUiShared`。
 - Shared/Registry 写入必须通过 `AuraSharedStorage`、`AuraSharedConfigStore`、
   `AuraSharedPackageEngine` 或协调器入口；消费者不得直接写共享目录。
 - Tool-owned runtime caches 若写入共享根目录，也必须通过

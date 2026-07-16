@@ -720,12 +720,17 @@ public static class UiTransitionGuardRuntime
             }
 
             lastGlobalScrubFrame = frame;
-            AuraSharedFrameScheduler.Enqueue("UiTransitionGuard.Scrub:" + source, () =>
+            AuraSharedFrameScheduler.Enqueue(new AuraSharedFrameEnqueueRequest
             {
-                UiRaycastSafeDestroyRuntime.ScrubGraphicRegistryForFrames(
-                    Math.Max(1, frames),
-                    ownerModId + ":" + source,
-                    Trace);
+                OwnerId = ownerModId,
+                Source = "UiTransitionGuard.Scrub:" + source,
+                Action = () =>
+                {
+                    UiRaycastSafeDestroyRuntime.ScrubGraphicRegistryForFrames(
+                        Math.Max(1, frames),
+                        ownerModId + ":" + source,
+                        Trace);
+                }
             });
         }
 

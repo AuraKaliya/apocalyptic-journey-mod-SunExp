@@ -27,8 +27,6 @@ public static class AuraUiStyleIds
 {
     public const string Default = "Aura.Shared:default";
     public const string WitchNative = "Aura.Shared:witch.native";
-    public const string SunExpSolar = "SunExp:solar";
-    public const string AuraToolsArcane = "AuraToolsExp:arcane";
 }
 
 public sealed class AuraUiTypography
