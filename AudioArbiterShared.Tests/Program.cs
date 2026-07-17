@@ -12,6 +12,9 @@ internal sealed class AudioArbiterContractTests
         VerifyManifestDefaults();
         VerifyConstants();
         VerifyFileLoadPolicy();
+        VerifyHookCatalog();
+        VerifyRequestFactory();
+        VerifyLowHealthCoordinator();
         VerifyPropertyReader();
         VerifyRequestProjection();
         VerifyNetworkProjection();
@@ -93,6 +96,299 @@ internal sealed class AudioArbiterContractTests
         Equal(AudioFileEncoding.UnsupportedVideoContainer, AudioFileLoadPolicy.Classify("voice.mp4"), "mp4 video container rejected");
         Equal(AudioFileEncoding.UnsupportedVideoContainer, AudioFileLoadPolicy.Classify("voice.m4v"), "m4v video container rejected");
         Equal(AudioFileEncoding.UnsupportedVideoContainer, AudioFileLoadPolicy.Classify("voice.mov"), "mov video container rejected");
+    }
+
+    private void VerifyHookCatalog()
+    {
+        var hooks = AudioHookCatalog.All;
+        Equal(19, hooks.Count, "audio hook catalog count");
+        Equal(19, hooks.Select(item => item.HandlerId).Distinct(StringComparer.Ordinal).Count(), "audio hook handler ids are unique");
+        Equal(2, hooks.Count(item => item.RegistrationKind == AudioHookRegistrationKind.Before), "audio before hook count");
+        Equal(16, hooks.Count(item => item.RegistrationKind == AudioHookRegistrationKind.After), "audio after hook count");
+        Equal(1, hooks.Count(item => item.RegistrationKind == AudioHookRegistrationKind.CombatActionBefore), "audio combat router count");
+        Equal(2, hooks.Count(item => item.Target == "Fight_Start.Init"), "fight start keeps before and after hooks");
+        Equal(6, hooks.Count(item => item.Target.StartsWith("ScriptExecutor.", StringComparison.Ordinal)), "script HP hook count");
+        Equal(2, hooks.Count(item => item.Target.StartsWith("StatusManager.set_", StringComparison.Ordinal)), "status HP setter hook count");
+        Equal(6, hooks.Count(item => item.CallbackKind == AudioHookCallbackKind.PotentialHpChanged), "script HP hooks share one callback kind");
+        Equal(2, hooks.Count(item => item.CallbackKind == AudioHookCallbackKind.StatusHpChanged), "status HP hooks share one callback kind");
+        Equal(13, hooks.Select(item => item.CallbackKind).Distinct().Count(), "audio callback kind count");
+
+        var combat = hooks.Single(item => item.HandlerId == "combat-action");
+        Equal("FightUI.CallActionAnimation", combat.Target, "combat action hook target");
+        Equal(AudioHookRegistrationKind.CombatActionBefore, combat.RegistrationKind, "combat action uses routed before hook");
+        Equal(AudioHookCallbackKind.CombatActionBefore, combat.CallbackKind, "combat action callback kind");
+        var effect = hooks.Single(item => item.HandlerId == "native-effect");
+        Equal("EffectSound.Start", effect.Target, "native effect hook target");
+        Equal(AudioHookRegistrationKind.Before, effect.RegistrationKind, "native effect runs before original playback");
+        Equal(AudioHookCallbackKind.NativeEffectBefore, effect.CallbackKind, "native effect callback kind");
+        var vocal = hooks.Single(item => item.HandlerId == "vocal-state");
+        Equal("StatusManager.PlayVocal", vocal.Target, "vocal state hook target");
+        Equal(AudioHookRegistrationKind.After, vocal.RegistrationKind, "vocal state is observed after native call");
+        Equal(AudioHookCallbackKind.VocalState, vocal.CallbackKind, "vocal state callback kind");
+        Equal(true, hooks.Any(item => item.HandlerId == "fight-win" && item.Target == "Fight_Win.ResetStates"), "fight win hook retained");
+        Equal(true, hooks.Any(item => item.HandlerId == "fight-escape" && item.Target == "Fight_Escape.ResetStates"), "fight escape hook retained");
+        Equal(AudioHookCallbackKind.FightWin, hooks.Single(item => item.HandlerId == "fight-win").CallbackKind, "fight win callback kind");
+        Equal(AudioHookCallbackKind.FightEscape, hooks.Single(item => item.HandlerId == "fight-escape").CallbackKind, "fight escape callback kind");
+    }
+
+    private void VerifyRequestFactory()
+    {
+        var career = AudioRequestFactory.CreateCareerSelected(new AudioCareerObservation
+        {
+            CareerId = "career",
+            SourceName = "career-source"
+        });
+        Equal(SoundEventKinds.CareerSelected, career.Kind, "career request kind");
+        Equal("career", career.CareerId, "career request career");
+        Equal("career", career.RoleId, "career request role follows career");
+        Equal("career-source", career.SourceName, "career request source");
+        Equal("", career.EventId, "career request does not invent event id");
+
+        var combat = AudioRequestFactory.CreateCombatActionBatch(new AudioCombatActionObservation
+        {
+            CardId = "card",
+            CareerId = "career",
+            RoleId = "role",
+            StatusInstanceId = "status",
+            EffectName = "effect",
+            ActionName = "action",
+            SourceName = "combat-source"
+        }, "play-id");
+        Equal("play-id", combat.CardUse.EventId, "card-use request keeps network play id");
+        Equal(SoundEventKinds.CardUse, combat.CardUse.Kind, "card-use request kind");
+        Equal("card", combat.CardUse.CardId, "card-use request card");
+        Equal("career", combat.CardUse.CareerId, "card-use request career");
+        Equal("role", combat.CardUse.RoleId, "card-use request role");
+        Equal("status", combat.CardUse.StatusInstanceId, "card-use request status");
+        Equal("effect", combat.CardUse.EffectName, "card-use request effect");
+        Equal("action", combat.CardUse.ActionName, "card-use request action");
+        Equal("combat-source", combat.CardUse.SourceName, "card-use request source");
+        Equal("", combat.SkillVoice.EventId, "skill voice does not reuse authoritative card event id");
+        Equal(SoundEventKinds.SkillVoice, combat.SkillVoice.Kind, "skill voice request kind");
+        Equal("card", combat.SkillVoice.CardId, "skill voice request card");
+        Equal("career", combat.SkillVoice.CareerId, "skill voice request career");
+        Equal("role", combat.SkillVoice.RoleId, "skill voice request role");
+        Equal("status", combat.SkillVoice.StatusInstanceId, "skill voice request status");
+        Equal("effect", combat.SkillVoice.EffectName, "skill voice request effect");
+        Equal("action", combat.SkillVoice.ActionName, "skill voice request action");
+        Equal("combat-source", combat.SkillVoice.SourceName, "skill voice request source");
+
+        var buff = AudioRequestFactory.CreateBuffApplied(new AudioBuffObservation
+        {
+            BuffId = "buff",
+            CareerId = "career",
+            StatusInstanceId = "status",
+            SourceName = "buff-source"
+        });
+        Equal(SoundEventKinds.BuffApplied, buff.Kind, "buff request kind");
+        Equal("buff", buff.BuffId, "buff request id");
+        Equal("career", buff.CareerId, "buff request career");
+        Equal("career", buff.RoleId, "buff request role preserves current-career behavior");
+        Equal("status", buff.StatusInstanceId, "buff request status");
+        Equal("buff-source", buff.SourceName, "buff request source");
+
+        var vocal = AudioRequestFactory.CreateVocalState(new AudioVocalObservation
+        {
+            VocalState = "Dying",
+            CareerId = "career",
+            RoleId = "role",
+            StatusInstanceId = "status",
+            SourceName = "vocal-source"
+        });
+        Equal(SoundEventKinds.VocalState, vocal.Kind, "vocal request kind");
+        Equal("Dying", vocal.VocalState, "vocal request state");
+        Equal("career", vocal.CareerId, "vocal request career");
+        Equal("role", vocal.RoleId, "vocal request role");
+        Equal("status", vocal.StatusInstanceId, "vocal request status");
+        Equal("vocal-source", vocal.SourceName, "vocal request source");
+
+        var lowHealth = AudioRequestFactory.CreateLowHealth(new AudioStatusSnapshot
+        {
+            StatusInstanceId = "status",
+            RoleId = "role",
+            CareerId = "career",
+            Hp = 25,
+            MaxHp = 100,
+            HpRatio = 0.25f,
+            IsLocalOwner = true,
+            SourceName = "hp-source"
+        }, 0.5f);
+        Equal(SoundEventKinds.LowHealth, lowHealth.Kind, "low-health request kind");
+        Equal("status", lowHealth.StatusInstanceId, "low-health request status");
+        Equal("role", lowHealth.RoleId, "low-health request role");
+        Equal("career", lowHealth.CareerId, "low-health request career");
+        Equal(25, lowHealth.Hp, "low-health request hp");
+        Equal(100, lowHealth.MaxHp, "low-health request max hp");
+        Equal(0.5f, lowHealth.PreviousHpRatio, "low-health request previous ratio");
+        Equal(0.25f, lowHealth.HpRatio, "low-health request ratio");
+        Equal(true, lowHealth.IsLocalOwner, "low-health request local owner");
+        Equal("hp-source", lowHealth.SourceName, "low-health request source");
+        var lowHealthRoleFallback = AudioRequestFactory.CreateLowHealth(new AudioStatusSnapshot
+        {
+            CareerId = "career",
+            RoleId = ""
+        }, 0.5f);
+        Equal("career", lowHealthRoleFallback.RoleId, "low-health role falls back to career");
+
+        var battle = AudioRequestFactory.CreateBattleCompleted(new AudioBattleObservation
+        {
+            Result = "Win",
+            CareerId = "career",
+            SourceName = "Fight_Win.ResetStates"
+        });
+        Equal(SoundEventKinds.BattleCompleted, battle.Kind, "battle request kind");
+        Equal("Win", battle.BattleResult, "battle request result");
+        Equal("career", battle.CareerId, "battle request career");
+        Equal("career", battle.RoleId, "battle request role follows career");
+        Equal("Fight_Win.ResetStates", battle.SourceName, "battle request source");
+
+        Equal(0, new AudioNarrationObservation().NarrationIds.Length, "narration observation defaults to empty ids");
+    }
+
+    private void VerifyLowHealthCoordinator()
+    {
+        Equal(0.75f, AudioLowHealthCoordinator.DefaultNoProviderCooldownSeconds, "low-health no-provider cooldown default");
+        Equal(0.05f, AudioLowHealthCoordinator.DefaultRecoveryMargin, "low-health recovery margin default");
+        Equal(0.35f, AudioLowHealthCoordinator.DefaultLegacyFallbackThreshold, "low-health legacy threshold default");
+
+        var empty = new AudioLowHealthCoordinator();
+        var seeded = empty.Observe(CreateStatusSnapshot("status", 0.6f));
+        Equal(AudioLowHealthObservationOutcome.Seeded, seeded.Outcome, "first low-health observation seeds ratio");
+        Equal(0.6f, seeded.PreviousHpRatio, "seed decision reports current ratio");
+        Equal(false, seeded.ShouldRequest, "seed does not request playback");
+        var unchanged = empty.Observe(CreateStatusSnapshot("status", 0.6f));
+        Equal(AudioLowHealthObservationOutcome.Unchanged, unchanged.Outcome, "equal ratio is ignored");
+        var noProviderCandidate = empty.Observe(CreateStatusSnapshot("status", 0.4f));
+        Equal(AudioLowHealthObservationOutcome.Candidate, noProviderCandidate.Outcome, "decrease becomes a candidate before provider policy");
+        var noProviderRequest = AudioRequestFactory.CreateLowHealth(
+            CreateStatusSnapshot("status", 0.4f),
+            noProviderCandidate.PreviousHpRatio);
+        Equal(false, empty.ShouldAttempt(noProviderRequest), "no providers reject low-health attempt");
+
+        var legacy = new AudioLowHealthCoordinator();
+        legacy.ConfigureProviders(new[] { new AudioLowHealthProviderDescriptor("", -1f) });
+        legacy.Seed(CreateStatusSnapshot("legacy", 0.6f));
+        var legacyDecision = legacy.Observe(CreateStatusSnapshot("legacy", 0.35f));
+        Equal(true, legacyDecision.ShouldRequest, "unknown provider produces legacy candidate");
+        Equal(true, legacy.ShouldAttempt(AudioRequestFactory.CreateLowHealth(
+            CreateStatusSnapshot("legacy", 0.35f), legacyDecision.PreviousHpRatio)), "unknown provider uses legacy crossing");
+        Equal(false, legacy.ShouldAttempt(new SoundPlaybackRequest
+        {
+            Kind = SoundEventKinds.LowHealth,
+            PreviousHpRatio = 0.34f,
+            HpRatio = 0.3f
+        }), "legacy policy rejects a decrease already below threshold");
+
+        var thresholded = new AudioLowHealthCoordinator();
+        thresholded.ConfigureProviders(new[]
+        {
+            new AudioLowHealthProviderDescriptor(SoundEventKinds.LowHealth, 0.3f),
+            new AudioLowHealthProviderDescriptor(SoundEventKinds.CardUse, 0.9f)
+        });
+        thresholded.Seed(CreateStatusSnapshot("threshold", 0.6f));
+        var crossed = thresholded.Observe(CreateStatusSnapshot("threshold", 0.29f));
+        Equal(true, thresholded.ShouldAttempt(AudioRequestFactory.CreateLowHealth(
+            CreateStatusSnapshot("threshold", 0.29f), crossed.PreviousHpRatio)), "explicit threshold crossing is accepted");
+        thresholded.MarkAnnounced("threshold");
+        Equal(AudioLowHealthObservationOutcome.AlreadyAnnounced,
+            thresholded.Observe(CreateStatusSnapshot("threshold", 0.2f)).Outcome,
+            "announced status suppresses another decrease");
+        var belowRecovery = thresholded.Observe(CreateStatusSnapshot("threshold", 0.34f));
+        Equal(AudioLowHealthObservationOutcome.Increased, belowRecovery.Outcome, "recovery increase is observed");
+        Equal(false, belowRecovery.AnnouncementReset, "recovery below threshold plus margin stays announced");
+        Equal(AudioLowHealthObservationOutcome.AlreadyAnnounced,
+            thresholded.Observe(CreateStatusSnapshot("threshold", 0.25f)).Outcome,
+            "decrease after partial recovery stays suppressed");
+        var recovered = thresholded.Observe(CreateStatusSnapshot("threshold", 0.36f));
+        Equal(true, recovered.AnnouncementReset, "threshold plus margin resets announcement");
+        Equal(AudioLowHealthObservationOutcome.Candidate,
+            thresholded.Observe(CreateStatusSnapshot("threshold", 0.29f)).Outcome,
+            "decrease after full recovery becomes candidate again");
+
+        var mixed = new AudioLowHealthCoordinator();
+        mixed.ConfigureProviders(new[]
+        {
+            new AudioLowHealthProviderDescriptor(SoundEventKinds.LowHealth, 0.3f),
+            new AudioLowHealthProviderDescriptor(SoundEventKinds.LowHealth, -1f)
+        });
+        Equal(true, mixed.ShouldAttempt(new SoundPlaybackRequest
+        {
+            Kind = SoundEventKinds.LowHealth,
+            PreviousHpRatio = 0.2f,
+            HpRatio = 0.19f
+        }), "unthresholded explicit provider accepts any decrease");
+        var unrelated = new AudioLowHealthCoordinator();
+        unrelated.ConfigureProviders(new[] { new AudioLowHealthProviderDescriptor(SoundEventKinds.CardUse, -1f) });
+        Equal(false, unrelated.ShouldAttempt(new SoundPlaybackRequest
+        {
+            Kind = SoundEventKinds.LowHealth,
+            PreviousHpRatio = 0.6f,
+            HpRatio = 0.1f
+        }), "known unrelated providers do not trigger low-health fallback");
+
+        var missingIdentity = new AudioLowHealthCoordinator();
+        missingIdentity.ConfigureProviders(new[] { new AudioLowHealthProviderDescriptor("", -1f) });
+        missingIdentity.Seed(CreateStatusSnapshot("missing", 0.6f, "", ""));
+        Equal(AudioLowHealthObservationOutcome.MissingRoleIdentity,
+            missingIdentity.Observe(CreateStatusSnapshot("missing", 0.3f, "", "")).Outcome,
+            "missing role and career are rejected after ratio tracking");
+
+        var cooldown = new AudioLowHealthCoordinator();
+        var cooldownRequest = AudioRequestFactory.CreateLowHealth(CreateStatusSnapshot("cooldown", 0.25f), 0.5f);
+        cooldown.RememberNoProvider(cooldownRequest, 10f);
+        Equal(true, cooldown.IsNoProviderSuppressed(cooldownRequest, 10f), "no-provider cooldown starts immediately");
+        Equal(true, cooldown.IsNoProviderSuppressed(cooldownRequest, 10.749f), "no-provider cooldown remains before expiry");
+        Equal(false, cooldown.IsNoProviderSuppressed(cooldownRequest, 10.75f), "no-provider cooldown expires at boundary");
+        cooldown.RememberNoProvider(cooldownRequest, 20f);
+        var otherBucket = AudioRequestFactory.CreateLowHealth(CreateStatusSnapshot("cooldown", 0.35f), 0.5f);
+        Equal(false, cooldown.IsNoProviderSuppressed(otherBucket, 20.1f), "no-provider cooldown is isolated by ratio bucket");
+        cooldown.ConfigureProviders(new[] { new AudioLowHealthProviderDescriptor(SoundEventKinds.LowHealth, 0.3f) });
+        Equal(false, cooldown.IsNoProviderSuppressed(cooldownRequest, 20.1f), "provider refresh clears no-provider cooldowns");
+        var nonLowHealth = new SoundPlaybackRequest { Kind = SoundEventKinds.CardUse };
+        cooldown.RememberNoProvider(nonLowHealth, 30f);
+        Equal(false, cooldown.IsNoProviderSuppressed(nonLowHealth, 30f), "non-low-health request ignores no-provider state");
+        Equal(false, cooldown.ShouldAttempt(nonLowHealth), "non-low-health request ignores low-health provider policy");
+
+        var reset = new AudioLowHealthCoordinator();
+        reset.ConfigureProviders(new[] { new AudioLowHealthProviderDescriptor(SoundEventKinds.LowHealth, 0.3f) });
+        reset.Seed(CreateStatusSnapshot("reset", 0.6f));
+        var resetCandidate = reset.Observe(CreateStatusSnapshot("reset", 0.2f));
+        var resetRequest = AudioRequestFactory.CreateLowHealth(CreateStatusSnapshot("reset", 0.2f), resetCandidate.PreviousHpRatio);
+        reset.MarkAnnounced("RESET");
+        Equal(AudioLowHealthObservationOutcome.AlreadyAnnounced,
+            reset.Observe(CreateStatusSnapshot("reset", 0.19f)).Outcome,
+            "announcement ids are case insensitive");
+        reset.RememberNoProvider(resetRequest, 40f);
+        reset.ResetFight();
+        Equal(AudioLowHealthObservationOutcome.Seeded,
+            reset.Observe(CreateStatusSnapshot("reset", 0.1f)).Outcome,
+            "fight reset clears HP history and announcement state");
+        Equal(false, reset.IsNoProviderSuppressed(resetRequest, 40.1f), "fight reset clears no-provider cooldown");
+        Equal(true, reset.ShouldAttempt(new SoundPlaybackRequest
+        {
+            Kind = SoundEventKinds.LowHealth,
+            PreviousHpRatio = 0.4f,
+            HpRatio = 0.2f
+        }), "fight reset preserves provider configuration");
+    }
+
+    private static AudioStatusSnapshot CreateStatusSnapshot(
+        string statusInstanceId,
+        float ratio,
+        string roleId = "role",
+        string careerId = "career")
+    {
+        return new AudioStatusSnapshot
+        {
+            StatusInstanceId = statusInstanceId,
+            RoleId = roleId,
+            CareerId = careerId,
+            Hp = (int)(ratio * 100f),
+            MaxHp = 100,
+            HpRatio = ratio,
+            IsLocalOwner = true,
+            SourceName = "test"
+        };
     }
 
     private void VerifyPropertyReader()

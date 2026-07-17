@@ -10,6 +10,9 @@
   <ItemGroup>
     <Compile Include="..\AudioArbiterShared\AudioContracts.cs" Link="Shared\AudioContracts.cs" />
     <Compile Include="..\AudioArbiterShared\AudioFileLoadPolicy.cs" Link="Shared\AudioFileLoadPolicy.cs" />
+    <Compile Include="..\AudioArbiterShared\AudioHookCatalog.cs" Link="Shared\AudioHookCatalog.cs" />
+    <Compile Include="..\AudioArbiterShared\AudioHookModels.cs" Link="Shared\AudioHookModels.cs" />
+    <Compile Include="..\AudioArbiterShared\AudioLowHealthCoordinator.cs" Link="Shared\AudioLowHealthCoordinator.cs" />
     <Compile Include="..\AudioArbiterShared\AudioManifestLoader.cs" Link="Shared\AudioManifestLoader.cs" />
     <Compile Include="..\AudioArbiterShared\AudioManifestMatchPolicy.cs" Link="Shared\AudioManifestMatchPolicy.cs" />
     <Compile Include="..\AudioArbiterShared\AudioNetworkEventMapper.cs" Link="Shared\AudioNetworkEventMapper.cs" />
@@ -19,5 +22,6 @@
     <Compile Include="..\AudioArbiterShared\AudioPropertyReader.cs" Link="Shared\AudioPropertyReader.cs" />
     <Compile Include="..\AudioArbiterShared\AudioProviderResolver.cs" Link="Shared\AudioProviderResolver.cs" />
     <Compile Include="..\AudioArbiterShared\AudioReplacementCoordinator.cs" Link="Shared\AudioReplacementCoordinator.cs" />
+    <Compile Include="..\AudioArbiterShared\AudioRequestFactory.cs" Link="Shared\AudioRequestFactory.cs" />
   </ItemGroup>
 </Project>

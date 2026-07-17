@@ -1,6 +1,7 @@
 using System;
 using AuraShared.Core;
 using Witch.Core;
+using Witch.Mod;
 
 namespace AudioArbiter.Shared;
 
@@ -11,6 +12,21 @@ internal sealed class AudioNetworkRuntime
     private readonly AudioNetworkSessionState session = new(MaximumPlaybackClaims);
 
     public string FightToken => session.FightToken;
+
+    public void RegisterAuthority(
+        ModConfig modConfig,
+        Action<string>? info = null,
+        Action<string>? warn = null)
+    {
+        if (modConfig == null) throw new ArgumentNullException(nameof(modConfig));
+        AuraRpcAuthorityRuntime.Register(
+            modConfig,
+            "AudioArbiter",
+            command => command is IAudioArbiterServerBoundRpcCommand,
+            (command, sender) => ((IAudioArbiterServerBoundRpcCommand)command).BindServerSender(sender),
+            info,
+            warn);
+    }
 
     public void BeginFightSession()
     {

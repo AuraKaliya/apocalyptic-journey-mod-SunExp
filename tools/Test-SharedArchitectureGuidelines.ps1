@@ -91,6 +91,13 @@ $audioNetworkSession = Read-RepoText "AudioArbiterShared\AudioNetworkSessionStat
 $audioNetworkRuntime = Read-RepoText "AudioArbiterShared\AudioNetworkRuntime.cs"
 $audioPropertyReader = Read-RepoText "AudioArbiterShared\AudioPropertyReader.cs"
 $audioFileLoadPolicy = Read-RepoText "AudioArbiterShared\AudioFileLoadPolicy.cs"
+$audioHookCatalog = Read-RepoText "AudioArbiterShared\AudioHookCatalog.cs"
+$audioHookAdapter = Read-RepoText "AudioArbiterShared\AudioHookAdapter.cs"
+$audioHookModels = Read-RepoText "AudioArbiterShared\AudioHookModels.cs"
+$audioGameStateReader = Read-RepoText "AudioArbiterShared\AudioGameStateReader.cs"
+$audioHookContextMapper = Read-RepoText "AudioArbiterShared\AudioHookContextMapper.cs"
+$audioLowHealthCoordinator = Read-RepoText "AudioArbiterShared\AudioLowHealthCoordinator.cs"
+$audioRequestFactory = Read-RepoText "AudioArbiterShared\AudioRequestFactory.cs"
 $audioProviderAdapter = Read-RepoText "AudioArbiterShared\AudioProviderAdapter.cs"
 $audioFileSoundProvider = Read-RepoText "AudioArbiterShared\AudioFileSoundProvider.cs"
 $audioManifestLoader = Read-RepoText "AudioArbiterShared\AudioManifestLoader.cs"
@@ -123,6 +130,8 @@ Require-Text $audioNetworkSession "receivedEventOrder\.Count > maximumPlaybackCl
 Require-Text $audioNetworkSession "ReuseOrCreateLocalPlayId" "Audio local action identity reuse must stay in session state."
 Require-Text $audioNetworkSession "public void ResetTransient\(\)" "Audio fight cleanup must reset transient network state."
 Require-Text $audioNetworkRuntime "internal sealed class AudioNetworkRuntime" "Audio RPC and multiplayer orchestration must stay in a dedicated network runtime."
+Require-Text $audioNetworkRuntime "public void RegisterAuthority" "Audio RPC sender authority initialization must stay in the network runtime."
+Require-Text $audioNetworkRuntime "AuraRpcAuthorityRuntime\.Register" "Audio network runtime must delegate receive-hook sender binding to shared authority."
 Require-Text $audioNetworkRuntime "MaximumPlaybackClaims\s*=\s*512" "Audio network runtime must preserve the playback-claim budget."
 Require-Text $audioNetworkRuntime "AudioNetworkPolicy\.ValidateServerCardUsePresentation" "Audio network runtime must delegate bound-sender validation to policy."
 Require-Text $audioNetworkRuntime "SenderOwnsStatus" "Audio network runtime must validate bound sender ownership."
@@ -131,10 +140,78 @@ Require-Text $audioComponentRuntime "new\(\);[\s\S]*AudioNetworkRuntime networkR
 Require-Text $audioComponentRuntime "networkRuntime\.TryPrepareAndRelayLocalPresentation" "Audio local synchronized presentation must be prepared by the network runtime."
 Require-Text $audioComponentRuntime "networkRuntime\.ApplyServerCardUsePresentation" "Audio server-bound presentation must be delegated to the network runtime."
 Require-Text $audioComponentRuntime "networkRuntime\.TryAcceptRemotePresentation" "Audio received presentation must enter the network runtime claim boundary."
+Require-Text $audioComponentRuntime "networkRuntime\.RegisterAuthority" "Audio component must delegate RPC authority initialization to the network runtime."
+Require-Text $audioComponentRuntime '"audio-rpc-authority"' "Audio component must isolate RPC authority initialization as a named step."
+Require-Text $audioComponentRuntime '"audio-hooks"' "Audio component must isolate Hook initialization as a named step."
+Require-Text $audioComponentRuntime "AuraSharedHooks\.RunStep" "Audio component initialization steps must fail independently."
 Require-Text $audioPropertyReader "internal static class AudioPropertyReader" "Audio reflection reads must stay in their isolated reader."
 Require-Text $audioPropertyReader "BindingFlags\.Instance\s*\|\s*BindingFlags\.Public" "Audio property reader must only inspect public instance properties."
 Require-Text $audioFileLoadPolicy "internal static class AudioFileLoadPolicy" "Audio file extension classification must stay in a pure policy."
 Require-Text $audioFileLoadPolicy "UnsupportedVideoContainer" "Audio file policy must reject video containers before Unity loading."
+Require-Text $audioHookCatalog "internal static class AudioHookCatalog" "Audio hook targets and phases must stay in a pure catalog."
+Require-Text $audioHookCatalog "AudioHookRegistrationKind\.CombatActionBefore" "Audio hook catalog must preserve the routed combat-action entry."
+Require-Text $audioHookCatalog "internal enum AudioHookCallbackKind" "Audio hook catalog must bind every definition to a stable callback kind."
+Require-Text $audioHookCatalog "AudioHookCallbackKind\.PotentialHpChanged" "Audio hook catalog must share the ScriptExecutor HP callback kind."
+Require-Text $audioHookCatalog '"Fight_Start\.Init"[\s\S]*AudioHookRegistrationKind\.Before[\s\S]*"Fight_Start\.Init"[\s\S]*AudioHookRegistrationKind\.After' "Audio hook catalog must preserve fight-start before/after ordering."
+Require-Text $audioHookCatalog '"ScriptExecutor\.OnlineDamage"' "Audio hook catalog must retain online HP observation."
+Require-Text $audioHookAdapter "internal sealed class AudioHookAdapter\s*:\s*IDisposable" "Audio hook lifecycle must stay in a disposable adapter."
+Require-Text $audioHookAdapter "AudioHookCatalog\.All" "Audio hook adapter must register from the catalog instead of duplicating targets."
+Require-Text $audioHookAdapter "new AuraHookRegistry" "Audio hook adapter must own routed Before/After registrations through AuraHookRegistry."
+Require-Text $audioHookAdapter "hookRegistry\.BeforeRouted" "Audio hook adapter must use disposable routed Before registrations."
+Require-Text $audioHookAdapter "hookRegistry\.AfterRouted" "Audio hook adapter must use disposable routed After registrations."
+Require-Text $audioHookAdapter "AuraCombatActionRouter\.RegisterBefore" "Audio hook adapter must preserve the shared combat-action router."
+Require-Text $audioHookAdapter "public void Dispose\(\)" "Audio hook adapter must release all routed subscriptions."
+Require-Text $audioHookModels "internal sealed class AudioStatusSnapshot" "Audio hook observations must expose a game-object-free status snapshot."
+Require-Text $audioHookModels "internal sealed class AudioCombatActionObservation" "Audio combat mapping must use a plain observation model."
+Require-Text $audioGameStateReader "internal sealed class AudioGameStateReader" "Audio game state reads must stay in a dedicated adapter."
+Require-Text $audioGameStateReader "ReadCurrentCareerId" "Audio game state reader must own current-career lookup."
+Require-Text $audioGameStateReader "ReadStatusSnapshot" "Audio game state reader must project status identity and HP into a plain snapshot."
+Require-Text $audioGameStateReader "ReadFightStatusSnapshots" "Audio game state reader must own fight-status enumeration."
+Require-Text $audioGameStateReader "ReadExecutorStatusSnapshots" "Audio game state reader must own ScriptExecutor status traversal."
+Require-Text $audioGameStateReader "intMemberCache" "Audio game state reader must own the cached HP member lookup."
+Require-Text $audioHookContextMapper "internal sealed class AudioHookContextMapper" "Audio hook contexts must map through a dedicated adapter."
+Require-Text $audioHookContextMapper "MapCareerDetail" "Audio hook mapper must centralize career-detail arguments."
+Require-Text $audioHookContextMapper "MapCombatAction" "Audio hook mapper must centralize routed combat observations."
+Require-Text $audioHookContextMapper "MapExecutorHpChanges" "Audio hook mapper must centralize ScriptExecutor HP contexts."
+Require-Text $audioHookContextMapper "MapStatusHpChange" "Audio hook mapper must centralize StatusManager HP contexts."
+Require-Text $audioLowHealthCoordinator "internal sealed class AudioLowHealthCoordinator" "Audio low-health state must stay in a dedicated coordinator."
+Require-Text $audioLowHealthCoordinator "AudioLowHealthObservationDecision" "Audio low-health observations must return an explicit decision."
+Require-Text $audioLowHealthCoordinator "ConfigureProviders" "Audio low-health provider threshold indexing must stay in the coordinator."
+Require-Text $audioLowHealthCoordinator "RememberNoProvider" "Audio low-health no-provider cooldown must stay in the coordinator."
+Require-Text $audioLowHealthCoordinator "ResetFight" "Audio low-health fight-scoped state must expose deterministic cleanup."
+Require-Text $audioRequestFactory "internal static class AudioRequestFactory" "Audio hook observations must map through a pure request factory."
+Require-Text $audioRequestFactory "CreateCombatActionBatch" "Audio request factory must preserve the card-use and skill-voice batch."
+Require-Text $audioRequestFactory "CreateLowHealth" "Audio request factory must centralize low-health request shape."
+Require-Text $audioRequestFactory "CreateBattleCompleted" "Audio request factory must centralize battle-completed request shape."
+$audioHookDefinitionCount = ([regex]::Matches($audioHookCatalog, "new\s+AudioHookDefinition\s*\(")).Count
+if ($audioHookDefinitionCount -ne 19) {
+    throw "Audio hook catalog must retain exactly 19 current hook definitions. actual=$audioHookDefinitionCount"
+}
+foreach ($target in @(
+    "GameEntryUI.Init",
+    "Fight_Start.Init",
+    "GameEntryUI.ShowDetail",
+    "FightUI.CallActionAnimation",
+    "EffectSound.Start",
+    "BuffItem.Init",
+    "StatusManager.PlayVocal",
+    "NarrationManager.Play",
+    "ScriptExecutor.ChangeHp",
+    "ScriptExecutor.PureChangeHp",
+    "ScriptExecutor.SetHp",
+    "ScriptExecutor.ChangeMaxHp",
+    "ScriptExecutor.Damage",
+    "ScriptExecutor.OnlineDamage",
+    "StatusManager.set_CurHp",
+    "StatusManager.set_MaxHp",
+    "Fight_Win.ResetStates",
+    "Fight_Escape.ResetStates"
+)) {
+    Require-Text $audioHookCatalog ([regex]::Escape($target)) "Audio hook catalog is missing current target: $target"
+    if ($audioHookAdapter -match [regex]::Escape($target)) {
+        throw "Audio hook adapter must consume catalog definitions instead of duplicating target: $target"
+    }
+}
 Require-Text $audioProviderAdapter "internal sealed class SoundProviderHandle" "Audio reflected provider compatibility must stay in a dedicated adapter."
 Require-Text $audioProviderAdapter "AudioPropertyReader\.ReadString" "Audio provider adapter must delegate reflected property reads."
 Require-Text $audioProviderAdapter 'GetMethod\("GetClip"' "Audio provider adapter must own reflected clip access."
@@ -186,6 +263,50 @@ if ($audioPropertyReader -match "UnityEngine|Witch\.|AudioManager|PlayerManager|
 if ($audioFileLoadPolicy -match "UnityEngine|Witch\.|AudioManager|PlayerManager|ModHookContext|MonoBehaviour|UnityWebRequest") {
     throw "Audio file extension classification must remain independent from Unity, game APIs, hooks, and transport."
 }
+if ($audioHookCatalog -match "using\s+UnityEngine|using\s+Witch\.|ModHookContext|ModConfig|MonoBehaviour") {
+    throw "Audio hook catalog must remain plain target/phase metadata without game or hook objects."
+}
+if ($audioHookAdapter -match "PlayerManager\.Instance|FightPlayer\.Instance|FightManager\.Instance|RoleTable\.Instance|GameEntryUI\.career|StatusManager|IScriptExecutor|IDataConfig|SoundPlaybackRequest|AudioRequestFactory|AudioNetworkRuntime|SoundProviderHandle|AudioUnityPlaybackService|StartCoroutine|AudioClip") {
+    throw "Audio hook adapter must only own hook registration, callback routing, diagnostics, and subscription disposal."
+}
+if ($audioHookModels -match "using\s+UnityEngine|using\s+Witch\.|ModHookContext|ModConfig|StatusManager|IScriptExecutor|IDataConfig|AudioClip|MonoBehaviour") {
+    throw "Audio hook observation models must remain independent from Unity, Witch, and raw game objects."
+}
+if ($audioGameStateReader -match "ModHookContext|ModConfig|SoundPlaybackRequest|AudioRequestFactory|AudioNetworkRuntime|SoundProviderHandle|AudioUnityPlaybackService|RegisterBefore|RegisterAfter|AddMethodHook") {
+    throw "Audio game state reader must only read game state and return plain observations."
+}
+if ($audioHookContextMapper -match "PlayerManager\.Instance|FightPlayer\.Instance|FightManager\.Instance|RoleTable\.Instance|GameEntryUI\.career|new\s+SoundPlaybackRequest|AudioRequestFactory|AudioNetworkRuntime|SoundProviderHandle|AudioUnityPlaybackService|RegisterBefore|RegisterAfter|AddMethodHook") {
+    throw "Audio hook context mapper must delegate singleton/game-state reads and must not create requests or own runtime services."
+}
+if ($audioLowHealthCoordinator -match "using\s+UnityEngine|using\s+Witch\.|ModHookContext|ModConfig|StatusManager|IScriptExecutor|IDataConfig|AudioClip|MonoBehaviour|SoundProviderHandle|AudioNetworkRuntime|AudioUnityPlaybackService|Time\.|Mathf\.|DateTime\.UtcNow|Guid\.") {
+    throw "Audio low-health coordinator must remain a deterministic state machine over plain snapshots, requests, provider descriptors, and caller-supplied time."
+}
+if ($audioRequestFactory -match "using\s+UnityEngine|using\s+Witch\.|ModHookContext|ModConfig|StatusManager|IScriptExecutor|IDataConfig|AudioClip|MonoBehaviour|PlayerManager|FightPlayer|RoleTable|DateTime\.UtcNow|Time\.|Guid\.") {
+    throw "Audio request factory must remain a deterministic plain-observation mapper."
+}
+if ($audioComponentRuntime -match "RoleTable\.Instance|GameEntryUI\.career|FightManager\.Instance|PlayerManager\.Instance|FightPlayer\.Instance|\.dataConfig|\.fatherObject|ReadIntMember|new\s+SoundPlaybackRequest") {
+    throw "Audio component must delegate game-object reads and request construction to the reader, mapper, and factory boundaries."
+}
+Require-Text $audioComponentRuntime "hookContextMapper\.MapCareerDetail" "Audio component must delegate career hook mapping."
+Require-Text $audioComponentRuntime "hookContextMapper\.MapCombatAction" "Audio component must delegate combat hook mapping."
+Require-Text $audioComponentRuntime "hookContextMapper\.MapBuffApplied" "Audio component must delegate buff hook mapping."
+Require-Text $audioComponentRuntime "hookContextMapper\.MapVocalState" "Audio component must delegate vocal hook mapping."
+Require-Text $audioComponentRuntime "hookContextMapper\.MapExecutorHpChanges" "Audio component must delegate HP hook mapping."
+Require-Text $audioComponentRuntime "AudioRequestFactory\.CreateLowHealth" "Audio component must create low-health requests through the pure factory."
+Require-Text $audioComponentRuntime "lowHealthCoordinator\.ConfigureProviders" "Audio component must project provider descriptors into the low-health coordinator."
+Require-Text $audioComponentRuntime "lowHealthCoordinator\.Observe" "Audio component must delegate low-health observation state."
+Require-Text $audioComponentRuntime "lowHealthCoordinator\.RememberNoProvider" "Audio component must delegate low-health no-provider cooldown state."
+Require-Text $audioComponentRuntime "lowHealthCoordinator\.MarkAnnounced" "Audio component must report accepted low-health playback to the coordinator."
+if ($audioComponentRuntime -match "lowHealthAnnounced|lastHpRatioByStatus|lowHealthNoProviderUntil|LowHealthProviderIndex|lowHealthProviderIndex|ResetLowHealthAnnouncementIfRecovered|ShouldAttemptLowHealthRequest|LowHealthNoProviderKey") {
+    throw "Audio component must not regain low-health cross-observation state, threshold indexing, recovery policy, or no-provider cooldown keys."
+}
+Require-Text $audioComponentRuntime "new AudioHookAdapter" "Audio component must delegate hook registration to AudioHookAdapter."
+Require-Text $audioComponentRuntime "hookAdapter\.Register" "Audio component must explicitly start the hook adapter once."
+Require-Text $audioComponentRuntime "private void OnDestroy\(\)" "Audio component must release hook subscriptions during destruction."
+Require-Text $audioComponentRuntime "hookAdapter\?\.Dispose" "Audio component must dispose the hook adapter lifecycle."
+if ($audioComponentRuntime -match "AddMethodHookBefore|AddMethodHookAfter|AuraSharedHooks\.Register|AuraCombatActionRouter\.RegisterBefore|private\s+void\s+RegisterBefore|private\s+void\s+RegisterAfter|hooksRegistered|OnActionAnimationBefore|MapLegacyCombatAction") {
+    throw "Audio component must not own raw hook registration, registration flags, or the dead legacy combat handler."
+}
 if ($audioProviderAdapter -match "UnityWebRequest|DownloadHandlerAudioClip|StartCoroutine|MonoBehaviour|PlayerManager|ModHookContext") {
     throw "Audio reflected provider adapter must not regain file transport, Coroutine, network, or hook ownership."
 }
@@ -213,7 +334,7 @@ if ($audioReplacementCoordinator -match "UnityEngine|Witch\.|AudioManager|Player
 if ($audioUnityPlaybackService -match "MonoBehaviour|StartCoroutine|ModHookContext|PlayerManager") {
     throw "Audio Unity playback service must remain a delegated adapter without hook, RPC, or Coroutine ownership."
 }
-if ($audioComponentRuntime -match 'SendRpcCommand|private\s+readonly\s+HashSet<string>\s+receivedEventIds|private\s+readonly\s+Dictionary<string, string>\s+recentLocalPlayIds|private\s+string\s+fightToken|private\s+long\s+localPlaybackCounter|SenderOwnsStatus|class\s+SoundProviderHandle|class\s+FileSoundProvider|class\s+ProviderRunner|UnityWebRequestMultimedia|DownloadHandlerAudioClip|GetMethod\("GetClip"|readonly\s+struct\s+ResolvedSound') {
+if ($audioComponentRuntime -match 'AuraRpcAuthorityRuntime\.Register|IAudioArbiterServerBoundRpcCommand|SendRpcCommand|private\s+readonly\s+HashSet<string>\s+receivedEventIds|private\s+readonly\s+Dictionary<string, string>\s+recentLocalPlayIds|private\s+string\s+fightToken|private\s+long\s+localPlaybackCounter|SenderOwnsStatus|class\s+SoundProviderHandle|class\s+FileSoundProvider|class\s+ProviderRunner|UnityWebRequestMultimedia|DownloadHandlerAudioClip|GetMethod\("GetClip"|readonly\s+struct\s+ResolvedSound') {
     throw "AudioArbiterComponent must not regain RPC, network-session, provider reflection, or file-loading responsibilities."
 }
 

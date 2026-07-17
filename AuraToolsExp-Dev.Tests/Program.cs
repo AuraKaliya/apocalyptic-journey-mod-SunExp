@@ -703,10 +703,16 @@ void TestRuntimeArchitectureGuards()
         "damage meter must fold generic owned companions into their explicit player owner");
 
     var audioArbiter = ReadRepoSourceTree("AudioArbiterShared");
-    var audioComponent = ReadRepoText("AudioArbiterShared/AudioArbiterRuntime.cs");
     var audioNetworkPolicy = ReadRepoText("AudioArbiterShared/AudioNetworkPolicy.cs");
     var audioNetworkSession = ReadRepoText("AudioArbiterShared/AudioNetworkSessionState.cs");
     var audioNetworkRuntime = ReadRepoText("AudioArbiterShared/AudioNetworkRuntime.cs");
+    var audioHookCatalog = ReadRepoText("AudioArbiterShared/AudioHookCatalog.cs");
+    var audioHookAdapter = ReadRepoText("AudioArbiterShared/AudioHookAdapter.cs");
+    var audioHookModels = ReadRepoText("AudioArbiterShared/AudioHookModels.cs");
+    var audioGameStateReader = ReadRepoText("AudioArbiterShared/AudioGameStateReader.cs");
+    var audioHookContextMapper = ReadRepoText("AudioArbiterShared/AudioHookContextMapper.cs");
+    var audioLowHealthCoordinator = ReadRepoText("AudioArbiterShared/AudioLowHealthCoordinator.cs");
+    var audioRequestFactory = ReadRepoText("AudioArbiterShared/AudioRequestFactory.cs");
     var audioProviderAdapter = ReadRepoText("AudioArbiterShared/AudioProviderAdapter.cs");
     var audioFileProvider = ReadRepoText("AudioArbiterShared/AudioFileSoundProvider.cs");
     var auraToolsAudio = ReadRepoText("AuraToolsExp-Dev/Features/Audio/AuraToolsAudioRuntime.cs");
@@ -721,16 +727,41 @@ void TestRuntimeArchitectureGuards()
            && audioNetworkPolicy.Contains("expired presentation", StringComparison.Ordinal)
            && audioNetworkSession.Contains("receivedEventOrder.Count > maximumPlaybackClaims", StringComparison.Ordinal)
            && audioNetworkRuntime.Contains("AudioNetworkSenderSnapshot", StringComparison.Ordinal)
-           && audioComponent.Contains("networkRuntime.ApplyServerCardUsePresentation", StringComparison.Ordinal)
-           && !audioComponent.Contains("SendRpcCommand", StringComparison.Ordinal),
-        "card-use audio network policy, fight session state, sender validation, and RPC transport must stay outside the component");
+           && audioNetworkRuntime.Contains("RegisterAuthority", StringComparison.Ordinal)
+           && audioNetworkRuntime.Contains("AuraRpcAuthorityRuntime.Register", StringComparison.Ordinal)
+           && audioNetworkRuntime.Contains("ApplyServerCardUsePresentation", StringComparison.Ordinal)
+           && audioNetworkRuntime.Contains("SendRpcCommand", StringComparison.Ordinal),
+        "card-use audio authority, session state, sender validation, and RPC transport must stay in the network boundary");
     Assert(audioProviderAdapter.Contains("class SoundProviderHandle", StringComparison.Ordinal)
            && audioProviderAdapter.Contains("GetMethod(\"GetClip\"", StringComparison.Ordinal)
            && audioFileProvider.Contains("class FileSoundProvider", StringComparison.Ordinal)
-           && audioFileProvider.Contains("UnityWebRequestMultimedia.GetAudioClip", StringComparison.Ordinal)
-           && !audioComponent.Contains("class SoundProviderHandle", StringComparison.Ordinal)
-           && !audioComponent.Contains("UnityWebRequestMultimedia", StringComparison.Ordinal),
+           && audioFileProvider.Contains("UnityWebRequestMultimedia.GetAudioClip", StringComparison.Ordinal),
         "audio provider reflection and file-loading lifecycle must stay in dedicated adapters");
+    Assert(audioHookCatalog.Contains("class AudioHookCatalog", StringComparison.Ordinal)
+           && audioHookCatalog.Contains("AudioHookRegistrationKind.CombatActionBefore", StringComparison.Ordinal)
+           && audioHookCatalog.Contains("AudioHookCallbackKind.PotentialHpChanged", StringComparison.Ordinal)
+           && audioHookCatalog.Contains("ScriptExecutor.OnlineDamage", StringComparison.Ordinal)
+           && audioHookAdapter.Contains("class AudioHookAdapter", StringComparison.Ordinal)
+           && audioHookAdapter.Contains("AudioHookCatalog.All", StringComparison.Ordinal)
+           && audioHookAdapter.Contains("new AuraHookRegistry", StringComparison.Ordinal)
+           && audioHookAdapter.Contains("AuraCombatActionRouter.RegisterBefore", StringComparison.Ordinal)
+           && audioHookAdapter.Contains("public void Dispose()", StringComparison.Ordinal)
+           && audioHookModels.Contains("class AudioCombatActionObservation", StringComparison.Ordinal)
+           && audioHookModels.Contains("class AudioStatusSnapshot", StringComparison.Ordinal)
+           && audioGameStateReader.Contains("class AudioGameStateReader", StringComparison.Ordinal)
+           && audioGameStateReader.Contains("ReadFightStatusSnapshots", StringComparison.Ordinal)
+           && audioHookContextMapper.Contains("class AudioHookContextMapper", StringComparison.Ordinal)
+           && audioHookContextMapper.Contains("MapExecutorHpChanges", StringComparison.Ordinal)
+           && audioLowHealthCoordinator.Contains("class AudioLowHealthCoordinator", StringComparison.Ordinal)
+           && audioLowHealthCoordinator.Contains("AudioLowHealthObservationDecision", StringComparison.Ordinal)
+           && audioLowHealthCoordinator.Contains("ConfigureProviders", StringComparison.Ordinal)
+           && audioLowHealthCoordinator.Contains("RememberNoProvider", StringComparison.Ordinal)
+           && audioRequestFactory.Contains("CreateCombatActionBatch", StringComparison.Ordinal)
+           && audioRequestFactory.Contains("CreateLowHealth", StringComparison.Ordinal)
+           && !audioHookContextMapper.Contains("PlayerManager.Instance", StringComparison.Ordinal)
+           && !audioHookContextMapper.Contains("new SoundPlaybackRequest", StringComparison.Ordinal)
+           && !audioRequestFactory.Contains("ModHookContext", StringComparison.Ordinal),
+        "audio hook, game-state, context, low-health, and request-shape contracts must stay in dedicated boundaries");
     Assert(audioArbiter.Contains("AudioArbiterRuntime.ReceiveRemote(Event)", StringComparison.Ordinal)
            && audioArbiter.Contains("RpcAudioFightSession", StringComparison.Ordinal)
            && audioArbiter.Contains("MaximumPlaybackClaims = 512", StringComparison.Ordinal)

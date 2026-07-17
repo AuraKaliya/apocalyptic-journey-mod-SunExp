@@ -1303,6 +1303,8 @@
         "receivedEventIds.Clear",
         "AudioNetworkSessionState",
         "AudioNetworkRuntime networkRuntime",
+        "public void RegisterAuthority",
+        "AuraRpcAuthorityRuntime.Register",
         "networkRuntime.ApplyServerCardUsePresentation"
       ]
     },
@@ -1374,7 +1376,30 @@
         "public sealed class FileSoundProvider",
         "UnityWebRequestMultimedia.GetAudioClip",
         "private sealed class ProviderRunner : MonoBehaviour",
-        "completedGeneration != generation"
+        "completedGeneration != generation",
+        "internal static class AudioHookCatalog",
+        "AudioHookRegistrationKind.CombatActionBefore",
+        "internal enum AudioHookCallbackKind",
+        "internal sealed class AudioHookAdapter",
+        "AudioHookCatalog.All",
+        "new AuraHookRegistry",
+        "AuraCombatActionRouter.RegisterBefore",
+        "internal sealed class AudioCombatActionObservation",
+        "internal sealed class AudioStatusSnapshot",
+        "internal sealed class AudioGameStateReader",
+        "ReadFightStatusSnapshots",
+        "ReadExecutorStatusSnapshots",
+        "internal sealed class AudioHookContextMapper",
+        "MapCombatAction",
+        "MapExecutorHpChanges",
+        "internal sealed class AudioLowHealthCoordinator",
+        "AudioLowHealthObservationDecision",
+        "ConfigureProviders",
+        "RememberNoProvider",
+        "internal static class AudioRequestFactory",
+        "CreateCombatActionBatch",
+        "CreateLowHealth",
+        "CreateBattleCompleted"
       ]
     }
   ]
