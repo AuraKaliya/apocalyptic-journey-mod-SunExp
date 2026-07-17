@@ -95,18 +95,38 @@ Require-Text $architectureGuidelines "Tool-owned runtime caches[\s\S]*AuraShared
 Require-Text $architectureGuidelines "WriteTextAtomic[\s\S]*cache metadata" "Shared architecture guidelines must require atomic metadata writes for shared caches."
 
 $auraCgRuntime = Read-RepoSourceTree "AuraCgShared"
-Require-Text $auraCgRuntime "RenderMode\.ScreenSpaceOverlay" "AuraCgShared overlay must render on an independent screen-space canvas."
-Require-Text $auraCgRuntime "overlayCanvas\.overrideSorting\s*=\s*true" "AuraCgShared overlay canvas must control its own sorting order."
-Require-Text $auraCgRuntime "overlayGroup\.blocksRaycasts\s*=\s*false" "AuraCgShared overlay canvas group must not block raycasts."
-Require-Text $auraCgRuntime "overlayImage\.raycastTarget\s*=\s*false" "AuraCgShared overlay image must not receive raycasts."
-Require-Text $auraCgRuntime "DontDestroyOnLoad\(overlayRoot\)" "AuraCgShared overlay root must survive scene transitions without attaching to game UI canvases."
+$auraCgComponentRuntime = Read-RepoText "AuraCgShared\AuraCgRuntime.cs"
+$auraCgOverlayPresenter = Read-RepoText "AuraCgShared\AuraCgOverlayPresenter.cs"
+$auraCgNonPlaybackCoordinatorSource = ((Get-ChildItem -LiteralPath (Join-Path $repoRoot "AuraCgShared") -Filter "*.cs" -File |
+    Where-Object { $_.Name -ne "AuraCgPlaybackCoordinator.cs" } |
+    Sort-Object FullName |
+    ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join [Environment]::NewLine)
+Require-Text $auraCgOverlayPresenter "internal sealed class AuraCgOverlayPresenter" "AuraCg overlay state and Unity mutation must stay in a dedicated presenter."
+Require-Text $auraCgOverlayPresenter "RenderMode\.ScreenSpaceOverlay" "AuraCgShared overlay must render on an independent screen-space canvas."
+Require-Text $auraCgOverlayPresenter "overlayCanvas\.overrideSorting\s*=\s*true" "AuraCgShared overlay canvas must control its own sorting order."
+Require-Text $auraCgOverlayPresenter "overlayGroup\.blocksRaycasts\s*=\s*false" "AuraCgShared overlay canvas group must not block raycasts."
+Require-Text $auraCgOverlayPresenter "overlayImage\.raycastTarget\s*=\s*false" "AuraCgShared overlay image must not receive raycasts."
+Require-Text $auraCgOverlayPresenter "DontDestroyOnLoad\(overlayRoot\)" "AuraCgShared overlay root must survive scene transitions without attaching to game UI canvases."
+Require-Text $auraCgOverlayPresenter "DisableAndDestroyAfterFrame" "AuraCg overlay presenter must use the shared safe-destroy path."
+Require-Text $auraCgOverlayPresenter "public IEnumerator PlayImage" "AuraCg presenter must expose component-driven image animation without owning a Coroutine runner."
+Require-Text $auraCgOverlayPresenter "public IEnumerator PlaySequence" "AuraCg presenter must expose component-driven sequence animation without owning a Coroutine runner."
+if ($auraCgOverlayPresenter -match "class AuraCgOverlayPresenter\s*:\s*MonoBehaviour|\.StartCoroutine\(") {
+    throw "AuraCg overlay presenter must remain a component-driven adapter rather than a second Coroutine owner."
+}
 if ($auraCgRuntime -match "manager\?\.(upperCanvasTf|canvasTf)|GameUIManager|GraphicRaycaster") {
     throw "AuraCgShared overlay must not attach to game UI canvases or add a GraphicRaycaster."
 }
 
 $auraCgRegistryQuery = Read-RepoText "AuraCgShared\AuraCgRegistryQueryService.cs"
 $auraCgNetworkPolicy = Read-RepoText "AuraCgShared\AuraCgNetworkPolicy.cs"
+$auraCgNetworkSession = Read-RepoText "AuraCgShared\AuraCgNetworkSessionState.cs"
+$auraCgNetworkRuntime = Read-RepoText "AuraCgShared\AuraCgNetworkRuntime.cs"
+$auraCgRegisteredRequestResolver = Read-RepoText "AuraCgShared\AuraCgRegisteredRequestResolver.cs"
+$auraCgProviderCoordinator = Read-RepoText "AuraCgShared\AuraCgProviderCoordinator.cs"
 $auraCgPlaybackClaims = Read-RepoText "AuraCgShared\AuraCgPlaybackClaimStore.cs"
+$auraCgPlaybackCoordinator = Read-RepoText "AuraCgShared\AuraCgPlaybackCoordinator.cs"
+$auraCgPresentationMath = Read-RepoText "AuraCgShared\AuraCgPresentationMath.cs"
+$auraCgPresentationPolicy = Read-RepoText "AuraCgShared\AuraCgPresentationPolicy.cs"
 $auraCgAdventurePreloadHistory = Read-RepoText "AuraCgShared\AuraCgAdventurePreloadHistory.cs"
 $auraCgPreloadScheduler = Read-RepoText "AuraCgShared\AuraCgPreloadScheduler.cs"
 $auraCgPreloadSubmission = Read-RepoText "AuraCgShared\AuraCgPreloadSubmission.cs"
@@ -115,13 +135,51 @@ $auraCgMediaCacheModels = Read-RepoText "AuraCgShared\AuraCgMediaCacheModels.cs"
 $auraCgMediaRetentionLedger = Read-RepoText "AuraCgShared\AuraCgMediaRetentionLedger.cs"
 $auraCgMediaReleaseQueue = Read-RepoText "AuraCgShared\AuraCgMediaReleaseQueue.cs"
 $auraCgMediaCacheKeys = Read-RepoText "AuraCgShared\AuraCgMediaCacheKeys.cs"
+$auraCgMediaPathResolver = Read-RepoText "AuraCgShared\AuraCgMediaPathResolver.cs"
+$auraCgUnityMediaRepository = Read-RepoText "AuraCgShared\AuraCgUnityMediaRepository.cs"
 Require-Text $auraCgRegistryQuery "internal static class AuraCgRegistryQueryService" "AuraCg registry matching must stay in its pure query service."
 Require-Text $auraCgRegistryQuery "MatchesTrigger" "AuraCg registry query service must own trigger matching."
 Require-Text $auraCgNetworkPolicy "internal static class AuraCgNetworkPolicy" "AuraCg network validation must stay in its pure policy service."
 Require-Text $auraCgNetworkPolicy "HasValidPlaybackShape" "AuraCg network policy must own envelope shape validation."
+Require-Text $auraCgNetworkSession "internal sealed class AuraCgNetworkSessionState" "AuraCg transient network identity must stay in a dedicated session state."
+Require-Text $auraCgNetworkSession "AuraCgPlaybackClaimStore playbackClaims" "AuraCg network session must own bounded playback claims."
+Require-Text $auraCgNetworkSession "ReuseOrCreateLocalPlayId" "AuraCg local action identity reuse must stay in network session state."
+Require-Text $auraCgNetworkSession "public void ResetTransient\(\)" "AuraCg fight cleanup must reset transient network state."
+Require-Text $auraCgNetworkRuntime "internal sealed class AuraCgNetworkRuntime" "AuraCg RPC and multiplayer orchestration must stay in a dedicated network runtime."
+Require-Text $auraCgNetworkRuntime "MaximumEventsPerPlayback\s*=\s*4" "AuraCg network runtime must preserve the event-count budget."
+Require-Text $auraCgNetworkRuntime "MaximumPayloadBytes\s*=\s*8192" "AuraCg network runtime must preserve the payload byte budget."
+Require-Text $auraCgNetworkRuntime "MaximumIdentifierLength\s*=\s*160" "AuraCg network runtime must preserve identifier bounds."
+Require-Text $auraCgNetworkRuntime "ValidateServerPlaybackRequest" "AuraCg network runtime must validate server-bound playback requests."
+Require-Text $auraCgNetworkRuntime "SenderOwnsStatus" "AuraCg network runtime must validate bound sender ownership."
+Require-Text $auraCgNetworkRuntime "AuraSharedPayloadBudget\.FitsSoftLimit" "AuraCg network runtime must enforce payload bytes before relay."
+Require-Text $auraCgNetworkRuntime "RpcSkillCgPlaybackRequest" "AuraCg clients must send playback through the server-bound request command."
+Require-Text $auraCgNetworkRuntime "registeredRequestResolver\(item, false\)" "AuraCg host validation must resolve registered identities without applying recipient-local activation."
+if ($auraCgNetworkRuntime -match "StartCoroutine|AuraCgPlaybackCoordinator|AuraCgOverlayPresenter") {
+    throw "AuraCg network runtime must not own Unity playback queues, Coroutine execution, or overlays."
+}
+Require-Text $auraCgRegisteredRequestResolver "internal sealed class AuraCgRegisteredRequestResolver" "AuraCg registered identity and local resource resolution must stay in a dedicated resolver."
+Require-Text $auraCgRegisteredRequestResolver "ResolveNetworkRequest" "AuraCg registered resolver must own compact network identity resolution."
+Require-Text $auraCgRegisteredRequestResolver "requireLocalActivation" "AuraCg registered resolver must preserve host-versus-recipient activation semantics."
+Require-Text $auraCgRegisteredRequestResolver "ProviderIdentity" "AuraCg registered resolver must validate owner-qualified provider identity."
+Require-Text $auraCgRegisteredRequestResolver "MediaExists" "AuraCg registered resolver must validate locally resolved media before playback."
+Require-Text $auraCgProviderCoordinator "internal sealed class AuraCgProviderCoordinator" "AuraCg provider registration and reflection dispatch must stay in a dedicated coordinator."
+Require-Text $auraCgProviderCoordinator "providers\.RemoveAll" "AuraCg provider coordinator must replace duplicate owner-qualified identities."
+Require-Text $auraCgProviderCoordinator 'providerType\.GetMethod\("BuildRequests"' "AuraCg provider reflection dispatch must stay in the provider coordinator."
+Require-Text $auraCgProviderCoordinator "output\.Sort\(CompareRequests\)" "AuraCg provider coordinator must own deterministic request ordering."
+Require-Text $auraCgProviderCoordinator "AuraCgProviderBuildFailure" "AuraCg provider failures must remain isolated from other providers."
 Require-Text $auraCgPlaybackClaims "internal sealed class AuraCgPlaybackClaimStore" "AuraCg duplicate claims must stay in a bounded lifecycle store."
 Require-Text $auraCgPlaybackClaims "while \(order\.Count > capacity\)" "AuraCg playback claims must remain capacity-bounded."
 Require-Text $auraCgPlaybackClaims "public void Clear\(\)" "AuraCg playback claims must expose explicit fight cleanup."
+Require-Text $auraCgPlaybackCoordinator "internal sealed class AuraCgPlaybackCoordinator" "AuraCg playback queue state must stay in its dedicated coordinator."
+Require-Text $auraCgPlaybackCoordinator "maximumQueueLength" "AuraCg playback coordinator must enforce a finite queue length."
+Require-Text $auraCgPlaybackCoordinator "TryTakeNext" "AuraCg playback coordinator must own stale request filtering and ordered dequeue."
+Require-Text $auraCgPlaybackCoordinator "generation\+\+" "AuraCg playback cleanup must invalidate active coroutine generations."
+Require-Text $auraCgPresentationMath "internal static class AuraCgPresentationMath" "AuraCg presentation layout and timing curves must stay in a pure math service."
+Require-Text $auraCgPresentationMath "CalculateCoverImageOffset" "AuraCg cover focus behavior must stay in the presentation math service."
+Require-Text $auraCgPresentationMath "EvaluateSlideAlpha" "AuraCg slide alpha behavior must stay in the presentation math service."
+Require-Text $auraCgPresentationPolicy "internal static class AuraCgPresentationPolicy" "AuraCg flash selection must stay in a pure presentation policy."
+Require-Text $auraCgPresentationPolicy "UsesMaskedFlash" "AuraCg masked flash selection must stay outside the Unity presenter."
+Require-Text $auraCgPresentationPolicy "UsesScreenBwFlash" "AuraCg screen flash selection must stay outside the Unity presenter."
 Require-Text $auraCgAdventurePreloadHistory "while \(order\.Count > capacity\)" "AuraCg adventure preload history must remain bounded."
 Require-Text $auraCgPreloadScheduler "maximumPending" "AuraCg preload scheduler must enforce a global pending limit."
 Require-Text $auraCgPreloadScheduler "maximumPendingPerOwner" "AuraCg preload scheduler must prevent one owner from consuming the whole backlog."
@@ -140,26 +198,69 @@ Require-Text $auraCgMediaRetentionLedger "onSpriteReleased" "AuraCg media evicti
 Require-Text $auraCgMediaReleaseQueue "internal sealed class AuraCgMediaReleaseQueue<TSprite, TBundle>" "AuraCg Unity releases must stay in a testable deferred queue."
 Require-Text $auraCgMediaReleaseQueue "isSpriteRetained" "AuraCg deferred release must recheck resources retained before the safe idle point."
 Require-Text $auraCgMediaCacheKeys "internal static class AuraCgMediaCacheKeys" "AuraCg media cache keys must stay centralized."
-foreach ($pureSource in @($auraCgRegistryQuery, $auraCgNetworkPolicy, $auraCgPlaybackClaims, $auraCgAdventurePreloadHistory, $auraCgPreloadScheduler, $auraCgPreloadSubmission, $auraCgMediaCache, $auraCgMediaCacheModels, $auraCgMediaRetentionLedger, $auraCgMediaReleaseQueue, $auraCgMediaCacheKeys)) {
+Require-Text $auraCgMediaPathResolver "internal static class AuraCgMediaPathResolver" "AuraCg file and bundle media paths must stay in a pure resolver."
+Require-Text $auraCgMediaPathResolver "OrderBy\(item => item, StringComparer\.OrdinalIgnoreCase\)" "AuraCg file sequences must keep deterministic frame order."
+foreach ($pureSource in @($auraCgRegistryQuery, $auraCgNetworkPolicy, $auraCgNetworkSession, $auraCgRegisteredRequestResolver, $auraCgProviderCoordinator, $auraCgPlaybackClaims, $auraCgPlaybackCoordinator, $auraCgPresentationMath, $auraCgPresentationPolicy, $auraCgAdventurePreloadHistory, $auraCgPreloadScheduler, $auraCgPreloadSubmission, $auraCgMediaCache, $auraCgMediaCacheModels, $auraCgMediaRetentionLedger, $auraCgMediaReleaseQueue, $auraCgMediaCacheKeys, $auraCgMediaPathResolver)) {
     if ($pureSource -match "using UnityEngine|using Witch|PlayerManager|GameObject|MonoBehaviour") {
         throw "AuraCg policies, preload coordination, and media ownership must remain independent of Unity and Witch runtime state."
     }
 }
-Require-Text $auraCgRuntime "finally[\s\S]*preloadScheduler\.Complete" "AuraCg preload claims must be released when a loading coroutine exits."
-Require-Text $auraCgRuntime "MaxPendingPreloads" "AuraCg runtime must configure a finite preload backlog."
-Require-Text $auraCgRuntime "MaxPendingPreloadsPerOwner" "AuraCg runtime must configure a per-owner preload backlog."
-Require-Text $auraCgRuntime "AuraCgPreloadSubmission<SkillCgRequest>\.Capture" "AuraCg preload dispatch must not materialize an unbounded producer enumerable."
-Require-Text $auraCgRuntime "inspected >= MaxPreloadSubmissionItems" "AuraCg component must bound direct reflection submissions before queue admission."
-Require-Text $auraCgRuntime "request\.PreloadProducerId = producerId" "AuraCg preload owner limits must be charged to the producer rather than the referenced content owner."
-Require-Text $auraCgRuntime "MaxConcurrentPreloads" "AuraCg runtime must configure finite preload concurrency."
-Require-Text $auraCgRuntime "TakeReady\(MaxPreloadStartsPerFrame\)" "AuraCg runtime must budget preload coroutine starts per frame."
-Require-Text $auraCgRuntime "if \(playing\)[\s\S]*return;[\s\S]*preloadScheduler\.TakeReady" "AuraCg runtime must not start new preloads during CG playback."
-Require-Text $auraCgRuntime "MaxMediaCacheEstimatedBytes" "AuraCg runtime must configure a finite media memory budget."
-Require-Text $auraCgRuntime "!playing && preloadScheduler\.ActiveCount == 0" "AuraCg runtime must defer Unity resource destruction while playback or preload work is active."
-Require-Text $auraCgRuntime "ContainsSpriteReference" "AuraCg deferred release must not destroy media that was retained again before the safe idle point."
-Require-Text $auraCgRuntime "bundle\.Unload\(false\)" "AuraCg must release evicted owned bundle handles without invalidating already loaded assets."
-if ($auraCgRuntime -match "Dictionary<string, Sprite>\s+spriteCache|Dictionary<string, List<Sprite>>\s+sequenceCache|Dictionary<string, AssetBundle\?>\s+assetBundleCache|HashSet<string>\s+preloadKeys") {
+Require-Text $auraCgComponentRuntime "finally[\s\S]*preloadScheduler\.Complete" "AuraCg preload claims must be released when a loading coroutine exits."
+Require-Text $auraCgComponentRuntime "MaxPendingPreloads" "AuraCg runtime must configure a finite preload backlog."
+Require-Text $auraCgComponentRuntime "MaxPendingPreloadsPerOwner" "AuraCg runtime must configure a per-owner preload backlog."
+Require-Text $auraCgComponentRuntime "AuraCgPreloadSubmission<SkillCgRequest>\.Capture" "AuraCg preload dispatch must not materialize an unbounded producer enumerable."
+Require-Text $auraCgComponentRuntime "inspected >= MaxPreloadSubmissionItems" "AuraCg component must bound direct reflection submissions before queue admission."
+Require-Text $auraCgComponentRuntime "request\.PreloadProducerId = producerId" "AuraCg preload owner limits must be charged to the producer rather than the referenced content owner."
+Require-Text $auraCgComponentRuntime "MaxConcurrentPreloads" "AuraCg runtime must configure finite preload concurrency."
+Require-Text $auraCgComponentRuntime "TakeReady\(MaxPreloadStartsPerFrame\)" "AuraCg runtime must budget preload coroutine starts per frame."
+Require-Text $auraCgComponentRuntime "if \(playbackCoordinator\.IsPlaying\)[\s\S]*return;[\s\S]*preloadScheduler\.TakeReady" "AuraCg runtime must not start new preloads during CG playback."
+Require-Text $auraCgComponentRuntime "new AuraCgUnityMediaRepository" "AuraCg component must delegate media ownership to the Unity repository."
+Require-Text $auraCgComponentRuntime "mediaRepository\.LoadSprite" "AuraCg component must delegate image loading to the Unity repository."
+Require-Text $auraCgComponentRuntime "mediaRepository\.LoadSequenceSprites" "AuraCg component must delegate sequence loading to the Unity repository."
+Require-Text $auraCgComponentRuntime "new AuraCgOverlayPresenter" "AuraCg component must delegate overlay ownership to the presenter."
+Require-Text $auraCgComponentRuntime "overlayPresenter\.ShowImage" "AuraCg component must delegate image presentation to the presenter."
+Require-Text $auraCgComponentRuntime "overlayPresenter\.ShowSequence" "AuraCg component must delegate sequence presentation to the presenter."
+Require-Text $auraCgComponentRuntime "overlayPresenter\.PlayImage" "AuraCg component must keep Coroutine generation checks while delegating image animation."
+Require-Text $auraCgComponentRuntime "overlayPresenter\.PlaySequence" "AuraCg component must keep Coroutine generation checks while delegating sequence animation."
+Require-Text $auraCgComponentRuntime "OnDestroy\(\)[\s\S]*overlayPresenter\?\.Destroy" "AuraCg component teardown must release presenter-owned Unity resources."
+Require-Text $auraCgComponentRuntime "new AuraCgNetworkRuntime" "AuraCg component must delegate multiplayer state and RPC orchestration to the network runtime."
+Require-Text $auraCgComponentRuntime "AuraCgProviderCoordinator providerCoordinator" "AuraCg component must delegate provider registration and request collection to the provider coordinator."
+Require-Text $auraCgComponentRuntime "providerCoordinator\.BuildRequests" "AuraCg component must delegate reflected provider request collection."
+Require-Text $auraCgComponentRuntime "AuraCgRegisteredRequestResolver RegisteredRequestResolver" "AuraCg runtime must centralize registered request resolution."
+Require-Text $auraCgComponentRuntime "RegisteredRequestResolver\.ResolveNetworkRequest" "AuraCg network runtime must receive the dedicated registered request resolver."
+Require-Text $auraCgComponentRuntime "networkRuntime\.TryPrepareLocalPlaybackBatch" "AuraCg local synchronized playback must be prepared by the network runtime."
+Require-Text $auraCgComponentRuntime "networkRuntime\.ApplyServerPlaybackRequest" "AuraCg server-bound playback must be delegated to the network runtime."
+Require-Text $auraCgComponentRuntime "networkRuntime\.ApplyNetworkPlayback" "AuraCg received playback must be delegated to the network runtime."
+Require-Text $auraCgComponentRuntime "networkRuntime\.ResetTransient" "AuraCg fight cleanup must reset network session state."
+Require-Text $auraCgComponentRuntime "!playbackCoordinator\.IsPlaying && preloadScheduler\.ActiveCount == 0" "AuraCg runtime must provide the safe idle boundary for deferred Unity resource destruction."
+Require-Text $auraCgUnityMediaRepository "internal sealed class AuraCgUnityMediaRepository" "AuraCg Unity media loading must stay in a dedicated repository."
+Require-Text $auraCgUnityMediaRepository "MaximumCacheEntries\s*=\s*512" "AuraCg Unity media repository must retain a finite entry budget."
+Require-Text $auraCgUnityMediaRepository "MaximumCacheEstimatedBytes\s*=\s*256L \* 1024L \* 1024L" "AuraCg Unity media repository must retain its estimated-byte budget."
+Require-Text $auraCgUnityMediaRepository "UnityWebRequestTexture\.GetTexture" "AuraCg file texture loading must stay in the Unity media repository."
+Require-Text $auraCgUnityMediaRepository "AssetBundle\.LoadFromFile" "AuraCg bundle loading must stay in the Unity media repository."
+Require-Text $auraCgUnityMediaRepository "cache\.ContainsSpriteReference" "AuraCg deferred release must recheck media retained before the safe idle point."
+Require-Text $auraCgUnityMediaRepository "bundle\.Unload\(false\)" "AuraCg must release evicted owned bundle handles without invalidating already loaded assets."
+if ($auraCgComponentRuntime -match "AuraCgMediaCache<Sprite, AssetBundle>|AuraCgMediaReleaseQueue<Sprite, AssetBundle>|UnityWebRequestTexture|DownloadHandlerTexture|AssetBundle\.LoadFromFile|private\s+IEnumerator\s+Load(Sprite|SequenceSprites)") {
+    throw "AuraCgArbiterComponent must not regain Unity media repository responsibilities."
+}
+if ($auraCgComponentRuntime -match "private\s+(GameObject|Canvas|CanvasGroup|Image|Material|Sprite)\??\s+overlay|RenderMode\.ScreenSpaceOverlay|Shader\.Find\(|private\s+IEnumerator\s+(Fade|SlideRightToLeft|PlaySequenceFrames)") {
+    throw "AuraCgArbiterComponent must not regain overlay presenter responsibilities."
+}
+if ($auraCgComponentRuntime -match "PlayerManager|FightPlayer|GameServer|SendRpcCommand|private\s+readonly\s+AuraCgPlaybackClaimStore|private\s+string\s+fightToken|private\s+long\s+localPlaybackCounter") {
+    throw "AuraCgArbiterComponent must not regain network runtime or transient session responsibilities."
+}
+if ($auraCgComponentRuntime -match 'List<ProviderHandle>|class\s+ProviderHandle|GetMethod\("BuildRequests"|TryBuildRegisteredNetworkRequest|RegisteredMediaExists') {
+    throw "AuraCgArbiterComponent must not regain provider reflection or registered network request resolution responsibilities."
+}
+if ($auraCgComponentRuntime -match "Dictionary<string, Sprite>\s+spriteCache|Dictionary<string, List<Sprite>>\s+sequenceCache|Dictionary<string, AssetBundle\?>\s+assetBundleCache|HashSet<string>\s+preloadKeys") {
     throw "AuraCgArbiterComponent must not regain private media or preload cache ownership."
+}
+$ownsPlaybackState = ($auraCgNonPlaybackCoordinatorSource -match "(?m)^\s*private\s+(readonly\s+)?List<QueuedRequest>\s+queue\s*=") -or
+    ($auraCgNonPlaybackCoordinatorSource -match "(?m)^\s*private\s+(readonly\s+)?Dictionary<string, float>\s+recentKeys\s*=") -or
+    ($auraCgNonPlaybackCoordinatorSource -match "(?m)^\s*private\s+int\s+playGeneration\s*[;=]") -or
+    ($auraCgNonPlaybackCoordinatorSource -match "(?m)^\s*private\s+bool\s+playing\s*[;=]")
+if ($ownsPlaybackState) {
+    throw "AuraCgArbiterComponent must not regain playback queue, duplicate-window, generation, or active-loop state."
 }
 
 $uiTransitionGuardRuntime = Read-RepoText "UiTransitionGuardShared\UiTransitionGuardRuntime.cs"

@@ -138,28 +138,3 @@ public static class SkillCgFitModes
         return Contain;
     }
 }
-
-internal readonly struct QueuedRequest
-{
-    public QueuedRequest(SkillCgRequest request, long enqueueSequence)
-    {
-        Request = request;
-        EnqueueSequence = enqueueSequence;
-    }
-
-    public SkillCgRequest Request { get; }
-
-    private long EnqueueSequence { get; }
-
-    public static int CompareForQueue(QueuedRequest a, QueuedRequest b)
-    {
-        var actionCompare = a.Request.ActionSequence.CompareTo(b.Request.ActionSequence);
-        if (actionCompare != 0)
-        {
-            return actionCompare;
-        }
-
-        var priorityCompare = b.Request.Priority.CompareTo(a.Request.Priority);
-        return priorityCompare != 0 ? priorityCompare : a.EnqueueSequence.CompareTo(b.EnqueueSequence);
-    }
-}

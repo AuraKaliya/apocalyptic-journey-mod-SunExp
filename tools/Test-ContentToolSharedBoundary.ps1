@@ -12,8 +12,10 @@ function Get-SourceFiles {
             continue
         }
 
-        Get-ChildItem -LiteralPath $path -Recurse -File -Include "*.cs", "*.csproj" | Where-Object {
-            $_.FullName -notmatch "\\bin\\" -and $_.FullName -notmatch "\\obj\\"
+        Get-ChildItem -LiteralPath $path -Recurse -File | Where-Object {
+            ($_.Extension -in @(".cs", ".csproj")) -and
+            ($_.FullName -notmatch "\\bin\\") -and
+            ($_.FullName -notmatch "\\obj\\")
         }
     }
 }

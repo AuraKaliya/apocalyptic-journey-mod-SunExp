@@ -89,6 +89,137 @@ Assert(request.MediaType == SkillCgMediaTypes.Sequence && request.BundlePath == 
 Assert(request.Priority == 42 && request.FitMode == "cover", "request priority and presentation");
 Assert(request.CreatedAt == 12.5f && request.DisableSync, "request clock injection and sync policy");
 
+var providerCoordinator = new AuraCgProviderCoordinator((source, providerId, ownerModId, priority, trigger) =>
+{
+    var shape = source as TestProviderRequest;
+    return shape == null
+        ? null
+        : new SkillCgRequest
+        {
+            ProviderId = providerId,
+            OwnerModId = ownerModId,
+            CardId = trigger.CardId,
+            ActionSequence = shape.ActionSequence,
+            Priority = priority,
+            ImagePath = shape.ImagePath
+        };
+});
+Assert(providerCoordinator.Register(null).Status == AuraCgProviderRegistrationStatus.NullProvider, "provider coordinator rejects null registration");
+Assert(providerCoordinator.Register(new EmptyIdCgProvider()).Status == AuraCgProviderRegistrationStatus.EmptyProviderId, "provider coordinator rejects empty provider ids");
+Assert(providerCoordinator.Register(new TestCgProvider("shared", "OwnerA", 2, 7, "low.png")).Status == AuraCgProviderRegistrationStatus.Registered, "provider coordinator registers reflected providers");
+Assert(providerCoordinator.Register(new TestCgProvider("shared", "OwnerA", 4, 7, "replacement.png")).Status == AuraCgProviderRegistrationStatus.Registered
+       && providerCoordinator.ProviderCount == 1,
+    "provider registration replaces the same owner-qualified identity");
+Assert(providerCoordinator.Register(new TestCgProvider("high", "OwnerB", 9, 7, "high.png")).Status == AuraCgProviderRegistrationStatus.Registered, "provider coordinator accepts a second identity");
+Assert(providerCoordinator.Register(new TestCgProvider("earlier", "OwnerC", 1, 2, "earlier.png")).Status == AuraCgProviderRegistrationStatus.Registered, "provider coordinator accepts earlier action providers");
+var providerFailures = new List<AuraCgProviderBuildFailure>();
+providerCoordinator.Register(new ThrowingCgProvider());
+var providerRequests = providerCoordinator.BuildRequests(context, providerFailures.Add);
+Assert(providerRequests.Count == 3
+       && providerRequests[0].ImagePath == "earlier.png"
+       && providerRequests[1].ImagePath == "high.png"
+       && providerRequests[2].ImagePath == "replacement.png",
+    "provider coordinator owns deterministic action-priority ordering and duplicate replacement");
+Assert(providerFailures.Count == 1 && providerFailures[0].ProviderId == "throwing", "provider reflection failures are isolated and reported");
+
+var resolverEnabled = false;
+var registeredResolver = new AuraCgRegisteredRequestResolver(
+    owner => string.Equals(owner, entry.OwnerModId, StringComparison.OrdinalIgnoreCase)
+        ? new List<AuraCgRegistryEntry> { entry }
+        : Array.Empty<AuraCgRegistryEntry>(),
+    _ => resolverEnabled,
+    (owner, resource) => "D:/shared/" + owner + "/" + resource,
+    () => 19.25f,
+    null,
+    "skill",
+    "cardUse",
+    160);
+var registeredEvent = new SkillCgNetworkEvent
+{
+    OwnerModId = entry.OwnerModId,
+    CgId = entry.CgId,
+    ProviderId = entry.OwnerModId + ".SkillCG." + entry.CgId,
+    CardId = "sun_card",
+    OwnerInstanceId = "status-network",
+    ActionSequence = 33,
+    EventToken = "event-network",
+    IssuerPlayerId = "player-1",
+    SkillCgPlayId = "play-1"
+};
+var hostResolved = registeredResolver.ResolveNetworkRequest(registeredEvent, requireLocalActivation: false);
+Assert(hostResolved != null
+       && hostResolved.CreatedAt == 19.25f
+       && hostResolved.IssuerPlayerId == "player-1"
+       && hostResolved.SkillCgPlayId == "play-1",
+    "registered resolver validates host identity without applying recipient-local activation");
+Assert(registeredResolver.ResolveNetworkRequest(registeredEvent, requireLocalActivation: true) == null, "registered resolver enforces recipient-local activation");
+resolverEnabled = true;
+Assert(registeredResolver.ResolveNetworkRequest(registeredEvent, requireLocalActivation: true) != null, "registered resolver admits locally enabled network playback");
+registeredEvent.ProviderId = "Other.SkillCG." + entry.CgId;
+Assert(registeredResolver.ResolveNetworkRequest(registeredEvent, requireLocalActivation: false) == null, "registered resolver rejects provider identity substitution");
+registeredEvent.ProviderId = entry.OwnerModId + ".SkillCG." + entry.CgId;
+Assert(AuraCgRegisteredRequestResolver.MediaExists(entry.Media.Type, "missing", entry.Media.BundlePath), "registered bundled media resolves without exposing transport paths");
+
+var slideSize = AuraCgPresentationMath.CalculateSlideImageSize(200f, 100f, 1000f, 1000f);
+Assert(Near(slideSize.X, 1700f) && Near(slideSize.Y, 850f), "slide layout preserves aspect at the configured viewport height ratio");
+var landscapeCover = AuraCgPresentationMath.CalculateCoverImageSize(1600f, 900f, 1200f, 900f, 1f);
+Assert(Near(landscapeCover.X, 1600f) && Near(landscapeCover.Y, 900f), "landscape cover fills viewport height");
+var portraitCover = AuraCgPresentationMath.CalculateCoverImageSize(500f, 1000f, 1200f, 900f, 1f);
+Assert(Near(portraitCover.X, 1200f) && Near(portraitCover.Y, 2400f), "portrait cover fills viewport width");
+var coverOffset = AuraCgPresentationMath.CalculateCoverImageOffset(1600f, 1200f, 1200f, 900f, 0f, 1f);
+Assert(Near(coverOffset.X, 200f) && Near(coverOffset.Y, 150f), "cover focus maps to bounded overflow offset");
+Assert(Near(AuraCgPresentationMath.EvaluateSlideXRatio(0f), 1.18f)
+       && Near(AuraCgPresentationMath.EvaluateSlideXRatio(0.5f), 0.5f)
+       && Near(AuraCgPresentationMath.EvaluateSlideXRatio(1f), -0.18f),
+    "slide trajectory preserves start center and end anchors");
+Assert(Near(AuraCgPresentationMath.EvaluateSlideAlpha(1.05f), 0f)
+       && Near(AuraCgPresentationMath.EvaluateSlideAlpha(0.5f), 1f)
+       && Near(AuraCgPresentationMath.EvaluateSlideAlpha(-0.05f), 0f),
+    "slide alpha preserves edge fades and opaque center");
+Assert(Near(AuraCgPresentationMath.ScreenBwPulse(0), 1f)
+       && Near(AuraCgPresentationMath.ScreenBwPulse(6), 0.16f)
+       && Near(AuraCgPresentationMath.ScreenBwPulse(99), 0.08f),
+    "screen black-white pulse keeps its bounded decay table");
+
+var playbackCoordinator = new AuraCgPlaybackCoordinator();
+Assert(playbackCoordinator.TryEnqueue(null, 1f, 2, 0.5f, out _) == AuraCgPlaybackEnqueueResult.Invalid, "playback coordinator rejects null requests");
+Assert(playbackCoordinator.TryEnqueue(new SkillCgRequest(), 1f, 2, 0.5f, out _) == AuraCgPlaybackEnqueueResult.EmptyMedia, "playback coordinator rejects empty media");
+var queuedOldest = PlaybackRequest("oldest", actionSequence: 1, priority: 5, createdAt: 9f);
+var queuedSecond = PlaybackRequest("second", actionSequence: 1, priority: 5, createdAt: 9f);
+var queuedNewest = PlaybackRequest("newest", actionSequence: 1, priority: 5, createdAt: 9f);
+Assert(playbackCoordinator.TryEnqueue(queuedOldest, 10f, 2, 0.5f, out var firstDrop) == AuraCgPlaybackEnqueueResult.Accepted && firstDrop == 0, "first playback request is admitted");
+Assert(playbackCoordinator.TryEnqueue(queuedSecond, 10f, 2, 0.5f, out _) == AuraCgPlaybackEnqueueResult.Accepted, "second playback request is admitted");
+Assert(playbackCoordinator.TryEnqueue(queuedNewest, 10f, 2, 0.5f, out var boundedDrop) == AuraCgPlaybackEnqueueResult.Accepted
+       && boundedDrop == 1
+       && playbackCoordinator.QueueCount == 2,
+    "playback queue remains bounded and drops the oldest equal-priority request");
+Assert(playbackCoordinator.TryEnqueue(queuedNewest, 10.25f, 2, 0.5f, out _) == AuraCgPlaybackEnqueueResult.Duplicate, "playback duplicate window suppresses repeated media");
+Assert(playbackCoordinator.TryEnqueue(queuedOldest, 10.75f, 3, 0.5f, out _) == AuraCgPlaybackEnqueueResult.Accepted, "expired playback duplicate keys can be admitted again");
+Assert(playbackCoordinator.TryBegin(out var playbackGeneration) && playbackCoordinator.IsPlaying, "playback coordinator claims one active generation");
+Assert(!playbackCoordinator.TryBegin(out _), "parallel playback loops are rejected");
+Assert(playbackCoordinator.TryTakeNext(playbackGeneration, 10f, 2f, out var firstPlayback, out var staleBeforeFirst)
+       && staleBeforeFirst == 0
+       && ReferenceEquals(firstPlayback, queuedSecond),
+    "playback queue preserves action priority and enqueue order");
+Assert(playbackCoordinator.Complete(playbackGeneration) && !playbackCoordinator.IsPlaying, "playback completion releases the active generation");
+
+var staleCoordinator = new AuraCgPlaybackCoordinator();
+var staleRequest = PlaybackRequest("stale", actionSequence: 1, priority: 1, createdAt: 1f);
+var freshRequest = PlaybackRequest("fresh", actionSequence: 2, priority: 1, createdAt: 9f);
+staleCoordinator.TryEnqueue(staleRequest, 9f, 4, 0.5f, out _);
+staleCoordinator.TryEnqueue(freshRequest, 9f, 4, 0.5f, out _);
+Assert(staleCoordinator.TryBegin(out var staleGeneration), "stale playback batch begins");
+Assert(staleCoordinator.TryTakeNext(staleGeneration, 10f, 2f, out var freshPlayback, out var staleSkipped)
+       && staleSkipped == 1
+       && ReferenceEquals(freshPlayback, freshRequest),
+    "stale playback requests are skipped before returning current work");
+staleCoordinator.Clear();
+Assert(!staleCoordinator.IsCurrent(staleGeneration)
+       && !staleCoordinator.Complete(staleGeneration)
+       && staleCoordinator.QueueCount == 0
+       && staleCoordinator.RecentKeyCount == 0,
+    "playback clear invalidates the active generation and all queue-owned state");
+
 const int maxIdentifier = 16;
 var networkEvent = new SkillCgNetworkEvent
 {
@@ -132,6 +263,26 @@ Assert(claims.TryClaim("p", "3", out _) && claims.Count == 2, "claim store remai
 Assert(claims.TryClaim("p", "1", out _), "oldest playback claim evicted");
 claims.Clear();
 Assert(claims.Count == 0 && claims.TryClaim("p", "2", out _), "fight cleanup resets claims");
+
+var networkSession = new AuraCgNetworkSessionState(2);
+networkSession.SetFightToken(" fight-1 ");
+Assert(networkSession.FightToken == "fight-1", "network session normalizes fight token");
+Assert(Near(AuraCgNetworkSessionState.NormalizeReuseWindow(0.1f), 0.35f)
+       && Near(AuraCgNetworkSessionState.NormalizeReuseWindow(3f), 2f),
+    "network action reuse window remains bounded");
+var localPlayA = networkSession.ReuseOrCreateLocalPlayId("player a", "owner/1", "*card", 7, "event", 10f, 0.5f);
+var localPlayARepeat = networkSession.ReuseOrCreateLocalPlayId("player a", "owner/1", "*card", 7, "event", 10.4f, 0.5f);
+Assert(localPlayA == localPlayARepeat, "same local action reuses its play id inside the duplicate window");
+Assert(localPlayA.StartsWith("player_a:owner_1:*card:", StringComparison.Ordinal)
+       && localPlayA.EndsWith(":fight-1", StringComparison.Ordinal),
+    "local play ids sanitize token parts and retain fight identity");
+var localPlayANext = networkSession.ReuseOrCreateLocalPlayId("player a", "owner/1", "*card", 7, "event", 11f, 0.5f);
+Assert(localPlayANext != localPlayA && networkSession.RecentLocalActionCount == 1, "expired local actions receive a new bounded play id");
+Assert(networkSession.TryClaimPlayback("player-a", localPlayANext, out _), "network session accepts first playback claim");
+Assert(!networkSession.TryClaimPlayback("player-a", localPlayANext, out _), "network session rejects duplicate playback claim");
+networkSession.ResetTransient();
+Assert(networkSession.FightToken == "" && networkSession.RecentLocalActionCount == 0, "network session reset clears fight and local action state");
+Assert(networkSession.TryClaimPlayback("player-a", localPlayANext, out _), "network session reset releases playback claims");
 
 var adventureHistory = new AuraCgAdventurePreloadHistory(2);
 Assert(adventureHistory.TryBegin("adventure-a"), "first adventure preload begins");
@@ -291,6 +442,51 @@ var sequenceKey = AuraCgMediaCacheKeys.Sequence(request);
 Assert(AuraCgMediaCacheKeys.Preload(request) == "sequence:" + sequenceKey, "sequence preload uses canonical cache key");
 Assert(AuraCgMediaCacheKeys.Sprite("cg.png", "black", 0.03f, 0.08f).Contains(SkillCgAlphaModes.BlackKey, StringComparison.Ordinal), "sprite key normalizes alpha aliases");
 
+Assert(AuraCgMediaPathResolver.NormalizeRelativeResourcePath("  \\\\cg\\sequence\\frame.png  ") == "cg/sequence/frame.png", "media resource paths normalize separators and leading roots");
+Assert(AuraCgMediaPathResolver.NormalizeBundleId("  bundles\\cg.bundle  ") == "bundles/cg.bundle", "bundle identities share canonical path normalization");
+Assert(AuraCgMediaPathResolver.IsSupportedSequenceFrame("frame.PNG")
+       && AuraCgMediaPathResolver.IsSupportedSequenceFrame("frame.jpeg")
+       && !AuraCgMediaPathResolver.IsSupportedSequenceFrame("frame.webp"),
+    "sequence frame extensions preserve the supported image contract");
+Assert(AuraCgMediaPathResolver.IsBundleSequenceAsset("assets/cg/sequence/002.png", "cg/sequence"), "bundle sequence prefix matches nested asset roots");
+Assert(!AuraCgMediaPathResolver.IsBundleSequenceAsset("assets/cg/other/002.png", "cg/sequence"), "bundle sequence prefix rejects sibling assets");
+
+var flashPolicyRequest = new SkillCgRequest { FlashMode = SkillCgFlashModes.MaskedInvert };
+Assert(AuraCgPresentationPolicy.UsesMaskedFlash(flashPolicyRequest), "masked-invert mode enables the masked overlay");
+Assert(!AuraCgPresentationPolicy.UsesScreenBwFlash(flashPolicyRequest), "masked-invert mode does not enable the screen pulse overlay");
+flashPolicyRequest.FlashMode = SkillCgFlashModes.ScreenBwPulse;
+Assert(!AuraCgPresentationPolicy.UsesMaskedFlash(flashPolicyRequest), "screen pulse mode keeps the masked overlay disabled");
+Assert(AuraCgPresentationPolicy.UsesScreenBwFlash(flashPolicyRequest), "screen pulse mode enables the screen overlay");
+flashPolicyRequest.FlashMode = SkillCgFlashModes.HybridBwPulse;
+Assert(AuraCgPresentationPolicy.UsesMaskedFlash(flashPolicyRequest)
+       && AuraCgPresentationPolicy.UsesScreenBwFlash(flashPolicyRequest),
+    "hybrid mode enables both flash layers");
+flashPolicyRequest.FlashMode = SkillCgFlashModes.Screen;
+flashPolicyRequest.FlashStartFrame = 3;
+Assert(AuraCgPresentationPolicy.UsesMaskedFlash(flashPolicyRequest), "legacy frame ranges continue to imply masked flash");
+flashPolicyRequest.FlashStartFrame = 0;
+Assert(!AuraCgPresentationPolicy.UsesMaskedFlash(flashPolicyRequest)
+       && !AuraCgPresentationPolicy.UsesScreenBwFlash(flashPolicyRequest),
+    "ordinary timed flash mode keeps both specialized layers disabled");
+
+var frameDirectory = Path.Combine(Path.GetTempPath(), "aura-cg-path-tests-" + Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(frameDirectory);
+try
+{
+    File.WriteAllText(Path.Combine(frameDirectory, "010.jpg"), "test");
+    File.WriteAllText(Path.Combine(frameDirectory, "002.PNG"), "test");
+    File.WriteAllText(Path.Combine(frameDirectory, "ignore.txt"), "test");
+    var resolvedFrames = AuraCgMediaPathResolver.ResolveSequenceFramePaths(frameDirectory);
+    Assert(resolvedFrames.Count == 2
+           && Path.GetFileName(resolvedFrames[0]) == "002.PNG"
+           && Path.GetFileName(resolvedFrames[1]) == "010.jpg",
+        "file sequence discovery filters unsupported files and returns deterministic order");
+}
+finally
+{
+    Directory.Delete(frameDirectory, recursive: true);
+}
+
 Console.WriteLine($"AuraCgShared tests passed: {assertions} assertions.");
 
 void Assert(bool condition, string name)
@@ -309,5 +505,75 @@ IEnumerable<int> CountedPreloadSubmission()
     {
         submissionEnumerated++;
         yield return i;
+    }
+}
+
+SkillCgRequest PlaybackRequest(string id, long actionSequence, int priority, float createdAt)
+{
+    return new SkillCgRequest
+    {
+        ProviderId = "provider-" + id,
+        OwnerInstanceId = "owner",
+        CardId = "card-" + id,
+        ImagePath = "cg/" + id + ".png",
+        MediaType = SkillCgMediaTypes.Image,
+        ActionSequence = actionSequence,
+        Priority = priority,
+        CreatedAt = createdAt
+    };
+}
+
+bool Near(float left, float right, float epsilon = 0.0001f)
+{
+    return Math.Abs(left - right) <= epsilon;
+}
+
+internal sealed class TestProviderRequest
+{
+    public long ActionSequence { get; init; }
+
+    public string ImagePath { get; init; } = "";
+}
+
+internal sealed class TestCgProvider
+{
+    private readonly TestProviderRequest request;
+
+    public TestCgProvider(string providerId, string ownerModId, int priority, long actionSequence, string imagePath)
+    {
+        ProviderId = providerId;
+        OwnerModId = ownerModId;
+        Priority = priority;
+        request = new TestProviderRequest { ActionSequence = actionSequence, ImagePath = imagePath };
+    }
+
+    public string ProviderId { get; }
+
+    public string OwnerModId { get; }
+
+    public int Priority { get; }
+
+    public IEnumerable<TestProviderRequest> BuildRequests(SkillCgTriggerContext context)
+    {
+        yield return request;
+    }
+}
+
+internal sealed class EmptyIdCgProvider
+{
+    public string ProviderId => "";
+}
+
+internal sealed class ThrowingCgProvider
+{
+    public string ProviderId => "throwing";
+
+    public string OwnerModId => "OwnerFailure";
+
+    public int Priority => 99;
+
+    public IEnumerable<TestProviderRequest> BuildRequests(SkillCgTriggerContext context)
+    {
+        throw new InvalidOperationException("expected provider failure");
     }
 }

@@ -33,6 +33,10 @@ internal sealed class AuraCgRegistryEntry
     public AuraCgPresentationSpec DefaultPresentation { get; set; } = new();
     public int Priority { get; set; }
     public bool Enabled { get; set; } = true;
+
+    public string QualifiedCgId => string.IsNullOrWhiteSpace(OwnerModId)
+        ? CgId
+        : OwnerModId + ":" + CgId;
 }
 
 internal sealed class AuraCgMediaSpec
@@ -112,6 +116,38 @@ internal sealed class SkillCgRequest
     public long ActionSequence { get; set; }
     public string EventToken { get; set; } = "";
     public bool DisableSync { get; set; }
+    public string IssuerPlayerId { get; set; } = "";
+    public string SkillCgPlayId { get; set; } = "";
+
+    public string QualifiedProviderId => string.IsNullOrWhiteSpace(OwnerModId)
+        || ProviderId.Contains(":", StringComparison.Ordinal)
+            ? ProviderId
+            : OwnerModId + ":" + ProviderId;
+
+    public string DuplicateKey => OwnerInstanceId
+                                  + "|" + CardId
+                                  + "|" + ImagePath
+                                  + "|" + MediaType
+                                  + "|" + FrameSeconds.ToString("0.###")
+                                  + "|" + AlphaMode
+                                  + "|" + FlashMode
+                                  + "|" + FlashAtSeconds.ToString("0.###")
+                                  + "|" + FlashStartFrame
+                                  + "|" + FlashEndFrame
+                                  + "|" + FlashPulseEveryFrames
+                                  + "|" + PresentationMode
+                                  + "|" + FitMode
+                                  + "|" + FocusX.ToString("0.###")
+                                  + "|" + FocusY.ToString("0.###")
+                                  + "|" + SafeScale.ToString("0.###");
+}
+
+internal static class SkillCgFlashModes
+{
+    public const string Screen = "screen";
+    public const string MaskedInvert = "maskedInvert";
+    public const string ScreenBwPulse = "screenBwPulse";
+    public const string HybridBwPulse = "hybridBwPulse";
 }
 
 internal sealed class SkillCgNetworkEvent

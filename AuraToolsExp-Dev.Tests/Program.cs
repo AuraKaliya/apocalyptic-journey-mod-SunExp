@@ -799,8 +799,8 @@ void TestRuntimeArchitectureGuards()
            && registryAwareSkillCgRuntime.Contains("AuraCgRegistryRuntime.GetSnapshot()", StringComparison.Ordinal),
         "Skill CG effective configuration must refresh from the current shared registry revision, not a fixed load phase");
     var sharedCgRuntime = ReadRepoSourceTree("AuraCgShared");
-    Assert(sharedCgRuntime.Contains("requireLocalActivation: false", StringComparison.Ordinal)
-           && sharedCgRuntime.Contains("requireLocalActivation: true", StringComparison.Ordinal),
+    Assert(sharedCgRuntime.Contains("registeredRequestResolver(item, false)", StringComparison.Ordinal)
+           && sharedCgRuntime.Contains("registeredRequestResolver(item, true)", StringComparison.Ordinal),
         "Skill CG server validation must be independent of the host visual toggle while recipients apply local activation");
     Assert(!starterDeckRuntime.Contains("NormalMapManager.InitRoleTable", StringComparison.Ordinal),
         "starter deck must not write a provisional deck during early role-table initialization");

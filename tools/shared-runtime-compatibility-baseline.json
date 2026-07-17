@@ -1289,7 +1289,7 @@
       "requiredSnippets": [
         "IAuraCgServerBoundRpcCommand",
         "BindServerSender",
-        "MaxPlaybackPoolEntries",
+        "MaximumPlaybackClaims",
         "playbackClaims.Clear"
       ]
     },
@@ -1308,13 +1308,21 @@
       "directory": "AuraCgShared",
       "requiredSnippets": [
         "AuraCgRegistryQueryService.MatchesTrigger",
+        "AuraCgRegisteredRequestResolver",
+        "RegisteredRequestResolver.ResolveNetworkRequest",
+        "AuraCgProviderCoordinator providerCoordinator",
+        "providerCoordinator.BuildRequests",
         "AuraCgNetworkPolicy.HasValidPlaybackShape",
         "AuraCgPlaybackClaimStore playbackClaims",
         "playbackClaims.Clear",
           "AuraCgAdventurePreloadHistory adventurePreloadHistory",
           "AuraCgPreloadScheduler\u003CSkillCgRequest\u003E preloadScheduler",
-          "AuraCgMediaCache\u003CSprite, AssetBundle\u003E mediaCache",
-          "AuraCgMediaReleaseQueue\u003CSprite, AssetBundle\u003E mediaReleaseQueue",
+          "AuraCgOverlayPresenter overlayPresenter",
+          "AuraCgUnityMediaRepository mediaRepository",
+          "AuraCgNetworkRuntime networkRuntime",
+          "AuraCgNetworkSessionState",
+          "AuraCgMediaCache\u003CSprite, AssetBundle\u003E cache",
+          "AuraCgMediaReleaseQueue\u003CSprite, AssetBundle\u003E releaseQueue",
           "preloadScheduler.Complete",
           "MaxPendingPreloads",
           "MaxPreloadSubmissionItems",
@@ -1323,7 +1331,14 @@
           "MaxConcurrentPreloads",
           "MaxPreloadStartsPerFrame",
           "PreloadProducerId",
-          "MaxMediaCacheEstimatedBytes",
+          "MaximumCacheEstimatedBytes",
+          "overlayPresenter.PlayImage",
+          "overlayPresenter.PlaySequence",
+          "AuraCgPresentationPolicy.UsesMaskedFlash",
+          "networkRuntime.TryPrepareLocalPlaybackBatch",
+          "networkRuntime.ApplyServerPlaybackRequest",
+          "networkRuntime.ApplyNetworkPlayback",
+          "MaximumPayloadBytes",
           "FlushReleasedMedia",
           "AuraCgMediaOwnership.RuntimeObjectAndTexture"
       ]
