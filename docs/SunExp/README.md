@@ -42,6 +42,7 @@
 - [Aura/SunExp 复杂模块拆分评审](../architecture-complex-module-review-2026-07-16.md)
 - [复杂模块治理首轮开发记录](../architecture-complex-module-development-round-1-2026-07-17.md)
 - [AuraCg 模块治理第二轮开发记录](../architecture-complex-module-development-round-2-2026-07-17.md)
+- [AuraCg Preload 与媒体缓存第三轮开发记录](../architecture-complex-module-development-round-3-2026-07-17.md)
 
 ## 功能模块文档
 

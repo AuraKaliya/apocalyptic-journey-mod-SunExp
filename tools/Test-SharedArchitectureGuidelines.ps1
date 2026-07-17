@@ -107,6 +107,9 @@ if ($auraCgRuntime -match "manager\?\.(upperCanvasTf|canvasTf)|GameUIManager|Gra
 $auraCgRegistryQuery = Read-RepoText "AuraCgShared\AuraCgRegistryQueryService.cs"
 $auraCgNetworkPolicy = Read-RepoText "AuraCgShared\AuraCgNetworkPolicy.cs"
 $auraCgPlaybackClaims = Read-RepoText "AuraCgShared\AuraCgPlaybackClaimStore.cs"
+$auraCgPreloadCoordinator = Read-RepoText "AuraCgShared\AuraCgPreloadCoordinator.cs"
+$auraCgMediaCache = Read-RepoText "AuraCgShared\AuraCgMediaCache.cs"
+$auraCgMediaCacheKeys = Read-RepoText "AuraCgShared\AuraCgMediaCacheKeys.cs"
 Require-Text $auraCgRegistryQuery "internal static class AuraCgRegistryQueryService" "AuraCg registry matching must stay in its pure query service."
 Require-Text $auraCgRegistryQuery "MatchesTrigger" "AuraCg registry query service must own trigger matching."
 Require-Text $auraCgNetworkPolicy "internal static class AuraCgNetworkPolicy" "AuraCg network validation must stay in its pure policy service."
@@ -114,10 +117,18 @@ Require-Text $auraCgNetworkPolicy "HasValidPlaybackShape" "AuraCg network policy
 Require-Text $auraCgPlaybackClaims "internal sealed class AuraCgPlaybackClaimStore" "AuraCg duplicate claims must stay in a bounded lifecycle store."
 Require-Text $auraCgPlaybackClaims "while \(order\.Count > capacity\)" "AuraCg playback claims must remain capacity-bounded."
 Require-Text $auraCgPlaybackClaims "public void Clear\(\)" "AuraCg playback claims must expose explicit fight cleanup."
-foreach ($pureSource in @($auraCgRegistryQuery, $auraCgNetworkPolicy, $auraCgPlaybackClaims)) {
+Require-Text $auraCgPreloadCoordinator "maximumAdventureKeys" "AuraCg adventure preload history must remain bounded."
+Require-Text $auraCgPreloadCoordinator "CompletePreload" "AuraCg pending preload claims must have an explicit completion path."
+Require-Text $auraCgMediaCache "internal sealed class AuraCgMediaCache<TSprite, TBundle>" "AuraCg media references must have one explicit cache owner."
+Require-Text $auraCgMediaCacheKeys "internal static class AuraCgMediaCacheKeys" "AuraCg media cache keys must stay centralized."
+foreach ($pureSource in @($auraCgRegistryQuery, $auraCgNetworkPolicy, $auraCgPlaybackClaims, $auraCgPreloadCoordinator, $auraCgMediaCache, $auraCgMediaCacheKeys)) {
     if ($pureSource -match "using UnityEngine|using Witch|PlayerManager|GameObject|MonoBehaviour") {
-        throw "AuraCg query, network policy, and claim store must remain independent of Unity and Witch runtime state."
+        throw "AuraCg policies, preload coordination, and media ownership must remain independent of Unity and Witch runtime state."
     }
+}
+Require-Text $auraCgRuntime "finally[\s\S]*preloadCoordinator\.CompletePreload" "AuraCg preload claims must be released when a loading coroutine exits."
+if ($auraCgRuntime -match "Dictionary<string, Sprite>\s+spriteCache|Dictionary<string, List<Sprite>>\s+sequenceCache|Dictionary<string, AssetBundle\?>\s+assetBundleCache|HashSet<string>\s+preloadKeys") {
+    throw "AuraCgArbiterComponent must not regain private media or preload cache ownership."
 }
 
 $uiTransitionGuardRuntime = Read-RepoText "UiTransitionGuardShared\UiTransitionGuardRuntime.cs"

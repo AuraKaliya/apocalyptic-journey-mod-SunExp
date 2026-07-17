@@ -1310,7 +1310,10 @@
         "AuraCgRegistryQueryService.MatchesTrigger",
         "AuraCgNetworkPolicy.HasValidPlaybackShape",
         "AuraCgPlaybackClaimStore playbackClaims",
-        "playbackClaims.Clear"
+        "playbackClaims.Clear",
+        "AuraCgPreloadCoordinator preloadCoordinator",
+        "AuraCgMediaCache\u003CSprite, AssetBundle\u003E mediaCache",
+        "preloadCoordinator.CompletePreload"
       ]
     }
   ]

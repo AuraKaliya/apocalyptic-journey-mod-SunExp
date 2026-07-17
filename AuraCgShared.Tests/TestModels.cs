@@ -6,6 +6,22 @@ internal static class SkillCgMediaTypes
     public const string Sequence = "sequence";
 }
 
+internal static class SkillCgAlphaModes
+{
+    public const string None = "none";
+    public const string BlackKey = "blackKey";
+
+    public static string Normalize(string? value)
+    {
+        var mode = value?.Trim() ?? "";
+        return string.Equals(mode, BlackKey, StringComparison.OrdinalIgnoreCase)
+               || string.Equals(mode, "lumaKey", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(mode, "black", StringComparison.OrdinalIgnoreCase)
+            ? BlackKey
+            : None;
+    }
+}
+
 internal sealed class AuraCgRegistryEntry
 {
     public string CgId { get; set; } = "";

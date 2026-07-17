@@ -827,6 +827,7 @@ public static class SkillCgArbiterRuntime
     public sealed class SkillCgArbiterComponent : MonoBehaviour
     {
         private const int MaxPlaybackPoolEntries = 512;
+        private const int MaxAdventurePreloadKeys = 128;
         private const float MinimumLocalActionReuseSeconds = 0.35f;
         private const float ClearDeduplicateSeconds = 1.0f;
         private readonly List<ProviderHandle> providers = new();
@@ -835,12 +836,8 @@ public static class SkillCgArbiterRuntime
         private readonly Dictionary<string, string> recentLocalPlayIds = new(StringComparer.Ordinal);
         private readonly Dictionary<string, float> recentLocalPlayTimes = new(StringComparer.Ordinal);
         private readonly AuraCgPlaybackClaimStore playbackClaims = new(MaxPlaybackPoolEntries);
-        private readonly Dictionary<string, Sprite> spriteCache = new(StringComparer.OrdinalIgnoreCase);
-        private readonly Dictionary<string, List<Sprite>> sequenceCache = new(StringComparer.OrdinalIgnoreCase);
-        private readonly Dictionary<string, AssetBundle?> assetBundleCache = new(StringComparer.OrdinalIgnoreCase);
-        private readonly HashSet<string> preloadKeys = new(StringComparer.OrdinalIgnoreCase);
-        private readonly HashSet<string> adventurePreloadKeys = new(StringComparer.OrdinalIgnoreCase);
-        private readonly Dictionary<int, Sprite> invertedSpriteCache = new();
+        private readonly AuraCgMediaCache<Sprite, AssetBundle> mediaCache = new();
+        private readonly AuraCgPreloadCoordinator preloadCoordinator = new(MaxAdventurePreloadKeys);
         private SkillCgArbiterOptions options = new();
         private bool playing;
         private long enqueueSequence;
@@ -1001,8 +998,8 @@ public static class SkillCgArbiterRuntime
                 }
 
                 request.Normalize();
-                var key = PreloadCacheKey(request);
-                if (IsPreloaded(request) || !preloadKeys.Add(key))
+                var key = AuraCgMediaCacheKeys.Preload(request);
+                if (!preloadCoordinator.TryBeginPreload(key, IsPreloaded(request)))
                 {
                     continue;
                 }
@@ -1018,7 +1015,7 @@ public static class SkillCgArbiterRuntime
                 return;
             }
 
-            if (!adventurePreloadKeys.Add(request.Key))
+            if (!preloadCoordinator.TryBeginAdventure(request.Key))
             {
                 AuraCgLog.DebugLog("Adventure CG preload skipped; already queued. key=" + request.Key);
                 return;
@@ -1030,56 +1027,52 @@ public static class SkillCgArbiterRuntime
 
         private IEnumerator PreloadRequest(SkillCgRequest request, string key)
         {
-            if (!string.Equals(request.MediaType, SkillCgMediaTypes.Sequence, StringComparison.OrdinalIgnoreCase))
+            try
             {
-                Sprite? sprite = null;
-                yield return LoadSprite(request.ImagePath, result => sprite = result);
-                if (sprite != null)
+                if (!string.Equals(request.MediaType, SkillCgMediaTypes.Sequence, StringComparison.OrdinalIgnoreCase))
                 {
-                    AuraCgLog.InfoOnce(
-                        "image-preloaded:" + key,
-                        "CG image preloaded: provider=" + request.ProviderId
-                        + ", image=" + Path.GetFileName(request.ImagePath));
+                    Sprite? sprite = null;
+                    yield return LoadSprite(request.ImagePath, result => sprite = result);
+                    if (sprite != null)
+                    {
+                        AuraCgLog.InfoOnce(
+                            "image-preloaded:" + key,
+                            "CG image preloaded: provider=" + request.ProviderId
+                            + ", image=" + Path.GetFileName(request.ImagePath));
+                    }
+
+                    yield break;
                 }
 
-                preloadKeys.Remove(key);
-                yield break;
+                List<Sprite> sprites = new();
+                yield return LoadSequenceSprites(request, result => sprites = result);
+                if (sprites.Count > 0)
+                {
+                    AuraCgLog.InfoOnce(
+                        "sequence-preloaded:" + key,
+                        "CG sequence preloaded: provider=" + request.ProviderId
+                        + ", frames=" + sprites.Count
+                        + ", bundle=" + (string.IsNullOrWhiteSpace(request.BundlePath) ? "<file>" : request.BundlePath));
+                }
             }
-
-            List<Sprite> sprites = new();
-            yield return LoadSequenceSprites(request, result => sprites = result);
-            if (sprites.Count > 0)
+            finally
             {
-                sequenceCache[key] = sprites;
-                AuraCgLog.InfoOnce(
-                    "sequence-preloaded:" + key,
-                    "CG sequence preloaded: provider=" + request.ProviderId
-                    + ", frames=" + sprites.Count
-                    + ", bundle=" + (string.IsNullOrWhiteSpace(request.BundlePath) ? "<file>" : request.BundlePath));
+                preloadCoordinator.CompletePreload(key);
             }
-
-            preloadKeys.Remove(key);
         }
 
         private bool IsPreloaded(SkillCgRequest request)
         {
             if (string.Equals(request.MediaType, SkillCgMediaTypes.Sequence, StringComparison.OrdinalIgnoreCase))
             {
-                return sequenceCache.ContainsKey(SequenceCacheKey(request));
+                return mediaCache.ContainsSequence(AuraCgMediaCacheKeys.Sequence(request));
             }
 
-            return spriteCache.ContainsKey(SpriteCacheKey(
+            return mediaCache.ContainsSprite(AuraCgMediaCacheKeys.Sprite(
                 request.ImagePath,
                 SkillCgAlphaModes.None,
                 0.03f,
                 0.08f));
-        }
-
-        private static string PreloadCacheKey(SkillCgRequest request)
-        {
-            return string.Equals(request.MediaType, SkillCgMediaTypes.Sequence, StringComparison.OrdinalIgnoreCase)
-                ? "sequence:" + SequenceCacheKey(request)
-                : "image:" + SpriteCacheKey(request.ImagePath, SkillCgAlphaModes.None, 0.03f, 0.08f);
         }
 
         public void ClearQueue(object? reason)
@@ -2593,7 +2586,7 @@ public static class SkillCgArbiterRuntime
         {
             var texture = source.texture;
             var key = texture.GetInstanceID();
-            if (invertedSpriteCache.TryGetValue(key, out var cached) && cached != null)
+            if (mediaCache.TryGetDerivedSprite(key, out var cached) && cached != null)
             {
                 return cached;
             }
@@ -2623,7 +2616,7 @@ public static class SkillCgArbiterRuntime
                     new Vector2(0.5f, 0.5f),
                     100f);
                 sprite.name = source.name + "_masked_invert";
-                invertedSpriteCache[key] = sprite;
+                mediaCache.StoreDerivedSprite(key, sprite);
                 return sprite;
             }
             catch (Exception ex)
@@ -2681,8 +2674,8 @@ public static class SkillCgArbiterRuntime
             Action<List<Sprite>> onLoaded,
             Func<bool>? keepLoading = null)
         {
-            var cacheKey = SequenceCacheKey(request);
-            if (sequenceCache.TryGetValue(cacheKey, out var cached) && cached.Count > 0)
+            var cacheKey = AuraCgMediaCacheKeys.Sequence(request);
+            if (mediaCache.TryGetSequence(cacheKey, out var cached))
             {
                 onLoaded(cached);
                 yield break;
@@ -2700,7 +2693,7 @@ public static class SkillCgArbiterRuntime
 
                 if (result.Count > 0)
                 {
-                    sequenceCache[cacheKey] = result;
+                    mediaCache.StoreSequence(cacheKey, result);
                     onLoaded(result);
                     yield break;
                 }
@@ -2735,7 +2728,7 @@ public static class SkillCgArbiterRuntime
 
             if (result.Count > 0)
             {
-                sequenceCache[cacheKey] = result;
+                mediaCache.StoreSequence(cacheKey, result);
             }
 
             if (result.Count == 0)
@@ -2854,7 +2847,7 @@ public static class SkillCgArbiterRuntime
                 return registered;
             }
 
-            if (assetBundleCache.TryGetValue(id, out var cached))
+            if (mediaCache.TryGetBundle(id, out var cached))
             {
                 return cached;
             }
@@ -2862,7 +2855,7 @@ public static class SkillCgArbiterRuntime
             var resolved = ResolveImagePath("", id, id);
             if (!File.Exists(resolved))
             {
-                assetBundleCache[id] = null;
+                mediaCache.StoreBundle(id, null);
                 AuraCgLog.WarnOnce("bundle-missing:" + id, "CG asset bundle is not registered or found: " + id);
                 return null;
             }
@@ -2870,25 +2863,15 @@ public static class SkillCgArbiterRuntime
             try
             {
                 var bundle = AssetBundle.LoadFromFile(resolved);
-                assetBundleCache[id] = bundle;
+                mediaCache.StoreBundle(id, bundle);
                 return bundle;
             }
             catch (Exception ex)
             {
-                assetBundleCache[id] = null;
+                mediaCache.StoreBundle(id, null);
                 AuraCgLog.WarnOnce("bundle-load-failed:" + id, "CG asset bundle load failed: " + id + ", error=" + ex.Message);
                 return null;
             }
-        }
-
-        private static string SequenceCacheKey(SkillCgRequest request)
-        {
-            return (request.BundlePath ?? "")
-                + "\u001f" + (request.BundleAssetPrefix ?? "")
-                + "\u001f" + (request.ImagePath ?? "")
-                + "\u001f" + SkillCgAlphaModes.Normalize(request.AlphaMode)
-                + "\u001f" + request.KeyThreshold.ToString("0.####")
-                + "\u001f" + request.KeySoftness.ToString("0.####");
         }
 
         private static IEnumerable<string> ResolveSequenceFramePaths(string path)
@@ -2926,8 +2909,8 @@ public static class SkillCgArbiterRuntime
             float keySoftness,
             Action<Sprite?> onLoaded)
         {
-            var cacheKey = SpriteCacheKey(path, alphaMode, keyThreshold, keySoftness);
-            if (spriteCache.TryGetValue(cacheKey, out var cached) && cached != null)
+            var cacheKey = AuraCgMediaCacheKeys.Sprite(path, alphaMode, keyThreshold, keySoftness);
+            if (mediaCache.TryGetSprite(cacheKey, out var cached) && cached != null)
             {
                 onLoaded(cached);
                 yield break;
@@ -2965,7 +2948,7 @@ public static class SkillCgArbiterRuntime
 
             var sprite = Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f);
             sprite.name = texture.name;
-            spriteCache[cacheKey] = sprite;
+            mediaCache.StoreSprite(cacheKey, sprite);
             AuraCgLog.InfoOnce("image-loaded:" + path, "CG image loaded: " + Path.GetFileName(path) + " (" + texture.width + "x" + texture.height + ")");
             onLoaded(sprite);
         }
@@ -2978,14 +2961,6 @@ public static class SkillCgArbiterRuntime
             }
 
             return ResolveLumaKeyMaterial(new SkillCgRequest { AlphaMode = alphaMode }) == null;
-        }
-
-        private static string SpriteCacheKey(string path, string alphaMode, float keyThreshold, float keySoftness)
-        {
-            return path
-                + "\u001f" + SkillCgAlphaModes.Normalize(alphaMode)
-                + "\u001f" + keyThreshold.ToString("0.####")
-                + "\u001f" + keySoftness.ToString("0.####");
         }
 
         private static void ApplyAlphaMode(Texture2D texture, string alphaMode, float keyThreshold, float keySoftness, string path)

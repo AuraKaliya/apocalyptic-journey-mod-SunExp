@@ -133,6 +133,39 @@ Assert(claims.TryClaim("p", "1", out _), "oldest playback claim evicted");
 claims.Clear();
 Assert(claims.Count == 0 && claims.TryClaim("p", "2", out _), "fight cleanup resets claims");
 
+var preloadCoordinator = new AuraCgPreloadCoordinator(2);
+Assert(preloadCoordinator.TryBeginPreload("image:a", alreadyCached: false), "preload request begins once");
+Assert(!preloadCoordinator.TryBeginPreload("image:a", alreadyCached: false), "pending preload deduplicated");
+Assert(preloadCoordinator.PendingCount == 1, "pending preload count owned by coordinator");
+preloadCoordinator.CompletePreload("image:a");
+Assert(preloadCoordinator.PendingCount == 0 && preloadCoordinator.TryBeginPreload("image:a", alreadyCached: false), "completed preload can retry");
+preloadCoordinator.CompletePreload("image:a");
+Assert(!preloadCoordinator.TryBeginPreload("image:cached", alreadyCached: true), "cached media is not queued");
+Assert(preloadCoordinator.TryBeginAdventure("adventure-a"), "first adventure preload begins");
+Assert(!preloadCoordinator.TryBeginAdventure("adventure-a"), "adventure preload deduplicated");
+Assert(preloadCoordinator.TryBeginAdventure("adventure-b") && preloadCoordinator.TryBeginAdventure("adventure-c"), "later adventure keys accepted");
+Assert(preloadCoordinator.AdventureCount == 2, "adventure preload history remains bounded");
+Assert(preloadCoordinator.TryBeginAdventure("adventure-a"), "oldest adventure key is evicted");
+
+var mediaCache = new AuraCgMediaCache<object, object>();
+var spriteA = new object();
+var spriteB = new object();
+mediaCache.StoreSprite("sprite:a", spriteA);
+Assert(mediaCache.ContainsSprite("SPRITE:A") && mediaCache.TryGetSprite("sprite:a", out var cachedSprite) && ReferenceEquals(spriteA, cachedSprite), "sprite cache owns case-insensitive identity");
+mediaCache.StoreSequence("sequence:a", new List<object> { spriteA, spriteB });
+Assert(mediaCache.TryGetSequence("SEQUENCE:A", out var cachedSequence) && cachedSequence.Count == 2, "sequence cache returns canonical list");
+mediaCache.StoreSequence("sequence:empty", new List<object>());
+Assert(!mediaCache.ContainsSequence("sequence:empty") && mediaCache.SequenceCount == 1, "empty sequences are not retained");
+mediaCache.StoreBundle("bundle:missing", null);
+Assert(mediaCache.TryGetBundle("BUNDLE:MISSING", out var missingBundle) && missingBundle == null, "bundle cache retains negative lookup sentinel");
+var derived = new object();
+mediaCache.StoreDerivedSprite(7, derived);
+Assert(mediaCache.TryGetDerivedSprite(7, out var cachedDerived) && ReferenceEquals(derived, cachedDerived), "derived sprite cache has explicit owner");
+
+var sequenceKey = AuraCgMediaCacheKeys.Sequence(request);
+Assert(AuraCgMediaCacheKeys.Preload(request) == "sequence:" + sequenceKey, "sequence preload uses canonical cache key");
+Assert(AuraCgMediaCacheKeys.Sprite("cg.png", "black", 0.03f, 0.08f).Contains(SkillCgAlphaModes.BlackKey, StringComparison.Ordinal), "sprite key normalizes alpha aliases");
+
 Console.WriteLine($"AuraCgShared tests passed: {assertions} assertions.");
 
 void Assert(bool condition, string name)
