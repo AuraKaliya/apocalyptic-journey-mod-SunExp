@@ -135,7 +135,7 @@ public static class SolarMemoryStarterDeckRuntime
                 return;
             }
 
-            SolarMemoryModeRuntime.SanitizeSolarMemoryRoleCards(roleTable, "NormalMapManager.InitRoleTable");
+            SolarMemoryDeckIsolationRuntime.SanitizeSolarMemoryRoleCards(roleTable, "NormalMapManager.InitRoleTable");
             MarkPending(roleTable, "NormalMapManager.InitRoleTable");
         }
         catch (Exception ex)
@@ -165,7 +165,7 @@ public static class SolarMemoryStarterDeckRuntime
                 return;
             }
 
-            SolarMemoryModeRuntime.SanitizeSolarMemoryRoleCards(roleTable, source);
+            SolarMemoryDeckIsolationRuntime.SanitizeSolarMemoryRoleCards(roleTable, source);
             MarkPending(roleTable, source);
         }
         catch (Exception ex)
@@ -211,7 +211,7 @@ public static class SolarMemoryStarterDeckRuntime
                 return false;
             }
 
-            SolarMemoryModeRuntime.SanitizeSolarMemoryRoleCards(roleTable, "TryShowStarterDeckEditor:" + source);
+            SolarMemoryDeckIsolationRuntime.SanitizeSolarMemoryRoleCards(roleTable, "TryShowStarterDeckEditor:" + source);
             ClaimStarterDeckOwnership(roleTable, SunExpIds.StarterDeckStatePending);
             var candidates = BuildCandidateCardIds();
             if (candidates.Count == 0)
@@ -240,10 +240,10 @@ public static class SolarMemoryStarterDeckRuntime
 
     private static List<string> BuildCandidateCardIds()
     {
-        IEnumerable<string> packs = selectedPacks.Count > 0 ? selectedPacks : SolarMemoryModeRuntime.CurrentPackSelection();
+        IEnumerable<string> packs = selectedPacks.Count > 0 ? selectedPacks : SolarMemoryDeckIsolationRuntime.CurrentPackSelection();
         return CardIdsFromPacks(packs)
             .Where(id => !string.IsNullOrWhiteSpace(id) && !id.StartsWith("*", StringComparison.Ordinal))
-            .Where(id => !SolarMemoryModeRuntime.IsSolarMemoryEventCard(id))
+            .Where(id => !SolarMemoryDeckIsolationRuntime.IsSolarMemoryEventCard(id))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(CardSortKey)
             .ToList();
@@ -872,7 +872,7 @@ public static class SolarMemoryStarterDeckRuntime
             }
 
             var filteredDeck = deck
-                .Where(id => !SolarMemoryModeRuntime.IsSolarMemoryEventCard(id))
+                .Where(id => !SolarMemoryDeckIsolationRuntime.IsSolarMemoryEventCard(id))
                 .ToList();
             if (filteredDeck.Count != StarterDeckSize)
             {
@@ -885,16 +885,16 @@ public static class SolarMemoryStarterDeckRuntime
                     roleTable,
                     filteredDeck,
                     CreateClaim("custom"),
-                    SolarMemoryModeRuntime.IsSolarMemoryEventCard,
+                    SolarMemoryDeckIsolationRuntime.IsSolarMemoryEventCard,
                     sync: false))
             {
                 UpdateHint("\u5957\u5361\u5199\u5165\u5931\u8d25\uff0c\u8bf7\u91cd\u65b0\u9009\u62e9\u3002");
                 return;
             }
 
-            SolarMemoryModeRuntime.SanitizeSolarMemoryRoleCards(roleTable, "ApplyStarterDeck");
+            SolarMemoryDeckIsolationRuntime.SanitizeSolarMemoryRoleCards(roleTable, "ApplyStarterDeck");
             MarkPlayerApplied(roleTable, "custom");
-            SolarMemoryModeRuntime.ClearSolarMemoryReservePool(roleTable);
+            SolarMemoryDeckIsolationRuntime.ClearSolarMemoryReservePool(roleTable);
             ClosePanel();
             SolarMemoryPreparationRuntime.CompleteDeckSelection();
 
@@ -916,10 +916,10 @@ public static class SolarMemoryStarterDeckRuntime
 
     private static void KeepOfficialDeck(RoleTable roleTable, string mode)
     {
-        SolarMemoryModeRuntime.SanitizeSolarMemoryRoleCards(roleTable, "KeepOfficialDeck");
+        SolarMemoryDeckIsolationRuntime.SanitizeSolarMemoryRoleCards(roleTable, "KeepOfficialDeck");
         StarterDeckArbiterRuntime.KeepOfficialDeck(roleTable, CreateClaim(mode), sync: false);
         MarkPlayerApplied(roleTable, mode);
-        SolarMemoryModeRuntime.ClearSolarMemoryReservePool(roleTable);
+        SolarMemoryDeckIsolationRuntime.ClearSolarMemoryReservePool(roleTable);
         ClosePanel();
         SolarMemoryPreparationRuntime.CompleteDeckSelection();
         SunExpLog.Info("[SolarMemoryStarterDeck] kept official starter deck; deck=" + roleTable.cardList.Count);

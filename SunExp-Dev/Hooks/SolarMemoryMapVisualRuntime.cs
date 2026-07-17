@@ -10,9 +10,9 @@ public static class SolarMemoryMapVisualRuntime
 {
     public static void Initialize(ModConfig modConfig)
     {
-        RegisterAfter(modConfig, "MapSelectUI.DataUpdate", SolarMemoryModeRuntime.ApplySolarMemoryLayerTitle);
-        RegisterAfter(modConfig, "NormalMapManager.MapItemInit", SolarMemoryModeRuntime.ApplySolarMemoryFixedSlotsAfterMapItems);
-        RegisterAfter(modConfig, "MapSelectUI.ShowMap", SolarMemoryModeRuntime.ReapplySolarMemoryFixedSlotLocks);
+        RegisterAfter(modConfig, "MapSelectUI.DataUpdate", SolarMemoryMapProjectionRuntime.ApplySolarMemoryLayerTitle);
+        RegisterAfter(modConfig, "NormalMapManager.MapItemInit", SolarMemoryMapProjectionRuntime.ApplySolarMemoryFixedSlotsAfterMapItems);
+        RegisterAfter(modConfig, "MapSelectUI.ShowMap", SolarMemoryMapLifecycleCoordinator.ReapplySolarMemoryFixedSlotLocks);
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)

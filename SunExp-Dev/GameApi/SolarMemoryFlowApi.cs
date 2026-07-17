@@ -72,17 +72,17 @@ public static class SolarMemoryFlowApi
 
     public static void CompleteSecondSunEndingDialogue()
     {
-        SolarMemoryModeRuntime.CompleteSolarMemoryRunForSettlementFromDialogue("SolarMemoryDialogue:second_sun_without_key_card");
+        SolarMemoryBossTransitionCoordinator.CompleteSolarMemoryRunForSettlementFromDialogue("SolarMemoryDialogue:second_sun_without_key_card");
     }
 
     public static void CompleteSaintWunaPreludeDialogue()
     {
-        SolarMemoryModeRuntime.ContinueSaintWunaBossFromPreludeDialogue("SolarMemoryDialogue:saint_wuna_prelude");
+        SolarMemoryBossTransitionCoordinator.ContinueSaintWunaBossFromPreludeDialogue("SolarMemoryDialogue:saint_wuna_prelude");
     }
 
     public static void CompleteSaintWunaEndingDialogue()
     {
-        SolarMemoryModeRuntime.CompleteSolarMemoryRunForSettlementFromDialogue("SolarMemoryDialogue:saint_wuna");
+        SolarMemoryBossTransitionCoordinator.CompleteSolarMemoryRunForSettlementFromDialogue("SolarMemoryDialogue:saint_wuna");
     }
 
     public static bool IsPreparationComplete()
@@ -127,11 +127,11 @@ public static class SolarMemoryFlowApi
 
     public static void OpenDeckWindow()
     {
-        SolarMemoryModeRuntime.OpenDeckWindow();
+        SolarMemoryDeckIsolationRuntime.OpenDeckWindow();
     }
 
     public static void ShowSettlement()
     {
-        SolarMemoryModeRuntime.ShowSolarMemorySettlement();
+        SolarMemorySettlementCoordinator.ShowSolarMemorySettlement();
     }
 }

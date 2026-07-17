@@ -43,7 +43,7 @@ public static class SolarMemoryModeEntryRuntime
             "SublimationMode",
             100,
             ConfigureRegisteredEntry,
-            modeChoice => SolarMemoryRunLauncher.Start(modeChoice, SolarMemoryModeRuntime.InitialPackSelection().ToList()),
+            modeChoice => SolarMemoryRunLauncher.Start(modeChoice, SolarMemoryDeckIsolationRuntime.InitialPackSelection().ToList()),
             SunExpIds.SolarMemoryTitle,
             SunExpIds.SolarMemorySemanticModeId));
     }
@@ -419,7 +419,7 @@ public static class SolarMemoryModeEntryRuntime
         {
             switchButton.interactable = true;
             switchButton.onClick.RemoveAllListeners();
-            switchButton.onClick.AddListener(new UnityAction(() => SolarMemoryRunLauncher.Start(modeChoice, SolarMemoryModeRuntime.InitialPackSelection().ToList())));
+            switchButton.onClick.AddListener(new UnityAction(() => SolarMemoryRunLauncher.Start(modeChoice, SolarMemoryDeckIsolationRuntime.InitialPackSelection().ToList())));
         }
 
         foreach (var component in entry.GetComponentsInChildren<MonoBehaviour>(true))
@@ -433,7 +433,7 @@ public static class SolarMemoryModeEntryRuntime
         foreach (var button in entry.GetComponentsInChildren<Button>(true))
         {
             button.onClick.RemoveAllListeners();
-            button.onClick.AddListener(new UnityAction(() => SolarMemoryRunLauncher.Start(modeChoice, SolarMemoryModeRuntime.InitialPackSelection().ToList())));
+            button.onClick.AddListener(new UnityAction(() => SolarMemoryRunLauncher.Start(modeChoice, SolarMemoryDeckIsolationRuntime.InitialPackSelection().ToList())));
         }
     }
 
