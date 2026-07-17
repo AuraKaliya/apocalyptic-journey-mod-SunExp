@@ -21,9 +21,6 @@ public static class SolarMemoryModeRuntime
     private const string StoryCardTemplatePath = "Icon/CardTemplate/\u6545\u4e8b\u724c";
     private const string BuildCardTemplatePath = "Icon/CardTemplate/\u5efa\u7b51\u724c";
     private const int LegacySolarFinaleMapLevel = 30;
-    private const int SolarMemoryOpeningSlotIndex = 0;
-    private const int SolarMemoryMidLayerSlotIndex = 3;
-    private static readonly Dictionary<int, SolarMemoryFixedNodeSpec[]> FixedNodeSpecCache = new();
     private static bool handlingSolarMemoryFightAbort;
     private static bool solarMemoryStorySettlementPending;
     private static bool solarMemorySaintWunaBossTransitioning;
@@ -262,7 +259,7 @@ public static class SolarMemoryModeRuntime
 
         var layer = SolarMemoryLayer(manager);
         var changed = false;
-        foreach (var spec in FixedNodeSpecs(layer))
+        foreach (var spec in SolarMemoryFixedNodeCatalog.ForLayer(layer))
         {
             if (spec.SlotIndex < 0 || spec.SlotIndex >= nodes.Length)
             {
@@ -322,53 +319,19 @@ public static class SolarMemoryModeRuntime
         }
     }
 
-    private static IReadOnlyList<SolarMemoryFixedNodeSpec> FixedNodeSpecs(int layer)
-    {
-        var normalizedLayer = ClampSolarMemoryLayer(layer);
-        if (FixedNodeSpecCache.TryGetValue(normalizedLayer, out var cached))
-        {
-            return cached;
-        }
-
-        var specs = new List<SolarMemoryFixedNodeSpec>
-        {
-            SolarMemoryFixedNodeSpec.Event(SolarMemoryOpeningSlotIndex, normalizedLayer, SolarMemoryOpeningSlotIndex)
-        };
-
-        switch (normalizedLayer)
-        {
-            case 0:
-                specs.Add(SolarMemoryFixedNodeSpec.Event(SolarMemoryMapNodePoolFactory.EndingSlotIndex, normalizedLayer, SolarMemoryMapNodePoolFactory.EndingSlotIndex));
-                break;
-            case 1:
-                specs.Add(SolarMemoryFixedNodeSpec.Event(SolarMemoryMidLayerSlotIndex, normalizedLayer, SolarMemoryMidLayerSlotIndex));
-                specs.Add(SolarMemoryFixedNodeSpec.Boss(SolarMemoryMapNodePoolFactory.EndingSlotIndex, normalizedLayer, SunExpIds.SolarBossOrbitMirrorMapId, SunExpIds.SolarBossOrbitMirrorLevelId));
-                break;
-            case 2:
-                specs.Add(SolarMemoryFixedNodeSpec.Event(SolarMemoryMidLayerSlotIndex, normalizedLayer, SolarMemoryMidLayerSlotIndex));
-                specs.Add(SolarMemoryFixedNodeSpec.Boss(SolarMemoryMapNodePoolFactory.PenultimateSlotIndex, normalizedLayer, SunExpIds.SolarBossSecondSunMapId, SunExpIds.SolarBossSecondSunLevelId));
-                specs.Add(SolarMemoryFixedNodeSpec.Boss(SolarMemoryMapNodePoolFactory.EndingSlotIndex, normalizedLayer, SunExpIds.SolarBossSaintWunaMapId, SunExpIds.SolarBossSaintWunaLevelId));
-                break;
-        }
-
-        var result = specs.ToArray();
-        FixedNodeSpecCache[normalizedLayer] = result;
-        return result;
-    }
-
     private static Dictionary<string, string>? CreateFixedNodeData(SolarMemoryFixedNodeSpec spec)
     {
         Dictionary<string, string>? row;
         if (spec.IsEvent)
         {
-            var eventIndex = SolarMemoryEventIndex(spec.Layer, spec.MapSlotIndex);
-            var mapId = SunExpIds.SolarMemoryMapIds[eventIndex];
+            var eventIndex = SolarMemoryFixedNodeCatalog.EventIndex(spec.Layer, spec.MapSlotIndex);
+            var mapId = spec.MapId;
             var shortMapId = SunExpIds.SolarMemoryShortMapIds[eventIndex];
             row = MapRow(mapId) ?? MapRow(shortMapId);
             var data = row == null ? new Dictionary<string, string>() : new Dictionary<string, string>(row);
             data["Id"] = mapId;
             data["Type"] = "Event";
-            data["NodeId"] = SunExpIds.SolarMemoryFullEventIds[eventIndex];
+            data["NodeId"] = spec.NodeId;
             data["Level"] = "-1";
             return data;
         }
@@ -599,62 +562,6 @@ public static class SolarMemoryModeRuntime
         }
     }
 
-    private static bool RewriteSolarMemoryDefaultLayer(MapTree tree, int layer)
-    {
-        var defaultSegmentSize = DefaultLayerSegmentSize();
-        var defaultStart = layer * defaultSegmentSize;
-        if (defaultStart < 0 || defaultStart >= tree.DefaultNode.Count)
-        {
-            return false;
-        }
-
-        var changed = false;
-        tree.DefaultNode[defaultStart] = CreateSolarMemoryEventNode(tree, layer, SolarMemoryOpeningSlotIndex);
-        changed = true;
-
-        var defaultEnd = Math.Min(tree.DefaultNode.Count, defaultStart + defaultSegmentSize);
-        for (var i = defaultStart + 1; i < defaultEnd; i++)
-        {
-            tree.DefaultNode[i] = CreateBossChainNode(tree, i - defaultStart, layer);
-            changed = true;
-        }
-
-        return changed;
-    }
-
-    private static bool RewriteSolarMemorySelectLayer(MapTree tree, int layer)
-    {
-        var selectSegmentSize = SelectLayerSegmentSize();
-        var selectStart = layer * selectSegmentSize;
-        if (selectStart < 0 || selectStart >= tree.SelectNode.Count)
-        {
-            return false;
-        }
-
-        var changed = false;
-        var selectEnd = Math.Min(tree.SelectNode.Count, selectStart + selectSegmentSize);
-        for (var i = selectStart; i < selectEnd; i++)
-        {
-            var indexInSegment = i - selectStart;
-            if (indexInSegment == SolarMemoryMidLayerSlotIndex)
-            {
-                tree.SelectNode[i] = CreateSolarMemoryEventNode(tree, layer, SolarMemoryMidLayerSlotIndex);
-                changed = true;
-                continue;
-            }
-
-            if (IsBreakNode(tree.SelectNode[i]))
-            {
-                continue;
-            }
-
-            tree.SelectNode[i] = CreateBossChainNode(tree, indexInSegment, layer);
-            changed = true;
-        }
-
-        return changed;
-    }
-
     private static int SolarMemoryLayer(NormalMapManager manager)
     {
         return ClampSolarMemoryLayer(manager.Level / 6);
@@ -662,7 +569,7 @@ public static class SolarMemoryModeRuntime
 
     private static int ClampSolarMemoryLayer(int layer)
     {
-        return Math.Max(0, Math.Min(SunExpIds.SolarMemoryMaxLayer - 1, layer));
+        return SolarMemoryFixedNodeCatalog.ClampLayer(layer);
     }
 
     private static int CurrentSolarMemoryLayer()
@@ -673,24 +580,6 @@ public static class SolarMemoryModeRuntime
         }
 
         return SolarMemoryLayer(manager);
-    }
-
-    private static int SolarMemoryEventIndex(int layer, int mapSlotIndex)
-    {
-        var normalizedLayer = ClampSolarMemoryLayer(layer);
-        var slot = mapSlotIndex >= SolarMemoryMidLayerSlotIndex ? 1 : 0;
-        var index = normalizedLayer * 2 + slot;
-        return Math.Max(0, Math.Min(SunExpIds.SolarMemoryFullEventIds.Length - 1, index));
-    }
-
-    private static int DefaultLayerSegmentSize()
-    {
-        return Math.Max(1, 2 + GameSaveManager.GetValue<int>(GameVar.ExLockDes));
-    }
-
-    private static int SelectLayerSegmentSize()
-    {
-        return Math.Max(1, 8 - GameSaveManager.GetValue<int>(GameVar.ExDeleteDes));
     }
 
     private static void RepairSolarMemoryMapSelection(ModHookContext context)
@@ -832,94 +721,22 @@ public static class SolarMemoryModeRuntime
 
     private static bool RepairSolarMemoryMapArrays(string[] maps, string[] mapData)
     {
-        if (maps.Length == 0 || mapData.Length == 0)
-        {
-            return false;
-        }
-
         var layer = CurrentSolarMemoryLayer();
-        var fixedSpecs = FixedNodeSpecs(layer);
-        var changed = false;
-        foreach (var spec in fixedSpecs)
-        {
-            changed = RepairSolarMemorySyncIndex(maps, mapData, spec) || changed;
-        }
-
-        var count = Math.Min(maps.Length, mapData.Length);
-        for (var i = 0; i < count; i++)
-        {
-            if (IsFixedNodeSlot(fixedSpecs, i))
-            {
-                continue;
-            }
-
-            if (IsSolarMemoryMapId(maps[i]) || IsSolarMemoryEventId(mapData[i]))
-            {
-                var repairSpec = SolarMemoryFixedNodeSpec.Event(i, layer, i);
-                changed = RepairSolarMemorySyncIndex(maps, mapData, repairSpec) || changed;
-            }
-        }
-
-        return changed;
-    }
-
-    private static bool IsFixedNodeSlot(IReadOnlyList<SolarMemoryFixedNodeSpec> specs, int slotIndex)
-    {
-        for (var i = 0; i < specs.Count; i++)
-        {
-            if (specs[i].SlotIndex == slotIndex)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool RepairSolarMemorySyncIndex(string[] maps, string[] mapData, SolarMemoryFixedNodeSpec spec)
-    {
-        if (spec.SlotIndex < 0 || spec.SlotIndex >= maps.Length || spec.SlotIndex >= mapData.Length)
-        {
-            return false;
-        }
-
-        var expectedMapId = spec.MapId;
-        var expectedNodeId = spec.NodeId;
-        if (spec.IsEvent)
-        {
-            var eventIndex = SolarMemoryEventIndex(spec.Layer, spec.MapSlotIndex);
-            expectedMapId = SunExpIds.SolarMemoryMapIds[eventIndex];
-            expectedNodeId = SunExpIds.SolarMemoryFullEventIds[eventIndex];
-        }
-
-        var changed = false;
-        if (maps[spec.SlotIndex] != expectedMapId)
-        {
-            maps[spec.SlotIndex] = expectedMapId;
-            changed = true;
-        }
-
-        if (mapData[spec.SlotIndex] != expectedNodeId)
-        {
-            mapData[spec.SlotIndex] = expectedNodeId;
-            changed = true;
-        }
-
-        if (changed)
+        var repairCount = SolarMemoryMapSyncRepairService.Repair(maps, mapData, layer, repair =>
         {
             SunExpLog.Info("[SolarMemoryMapSync] repaired index="
-                + spec.SlotIndex
+                + repair.SlotIndex
                 + "; layer="
-                + spec.Layer
+                + repair.Layer
                 + "; slot="
-                + spec.MapSlotIndex
+                + repair.MapSlotIndex
                 + "; map="
-                + expectedMapId
+                + repair.MapId
                 + "; node="
-                + expectedNodeId);
-        }
+                + repair.NodeId);
+        });
 
-        return changed;
+        return repairCount > 0;
     }
 
     private static void EnsureSolarMemoryCurrentNodeForTransition(string source)
@@ -1531,42 +1348,6 @@ public static class SolarMemoryModeRuntime
         return id.StartsWith(prefix, StringComparison.Ordinal) ? id.Substring(prefix.Length) : id;
     }
 
-    private static MapTree.Node CreateSolarMemoryEventNode(MapTree tree, int layer, int mapSlotIndex)
-    {
-        var eventIndex = SolarMemoryEventIndex(layer, mapSlotIndex);
-        var mapId = SunExpIds.SolarMemoryMapIds[eventIndex];
-        var shortMapId = SunExpIds.SolarMemoryShortMapIds[eventIndex];
-        var eventId = SunExpIds.SolarMemoryFullEventIds[eventIndex];
-        var data = SunExpConfigIndex.Row(DataType.Map, mapId)
-            ?? SunExpConfigIndex.Row(DataType.Map, shortMapId);
-        var node = new MapTree.Node("普通事件");
-        node.type = "普通事件";
-        node.data = data == null ? new Dictionary<string, string>() : new Dictionary<string, string>(data);
-        node.data["Id"] = mapId;
-        node.data["Type"] = "Event";
-        node.data["Note"] = "普通事件";
-        node.data["NodeId"] = eventId;
-        node.data["Level"] = "-1";
-        node.NodeDice = Dice.Default;
-        return node;
-    }
-
-    private static MapTree.Node CreateBossChainNode(MapTree tree, int indexInSegment, int segment)
-    {
-        return tree.TypeGenerate("首领");
-    }
-
-    private static bool IsBreakNode(MapTree.Node node)
-    {
-        if (node?.data == null)
-        {
-            return false;
-        }
-
-        return (node.data.TryGetValue("NodeId", out var nodeId) && nodeId.Contains("Breaks"))
-            || (node.data.TryGetValue("Id", out var id) && id.Contains("Breaks"));
-    }
-
     public static bool IsSolarMemoryRun()
     {
         return GameSaveManager.GetValue<string>(SunExpIds.SolarMemoryModeKey) == "1";
@@ -1866,48 +1647,6 @@ public static class SolarMemoryModeRuntime
 
         var property = component.GetType().GetProperty("text");
         property?.SetValue(component, value);
-    }
-
-    private sealed class SolarMemoryFixedNodeSpec
-    {
-        private SolarMemoryFixedNodeSpec(int slotIndex, int layer, int mapSlotIndex, bool isEvent, string mapId, string nodeId)
-        {
-            SlotIndex = slotIndex;
-            Layer = layer;
-            MapSlotIndex = mapSlotIndex;
-            IsEvent = isEvent;
-            MapId = mapId;
-            NodeId = nodeId;
-        }
-
-        public int SlotIndex { get; }
-
-        public int Layer { get; }
-
-        public int MapSlotIndex { get; }
-
-        public bool IsEvent { get; }
-
-        public string MapId { get; }
-
-        public string NodeId { get; }
-
-        public static SolarMemoryFixedNodeSpec Event(int slotIndex, int layer, int mapSlotIndex)
-        {
-            var eventIndex = SolarMemoryEventIndex(layer, mapSlotIndex);
-            return new SolarMemoryFixedNodeSpec(
-                slotIndex,
-                layer,
-                mapSlotIndex,
-                true,
-                SunExpIds.SolarMemoryMapIds[eventIndex],
-                SunExpIds.SolarMemoryFullEventIds[eventIndex]);
-        }
-
-        public static SolarMemoryFixedNodeSpec Boss(int slotIndex, int layer, string mapId, string levelId)
-        {
-            return new SolarMemoryFixedNodeSpec(slotIndex, layer, slotIndex, false, mapId, levelId);
-        }
     }
 
 }

@@ -10,10 +10,10 @@ namespace SunExp.Dll.Mechanics;
 
 public static class SolarMemoryMapNodePoolFactory
 {
-    public const int OpeningSlotIndex = 0;
-    public const int MidLayerSlotIndex = 3;
-    public const int PenultimateSlotIndex = 4;
-    public const int EndingSlotIndex = 5;
+    public const int OpeningSlotIndex = SolarMemoryFixedNodeCatalog.OpeningSlotIndex;
+    public const int MidLayerSlotIndex = SolarMemoryFixedNodeCatalog.MidLayerSlotIndex;
+    public const int PenultimateSlotIndex = SolarMemoryFixedNodeCatalog.PenultimateSlotIndex;
+    public const int EndingSlotIndex = SolarMemoryFixedNodeCatalog.EndingSlotIndex;
     private static readonly MethodInfo? DiceWithCursorMethod = typeof(Dice).GetMethod(
         "WithCursor",
         BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
@@ -74,15 +74,12 @@ public static class SolarMemoryMapNodePoolFactory
 
     public static int ClampLayer(int layer)
     {
-        return Math.Max(0, Math.Min(SunExpIds.SolarMemoryMaxLayer - 1, layer));
+        return SolarMemoryFixedNodeCatalog.ClampLayer(layer);
     }
 
     public static int EventIndex(int layer, int mapSlotIndex)
     {
-        var normalizedLayer = ClampLayer(layer);
-        var slot = mapSlotIndex >= MidLayerSlotIndex ? 1 : 0;
-        var index = normalizedLayer * 2 + slot;
-        return Math.Max(0, Math.Min(SunExpIds.SolarMemoryFullEventIds.Length - 1, index));
+        return SolarMemoryFixedNodeCatalog.EventIndex(layer, mapSlotIndex);
     }
 
     public static int DefaultLayerSegmentSize()

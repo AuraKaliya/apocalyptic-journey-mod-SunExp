@@ -124,6 +124,9 @@ $requiredFiles = @(
     "SunExp-Dev\Mechanics\MapNodeCardArtRegistry.cs",
     "SunExp-Dev\Mechanics\MapNodeTextureFitService.cs",
     "SunExp-Dev\Mechanics\MapNodeSafetyService.cs",
+    "SunExp-Dev\Mechanics\SolarMemoryFixedNodeSpec.cs",
+    "SunExp-Dev\Mechanics\SolarMemoryMapSyncRepairService.cs",
+    "SunExp-Dev\Mechanics\SolarMemoryContentIsolationService.cs",
     "SunExp-Dev\Mechanics\SolarMemoryMapNodePoolFactory.cs",
     "SunExp-Dev\Mechanics\EndlessSeaNodeKind.cs",
     "SunExp-Dev\Mechanics\EndlessSeaNodePoolService.cs",
@@ -383,6 +386,9 @@ $projectionScripts = Read-RepoText "SunExp-Dev\Scripting\ProjectionScripts.cs"
 $mapNodeCardArtRegistry = Read-RepoText "SunExp-Dev\Mechanics\MapNodeCardArtRegistry.cs"
 $mapNodeTextureFitService = Read-RepoText "SunExp-Dev\Mechanics\MapNodeTextureFitService.cs"
 $mapNodeSafetyService = Read-RepoText "SunExp-Dev\Mechanics\MapNodeSafetyService.cs"
+$solarMemoryFixedNodeSpec = Read-RepoText "SunExp-Dev\Mechanics\SolarMemoryFixedNodeSpec.cs"
+$solarMemoryMapSyncRepairService = Read-RepoText "SunExp-Dev\Mechanics\SolarMemoryMapSyncRepairService.cs"
+$solarMemoryContentIsolationService = Read-RepoText "SunExp-Dev\Mechanics\SolarMemoryContentIsolationService.cs"
 $solarMemoryMapNodePoolFactory = Read-RepoText "SunExp-Dev\Mechanics\SolarMemoryMapNodePoolFactory.cs"
 $endlessSeaNodePoolService = Read-RepoText "SunExp-Dev\Mechanics\EndlessSeaNodePoolService.cs"
 $endlessSeaEnemyPool = Read-RepoText "SunExp-Dev\Mechanics\EndlessSeaEnemyPool.cs"
@@ -1813,6 +1819,16 @@ Assert-Contains $solarFinaleService "public static class SolarFinaleStateService
 Assert-Contains $solarMemoryStoryGateService "public static class SolarMemoryStoryGateService" "Solar Memory story gates must be centralized in Mechanics."
 Assert-Contains $solarMemoryStoryGateService "DialogueFlowService.Start" "Solar Memory story gates must start managed dialogue flows instead of owning native choice scripts."
 Assert-NotContains $solarMemoryStoryGateService "SunExp.Dll.Hooks" "Mechanics story gates must not depend on Hook runtime classes."
+Assert-Contains $solarMemoryFixedNodeSpec "internal static class SolarMemoryFixedNodeCatalog" "Solar Memory fixed-node ownership must live in a focused Mechanics catalog."
+Assert-Contains $solarMemoryMapSyncRepairService "SolarMemoryFixedNodeCatalog.ForLayer" "Solar Memory map sync repair must consume the fixed-node catalog."
+Assert-Contains $solarMemoryContentIsolationService "public static int SanitizeSelectionArrays" "Solar Memory content isolation must expose a pure synchronized-array boundary."
+Assert-NotContains ($solarMemoryFixedNodeSpec + "`n" + $solarMemoryMapSyncRepairService + "`n" + $solarMemoryContentIsolationService) "using Witch" "Solar Memory pure map policies must not depend on game or Unity object types."
+Assert-Contains $solarMemoryModeRuntime "SolarMemoryMapSyncRepairService.Repair" "SolarMemoryModeRuntime must delegate synchronized array repair to Mechanics."
+Assert-NotContains $solarMemoryModeRuntime "private sealed class SolarMemoryFixedNodeSpec" "SolarMemoryModeRuntime must not own fixed-node specifications."
+Assert-NotContains $solarMemoryModeRuntime "RepairSolarMemorySyncIndex" "SolarMemoryModeRuntime must not retain synchronized array mutation details."
+Assert-NotContains $solarMemoryModeRuntime "RewriteSolarMemoryDefaultLayer" "SolarMemoryModeRuntime must not retain the retired duplicate map rewrite path."
+Assert-NotContains $solarMemoryModeRuntime "CreateBossChainNode" "SolarMemoryModeRuntime must not generate map pools outside the node-pool factory."
+Assert-Contains $solarMemoryContentIsolationRuntime "SolarMemoryContentIsolationService.SanitizeSelectionArrays" "SolarMemoryContentIsolationRuntime must delegate synchronized array mutation to Mechanics."
 Assert-NotMatches ($eventScripts + "`n" + $bossScripts) "PlayerApi\.SetGameVar\(SunExpIds\.SolarFinale" "Solar finale GameVar writes must stay inside SolarFinaleStateService."
 Assert-NotContains $eventScripts "SolarFinaleStateService" "Retired solar finale events must not leave EventScripts coupled to finale state."
 Assert-Contains $bossScripts "SolarFinaleStateService.MakeNameless(1)" "BossScripts must keep name-ledger changes centralized in SolarFinaleStateService."

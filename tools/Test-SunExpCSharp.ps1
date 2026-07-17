@@ -89,6 +89,9 @@ function New-ProjectXml {
     $endlessSeaNodeKind = Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessSeaNodeKind.cs"
     $endlessAbyssEnemyScaling = Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssEnemyScalingService.cs"
     $endlessAbyssEvacuationDepth = Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssEvacuationDepth.cs"
+    $solarMemoryFixedNodeSpec = Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarMemoryFixedNodeSpec.cs"
+    $solarMemoryMapSyncRepairService = Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarMemoryMapSyncRepairService.cs"
+    $solarMemoryContentIsolationService = Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarMemoryContentIsolationService.cs"
 
 @"
 <Project Sdk="Microsoft.NET.Sdk">
@@ -144,6 +147,9 @@ function New-ProjectXml {
     <Compile Include="$endlessSeaNodeKind" />
     <Compile Include="$endlessAbyssEnemyScaling" />
     <Compile Include="$endlessAbyssEvacuationDepth" />
+    <Compile Include="$solarMemoryFixedNodeSpec" />
+    <Compile Include="$solarMemoryMapSyncRepairService" />
+    <Compile Include="$solarMemoryContentIsolationService" />
     <Compile Include="$SourceDir\Tests.cs" />
   </ItemGroup>
 </Project>
@@ -558,6 +564,9 @@ internal static class Program
         TestWhiteRadianceTags();
         TestTemporaryWhiteRadianceClaim();
         TestSolarMemoryIsolationIds();
+        TestSolarMemoryFixedNodeCatalog();
+        TestSolarMemoryMapSyncRepair();
+        TestSolarMemoryContentIsolation();
         TestCardVisualSkinRegistry();
         TestCardVisualEffectRegistry();
         TestCardVisualInterestIndex();
@@ -645,6 +654,105 @@ internal static class Program
         True(SunExpIds.IsSolarMemoryExclusiveEventId("SunExp_sunexp_Sub_solar_memory_second_sun"), "Full Solar Memory story event ids are exclusive");
         False(SunExpIds.IsSolarMemoryExclusiveEventId("Sub_wuna_event_1"), "Retired Wuna story event ids are no longer shipped exclusive events");
         False(SunExpIds.IsSolarMemoryExclusiveEventId("event_2001"), "Base game event ids are not Solar Memory exclusive");
+    }
+
+    private static void TestSolarMemoryFixedNodeCatalog()
+    {
+        var firstLayer = SolarMemoryFixedNodeCatalog.ForLayer(-1);
+        Equal(2, firstLayer.Count, "Solar Memory first layer keeps opening and ending story locks");
+        Equal(SolarMemoryFixedNodeCatalog.OpeningSlotIndex, firstLayer[0].SlotIndex, "Solar Memory opening story stays in slot zero");
+        Equal(SunExpIds.SolarMemoryMapIds[0], firstLayer[0].MapId, "Solar Memory first opening story resolves from the fixed id catalog");
+        Equal(SunExpIds.SolarMemoryFullEventIds[1], firstLayer[1].NodeId, "Solar Memory first ending story resolves the second layer event id");
+
+        var secondLayer = SolarMemoryFixedNodeCatalog.ForLayer(1);
+        Equal(3, secondLayer.Count, "Solar Memory second layer keeps two stories and the mirror boss");
+        Equal(SolarMemoryFixedNodeCatalog.MidLayerSlotIndex, secondLayer[1].SlotIndex, "Solar Memory second story stays in the fourth slot");
+        Equal(SunExpIds.SolarBossOrbitMirrorMapId, secondLayer[2].MapId, "Solar Memory second layer ends at the mirror boss");
+
+        var finalLayer = SolarMemoryFixedNodeCatalog.ForLayer(99);
+        Equal(4, finalLayer.Count, "Solar Memory final layer keeps two stories and two fixed bosses");
+        Equal(SunExpIds.SolarMemoryMapIds[4], finalLayer[0].MapId, "Solar Memory final layer opening resolves the fifth story map");
+        Equal(SunExpIds.SolarMemoryFullEventIds[5], finalLayer[1].NodeId, "Solar Memory final mid slot resolves the sixth story event");
+        Equal(SunExpIds.SolarBossSecondSunMapId, finalLayer[2].MapId, "Solar Memory final penultimate slot is the second-sun boss");
+        Equal(SunExpIds.SolarBossSaintWunaMapId, finalLayer[3].MapId, "Solar Memory final ending slot is Saint Wuna");
+    }
+
+    private static void TestSolarMemoryMapSyncRepair()
+    {
+        var maps = new[]
+        {
+            "map_0",
+            SunExpIds.SolarBossOrbitMirrorMapId,
+            "map_2",
+            "map_3",
+            "map_4",
+            "map_5"
+        };
+        var mapData = new[] { "node_0", "node_1", "node_2", "node_3", "node_4", "node_5" };
+        var repairs = new List<SolarMemoryMapSyncRepair>();
+
+        Equal(5,
+            SolarMemoryMapSyncRepairService.Repair(maps, mapData, 2, repairs.Add),
+            "Solar Memory sync repair fixes every final-layer lock and misplaced exclusive node");
+        Equal(5, repairs.Count, "Solar Memory sync repair reports each changed index once");
+        Equal(SunExpIds.SolarMemoryMapIds[4], maps[0], "Solar Memory sync repair restores the final-layer opening story");
+        Equal(SunExpIds.SolarMemoryMapIds[4], maps[1], "Solar Memory sync repair replaces misplaced exclusive nodes deterministically");
+        Equal("map_2", maps[2], "Solar Memory sync repair preserves ordinary unlocked slots");
+        Equal(SunExpIds.SolarMemoryFullEventIds[5], mapData[3], "Solar Memory sync repair restores the final-layer mid story");
+        Equal(SunExpIds.SolarBossSecondSunLevelId, mapData[4], "Solar Memory sync repair restores the second-sun level id");
+        Equal(SunExpIds.SolarBossSaintWunaLevelId, mapData[5], "Solar Memory sync repair restores the Saint Wuna level id");
+        Equal(0,
+            SolarMemoryMapSyncRepairService.Repair(maps, mapData, 2),
+            "Solar Memory sync repair is idempotent after arrays are normalized");
+
+        var shortMaps = new[] { "map_0", "map_1", "map_2" };
+        var shortData = new[] { "node_0" };
+        Equal(1,
+            SolarMemoryMapSyncRepairService.Repair(shortMaps, shortData, 0),
+            "Solar Memory sync repair respects mismatched synchronized array lengths");
+    }
+
+    private static void TestSolarMemoryContentIsolation()
+    {
+        var maps = new[]
+        {
+            "map_0",
+            SunExpIds.SolarMemoryMapIds[0],
+            "map_2",
+            SunExpIds.SolarBossSaintWunaMapId
+        };
+        var mapData = new[]
+        {
+            "node_0",
+            SunExpIds.SolarMemoryFullEventIds[0],
+            SunExpIds.SolarMemoryFullEventIds[1],
+            SunExpIds.SolarBossSaintWunaLevelId
+        };
+        var resolverCalls = 0;
+        var replaced = SolarMemoryContentIsolationService.SanitizeSelectionArrays(
+            maps,
+            mapData,
+            (_, _, index) =>
+            {
+                resolverCalls++;
+                return index switch
+                {
+                    1 => new SolarMemoryMapSelectionReplacement("safe_event_map", "event_2001"),
+                    2 => new SolarMemoryMapSelectionReplacement("safe_fight_map", "level_2001"),
+                    _ => new SolarMemoryMapSelectionReplacement(
+                        SunExpIds.SolarBossSaintWunaMapId,
+                        SunExpIds.SolarBossSaintWunaLevelId)
+                };
+            });
+
+        Equal(3, resolverCalls, "Solar Memory isolation resolves only exclusive synchronized choices");
+        Equal(2, replaced, "Solar Memory isolation applies only safe non-exclusive replacements");
+        Equal("map_0", maps[0], "Solar Memory isolation preserves ordinary synchronized choices");
+        Equal("safe_event_map", maps[1], "Solar Memory isolation replaces an exclusive map and event pair");
+        Equal("safe_fight_map", maps[2], "Solar Memory isolation replaces a normal map carrying an exclusive event id");
+        Equal(SunExpIds.SolarBossSaintWunaMapId, maps[3], "Solar Memory isolation rejects an exclusive replacement result");
+        False(SolarMemoryContentIsolationService.RequiresReplacement("map_0", "event_2001"), "Solar Memory isolation accepts ordinary map selections");
+        True(SolarMemoryContentIsolationService.RequiresReplacement("map_0", SunExpIds.SolarMemoryFullEventIds[0]), "Solar Memory isolation detects exclusive event ids independently");
     }
 
     private static void TestCombatCardViewPoolCatalog()
@@ -1849,6 +1957,9 @@ function Invoke-SourceAssertions {
     $modConfig = Get-Content -LiteralPath (Join-Path $RepoRoot "SunExp\ModConfig.json") -Raw | ConvertFrom-Json
     $solarMemoryMapNodePoolFactory = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarMemoryMapNodePoolFactory.cs"))
     $solarMemoryMapNodePoolApplier = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarMemoryMapNodePoolApplier.cs"))
+    $solarMemoryFixedNodeSpec = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarMemoryFixedNodeSpec.cs"))
+    $solarMemoryMapSyncRepairService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarMemoryMapSyncRepairService.cs"))
+    $solarMemoryContentIsolationService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarMemoryContentIsolationService.cs"))
     $mapNodeSafetyService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\MapNodeSafetyService.cs"))
     $mapData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Map\sunexp.csv"))
     $mapText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\Map\sunexp.csv"))
@@ -2226,6 +2337,9 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemoryContentIsolationRuntime.Contains('RegisterBefore(modConfig, "MapSelectUI.ReadyToSelect", SanitizeMapBeforeSelect)') "Solar Memory isolation must clean old generated nodes before map selection UI is built."
     Assert-True $solarMemoryContentIsolationRuntime.Contains('RegisterBefore(modConfig, "MapManager.RpcNextMap", RepairCurrentNodeBeforeNextMap)') "Normal-mode isolation must repair missing client current nodes before RpcNextMap consumes them."
     Assert-True $solarMemoryContentIsolationRuntime.Contains("SanitizeSelectionArrays(maps, mapData, level)") "Solar Memory isolation must repair multiplayer map selection arrays."
+    Assert-True $solarMemoryContentIsolationRuntime.Contains("SolarMemoryContentIsolationService.SanitizeSelectionArrays") "Solar Memory isolation runtime must delegate synchronized array mutation to the pure Mechanics service."
+    Assert-True $solarMemoryContentIsolationService.Contains("SunExpIds.IsSolarMemoryExclusiveMapId") "Solar Memory isolation policy must use centralized exclusive map ids."
+    Assert-True $solarMemoryContentIsolationService.Contains("!RequiresReplacement(replacement.MapId, replacement.NodeId)") "Solar Memory isolation policy must reject exclusive fallback results."
     Assert-True $solarMemoryContentIsolationRuntime.Contains('RestoreCurrentNodeIfMissingOrExclusive(level, "MapSelectUI.ReadyToSelect", clientOnly: true)') "Normal-mode isolation must restore a missing client current node before map selection UI is consumed."
     Assert-True $solarMemoryContentIsolationRuntime.Contains('RestoreCurrentNodeIfMissingOrExclusive(level, "MapManager.MapSelectionSync", clientOnly: true)') "Normal-mode map sync isolation must repair client currentNode from synchronized arrays."
     Assert-True $solarMemoryContentIsolationRuntime.Contains("MapNodeSafetyService.EnsureNodeDice") "Normal-mode isolation must ensure replacement nodes have NodeDice."
@@ -3013,10 +3127,12 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemoryMapVisualRuntime.Contains('"MapSelectUI.DataUpdate", SolarMemoryModeRuntime.ApplySolarMemoryLayerTitle') "Solar memory must override map layer titles in MapSelectUI."
     Assert-True $solarMemoryMapVisualRuntime.Contains('"NormalMapManager.MapItemInit", SolarMemoryModeRuntime.ApplySolarMemoryFixedSlotsAfterMapItems') "Solar memory map visuals must repair fixed slots after native map item creation."
     Assert-True $solarMemoryMapVisualRuntime.Contains('"MapSelectUI.ShowMap", SolarMemoryModeRuntime.ReapplySolarMemoryFixedSlotLocks') "Solar memory map visuals must reapply fixed-slot locks when the map is shown."
-    Assert-True $solarMemoryMapNodePoolFactory.Contains("MidLayerSlotIndex = 3") "Solar memory must reserve the fourth map slot for the second story event in each layer."
+    Assert-True $solarMemoryFixedNodeSpec.Contains("MidLayerSlotIndex = 3") "Solar memory must reserve the fourth map slot for the second story event in each layer."
     Assert-True $solarMemoryMapNodePoolFactory.Contains("CreateSolarMemoryEventNode(layer, OpeningSlotIndex)") "Solar memory default nodes must use the per-layer opening story event."
     Assert-True (-not $solarMemoryMapNodePoolFactory.Contains("CreateSolarMemoryEventNode(layer, MidLayerSlotIndex)")) "Solar memory SelectNode entries must not expose fixed story events as draggable candidates."
-    Assert-True $solarMemoryModeRuntime.Contains("SolarMemoryFixedNodeSpec.Event(SolarMemoryMidLayerSlotIndex") "Solar memory runtime must lock the fourth map node as the second story event."
+    Assert-True $solarMemoryFixedNodeSpec.Contains("SolarMemoryFixedNodeSpec.Event(MidLayerSlotIndex") "Solar memory fixed-node catalog must lock the fourth map node as the second story event."
+    Assert-True $solarMemoryModeRuntime.Contains("SolarMemoryFixedNodeCatalog.ForLayer(layer)") "Solar memory runtime must consume fixed slots through the Mechanics catalog."
+    Assert-True (-not $solarMemoryModeRuntime.Contains("private sealed class SolarMemoryFixedNodeSpec")) "Solar memory runtime must not own fixed-node specifications."
     Assert-True (-not $solarMemoryModeRuntime.Contains("EnsureSolarMemoryMapBeforeMapItems")) "Solar memory must not rewrite MapTree immediately before native MapItemInit consumes default nodes."
     Assert-True (-not $solarMemoryModeRuntime.Contains("NormalMapManager.MapItemInit:before")) "Solar memory MapItemInit hooks must not call ApplyToCurrentLayer before native map item creation."
     Assert-True (-not $solarMemoryMapNodePoolFactory.Contains("GenerateFinaleLayer")) "Solar memory must not generate a dedicated finale map layer while third-layer completion settles immediately."
@@ -3136,7 +3252,11 @@ function Invoke-SourceAssertions {
     Assert-True $keywordText.Contains('"Nameless Person"') "Keyword dictionary must expose Nameless Person."
     Assert-True ($enemyCardText.Contains("enemycard_saint_purification,,") -and $enemyCardText.Contains("Saintly Purification")) "Saint purification enemy-card text must use the updated purification name."
     Assert-True ($enemyCardText.Contains("enemycard_saint_return_to_court,,") -and $enemyCardText.Contains("Name Engraved Homeward")) "Saint return enemy-card text must use the updated court-return name."
-    Assert-True $solarMemoryModeRuntime.Contains("foreach (var spec in FixedNodeSpecs(layer))") "Solar memory sync repair must force every fixed map node id."
+    Assert-True $solarMemoryMapSyncRepairService.Contains("SolarMemoryFixedNodeCatalog.ForLayer") "Solar memory sync repair must force every fixed map node id through the shared catalog."
+    Assert-True $solarMemoryModeRuntime.Contains("SolarMemoryMapSyncRepairService.Repair") "Solar memory runtime must delegate synchronized array repair to Mechanics."
+    Assert-True (-not $solarMemoryModeRuntime.Contains("RepairSolarMemorySyncIndex")) "Solar memory runtime must not retain synchronized array mutation details."
+    Assert-True (-not $solarMemoryModeRuntime.Contains("RewriteSolarMemoryDefaultLayer")) "Solar memory runtime must not retain the retired duplicate map rewrite path."
+    Assert-True (-not $solarMemoryModeRuntime.Contains("CreateBossChainNode")) "Solar memory runtime must leave map-pool generation to the dedicated factory."
     Assert-True $gameCompatibilityApi.Contains("public static List<Dictionary<string, string>> GetItemsByPack") "Game compatibility API must expose version-safe card-pack item lookup."
     Assert-True $gameCompatibilityApi.Contains("CurrentGetItemsByPack") "Card-pack compatibility lookup must support the current three-argument game API."
     Assert-True $gameCompatibilityApi.Contains("LegacyGetItemsByPack") "Card-pack compatibility lookup must support the legacy two-argument game API."
@@ -3172,8 +3292,8 @@ function Invoke-SourceAssertions {
     Assert-True $sunExpHardTagRuntime.Contains('RegisterBefore(modConfig, SunExpHookTargets.SkillItemTrueUse, OnSkillUseBefore)') "Stagnant Water must hook skill use before native cooldown is set."
     Assert-True $sunExpHardTagRuntime.Contains('RegisterAfter(modConfig, SunExpHookTargets.SkillItemTrueUse, OnSkillUseAfter)') "Stagnant Water must hook skill use after native cooldown is set."
     Assert-True $sunExpHardTagRuntime.Contains('new SunExpFrameStep("BlackSunListener"') "A Sunset Expedition failure must not prevent Black Sun listener registration."
-    Assert-True $solarMemoryModeRuntime.Contains("SunExpIds.SolarMemoryMapIds[eventIndex]") "Solar memory sync repair must use the fixed story map id array."
-    Assert-True $solarMemoryModeRuntime.Contains("SunExpIds.SolarMemoryFullEventIds[eventIndex]") "Solar memory sync repair must use the fixed story event id array."
+    Assert-True $solarMemoryFixedNodeSpec.Contains("SunExpIds.SolarMemoryMapIds[eventIndex]") "Solar memory fixed-node catalog must use the fixed story map id array."
+    Assert-True $solarMemoryFixedNodeSpec.Contains("SunExpIds.SolarMemoryFullEventIds[eventIndex]") "Solar memory fixed-node catalog must use the fixed story event id array."
     Assert-True $eventScripts.Contains("public static void InitSolarMemoryNode") "Solar memory fixed story events must expose an init method."
     Assert-True $eventScripts.Contains("public static void ContinueSolarMemory") "Solar memory fixed story events must expose a continue method."
     Assert-True (-not $eventScripts.Contains("SunExp.Dll.Hooks")) "Solar memory event scripts must not import Hooks directly."

@@ -214,32 +214,28 @@ public static class SolarMemoryContentIsolationRuntime
 
     private static bool SanitizeSelectionArrays(string[] maps, string[] mapData, int level)
     {
-        var changed = false;
-        var count = Math.Min(maps.Length, mapData.Length);
-        for (var i = 0; i < count; i++)
+        var replaced = SolarMemoryContentIsolationService.SanitizeSelectionArrays(
+            maps,
+            mapData,
+            (mapId, nodeId, _) =>
         {
-            if (!SunExpIds.IsSolarMemoryExclusiveMapId(maps[i])
-                && !SunExpIds.IsSolarMemoryExclusiveEventId(mapData[i]))
-            {
-                continue;
-            }
-
-            var exclusiveRow = FindMapById(maps[i]);
-            var fallback = FindFallbackMap(exclusiveRow, level, maps[i]);
+            var exclusiveRow = FindMapById(mapId);
+            var fallback = FindFallbackMap(exclusiveRow, level, mapId);
             if (fallback == null)
             {
-                SunExpLog.Warn("[SolarMemoryIsolation] no synchronized fallback found for " + maps[i] + ".");
-                continue;
+                SunExpLog.Warn("[SolarMemoryIsolation] no synchronized fallback found for " + mapId + ".");
+                return null;
             }
 
-            maps[i] = DictionaryUtil.Get(fallback, "Id");
-            mapData[i] = string.Equals(DictionaryUtil.Get(fallback, "Type"), "Event", StringComparison.Ordinal)
-                ? ResolveEventId(mapData[i], fallback)
+            var fallbackNodeId = string.Equals(DictionaryUtil.Get(fallback, "Type"), "Event", StringComparison.Ordinal)
+                ? ResolveEventId(nodeId, fallback)
                 : DictionaryUtil.Get(fallback, "NodeId");
-            changed = true;
-        }
+            return new SolarMemoryMapSelectionReplacement(
+                DictionaryUtil.Get(fallback, "Id"),
+                fallbackNodeId);
+        });
 
-        return changed;
+        return replaced > 0;
     }
 
     private static Dictionary<string, string>? FindFallbackMap(
