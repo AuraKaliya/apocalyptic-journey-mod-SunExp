@@ -109,6 +109,9 @@ $auraCgNetworkPolicy = Read-RepoText "AuraCgShared\AuraCgNetworkPolicy.cs"
 $auraCgPlaybackClaims = Read-RepoText "AuraCgShared\AuraCgPlaybackClaimStore.cs"
 $auraCgPreloadCoordinator = Read-RepoText "AuraCgShared\AuraCgPreloadCoordinator.cs"
 $auraCgMediaCache = Read-RepoText "AuraCgShared\AuraCgMediaCache.cs"
+$auraCgMediaCacheModels = Read-RepoText "AuraCgShared\AuraCgMediaCacheModels.cs"
+$auraCgMediaRetentionLedger = Read-RepoText "AuraCgShared\AuraCgMediaRetentionLedger.cs"
+$auraCgMediaReleaseQueue = Read-RepoText "AuraCgShared\AuraCgMediaReleaseQueue.cs"
 $auraCgMediaCacheKeys = Read-RepoText "AuraCgShared\AuraCgMediaCacheKeys.cs"
 Require-Text $auraCgRegistryQuery "internal static class AuraCgRegistryQueryService" "AuraCg registry matching must stay in its pure query service."
 Require-Text $auraCgRegistryQuery "MatchesTrigger" "AuraCg registry query service must own trigger matching."
@@ -120,13 +123,25 @@ Require-Text $auraCgPlaybackClaims "public void Clear\(\)" "AuraCg playback clai
 Require-Text $auraCgPreloadCoordinator "maximumAdventureKeys" "AuraCg adventure preload history must remain bounded."
 Require-Text $auraCgPreloadCoordinator "CompletePreload" "AuraCg pending preload claims must have an explicit completion path."
 Require-Text $auraCgMediaCache "internal sealed class AuraCgMediaCache<TSprite, TBundle>" "AuraCg media references must have one explicit cache owner."
+Require-Text $auraCgMediaCache "maximumEstimatedBytes" "AuraCg media retention must have an estimated-byte budget."
+Require-Text $auraCgMediaCache "EstimatedBytes > maximumEstimatedBytes" "AuraCg media LRU must enforce its byte budget."
+Require-Text $auraCgMediaCache "LinkedList<AuraCgMediaCacheEntry<TSprite, TBundle>> recency" "AuraCg media entries must share one global LRU order."
+Require-Text $auraCgMediaRetentionLedger "ReferenceCount" "AuraCg media eviction must account for the same resource referenced by multiple cache entries."
+Require-Text $auraCgMediaCacheModels "AuraCgReferenceComparer<T>" "AuraCg media accounting must use resource instance identity instead of Unity-style value equality."
+Require-Text $auraCgMediaRetentionLedger "onSpriteReleased" "AuraCg media eviction must expose owned-resource release notifications."
+Require-Text $auraCgMediaReleaseQueue "internal sealed class AuraCgMediaReleaseQueue<TSprite, TBundle>" "AuraCg Unity releases must stay in a testable deferred queue."
+Require-Text $auraCgMediaReleaseQueue "isSpriteRetained" "AuraCg deferred release must recheck resources retained before the safe idle point."
 Require-Text $auraCgMediaCacheKeys "internal static class AuraCgMediaCacheKeys" "AuraCg media cache keys must stay centralized."
-foreach ($pureSource in @($auraCgRegistryQuery, $auraCgNetworkPolicy, $auraCgPlaybackClaims, $auraCgPreloadCoordinator, $auraCgMediaCache, $auraCgMediaCacheKeys)) {
+foreach ($pureSource in @($auraCgRegistryQuery, $auraCgNetworkPolicy, $auraCgPlaybackClaims, $auraCgPreloadCoordinator, $auraCgMediaCache, $auraCgMediaCacheModels, $auraCgMediaRetentionLedger, $auraCgMediaReleaseQueue, $auraCgMediaCacheKeys)) {
     if ($pureSource -match "using UnityEngine|using Witch|PlayerManager|GameObject|MonoBehaviour") {
         throw "AuraCg policies, preload coordination, and media ownership must remain independent of Unity and Witch runtime state."
     }
 }
 Require-Text $auraCgRuntime "finally[\s\S]*preloadCoordinator\.CompletePreload" "AuraCg preload claims must be released when a loading coroutine exits."
+Require-Text $auraCgRuntime "MaxMediaCacheEstimatedBytes" "AuraCg runtime must configure a finite media memory budget."
+Require-Text $auraCgRuntime "!playing && preloadCoordinator\.PendingCount == 0" "AuraCg runtime must defer Unity resource destruction while playback or preload work is active."
+Require-Text $auraCgRuntime "ContainsSpriteReference" "AuraCg deferred release must not destroy media that was retained again before the safe idle point."
+Require-Text $auraCgRuntime "bundle\.Unload\(false\)" "AuraCg must release evicted owned bundle handles without invalidating already loaded assets."
 if ($auraCgRuntime -match "Dictionary<string, Sprite>\s+spriteCache|Dictionary<string, List<Sprite>>\s+sequenceCache|Dictionary<string, AssetBundle\?>\s+assetBundleCache|HashSet<string>\s+preloadKeys") {
     throw "AuraCgArbiterComponent must not regain private media or preload cache ownership."
 }

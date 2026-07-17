@@ -13,6 +13,9 @@
     <Compile Include="..\AuraCgShared\AuraCgPlaybackClaimStore.cs" Link="Shared\AuraCgPlaybackClaimStore.cs" />
     <Compile Include="..\AuraCgShared\AuraCgPreloadCoordinator.cs" Link="Shared\AuraCgPreloadCoordinator.cs" />
     <Compile Include="..\AuraCgShared\AuraCgMediaCache.cs" Link="Shared\AuraCgMediaCache.cs" />
+    <Compile Include="..\AuraCgShared\AuraCgMediaCacheModels.cs" Link="Shared\AuraCgMediaCacheModels.cs" />
+    <Compile Include="..\AuraCgShared\AuraCgMediaRetentionLedger.cs" Link="Shared\AuraCgMediaRetentionLedger.cs" />
+    <Compile Include="..\AuraCgShared\AuraCgMediaReleaseQueue.cs" Link="Shared\AuraCgMediaReleaseQueue.cs" />
     <Compile Include="..\AuraCgShared\AuraCgMediaCacheKeys.cs" Link="Shared\AuraCgMediaCacheKeys.cs" />
   </ItemGroup>
 </Project>

@@ -828,6 +828,9 @@ public static class SkillCgArbiterRuntime
     {
         private const int MaxPlaybackPoolEntries = 512;
         private const int MaxAdventurePreloadKeys = 128;
+        private const int MaxMediaCacheEntries = 512;
+        private const long MaxMediaCacheEstimatedBytes = 256L * 1024L * 1024L;
+        private const long EstimatedAssetBundleHandleBytes = 1024L * 1024L;
         private const float MinimumLocalActionReuseSeconds = 0.35f;
         private const float ClearDeduplicateSeconds = 1.0f;
         private readonly List<ProviderHandle> providers = new();
@@ -836,8 +839,9 @@ public static class SkillCgArbiterRuntime
         private readonly Dictionary<string, string> recentLocalPlayIds = new(StringComparer.Ordinal);
         private readonly Dictionary<string, float> recentLocalPlayTimes = new(StringComparer.Ordinal);
         private readonly AuraCgPlaybackClaimStore playbackClaims = new(MaxPlaybackPoolEntries);
-        private readonly AuraCgMediaCache<Sprite, AssetBundle> mediaCache = new();
         private readonly AuraCgPreloadCoordinator preloadCoordinator = new(MaxAdventurePreloadKeys);
+        private readonly AuraCgMediaReleaseQueue<Sprite, AssetBundle> mediaReleaseQueue = new();
+        private AuraCgMediaCache<Sprite, AssetBundle> mediaCache = null!;
         private SkillCgArbiterOptions options = new();
         private bool playing;
         private long enqueueSequence;
@@ -865,6 +869,15 @@ public static class SkillCgArbiterRuntime
         public int MinimumSupportedProtocolVersion => SkillCgArbiterRuntime.MinimumSupportedProtocolVersion;
 
         public string BuildId => CurrentBuildId;
+
+        private void Awake()
+        {
+            mediaCache = new AuraCgMediaCache<Sprite, AssetBundle>(
+                MaxMediaCacheEntries,
+                MaxMediaCacheEstimatedBytes,
+                mediaReleaseQueue.QueueSprite,
+                mediaReleaseQueue.QueueBundle);
+        }
 
         public void Configure(object? value)
         {
@@ -1058,6 +1071,7 @@ public static class SkillCgArbiterRuntime
             finally
             {
                 preloadCoordinator.CompletePreload(key);
+                FlushReleasedMedia();
             }
         }
 
@@ -1147,6 +1161,7 @@ public static class SkillCgArbiterRuntime
             fightToken = "";
             HideOverlay();
             playing = false;
+            FlushReleasedMedia();
 
             AuraCgLog.DebugLog("CG queue cleared: " + reason);
         }
@@ -1849,6 +1864,7 @@ public static class SkillCgArbiterRuntime
             if (generation == playGeneration)
             {
                 playing = false;
+                FlushReleasedMedia();
             }
         }
 
@@ -2616,7 +2632,11 @@ public static class SkillCgArbiterRuntime
                     new Vector2(0.5f, 0.5f),
                     100f);
                 sprite.name = source.name + "_masked_invert";
-                mediaCache.StoreDerivedSprite(key, sprite);
+                mediaCache.StoreDerivedSprite(
+                    key,
+                    sprite,
+                    AuraSharedResourceCache.EstimateObjectBytes(sprite),
+                    AuraCgMediaOwnership.RuntimeObjectAndTexture);
                 return sprite;
             }
             catch (Exception ex)
@@ -2669,6 +2689,49 @@ public static class SkillCgArbiterRuntime
             screenBwFlashMaterialResolved = false;
         }
 
+        private void FlushReleasedMedia()
+        {
+            mediaReleaseQueue.Flush(
+                !playing && preloadCoordinator.PendingCount == 0,
+                mediaCache.ContainsSpriteReference,
+                mediaCache.ContainsBundleReference,
+                ReleaseSprite,
+                ReleaseBundle);
+        }
+
+        private static void ReleaseSprite(Sprite sprite, AuraCgMediaOwnership ownership)
+        {
+            Texture2D? texture = null;
+            if (ownership == AuraCgMediaOwnership.RuntimeObjectAndTexture)
+            {
+                try
+                {
+                    texture = sprite.texture;
+                }
+                catch
+                {
+                }
+            }
+
+            UnityEngine.Object.Destroy(sprite);
+            if (texture != null)
+            {
+                UnityEngine.Object.Destroy(texture);
+            }
+        }
+
+        private static void ReleaseBundle(AssetBundle bundle)
+        {
+            try
+            {
+                bundle.Unload(false);
+            }
+            catch (Exception ex)
+            {
+                AuraCgLog.WarnOnce("bundle-release-failed:" + bundle.name, "CG asset bundle release failed: " + ex.Message);
+            }
+        }
+
         private IEnumerator LoadSequenceSprites(
             SkillCgRequest request,
             Action<List<Sprite>> onLoaded,
@@ -2693,7 +2756,11 @@ public static class SkillCgArbiterRuntime
 
                 if (result.Count > 0)
                 {
-                    mediaCache.StoreSequence(cacheKey, result);
+                    mediaCache.StoreSequence(
+                        cacheKey,
+                        result,
+                        AuraSharedResourceCache.EstimateObjectBytes,
+                        AuraCgMediaOwnership.External);
                     onLoaded(result);
                     yield break;
                 }
@@ -2728,7 +2795,11 @@ public static class SkillCgArbiterRuntime
 
             if (result.Count > 0)
             {
-                mediaCache.StoreSequence(cacheKey, result);
+                mediaCache.StoreSequence(
+                    cacheKey,
+                    result,
+                    AuraSharedResourceCache.EstimateObjectBytes,
+                    AuraCgMediaOwnership.RuntimeObjectAndTexture);
             }
 
             if (result.Count == 0)
@@ -2863,7 +2934,7 @@ public static class SkillCgArbiterRuntime
             try
             {
                 var bundle = AssetBundle.LoadFromFile(resolved);
-                mediaCache.StoreBundle(id, bundle);
+                mediaCache.StoreBundle(id, bundle, EstimatedAssetBundleHandleBytes);
                 return bundle;
             }
             catch (Exception ex)
@@ -2948,7 +3019,11 @@ public static class SkillCgArbiterRuntime
 
             var sprite = Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f);
             sprite.name = texture.name;
-            mediaCache.StoreSprite(cacheKey, sprite);
+            mediaCache.StoreSprite(
+                cacheKey,
+                sprite,
+                AuraSharedResourceCache.EstimateObjectBytes(sprite),
+                AuraCgMediaOwnership.RuntimeObjectAndTexture);
             AuraCgLog.InfoOnce("image-loaded:" + path, "CG image loaded: " + Path.GetFileName(path) + " (" + texture.width + "x" + texture.height + ")");
             onLoaded(sprite);
         }
@@ -3121,6 +3196,7 @@ public static class SkillCgArbiterRuntime
                 recentKeys.Remove(key);
             }
         }
+
     }
 
     private sealed class ProviderHandle

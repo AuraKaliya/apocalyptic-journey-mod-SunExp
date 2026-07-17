@@ -31,6 +31,35 @@ Use a 25-64 character `short_description`, then run
 
 ---
 
+## [ERR-20260717-001] shared-runtime-isexternalinit
+
+**Logged**: 2026-07-17T12:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: backend
+
+### Summary
+AuraCg unit tests accepted `init` accessors, but the actual Aura.Shared target framework could not resolve `System.Runtime.CompilerServices.IsExternalInit`.
+
+### Error
+```text
+CS0518: Predefined type 'System.Runtime.CompilerServices.IsExternalInit' is not defined or imported
+```
+
+### Suggested Fix
+Validate pure shared sources against the real Aura.Shared target immediately after the focused .NET 8 tests, and avoid `init` accessors in shared runtime DTOs unless the compatibility shim is already present.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraCgShared/AuraCgMediaCache.cs, AuraSharedRuntime-Dev/Aura.Shared.csproj
+- Recurrence-Count: 1
+
+### Resolution
+- **Resolved**: 2026-07-17T12:05:00+08:00
+- **Notes**: Replaced internal statistics `init` accessors with ordinary setters before rerunning the shared compatibility build.
+
+---
+
 ## [ERR-20260716-006] sunexp-toolbar-button-namespace
 
 **Logged**: 2026-07-16T18:30:00+08:00

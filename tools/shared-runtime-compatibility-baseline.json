@@ -1312,8 +1312,12 @@
         "AuraCgPlaybackClaimStore playbackClaims",
         "playbackClaims.Clear",
         "AuraCgPreloadCoordinator preloadCoordinator",
-        "AuraCgMediaCache\u003CSprite, AssetBundle\u003E mediaCache",
-        "preloadCoordinator.CompletePreload"
+          "AuraCgMediaCache\u003CSprite, AssetBundle\u003E mediaCache",
+          "AuraCgMediaReleaseQueue\u003CSprite, AssetBundle\u003E mediaReleaseQueue",
+          "preloadCoordinator.CompletePreload",
+          "MaxMediaCacheEstimatedBytes",
+          "FlushReleasedMedia",
+          "AuraCgMediaOwnership.RuntimeObjectAndTexture"
       ]
     }
   ]
