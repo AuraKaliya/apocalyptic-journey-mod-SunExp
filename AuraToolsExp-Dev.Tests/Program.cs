@@ -7,6 +7,7 @@ using AuraToolsExp.Dll.Features.CardRefresh;
 using AuraToolsExp.Dll.Features.SafeBox;
 using AuraToolsExp.Dll.Features.StarterDeck;
 using AuraToolsExp.Dll.Infrastructure;
+using Newtonsoft.Json;
 
 var assertions = 0;
 
@@ -25,6 +26,7 @@ TestDeterministicAllocation();
 TestHotkeyNames();
 TestInputFaultGate();
 TestDamageMeterSettingsNormalization();
+TestConfigModelSerializationCompatibility();
 TestCardRefreshSettingsAndPoolPolicy();
 TestLoggingSettingsNormalization();
 TestDamageSettlementCgSettingsAndLayout();
@@ -266,6 +268,55 @@ void TestDamageMeterSettingsNormalization()
            && settings.SubmitBatchIntervalMs == 1000
            && settings.MaxEventsPerBatch == 64,
         "DPS performance knobs are clamped to runtime-safe bounds");
+}
+
+void TestConfigModelSerializationCompatibility()
+{
+    var root = JsonConvert.DeserializeObject<AuraToolsRootConfig>(
+        "{\"schemaVersion\":0,\"audio\":null,\"matchExperience\":null,\"skillCg\":null,\"skin\":null,\"logging\":null}")!;
+    root.Normalize();
+    Assert(root.SchemaVersion == 1
+           && root.Audio.ConfigFile == "AudioSettings.json"
+           && root.MatchExperience.ConfigFile == "MatchExperienceSettings.json"
+           && root.SkillCg.ConfigFile == "SkillCgSettings.json"
+           && root.Skin.ConfigFile == "SkinSettings.json"
+           && root.Logging.ConfigFile == "LoggingSettings.json",
+        "root config preserves module-file defaults after JSON deserialization");
+
+    var rootJson = JsonConvert.SerializeObject(root);
+    var restoredRoot = JsonConvert.DeserializeObject<AuraToolsRootConfig>(rootJson)!;
+    Assert(restoredRoot.Audio.Enabled
+           && restoredRoot.Logging.Enabled
+           && rootJson.Contains("\"matchExperience\"")
+           && rootJson.Contains("\"configFile\""),
+        "root config keeps its established JSON property contract across a round trip");
+
+    var audio = JsonConvert.DeserializeObject<AuraToolsAudioSettings>(
+        "{\"schemaVersion\":1,\"audioSystemVersion\":\" \",\"battleBgm\":{\"common\":{\"relativePath\":\"Audio/Common/battle_bgm.mp3\"}},\"cardUse\":null}")!;
+    audio.Normalize();
+    Assert(audio.SchemaVersion == 2
+           && audio.AudioSystemVersion == "2.0.0"
+           && audio.BattleBgm.Common.RelativePath == "Audio/AuraToolsExp/Common/battle_bgm.mp3"
+           && audio.CardUse.Common.RelativePath == "Audio/AuraToolsExp/Common/card_use.mp3",
+        "audio config keeps legacy path migration and null-domain recovery after the file split");
+
+    var matchExperience = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
+        "{\"schemaVersion\":1,\"starterDeck\":{\"preferRoleModProfile\":false},\"safeBox\":null,\"modSync\":null,\"feast\":null,\"damageMeter\":null,\"cardRefresh\":null}")!;
+    matchExperience.Normalize();
+    Assert(matchExperience.SchemaVersion == 7
+           && matchExperience.StarterDeck.PreferRoleModProfile
+           && matchExperience.SafeBox != null
+           && matchExperience.ModSync != null
+           && matchExperience.Feast.Enabled
+           && matchExperience.DamageMeter != null
+           && matchExperience.CardRefresh != null,
+        "match-experience config keeps legacy schema migration and nested defaults after the file split");
+
+    var skin = JsonConvert.DeserializeObject<AuraToolsSkinSettings>(
+        "{\"schemaVersion\":0,\"autoInstallBundledSkins\":false}")!;
+    skin.Normalize();
+    Assert(skin.SchemaVersion == 1 && skin.AutoInstallBundledSkins,
+        "skin config keeps its always-on bundled installation policy after the file split");
 }
 
 void TestCardRefreshSettingsAndPoolPolicy()

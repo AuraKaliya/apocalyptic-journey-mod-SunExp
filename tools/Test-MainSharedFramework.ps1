@@ -35,7 +35,29 @@ $auraToolsStarterDeckRuntime = Get-Content -Raw -Encoding UTF8 -LiteralPath (Joi
 $auraToolsUi = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\Settings\AuraToolsUi.cs")
 $auraToolsSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\Settings\AuraToolsSettingsRuntime.cs")
 $auraToolsDamageMeterUi = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\DamageMeter\AuraToolsDamageMeterUi.cs")
-$auraToolsConfigModels = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Config\AuraToolsConfigModels.cs")
+$auraToolsConfigRoot = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Config\AuraToolsConfigModels.cs")
+$auraToolsConfigDomainFiles = [ordered]@{
+    "AuraToolsAudioSettings.cs" = "AuraToolsAudioSettings"
+    "AuraToolsMatchExperienceSettings.cs" = "AuraToolsMatchExperienceSettings"
+    "AuraToolsSkillCgSettings.cs" = "AuraToolsSkillCgSettings"
+    "AuraToolsSkinSettings.cs" = "AuraToolsSkinSettings"
+    "AuraToolsLoggingSettings.cs" = "AuraToolsLoggingSettings"
+}
+$auraToolsConfigDomains = @{}
+foreach ($entry in $auraToolsConfigDomainFiles.GetEnumerator()) {
+    $path = Join-Path $repoRoot ("AuraToolsExp-Dev\Config\" + $entry.Key)
+    if (-not (Test-Path -LiteralPath $path)) {
+        throw "AuraTools config domain file is missing: $($entry.Key)"
+    }
+
+    $source = Get-Content -Raw -Encoding UTF8 -LiteralPath $path
+    if (-not $source.Contains("public sealed class " + $entry.Value)) {
+        throw "AuraTools config domain file does not own its root type: $($entry.Key)"
+    }
+
+    $auraToolsConfigDomains[$entry.Key] = $source
+}
+$auraToolsConfigSources = $auraToolsConfigRoot + "`n" + (($auraToolsConfigDomains.Values) -join "`n")
 $auraToolsSkinRuntime = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\Skin\AuraToolsSkinRuntime.cs")
 $familiarGrowthRuntime = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Hooks\FamiliarGrowthRuntime.cs")
 $solarMemoryStarterDeckRuntime = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Hooks\SolarMemoryStarterDeckRuntime.cs")
@@ -199,7 +221,10 @@ $skinInstallPolicyText = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64St
 if (-not ($auraToolsSettings.Contains($skinInstallPolicyText))) {
     throw "AuraTools skin settings must explain the always-on bundled skin auto-install policy."
 }
-if (-not ($auraToolsConfigModels -like "*PreferRoleModProfile = true;*") -or -not ($auraToolsConfigModels -like "*AutoInstallBundledSkins = true;*")) {
+if ($auraToolsConfigRoot -match 'public sealed class AuraTools(Audio|MatchExperience|SkillCg|Skin|Logging)Settings') {
+    throw "AuraTools root config file must remain an index instead of absorbing domain settings."
+}
+if (-not ($auraToolsConfigSources -like "*PreferRoleModProfile = true;*") -or -not ($auraToolsConfigSources -like "*AutoInstallBundledSkins = true;*")) {
     throw "AuraTools config normalization must keep always-on starter deck and skin policies enabled."
 }
 if ($auraToolsSkinRuntime -like "*|| !AuraToolsConfigService.Skin.AutoInstallBundledSkins*") {
