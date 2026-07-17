@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\AuraCgShared\AuraCgRegistryQueryService.cs" Link="Shared\AuraCgRegistryQueryService.cs" />
+    <Compile Include="..\AuraCgShared\AuraCgNetworkPolicy.cs" Link="Shared\AuraCgNetworkPolicy.cs" />
+    <Compile Include="..\AuraCgShared\AuraCgPlaybackClaimStore.cs" Link="Shared\AuraCgPlaybackClaimStore.cs" />
+  </ItemGroup>
+</Project>

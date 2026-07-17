@@ -104,6 +104,22 @@ if ($auraCgRuntime -match "manager\?\.(upperCanvasTf|canvasTf)|GameUIManager|Gra
     throw "AuraCgShared overlay must not attach to game UI canvases or add a GraphicRaycaster."
 }
 
+$auraCgRegistryQuery = Read-RepoText "AuraCgShared\AuraCgRegistryQueryService.cs"
+$auraCgNetworkPolicy = Read-RepoText "AuraCgShared\AuraCgNetworkPolicy.cs"
+$auraCgPlaybackClaims = Read-RepoText "AuraCgShared\AuraCgPlaybackClaimStore.cs"
+Require-Text $auraCgRegistryQuery "internal static class AuraCgRegistryQueryService" "AuraCg registry matching must stay in its pure query service."
+Require-Text $auraCgRegistryQuery "MatchesTrigger" "AuraCg registry query service must own trigger matching."
+Require-Text $auraCgNetworkPolicy "internal static class AuraCgNetworkPolicy" "AuraCg network validation must stay in its pure policy service."
+Require-Text $auraCgNetworkPolicy "HasValidPlaybackShape" "AuraCg network policy must own envelope shape validation."
+Require-Text $auraCgPlaybackClaims "internal sealed class AuraCgPlaybackClaimStore" "AuraCg duplicate claims must stay in a bounded lifecycle store."
+Require-Text $auraCgPlaybackClaims "while \(order\.Count > capacity\)" "AuraCg playback claims must remain capacity-bounded."
+Require-Text $auraCgPlaybackClaims "public void Clear\(\)" "AuraCg playback claims must expose explicit fight cleanup."
+foreach ($pureSource in @($auraCgRegistryQuery, $auraCgNetworkPolicy, $auraCgPlaybackClaims)) {
+    if ($pureSource -match "using UnityEngine|using Witch|PlayerManager|GameObject|MonoBehaviour") {
+        throw "AuraCg query, network policy, and claim store must remain independent of Unity and Witch runtime state."
+    }
+}
+
 $uiTransitionGuardRuntime = Read-RepoText "UiTransitionGuardShared\UiTransitionGuardRuntime.cs"
 Require-Text $uiTransitionGuardRuntime "ui-transition-guard-2026-07-08-v3" "UiTransitionGuard must bump BuildId for per-frame UI guard dedupe semantics."
 Require-Text $uiTransitionGuardRuntime "LeaseRaycasters" "UiTransitionGuard must use scoped raycaster leases."

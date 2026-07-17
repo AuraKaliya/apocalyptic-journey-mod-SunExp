@@ -141,7 +141,12 @@ internal static class PublicSurfaceReader
             }
 
             var typeName = GetFullName(reader, handle);
-            entries.Add($"T|{GetKind(reader, type)}|{typeName}");
+#pragma warning disable SYSLIB0050
+            var serialization = (type.Attributes & TypeAttributes.Serializable) != 0
+                ? "serializable"
+                : "nonserializable";
+#pragma warning restore SYSLIB0050
+            entries.Add($"T|{GetKind(reader, type)}|{serialization}|{typeName}");
 
             foreach (var fieldHandle in type.GetFields())
             {

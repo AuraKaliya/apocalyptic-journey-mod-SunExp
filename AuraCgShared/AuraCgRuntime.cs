@@ -416,25 +416,16 @@ public static class SkillCgArbiterRuntime
 
     private static bool EntryMatchesTrigger(AuraCgRegistryEntry entry, string kind, string consumerModId, SkillCgTriggerContext context)
     {
-        return IsRegisteredCgEntry(entry, kind)
-               && EntryMatchesRole(entry, context.OwnerRoleId)
-               && EntryMatchesCard(entry, context.CardId)
-               && EntryMatchesAction(context.Action)
-               && AuraCgActivationRuntime.CanConsumerPlay(entry, consumerModId);
-    }
-
-    private static bool IsSkillCgEntry(AuraCgRegistryEntry entry)
-    {
-        return IsRegisteredCgEntry(entry, SkillCgKind);
+        return AuraCgRegistryQueryService.MatchesTrigger(
+            entry,
+            kind,
+            context,
+            AuraCgActivationRuntime.CanConsumerPlay(entry, consumerModId));
     }
 
     private static bool IsRegisteredCgEntry(AuraCgRegistryEntry entry, string kind)
     {
-        return entry != null
-               && entry.Enabled
-               && string.Equals(entry.Kind, kind, StringComparison.OrdinalIgnoreCase)
-               && (string.Equals(entry.Media.Type, SkillCgMediaTypes.Image, StringComparison.OrdinalIgnoreCase)
-                   || string.Equals(entry.Media.Type, SkillCgMediaTypes.Sequence, StringComparison.OrdinalIgnoreCase));
+        return AuraCgRegistryQueryService.IsRegisteredEntry(entry, kind);
     }
 
     private static SkillCgRequest CreateRegisteredRequest(
@@ -444,54 +435,20 @@ public static class SkillCgArbiterRuntime
         SkillCgTriggerContext context,
         bool disableSync)
     {
-        return new SkillCgRequest
-        {
-            ProviderId = entry.OwnerModId + ".SkillCG." + entry.CgId,
-            OwnerModId = entry.OwnerModId,
-            CardId = string.IsNullOrWhiteSpace(context.CardId) ? "*" : context.CardId,
-            OwnerInstanceId = context.OwnerInstanceId,
-            ImagePath = imagePath,
-            ImageResource = imageResource,
-            BundlePath = entry.Media.BundlePath,
-            BundleAssetPrefix = entry.Media.BundleAssetPrefix,
-            MediaType = entry.Media.Type,
-            FrameSeconds = entry.Media.FrameSeconds,
-            AlphaMode = entry.Media.AlphaMode,
-            KeyThreshold = entry.Media.KeyThreshold,
-            KeySoftness = entry.Media.KeySoftness,
-            FlashAtSeconds = entry.Media.FlashAtSeconds,
-            FlashDuration = entry.Media.FlashDuration,
-            FlashMode = entry.Media.FlashMode,
-            FlashStartFrame = entry.Media.FlashStartFrame,
-            FlashEndFrame = entry.Media.FlashEndFrame,
-            FlashPulseEveryFrames = entry.Media.FlashPulseEveryFrames,
-            FlashStrength = entry.Media.FlashStrength,
-            Priority = entry.Priority,
-            FadeIn = entry.DefaultPresentation.FadeIn,
-            Hold = entry.DefaultPresentation.Hold,
-            FadeOut = entry.DefaultPresentation.FadeOut,
-            PresentationMode = entry.DefaultPresentation.Mode,
-            FitMode = entry.DefaultPresentation.Fit,
-            FocusX = entry.DefaultPresentation.FocusX,
-            FocusY = entry.DefaultPresentation.FocusY,
-            SafeScale = entry.DefaultPresentation.SafeScale,
-            CreatedAt = Time.unscaledTime,
-            ActionSequence = context.ActionSequence,
-            EventToken = context.EventToken,
-            DisableSync = disableSync
-        };
+        return AuraCgRegistryQueryService.CreateRequest(
+            entry,
+            imageResource,
+            imagePath,
+            context,
+            disableSync,
+            Time.unscaledTime);
     }
 
     // Network playback carries registered ids only. Every peer resolves its own local resource declaration.
     private static bool TryBuildRegisteredNetworkRequest(SkillCgNetworkEvent? item, bool requireLocalActivation, out SkillCgRequest? request)
     {
         request = null;
-        if (item == null
-            || !HasBoundedIdentifier(item.OwnerModId)
-            || !HasBoundedIdentifier(item.CgId)
-            || !HasBoundedIdentifier(item.ProviderId)
-            || !HasBoundedIdentifier(item.CardId)
-            || !HasBoundedIdentifier(item.OwnerInstanceId))
+        if (item == null || !AuraCgNetworkPolicy.HasValidEventIdentity(item, MaxNetworkIdentifierLength))
         {
             return false;
         }
@@ -537,15 +494,12 @@ public static class SkillCgArbiterRuntime
 
     private static bool HasBoundedIdentifier(string? value)
     {
-        var text = (value ?? "").Trim();
-        return text.Length > 0 && text.Length <= MaxNetworkIdentifierLength;
+        return AuraCgNetworkPolicy.HasBoundedIdentifier(value, MaxNetworkIdentifierLength);
     }
 
     private static string ResolveRegisteredImageResource(AuraCgRegistryEntry entry)
     {
-        return string.IsNullOrWhiteSpace(entry.Media.Resource)
-            ? entry.Media.FallbackImage
-            : entry.Media.Resource;
+        return AuraCgRegistryQueryService.ResolveImageResource(entry);
     }
 
     private static bool RegisteredMediaExists(string mediaType, string path, string bundlePath)
@@ -565,46 +519,17 @@ public static class SkillCgArbiterRuntime
 
     private static bool EntryMatchesRole(AuraCgRegistryEntry entry, string roleId)
     {
-        var normalizedRole = (roleId ?? "").Trim();
-        if (string.IsNullOrWhiteSpace(normalizedRole))
-        {
-            return true;
-        }
-
-        foreach (var target in entry.TargetRoleIds ?? new List<string>())
-        {
-            var normalizedTarget = (target ?? "").Trim();
-            if (string.Equals(normalizedTarget, "*", StringComparison.Ordinal)
-                || string.Equals(normalizedTarget, normalizedRole, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return AuraCgRegistryQueryService.MatchesRole(entry, roleId);
     }
 
     private static bool EntryMatchesCard(AuraCgRegistryEntry entry, string cardId)
     {
-        var normalizedCard = (cardId ?? "").Trim();
-        var normalizedTrimmed = normalizedCard.TrimStart('*');
-        foreach (var value in entry.CardIds ?? new List<string>())
-        {
-            var pattern = (value ?? "").Trim();
-            if (string.Equals(pattern, "*", StringComparison.Ordinal)
-                || string.Equals(pattern, normalizedCard, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(pattern.TrimStart('*'), normalizedTrimmed, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return AuraCgRegistryQueryService.MatchesCard(entry, cardId);
     }
 
     private static bool EntryMatchesAction(string action)
     {
-        return true;
+        return AuraCgRegistryQueryService.MatchesAction(action);
     }
 
     public static string ResolveImagePath(string ownerModId, string imageResource, string fallbackPath = "")
@@ -909,8 +834,7 @@ public static class SkillCgArbiterRuntime
         private readonly Dictionary<string, float> recentKeys = new(StringComparer.Ordinal);
         private readonly Dictionary<string, string> recentLocalPlayIds = new(StringComparer.Ordinal);
         private readonly Dictionary<string, float> recentLocalPlayTimes = new(StringComparer.Ordinal);
-        private readonly HashSet<string> playbackKeys = new(StringComparer.Ordinal);
-        private readonly Queue<string> playbackOrder = new();
+        private readonly AuraCgPlaybackClaimStore playbackClaims = new(MaxPlaybackPoolEntries);
         private readonly Dictionary<string, Sprite> spriteCache = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, List<Sprite>> sequenceCache = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, AssetBundle?> assetBundleCache = new(StringComparer.OrdinalIgnoreCase);
@@ -1226,8 +1150,7 @@ public static class SkillCgArbiterRuntime
             recentKeys.Clear();
             recentLocalPlayIds.Clear();
             recentLocalPlayTimes.Clear();
-            playbackKeys.Clear();
-            playbackOrder.Clear();
+            playbackClaims.Clear();
             fightToken = "";
             HideOverlay();
             playing = false;
@@ -1742,17 +1665,11 @@ public static class SkillCgArbiterRuntime
 
         private static bool ValidateNetworkPlaybackBudget(SkillCgPlaybackSnapshot playback)
         {
-            if (playback.Events == null || playback.Events.Count == 0 || playback.Events.Count > MaxNetworkEventsPerPlayback)
-            {
-                return false;
-            }
-
-            return AuraSharedPayloadBudget.FitsSoftLimit(playback, MaxNetworkPayloadBytes, out _, out _)
-                   && HasBoundedIdentifier(playback.IssuerPlayerId)
-                   && HasBoundedIdentifier(playback.SkillCgPlayId)
-                   && HasBoundedIdentifier(playback.OwnerStatusId)
-                   && HasBoundedIdentifier(playback.CardId)
-                   && HasBoundedIdentifier(playback.FightToken);
+            return AuraCgNetworkPolicy.HasValidPlaybackShape(
+                       playback,
+                       MaxNetworkEventsPerPlayback,
+                       MaxNetworkIdentifierLength)
+                   && AuraSharedPayloadBudget.FitsSoftLimit(playback, MaxNetworkPayloadBytes, out _, out _);
         }
 
         private static bool SenderOwnsStatus(string playerId, string ownerStatusId)
@@ -1783,21 +1700,7 @@ public static class SkillCgArbiterRuntime
 
         private void NormalizePlaybackSnapshot(SkillCgPlaybackSnapshot playback)
         {
-            playback.IssuerPlayerId = (playback.IssuerPlayerId ?? "").Trim();
-            playback.SkillCgPlayId = (playback.SkillCgPlayId ?? "").Trim();
-            playback.OwnerStatusId = (playback.OwnerStatusId ?? "").Trim();
-            playback.CardId = (playback.CardId ?? "").Trim();
-            playback.FightToken = (playback.FightToken ?? "").Trim();
-
-            foreach (var item in playback.Events ?? new List<SkillCgNetworkEvent>())
-            {
-                item.IssuerPlayerId = playback.IssuerPlayerId;
-                item.SkillCgPlayId = playback.SkillCgPlayId;
-                item.OwnerInstanceId = playback.OwnerStatusId;
-                item.CardId = string.IsNullOrWhiteSpace(item.CardId) ? playback.CardId : item.CardId;
-                item.EventToken = playback.SkillCgPlayId;
-                item.ActionSequence = playback.ActionSequence;
-            }
+            AuraCgNetworkPolicy.NormalizePlaybackSnapshot(playback);
         }
 
         private static SkillCgNetworkEvent ToNetworkEvent(SkillCgRequest request)
@@ -1828,34 +1731,16 @@ public static class SkillCgArbiterRuntime
 
         private bool TryClaimPlayback(string issuerPlayerId, string playId, string source)
         {
-            var key = PlaybackKey(issuerPlayerId, playId);
-            if (string.IsNullOrWhiteSpace(key))
+            if (!playbackClaims.TryClaim(issuerPlayerId, playId, out var key))
             {
+                if (!string.IsNullOrWhiteSpace(key))
+                {
+                    AuraCgLog.DebugLog("Duplicate Skill CG playback ignored from " + source + ": " + key);
+                }
                 return false;
-            }
-
-            if (!playbackKeys.Add(key))
-            {
-                AuraCgLog.DebugLog("Duplicate Skill CG playback ignored from " + source + ": " + key);
-                return false;
-            }
-
-            playbackOrder.Enqueue(key);
-            while (playbackOrder.Count > MaxPlaybackPoolEntries)
-            {
-                playbackKeys.Remove(playbackOrder.Dequeue());
             }
 
             return true;
-        }
-
-        private static string PlaybackKey(string issuerPlayerId, string playId)
-        {
-            issuerPlayerId = (issuerPlayerId ?? "").Trim();
-            playId = (playId ?? "").Trim();
-            return string.IsNullOrWhiteSpace(issuerPlayerId) || string.IsNullOrWhiteSpace(playId)
-                ? ""
-                : issuerPlayerId + "|" + playId;
         }
 
         private string CurrentFightToken()
@@ -3367,884 +3252,5 @@ public static class SkillCgArbiterRuntime
 
             return owner + ":" + id;
         }
-    }
-}
-
-public sealed class SkillCgArbiterOptions
-{
-    public int MaxQueueLength { get; set; } = 8;
-
-    public float MaxRequestAgeSeconds { get; set; } = 6f;
-
-    public float DuplicateWindowSeconds { get; set; } = 0.2f;
-
-    public SkillCgArbiterOptions Normalized()
-    {
-        return new SkillCgArbiterOptions
-        {
-            MaxQueueLength = Mathf.Clamp(MaxQueueLength, 1, 30),
-            MaxRequestAgeSeconds = Mathf.Clamp(MaxRequestAgeSeconds, 0.5f, 30f),
-            DuplicateWindowSeconds = Mathf.Clamp(DuplicateWindowSeconds, 0.02f, 2f)
-        };
-    }
-}
-
-[Serializable]
-public sealed class SkillCgRegisteredEntryView
-{
-    public SkillCgRegisteredEntryView()
-    {
-    }
-
-    public SkillCgRegisteredEntryView(AuraCgRegistryEntry entry, AuraCgActivationEntryState activation)
-    {
-        OwnerModId = entry.OwnerModId;
-        CgId = entry.CgId;
-        QualifiedCgId = entry.QualifiedCgId;
-        DisplayName = entry.DisplayName;
-        Kind = entry.Kind;
-        TargetRoleIds = (entry.TargetRoleIds ?? new List<string>()).ToList();
-        CardIds = (entry.CardIds ?? new List<string>()).ToList();
-        MediaType = entry.Media.Type;
-        Resource = entry.Media.Resource;
-        FallbackImage = entry.Media.FallbackImage;
-        BundlePath = entry.Media.BundlePath;
-        BundleAssetPrefix = entry.Media.BundleAssetPrefix;
-        FlashMode = entry.Media.FlashMode;
-        Priority = entry.Priority;
-        Enabled = activation.Enabled;
-        ConsumerMode = activation.ConsumerMode;
-        ConsumerModId = activation.ConsumerModId;
-        UserOverridden = activation.UserOverridden;
-    }
-
-    public string OwnerModId { get; set; } = "";
-
-    public string CgId { get; set; } = "";
-
-    public string QualifiedCgId { get; set; } = "";
-
-    public string DisplayName { get; set; } = "";
-
-    public string Kind { get; set; } = "";
-
-    public List<string> TargetRoleIds { get; set; } = new();
-
-    public List<string> CardIds { get; set; } = new();
-
-    public string MediaType { get; set; } = "";
-
-    public string Resource { get; set; } = "";
-
-    public string FallbackImage { get; set; } = "";
-
-    public string BundlePath { get; set; } = "";
-
-    public string BundleAssetPrefix { get; set; } = "";
-
-    public string FlashMode { get; set; } = "";
-
-    public int Priority { get; set; }
-
-    public bool Enabled { get; set; }
-
-    public string ConsumerMode { get; set; } = "";
-
-    public string ConsumerModId { get; set; } = "";
-
-    public bool UserOverridden { get; set; }
-}
-
-[Serializable]
-public sealed class SkillCgTriggerContext
-{
-    public long ActionSequence { get; set; }
-
-    public string EventToken { get; set; } = "";
-
-    public string Action { get; set; } = "";
-
-    public string CardId { get; set; } = "";
-
-    public string OwnerInstanceId { get; set; } = "";
-
-    public string OwnerRoleId { get; set; } = "";
-
-    public float CreatedAt { get; set; }
-}
-
-[Serializable]
-public sealed class SkillCgRequest
-{
-    public string ProviderId { get; set; } = "";
-
-    public string OwnerModId { get; set; } = "";
-
-    public string CardId { get; set; } = "";
-
-    public string OwnerInstanceId { get; set; } = "";
-
-    public string ImagePath { get; set; } = "";
-
-    public string ImageResource { get; set; } = "";
-
-    public string BundlePath { get; set; } = "";
-
-    public string BundleAssetPrefix { get; set; } = "";
-
-    public string MediaType { get; set; } = SkillCgMediaTypes.Image;
-
-    public float FrameSeconds { get; set; } = 0.08f;
-
-    public string AlphaMode { get; set; } = SkillCgAlphaModes.None;
-
-    public float KeyThreshold { get; set; } = 0.03f;
-
-    public float KeySoftness { get; set; } = 0.08f;
-
-    public float FlashAtSeconds { get; set; } = -1f;
-
-    public float FlashDuration { get; set; } = 0.18f;
-
-    public string FlashMode { get; set; } = SkillCgFlashModes.Screen;
-
-    public int FlashStartFrame { get; set; }
-
-    public int FlashEndFrame { get; set; }
-
-    public int FlashPulseEveryFrames { get; set; } = 1;
-
-    public float FlashStrength { get; set; } = 0.82f;
-
-    public int Priority { get; set; }
-
-    public float FadeIn { get; set; } = 0.35f;
-
-    public float Hold { get; set; } = 1f;
-
-    public float FadeOut { get; set; } = 0.45f;
-
-    public string PresentationMode { get; set; } = SkillCgPresentationModes.Slide;
-
-    public string FitMode { get; set; } = SkillCgFitModes.Contain;
-
-    public float FocusX { get; set; } = 0.5f;
-
-    public float FocusY { get; set; } = 0.5f;
-
-    public float SafeScale { get; set; } = 1f;
-
-    public float CreatedAt { get; set; }
-
-    public long ActionSequence { get; set; }
-
-    public string EventToken { get; set; } = "";
-
-    public string IssuerPlayerId { get; set; } = "";
-
-    public string SkillCgPlayId { get; set; } = "";
-
-    public bool IsRemote { get; set; }
-
-    public bool DisableSync { get; set; }
-
-    public string DuplicateKey => OwnerInstanceId
-                                  + "|" + CardId
-                                  + "|" + CanonicalMediaKey()
-                                  + "|" + MediaType
-                                  + "|" + FrameSeconds.ToString("0.###")
-                                  + "|" + AlphaMode
-                                  + "|" + FlashMode
-                                  + "|" + FlashAtSeconds.ToString("0.###")
-                                  + "|" + FlashStartFrame
-                                  + "|" + FlashEndFrame
-                                  + "|" + FlashPulseEveryFrames
-                                  + "|" + PresentationMode
-                                  + "|" + FitMode
-                                  + "|" + FocusX.ToString("0.###")
-                                  + "|" + FocusY.ToString("0.###")
-                                  + "|" + SafeScale.ToString("0.###");
-
-    public string QualifiedProviderId => QualifyProviderId(OwnerModId, ProviderId);
-
-    public void Normalize()
-    {
-        ProviderId = string.IsNullOrWhiteSpace(ProviderId) ? "unknown" : ProviderId.Trim();
-        OwnerModId = OwnerModId?.Trim() ?? "";
-        CardId = CardId?.Trim() ?? "";
-        OwnerInstanceId = OwnerInstanceId?.Trim() ?? "";
-        ImagePath = ImagePath?.Trim() ?? "";
-        ImageResource = ImageResource?.Trim() ?? "";
-        BundlePath = NormalizeBundlePath(BundlePath);
-        BundleAssetPrefix = NormalizeRequestRelativePath(BundleAssetPrefix);
-        if (string.IsNullOrWhiteSpace(ImageResource) && !string.IsNullOrWhiteSpace(ImagePath))
-        {
-            ImageResource = Path.GetFileName(ImagePath);
-        }
-
-        MediaType = SkillCgMediaTypes.Normalize(MediaType);
-        FrameSeconds = Mathf.Max(0.01f, FrameSeconds);
-        AlphaMode = SkillCgAlphaModes.Normalize(AlphaMode);
-        KeyThreshold = Mathf.Clamp01(KeyThreshold);
-        KeySoftness = Mathf.Clamp(KeySoftness, 0.001f, 1f);
-        FlashAtSeconds = FlashAtSeconds < 0f ? -1f : FlashAtSeconds;
-        FlashDuration = Mathf.Clamp(FlashDuration <= 0f ? 0.18f : FlashDuration, 0.03f, 1f);
-        FlashMode = SkillCgFlashModes.Normalize(FlashMode);
-        FlashStartFrame = Math.Max(0, FlashStartFrame);
-        FlashEndFrame = Math.Max(0, FlashEndFrame);
-        if (FlashStartFrame > 0 && FlashEndFrame > 0 && FlashEndFrame < FlashStartFrame)
-        {
-            FlashEndFrame = FlashStartFrame;
-        }
-
-        FlashPulseEveryFrames = Math.Max(1, FlashPulseEveryFrames);
-        FlashStrength = Mathf.Clamp01(FlashStrength <= 0f ? 0.82f : FlashStrength);
-        FadeIn = Mathf.Max(0f, FadeIn);
-        Hold = Mathf.Max(0f, Hold);
-        FadeOut = Mathf.Max(0f, FadeOut);
-        PresentationMode = SkillCgPresentationModes.Normalize(PresentationMode);
-        FitMode = SkillCgFitModes.Normalize(FitMode);
-        FocusX = Mathf.Clamp01(FocusX);
-        FocusY = Mathf.Clamp01(FocusY);
-        SafeScale = Mathf.Clamp(SafeScale <= 0f ? 1f : SafeScale, 1f, 3f);
-        EventToken = string.IsNullOrWhiteSpace(EventToken)
-            ? OwnerInstanceId + ":" + CardId + ":" + ActionSequence.ToString()
-            : EventToken.Trim();
-        IssuerPlayerId = IssuerPlayerId?.Trim() ?? "";
-        SkillCgPlayId = SkillCgPlayId?.Trim() ?? "";
-
-        if (CreatedAt <= 0f)
-        {
-            CreatedAt = Time.unscaledTime;
-        }
-    }
-
-    public static SkillCgRequest? FromObject(object? source, string providerId, string ownerModId, int priority, SkillCgTriggerContext context)
-    {
-        if (source == null)
-        {
-            return null;
-        }
-
-        if (source is SkillCgRequest request)
-        {
-            return request;
-        }
-
-        var type = source.GetType();
-        return new SkillCgRequest
-        {
-            ProviderId = ReadString(type, source, "ProviderId", providerId),
-            OwnerModId = ReadString(type, source, "OwnerModId", ownerModId),
-            CardId = ReadString(type, source, "CardId", context.CardId),
-            OwnerInstanceId = ReadString(type, source, "OwnerInstanceId", context.OwnerInstanceId),
-            ImagePath = ReadString(type, source, "ImagePath", ""),
-            ImageResource = ReadString(type, source, "ImageResource", ""),
-            BundlePath = ReadString(type, source, "BundlePath", ""),
-            BundleAssetPrefix = ReadString(type, source, "BundleAssetPrefix", ""),
-            MediaType = ReadString(type, source, "MediaType", SkillCgMediaTypes.Image),
-            FrameSeconds = ReadFloat(type, source, "FrameSeconds", 0.08f),
-            AlphaMode = ReadString(type, source, "AlphaMode", SkillCgAlphaModes.None),
-            KeyThreshold = ReadFloat(type, source, "KeyThreshold", 0.03f),
-            KeySoftness = ReadFloat(type, source, "KeySoftness", 0.08f),
-            FlashAtSeconds = ReadFloat(type, source, "FlashAtSeconds", -1f),
-            FlashDuration = ReadFloat(type, source, "FlashDuration", 0.18f),
-            FlashMode = ReadString(type, source, "FlashMode", SkillCgFlashModes.Screen),
-            FlashStartFrame = ReadInt(type, source, "FlashStartFrame", 0),
-            FlashEndFrame = ReadInt(type, source, "FlashEndFrame", 0),
-            FlashPulseEveryFrames = ReadInt(type, source, "FlashPulseEveryFrames", 1),
-            FlashStrength = ReadFloat(type, source, "FlashStrength", 0.82f),
-            Priority = ReadInt(type, source, "Priority", priority),
-            FadeIn = ReadFloat(type, source, "FadeIn", 0.35f),
-            Hold = ReadFloat(type, source, "Hold", 1f),
-            FadeOut = ReadFloat(type, source, "FadeOut", 0.45f),
-            PresentationMode = ReadString(type, source, "PresentationMode", SkillCgPresentationModes.Slide),
-            FitMode = ReadString(type, source, "FitMode", SkillCgFitModes.Contain),
-            FocusX = ReadFloat(type, source, "FocusX", 0.5f),
-            FocusY = ReadFloat(type, source, "FocusY", 0.5f),
-            SafeScale = ReadFloat(type, source, "SafeScale", 1f),
-            CreatedAt = ReadFloat(type, source, "CreatedAt", Time.unscaledTime),
-            ActionSequence = ReadLong(type, source, "ActionSequence", context.ActionSequence),
-            EventToken = ReadString(type, source, "EventToken", context.EventToken),
-            IssuerPlayerId = ReadString(type, source, "IssuerPlayerId", ""),
-            SkillCgPlayId = ReadString(type, source, "SkillCgPlayId", ""),
-            IsRemote = ReadBool(type, source, "IsRemote", false),
-            DisableSync = ReadBool(type, source, "DisableSync", false)
-        };
-    }
-
-    private static string ReadString(Type type, object source, string name, string fallback)
-    {
-        try
-        {
-            return type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public)?.GetValue(source) as string ?? fallback;
-        }
-        catch
-        {
-            return fallback;
-        }
-    }
-
-    private static string QualifyProviderId(string ownerModId, string providerId)
-    {
-        var owner = (ownerModId ?? "").Trim();
-        var id = (providerId ?? "").Trim();
-        if (string.IsNullOrWhiteSpace(id))
-        {
-            id = "unknown";
-        }
-
-        if (id.Contains(":") || string.IsNullOrWhiteSpace(owner))
-        {
-            return id;
-        }
-
-        return owner + ":" + id;
-    }
-
-    private static string NormalizeBundlePath(string value)
-    {
-        return (value ?? "")
-            .Trim()
-            .Trim('"')
-            .Replace('\\', '/')
-            .TrimStart('/');
-    }
-
-    private static string NormalizeRequestRelativePath(string value)
-    {
-        return (value ?? "")
-            .Trim()
-            .Trim('"')
-            .Replace('\\', '/')
-            .TrimStart('/');
-    }
-
-    private string CanonicalMediaKey()
-    {
-        var image = string.IsNullOrWhiteSpace(ImageResource) ? ImagePath : ImageResource;
-        return NormalizeRequestRelativePath(image).ToLowerInvariant()
-               + "|" + NormalizeBundlePath(BundlePath).ToLowerInvariant()
-               + "|" + NormalizeRequestRelativePath(BundleAssetPrefix).ToLowerInvariant();
-    }
-
-    private static int ReadInt(Type type, object source, string name, int fallback)
-    {
-        try
-        {
-            var value = type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public)?.GetValue(source);
-            return value is int typed ? typed : fallback;
-        }
-        catch
-        {
-            return fallback;
-        }
-    }
-
-    private static float ReadFloat(Type type, object source, string name, float fallback)
-    {
-        try
-        {
-            var value = type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public)?.GetValue(source);
-            return value is float typed ? typed : fallback;
-        }
-        catch
-        {
-            return fallback;
-        }
-    }
-
-    private static long ReadLong(Type type, object source, string name, long fallback)
-    {
-        try
-        {
-            var value = type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public)?.GetValue(source);
-            return value is long typed ? typed : fallback;
-        }
-        catch
-        {
-            return fallback;
-        }
-    }
-
-    private static bool ReadBool(Type type, object source, string name, bool fallback)
-    {
-        try
-        {
-            var value = type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public)?.GetValue(source);
-            return value is bool typed ? typed : fallback;
-        }
-        catch
-        {
-            return fallback;
-        }
-    }
-}
-
-[Serializable]
-public sealed class SkillCgNetworkEvent
-{
-    public string ProviderId { get; set; } = "";
-
-    public string OwnerModId { get; set; } = "";
-
-    // Stable local registry id. Media paths and presentation data are resolved locally from this id.
-    public string CgId { get; set; } = "";
-
-    public string CardId { get; set; } = "";
-
-    public string OwnerInstanceId { get; set; } = "";
-
-    public long ActionSequence { get; set; }
-
-    public string EventToken { get; set; } = "";
-
-    public string IssuerPlayerId { get; set; } = "";
-
-    public string SkillCgPlayId { get; set; } = "";
-}
-
-internal sealed class SkillCgFightSessionRequest
-{
-    public SkillCgFightSessionRequest(string ownerModId, string reason, string fightToken = "")
-    {
-        OwnerModId = ownerModId ?? "";
-        Reason = reason ?? "";
-        FightToken = fightToken ?? "";
-    }
-
-    public string OwnerModId { get; }
-
-    public string Reason { get; }
-
-    public string FightToken { get; }
-}
-
-[Serializable]
-public sealed class SkillCgPlaybackSnapshot
-{
-    public string IssuerPlayerId { get; set; } = "";
-
-    public string SkillCgPlayId { get; set; } = "";
-
-    public string OwnerStatusId { get; set; } = "";
-
-    public string CardId { get; set; } = "";
-
-    public long ActionSequence { get; set; }
-
-    public string FightToken { get; set; } = "";
-
-    public List<SkillCgNetworkEvent> Events { get; set; } = new();
-}
-
-internal sealed class SkillCgServerPlaybackEnvelope
-{
-    public SkillCgServerPlaybackEnvelope(SkillCgPlaybackSnapshot playback, AuraCgRpcSender sender)
-    {
-        Playback = playback ?? new SkillCgPlaybackSnapshot();
-        Sender = sender ?? AuraCgRpcSender.Unbound;
-    }
-
-    public SkillCgPlaybackSnapshot Playback { get; }
-
-    public AuraCgRpcSender Sender { get; }
-}
-
-internal sealed class SkillCgNetworkPlaybackEnvelope
-{
-    public SkillCgNetworkPlaybackEnvelope(SkillCgPlaybackSnapshot playback, string source)
-    {
-        Playback = playback ?? new SkillCgPlaybackSnapshot();
-        Source = source ?? "";
-    }
-
-    public SkillCgPlaybackSnapshot Playback { get; }
-
-    public string Source { get; }
-}
-
-public sealed class AuraCgRpcSender
-{
-    public static readonly AuraCgRpcSender Unbound = new("", "", false, false, "", false);
-
-    public AuraCgRpcSender(
-        string playerId,
-        string playerName,
-        bool isLobbyMember,
-        bool isLobbyHost,
-        string sourceHook,
-        bool isAvailable)
-    {
-        PlayerId = (playerId ?? "").Trim();
-        PlayerName = (playerName ?? "").Trim();
-        IsLobbyMember = isLobbyMember;
-        IsLobbyHost = isLobbyHost;
-        SourceHook = (sourceHook ?? "").Trim();
-        IsAvailable = isAvailable && PlayerId.Length > 0;
-    }
-
-    public string PlayerId { get; }
-
-    public string PlayerName { get; }
-
-    public bool IsLobbyMember { get; }
-
-    public bool IsLobbyHost { get; }
-
-    public string SourceHook { get; }
-
-    public bool IsAvailable { get; }
-}
-
-public interface IAuraCgServerBoundRpcCommand
-{
-    void BindServerSender(AuraCgRpcSender sender);
-}
-
-public static class AuraCgRpcAuthorityRuntime
-{
-    private static readonly HashSet<int> RegisteredConfigs = new();
-
-    public static void Initialize(ModConfig modConfig)
-    {
-        if (modConfig == null || !RegisteredConfigs.Add(modConfig.GetHashCode()))
-        {
-            return;
-        }
-
-        Register(modConfig, "PlayerManager.UserCode_CmdReceiveRpcCommand__RpcCommandBase");
-        Register(modConfig, "PlayerManager.UserCode_CmdReceiveRpcCommandExcludeOwner__RpcCommandBase");
-        Register(modConfig, "PlayerManager.CmdReceiveRpcCommand");
-        Register(modConfig, "PlayerManager.CmdReceiveRpcCommandExcludeOwner");
-    }
-
-    internal static AuraCgRpcSender CreateLocalServerSender(string sourceHook)
-    {
-        return CreateSender(PlayerManager.Instance, sourceHook);
-    }
-
-    private static void Register(ModConfig modConfig, string target)
-    {
-        AuraSharedHooks.RegisterBefore(
-            modConfig,
-            target,
-            context => BindSender(context, target),
-            message => AuraCgLog.InfoOnce("rpc-authority:" + target + ":" + message, "[RpcAuthority] " + message),
-            message => AuraCgLog.WarnOnce("rpc-authority-warn:" + target + ":" + message, "[RpcAuthority] " + message),
-            safeInvoke: true);
-    }
-
-    private static void BindSender(ModHookContext context, string sourceHook)
-    {
-        var command = FindCommand(context.Arguments);
-        if (command is not IAuraCgServerBoundRpcCommand bound)
-        {
-            return;
-        }
-
-        bound.BindServerSender(CreateSender(context.Target, sourceHook));
-    }
-
-    private static RpcCommandBase? FindCommand(object[]? args)
-    {
-        return args?.OfType<RpcCommandBase>().FirstOrDefault();
-    }
-
-    private static AuraCgRpcSender CreateSender(object? target, string sourceHook)
-    {
-        try
-        {
-            var playerManager = target as PlayerManager;
-            var playerId = (playerManager?.PlayerId ?? "").Trim();
-            var playerName = (playerManager?.playerInfo?.Name ?? "").Trim();
-            var isMember = LobbyContains(playerId);
-            return new AuraCgRpcSender(
-                playerId,
-                playerName,
-                isMember,
-                isMember && IsLobbyHost(playerId),
-                sourceHook,
-                playerId.Length > 0);
-        }
-        catch (Exception ex)
-        {
-            AuraCgLog.WarnOnce("rpc-authority-sender-failed", "[RpcAuthority] failed to resolve server sender: " + ex.Message);
-            return AuraCgRpcSender.Unbound;
-        }
-    }
-
-    private static bool LobbyContains(string playerId)
-    {
-        if (string.IsNullOrWhiteSpace(playerId))
-        {
-            return false;
-        }
-
-        var players = GameServer.Instance?.LobbyInfo?.AddedPlayers;
-        return players == null
-               || players.Count == 0
-               || players.Any(player => player != null && player.Id == playerId);
-    }
-
-    private static bool IsLobbyHost(string playerId)
-    {
-        if (string.IsNullOrWhiteSpace(playerId))
-        {
-            return false;
-        }
-
-        var players = GameServer.Instance?.LobbyInfo?.AddedPlayers;
-        return players == null
-               || players.Count == 0
-               || string.Equals(players[0].Id, playerId, StringComparison.Ordinal);
-    }
-}
-
-[Serializable]
-public sealed class RpcSkillCgPlaybackRequest : RpcCommandBase, IAuraCgServerBoundRpcCommand
-{
-    private AuraCgRpcSender serverSender = AuraCgRpcSender.Unbound;
-
-    public SkillCgPlaybackSnapshot Playback { get; set; } = new();
-
-    public RpcSkillCgPlaybackRequest()
-    {
-    }
-
-    public RpcSkillCgPlaybackRequest(SkillCgPlaybackSnapshot playback)
-    {
-        Playback = playback ?? new SkillCgPlaybackSnapshot();
-    }
-
-    public void BindServerSender(AuraCgRpcSender sender)
-    {
-        serverSender = sender ?? AuraCgRpcSender.Unbound;
-    }
-
-    public override void CmdExecute()
-    {
-        SkillCgArbiterRuntime.ApplyServerPlaybackRequest(Playback, serverSender);
-    }
-
-    public override void RpcExecute()
-    {
-    }
-}
-
-[Serializable]
-public sealed class RpcSkillCgPlayback : RpcCommandBase
-{
-    public SkillCgPlaybackSnapshot Playback { get; set; } = new();
-
-    public RpcSkillCgPlayback()
-    {
-    }
-
-    public RpcSkillCgPlayback(SkillCgPlaybackSnapshot playback)
-    {
-        Playback = playback ?? new SkillCgPlaybackSnapshot();
-    }
-
-    public override void RpcExecute()
-    {
-        SkillCgArbiterRuntime.ApplyNetworkPlayback(Playback, "RpcSkillCgPlayback");
-    }
-}
-
-[Serializable]
-public sealed class RpcSkillCgFightSession : RpcCommandBase, IAuraCgServerBoundRpcCommand
-{
-    private AuraCgRpcSender serverSender = AuraCgRpcSender.Unbound;
-
-    public RpcSkillCgFightSession()
-    {
-    }
-
-    public RpcSkillCgFightSession(string ownerModId, string fightToken)
-    {
-        OwnerModId = ownerModId ?? "";
-        FightToken = fightToken ?? "";
-    }
-
-    public string OwnerModId { get; set; } = "";
-
-    public string FightToken { get; set; } = "";
-
-    public bool Accepted { get; set; }
-
-    public void BindServerSender(AuraCgRpcSender sender)
-    {
-        serverSender = sender ?? AuraCgRpcSender.Unbound;
-    }
-
-    public override void CmdExecute()
-    {
-        Accepted = serverSender.IsAvailable && serverSender.IsLobbyMember && serverSender.IsLobbyHost;
-        if (Accepted)
-        {
-            SkillCgArbiterRuntime.ApplyFightSession(OwnerModId, FightToken, "RpcSkillCgFightSession.CmdExecute");
-        }
-    }
-
-    public override void RpcExecute()
-    {
-        if (Accepted)
-        {
-            SkillCgArbiterRuntime.ApplyFightSession(OwnerModId, FightToken, "RpcSkillCgFightSession.RpcExecute");
-        }
-    }
-}
-
-public static class SkillCgMediaTypes
-{
-    public const string Image = "image";
-    public const string Sequence = "sequence";
-
-    public static string Normalize(string? value)
-    {
-        var type = value?.Trim() ?? "";
-        if (string.Equals(type, Sequence, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(type, "frames", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(type, "pngSequence", StringComparison.OrdinalIgnoreCase))
-        {
-            return Sequence;
-        }
-
-        return Image;
-    }
-}
-
-public static class SkillCgAlphaModes
-{
-    public const string None = "none";
-    public const string BlackKey = "blackKey";
-
-    public static string Normalize(string? value)
-    {
-        var mode = value?.Trim() ?? "";
-        if (string.Equals(mode, BlackKey, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(mode, "lumaKey", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(mode, "black", StringComparison.OrdinalIgnoreCase))
-        {
-            return BlackKey;
-        }
-
-        return None;
-    }
-}
-
-public static class SkillCgFlashModes
-{
-    public const string Screen = "screen";
-    public const string MaskedInvert = "maskedInvert";
-    public const string ScreenBwPulse = "screenBwPulse";
-    public const string HybridBwPulse = "hybridBwPulse";
-
-    public static string Normalize(string? value)
-    {
-        var mode = value?.Trim() ?? "";
-        if (string.Equals(mode, HybridBwPulse, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(mode, "hybridBlackWhite", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(mode, "hybridBw", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(mode, "blackWhiteImpact", StringComparison.OrdinalIgnoreCase))
-        {
-            return HybridBwPulse;
-        }
-
-        if (string.Equals(mode, ScreenBwPulse, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(mode, "screenBlackWhite", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(mode, "blackWhiteScreen", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(mode, "bwPulse", StringComparison.OrdinalIgnoreCase))
-        {
-            return ScreenBwPulse;
-        }
-
-        if (string.Equals(mode, MaskedInvert, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(mode, "objectInvert", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(mode, "maskedDifference", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(mode, "difference", StringComparison.OrdinalIgnoreCase))
-        {
-            return MaskedInvert;
-        }
-
-        return Screen;
-    }
-}
-
-public static class SkillCgPresentationModes
-{
-    public const string Slide = "slide";
-    public const string FullscreenFade = "fullscreenFade";
-    public const string CenterFade = "centerFade";
-
-    public static string Normalize(string? value)
-    {
-        var mode = value?.Trim() ?? "";
-        if (string.Equals(mode, FullscreenFade, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(mode, "fullScreenFade", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(mode, "fullscreen", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(mode, "fullScreen", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(mode, "fade", StringComparison.OrdinalIgnoreCase))
-        {
-            return FullscreenFade;
-        }
-
-        if (string.Equals(mode, CenterFade, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(mode, "center", StringComparison.OrdinalIgnoreCase))
-        {
-            return CenterFade;
-        }
-
-        return Slide;
-    }
-}
-
-public static class SkillCgFitModes
-{
-    public const string Contain = "contain";
-    public const string Cover = "cover";
-    public const string Stretch = "stretch";
-
-    public static string Normalize(string? value)
-    {
-        var mode = value?.Trim() ?? "";
-        if (string.Equals(mode, Cover, StringComparison.OrdinalIgnoreCase))
-        {
-            return Cover;
-        }
-
-        if (string.Equals(mode, Stretch, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(mode, "fill", StringComparison.OrdinalIgnoreCase))
-        {
-            return Stretch;
-        }
-
-        return Contain;
-    }
-}
-
-internal readonly struct QueuedRequest
-{
-    public QueuedRequest(SkillCgRequest request, long enqueueSequence)
-    {
-        Request = request;
-        EnqueueSequence = enqueueSequence;
-    }
-
-    public SkillCgRequest Request { get; }
-
-    private long EnqueueSequence { get; }
-
-    public static int CompareForQueue(QueuedRequest a, QueuedRequest b)
-    {
-        var actionCompare = a.Request.ActionSequence.CompareTo(b.Request.ActionSequence);
-        if (actionCompare != 0)
-        {
-            return actionCompare;
-        }
-
-        var priorityCompare = b.Request.Priority.CompareTo(a.Request.Priority);
-        return priorityCompare != 0 ? priorityCompare : a.EnqueueSequence.CompareTo(b.EnqueueSequence);
     }
 }

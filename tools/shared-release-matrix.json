@@ -16,6 +16,13 @@
       "passConfiguration": true
     },
     {
+      "id": "auracg-behavior",
+      "kind": "script",
+      "path": "tools/Test-AuraCgShared.ps1",
+      "enabled": true,
+      "passConfiguration": true
+    },
+    {
       "id": "write-entrypoint-scan",
       "kind": "script",
       "path": "tools/Test-SharedWriteEntrypoints.ps1",
