@@ -1,13 +1,10 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Reflection;
 using AuraShared.Core;
-using Network.Command;
 using UnityEngine;
-using UnityEngine.Networking;
 using Witch.Core;
 using Witch.Mod;
 using Witch.UI.Window;
@@ -94,12 +91,12 @@ public static class AudioArbiterRuntime
 
     public static string ReadString(object? source, string propertyName)
     {
-        return PropertyReader.ReadString(source, propertyName);
+        return AudioPropertyReader.ReadString(source, propertyName);
     }
 
     public static int ReadInt(object? source, string propertyName, int fallback = 0)
     {
-        return PropertyReader.ReadInt(source, propertyName, fallback);
+        return AudioPropertyReader.ReadInt(source, propertyName, fallback);
     }
 
     public static bool ReceiveRemote(SoundPlaybackRequest request)
@@ -138,17 +135,17 @@ public static class AudioArbiterRuntime
 
     public static long ReadLong(object? source, string propertyName, long fallback = 0L)
     {
-        return PropertyReader.ReadLong(source, propertyName, fallback);
+        return AudioPropertyReader.ReadLong(source, propertyName, fallback);
     }
 
     public static float ReadFloat(object? source, string propertyName, float fallback = 0f)
     {
-        return PropertyReader.ReadFloat(source, propertyName, fallback);
+        return AudioPropertyReader.ReadFloat(source, propertyName, fallback);
     }
 
     public static bool ReadBool(object? source, string propertyName, bool fallback = false)
     {
-        return PropertyReader.ReadBool(source, propertyName, fallback);
+        return AudioPropertyReader.ReadBool(source, propertyName, fallback);
     }
 
     private static object? EnsureArbiter(ModConfig? modConfig, string ownerModId)
@@ -281,19 +278,14 @@ public static class AudioArbiterRuntime
 
     public sealed class AudioArbiterComponent : MonoBehaviour
     {
-        private const int MaximumPlaybackClaims = 512;
-        private const float LocalPlayIdReuseSeconds = 0.15f;
         private const float RemoteReplacementPairingSeconds = 0.15f;
         private const float RemoteFallbackSuppressionSeconds = 0.20f;
         private const float LowHealthNoProviderCooldownSeconds = 0.75f;
         private const float LowHealthRecoveryMargin = 0.05f;
         private const float LegacyLowHealthFallbackThreshold = 0.35f;
         private readonly List<SoundProviderHandle> soundProviders = new();
-        private readonly HashSet<string> receivedEventIds = new(StringComparer.Ordinal);
-        private readonly Queue<string> receivedEventOrder = new();
-        private readonly HashSet<string> pairedRemoteReplacementIds = new(StringComparer.Ordinal);
-        private readonly Dictionary<string, string> recentLocalPlayIds = new(StringComparer.Ordinal);
-        private readonly Dictionary<string, float> recentLocalPlayTimes = new(StringComparer.Ordinal);
+        private readonly AudioNetworkRuntime networkRuntime = new();
+        private readonly AudioReplacementCoordinator<AudioClip> replacementCoordinator = new();
         private readonly HashSet<string> lowHealthAnnounced = new(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> providerMismatchWarnings = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, float> cooldownUntil = new(StringComparer.OrdinalIgnoreCase);
@@ -306,9 +298,6 @@ public static class AudioArbiterRuntime
         private string ownerModId = "";
         private string lastAnnouncedCareerSelectionId = "";
         private bool hooksRegistered;
-        private PendingReplacement? pendingReplacement;
-        private string fightToken = "";
-        private long localPlaybackCounter;
 
         public int ProtocolVersion => CurrentProtocolVersion;
 
@@ -382,11 +371,11 @@ public static class AudioArbiterRuntime
                 soundProviders.Add(handle);
                 lowHealthNoProviderUntil.Clear();
                 lowHealthProviderIndexDirty = true;
-                soundProviders.Sort((a, b) =>
-                {
-                    var priority = b.Priority.CompareTo(a.Priority);
-                    return priority != 0 ? priority : string.Compare(a.QualifiedProviderId, b.QualifiedProviderId, StringComparison.OrdinalIgnoreCase);
-                });
+                soundProviders.Sort((a, b) => AudioProviderResolver.CompareProviderOrder(
+                    a.Priority,
+                    a.QualifiedProviderId,
+                    b.Priority,
+                    b.QualifiedProviderId));
                 Log("Sound provider registered: " + handle.Describe() + ", count=" + soundProviders.Count);
             }
             catch (Exception ex)
@@ -405,48 +394,20 @@ public static class AudioArbiterRuntime
                     return false;
                 }
 
-                var manifestPath = Path.Combine(modConfig.DirectoryName, string.IsNullOrWhiteSpace(manifestRelativePath)
-                    ? "audio.registry.json"
-                    : manifestRelativePath);
-                if (!File.Exists(manifestPath))
+                var loaded = AudioManifestLoader.Load(
+                    modConfig.DirectoryName,
+                    owner,
+                    manifestRelativePath,
+                    SupportedManifestSchemaVersion,
+                    CurrentProtocolVersion);
+                if (!loaded.Success)
                 {
-                    Warn("Manifest registration skipped: file missing. owner=" + owner + ", path=" + manifestPath);
+                    Warn(loaded.Error);
                     return false;
                 }
 
-                var manifest = DeserializeManifest(File.ReadAllText(manifestPath));
-                if (manifest == null)
-                {
-                    Warn("Manifest registration skipped: JSON is empty or invalid. owner=" + owner + ", path=" + manifestPath);
-                    return false;
-                }
-
-                if (manifest.schemaVersion <= 0)
-                {
-                    manifest.schemaVersion = 1;
-                }
-
-                if (manifest.schemaVersion > SupportedManifestSchemaVersion)
-                {
-                    Warn("Manifest registration skipped: unsupported schemaVersion=" + manifest.schemaVersion
-                        + ", supported=" + SupportedManifestSchemaVersion
-                        + ", owner=" + owner);
-                    return false;
-                }
-
-                if (manifest.audioProtocol != null && manifest.audioProtocol.minVersion > CurrentProtocolVersion)
-                {
-                    Warn("Manifest registration skipped: protocol minVersion=" + manifest.audioProtocol.minVersion
-                        + ", runtime=" + CurrentProtocolVersion
-                        + ", owner=" + owner);
-                    return false;
-                }
-
-                var manifestOwner = string.IsNullOrWhiteSpace(manifest.ownerModId) ? owner : manifest.ownerModId.Trim();
-                var defaults = manifest.defaults ?? new AudioRegistryDefaults();
-                var providers = manifest.providers ?? Array.Empty<AudioProviderManifest>();
                 var registered = 0;
-                foreach (var provider in providers)
+                foreach (var provider in loaded.Providers)
                 {
                     if (provider == null)
                     {
@@ -456,32 +417,39 @@ public static class AudioArbiterRuntime
                     var providerId = provider.providerId?.Trim() ?? "";
                     if (string.IsNullOrWhiteSpace(providerId))
                     {
-                        Warn("Manifest provider skipped: providerId is empty. owner=" + manifestOwner + ", path=" + manifestPath);
+                        Warn("Manifest provider skipped: providerId is empty. owner=" + loaded.ManifestOwner
+                            + ", path=" + loaded.ManifestPath);
                         continue;
                     }
 
-                    var audioPath = ResolveManifestPath(modConfig.DirectoryName, provider.path);
+                    var plan = AudioManifestLoader.CreateProviderPlan(
+                        provider,
+                        loaded.Defaults,
+                        loaded.ManifestOwner,
+                        modConfig.DirectoryName,
+                        AuraSharedPaths.ResolveSharedPath);
                     RegisterSoundProvider(new FileSoundProvider(
-                        providerId: providerId,
-                        ownerModId: string.IsNullOrWhiteSpace(provider.ownerModId) ? manifestOwner : provider.ownerModId.Trim(),
-                        audioPath: audioPath,
-                        priority: provider.priority,
-                        bus: Coalesce(provider.bus, defaults.bus, SoundBuses.Effect),
-                        policy: Coalesce(provider.policy, defaults.policy, SoundPolicies.Additive),
-                        hardClaim: provider.hardClaim ?? defaults.hardClaim ?? false,
-                        condition: BuildManifestCondition(provider),
-                        cooldownSeconds: provider.cooldownSeconds ?? defaults.cooldownSeconds ?? 0f,
-                        sync: provider.sync ?? defaults.sync ?? true,
-                        gainDb: provider.gainDb ?? defaults.gainDb ?? 0f,
-                        volumeMultiplier: provider.volumeMultiplier ?? defaults.volumeMultiplier ?? 1f,
-                        kind: provider.kind,
-                        lowHealthCrossDownThreshold: provider.match?.hpRatioCrossDown,
-                        suppressVocalStates: provider.suppressOriginal?.vocalStates ?? Array.Empty<string>(),
-                        suppressNarrationIds: provider.suppressOriginal?.narrationIds ?? Array.Empty<int>()));
+                        providerId: plan.ProviderId,
+                        ownerModId: plan.OwnerModId,
+                        audioPath: plan.AudioPath,
+                        priority: plan.Priority,
+                        bus: plan.Bus,
+                        policy: plan.Policy,
+                        hardClaim: plan.HardClaim,
+                        condition: AudioManifestMatchPolicy.BuildCondition(provider),
+                        cooldownSeconds: plan.CooldownSeconds,
+                        sync: plan.Sync,
+                        gainDb: plan.GainDb,
+                        volumeMultiplier: plan.VolumeMultiplier,
+                        kind: plan.Kind,
+                        lowHealthCrossDownThreshold: plan.LowHealthCrossDownThreshold,
+                        suppressVocalStates: plan.SuppressVocalStates,
+                        suppressNarrationIds: plan.SuppressNarrationIds));
                     registered++;
                 }
 
-                Log("Manifest registered: owner=" + manifestOwner + ", providers=" + registered + ", path=" + manifestPath);
+                Log("Manifest registered: owner=" + loaded.ManifestOwner + ", providers=" + registered
+                    + ", path=" + loaded.ManifestPath);
                 return registered > 0;
             }
             catch (Exception ex)
@@ -489,178 +457,6 @@ public static class AudioArbiterRuntime
                 Warn("Manifest registration failed: owner=" + owner + " -> " + ex);
                 return false;
             }
-        }
-
-        private static AudioRegistryManifest? DeserializeManifest(string json)
-        {
-            try
-            {
-                var jsonConvert = Type.GetType("Newtonsoft.Json.JsonConvert, Newtonsoft.Json")
-                    ?? Assembly.Load("Newtonsoft.Json").GetType("Newtonsoft.Json.JsonConvert");
-                var method = jsonConvert?.GetMethod("DeserializeObject", new[] { typeof(string), typeof(Type) });
-                if (method != null)
-                {
-                    return method.Invoke(null, new object[] { json, typeof(AudioRegistryManifest) }) as AudioRegistryManifest;
-                }
-            }
-            catch
-            {
-            }
-
-            try
-            {
-                var jsonUtility = Type.GetType("UnityEngine.JsonUtility, UnityEngine.JSONSerializeModule")
-                    ?? Assembly.Load("UnityEngine.JSONSerializeModule").GetType("UnityEngine.JsonUtility");
-                var method = jsonUtility?.GetMethod("FromJson", new[] { typeof(string), typeof(Type) });
-                if (method != null)
-                {
-                    return method.Invoke(null, new object[] { json, typeof(AudioRegistryManifest) }) as AudioRegistryManifest;
-                }
-            }
-            catch
-            {
-            }
-
-            return null;
-        }
-
-        private static string ResolveManifestPath(string modRoot, string relativeOrAbsolutePath)
-        {
-            if (string.IsNullOrWhiteSpace(relativeOrAbsolutePath))
-            {
-                return "";
-            }
-
-            const string sharedPrefix = "Shared:";
-            if (relativeOrAbsolutePath.StartsWith(sharedPrefix, StringComparison.OrdinalIgnoreCase))
-            {
-                return AuraSharedPaths.ResolveSharedPath(relativeOrAbsolutePath.Substring(sharedPrefix.Length));
-            }
-
-            return Path.IsPathRooted(relativeOrAbsolutePath)
-                ? relativeOrAbsolutePath
-                : Path.Combine(modRoot, relativeOrAbsolutePath.Replace('/', Path.DirectorySeparatorChar));
-        }
-
-        private static string Coalesce(params string[] values)
-        {
-            foreach (var value in values)
-            {
-                if (!string.IsNullOrWhiteSpace(value))
-                {
-                    return value.Trim();
-                }
-            }
-
-            return "";
-        }
-
-        private static Func<object?, bool> BuildManifestCondition(AudioProviderManifest provider)
-        {
-            var match = provider.match ?? new AudioProviderMatch();
-            var kind = provider.kind?.Trim() ?? "";
-            var vocalState = provider.vocalState?.Trim() ?? "";
-            var careerIds = ToSet(match.careerIds);
-            var roleIds = ToSet(match.roleIds);
-            var cardIds = ToSet(match.cardIds);
-            var buffIds = ToSet(match.buffIds);
-            var effectNames = ToSet(match.effectNames);
-            var actionNames = ToSet(match.actionNames);
-            var battleResults = ToSet(match.battleResults);
-            var localOwnerOnly = match.localOwnerOnly ?? false;
-            var hpRatioCrossDown = match.hpRatioCrossDown;
-
-            return request =>
-            {
-                if (!string.IsNullOrWhiteSpace(kind)
-                    && !string.Equals(ReadString(request, "Kind"), kind, StringComparison.OrdinalIgnoreCase))
-                {
-                    return false;
-                }
-
-                if (!string.IsNullOrWhiteSpace(vocalState)
-                    && !string.Equals(ReadString(request, "VocalState"), vocalState, StringComparison.OrdinalIgnoreCase))
-                {
-                    return false;
-                }
-
-                if (careerIds.Count > 0 && !MatchesAnyId(careerIds, ReadString(request, "CareerId")))
-                {
-                    return false;
-                }
-
-                if (roleIds.Count > 0 && !MatchesAnyId(roleIds, ReadString(request, "RoleId")))
-                {
-                    return false;
-                }
-
-                if (cardIds.Count > 0 && !cardIds.Contains(ReadString(request, "CardId")))
-                {
-                    return false;
-                }
-
-                if (buffIds.Count > 0 && !buffIds.Contains(ReadString(request, "BuffId")))
-                {
-                    return false;
-                }
-
-                if (effectNames.Count > 0 && !effectNames.Contains(ReadString(request, "EffectName")))
-                {
-                    return false;
-                }
-
-                if (actionNames.Count > 0 && !actionNames.Contains(ReadString(request, "ActionName")))
-                {
-                    return false;
-                }
-
-                if (battleResults.Count > 0 && !battleResults.Contains(ReadString(request, "BattleResult")))
-                {
-                    return false;
-                }
-
-                if (localOwnerOnly && !ReadBool(request, "IsRemote", false) && !ReadBool(request, "IsLocalOwner", false))
-                {
-                    return false;
-                }
-
-                if (hpRatioCrossDown.HasValue)
-                {
-                    var threshold = hpRatioCrossDown.Value;
-                    if (!(ReadFloat(request, "PreviousHpRatio", 0f) > threshold
-                          && ReadFloat(request, "HpRatio", 0f) <= threshold))
-                    {
-                        return false;
-                    }
-                }
-
-                return true;
-            };
-        }
-
-        private static HashSet<string> ToSet(string[]? values)
-        {
-            return new HashSet<string>(
-                values?.Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value.Trim())
-                ?? Enumerable.Empty<string>(),
-                StringComparer.OrdinalIgnoreCase);
-        }
-
-        private static bool MatchesAnyId(HashSet<string> accepted, string value)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                return false;
-            }
-
-            if (accepted.Contains(value))
-            {
-                return true;
-            }
-
-            return accepted.Any(id =>
-                value.StartsWith(id + "_", StringComparison.OrdinalIgnoreCase)
-                || value.EndsWith("_" + id, StringComparison.OrdinalIgnoreCase));
         }
 
         public bool RequestSound(object request)
@@ -671,18 +467,7 @@ public static class AudioArbiterRuntime
 
         public bool ReceiveRemote(SoundPlaybackRequest request)
         {
-            if (IsExpiredPresentation(request))
-            {
-                TraceRequest(request, "Discarded expired presentation event");
-                return false;
-            }
-
-            if (string.IsNullOrWhiteSpace(request.EventId))
-            {
-                request.EventId = Guid.NewGuid().ToString("N");
-            }
-
-            if (!TryClaimPresentation(request, "remote"))
+            if (!networkRuntime.TryAcceptRemotePresentation(request))
             {
                 return false;
             }
@@ -701,21 +486,12 @@ public static class AudioArbiterRuntime
                     request.EventId = Guid.NewGuid().ToString("N");
                 }
 
-                if (IsCardUsePresentation(request) && !request.IsRemote)
+                if (AudioNetworkPolicy.IsCardUsePresentation(request) && !request.IsRemote)
                 {
-                    request.CreatedAtUtcTicks = request.CreatedAtUtcTicks > 0 ? request.CreatedAtUtcTicks : DateTime.UtcNow.Ticks;
-                    request.MaxAgeMilliseconds = request.MaxAgeMilliseconds > 0
-                        ? request.MaxAgeMilliseconds
-                        : SoundPlaybackRequest.DefaultPresentationMaxAgeMilliseconds;
-                    request.IssuerPlayerId = string.IsNullOrWhiteSpace(request.IssuerPlayerId)
-                        ? PlayerManager.Instance?.PlayerId ?? ""
-                        : request.IssuerPlayerId;
-                    request.FightToken = string.IsNullOrWhiteSpace(request.FightToken) ? fightToken : request.FightToken;
-                    if (!presentationClaimed && !TryClaimPresentation(request, "local"))
+                    if (!networkRuntime.TryPrepareAndRelayLocalPresentation(request, presentationClaimed))
                     {
                         return true;
                     }
-                    RelayLocalCardUsePresentation(request);
                 }
 
                 var resolvedMaybe = Resolve(request);
@@ -735,25 +511,39 @@ public static class AudioArbiterRuntime
                     return false;
                 }
 
-                if (string.Equals(resolved.Provider.Bus, SoundBuses.Effect, StringComparison.OrdinalIgnoreCase)
-                    && IsReplacementPolicy(resolved.Provider.Policy)
-                    && string.Equals(request.Kind, SoundEventKinds.CardUse, StringComparison.OrdinalIgnoreCase))
+                var presentationPlan = AudioPresentationPolicy.CreatePlan(
+                    resolved.Provider.Bus,
+                    resolved.Provider.Policy,
+                    request.Kind,
+                    request.IsRemote,
+                    RemoteReplacementPairingSeconds,
+                    1.0f);
+                if (presentationPlan.QueueNativeEffectReplacement)
                 {
                     ArmOriginalSuppressions(resolved.Provider);
-                    var pairingSeconds = request.IsRemote ? RemoteReplacementPairingSeconds : 1.0f;
-                    pendingReplacement = new PendingReplacement(
-                        request,
-                        resolved,
+                    replacementCoordinator.Arm(
+                        resolved.Clip,
                         resolved.Provider.Policy,
-                        Time.unscaledTime + pairingSeconds,
+                        resolved.Provider.VolumeMultiplier,
+                        Time.unscaledTime + presentationPlan.PairingSeconds,
+                        request.EventId,
+                        request.CardId,
+                        request.RoleId,
+                        resolved.Provider.QualifiedProviderId,
+                        request.IsRemote,
                         fallbackAlreadyPlayed: false);
-                    if (request.IsRemote)
+                    if (presentationPlan.StartRemoteFallback)
                     {
                         StartCoroutine(PlayRemoteReplacementFallback(request, resolved));
                     }
                     TraceRequest(request, "Pending effect replacement: provider=" + resolved.Provider.ProviderId);
-                    LogCardUseOutcome(request, resolved, request.IsRemote ? "remote-pair-pending" : "local-pair-pending");
-                    SyncRemote(request, resolved.Provider, syncRemote);
+                    LogCardUseOutcome(request, resolved, presentationPlan.PendingOutcome);
+                    networkRuntime.SyncRemote(
+                        request,
+                        resolved.Provider.ProviderId,
+                        resolved.Provider.OwnerModId,
+                        resolved.Provider.Sync,
+                        syncRemote);
                     return true;
                 }
 
@@ -763,7 +553,12 @@ public static class AudioArbiterRuntime
                 ArmOriginalSuppressions(resolved.Provider);
                 PlayResolved(request, resolved);
                 LogCardUseOutcome(request, resolved, "played-direct");
-                SyncRemote(request, resolved.Provider, syncRemote);
+                networkRuntime.SyncRemote(
+                    request,
+                    resolved.Provider.ProviderId,
+                    resolved.Provider.OwnerModId,
+                    resolved.Provider.Sync,
+                    syncRemote);
                 return true;
             }
             catch (Exception ex)
@@ -775,96 +570,37 @@ public static class AudioArbiterRuntime
 
         private ResolvedSound? Resolve(SoundPlaybackRequest request)
         {
-            var requestedProviderId = (request.ProviderId ?? "").Trim();
-            if (requestedProviderId.Length == 0)
+            var resolution = AudioProviderResolver.Resolve<SoundProviderHandle, AudioClip>(
+                soundProviders,
+                request,
+                request.ProviderId,
+                request.OwnerModId,
+                request.IsRemote,
+                (provider, _) => TraceRequest(request, "Provider matched but not ready: provider="
+                    + provider.ProviderId + ", state=" + provider.GetLoadState()),
+                (provider, clip) => TraceRequest(request, "Provider clip selected: provider="
+                    + provider.ProviderId + ", clip=" + clip.name));
+
+            if (resolution.ShouldWarnRemoteMismatch)
             {
-                return ResolveWithProviderMatcher(request, _ => true);
+                WarnProviderMismatchOnce(request, "Remote sound provider mismatch");
             }
 
-            var requestedOwnerModId = (request.OwnerModId ?? "").Trim();
-            var hasOwnerScope = requestedOwnerModId.Length > 0;
-            var isQualifiedProviderId = requestedProviderId.Contains(":");
-
-            if (hasOwnerScope || isQualifiedProviderId)
+            if (resolution.UsedLegacyFallback)
             {
-                var strictIdentityMatched = false;
-                var resolved = ResolveWithProviderMatcher(request, provider =>
-                {
-                    var matched = provider.MatchesProviderRequest(
-                        requestedProviderId,
-                        requestedOwnerModId,
-                        ownerStrict: true);
-                    if (matched)
-                    {
-                        strictIdentityMatched = true;
-                    }
-
-                    return matched;
-                });
-
-                if (resolved.HasValue || strictIdentityMatched || request.IsRemote || isQualifiedProviderId)
-                {
-                    if (!resolved.HasValue && request.IsRemote && !strictIdentityMatched)
-                    {
-                        WarnProviderMismatchOnce(request, "Remote sound provider mismatch");
-                    }
-
-                    return resolved;
-                }
-
                 WarnProviderMismatchOnce(
                     request,
                     "Local sound provider owner mismatch; falling back to legacy bare provider id");
             }
 
-            return ResolveWithProviderMatcher(request, provider => provider.MatchesProviderId(requestedProviderId));
-        }
-
-        private ResolvedSound? ResolveWithProviderMatcher(
-            SoundPlaybackRequest request,
-            Func<SoundProviderHandle, bool> matchesProvider)
-        {
-            foreach (var provider in soundProviders)
+            if (!resolution.HasSelection || resolution.Provider == null || resolution.Resource == null)
             {
-                if (!matchesProvider(provider))
-                {
-                    continue;
-                }
-
-                if (!provider.Evaluate(request))
-                {
-                    continue;
-                }
-
-                if (!string.Equals(provider.GetLoadState(), "Ready", StringComparison.OrdinalIgnoreCase))
-                {
-                    TraceRequest(request, "Provider matched but not ready: provider=" + provider.ProviderId
-                        + ", state=" + provider.GetLoadState());
-                    if (provider.HardClaim)
-                    {
-                        return null;
-                    }
-
-                    continue;
-                }
-
-                var clip = provider.GetClip(request);
-                if (clip != null)
-                {
-                    request.ProviderId = provider.QualifiedProviderId;
-                    request.OwnerModId = provider.OwnerModId;
-                    TraceRequest(request, "Provider clip selected: provider=" + provider.ProviderId
-                        + ", clip=" + clip.name);
-                    return new ResolvedSound(provider, clip);
-                }
-
-                if (provider.HardClaim)
-                {
-                    return null;
-                }
+                return null;
             }
 
-            return null;
+            request.ProviderId = resolution.Provider.QualifiedProviderId;
+            request.OwnerModId = resolution.Provider.OwnerModId;
+            return new ResolvedSound(resolution.Provider, resolution.Resource);
         }
 
         private void WarnProviderMismatchOnce(SoundPlaybackRequest request, string message)
@@ -898,41 +634,27 @@ public static class AudioArbiterRuntime
 
         private bool CanPassCooldown(SoundProviderHandle provider, SoundPlaybackRequest request)
         {
-            var key = provider.QualifiedProviderId + "|" + request.Kind + "|" + request.RoleId + "|" + request.StatusInstanceId;
-            if (cooldownUntil.TryGetValue(key, out var until) && Time.unscaledTime < until)
-            {
-                return false;
-            }
-
-            if (provider.CooldownSeconds > 0f)
-            {
-                cooldownUntil[key] = Time.unscaledTime + provider.CooldownSeconds;
-            }
-
-            return true;
+            return AudioProviderCooldownPolicy.TryAcquire(
+                cooldownUntil,
+                provider.QualifiedProviderId,
+                request.Kind,
+                request.RoleId,
+                request.StatusInstanceId,
+                provider.CooldownSeconds,
+                Time.unscaledTime);
         }
 
         private void PlayResolved(SoundPlaybackRequest request, ResolvedSound resolved)
         {
-            var manager = AudioManager.Instance;
-            if (manager == null || resolved.Clip == null)
+            if (AudioPresentationPolicy.IsVocalBus(resolved.Provider.Bus))
             {
-                return;
-            }
-
-                if (string.Equals(resolved.Provider.Bus, SoundBuses.Vocal, StringComparison.OrdinalIgnoreCase))
-                {
-                    var roleId = !string.IsNullOrWhiteSpace(request.StatusInstanceId)
-                        ? request.StatusInstanceId
-                        : string.IsNullOrWhiteSpace(request.RoleId)
-                            ? request.CareerId
-                            : request.RoleId;
-                if (string.IsNullOrWhiteSpace(roleId))
-                {
-                        roleId = resolved.Provider.OwnerModId + "." + resolved.Provider.ProviderId;
-                    }
-
-                PlayVocal(manager, roleId, resolved.Clip, resolved.Provider.VolumeMultiplier);
+                var roleId = AudioPresentationPolicy.ResolveVocalRoleId(
+                    request.StatusInstanceId,
+                    request.RoleId,
+                    request.CareerId,
+                    resolved.Provider.OwnerModId,
+                    resolved.Provider.ProviderId);
+                AudioUnityPlaybackService.PlayVocal(roleId, resolved.Clip, resolved.Provider.VolumeMultiplier);
                 TraceRequest(request, "Playing vocal: roleId=" + roleId
                     + ", provider=" + resolved.Provider.ProviderId
                     + ", clip=" + resolved.Clip.name
@@ -941,459 +663,46 @@ public static class AudioArbiterRuntime
                 return;
             }
 
-            PlayEffect(manager, resolved.Clip, resolved.Provider.VolumeMultiplier);
+            AudioUnityPlaybackService.PlayEffect(resolved.Clip, resolved.Provider.VolumeMultiplier);
             TraceRequest(request, "Playing effect: provider=" + resolved.Provider.ProviderId
                 + ", clip=" + resolved.Clip.name
                 + ", gainDb=" + resolved.Provider.GainDb.ToString("0.##")
                 + ", volumeMultiplier=" + resolved.Provider.VolumeMultiplier.ToString("0.###"));
         }
 
-        private static void PlayVocal(AudioManager manager, string roleId, AudioClip clip, float volumeMultiplier)
-        {
-            if (Math.Abs(volumeMultiplier - 1f) < 0.001f)
-            {
-                manager.PlayVocal(roleId, clip);
-                return;
-            }
-
-            var source = GetOrCreateVocalSource(manager, roleId);
-            if (source == null)
-            {
-                manager.PlayVocal(roleId, clip);
-                return;
-            }
-
-            source.Stop();
-            source.clip = clip;
-            source.volume = ResolveManagerVolume(manager, "NarrationVolume");
-            source.PlayOneShot(clip, volumeMultiplier);
-        }
-
-        private static void PlayEffect(AudioManager manager, AudioClip clip, float volumeMultiplier)
-        {
-            if (Math.Abs(volumeMultiplier - 1f) < 0.001f)
-            {
-                manager.PlayEffect(clip);
-                return;
-            }
-
-            var source = ReadMember(manager, "effectSource") as AudioSource;
-            if (source == null)
-            {
-                manager.PlayEffect(clip);
-                return;
-            }
-
-            source.PlayOneShot(clip, ResolveManagerVolume(manager, "EffectVolume") * volumeMultiplier);
-        }
-
-        private static AudioSource? GetOrCreateVocalSource(AudioManager manager, string roleId)
-        {
-            var sources = ReadMember(manager, "_vocalSources") as System.Collections.IDictionary;
-            if (sources == null)
-            {
-                return null;
-            }
-
-            if (sources.Contains(roleId) && sources[roleId] is AudioSource existing)
-            {
-                return existing;
-            }
-
-            var source = manager.gameObject.AddComponent<AudioSource>();
-            var vocalGroup = ReadMember(manager, "vocalGroup") as UnityEngine.Audio.AudioMixerGroup;
-            if (vocalGroup != null)
-            {
-                source.outputAudioMixerGroup = vocalGroup;
-            }
-
-            sources[roleId] = source;
-            return source;
-        }
-
-        private static void StopVocalSource(string roleId)
-        {
-            try
-            {
-                var manager = AudioManager.Instance;
-                if (manager == null || string.IsNullOrWhiteSpace(roleId))
-                {
-                    return;
-                }
-
-                var sources = ReadMember(manager, "_vocalSources") as System.Collections.IDictionary;
-                if (sources != null && sources.Contains(roleId) && sources[roleId] is AudioSource source)
-                {
-                    source.Stop();
-                }
-            }
-            catch
-            {
-            }
-        }
-
-        private static float ResolveManagerVolume(AudioManager manager, string volumeField)
-        {
-            var volume = ReadFloatMember(manager, volumeField, 1f);
-            if (ReadMember(manager, "audioMixer") != null)
-            {
-                return volume;
-            }
-
-            return volume * ReadFloatMember(manager, "masterVolume", 1f);
-        }
-
-        private static object? ReadMember(object target, string name)
-        {
-            try
-            {
-                var type = target.GetType();
-                var field = type.GetField(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                if (field != null)
-                {
-                    return field.GetValue(target);
-                }
-
-                var property = type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                return property?.GetValue(target);
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        private static float ReadFloatMember(object target, string name, float fallback)
-        {
-            try
-            {
-                var value = ReadMember(target, name);
-                if (value is float typed)
-                {
-                    return typed;
-                }
-
-                return float.TryParse(value?.ToString(), out var parsed) ? parsed : fallback;
-            }
-            catch
-            {
-                return fallback;
-            }
-        }
-
-        private void SyncRemote(SoundPlaybackRequest request, SoundProviderHandle provider, bool syncRemote)
-        {
-            if (!syncRemote || request.DisableSync || request.IsRemote || !provider.Sync || IsCardUsePresentation(request))
-            {
-                return;
-            }
-
-            var playerManager = PlayerManager.Instance;
-            if (playerManager == null)
-            {
-                return;
-            }
-
-            // Keep the RPC payload's bare ProviderId for older receivers; new receivers use OwnerModId to disambiguate.
-            request.ProviderId = provider.ProviderId;
-            request.OwnerModId = provider.OwnerModId;
-            try
-            {
-                playerManager.SendRpcCommandExcludeOwner(new RpcAudioEvent(request));
-            }
-            catch (Exception ex)
-            {
-                Warn("Remote sound sync failed: " + ex.Message);
-            }
-        }
-
         private void ArmOriginalSuppressions(SoundProviderHandle provider)
         {
-            if (provider.SuppressNarrationIds.Count == 0)
-            {
-                return;
-            }
-
-            var until = Time.unscaledTime + 1.5f;
-            foreach (var id in provider.SuppressNarrationIds)
-            {
-                suppressNarrationUntil[id] = until;
-            }
-        }
-
-        private static bool IsReplacementPolicy(string policy)
-        {
-            return string.Equals(policy, SoundPolicies.Replace, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(policy, SoundPolicies.ReplaceOriginal, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(policy, SoundPolicies.SuppressOriginal, StringComparison.OrdinalIgnoreCase);
+            AudioSuppressionPolicy.ArmNarrationSuppressions(
+                suppressNarrationUntil,
+                provider.SuppressNarrationIds,
+                Time.unscaledTime,
+                1.5f);
         }
 
         private void OnFightStartBefore(ModHookContext context)
         {
-            receivedEventIds.Clear();
-            receivedEventOrder.Clear();
-            pairedRemoteReplacementIds.Clear();
-            recentLocalPlayIds.Clear();
-            recentLocalPlayTimes.Clear();
-            localPlaybackCounter = 0;
-            fightToken = "";
+            replacementCoordinator.Clear();
             cooldownUntil.Clear();
             lowHealthAnnounced.Clear();
             lastHpRatioByStatus.Clear();
             lowHealthNoProviderUntil.Clear();
             suppressNarrationUntil.Clear();
-            pendingReplacement = null;
-
-            var playerManager = PlayerManager.Instance;
-            if (playerManager == null || (!playerManager.isClient && !playerManager.isServer))
-            {
-                fightToken = CreateFightToken();
-                return;
-            }
-
-            if (!playerManager.isServer)
-            {
-                return;
-            }
-
-            fightToken = CreateFightToken();
-            try
-            {
-                var command = new RpcAudioFightSession(fightToken);
-                command.BindServerSender(AuraRpcAuthorityRuntime.CreateLocalServerSender("AudioFightSession"));
-                playerManager.SendRpcCommand(command);
-            }
-            catch (Exception ex)
-            {
-                Warn("Fight session broadcast failed: " + ex.Message);
-            }
+            networkRuntime.BeginFightSession();
         }
 
         public void ApplyFightSession(string token, string source)
         {
-            token = (token ?? "").Trim();
-            if (token.Length == 0 || token.Length > 96)
+            if (!networkRuntime.ApplyFightSession(token, source))
             {
                 return;
             }
 
-            receivedEventIds.Clear();
-            receivedEventOrder.Clear();
-            pairedRemoteReplacementIds.Clear();
-            recentLocalPlayIds.Clear();
-            recentLocalPlayTimes.Clear();
-            localPlaybackCounter = 0;
-            fightToken = token;
-            AuraSharedLog.Info("AudioArbiter", "Fight session applied: token=" + token + ", source=" + source);
-        }
-
-        private void RelayLocalCardUsePresentation(SoundPlaybackRequest request)
-        {
-            var playerManager = PlayerManager.Instance;
-            if (playerManager == null)
-            {
-                return;
-            }
-
-            try
-            {
-                if (playerManager.isServer)
-                {
-                    playerManager.SendRpcCommand(new RpcAudioEvent(request));
-                    TraceRequest(request, "Host local card-use presentation relayed");
-                }
-                else
-                {
-                    playerManager.SendRpcCommand(new RpcAudioPresentationRequest(request));
-                    TraceRequest(request, "Client card-use presentation submitted to host");
-                }
-            }
-            catch (Exception ex)
-            {
-                Warn("Card-use presentation submit failed: " + ex.Message);
-            }
+            replacementCoordinator.ClearPairingClaims();
         }
 
         public void ApplyServerCardUsePresentation(SoundPlaybackRequest request, AuraRpcSender sender)
         {
-            var playerManager = PlayerManager.Instance;
-            if (playerManager == null || !playerManager.isServer)
-            {
-                return;
-            }
-
-            var rejection = ValidateServerCardUsePresentation(request, sender);
-            if (!string.IsNullOrWhiteSpace(rejection))
-            {
-                Warn("Card-use presentation rejected: " + rejection);
-                return;
-            }
-
-            request.IssuerPlayerId = sender.PlayerId;
-            request.OwnerModId = "";
-            request.ProviderId = "";
-            request.CreatedAtUtcTicks = DateTime.UtcNow.Ticks;
-            request.MaxAgeMilliseconds = SoundPlaybackRequest.DefaultPresentationMaxAgeMilliseconds;
-            request.DisableSync = true;
-            if (!ReceiveRemote(request))
-            {
-                return;
-            }
-
-            try
-            {
-                playerManager.SendRpcCommand(new RpcAudioEvent(request));
-                TraceRequest(request, "Authorized client card-use presentation relayed");
-            }
-            catch (Exception ex)
-            {
-                Warn("Authorized card-use presentation relay failed: " + ex.Message);
-            }
-        }
-
-        private static string ValidateServerCardUsePresentation(SoundPlaybackRequest request, AuraRpcSender sender)
-        {
-            if (request == null || !IsCardUsePresentation(request)) return "invalid event kind";
-            if (!sender.IsAvailable) return "missing sender";
-            if (!sender.IsLobbyMember) return "sender outside lobby: " + sender.PlayerId;
-            if (string.IsNullOrWhiteSpace(request.EventId)) return "missing event id";
-            if (request.EventId.Length > 160) return "event id too long";
-            if (string.IsNullOrWhiteSpace(request.FightToken)) return "missing fight token";
-            if (request.FightToken.Length > 96) return "fight token too long";
-            if (string.IsNullOrWhiteSpace(request.CardId)) return "missing card id";
-            if (string.IsNullOrWhiteSpace(request.StatusInstanceId)) return "missing owner status";
-            if (!string.IsNullOrWhiteSpace(request.IssuerPlayerId)
-                && !string.Equals(request.IssuerPlayerId, sender.PlayerId, StringComparison.Ordinal))
-            {
-                return "issuer mismatch";
-            }
-
-            if (!SenderOwnsStatus(sender.PlayerId, request.StatusInstanceId)) return "owner mismatch";
-            if (request.MaxAgeMilliseconds < 0
-                || request.MaxAgeMilliseconds > SoundPlaybackRequest.DefaultPresentationMaxAgeMilliseconds)
-            {
-                return "invalid max age";
-            }
-            return "";
-        }
-
-        private static bool SenderOwnsStatus(string playerId, string statusInstanceId)
-        {
-            if (string.Equals(playerId, statusInstanceId, StringComparison.Ordinal)) return true;
-            try
-            {
-                var map = Singleton<TempDataManager>.Instance?.RoleStatusMap;
-                return map != null
-                    && map.TryGetValue(playerId, out var statuses)
-                    && statuses != null
-                    && statuses.Contains(statusInstanceId);
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        private static string PresentationDedupeKey(SoundPlaybackRequest request)
-        {
-            return (request.FightToken ?? "") + "|" + (request.IssuerPlayerId ?? "") + "|" + (request.EventId ?? "");
-        }
-
-        private bool TryClaimPresentation(SoundPlaybackRequest request, string source)
-        {
-            if (!IsCardUsePresentation(request))
-            {
-                return true;
-            }
-
-            if (IsMultiplayerSession())
-            {
-                if (string.IsNullOrWhiteSpace(fightToken))
-                {
-                    Warn("Card-use presentation skipped: fight session is not ready. source=" + source);
-                    return false;
-                }
-
-                if (!string.Equals(request.FightToken, fightToken, StringComparison.Ordinal))
-                {
-                    AuraSharedLog.Info("AudioArbiter", "Stale card-use presentation ignored: source=" + source
-                        + ", eventId=" + request.EventId + ", requestFight=" + request.FightToken + ", currentFight=" + fightToken);
-                    return false;
-                }
-            }
-
-            var key = PresentationDedupeKey(request);
-            if (!receivedEventIds.Add(key))
-            {
-                AuraSharedLog.Info("AudioArbiter", "Duplicate card-use presentation ignored: source=" + source
-                    + ", eventId=" + request.EventId + ", issuer=" + request.IssuerPlayerId + ", fight=" + request.FightToken);
-                return false;
-            }
-
-            receivedEventOrder.Enqueue(key);
-            while (receivedEventOrder.Count > MaximumPlaybackClaims)
-            {
-                receivedEventIds.Remove(receivedEventOrder.Dequeue());
-            }
-
-            AuraSharedLog.Info("AudioArbiter", "Card-use presentation claimed: source=" + source
-                + ", eventId=" + request.EventId + ", issuer=" + request.IssuerPlayerId + ", fight=" + request.FightToken
-                + ", cardId=" + request.CardId + ", roleId=" + request.RoleId);
-            return true;
-        }
-
-        private string ReuseOrCreateLocalPlayId(AuraCombatActionContext context)
-        {
-            var key = (context.OwnerInstanceId ?? "") + "|" + (context.CardId ?? "") + "|"
-                + (context.Action ?? "") + "|" + (context.Effects ?? "");
-            var now = Time.unscaledTime;
-            if (recentLocalPlayIds.TryGetValue(key, out var existing)
-                && recentLocalPlayTimes.TryGetValue(key, out var last)
-                && now - last <= LocalPlayIdReuseSeconds)
-            {
-                recentLocalPlayTimes[key] = now;
-                return existing;
-            }
-
-            var issuer = PlayerManager.Instance?.PlayerId ?? "solo";
-            var id = issuer + ":audio:" + (++localPlaybackCounter) + ":" + fightToken;
-            recentLocalPlayIds[key] = id;
-            recentLocalPlayTimes[key] = now;
-            foreach (var stale in recentLocalPlayTimes.Where(pair => now - pair.Value > 1f).Select(pair => pair.Key).ToArray())
-            {
-                recentLocalPlayTimes.Remove(stale);
-                recentLocalPlayIds.Remove(stale);
-            }
-            return id;
-        }
-
-        private static bool IsMultiplayerSession()
-        {
-            var playerManager = PlayerManager.Instance;
-            return playerManager != null && (playerManager.isClient || playerManager.isServer);
-        }
-
-        private static string CreateFightToken()
-        {
-            return "audio-" + Guid.NewGuid().ToString("N");
-        }
-
-        private static bool IsCardUsePresentation(SoundPlaybackRequest request)
-        {
-            return string.Equals(request.Kind, SoundEventKinds.CardUse, StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static bool IsExpiredPresentation(SoundPlaybackRequest request)
-        {
-            if (!IsCardUsePresentation(request)
-                || request.CreatedAtUtcTicks <= 0
-                || request.MaxAgeMilliseconds <= 0)
-            {
-                return false;
-            }
-
-            var elapsedTicks = DateTime.UtcNow.Ticks - request.CreatedAtUtcTicks;
-            return elapsedTicks > TimeSpan.TicksPerMillisecond * request.MaxAgeMilliseconds;
+            networkRuntime.ApplyServerCardUsePresentation(request, sender, ReceiveRemote);
         }
 
         private void OnFightStartAfter(ModHookContext context)
@@ -1520,9 +829,12 @@ public static class AudioArbiterRuntime
                 : context.OwnerRoleId;
             RequestSoundInternal(new SoundPlaybackRequest
             {
-                EventId = ReuseOrCreateLocalPlayId(context),
-                FightToken = fightToken,
-                IssuerPlayerId = PlayerManager.Instance?.PlayerId ?? "",
+                EventId = networkRuntime.ReuseOrCreateLocalPlayId(
+                    context.OwnerInstanceId,
+                    context.CardId,
+                    context.Action,
+                    context.Effects,
+                    Time.unscaledTime),
                 Kind = SoundEventKinds.CardUse,
                 CardId = context.CardId,
                 CareerId = context.CurrentRoleId,
@@ -1563,9 +875,8 @@ public static class AudioArbiterRuntime
 
         private void OnEffectSoundBefore(ModHookContext context)
         {
-            if (pendingReplacement == null || Time.unscaledTime > pendingReplacement.Value.UntilTime || pendingReplacement.Value.Remaining <= 0)
+            if (!replacementCoordinator.HasActivePending(Time.unscaledTime))
             {
-                pendingReplacement = null;
                 return;
             }
 
@@ -1575,37 +886,37 @@ public static class AudioArbiterRuntime
                 return;
             }
 
-            var pending = pendingReplacement.Value;
-            if (pending.Clip != null)
+            var decision = replacementCoordinator.ConsumeNativeEffect(Time.unscaledTime);
+            var pending = decision.Pending;
+            if (!decision.Handled || pending == null)
             {
-                if (string.Equals(pending.Policy, SoundPolicies.SuppressOriginal, StringComparison.OrdinalIgnoreCase))
-                {
+                return;
+            }
+
+            switch (decision.Action)
+            {
+                case AudioNativeEffectAction.SuppressOriginal:
                     effectSound.clip = null;
-                }
-                else if (Math.Abs(pending.VolumeMultiplier - 1f) >= 0.001f)
-                {
+                    break;
+                case AudioNativeEffectAction.PlayReplacementAfterDelay:
                     effectSound.clip = null;
-                    StartCoroutine(PlayEffectAfterDelay(Math.Max(0f, effectSound.delay), pending.Clip, pending.VolumeMultiplier));
-                }
-                else
-                {
-                    effectSound.clip = pending.Clip;
-                }
+                    if (pending.Resource != null)
+                    {
+                        StartCoroutine(PlayEffectAfterDelay(
+                            Math.Max(0f, effectSound.delay),
+                            pending.Resource,
+                            pending.VolumeMultiplier));
+                    }
+                    break;
+                case AudioNativeEffectAction.ReplaceOriginalClip:
+                    effectSound.clip = pending.Resource;
+                    break;
             }
 
             if (pending.IsRemote)
             {
-                if (!pending.FallbackAlreadyPlayed && !string.IsNullOrWhiteSpace(pending.EventId))
-                {
-                    pairedRemoteReplacementIds.Add(pending.EventId);
-                }
-
-                LogPendingReplacementOutcome(
-                    pending,
-                    pending.FallbackAlreadyPlayed ? "fallback-original-suppressed" : "paired-native");
+                LogPendingReplacementOutcome(pending, decision.RemoteOutcome);
             }
-
-            pendingReplacement = pending.ConsumeOne();
         }
 
         private IEnumerator PlayRemoteReplacementFallback(SoundPlaybackRequest request, ResolvedSound resolved)
@@ -1616,16 +927,12 @@ public static class AudioArbiterRuntime
                 yield return null;
             }
 
-            if (pairedRemoteReplacementIds.Remove(request.EventId))
+            if (replacementCoordinator.TryClaimPairedFallback(request.EventId))
             {
                 yield break;
             }
 
-            if (pendingReplacement.HasValue
-                && string.Equals(pendingReplacement.Value.EventId, request.EventId, StringComparison.Ordinal))
-            {
-                pendingReplacement = null;
-            }
+            replacementCoordinator.ClearPendingForEvent(request.EventId);
 
             PlayResolved(request, resolved);
             LogCardUseOutcome(request, resolved, "remote-fallback-played");
@@ -1633,11 +940,16 @@ public static class AudioArbiterRuntime
             // The native remote EffectSound may arrive after the presentation
             // packet. Keep a short suppress-only tail so that a late original
             // sound cannot play on top of the already played replacement.
-            pendingReplacement = new PendingReplacement(
-                request,
-                resolved,
+            replacementCoordinator.Arm(
+                resolved.Clip,
                 SoundPolicies.SuppressOriginal,
+                resolved.Provider.VolumeMultiplier,
                 Time.unscaledTime + RemoteFallbackSuppressionSeconds,
+                request.EventId,
+                request.CardId,
+                request.RoleId,
+                resolved.Provider.QualifiedProviderId,
+                request.IsRemote,
                 fallbackAlreadyPlayed: true);
         }
 
@@ -1648,16 +960,12 @@ public static class AudioArbiterRuntime
                 yield return new WaitForSeconds(delaySeconds);
             }
 
-            var manager = AudioManager.Instance;
-            if (manager != null)
-            {
-                PlayEffect(manager, clip, volumeMultiplier);
-            }
+            AudioUnityPlaybackService.PlayEffect(clip, volumeMultiplier);
         }
 
         private static void LogCardUseOutcome(SoundPlaybackRequest request, ResolvedSound? resolved, string outcome)
         {
-            if (!IsCardUsePresentation(request))
+            if (!AudioNetworkPolicy.IsCardUsePresentation(request))
             {
                 return;
             }
@@ -1671,7 +979,7 @@ public static class AudioArbiterRuntime
                 + ", remote=" + request.IsRemote);
         }
 
-        private static void LogPendingReplacementOutcome(PendingReplacement pending, string outcome)
+        private static void LogPendingReplacementOutcome(AudioPendingReplacement<AudioClip> pending, string outcome)
         {
             AuraSharedLog.Info("AudioArbiter", "Card-use presentation outcome: outcome=" + outcome
                 + ", eventId=" + pending.EventId
@@ -1735,23 +1043,17 @@ public static class AudioArbiterRuntime
                 return;
             }
 
-            var now = Time.unscaledTime;
-            var shouldSuppress = ids.Any(id =>
-                suppressNarrationUntil.TryGetValue(id, out var until) && now <= until);
-            foreach (var expired in suppressNarrationUntil
-                         .Where(item => now > item.Value)
-                         .Select(item => item.Key)
-                         .ToList())
-            {
-                suppressNarrationUntil.Remove(expired);
-            }
+            var shouldSuppress = AudioSuppressionPolicy.ShouldSuppressNarration(
+                suppressNarrationUntil,
+                ids,
+                Time.unscaledTime);
 
             if (!shouldSuppress)
             {
                 return;
             }
 
-            StopVocalSource("Krisna");
+            AudioUnityPlaybackService.StopVocalSource("Krisna");
             Log("Original narration suppressed: ids=" + string.Join(",", ids));
         }
 
@@ -2291,986 +1593,4 @@ public static class AudioArbiterRuntime
         }
     }
 
-    private sealed class SoundProviderHandle
-    {
-        private readonly object provider;
-        private readonly Type providerType;
-
-        public SoundProviderHandle(object provider)
-        {
-            this.provider = provider ?? throw new ArgumentNullException(nameof(provider));
-            providerType = provider.GetType();
-            ProviderId = ReadString("ProviderId", providerType.FullName ?? "");
-            OwnerModId = ReadString("OwnerModId", "");
-            if (string.IsNullOrWhiteSpace(OwnerModId))
-            {
-                OwnerModId = providerType.Assembly.GetName().Name ?? "";
-            }
-
-            QualifiedProviderId = QualifyProviderId(OwnerModId, ProviderId);
-            Kind = ReadString("Kind", "");
-            LowHealthCrossDownThreshold = ReadFloat("LowHealthCrossDownThreshold", -1f);
-            Priority = ReadInt("Priority", 0);
-            HardClaim = ReadBool("HardClaim", false);
-            Sync = ReadBool("Sync", true);
-            CooldownSeconds = ReadFloat("CooldownSeconds", 0f);
-            GainDb = ReadFloat("GainDb", 0f);
-            VolumeMultiplier = Math.Max(0f, ReadFloat("VolumeMultiplier", 1f)) * Mathf.Pow(10f, GainDb / 20f);
-            Bus = ReadString("Bus", SoundBuses.Effect);
-            Policy = ReadString("Policy", SoundPolicies.Additive);
-            SuppressVocalStates = SplitString(ReadString("SuppressVocalStates", ""));
-            SuppressNarrationIds = SplitInts(ReadString("SuppressNarrationIds", ""));
-        }
-
-        public string ProviderId { get; }
-
-        public string OwnerModId { get; }
-
-        public string QualifiedProviderId { get; }
-
-        public string Kind { get; }
-
-        public float LowHealthCrossDownThreshold { get; }
-
-        public int Priority { get; }
-
-        public bool HardClaim { get; }
-
-        public bool Sync { get; }
-
-        public float CooldownSeconds { get; }
-
-        public float GainDb { get; }
-
-        public float VolumeMultiplier { get; }
-
-        public string Bus { get; }
-
-        public string Policy { get; }
-
-        public HashSet<string> SuppressVocalStates { get; }
-
-        public HashSet<int> SuppressNarrationIds { get; }
-
-        public bool Evaluate(object request)
-        {
-            return InvokeBool("Evaluate", request, true);
-        }
-
-        public bool MatchesProviderId(string requestedProviderId)
-        {
-            return MatchesProviderRequest(requestedProviderId, "", ownerStrict: false);
-        }
-
-        public bool MatchesProviderRequest(string requestedProviderId, string requestedOwnerModId, bool ownerStrict)
-        {
-            var request = (requestedProviderId ?? "").Trim();
-            var owner = (requestedOwnerModId ?? "").Trim();
-            if (request.Length == 0)
-            {
-                return true;
-            }
-
-            if (string.Equals(request, QualifiedProviderId, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            if (!string.Equals(request, ProviderId, StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-
-            return !ownerStrict
-                || owner.Length == 0
-                || string.Equals(owner, OwnerModId, StringComparison.OrdinalIgnoreCase);
-        }
-
-        public string GetLoadState()
-        {
-            return InvokeString("GetLoadState", "Disabled");
-        }
-
-        public AudioClip? GetClip(object request)
-        {
-            try
-            {
-                var method = providerType.GetMethod("GetClip", BindingFlags.Instance | BindingFlags.Public);
-                if (method == null)
-                {
-                    return null;
-                }
-
-                var parameters = method.GetParameters();
-                return parameters.Length == 0
-                    ? method.Invoke(provider, Array.Empty<object>()) as AudioClip
-                    : method.Invoke(provider, new[] { request }) as AudioClip;
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning("[AudioArbiter] Provider GetClip failed: " + ProviderId + " -> " + ex.Message);
-                return null;
-            }
-        }
-
-        public string Describe()
-        {
-            return "providerId=" + ProviderId
-                + ", qualifiedProviderId=" + QualifiedProviderId
-                + ", owner=" + OwnerModId
-                + ", priority=" + Priority
-                + ", bus=" + Bus
-                + ", policy=" + Policy
-                + ", hardClaim=" + HardClaim
-                + ", sync=" + Sync
-                + ", gainDb=" + GainDb.ToString("0.##")
-                + ", volumeMultiplier=" + VolumeMultiplier.ToString("0.###")
-                + ", suppressNarrationIds=" + string.Join("|", SuppressNarrationIds);
-        }
-
-        public void Dispose(string reason)
-        {
-            try
-            {
-                if (provider is IDisposable disposable)
-                {
-                    disposable.Dispose();
-                    AuraSharedLog.DebugLog("AudioArbiter", "Sound provider disposed: " + ProviderId + ", reason=" + reason, false);
-                    return;
-                }
-
-                providerType.GetMethod("Dispose", BindingFlags.Instance | BindingFlags.Public, null, Type.EmptyTypes, null)
-                    ?.Invoke(provider, Array.Empty<object>());
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning("[AudioArbiter] Sound provider dispose failed: " + ProviderId + " -> " + ex.Message);
-            }
-        }
-
-        private string ReadString(string propertyName, string fallback)
-        {
-            return PropertyReader.ReadString(provider, propertyName, fallback);
-        }
-
-        private int ReadInt(string propertyName, int fallback)
-        {
-            return PropertyReader.ReadInt(provider, propertyName, fallback);
-        }
-
-        private bool ReadBool(string propertyName, bool fallback)
-        {
-            return PropertyReader.ReadBool(provider, propertyName, fallback);
-        }
-
-        private float ReadFloat(string propertyName, float fallback)
-        {
-            return PropertyReader.ReadFloat(provider, propertyName, fallback);
-        }
-
-        private static HashSet<string> SplitString(string value)
-        {
-            return new HashSet<string>(
-                (value ?? "")
-                    .Split(new[] { ',', ';', '|' }, StringSplitOptions.RemoveEmptyEntries)
-                    .Select(item => item.Trim())
-                    .Where(item => item.Length > 0),
-                StringComparer.OrdinalIgnoreCase);
-        }
-
-        private static HashSet<int> SplitInts(string value)
-        {
-            var result = new HashSet<int>();
-            foreach (var item in (value ?? "").Split(new[] { ',', ';', '|' }, StringSplitOptions.RemoveEmptyEntries))
-            {
-                if (int.TryParse(item.Trim(), out var id))
-                {
-                    result.Add(id);
-                }
-            }
-
-            return result;
-        }
-
-        private bool InvokeBool(string methodName, object arg, bool fallback)
-        {
-            try
-            {
-                var method = providerType.GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public);
-                if (method == null)
-                {
-                    return fallback;
-                }
-
-                return method.Invoke(provider, new[] { arg }) is bool value ? value : fallback;
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning("[AudioArbiter] Provider " + methodName + " failed: " + ProviderId + " -> " + ex.Message);
-                return false;
-            }
-        }
-
-        private string InvokeString(string methodName, string fallback)
-        {
-            try
-            {
-                var method = providerType.GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public);
-                return method?.Invoke(provider, Array.Empty<object>()) as string ?? fallback;
-            }
-            catch
-            {
-                return fallback;
-            }
-        }
-
-        private static string QualifyProviderId(string ownerModId, string providerId)
-        {
-            var owner = (ownerModId ?? "").Trim();
-            var id = (providerId ?? "").Trim();
-            if (string.IsNullOrWhiteSpace(id))
-            {
-                id = "unknown";
-            }
-
-            if (id.Contains(":") || string.IsNullOrWhiteSpace(owner))
-            {
-                return id;
-            }
-
-            return owner + ":" + id;
-        }
-    }
-
-    private readonly struct ResolvedSound
-    {
-        public ResolvedSound(SoundProviderHandle provider, AudioClip clip)
-        {
-            Provider = provider;
-            Clip = clip;
-        }
-
-        public SoundProviderHandle Provider { get; }
-
-        public AudioClip Clip { get; }
-    }
-
-    private readonly struct PendingReplacement
-    {
-        public PendingReplacement(
-            SoundPlaybackRequest request,
-            ResolvedSound resolved,
-            string policy,
-            float untilTime,
-            bool fallbackAlreadyPlayed)
-            : this(
-                resolved.Clip,
-                policy,
-                resolved.Provider.VolumeMultiplier,
-                untilTime,
-                1,
-                request.EventId,
-                request.CardId,
-                request.RoleId,
-                resolved.Provider.QualifiedProviderId,
-                request.IsRemote,
-                fallbackAlreadyPlayed)
-        {
-        }
-
-        private PendingReplacement(
-            AudioClip? clip,
-            string policy,
-            float volumeMultiplier,
-            float untilTime,
-            int remaining,
-            string eventId,
-            string cardId,
-            string roleId,
-            string providerId,
-            bool isRemote,
-            bool fallbackAlreadyPlayed)
-        {
-            Clip = clip;
-            Policy = policy;
-            VolumeMultiplier = volumeMultiplier;
-            UntilTime = untilTime;
-            Remaining = remaining;
-            EventId = eventId ?? "";
-            CardId = cardId ?? "";
-            RoleId = roleId ?? "";
-            ProviderId = providerId ?? "";
-            IsRemote = isRemote;
-            FallbackAlreadyPlayed = fallbackAlreadyPlayed;
-        }
-
-        public AudioClip? Clip { get; }
-
-        public string Policy { get; }
-
-        public float VolumeMultiplier { get; }
-
-        public float UntilTime { get; }
-
-        public int Remaining { get; }
-
-        public string EventId { get; }
-
-        public string CardId { get; }
-
-        public string RoleId { get; }
-
-        public string ProviderId { get; }
-
-        public bool IsRemote { get; }
-
-        public bool FallbackAlreadyPlayed { get; }
-
-        public PendingReplacement? ConsumeOne()
-        {
-            var next = Remaining - 1;
-            return next <= 0
-                ? null
-                : new PendingReplacement(
-                    Clip,
-                    Policy,
-                    VolumeMultiplier,
-                    UntilTime,
-                    next,
-                    EventId,
-                    CardId,
-                    RoleId,
-                    ProviderId,
-                    IsRemote,
-                    FallbackAlreadyPlayed);
-        }
-    }
-
-    private static class PropertyReader
-    {
-        public static string ReadString(object? source, string propertyName, string fallback = "")
-        {
-            try
-            {
-                var value = Read(source, propertyName);
-                return value?.ToString() ?? fallback;
-            }
-            catch
-            {
-                return fallback;
-            }
-        }
-
-        public static int ReadInt(object? source, string propertyName, int fallback)
-        {
-            try
-            {
-                var value = Read(source, propertyName);
-                if (value is int typed)
-                {
-                    return typed;
-                }
-
-                return int.TryParse(value?.ToString(), out var parsed) ? parsed : fallback;
-            }
-            catch
-            {
-                return fallback;
-            }
-        }
-
-        public static long ReadLong(object? source, string propertyName, long fallback)
-        {
-            try
-            {
-                var value = Read(source, propertyName);
-                return value is long typed ? typed : Convert.ToInt64(value);
-            }
-            catch
-            {
-                return fallback;
-            }
-        }
-
-        public static bool ReadBool(object? source, string propertyName, bool fallback)
-        {
-            try
-            {
-                var value = Read(source, propertyName);
-                if (value is bool typed)
-                {
-                    return typed;
-                }
-
-                return bool.TryParse(value?.ToString(), out var parsed) ? parsed : fallback;
-            }
-            catch
-            {
-                return fallback;
-            }
-        }
-
-        public static float ReadFloat(object? source, string propertyName, float fallback)
-        {
-            try
-            {
-                var value = Read(source, propertyName);
-                if (value is float typed)
-                {
-                    return typed;
-                }
-
-                return float.TryParse(value?.ToString(), out var parsed) ? parsed : fallback;
-            }
-            catch
-            {
-                return fallback;
-            }
-        }
-
-        private static object? Read(object? source, string propertyName)
-        {
-            if (source == null)
-            {
-                return null;
-            }
-
-            return source.GetType()
-                .GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public)
-                ?.GetValue(source);
-        }
-    }
-}
-
-[Serializable]
-public sealed class AudioRegistryManifest
-{
-    public int schemaVersion = 1;
-    public string ownerModId = "";
-    public AudioProtocolManifest? audioProtocol;
-    public AudioRegistryDefaults? defaults;
-    public AudioProviderManifest[]? providers;
-}
-
-[Serializable]
-public sealed class AudioProtocolManifest
-{
-    public int minVersion = 1;
-    public int preferredVersion = 1;
-}
-
-[Serializable]
-public sealed class AudioRegistryDefaults
-{
-    public string bus = "";
-    public string policy = "";
-    public bool? hardClaim;
-    public bool? sync;
-    public float? cooldownSeconds;
-    public float? gainDb;
-    public float? volumeMultiplier;
-}
-
-[Serializable]
-public sealed class AudioProviderManifest
-{
-    public string providerId = "";
-    public string ownerModId = "";
-    public string kind = "";
-    public string vocalState = "";
-    public string bus = "";
-    public string policy = "";
-    public string path = "";
-    public int priority;
-    public bool? hardClaim;
-    public bool? sync;
-    public float? cooldownSeconds;
-    public float? gainDb;
-    public float? volumeMultiplier;
-    public AudioProviderMatch? match;
-    public AudioSuppressOriginal? suppressOriginal;
-}
-
-[Serializable]
-public sealed class AudioProviderMatch
-{
-    public string[]? careerIds;
-    public string[]? roleIds;
-    public string[]? cardIds;
-    public string[]? buffIds;
-    public string[]? effectNames;
-    public string[]? actionNames;
-    public string[]? battleResults;
-    public bool? localOwnerOnly;
-    public float? hpRatioCrossDown;
-}
-
-[Serializable]
-public sealed class AudioSuppressOriginal
-{
-    public string[]? vocalStates;
-    public int[]? narrationIds;
-}
-
-public static class SoundEventKinds
-{
-    public const string CardUse = "CardUse";
-    public const string SkillVoice = "SkillVoice";
-    public const string CareerSelected = "CareerSelected";
-    public const string BuffApplied = "BuffApplied";
-    public const string LowHealth = "LowHealth";
-    public const string BattleCompleted = "BattleCompleted";
-    public const string VocalState = "VocalState";
-}
-
-public static class SoundBuses
-{
-    public const string Effect = "Effect";
-    public const string Vocal = "Vocal";
-    public const string Ui = "Ui";
-}
-
-public static class SoundPolicies
-{
-    public const string Additive = "Additive";
-    public const string Replace = "Replace";
-    public const string ReplaceOriginal = "ReplaceOriginal";
-    public const string SuppressOriginal = "SuppressOriginal";
-}
-
-[Serializable]
-public sealed class SoundPlaybackRequest
-{
-    public const int DefaultPresentationMaxAgeMilliseconds = 10000;
-    [NonSerialized]
-    public ModConfig? ModConfig;
-
-    public string EventId { get; set; } = "";
-
-    public string FightToken { get; set; } = "";
-
-    public string IssuerPlayerId { get; set; } = "";
-
-    public string ProviderId { get; set; } = "";
-
-    public string OwnerModId { get; set; } = "";
-
-    public string Kind { get; set; } = "";
-
-    public string CareerId { get; set; } = "";
-
-    public string RoleId { get; set; } = "";
-
-    public string StatusInstanceId { get; set; } = "";
-
-    public string CardId { get; set; } = "";
-
-    public string BuffId { get; set; } = "";
-
-    public string EffectName { get; set; } = "";
-
-    public string ActionName { get; set; } = "";
-
-    public string VocalState { get; set; } = "";
-
-    public string BattleResult { get; set; } = "";
-
-    public int Hp { get; set; }
-
-    public int MaxHp { get; set; }
-
-    public float PreviousHpRatio { get; set; }
-
-    public float HpRatio { get; set; }
-
-    public string SourceName { get; set; } = "";
-
-    public long CreatedAtUtcTicks { get; set; }
-
-    public int MaxAgeMilliseconds { get; set; }
-
-    public bool IsRemote { get; set; }
-
-    public bool DisableSync { get; set; }
-
-    public bool IsLocalOwner { get; set; }
-
-    public static SoundPlaybackRequest FromObject(object request)
-    {
-        if (request is SoundPlaybackRequest typed)
-        {
-            return typed;
-        }
-
-        return new SoundPlaybackRequest
-        {
-            EventId = AudioArbiterRuntime.ReadString(request, nameof(EventId)),
-            FightToken = AudioArbiterRuntime.ReadString(request, nameof(FightToken)),
-            IssuerPlayerId = AudioArbiterRuntime.ReadString(request, nameof(IssuerPlayerId)),
-            ProviderId = AudioArbiterRuntime.ReadString(request, nameof(ProviderId)),
-            OwnerModId = AudioArbiterRuntime.ReadString(request, nameof(OwnerModId)),
-            Kind = AudioArbiterRuntime.ReadString(request, nameof(Kind)),
-            CareerId = AudioArbiterRuntime.ReadString(request, nameof(CareerId)),
-            RoleId = AudioArbiterRuntime.ReadString(request, nameof(RoleId)),
-            StatusInstanceId = AudioArbiterRuntime.ReadString(request, nameof(StatusInstanceId)),
-            CardId = AudioArbiterRuntime.ReadString(request, nameof(CardId)),
-            BuffId = AudioArbiterRuntime.ReadString(request, nameof(BuffId)),
-            EffectName = AudioArbiterRuntime.ReadString(request, nameof(EffectName)),
-            ActionName = AudioArbiterRuntime.ReadString(request, nameof(ActionName)),
-            VocalState = AudioArbiterRuntime.ReadString(request, nameof(VocalState)),
-            BattleResult = AudioArbiterRuntime.ReadString(request, nameof(BattleResult)),
-            Hp = AudioArbiterRuntime.ReadInt(request, nameof(Hp), 0),
-            MaxHp = AudioArbiterRuntime.ReadInt(request, nameof(MaxHp), 0),
-            PreviousHpRatio = AudioArbiterRuntime.ReadFloat(request, nameof(PreviousHpRatio), 0f),
-            HpRatio = AudioArbiterRuntime.ReadFloat(request, nameof(HpRatio), 0f),
-            SourceName = AudioArbiterRuntime.ReadString(request, nameof(SourceName)),
-            CreatedAtUtcTicks = AudioArbiterRuntime.ReadLong(request, nameof(CreatedAtUtcTicks), 0L),
-            MaxAgeMilliseconds = AudioArbiterRuntime.ReadInt(request, nameof(MaxAgeMilliseconds), 0),
-            IsLocalOwner = AudioArbiterRuntime.ReadBool(request, nameof(IsLocalOwner), false)
-        };
-    }
-}
-
-public sealed class FileSoundProvider : IDisposable
-{
-    private readonly Func<object?, bool>? condition;
-    private readonly string audioPath;
-    private readonly ProviderRunner runner;
-    private AudioClip? clip;
-    private string loadState = "NotStarted";
-    private int generation;
-    private bool disposed;
-
-    public FileSoundProvider(
-        string providerId,
-        string ownerModId,
-        string audioPath,
-        int priority,
-        string bus,
-        string policy,
-        bool hardClaim,
-        Func<object?, bool>? condition,
-        float cooldownSeconds = 0f,
-        bool sync = true,
-        float gainDb = 0f,
-        float volumeMultiplier = 1f,
-        string kind = "",
-        float? lowHealthCrossDownThreshold = null,
-        string[]? suppressVocalStates = null,
-        int[]? suppressNarrationIds = null)
-    {
-        ProviderId = providerId;
-        OwnerModId = ownerModId;
-        Kind = (kind ?? "").Trim();
-        LowHealthCrossDownThreshold = lowHealthCrossDownThreshold ?? -1f;
-        Priority = priority;
-        Bus = bus;
-        Policy = policy;
-        HardClaim = hardClaim;
-        CooldownSeconds = cooldownSeconds;
-        Sync = sync;
-        GainDb = gainDb;
-        VolumeMultiplier = volumeMultiplier;
-        SuppressVocalStates = string.Join("|", suppressVocalStates ?? Array.Empty<string>());
-        SuppressNarrationIds = string.Join("|", suppressNarrationIds ?? Array.Empty<int>());
-        this.audioPath = audioPath;
-        this.condition = condition;
-
-        var gameObject = new GameObject("AudioProvider." + ownerModId + "." + providerId);
-        UnityEngine.Object.DontDestroyOnLoad(gameObject);
-        runner = gameObject.AddComponent<ProviderRunner>();
-        StartLoad();
-    }
-
-    public string ProviderId { get; }
-
-    public string OwnerModId { get; }
-
-    public string Kind { get; }
-
-    public float LowHealthCrossDownThreshold { get; }
-
-    public int Priority { get; }
-
-    public string Bus { get; }
-
-    public string Policy { get; }
-
-    public bool HardClaim { get; }
-
-    public bool Sync { get; }
-
-    public float CooldownSeconds { get; }
-
-    public float GainDb { get; }
-
-    public float VolumeMultiplier { get; }
-
-    public string SuppressVocalStates { get; }
-
-    public string SuppressNarrationIds { get; }
-
-    public bool Evaluate(object? request)
-    {
-        return condition == null || condition(request);
-    }
-
-    public string GetLoadState()
-    {
-        return loadState;
-    }
-
-    public AudioClip? GetClip(object? request)
-    {
-        return clip;
-    }
-
-    public void Dispose()
-    {
-        if (disposed)
-        {
-            return;
-        }
-
-        disposed = true;
-        generation++;
-        runner.StopAllCoroutines();
-        if (runner.gameObject != null)
-        {
-            UnityEngine.Object.Destroy(runner.gameObject);
-        }
-
-        clip = null;
-        loadState = "Disposed";
-    }
-
-    private void StartLoad()
-    {
-        generation++;
-        var currentGeneration = generation;
-        if (!File.Exists(audioPath))
-        {
-            loadState = "Missing";
-            Debug.LogWarning("[AudioArbiter] Sound file missing: provider=" + ProviderId + ", path=" + audioPath);
-            return;
-        }
-
-        var extension = Path.GetExtension(audioPath).ToLowerInvariant();
-        if (extension == ".mp4" || extension == ".m4v" || extension == ".mov")
-        {
-            loadState = "Unsupported";
-            Debug.LogWarning("[AudioArbiter] Sound file uses a video container and will not be loaded as AudioClip. "
-                + "Export the audio track as .mp3, .wav, or .ogg. provider=" + ProviderId + ", path=" + audioPath);
-            return;
-        }
-
-        loadState = "Loading";
-        runner.LoadAudio(audioPath, currentGeneration, (completedGeneration, loadedClip, error) =>
-        {
-            if (disposed || completedGeneration != generation)
-            {
-                return;
-            }
-
-            if (loadedClip == null)
-            {
-                loadState = "Failed";
-                Debug.LogWarning("[AudioArbiter] Sound load failed: provider=" + ProviderId + ", error=" + (error ?? "<none>"));
-                return;
-            }
-
-            loadedClip.name = Path.GetFileNameWithoutExtension(audioPath);
-            clip = loadedClip;
-            loadState = "Ready";
-            AuraSharedLog.DebugLog("AudioArbiter", "Sound loaded: provider=" + ProviderId + ", clip=" + loadedClip.name, false);
-        });
-    }
-
-    private sealed class ProviderRunner : MonoBehaviour
-    {
-        public void LoadAudio(string path, int generation, Action<int, AudioClip?, string?> onCompleted)
-        {
-            StartCoroutine(LoadAudioCoroutine(path, generation, onCompleted));
-        }
-
-        private static IEnumerator LoadAudioCoroutine(string path, int generation, Action<int, AudioClip?, string?> onCompleted)
-        {
-            var uri = new Uri(path).AbsoluteUri;
-            string? lastError = null;
-            foreach (var audioType in ResolveAudioTypes(path))
-            {
-                using var request = UnityWebRequestMultimedia.GetAudioClip(uri, audioType);
-                yield return request.SendWebRequest();
-
-                if (request.result != UnityWebRequest.Result.Success)
-                {
-                    lastError = "type=" + audioType + ", result=" + request.result + ", error=" + request.error;
-                    continue;
-                }
-
-                AudioClip? loadedClip = null;
-                string? error = null;
-                try
-                {
-                    loadedClip = DownloadHandlerAudioClip.GetContent(request);
-                }
-                catch (Exception ex)
-                {
-                    error = ex.ToString();
-                }
-
-                if (loadedClip != null)
-                {
-                    onCompleted(generation, loadedClip, null);
-                    yield break;
-                }
-
-                lastError = "type=" + audioType + ", contentError=" + (error ?? "AudioClip is null");
-            }
-
-            onCompleted(generation, null, lastError);
-        }
-
-        private static AudioType[] ResolveAudioTypes(string path)
-        {
-            switch (Path.GetExtension(path).ToLowerInvariant())
-            {
-                case ".wav":
-                    return new[] { AudioType.WAV };
-                case ".ogg":
-                    return new[] { AudioType.OGGVORBIS };
-                case ".m4a":
-                case ".aac":
-                case ".mp3":
-                default:
-                    return new[] { AudioType.MPEG };
-            }
-        }
-    }
-}
-
-public sealed class RpcAudioEvent : RpcCommandBase
-{
-    public RpcAudioEvent()
-    {
-        Event = new SoundPlaybackRequest();
-    }
-
-    public RpcAudioEvent(SoundPlaybackRequest request)
-    {
-        Event = new SoundPlaybackRequest
-        {
-            EventId = request.EventId,
-            FightToken = request.FightToken,
-            IssuerPlayerId = request.IssuerPlayerId,
-            ProviderId = request.ProviderId,
-            OwnerModId = request.OwnerModId,
-            Kind = request.Kind,
-            CareerId = request.CareerId,
-            RoleId = request.RoleId,
-            StatusInstanceId = request.StatusInstanceId,
-            CardId = request.CardId,
-            BuffId = request.BuffId,
-            EffectName = request.EffectName,
-            ActionName = request.ActionName,
-            VocalState = request.VocalState,
-            BattleResult = request.BattleResult,
-            Hp = request.Hp,
-            MaxHp = request.MaxHp,
-            PreviousHpRatio = request.PreviousHpRatio,
-            HpRatio = request.HpRatio,
-            SourceName = request.SourceName,
-            CreatedAtUtcTicks = request.CreatedAtUtcTicks,
-            MaxAgeMilliseconds = request.MaxAgeMilliseconds,
-            IsLocalOwner = request.IsLocalOwner,
-            DisableSync = true
-        };
-    }
-
-    public SoundPlaybackRequest Event { get; set; }
-
-    public override void RpcExecute()
-    {
-        Event.IsRemote = true;
-        Event.DisableSync = true;
-        AudioArbiterRuntime.ReceiveRemote(Event);
-    }
-}
-
-public interface IAudioArbiterServerBoundRpcCommand
-{
-    void BindServerSender(AuraRpcSender sender);
-}
-
-[Serializable]
-public sealed class RpcAudioPresentationRequest : RpcCommandBase, IAudioArbiterServerBoundRpcCommand
-{
-    private AuraRpcSender serverSender = AuraRpcSender.Unbound;
-
-    public RpcAudioPresentationRequest()
-    {
-        Event = new SoundPlaybackRequest();
-    }
-
-    public RpcAudioPresentationRequest(SoundPlaybackRequest request)
-    {
-        Event = new RpcAudioEvent(request).Event;
-    }
-
-    public SoundPlaybackRequest Event { get; set; }
-
-    public void BindServerSender(AuraRpcSender sender)
-    {
-        serverSender = sender ?? AuraRpcSender.Unbound;
-    }
-
-    public override void CmdExecute()
-    {
-        AudioArbiterRuntime.ApplyServerCardUsePresentation(Event, serverSender);
-    }
-
-    public override void RpcExecute()
-    {
-    }
-}
-
-[Serializable]
-public sealed class RpcAudioFightSession : RpcCommandBase, IAudioArbiterServerBoundRpcCommand
-{
-    private AuraRpcSender serverSender = AuraRpcSender.Unbound;
-
-    public RpcAudioFightSession()
-    {
-    }
-
-    public RpcAudioFightSession(string fightToken)
-    {
-        FightToken = fightToken ?? "";
-    }
-
-    public string FightToken { get; set; } = "";
-
-    public bool Accepted { get; set; }
-
-    public void BindServerSender(AuraRpcSender sender)
-    {
-        serverSender = sender ?? AuraRpcSender.Unbound;
-    }
-
-    public override void CmdExecute()
-    {
-        Accepted = serverSender.IsAvailable && serverSender.IsLobbyMember && serverSender.IsLobbyHost;
-        if (Accepted)
-        {
-            AudioArbiterRuntime.ApplyFightSession(FightToken, "RpcAudioFightSession.CmdExecute");
-        }
-    }
-
-    public override void RpcExecute()
-    {
-        if (Accepted)
-        {
-            AudioArbiterRuntime.ApplyFightSession(FightToken, "RpcAudioFightSession.RpcExecute");
-        }
-    }
 }

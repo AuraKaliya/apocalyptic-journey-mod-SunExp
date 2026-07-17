@@ -703,6 +703,12 @@ void TestRuntimeArchitectureGuards()
         "damage meter must fold generic owned companions into their explicit player owner");
 
     var audioArbiter = ReadRepoSourceTree("AudioArbiterShared");
+    var audioComponent = ReadRepoText("AudioArbiterShared/AudioArbiterRuntime.cs");
+    var audioNetworkPolicy = ReadRepoText("AudioArbiterShared/AudioNetworkPolicy.cs");
+    var audioNetworkSession = ReadRepoText("AudioArbiterShared/AudioNetworkSessionState.cs");
+    var audioNetworkRuntime = ReadRepoText("AudioArbiterShared/AudioNetworkRuntime.cs");
+    var audioProviderAdapter = ReadRepoText("AudioArbiterShared/AudioProviderAdapter.cs");
+    var audioFileProvider = ReadRepoText("AudioArbiterShared/AudioFileSoundProvider.cs");
     var auraToolsAudio = ReadRepoText("AuraToolsExp-Dev/Features/Audio/AuraToolsAudioRuntime.cs");
     Assert(audioArbiter.Contains("RpcAudioPresentationRequest", StringComparison.Ordinal)
            && audioArbiter.Contains("IAudioArbiterServerBoundRpcCommand", StringComparison.Ordinal)
@@ -710,13 +716,29 @@ void TestRuntimeArchitectureGuards()
            && audioArbiter.Contains("DefaultPresentationMaxAgeMilliseconds", StringComparison.Ordinal)
            && auraToolsAudio.Contains("presentationRelay=client-request-host-authorized", StringComparison.Ordinal),
         "card-use audio must use a client-requested, host-authorized bounded presentation relay");
+    Assert(audioNetworkPolicy.Contains("ValidateServerCardUsePresentation", StringComparison.Ordinal)
+           && audioNetworkPolicy.Contains("ValidateLocalPresentationIdentity", StringComparison.Ordinal)
+           && audioNetworkPolicy.Contains("expired presentation", StringComparison.Ordinal)
+           && audioNetworkSession.Contains("receivedEventOrder.Count > maximumPlaybackClaims", StringComparison.Ordinal)
+           && audioNetworkRuntime.Contains("AudioNetworkSenderSnapshot", StringComparison.Ordinal)
+           && audioComponent.Contains("networkRuntime.ApplyServerCardUsePresentation", StringComparison.Ordinal)
+           && !audioComponent.Contains("SendRpcCommand", StringComparison.Ordinal),
+        "card-use audio network policy, fight session state, sender validation, and RPC transport must stay outside the component");
+    Assert(audioProviderAdapter.Contains("class SoundProviderHandle", StringComparison.Ordinal)
+           && audioProviderAdapter.Contains("GetMethod(\"GetClip\"", StringComparison.Ordinal)
+           && audioFileProvider.Contains("class FileSoundProvider", StringComparison.Ordinal)
+           && audioFileProvider.Contains("UnityWebRequestMultimedia.GetAudioClip", StringComparison.Ordinal)
+           && !audioComponent.Contains("class SoundProviderHandle", StringComparison.Ordinal)
+           && !audioComponent.Contains("UnityWebRequestMultimedia", StringComparison.Ordinal),
+        "audio provider reflection and file-loading lifecycle must stay in dedicated adapters");
     Assert(audioArbiter.Contains("AudioArbiterRuntime.ReceiveRemote(Event)", StringComparison.Ordinal)
            && audioArbiter.Contains("RpcAudioFightSession", StringComparison.Ordinal)
            && audioArbiter.Contains("MaximumPlaybackClaims = 512", StringComparison.Ordinal)
            && audioArbiter.Contains("TryClaimPresentation", StringComparison.Ordinal)
            && audioArbiter.Contains("receivedEventOrder.Dequeue", StringComparison.Ordinal),
         "card-use audio RPC playback must enter the fight-scoped bounded claim ledger");
-    Assert(audioArbiter.Contains("&& IsReplacementPolicy(resolved.Provider.Policy)", StringComparison.Ordinal)
+    Assert(audioArbiter.Contains("AudioPresentationPolicy.CreatePlan", StringComparison.Ordinal)
+           && audioArbiter.Contains("presentationPlan.QueueNativeEffectReplacement", StringComparison.Ordinal)
            && !audioArbiter.Contains("&& !request.IsRemote\r\n                    && string.Equals(request.Kind, SoundEventKinds.CardUse", StringComparison.Ordinal)
            && !audioArbiter.Contains("&& !request.IsRemote\n                    && string.Equals(request.Kind, SoundEventKinds.CardUse", StringComparison.Ordinal),
         "remote card-use replacement audio must pair with the native effect instead of direct-playing a second clip");
@@ -724,7 +746,8 @@ void TestRuntimeArchitectureGuards()
            && audioArbiter.Contains("PlayRemoteReplacementFallback", StringComparison.Ordinal)
            && audioArbiter.Contains("remote-fallback-played", StringComparison.Ordinal)
            && audioArbiter.Contains("fallback-original-suppressed", StringComparison.Ordinal)
-           && audioArbiter.Contains("pairedRemoteReplacementIds", StringComparison.Ordinal),
+           && audioArbiter.Contains("AudioReplacementCoordinator", StringComparison.Ordinal)
+           && audioArbiter.Contains("TryClaimPairedFallback", StringComparison.Ordinal),
         "remote replacement audio must fall back once when no native effect pairs, then suppress a late original");
     Assert(audioArbiter.Contains("Card-use presentation outcome: outcome=", StringComparison.Ordinal)
            && audioArbiter.Contains("cardId=", StringComparison.Ordinal)

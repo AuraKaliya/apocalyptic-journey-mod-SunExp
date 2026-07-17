@@ -1843,6 +1843,8 @@ function Invoke-SourceAssertions {
     $starScoreHudTooltipView = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\StarScoreHudTooltipView.cs"))
     $sunExpProject = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\SunExp.Dll.csproj"))
     $audioArbiterRuntime = Read-SourceTreeText $RepoRoot "AudioArbiterShared"
+    $audioProviderResolver = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "AudioArbiterShared\AudioProviderResolver.cs"))
+    $audioNetworkRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "AudioArbiterShared\AudioNetworkRuntime.cs"))
     $battleBgmArbiterRuntime = Read-SourceTreeText $RepoRoot "BattleBgmArbiterShared"
     $modConfig = Get-Content -LiteralPath (Join-Path $RepoRoot "SunExp\ModConfig.json") -Raw | ConvertFrom-Json
     $solarMemoryMapNodePoolFactory = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarMemoryMapNodePoolFactory.cs"))
@@ -3399,13 +3401,13 @@ function Invoke-SourceAssertions {
     Assert-True ($modConfig.MustSame -eq $true) "SunExp must require an identical multiplayer mod version."
     Assert-True $audioArbiterRuntime.Contains('CurrentBuildId = "audio-arbiter-2026-07-11-v8"') "Audio arbiter must expose the fight-scoped presentation runtime build id."
     Assert-True $audioArbiterRuntime.Contains('const string sharedPrefix = "Shared:"') "Audio arbiter must resolve AuraShared resource paths."
-    Assert-True $audioArbiterRuntime.Contains("MatchesProviderRequest") "Audio arbiter must expose owner-aware provider matching."
-    Assert-True ([regex]::IsMatch($audioArbiterRuntime, 'MatchesProviderRequest\(requestedProviderId,\s*"",\s*ownerStrict:\s*false\)')) "Audio bare provider matching must remain backward-compatible."
-    Assert-True ([regex]::IsMatch($audioArbiterRuntime, 'MatchesProviderRequest\(\s*requestedProviderId,\s*requestedOwnerModId,\s*ownerStrict:\s*true\)')) "Audio explicit owner-scoped requests must use strict owner-aware matching."
-    Assert-True ([regex]::IsMatch($audioArbiterRuntime, 'request\.IsRemote[\s\S]*WarnProviderMismatchOnce\(request,\s*"Remote sound provider mismatch"\)')) "Audio remote provider mismatch must fail closed and log a diagnostic."
-    Assert-True $audioArbiterRuntime.Contains("request.ProviderId = provider.ProviderId") "Audio RPC payload must retain bare ProviderId for legacy receivers."
-    Assert-True $audioArbiterRuntime.Contains("request.OwnerModId = provider.OwnerModId") "Audio RPC payload must preserve OwnerModId for deterministic remote matching."
-    Assert-True $audioArbiterRuntime.Contains("OwnerModId to disambiguate") "Audio RPC compatibility comment must document OwnerModId-based matching."
+    Assert-True $audioProviderResolver.Contains("MatchesProviderRequest") "Audio provider resolver must own owner-aware provider matching."
+    Assert-True ([regex]::IsMatch($audioProviderResolver, 'requestedId,\s*"",\s*ownerStrict:\s*false')) "Audio bare provider matching must remain backward-compatible."
+    Assert-True ([regex]::IsMatch($audioProviderResolver, 'requestedId,\s*requestedOwner,\s*ownerStrict:\s*true')) "Audio explicit owner-scoped requests must use strict owner-aware matching."
+    Assert-True ($audioProviderResolver.Contains("ShouldWarnRemoteMismatch = isRemote") -and $audioArbiterRuntime.Contains('WarnProviderMismatchOnce(request, "Remote sound provider mismatch")')) "Audio remote provider mismatch must fail closed and log a diagnostic."
+    Assert-True $audioNetworkRuntime.Contains("request.ProviderId = providerId") "Audio network adapter must retain bare ProviderId for legacy receivers."
+    Assert-True $audioNetworkRuntime.Contains("request.OwnerModId = ownerModId") "Audio network adapter must preserve OwnerModId for deterministic remote matching."
+    Assert-True $audioNetworkRuntime.Contains("OwnerModId to disambiguate") "Audio RPC compatibility comment must document OwnerModId-based matching."
     Assert-True $battleBgmArbiterRuntime.Contains('CurrentBuildId = "battle-bgm-arbiter-2026-06-23-v4"') "Battle BGM arbiter must expose its owner-qualified provider runtime build id."
     Assert-True $battleBgmArbiterRuntime.Contains("Fake loss detected; BGM settlement deferred until escape reset") "Battle BGM arbiter must defer fake-loss settlement."
     Assert-True $battleBgmArbiterRuntime.Contains("Duplicate fight end ignored") "Battle BGM arbiter must ignore duplicate end callbacks."

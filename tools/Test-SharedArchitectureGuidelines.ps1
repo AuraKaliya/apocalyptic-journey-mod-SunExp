@@ -82,12 +82,140 @@ foreach ($runtime in $explicitProviderRequestFiles) {
 }
 
 $audioRuntime = Read-RepoSourceTree "AudioArbiterShared"
+$audioComponentRuntime = Read-RepoText "AudioArbiterShared\AudioArbiterRuntime.cs"
+$audioContracts = Read-RepoText "AudioArbiterShared\AudioContracts.cs"
+$audioNetworkContracts = Read-RepoText "AudioArbiterShared\AudioNetworkContracts.cs"
+$audioNetworkEventMapper = Read-RepoText "AudioArbiterShared\AudioNetworkEventMapper.cs"
+$audioNetworkPolicy = Read-RepoText "AudioArbiterShared\AudioNetworkPolicy.cs"
+$audioNetworkSession = Read-RepoText "AudioArbiterShared\AudioNetworkSessionState.cs"
+$audioNetworkRuntime = Read-RepoText "AudioArbiterShared\AudioNetworkRuntime.cs"
+$audioPropertyReader = Read-RepoText "AudioArbiterShared\AudioPropertyReader.cs"
+$audioFileLoadPolicy = Read-RepoText "AudioArbiterShared\AudioFileLoadPolicy.cs"
+$audioProviderAdapter = Read-RepoText "AudioArbiterShared\AudioProviderAdapter.cs"
+$audioFileSoundProvider = Read-RepoText "AudioArbiterShared\AudioFileSoundProvider.cs"
+$audioManifestLoader = Read-RepoText "AudioArbiterShared\AudioManifestLoader.cs"
+$audioManifestMatchPolicy = Read-RepoText "AudioArbiterShared\AudioManifestMatchPolicy.cs"
+$audioProviderResolver = Read-RepoText "AudioArbiterShared\AudioProviderResolver.cs"
+$audioPresentationPolicy = Read-RepoText "AudioArbiterShared\AudioPresentationPolicy.cs"
+$audioReplacementCoordinator = Read-RepoText "AudioArbiterShared\AudioReplacementCoordinator.cs"
+$audioUnityPlaybackService = Read-RepoText "AudioArbiterShared\AudioUnityPlaybackService.cs"
 Require-Text $audioRuntime "MatchesProviderRequest" "AudioArbiterRuntime must expose owner-aware provider request matching."
 Require-Text $audioRuntime "ownerStrict:\s*true" "AudioArbiterRuntime must have an owner-strict provider matching path."
 Require-Text $audioRuntime "request\.IsRemote[\s\S]*Remote sound provider mismatch" "AudioArbiterRuntime must fail closed for remote owner/provider mismatches."
 Require-Text $audioRuntime "OwnerModId to disambiguate" "AudioArbiterRuntime must document OwnerModId-based RPC provider disambiguation."
 Require-Text $audioRuntime "RemoteReplacementPairingSeconds" "AudioArbiterRuntime must bound remote native-effect pairing before fallback playback."
 Require-Text $audioRuntime "remote-fallback-played" "AudioArbiterRuntime must expose remote replacement fallback outcomes."
+Require-Text $audioContracts "public sealed class AudioRegistryManifest" "Audio manifest DTOs must stay in the dedicated contracts file."
+Require-Text $audioContracts "public sealed class SoundPlaybackRequest" "Audio playback request must stay in the dedicated contracts file."
+Require-Text $audioContracts "AudioPropertyReader\.ReadString" "Audio request projection must use the isolated property reader."
+Require-Text $audioNetworkContracts "public sealed class RpcAudioEvent" "Audio RPC types must stay in the dedicated network contracts file."
+Require-Text $audioNetworkContracts "IAudioArbiterServerBoundRpcCommand" "Audio server-bound RPC marker must stay with network contracts."
+Require-Text $audioNetworkContracts "AudioNetworkEventMapper\.CreateRemoteCopy" "Audio RPC payload construction must use the pure network mapper."
+Require-Text $audioNetworkEventMapper "internal static class AudioNetworkEventMapper" "Audio network payload mapping must stay in its pure mapper."
+Require-Text $audioNetworkEventMapper "DisableSync\s*=\s*true" "Audio network payload copies must disable relay sync."
+Require-Text $audioNetworkPolicy "internal static class AudioNetworkPolicy" "Audio network envelope and expiry validation must stay in its pure policy."
+Require-Text $audioNetworkPolicy "ValidateServerCardUsePresentation" "Audio server-bound presentation validation must stay in the network policy."
+Require-Text $audioNetworkPolicy "IsExpiredPresentation" "Audio transient presentation expiry must stay in the network policy."
+Require-Text $audioNetworkPolicy "ValidateLocalPresentationIdentity" "Audio multiplayer local presentations must reject ambiguous issuer or owner identity."
+Require-Text $audioNetworkPolicy "expired presentation" "Audio server validation must reject expired client presentation requests before timestamps are renewed."
+Require-Text $audioNetworkSession "internal sealed class AudioNetworkSessionState" "Audio fight-scoped network identity must stay in dedicated session state."
+Require-Text $audioNetworkSession "receivedEventOrder\.Count > maximumPlaybackClaims" "Audio presentation claims must remain bounded in session state."
+Require-Text $audioNetworkSession "ReuseOrCreateLocalPlayId" "Audio local action identity reuse must stay in session state."
+Require-Text $audioNetworkSession "public void ResetTransient\(\)" "Audio fight cleanup must reset transient network state."
+Require-Text $audioNetworkRuntime "internal sealed class AudioNetworkRuntime" "Audio RPC and multiplayer orchestration must stay in a dedicated network runtime."
+Require-Text $audioNetworkRuntime "MaximumPlaybackClaims\s*=\s*512" "Audio network runtime must preserve the playback-claim budget."
+Require-Text $audioNetworkRuntime "AudioNetworkPolicy\.ValidateServerCardUsePresentation" "Audio network runtime must delegate bound-sender validation to policy."
+Require-Text $audioNetworkRuntime "SenderOwnsStatus" "Audio network runtime must validate bound sender ownership."
+Require-Text $audioNetworkRuntime "RpcAudioPresentationRequest" "Audio clients must submit card-use presentation through the server-bound request command."
+Require-Text $audioComponentRuntime "new\(\);[\s\S]*AudioNetworkRuntime networkRuntime|AudioNetworkRuntime networkRuntime\s*=\s*new" "Audio component must delegate multiplayer state and RPC orchestration to the network runtime."
+Require-Text $audioComponentRuntime "networkRuntime\.TryPrepareAndRelayLocalPresentation" "Audio local synchronized presentation must be prepared by the network runtime."
+Require-Text $audioComponentRuntime "networkRuntime\.ApplyServerCardUsePresentation" "Audio server-bound presentation must be delegated to the network runtime."
+Require-Text $audioComponentRuntime "networkRuntime\.TryAcceptRemotePresentation" "Audio received presentation must enter the network runtime claim boundary."
+Require-Text $audioPropertyReader "internal static class AudioPropertyReader" "Audio reflection reads must stay in their isolated reader."
+Require-Text $audioPropertyReader "BindingFlags\.Instance\s*\|\s*BindingFlags\.Public" "Audio property reader must only inspect public instance properties."
+Require-Text $audioFileLoadPolicy "internal static class AudioFileLoadPolicy" "Audio file extension classification must stay in a pure policy."
+Require-Text $audioFileLoadPolicy "UnsupportedVideoContainer" "Audio file policy must reject video containers before Unity loading."
+Require-Text $audioProviderAdapter "internal sealed class SoundProviderHandle" "Audio reflected provider compatibility must stay in a dedicated adapter."
+Require-Text $audioProviderAdapter "AudioPropertyReader\.ReadString" "Audio provider adapter must delegate reflected property reads."
+Require-Text $audioProviderAdapter 'GetMethod\("GetClip"' "Audio provider adapter must own reflected clip access."
+Require-Text $audioProviderAdapter "internal readonly struct ResolvedSound" "Audio provider/clip result composition must stay with the provider adapter."
+Require-Text $audioFileSoundProvider "public sealed class FileSoundProvider" "Audio file provider public type must stay in its dedicated adapter file."
+Require-Text $audioFileSoundProvider "UnityWebRequestMultimedia\.GetAudioClip" "Audio file provider adapter must own Unity audio loading."
+Require-Text $audioFileSoundProvider "private sealed class ProviderRunner\s*:\s*MonoBehaviour" "Audio file provider must isolate its Coroutine runner."
+Require-Text $audioFileSoundProvider "completedGeneration != generation" "Audio file provider must reject stale load completions."
+Require-Text $audioFileSoundProvider "AudioFileLoadPolicy\.Classify" "Audio file provider must use the pure extension policy."
+Require-Text $audioManifestLoader "internal static class AudioManifestLoader" "Audio manifest loading and compatibility validation must stay in its dedicated loader."
+Require-Text $audioManifestLoader "unsupported schemaVersion" "Audio manifest loader must reject unsupported schemas."
+Require-Text $audioManifestLoader "protocol minVersion" "Audio manifest loader must reject unsupported protocols."
+Require-Text $audioManifestLoader "CreateProviderPlan" "Audio manifest defaults and provider paths must be normalized into provider plans."
+Require-Text $audioManifestMatchPolicy "internal static class AudioManifestMatchPolicy" "Audio manifest request matching must stay in its pure policy."
+Require-Text $audioManifestMatchPolicy "hpRatioCrossDown" "Audio manifest match policy must preserve threshold-crossing semantics."
+Require-Text $audioProviderResolver "internal static class AudioProviderResolver" "Audio provider identity and arbitration must stay in its pure resolver."
+Require-Text $audioProviderResolver "ShouldWarnRemoteMismatch" "Audio provider resolver must expose remote fail-closed mismatches."
+Require-Text $audioProviderResolver "HardClaimBlocked" "Audio provider resolver must preserve hard-claim fallback blocking."
+Require-Text $audioProviderResolver "CompareProviderOrder" "Audio provider resolver must own deterministic priority ordering."
+Require-Text $audioProviderResolver "internal static class AudioProviderCooldownPolicy" "Audio provider cooldown state transitions must stay in their pure policy."
+Require-Text $audioPresentationPolicy "internal static class AudioPresentationPolicy" "Audio playback routing and native-effect decisions must stay in the presentation policy."
+Require-Text $audioPresentationPolicy "QueueNativeEffectReplacement" "Audio presentation policy must identify native-effect replacement routing."
+Require-Text $audioPresentationPolicy "PlayReplacementAfterDelay" "Audio presentation policy must preserve custom-volume delayed playback."
+Require-Text $audioPresentationPolicy "internal static class AudioSuppressionPolicy" "Audio narration suppression planning must stay in its pure policy."
+Require-Text $audioReplacementCoordinator "internal sealed class AudioReplacementCoordinator" "Audio pending replacement and remote pairing state must stay in its coordinator."
+Require-Text $audioReplacementCoordinator "TryClaimPairedFallback" "Audio replacement coordinator must expose single-use remote pairing claims."
+Require-Text $audioReplacementCoordinator "fallback-original-suppressed" "Audio replacement coordinator must preserve late-original suppression outcomes."
+Require-Text $audioUnityPlaybackService "internal static class AudioUnityPlaybackService" "AudioManager and AudioSource mutation must stay in the Unity playback adapter."
+Require-Text $audioUnityPlaybackService "AudioManager\.Instance" "Audio Unity playback adapter must own AudioManager access."
+Require-Text $audioUnityPlaybackService "GetOrCreateVocalSource" "Audio Unity playback adapter must own vocal AudioSource compatibility."
+if ($audioComponentRuntime -match "public sealed class AudioRegistryManifest|public sealed class SoundPlaybackRequest|public sealed class RpcAudioEvent|private static class PropertyReader|private static AudioRegistryManifest\? DeserializeManifest|private static Func<object\?, bool> BuildManifestCondition|ResolveWithProviderMatcher|private static string QualifyProviderId|private readonly struct PendingReplacement|pairedRemoteReplacementIds|private static bool IsReplacementPolicy|private static void PlayVocal|private static void PlayEffect|private static object\? ReadMember") {
+    throw "AudioArbiterRuntime must delegate contracts, manifest/provider policy, playback decisions, replacement state, Unity playback, RPC payloads, and reflection reads to extracted boundaries."
+}
+if ($audioNetworkEventMapper -match "UnityEngine|Witch\.|AudioManager|PlayerManager|ModHookContext|RpcCommandBase") {
+    throw "Audio network event mapping must remain independent from Unity, game APIs, hooks, and RPC transport."
+}
+if ($audioNetworkPolicy -match "UnityEngine|Witch\.|AudioManager|PlayerManager|ModHookContext|RpcCommandBase|DateTime\.UtcNow") {
+    throw "Audio network policy must remain independent from Unity, game APIs, RPC transport, and wall-clock access."
+}
+if ($audioNetworkSession -match "UnityEngine|Witch\.|AudioManager|PlayerManager|ModHookContext|RpcCommandBase|DateTime\.UtcNow|Time\.") {
+    throw "Audio network session state must remain independent from Unity, game APIs, RPC transport, and clocks."
+}
+if ($audioNetworkRuntime -match "MonoBehaviour|StartCoroutine|AudioClip|AudioSource|AudioManager") {
+    throw "Audio network runtime must not own Unity playback, Coroutine execution, or audio resources."
+}
+if ($audioPropertyReader -match "UnityEngine|Witch\.|AudioManager|PlayerManager|ModHookContext") {
+    throw "Audio property reading must remain independent from Unity, game APIs, and hooks."
+}
+if ($audioFileLoadPolicy -match "UnityEngine|Witch\.|AudioManager|PlayerManager|ModHookContext|MonoBehaviour|UnityWebRequest") {
+    throw "Audio file extension classification must remain independent from Unity, game APIs, hooks, and transport."
+}
+if ($audioProviderAdapter -match "UnityWebRequest|DownloadHandlerAudioClip|StartCoroutine|MonoBehaviour|PlayerManager|ModHookContext") {
+    throw "Audio reflected provider adapter must not regain file transport, Coroutine, network, or hook ownership."
+}
+if ($audioFileSoundProvider -match "PlayerManager|SendRpcCommand|ModHookContext|RegisterBefore|RegisterAfter") {
+    throw "Audio file provider must remain a resource adapter without RPC or hook ownership."
+}
+if ($audioContracts -match "UnityEngine|AudioManager|PlayerManager|ModHookContext|RpcCommandBase") {
+    throw "Audio data contracts must remain independent from Unity, game managers, hooks, and RPC transport."
+}
+if ($audioManifestLoader -match "using UnityEngine|Witch\.|AudioManager|PlayerManager|ModHookContext|AudioClip|MonoBehaviour") {
+    throw "Audio manifest loading must remain independent from Unity objects, game APIs, managers, and hooks."
+}
+if ($audioManifestMatchPolicy -match "UnityEngine|Witch\.|AudioManager|PlayerManager|ModHookContext|AudioClip|MonoBehaviour") {
+    throw "Audio manifest request matching must remain a pure policy."
+}
+if ($audioProviderResolver -match "UnityEngine|Witch\.|AudioManager|PlayerManager|ModHookContext|AudioClip|MonoBehaviour|FileSoundProvider") {
+    throw "Audio provider identity, arbitration, and cooldown policy must remain independent from Unity and concrete provider adapters."
+}
+if ($audioPresentationPolicy -match "UnityEngine|Witch\.|AudioManager|PlayerManager|ModHookContext|AudioClip|MonoBehaviour|Time\.") {
+    throw "Audio presentation and suppression policy must remain independent from Unity, game APIs, and wall-clock access."
+}
+if ($audioReplacementCoordinator -match "UnityEngine|Witch\.|AudioManager|PlayerManager|ModHookContext|AudioClip|MonoBehaviour|Time\.") {
+    throw "Audio replacement state and pairing claims must remain generic and independent from Unity and game APIs."
+}
+if ($audioUnityPlaybackService -match "MonoBehaviour|StartCoroutine|ModHookContext|PlayerManager") {
+    throw "Audio Unity playback service must remain a delegated adapter without hook, RPC, or Coroutine ownership."
+}
+if ($audioComponentRuntime -match 'SendRpcCommand|private\s+readonly\s+HashSet<string>\s+receivedEventIds|private\s+readonly\s+Dictionary<string, string>\s+recentLocalPlayIds|private\s+string\s+fightToken|private\s+long\s+localPlaybackCounter|SenderOwnsStatus|class\s+SoundProviderHandle|class\s+FileSoundProvider|class\s+ProviderRunner|UnityWebRequestMultimedia|DownloadHandlerAudioClip|GetMethod\("GetClip"|readonly\s+struct\s+ResolvedSound') {
+    throw "AudioArbiterComponent must not regain RPC, network-session, provider reflection, or file-loading responsibilities."
+}
 
 $architectureGuidelines = Read-RepoText "docs\aura-shared-core-v2-contract.md"
 Require-Text $architectureGuidelines "provider identity[\s\S]*BuildId" "Shared architecture guidelines must require BuildId bumps for provider identity semantic changes."

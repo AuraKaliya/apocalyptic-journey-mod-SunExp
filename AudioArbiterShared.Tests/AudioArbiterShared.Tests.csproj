@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\AudioArbiterShared\AudioContracts.cs" Link="Shared\AudioContracts.cs" />
+    <Compile Include="..\AudioArbiterShared\AudioFileLoadPolicy.cs" Link="Shared\AudioFileLoadPolicy.cs" />
+    <Compile Include="..\AudioArbiterShared\AudioManifestLoader.cs" Link="Shared\AudioManifestLoader.cs" />
+    <Compile Include="..\AudioArbiterShared\AudioManifestMatchPolicy.cs" Link="Shared\AudioManifestMatchPolicy.cs" />
+    <Compile Include="..\AudioArbiterShared\AudioNetworkEventMapper.cs" Link="Shared\AudioNetworkEventMapper.cs" />
+    <Compile Include="..\AudioArbiterShared\AudioNetworkPolicy.cs" Link="Shared\AudioNetworkPolicy.cs" />
+    <Compile Include="..\AudioArbiterShared\AudioNetworkSessionState.cs" Link="Shared\AudioNetworkSessionState.cs" />
+    <Compile Include="..\AudioArbiterShared\AudioPresentationPolicy.cs" Link="Shared\AudioPresentationPolicy.cs" />
+    <Compile Include="..\AudioArbiterShared\AudioPropertyReader.cs" Link="Shared\AudioPropertyReader.cs" />
+    <Compile Include="..\AudioArbiterShared\AudioProviderResolver.cs" Link="Shared\AudioProviderResolver.cs" />
+    <Compile Include="..\AudioArbiterShared\AudioReplacementCoordinator.cs" Link="Shared\AudioReplacementCoordinator.cs" />
+  </ItemGroup>
+</Project>

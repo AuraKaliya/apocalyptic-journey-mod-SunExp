@@ -23,6 +23,13 @@
       "passConfiguration": true
     },
     {
+      "id": "audioarbiter-behavior",
+      "kind": "script",
+      "path": "tools/Test-AudioArbiterShared.ps1",
+      "enabled": true,
+      "passConfiguration": true
+    },
+    {
       "id": "write-entrypoint-scan",
       "kind": "script",
       "path": "tools/Test-SharedWriteEntrypoints.ps1",
