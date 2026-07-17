@@ -133,19 +133,51 @@ Assert(claims.TryClaim("p", "1", out _), "oldest playback claim evicted");
 claims.Clear();
 Assert(claims.Count == 0 && claims.TryClaim("p", "2", out _), "fight cleanup resets claims");
 
-var preloadCoordinator = new AuraCgPreloadCoordinator(2);
-Assert(preloadCoordinator.TryBeginPreload("image:a", alreadyCached: false), "preload request begins once");
-Assert(!preloadCoordinator.TryBeginPreload("image:a", alreadyCached: false), "pending preload deduplicated");
-Assert(preloadCoordinator.PendingCount == 1, "pending preload count owned by coordinator");
-preloadCoordinator.CompletePreload("image:a");
-Assert(preloadCoordinator.PendingCount == 0 && preloadCoordinator.TryBeginPreload("image:a", alreadyCached: false), "completed preload can retry");
-preloadCoordinator.CompletePreload("image:a");
-Assert(!preloadCoordinator.TryBeginPreload("image:cached", alreadyCached: true), "cached media is not queued");
-Assert(preloadCoordinator.TryBeginAdventure("adventure-a"), "first adventure preload begins");
-Assert(!preloadCoordinator.TryBeginAdventure("adventure-a"), "adventure preload deduplicated");
-Assert(preloadCoordinator.TryBeginAdventure("adventure-b") && preloadCoordinator.TryBeginAdventure("adventure-c"), "later adventure keys accepted");
-Assert(preloadCoordinator.AdventureCount == 2, "adventure preload history remains bounded");
-Assert(preloadCoordinator.TryBeginAdventure("adventure-a"), "oldest adventure key is evicted");
+var adventureHistory = new AuraCgAdventurePreloadHistory(2);
+Assert(adventureHistory.TryBegin("adventure-a"), "first adventure preload begins");
+Assert(!adventureHistory.TryBegin("adventure-a"), "adventure preload deduplicated");
+Assert(adventureHistory.TryBegin("adventure-b") && adventureHistory.TryBegin("adventure-c"), "later adventure keys accepted");
+Assert(adventureHistory.Count == 2, "adventure preload history remains bounded");
+Assert(adventureHistory.TryBegin("adventure-a"), "oldest adventure key is evicted");
+
+var preloadScheduler = new AuraCgPreloadScheduler<object>(
+    maximumPending: 4,
+    maximumPendingPerOwner: 2,
+    maximumConcurrent: 2);
+Assert(preloadScheduler.TryEnqueue("", "owner-a", new object(), alreadyCached: false) == AuraCgPreloadEnqueueResult.Invalid, "invalid preload keys are rejected");
+Assert(preloadScheduler.TryEnqueue("cached", "owner-a", new object(), alreadyCached: true) == AuraCgPreloadEnqueueResult.AlreadyCached, "cached media is not queued");
+var preloadA1 = new object();
+var preloadA2 = new object();
+var preloadB1 = new object();
+var preloadB2 = new object();
+Assert(preloadScheduler.TryEnqueue("a1", "owner-a", preloadA1, alreadyCached: false) == AuraCgPreloadEnqueueResult.Accepted, "first owner preload is queued");
+Assert(preloadScheduler.TryEnqueue("a2", "owner-a", preloadA2, alreadyCached: false) == AuraCgPreloadEnqueueResult.Accepted, "second owner preload is queued");
+Assert(preloadScheduler.TryEnqueue("a1", "owner-b", new object(), alreadyCached: false) == AuraCgPreloadEnqueueResult.Duplicate, "media identity deduplicates across owners");
+Assert(preloadScheduler.TryEnqueue("a3", "owner-a", new object(), alreadyCached: false) == AuraCgPreloadEnqueueResult.CapacityExceeded, "per-owner pending capacity is enforced");
+Assert(preloadScheduler.TryEnqueue("b1", "owner-b", preloadB1, alreadyCached: false) == AuraCgPreloadEnqueueResult.Accepted, "second owner can use reserved global capacity");
+Assert(preloadScheduler.TryEnqueue("b2", "owner-b", preloadB2, alreadyCached: false) == AuraCgPreloadEnqueueResult.Accepted, "second owner fills its pending share");
+Assert(preloadScheduler.TryEnqueue("c1", "owner-c", new object(), alreadyCached: false) == AuraCgPreloadEnqueueResult.CapacityExceeded, "global pending capacity is enforced");
+Assert(preloadScheduler.PendingCount == 4 && preloadScheduler.QueuedCount == 4 && preloadScheduler.CapacityRejectedCount == 2, "preload scheduler exposes bounded backlog statistics");
+var preloadFirst = preloadScheduler.TakeReady(1);
+Assert(preloadFirst.Count == 1 && preloadFirst[0].Key == "a1" && ReferenceEquals(preloadFirst[0].Request, preloadA1), "per-frame start budget launches one preload");
+var preloadSecond = preloadScheduler.TakeReady(10);
+Assert(preloadSecond.Count == 1 && preloadSecond[0].Key == "b1", "owner rotation gives the next start to another owner");
+Assert(preloadScheduler.TakeReady(10).Count == 0 && preloadScheduler.ActiveCount == 2, "global preload concurrency is enforced");
+Assert(preloadScheduler.Complete("a1"), "active preload completion releases its claim");
+var preloadThird = preloadScheduler.TakeReady(10);
+Assert(preloadThird.Count == 1 && preloadThird[0].Key == "a2", "owner rotation resumes the first owner fairly");
+Assert(!preloadScheduler.Complete("unknown"), "unknown completion cannot corrupt active counts");
+Assert(preloadScheduler.Complete("b1") && preloadScheduler.Complete("a2"), "remaining active preloads complete independently");
+var preloadFourth = preloadScheduler.TakeReady(2);
+Assert(preloadFourth.Count == 1 && preloadFourth[0].Key == "b2", "queued work starts after concurrency becomes available");
+Assert(preloadScheduler.Complete("b2") && preloadScheduler.PendingCount == 0 && preloadScheduler.ActiveCount == 0, "completion clears global and owner pending state");
+Assert(preloadScheduler.GetOwnerPendingCount("owner-a") == 0 && preloadScheduler.TryEnqueue("a1", "owner-a", preloadA1, alreadyCached: false) == AuraCgPreloadEnqueueResult.Accepted, "completed preload keys can be retried");
+
+var submissionEnumerated = 0;
+var boundedSubmission = AuraCgPreloadSubmission<int>.Capture(CountedPreloadSubmission(), 2);
+Assert(boundedSubmission.Items.SequenceEqual(new[] { 0, 1 }), "preload submission retains only the configured prefix");
+Assert(boundedSubmission.Truncated, "preload submission reports producer truncation");
+Assert(submissionEnumerated == 3, "preload submission probes only one item beyond its hard limit");
 
 var mediaCache = new AuraCgMediaCache<object, object>();
 var spriteA = new object();
@@ -269,4 +301,13 @@ void Assert(bool condition, string name)
     }
 
     assertions++;
+}
+
+IEnumerable<int> CountedPreloadSubmission()
+{
+    for (var i = 0; i < 100; i++)
+    {
+        submissionEnumerated++;
+        yield return i;
+    }
 }

@@ -114,6 +114,8 @@ public sealed class SkillCgTriggerContext
 [Serializable]
 public sealed class SkillCgRequest
 {
+    internal string PreloadProducerId { get; set; } = "";
+
     public string ProviderId { get; set; } = "";
 
     public string OwnerModId { get; set; } = "";

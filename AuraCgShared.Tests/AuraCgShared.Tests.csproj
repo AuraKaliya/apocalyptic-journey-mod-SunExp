@@ -11,7 +11,9 @@
     <Compile Include="..\AuraCgShared\AuraCgRegistryQueryService.cs" Link="Shared\AuraCgRegistryQueryService.cs" />
     <Compile Include="..\AuraCgShared\AuraCgNetworkPolicy.cs" Link="Shared\AuraCgNetworkPolicy.cs" />
     <Compile Include="..\AuraCgShared\AuraCgPlaybackClaimStore.cs" Link="Shared\AuraCgPlaybackClaimStore.cs" />
-    <Compile Include="..\AuraCgShared\AuraCgPreloadCoordinator.cs" Link="Shared\AuraCgPreloadCoordinator.cs" />
+    <Compile Include="..\AuraCgShared\AuraCgAdventurePreloadHistory.cs" Link="Shared\AuraCgAdventurePreloadHistory.cs" />
+    <Compile Include="..\AuraCgShared\AuraCgPreloadScheduler.cs" Link="Shared\AuraCgPreloadScheduler.cs" />
+    <Compile Include="..\AuraCgShared\AuraCgPreloadSubmission.cs" Link="Shared\AuraCgPreloadSubmission.cs" />
     <Compile Include="..\AuraCgShared\AuraCgMediaCache.cs" Link="Shared\AuraCgMediaCache.cs" />
     <Compile Include="..\AuraCgShared\AuraCgMediaCacheModels.cs" Link="Shared\AuraCgMediaCacheModels.cs" />
     <Compile Include="..\AuraCgShared\AuraCgMediaRetentionLedger.cs" Link="Shared\AuraCgMediaRetentionLedger.cs" />

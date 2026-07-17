@@ -41,6 +41,7 @@ public static class SkillCgArbiterRuntime
     private const int MaxNetworkEventsPerPlayback = 4;
     private const int MaxNetworkPayloadBytes = 8192;
     private const int MaxNetworkIdentifierLength = 160;
+    private const int MaxPreloadSubmissionItems = 256;
     private const string DefaultNetworkOwner = "AuraCgShared";
     private static readonly HashSet<string> ReuseLogOwners = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> CompatibilityErrorsShown = new(StringComparer.OrdinalIgnoreCase);
@@ -113,10 +114,28 @@ public static class SkillCgArbiterRuntime
 
     public static void PreloadCg(string ownerModId, IEnumerable<SkillCgRequest> requests)
     {
-        var batch = (requests ?? Array.Empty<SkillCgRequest>()).ToList();
+        var submission = AuraCgPreloadSubmission<SkillCgRequest>.Capture(requests, MaxPreloadSubmissionItems);
+        var batch = submission.Items;
+        if (submission.Truncated)
+        {
+            AuraCgLog.WarnOnce(
+                "preload-submission-limit:" + ownerModId,
+                "CG preload submission truncated before dispatch. owner=" + ownerModId
+                + ", max=" + MaxPreloadSubmissionItems);
+        }
+
         if (batch.Count == 0)
         {
             return;
+        }
+
+        var producerId = string.IsNullOrWhiteSpace(ownerModId) ? DefaultNetworkOwner : ownerModId.Trim();
+        foreach (var request in batch)
+        {
+            if (request != null)
+            {
+                request.PreloadProducerId = producerId;
+            }
         }
 
         var arbiter = EnsureArbiter(ownerModId);
@@ -144,6 +163,12 @@ public static class SkillCgArbiterRuntime
         if (requests.Count == 0)
         {
             return;
+        }
+
+        var producerId = string.IsNullOrWhiteSpace(consumerModId) ? DefaultNetworkOwner : consumerModId.Trim();
+        foreach (var request in requests)
+        {
+            request.PreloadProducerId = producerId;
         }
 
         var arbiter = EnsureArbiter(consumerModId);
@@ -828,6 +853,10 @@ public static class SkillCgArbiterRuntime
     {
         private const int MaxPlaybackPoolEntries = 512;
         private const int MaxAdventurePreloadKeys = 128;
+        private const int MaxPendingPreloads = 128;
+        private const int MaxPendingPreloadsPerOwner = 64;
+        private const int MaxConcurrentPreloads = 2;
+        private const int MaxPreloadStartsPerFrame = 1;
         private const int MaxMediaCacheEntries = 512;
         private const long MaxMediaCacheEstimatedBytes = 256L * 1024L * 1024L;
         private const long EstimatedAssetBundleHandleBytes = 1024L * 1024L;
@@ -839,7 +868,11 @@ public static class SkillCgArbiterRuntime
         private readonly Dictionary<string, string> recentLocalPlayIds = new(StringComparer.Ordinal);
         private readonly Dictionary<string, float> recentLocalPlayTimes = new(StringComparer.Ordinal);
         private readonly AuraCgPlaybackClaimStore playbackClaims = new(MaxPlaybackPoolEntries);
-        private readonly AuraCgPreloadCoordinator preloadCoordinator = new(MaxAdventurePreloadKeys);
+        private readonly AuraCgAdventurePreloadHistory adventurePreloadHistory = new(MaxAdventurePreloadKeys);
+        private readonly AuraCgPreloadScheduler<SkillCgRequest> preloadScheduler = new(
+            MaxPendingPreloads,
+            MaxPendingPreloadsPerOwner,
+            MaxConcurrentPreloads);
         private readonly AuraCgMediaReleaseQueue<Sprite, AssetBundle> mediaReleaseQueue = new();
         private AuraCgMediaCache<Sprite, AssetBundle> mediaCache = null!;
         private SkillCgArbiterOptions options = new();
@@ -877,6 +910,37 @@ public static class SkillCgArbiterRuntime
                 MaxMediaCacheEstimatedBytes,
                 mediaReleaseQueue.QueueSprite,
                 mediaReleaseQueue.QueueBundle);
+        }
+
+        private void Update()
+        {
+            if (playing)
+            {
+                return;
+            }
+
+            foreach (var work in preloadScheduler.TakeReady(MaxPreloadStartsPerFrame))
+            {
+                if (IsPreloaded(work.Request))
+                {
+                    preloadScheduler.Complete(work.Key);
+                    FlushReleasedMedia();
+                    continue;
+                }
+
+                try
+                {
+                    StartCoroutine(PreloadRequest(work.Request, work.Key));
+                }
+                catch (Exception ex)
+                {
+                    preloadScheduler.Complete(work.Key);
+                    AuraCgLog.WarnOnce(
+                        "preload-start-failed:" + work.Key,
+                        "CG preload coroutine failed to start: owner=" + work.OwnerId + ", error=" + ex.Message);
+                    FlushReleasedMedia();
+                }
+            }
         }
 
         public void Configure(object? value)
@@ -1003,8 +1067,18 @@ public static class SkillCgArbiterRuntime
                 return;
             }
 
+            var inspected = 0;
             foreach (var request in requests)
             {
+                if (inspected >= MaxPreloadSubmissionItems)
+                {
+                    AuraCgLog.WarnOnce(
+                        "preload-component-submission-limit",
+                        "CG preload component submission truncated. max=" + MaxPreloadSubmissionItems);
+                    break;
+                }
+
+                inspected++;
                 if (request == null)
                 {
                     continue;
@@ -1012,12 +1086,16 @@ public static class SkillCgArbiterRuntime
 
                 request.Normalize();
                 var key = AuraCgMediaCacheKeys.Preload(request);
-                if (!preloadCoordinator.TryBeginPreload(key, IsPreloaded(request)))
+                var owner = PreloadOwner(request);
+                var result = preloadScheduler.TryEnqueue(key, owner, request, IsPreloaded(request));
+                if (result == AuraCgPreloadEnqueueResult.CapacityExceeded)
                 {
-                    continue;
+                    AuraCgLog.WarnOnce(
+                        "preload-capacity:" + owner,
+                        "CG preload queue capacity reached; excess noncritical preloads are dropped. owner=" + owner
+                        + ", pending=" + preloadScheduler.PendingCount
+                        + ", ownerPending=" + preloadScheduler.GetOwnerPendingCount(owner));
                 }
-
-                StartCoroutine(PreloadRequest(request, key));
             }
         }
 
@@ -1028,7 +1106,7 @@ public static class SkillCgArbiterRuntime
                 return;
             }
 
-            if (!preloadCoordinator.TryBeginAdventure(request.Key))
+            if (!adventurePreloadHistory.TryBegin(request.Key))
             {
                 AuraCgLog.DebugLog("Adventure CG preload skipped; already queued. key=" + request.Key);
                 return;
@@ -1070,9 +1148,26 @@ public static class SkillCgArbiterRuntime
             }
             finally
             {
-                preloadCoordinator.CompletePreload(key);
+                preloadScheduler.Complete(key);
                 FlushReleasedMedia();
             }
+        }
+
+        private static string PreloadOwner(SkillCgRequest request)
+        {
+            if (!string.IsNullOrWhiteSpace(request.PreloadProducerId))
+            {
+                return request.PreloadProducerId.Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.OwnerModId))
+            {
+                return request.OwnerModId.Trim();
+            }
+
+            return string.IsNullOrWhiteSpace(request.ProviderId)
+                ? DefaultNetworkOwner
+                : request.ProviderId.Trim();
         }
 
         private bool IsPreloaded(SkillCgRequest request)
@@ -2692,7 +2787,7 @@ public static class SkillCgArbiterRuntime
         private void FlushReleasedMedia()
         {
             mediaReleaseQueue.Flush(
-                !playing && preloadCoordinator.PendingCount == 0,
+                !playing && preloadScheduler.ActiveCount == 0,
                 mediaCache.ContainsSpriteReference,
                 mediaCache.ContainsBundleReference,
                 ReleaseSprite,
