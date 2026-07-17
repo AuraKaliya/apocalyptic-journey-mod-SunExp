@@ -9,6 +9,13 @@
       "enabled": true
     },
     {
+      "id": "shared-runtime-compatibility",
+      "kind": "script",
+      "path": "tools/Test-SharedRuntimeCompatibility.ps1",
+      "enabled": true,
+      "passConfiguration": true
+    },
+    {
       "id": "write-entrypoint-scan",
       "kind": "script",
       "path": "tools/Test-SharedWriteEntrypoints.ps1",

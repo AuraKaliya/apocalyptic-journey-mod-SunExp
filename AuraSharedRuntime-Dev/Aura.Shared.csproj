@@ -33,9 +33,9 @@
     <Compile Include="..\AuraModeShared\*.cs" Link="AuraModeShared\%(Filename)%(Extension)" />
     <Compile Include="..\AuraSkinShared\**\*.cs" Link="AuraSkinShared\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\AuraOnlineShared\*.cs" Link="AuraOnlineShared\%(Filename)%(Extension)" />
-    <Compile Include="..\AudioArbiterShared\AudioArbiterRuntime.cs" Link="AudioArbiterShared\AudioArbiterRuntime.cs" />
-    <Compile Include="..\BattleBgmArbiterShared\BattleBgmArbiterRuntime.cs" Link="BattleBgmArbiterShared\BattleBgmArbiterRuntime.cs" />
-    <Compile Include="..\StarterDeckArbiterShared\StarterDeckArbiterRuntime.cs" Link="StarterDeckArbiterShared\StarterDeckArbiterRuntime.cs" />
+    <Compile Include="..\AudioArbiterShared\*.cs" Link="AudioArbiterShared\%(Filename)%(Extension)" />
+    <Compile Include="..\BattleBgmArbiterShared\*.cs" Link="BattleBgmArbiterShared\%(Filename)%(Extension)" />
+    <Compile Include="..\StarterDeckArbiterShared\*.cs" Link="StarterDeckArbiterShared\%(Filename)%(Extension)" />
     <Compile Include="..\AuraUiShared\*.cs" Link="AuraUiShared\%(Filename)%(Extension)" />
     <Compile Include="..\UiRaycastSafetyShared\UiRaycastSafeDestroyRuntime.cs" Link="UiRaycastSafetyShared\UiRaycastSafeDestroyRuntime.cs" />
     <Compile Include="..\UiTransitionGuardShared\UiTransitionGuardRuntime.cs" Link="UiTransitionGuardShared\UiTransitionGuardRuntime.cs" />

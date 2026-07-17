@@ -12,6 +12,25 @@ function Get-RepoRoot {
     return (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
 }
 
+function Read-SourceTreeText {
+    param(
+        [string]$RepoRoot,
+        [string]$RelativeDirectory
+    )
+
+    $directory = Join-Path $RepoRoot $RelativeDirectory
+    if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
+        throw "Required source directory is missing: $RelativeDirectory"
+    }
+
+    $files = @(Get-ChildItem -LiteralPath $directory -Recurse -Filter "*.cs" -File | Sort-Object FullName)
+    if ($files.Count -eq 0) {
+        throw "Required source directory has no C# files: $RelativeDirectory"
+    }
+
+    return (($files | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join [Environment]::NewLine)
+}
+
 function Write-Utf8NoBom {
     param(
         [string]$Path,
@@ -1779,7 +1798,7 @@ function Invoke-SourceAssertions {
     $endlessSeaMapProjectionService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessSeaMapProjectionService.cs"))
     $endlessSeaSelectableNodeDeckPlanner = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessSeaSelectableNodeDeckPlanner.cs"))
     $sunExpSkillCgRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Features\SkillCg\SunExpSkillCgRuntime.cs"))
-    $auraCgRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "AuraCgShared\AuraCgRuntime.cs"))
+    $auraCgRuntime = Read-SourceTreeText $RepoRoot "AuraCgShared"
     $endlessSeaStarterDeckCatalog = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessSeaStarterDeckCatalog.cs"))
     $endlessSeaRichTextSanitizer = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessSeaRichTextSanitizer.cs"))
     $endlessSeaOriginService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessSeaOriginService.cs"))
@@ -1823,8 +1842,8 @@ function Invoke-SourceAssertions {
     $starScoreHudHoverProbe = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\StarScoreHudHoverProbe.cs"))
     $starScoreHudTooltipView = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\StarScoreHudTooltipView.cs"))
     $sunExpProject = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\SunExp.Dll.csproj"))
-    $audioArbiterRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "AudioArbiterShared\AudioArbiterRuntime.cs"))
-    $battleBgmArbiterRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "BattleBgmArbiterShared\BattleBgmArbiterRuntime.cs"))
+    $audioArbiterRuntime = Read-SourceTreeText $RepoRoot "AudioArbiterShared"
+    $battleBgmArbiterRuntime = Read-SourceTreeText $RepoRoot "BattleBgmArbiterShared"
     $modConfig = Get-Content -LiteralPath (Join-Path $RepoRoot "SunExp\ModConfig.json") -Raw | ConvertFrom-Json
     $solarMemoryMapNodePoolFactory = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarMemoryMapNodePoolFactory.cs"))
     $solarMemoryMapNodePoolApplier = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarMemoryMapNodePoolApplier.cs"))

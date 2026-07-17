@@ -14,6 +14,22 @@ function Read-RepoText {
     return [System.IO.File]::ReadAllText($path)
 }
 
+function Read-RepoSourceTree {
+    param([string]$RelativeDirectory)
+
+    $directory = Join-Path $repoRoot $RelativeDirectory
+    if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
+        throw "Required source directory is missing: $RelativeDirectory"
+    }
+
+    $files = @(Get-ChildItem -LiteralPath $directory -Recurse -Filter "*.cs" -File | Sort-Object FullName)
+    if ($files.Count -eq 0) {
+        throw "Required source directory has no C# files: $RelativeDirectory"
+    }
+
+    return (($files | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join [Environment]::NewLine)
+}
+
 function Require-Text {
     param(
         [string]$Text,
@@ -27,48 +43,45 @@ function Require-Text {
 }
 
 $globalRuntimes = @(
-    "AuraSharedCore\AuraSharedRuntime.cs",
-    "AuraSkinShared\AuraSkinRuntime.cs",
-    "AudioArbiterShared\AudioArbiterRuntime.cs",
-    "BattleBgmArbiterShared\BattleBgmArbiterRuntime.cs",
-    "AuraCgShared\AuraCgRuntime.cs",
-    "UiTransitionGuardShared\UiTransitionGuardRuntime.cs"
+    @{ Name = "AuraSharedCore\AuraSharedRuntime.cs"; Text = (Read-RepoText "AuraSharedCore\AuraSharedRuntime.cs") },
+    @{ Name = "AuraSkinShared\AuraSkinRuntime.cs"; Text = (Read-RepoText "AuraSkinShared\AuraSkinRuntime.cs") },
+    @{ Name = "AudioArbiterShared"; Text = (Read-RepoSourceTree "AudioArbiterShared") },
+    @{ Name = "BattleBgmArbiterShared"; Text = (Read-RepoSourceTree "BattleBgmArbiterShared") },
+    @{ Name = "AuraCgShared"; Text = (Read-RepoSourceTree "AuraCgShared") },
+    @{ Name = "UiTransitionGuardShared\UiTransitionGuardRuntime.cs"; Text = (Read-RepoText "UiTransitionGuardShared\UiTransitionGuardRuntime.cs") }
 )
 
-foreach ($relative in $globalRuntimes) {
-    $text = Read-RepoText $relative
-    Require-Text $text "CurrentProtocolVersion" "$relative must expose CurrentProtocolVersion."
-    Require-Text $text "MinimumSupportedProtocolVersion" "$relative must expose MinimumSupportedProtocolVersion."
-    Require-Text $text "CurrentBuildId" "$relative must expose CurrentBuildId."
-    Require-Text $text "BuildId\s*=>\s*CurrentBuildId" "$relative must expose BuildId from CurrentBuildId."
-    Require-Text $text "ValidateExisting" "$relative must validate existing global component compatibility."
-    Require-Text $text "GetMethod\(" "$relative must check reflected public method shape."
+foreach ($runtime in $globalRuntimes) {
+    Require-Text $runtime.Text "CurrentProtocolVersion" "$($runtime.Name) must expose CurrentProtocolVersion."
+    Require-Text $runtime.Text "MinimumSupportedProtocolVersion" "$($runtime.Name) must expose MinimumSupportedProtocolVersion."
+    Require-Text $runtime.Text "CurrentBuildId" "$($runtime.Name) must expose CurrentBuildId."
+    Require-Text $runtime.Text "BuildId\s*=>\s*CurrentBuildId" "$($runtime.Name) must expose BuildId from CurrentBuildId."
+    Require-Text $runtime.Text "ValidateExisting" "$($runtime.Name) must validate existing global component compatibility."
+    Require-Text $runtime.Text "GetMethod\(" "$($runtime.Name) must check reflected public method shape."
 }
 
 $providerIdentityFiles = @(
-    "AudioArbiterShared\AudioArbiterRuntime.cs",
-    "BattleBgmArbiterShared\BattleBgmArbiterRuntime.cs",
-    "AuraCgShared\AuraCgRuntime.cs"
+    @{ Name = "AudioArbiterShared"; Text = (Read-RepoSourceTree "AudioArbiterShared") },
+    @{ Name = "BattleBgmArbiterShared"; Text = (Read-RepoSourceTree "BattleBgmArbiterShared") },
+    @{ Name = "AuraCgShared"; Text = (Read-RepoSourceTree "AuraCgShared") }
 )
 
-foreach ($relative in $providerIdentityFiles) {
-    $text = Read-RepoText $relative
-    Require-Text $text "QualifiedProviderId" "$relative must keep an owner-qualified provider identity."
-    Require-Text $text "QualifyProviderId" "$relative must normalize provider identity through QualifyProviderId."
-    Require-Text $text "qualifiedProviderId" "$relative must include qualified provider ids in diagnostics."
+foreach ($runtime in $providerIdentityFiles) {
+    Require-Text $runtime.Text "QualifiedProviderId" "$($runtime.Name) must keep an owner-qualified provider identity."
+    Require-Text $runtime.Text "QualifyProviderId" "$($runtime.Name) must normalize provider identity through QualifyProviderId."
+    Require-Text $runtime.Text "qualifiedProviderId" "$($runtime.Name) must include qualified provider ids in diagnostics."
 }
 
 $explicitProviderRequestFiles = @(
-    "AudioArbiterShared\AudioArbiterRuntime.cs",
-    "BattleBgmArbiterShared\BattleBgmArbiterRuntime.cs"
+    @{ Name = "AudioArbiterShared"; Text = (Read-RepoSourceTree "AudioArbiterShared") },
+    @{ Name = "BattleBgmArbiterShared"; Text = (Read-RepoSourceTree "BattleBgmArbiterShared") }
 )
 
-foreach ($relative in $explicitProviderRequestFiles) {
-    $text = Read-RepoText $relative
-    Require-Text $text "MatchesProviderId" "$relative must match both bare and qualified provider ids."
+foreach ($runtime in $explicitProviderRequestFiles) {
+    Require-Text $runtime.Text "MatchesProviderId" "$($runtime.Name) must match both bare and qualified provider ids."
 }
 
-$audioRuntime = Read-RepoText "AudioArbiterShared\AudioArbiterRuntime.cs"
+$audioRuntime = Read-RepoSourceTree "AudioArbiterShared"
 Require-Text $audioRuntime "MatchesProviderRequest" "AudioArbiterRuntime must expose owner-aware provider request matching."
 Require-Text $audioRuntime "ownerStrict:\s*true" "AudioArbiterRuntime must have an owner-strict provider matching path."
 Require-Text $audioRuntime "request\.IsRemote[\s\S]*Remote sound provider mismatch" "AudioArbiterRuntime must fail closed for remote owner/provider mismatches."
@@ -81,7 +94,7 @@ Require-Text $architectureGuidelines "provider identity[\s\S]*BuildId" "Shared a
 Require-Text $architectureGuidelines "Tool-owned runtime caches[\s\S]*AuraSharedStorageCoordinator\.ExecuteWrite" "Shared architecture guidelines must document coordinated shared-cache writes."
 Require-Text $architectureGuidelines "WriteTextAtomic[\s\S]*cache metadata" "Shared architecture guidelines must require atomic metadata writes for shared caches."
 
-$auraCgRuntime = Read-RepoText "AuraCgShared\AuraCgRuntime.cs"
+$auraCgRuntime = Read-RepoSourceTree "AuraCgShared"
 Require-Text $auraCgRuntime "RenderMode\.ScreenSpaceOverlay" "AuraCgShared overlay must render on an independent screen-space canvas."
 Require-Text $auraCgRuntime "overlayCanvas\.overrideSorting\s*=\s*true" "AuraCgShared overlay canvas must control its own sorting order."
 Require-Text $auraCgRuntime "overlayGroup\.blocksRaycasts\s*=\s*false" "AuraCgShared overlay canvas group must not block raycasts."

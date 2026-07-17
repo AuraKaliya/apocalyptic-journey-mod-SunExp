@@ -702,7 +702,7 @@ void TestRuntimeArchitectureGuards()
            && damageMeterResolvers.Contains("ResolveAttribution", StringComparison.Ordinal),
         "damage meter must fold generic owned companions into their explicit player owner");
 
-    var audioArbiter = ReadRepoText("AudioArbiterShared/AudioArbiterRuntime.cs");
+    var audioArbiter = ReadRepoSourceTree("AudioArbiterShared");
     var auraToolsAudio = ReadRepoText("AuraToolsExp-Dev/Features/Audio/AuraToolsAudioRuntime.cs");
     Assert(audioArbiter.Contains("RpcAudioPresentationRequest", StringComparison.Ordinal)
            && audioArbiter.Contains("IAudioArbiterServerBoundRpcCommand", StringComparison.Ordinal)
@@ -798,7 +798,7 @@ void TestRuntimeArchitectureGuards()
            && registryAwareSkillCgRuntime.Contains("EnsureRegistryStateCurrent", StringComparison.Ordinal)
            && registryAwareSkillCgRuntime.Contains("AuraCgRegistryRuntime.GetSnapshot()", StringComparison.Ordinal),
         "Skill CG effective configuration must refresh from the current shared registry revision, not a fixed load phase");
-    var sharedCgRuntime = ReadRepoText("AuraCgShared/AuraCgRuntime.cs");
+    var sharedCgRuntime = ReadRepoSourceTree("AuraCgShared");
     Assert(sharedCgRuntime.Contains("requireLocalActivation: false", StringComparison.Ordinal)
            && sharedCgRuntime.Contains("requireLocalActivation: true", StringComparison.Ordinal),
         "Skill CG server validation must be independent of the host visual toggle while recipients apply local activation");
@@ -1307,6 +1307,26 @@ string ReadRepoText(string relativePath)
     }
 
     return File.ReadAllText(path);
+}
+
+string ReadRepoSourceTree(string relativeDirectory)
+{
+    var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+    var directory = Path.Combine(repoRoot, relativeDirectory.Replace('/', Path.DirectorySeparatorChar));
+    if (!Directory.Exists(directory))
+    {
+        throw new DirectoryNotFoundException("Required repo source directory is missing: " + directory);
+    }
+
+    var files = Directory.GetFiles(directory, "*.cs", SearchOption.AllDirectories)
+        .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+    if (files.Length == 0)
+    {
+        throw new InvalidOperationException("Required repo source directory has no C# files: " + directory);
+    }
+
+    return string.Join(Environment.NewLine, files.Select(File.ReadAllText));
 }
 
 void Assert(bool condition, string name)

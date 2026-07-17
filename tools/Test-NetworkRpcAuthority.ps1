@@ -14,6 +14,22 @@ function Read-RepoText {
     return Get-Content -Raw -LiteralPath $path
 }
 
+function Read-RepoSourceTree {
+    param([string]$RelativeDirectory)
+
+    $directory = Join-Path $repoRoot $RelativeDirectory
+    if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
+        throw "Required source directory is missing: $RelativeDirectory"
+    }
+
+    $files = @(Get-ChildItem -LiteralPath $directory -Recurse -Filter "*.cs" -File | Sort-Object FullName)
+    if ($files.Count -eq 0) {
+        throw "Required source directory has no C# files: $RelativeDirectory"
+    }
+
+    return (($files | ForEach-Object { Get-Content -Raw -LiteralPath $_.FullName }) -join [Environment]::NewLine)
+}
+
 function Assert-True {
     param(
         [bool]$Condition,
@@ -81,8 +97,8 @@ $sharedPayloadBudget = Read-RepoText "AuraSharedCore\AuraSharedPayloadBudget.cs"
 $roleCommit = Read-RepoText "SunExp-Dev\Network\RpcSolarMemoryRoleCommit.cs"
 $roleCommitApi = Read-RepoText "SunExp-Dev\GameApi\SolarMemoryRoleCommitApi.cs"
 $sunSkillCgRuntime = Read-RepoText "SunExp-Dev\Features\SkillCg\SunExpSkillCgRuntime.cs"
-$auraCgRuntime = Read-RepoText "AuraCgShared\AuraCgRuntime.cs"
-$audioArbiter = Read-RepoText "AudioArbiterShared\AudioArbiterRuntime.cs"
+$auraCgRuntime = Read-RepoSourceTree "AuraCgShared"
+$audioArbiter = Read-RepoSourceTree "AudioArbiterShared"
 
 Assert-Contains $auraEntry "AuraToolsRpcAuthorityRuntime.Initialize(modConfig)" "AuraToolsExp Entry must initialize RPC authority binding."
 Assert-Contains $sharedAuthority "PlayerManager.UserCode_CmdReceiveRpcCommand__RpcCommandBase" "Shared RPC authority must bind the user-code receive hook."

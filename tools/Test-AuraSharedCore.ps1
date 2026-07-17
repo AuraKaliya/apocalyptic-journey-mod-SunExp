@@ -8,6 +8,22 @@ $project = Join-Path $repoRoot "AuraSharedCore.Tests\AuraSharedCore.Tests.csproj
 $sharedProject = Join-Path $repoRoot "AuraSharedRuntime-Dev\Aura.Shared.csproj"
 $managedPath = Join-Path $repoRoot "Managed"
 
+function Read-RepoSourceTree {
+    param([string]$RelativeDirectory)
+
+    $directory = Join-Path $repoRoot $RelativeDirectory
+    if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
+        throw "Required source directory is missing: $RelativeDirectory"
+    }
+
+    $files = @(Get-ChildItem -LiteralPath $directory -Recurse -Filter "*.cs" -File | Sort-Object FullName)
+    if ($files.Count -eq 0) {
+        throw "Required source directory has no C# files: $RelativeDirectory"
+    }
+
+    return (($files | ForEach-Object { Get-Content -Raw -LiteralPath $_.FullName }) -join [Environment]::NewLine)
+}
+
 dotnet run --project $project -c $Configuration
 if ($LASTEXITCODE -ne 0) {
     throw "AuraSharedCore test harness failed."
@@ -142,16 +158,14 @@ foreach ($required in @("BuildIdPrefix", "ManifestModule.ModuleVersionId")) {
     }
 }
 
-foreach ($relative in @(
-    "AudioArbiterShared\AudioArbiterRuntime.cs",
-    "BattleBgmArbiterShared\BattleBgmArbiterRuntime.cs",
-    "AuraCgShared\AuraCgRuntime.cs",
-    "AuraCgShared\AuraCgRegistry.cs",
-    "AuraSkinShared\AuraSkinRuntime.cs"
+foreach ($runtime in @(
+    @{ Name = "AudioArbiterShared"; Text = (Read-RepoSourceTree "AudioArbiterShared") },
+    @{ Name = "BattleBgmArbiterShared"; Text = (Read-RepoSourceTree "BattleBgmArbiterShared") },
+    @{ Name = "AuraCgShared"; Text = (Read-RepoSourceTree "AuraCgShared") },
+    @{ Name = "AuraSkinShared\AuraSkinRuntime.cs"; Text = (Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSkinShared\AuraSkinRuntime.cs")) }
 )) {
-    $compatibilityText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot $relative)
-    if ($compatibilityText.Contains("&& string.Equals(buildId, CurrentBuildId")) {
-        throw "$relative still treats exact BuildId equality as a compatibility requirement."
+    if ($runtime.Text.Contains("&& string.Equals(buildId, CurrentBuildId")) {
+        throw "$($runtime.Name) still treats exact BuildId equality as a compatibility requirement."
     }
 }
 
@@ -161,7 +175,7 @@ foreach ($required in @("AuraCgRegistryRuntime", "RegistryAuthorityId", "AuraCgR
         throw "AuraCgShared registry contract is missing: $required"
     }
 }
-$cgRuntimeText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraCgShared\AuraCgRuntime.cs")
+$cgRuntimeText = Read-RepoSourceTree "AuraCgShared"
 $removedCoverMode = (-join @("fullscreen", "Cover", "Fade"))
 if ($cgRuntimeText.Contains($removedCoverMode) -or $cgRegistryText.Contains($removedCoverMode)) {
     throw "AuraCgShared must use fullscreenFade plus fit=cover instead of the removed cover-specific mode."
