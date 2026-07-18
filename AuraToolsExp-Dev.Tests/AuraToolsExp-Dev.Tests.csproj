@@ -52,6 +52,8 @@
              Link="DamageMeter\SettlementCg\DamageSettlementCgAnimationSpec.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Input\DamageMeterHotkeyCore.cs"
              Link="DamageMeter\DamageMeterHotkeyCore.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Capture\DamageCaptureFrameStore.cs"
+             Link="DamageMeter\DamageCaptureFrameStore.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Network\DamageMeterAuthorityPolicy.cs"
              Link="DamageMeter\DamageMeterAuthorityPolicy.cs" />
   </ItemGroup>

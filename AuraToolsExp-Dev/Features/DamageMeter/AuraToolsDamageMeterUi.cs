@@ -21,8 +21,6 @@ internal static class AuraToolsDamageMeterUi
     private const string PanelName = "AuraToolsDamageMeterPanel";
     private const string DetailName = "AuraToolsDamageMeterDetails";
     private const string HistoryName = "AuraToolsDamageMeterHistory";
-    private const string ButtonSpritePath = "Mods/AuraToolsExp/ModResource/Images/UI/button-九宫格.png";
-    private const string PanelSpritePath = "Mods/AuraToolsExp/ModResource/Images/UI/background-九宫格.png";
     private const float ToggleSize = 54f;
     private const float PanelWidth = 520f;
     private const float EdgeMargin = 8f;
@@ -40,12 +38,10 @@ internal static class AuraToolsDamageMeterUi
     private static Text? title;
     private static Text? footer;
     private static Button? historyButton;
-    private static Sprite? buttonSprite;
-    private static Sprite? panelSprite;
-    private static bool buttonSpriteLoadAttempted;
-    private static bool panelSpriteLoadAttempted;
     private static Vector2 savedButtonPosition = new(-24f, 88f);
     private static float lastPanelHeight = -1f;
+
+    internal static GameObject? Root => root;
 
     public static void EnsureDriver()
     {
@@ -252,7 +248,7 @@ internal static class AuraToolsDamageMeterUi
         EnsurePanel();
     }
 
-    private static void EnsureRoot()
+    internal static void EnsureRoot()
     {
         if (root != null)
         {
@@ -364,7 +360,7 @@ internal static class AuraToolsDamageMeterUi
         historyButton = AddButton(
             headerActions.transform,
             "查看历史",
-            () => ShowHistory(
+            () => DamageHistoryPresenter.ShowHistory(
                 AuraToolsDamageMeterRuntime.History,
                 AuraToolsConfigService.MatchExperience.DamageMeter),
             82f,
@@ -538,512 +534,7 @@ internal static class AuraToolsDamageMeterUi
         return new DamageMeterRowView(row, background, team, name, round, total, average, share, details);
     }
 
-    private static void ShowHistory(DamageHistoryStore history, DamageMeterSettings settings)
-    {
-        EnsureRoot();
-        if (root == null || history.Records.Count == 0)
-        {
-            return;
-        }
-
-        CloseHistory();
-        var overlay = CreateRect(HistoryName, root.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-        AddPanel(overlay, new Color(0f, 0f, 0f, 0.42f));
-        var blocker = overlay.AddComponent<Button>();
-        blocker.targetGraphic = overlay.GetComponent<Image>();
-        blocker.onClick.AddListener(CloseHistory);
-
-        var window = CreateRect(
-            "Window",
-            overlay.transform,
-            new Vector2(0.5f, 0.5f),
-            new Vector2(0.5f, 0.5f),
-            new Vector2(0.5f, 0.5f),
-            new Vector2(1040f, 620f));
-        ApplyPanelImage(window, new Color(0.04f, 0.035f, 0.06f, 0.99f));
-        var windowLayout = window.AddComponent<VerticalLayoutGroup>();
-        windowLayout.padding = new RectOffset(12, 12, 10, 10);
-        windowLayout.spacing = 8f;
-        windowLayout.childControlWidth = true;
-        windowLayout.childControlHeight = true;
-        windowLayout.childForceExpandWidth = true;
-        windowLayout.childForceExpandHeight = false;
-
-        var header = CreateLayout("Header", window.transform);
-        SetHeight(header, 38f);
-        var headerLayout = header.AddComponent<HorizontalLayoutGroup>();
-        headerLayout.spacing = 8f;
-        headerLayout.childControlWidth = true;
-        headerLayout.childControlHeight = true;
-        headerLayout.childForceExpandWidth = false;
-        AddText(header.transform, "本轮冒险输出历史", 17, TextAnchor.MiddleLeft, AuraToolsUi.Accent, 34f, 1f);
-        AddButton(header.transform, "关闭", CloseHistory, 72f, 32f);
-
-        var body = CreateLayout("Body", window.transform);
-        body.AddComponent<LayoutElement>().flexibleHeight = 1f;
-        var bodyLayout = body.AddComponent<HorizontalLayoutGroup>();
-        bodyLayout.spacing = 10f;
-        bodyLayout.childControlWidth = true;
-        bodyLayout.childControlHeight = true;
-        bodyLayout.childForceExpandWidth = false;
-        bodyLayout.childForceExpandHeight = true;
-
-        var listViewport = CreateLayout("FightList", body.transform);
-        var listElement = listViewport.AddComponent<LayoutElement>();
-        listElement.minWidth = 240f;
-        listElement.preferredWidth = 240f;
-        listElement.flexibleWidth = 0f;
-        AddPanel(listViewport, AuraToolsUi.Panel);
-        var listContent = CreateScrollContent(listViewport);
-
-        var details = CreateLayout("FightDetails", body.transform);
-        details.AddComponent<LayoutElement>().flexibleWidth = 1f;
-        AddPanel(details, new Color(0.055f, 0.05f, 0.075f, 0.82f));
-        var detailsLayout = details.AddComponent<VerticalLayoutGroup>();
-        detailsLayout.padding = new RectOffset(10, 10, 8, 8);
-        detailsLayout.spacing = 5f;
-        detailsLayout.childControlWidth = true;
-        detailsLayout.childControlHeight = true;
-        detailsLayout.childForceExpandWidth = true;
-        detailsLayout.childForceExpandHeight = false;
-
-        var ordered = history.Records.OrderByDescending(record => record.Sequence).ToList();
-        foreach (var record in ordered)
-        {
-            var label = "第 " + record.Sequence + " 场  " + ResultLabel(record.Result)
-                        + "  " + record.Snapshot.CompletedRoundCount + "回合";
-            AddButton(listContent, label, () => RenderHistoryRecord(details.transform, record, settings), 216f, 34f);
-        }
-
-        RenderHistoryRecord(details.transform, ordered[0], settings);
-        overlay.transform.SetAsLastSibling();
-    }
-
-    public static void ShowOutOfRunHistory(OutOfRunDamageHistoryStore history)
-    {
-        EnsureRoot();
-        if (root == null || history == null)
-        {
-            return;
-        }
-
-        CloseHistory();
-        var overlay = CreateRect(HistoryName, root.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-        AddPanel(overlay, new Color(0f, 0f, 0f, 0.42f));
-        var blocker = overlay.AddComponent<Button>();
-        blocker.targetGraphic = overlay.GetComponent<Image>();
-        blocker.onClick.AddListener(CloseHistory);
-
-        var window = CreateRect(
-            "Window",
-            overlay.transform,
-            new Vector2(0.5f, 0.5f),
-            new Vector2(0.5f, 0.5f),
-            new Vector2(0.5f, 0.5f),
-            new Vector2(1180f, 640f));
-        ApplyPanelImage(window, new Color(0.04f, 0.035f, 0.06f, 0.99f));
-        var windowLayout = window.AddComponent<VerticalLayoutGroup>();
-        windowLayout.padding = new RectOffset(12, 12, 10, 10);
-        windowLayout.spacing = 8f;
-        windowLayout.childControlWidth = true;
-        windowLayout.childControlHeight = true;
-        windowLayout.childForceExpandWidth = true;
-        windowLayout.childForceExpandHeight = false;
-
-        var header = CreateLayout("Header", window.transform);
-        SetHeight(header, 38f);
-        var headerLayout = header.AddComponent<HorizontalLayoutGroup>();
-        headerLayout.spacing = 8f;
-        headerLayout.childControlWidth = true;
-        headerLayout.childControlHeight = true;
-        headerLayout.childForceExpandWidth = false;
-        AddText(header.transform, "局外历史记录", 17, TextAnchor.MiddleLeft, AuraToolsUi.Accent, 34f, 1f);
-        AddButton(
-            header.transform,
-            "清空",
-            () =>
-            {
-                AuraToolsDamageMeterRuntime.ClearOutOfRunHistory();
-                ShowOutOfRunHistory(AuraToolsDamageMeterRuntime.OutOfRunHistory);
-            },
-            72f,
-            32f);
-        AddButton(header.transform, "关闭", CloseHistory, 72f, 32f);
-
-        var viewport = CreateLayout("HistoryList", window.transform);
-        viewport.AddComponent<LayoutElement>().flexibleHeight = 1f;
-        AddPanel(viewport, new Color(0.055f, 0.05f, 0.075f, 0.82f));
-        var content = CreateScrollContent(viewport);
-
-        RenderOutOfRunHeader(content);
-        var ordered = history.Records.OrderByDescending(record => record.Sequence).ToList();
-        if (ordered.Count == 0)
-        {
-            AddText(content, "暂无局外历史记录", 14, TextAnchor.MiddleCenter, AuraToolsUi.MutedText, 64f, 1f);
-        }
-        else
-        {
-            foreach (var record in ordered)
-            {
-                RenderOutOfRunRow(content, record);
-            }
-        }
-
-        overlay.transform.SetAsLastSibling();
-    }
-
-    private static void RenderOutOfRunHeader(Transform parent)
-    {
-        var row = CreateLayout("Columns", parent);
-        SetHeight(row, 28f);
-        var layout = row.AddComponent<HorizontalLayoutGroup>();
-        layout.padding = new RectOffset(8, 8, 3, 3);
-        layout.spacing = 8f;
-        layout.childControlWidth = true;
-        layout.childControlHeight = true;
-        layout.childForceExpandWidth = false;
-        AddText(row.transform, "游玩模式", 12, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 22f, 0f, 120f);
-        AddText(row.transform, "状态", 12, TextAnchor.MiddleCenter, AuraToolsUi.MutedText, 22f, 0f, 58f);
-        AddText(row.transform, "队伍成员", 12, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 22f, 0f, 460f);
-        AddText(row.transform, "最强一击", 12, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 22f, 0f, 178f);
-        AddText(row.transform, "队伍DPS", 12, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 22f, 0f, 112f);
-        AddText(row.transform, "MVP", 12, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 22f, 1f);
-    }
-
-    private static void RenderOutOfRunRow(Transform parent, OutOfRunDamageHistoryRecord record)
-    {
-        var row = CreateLayout("OutOfRun-" + record.Sequence, parent);
-        SetHeight(row, 52f);
-        AddPanel(row, AuraToolsUi.Row);
-        var layout = row.AddComponent<HorizontalLayoutGroup>();
-        layout.padding = new RectOffset(8, 8, 5, 5);
-        layout.spacing = 8f;
-        layout.childControlWidth = true;
-        layout.childControlHeight = true;
-        layout.childForceExpandWidth = false;
-
-        AddText(row.transform, string.IsNullOrWhiteSpace(record.ModeDisplayName) ? record.ModeId : record.ModeDisplayName, 13, TextAnchor.MiddleLeft, AuraToolsUi.Text, 40f, 0f, 120f);
-        AddText(row.transform, record.Status ?? "", 13, TextAnchor.MiddleCenter, AuraToolsUi.Text, 40f, 0f, 58f);
-
-        var members = CreateLayout("Members", row.transform);
-        var memberElement = members.AddComponent<LayoutElement>();
-        memberElement.minWidth = 460f;
-        memberElement.preferredWidth = 460f;
-        memberElement.flexibleWidth = 0f;
-        var memberLayout = members.AddComponent<HorizontalLayoutGroup>();
-        memberLayout.spacing = 5f;
-        memberLayout.childControlWidth = true;
-        memberLayout.childControlHeight = true;
-        memberLayout.childForceExpandWidth = false;
-        for (var index = 0; index < DamageMeterProtocol.MaxTeamMembers; index++)
-        {
-            var member = record.TeamMembers != null && index < record.TeamMembers.Count
-                ? record.TeamMembers[index]
-                : null;
-            AddMemberCell(members.transform, member);
-        }
-
-        AddText(row.transform, BestHitLabel(record.BestHit), 12, TextAnchor.MiddleLeft, AuraToolsUi.Accent, 40f, 0f, 178f);
-        AddText(row.transform, DamageMeterFormatters.FormatScientific(record.TeamDps), 12, TextAnchor.MiddleLeft, AuraToolsUi.Text, 40f, 0f, 112f);
-        AddText(row.transform, DamageMeterFormatters.TrimDisplayName(record.Mvp?.DisplayName ?? ""), 12, TextAnchor.MiddleLeft, AuraToolsUi.Text, 40f, 1f);
-    }
-
-    private static void AddMemberCell(Transform parent, OutOfRunTeamMemberSnapshot? member)
-    {
-        var cell = CreateLayout("Member", parent);
-        var element = cell.AddComponent<LayoutElement>();
-        element.minWidth = 110f;
-        element.preferredWidth = 110f;
-        element.flexibleWidth = 0f;
-        var layout = cell.AddComponent<HorizontalLayoutGroup>();
-        layout.spacing = 4f;
-        layout.childControlWidth = true;
-        layout.childControlHeight = true;
-        layout.childForceExpandWidth = false;
-
-        var avatar = CreateLayout("Avatar", cell.transform);
-        var avatarElement = avatar.AddComponent<LayoutElement>();
-        avatarElement.minWidth = 32f;
-        avatarElement.preferredWidth = 32f;
-        avatarElement.minHeight = 32f;
-        avatarElement.preferredHeight = 32f;
-        avatarElement.flexibleWidth = 0f;
-        var avatarImage = AddPanel(avatar, new Color(0.08f, 0.075f, 0.105f, 0.95f));
-        var sprite = TryLoadAvatarSprite(member?.AvatarPngBase64);
-        if (sprite != null)
-        {
-            avatarImage.sprite = sprite;
-            avatarImage.type = Image.Type.Simple;
-            avatarImage.preserveAspect = true;
-            avatarImage.color = Color.white;
-        }
-
-        var memberName = AddText(
-            cell.transform,
-            MemberDisplayName(member),
-            12,
-            TextAnchor.MiddleLeft,
-            AuraToolsUi.Text,
-            32f,
-            0f,
-            74f);
-        memberName.horizontalOverflow = HorizontalWrapMode.Overflow;
-        memberName.verticalOverflow = VerticalWrapMode.Truncate;
-    }
-
-    private static string MemberDisplayName(OutOfRunTeamMemberSnapshot? member)
-    {
-        if (member == null)
-        {
-            return "";
-        }
-
-        var displayName = string.IsNullOrWhiteSpace(member.PlayerDisplayName)
-            ? member.DisplayName
-            : member.PlayerDisplayName;
-        if (string.IsNullOrWhiteSpace(displayName))
-        {
-            displayName = member.PlayerId;
-        }
-
-        return DamageMeterFormatters.TrimDisplayName(displayName ?? "");
-    }
-
-    private static string BestHitLabel(DamageBestHitRecord? bestHit)
-    {
-        if (bestHit == null || bestHit.Damage <= 0)
-        {
-            return "0.000 E+00 (-)";
-        }
-
-        return DamageMeterFormatters.FormatScientific(bestHit.Damage)
-               + " ("
-               + DamageMeterFormatters.TrimDisplayName(bestHit.SourceDisplayName)
-               + ")";
-    }
-
-    private static string BestHitValueForStat(DamageBestHitRecord? bestHit, string instanceId)
-    {
-        if (bestHit == null
-            || bestHit.Damage <= 0
-            || !string.Equals(bestHit.SourceInstanceId, instanceId, StringComparison.OrdinalIgnoreCase))
-        {
-            return "-";
-        }
-
-        return DamageMeterFormatters.FormatScientific(bestHit.Damage);
-    }
-
-    private static Sprite? TryLoadAvatarSprite(string? base64)
-    {
-        if (string.IsNullOrWhiteSpace(base64))
-        {
-            return null;
-        }
-
-        try
-        {
-            var bytes = Convert.FromBase64String(base64);
-            var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-            if (!LoadImageIntoTexture(texture, bytes))
-            {
-                Object.Destroy(texture);
-                return null;
-            }
-
-            texture.filterMode = FilterMode.Bilinear;
-            return Sprite.Create(
-                texture,
-                new Rect(0f, 0f, texture.width, texture.height),
-                new Vector2(0.5f, 0.5f));
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static bool LoadImageIntoTexture(Texture2D texture, byte[] bytes)
-    {
-        try
-        {
-            var imageConversion = AppDomain.CurrentDomain
-                .GetAssemblies()
-                .Select(assembly => assembly.GetType("UnityEngine.ImageConversion"))
-                .FirstOrDefault(type => type != null);
-            var method = imageConversion?.GetMethod(
-                "LoadImage",
-                new[] { typeof(Texture2D), typeof(byte[]) });
-            return method?.Invoke(null, new object[] { texture, bytes }) is true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static Transform CreateScrollContent(GameObject viewport)
-    {
-        var viewportRect = viewport.GetComponent<RectTransform>();
-        var mask = viewport.AddComponent<Mask>();
-        mask.showMaskGraphic = false;
-
-        var content = CreateRect(
-            "Content",
-            viewport.transform,
-            new Vector2(0f, 1f),
-            new Vector2(1f, 1f),
-            new Vector2(0.5f, 1f),
-            Vector2.zero);
-        var contentRect = content.GetComponent<RectTransform>();
-        contentRect.offsetMin = new Vector2(6f, 0f);
-        contentRect.offsetMax = new Vector2(-6f, 0f);
-        var layout = content.AddComponent<VerticalLayoutGroup>();
-        layout.padding = new RectOffset(0, 0, 6, 6);
-        layout.spacing = 5f;
-        layout.childControlWidth = true;
-        layout.childControlHeight = true;
-        layout.childForceExpandWidth = true;
-        layout.childForceExpandHeight = false;
-        var fitter = content.AddComponent<ContentSizeFitter>();
-        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-        var scroll = viewport.AddComponent<ScrollRect>();
-        scroll.viewport = viewportRect;
-        scroll.content = contentRect;
-        scroll.horizontal = false;
-        scroll.vertical = true;
-        scroll.movementType = ScrollRect.MovementType.Clamped;
-        scroll.scrollSensitivity = 24f;
-        return content.transform;
-    }
-
-    private static void RenderHistoryRecord(
-        Transform parent,
-        DamageFightRecord record,
-        DamageMeterSettings settings)
-    {
-        ClearChildren(parent);
-        var ledger = new DamageLedger();
-        if (!ledger.ApplySnapshot(record.Snapshot))
-        {
-            AddText(parent, "历史记录无法读取。", 14, TextAnchor.MiddleCenter, AuraToolsUi.WarningText, 80f, 1f);
-            return;
-        }
-
-        var grandTotal = ledger.DisplayGrandTotal(
-            settings.CountShieldLoss,
-            settings.FriendlyOnly,
-            settings.IncludeUnknownTeam);
-        AddText(
-            parent,
-            "第 " + record.Sequence + " 场  " + ResultLabel(record.Result)
-            + "  /  " + ledger.CompletedRoundCount + " 回合"
-            + "  /  合计 " + grandTotal,
-            15,
-            TextAnchor.MiddleLeft,
-            AuraToolsUi.Accent,
-            34f,
-            1f);
-
-        AddText(
-            parent,
-            "最强一击 " + BestHitLabel(record.Snapshot.BestHit),
-            13,
-            TextAnchor.MiddleLeft,
-            AuraToolsUi.Text,
-            28f,
-            1f);
-
-        var columns = CreateLayout("Columns", parent);
-        SetHeight(columns, 24f);
-        var columnsLayout = columns.AddComponent<HorizontalLayoutGroup>();
-        columnsLayout.spacing = 6f;
-        columnsLayout.childControlWidth = true;
-        columnsLayout.childControlHeight = true;
-        columnsLayout.childForceExpandWidth = false;
-        AddText(columns.transform, "队", 11, TextAnchor.MiddleCenter, AuraToolsUi.MutedText, 22f, 0f, 28f);
-        AddText(columns.transform, "角色", 11, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 22f, 1f);
-        AddText(columns.transform, "总计", 11, TextAnchor.MiddleRight, AuraToolsUi.MutedText, 22f, 0f, 78f);
-        AddText(columns.transform, "最强一击", 11, TextAnchor.MiddleRight, AuraToolsUi.MutedText, 22f, 0f, 112f);
-        AddText(columns.transform, "平均", 11, TextAnchor.MiddleRight, AuraToolsUi.MutedText, 22f, 0f, 72f);
-        AddText(columns.transform, "占比", 11, TextAnchor.MiddleRight, AuraToolsUi.MutedText, 22f, 0f, 58f);
-        AddText(columns.transform, "", 11, TextAnchor.MiddleCenter, AuraToolsUi.MutedText, 22f, 0f, 58f);
-
-        var visibleRows = ledger.VisibleRows(
-            settings.FriendlyOnly,
-            settings.IncludeUnknownTeam,
-            settings.CountShieldLoss,
-            Math.Max(settings.MaxRows, 12));
-        foreach (var stat in visibleRows)
-        {
-            var row = CreateLayout("History-" + stat.InstanceId, parent);
-            SetHeight(row, 40f);
-            AddPanel(row, AuraToolsUi.Row);
-            var layout = row.AddComponent<HorizontalLayoutGroup>();
-            layout.padding = new RectOffset(6, 6, 3, 3);
-            layout.spacing = 6f;
-            layout.childControlWidth = true;
-            layout.childControlHeight = true;
-            layout.childForceExpandWidth = false;
-            AddText(row.transform, TeamLabel(stat.Team), 12, TextAnchor.MiddleCenter, AuraToolsUi.Text, 30f, 0f, 28f);
-            AddText(row.transform, TrimName(stat.DisplayName), 13, TextAnchor.MiddleLeft, AuraToolsUi.Text, 30f, 1f);
-            AddText(row.transform, stat.DisplayTotal(settings.CountShieldLoss).ToString(), 13, TextAnchor.MiddleRight, AuraToolsUi.Accent, 30f, 0f, 78f);
-            AddText(
-                row.transform,
-                BestHitValueForStat(record.Snapshot.BestHit, stat.InstanceId),
-                12,
-                TextAnchor.MiddleRight,
-                AuraToolsUi.Accent,
-                30f,
-                0f,
-                112f);
-            AddText(
-                row.transform,
-                stat.AveragePerCompletedRound(
-                    settings.CountShieldLoss,
-                    Math.Max(1, ledger.CompletedRoundCount)).ToString("0.0"),
-                12,
-                TextAnchor.MiddleRight,
-                AuraToolsUi.Text,
-                30f,
-                0f,
-                72f);
-            AddText(
-                row.transform,
-                grandTotal <= 0
-                    ? "0%"
-                    : ((double)stat.DisplayTotal(settings.CountShieldLoss) / grandTotal).ToString("P0"),
-                12,
-                TextAnchor.MiddleRight,
-                AuraToolsUi.Text,
-                30f,
-                0f,
-                58f);
-            AddButton(row.transform, "明细", () => ShowDetails(stat.InstanceId, ledger, settings), 58f, 30f);
-        }
-    }
-
-    private static string ResultLabel(string result)
-    {
-        return result switch
-        {
-            "Win" => "胜利",
-            "Escape" => "撤退",
-            "Loss" => "失败",
-            _ => "已结束"
-        };
-    }
-
-    private static void ClearChildren(Transform parent)
-    {
-        for (var index = parent.childCount - 1; index >= 0; index--)
-        {
-            Object.Destroy(parent.GetChild(index).gameObject);
-        }
-    }
-
-    private static void ShowDetails(string instanceId, DamageLedger ledger, DamageMeterSettings settings)
+    internal static void ShowDetails(string instanceId, DamageLedger ledger, DamageMeterSettings settings)
     {
         EnsureRoot();
         var stat = ledger.Combatants.FirstOrDefault(item =>
@@ -1157,7 +648,7 @@ internal static class AuraToolsDamageMeterUi
         };
     }
 
-    private static GameObject CreateRect(
+    internal static GameObject CreateRect(
         string name,
         Transform parent,
         Vector2 anchorMin,
@@ -1176,25 +667,25 @@ internal static class AuraToolsDamageMeterUi
         return go;
     }
 
-    private static GameObject CreateLayout(string name, Transform parent)
+    internal static GameObject CreateLayout(string name, Transform parent)
     {
         return CreateRect(name, parent, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero);
     }
 
-    private static Image AddPanel(GameObject go, Color color)
+    internal static Image AddPanel(GameObject go, Color color)
     {
         var image = go.AddComponent<Image>();
         image.color = color;
         return image;
     }
 
-    private static Text AddFillText(Transform parent, string value, int fontSize, TextAnchor anchor, Color color)
+    internal static Text AddFillText(Transform parent, string value, int fontSize, TextAnchor anchor, Color color)
     {
         var go = CreateRect("Text", parent, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
         return ConfigureText(go, value, fontSize, anchor, color);
     }
 
-    private static Text AddText(
+    internal static Text AddText(
         Transform parent,
         string value,
         int fontSize,
@@ -1220,7 +711,7 @@ internal static class AuraToolsDamageMeterUi
         return ConfigureText(go, value, fontSize, anchor, color);
     }
 
-    private static Text ConfigureText(GameObject go, string value, int fontSize, TextAnchor anchor, Color color)
+    internal static Text ConfigureText(GameObject go, string value, int fontSize, TextAnchor anchor, Color color)
     {
         var text = go.AddComponent<Text>();
         text.font = AuraUiNativeBridge.ResolveLegacyFont();
@@ -1234,7 +725,7 @@ internal static class AuraToolsDamageMeterUi
         return text;
     }
 
-    private static Button AddButton(Transform parent, string label, Action action, float width, float height)
+    internal static Button AddButton(Transform parent, string label, Action action, float width, float height)
     {
         var go = CreateLayout("Button-" + label, parent);
         var element = go.AddComponent<LayoutElement>();
@@ -1252,20 +743,20 @@ internal static class AuraToolsDamageMeterUi
         return button;
     }
 
-    private static Image ApplyButtonImage(GameObject target, Color fallbackTint)
+    internal static Image ApplyButtonImage(GameObject target, Color fallbackTint)
     {
         var image = target.GetComponent<Image>() ?? target.AddComponent<Image>();
-        image.sprite = GetButtonSprite();
+        image.sprite = DamageMeterUiAssets.GetButtonSprite();
         image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
         image.fillCenter = true;
         image.color = image.sprite != null ? Color.white : fallbackTint;
         return image;
     }
 
-    private static Image ApplyPanelImage(GameObject target, Color fallbackOrTint)
+    internal static Image ApplyPanelImage(GameObject target, Color fallbackOrTint)
     {
         var image = target.GetComponent<Image>() ?? target.AddComponent<Image>();
-        image.sprite = GetPanelSprite();
+        image.sprite = DamageMeterUiAssets.GetPanelSprite();
         image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
         image.fillCenter = true;
         image.color = image.sprite != null ? new Color(1f, 1f, 1f, fallbackOrTint.a) : fallbackOrTint;
@@ -1277,78 +768,6 @@ internal static class AuraToolsDamageMeterUi
         return image;
     }
 
-    private static Sprite? GetButtonSprite()
-    {
-        if (buttonSprite != null)
-        {
-            return buttonSprite;
-        }
-
-        if (buttonSpriteLoadAttempted)
-        {
-            return null;
-        }
-
-        buttonSpriteLoadAttempted = true;
-        buttonSprite = TryLoadNineSliceSprite(ButtonSpritePath, new Vector4(14f, 14f, 14f, 14f), new Rect(17f, 16f, 135f, 49f));
-        return buttonSprite;
-    }
-
-    private static Sprite? GetPanelSprite()
-    {
-        if (panelSprite != null)
-        {
-            return panelSprite;
-        }
-
-        if (panelSpriteLoadAttempted)
-        {
-            return null;
-        }
-
-        panelSpriteLoadAttempted = true;
-        panelSprite = TryLoadNineSliceSprite(PanelSpritePath, new Vector4(4f, 4f, 4f, 4f), null);
-        return panelSprite;
-    }
-
-    private static Sprite? TryLoadNineSliceSprite(string path, Vector4 fallbackBorder, Rect? sourceCrop)
-    {
-        try
-        {
-            var source = AuraToolsResourceCache.Load<Sprite>(path, true);
-            if (source == null || source.texture == null)
-            {
-                return null;
-            }
-
-            var texture = source.texture;
-            texture.filterMode = FilterMode.Point;
-            texture.wrapMode = TextureWrapMode.Clamp;
-            var rect = sourceCrop.HasValue ? ResolveSpriteRect(source, sourceCrop.Value) : source.rect;
-            var border = source.border.sqrMagnitude > 0.01f ? source.border : fallbackBorder;
-            return Sprite.Create(
-                texture,
-                rect,
-                new Vector2(0.5f, 0.5f),
-                100f,
-                0,
-                SpriteMeshType.FullRect,
-                border);
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static Rect ResolveSpriteRect(Sprite source, Rect crop)
-    {
-        var x = Mathf.Clamp(source.rect.x + crop.x, source.rect.x, source.rect.xMax);
-        var y = Mathf.Clamp(source.rect.y + crop.y, source.rect.y, source.rect.yMax);
-        var width = Mathf.Clamp(crop.width, 1f, source.rect.xMax - x);
-        var height = Mathf.Clamp(crop.height, 1f, source.rect.yMax - y);
-        return new Rect(x, y, width, height);
-    }
 
     private static void AddPanelTint(GameObject target, Color color)
     {
@@ -1368,7 +787,7 @@ internal static class AuraToolsDamageMeterUi
         image.raycastTarget = false;
     }
 
-    private static void SetHeight(GameObject go, float height)
+    internal static void SetHeight(GameObject go, float height)
     {
         var element = go.AddComponent<LayoutElement>();
         element.minHeight = height;
@@ -1409,13 +828,13 @@ internal static class AuraToolsDamageMeterUi
             Mathf.Clamp(position.y, minY, maxY));
     }
 
-    private static string TrimName(string value)
+    internal static string TrimName(string value)
     {
         value = string.IsNullOrWhiteSpace(value) ? "未知单位" : value.Trim();
         return value.Length <= 14 ? value : value.Substring(0, 14);
     }
 
-    private static string TeamLabel(DamageTeam team)
+    internal static string TeamLabel(DamageTeam team)
     {
         return team switch
         {
@@ -1628,13 +1047,5 @@ internal static class AuraToolsDamageMeterUi
                 eventData.Use();
             }
         }
-    }
-}
-
-internal sealed class AuraToolsDamageMeterDriver : MonoBehaviour
-{
-    private void Update()
-    {
-        AuraToolsDamageMeterRuntime.Tick();
     }
 }

@@ -31,14 +31,58 @@ if (-not $auraToolsProject.Contains("AuraSharedRuntime-Dev\Aura.Shared.csproj"))
     throw "AuraToolsExp service surface must come from Aura.Shared."
 }
 
-$auraToolsStarterDeckRuntime = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\StarterDeck\AuraToolsStarterDeckRuntime.cs")
+$auraToolsStarterDeckRuntime = (Get-ChildItem -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\StarterDeck") -Filter "*.cs" |
+    Sort-Object Name |
+    ForEach-Object { Get-Content -Raw -Encoding UTF8 -LiteralPath $_.FullName }) -join "`n"
 $auraToolsUi = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\Settings\AuraToolsUi.cs")
 $auraToolsSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\Settings\AuraToolsSettingsRuntime.cs")
-$auraToolsDamageMeterUi = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\DamageMeter\AuraToolsDamageMeterUi.cs")
+$auraToolsDamageMeterUi = (Get-ChildItem -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\DamageMeter") -Recurse -Filter "*.cs" |
+    Sort-Object FullName |
+    ForEach-Object { Get-Content -Raw -Encoding UTF8 -LiteralPath $_.FullName }) -join "`n"
+
+$requiredStarterDeckBoundaries = @(
+    "StarterDeckHookAdapter.cs",
+    "StarterDeckApplicationCoordinator.cs",
+    "StarterDeckProfileResolver.cs",
+    "StarterDeckLocalProfileStore.cs",
+    "StarterDeckCardCatalog.cs",
+    "StarterDeckCardPresentation.cs",
+    "AuraToolsStarterDeckEditor.cs",
+    "AuraToolsStarterDeckRoleManager.cs"
+)
+foreach ($boundary in $requiredStarterDeckBoundaries) {
+    if (-not (Test-Path -LiteralPath (Join-Path $repoRoot ("AuraToolsExp-Dev\Features\StarterDeck\" + $boundary)))) {
+        throw "AuraTools starter deck responsibility boundary is missing: $boundary"
+    }
+}
+
+$requiredDamageMeterBoundaries = @(
+    "DamageMeterHookAdapter.cs",
+    "DamageMeterLifecycleCoordinator.cs",
+    "DamageMeterAvailabilityRuntime.cs",
+    "DamageMeterSettlementRuntime.cs",
+    "Capture\DamageCaptureCoordinator.cs",
+    "Capture\DamageCaptureSession.cs",
+    "Capture\DamageEventFactory.cs",
+    "DamageHistoryPresenter.cs",
+    "DamageMeterUiAssets.cs",
+    "Network\DamageMeterSnapshotCompactor.cs"
+)
+foreach ($boundary in $requiredDamageMeterBoundaries) {
+    if (-not (Test-Path -LiteralPath (Join-Path $repoRoot ("AuraToolsExp-Dev\Features\DamageMeter\" + $boundary)))) {
+        throw "AuraTools damage meter responsibility boundary is missing: $boundary"
+    }
+}
 $auraToolsConfigRoot = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Config\AuraToolsConfigModels.cs")
 $auraToolsConfigDomainFiles = [ordered]@{
     "AuraToolsAudioSettings.cs" = "AuraToolsAudioSettings"
     "AuraToolsMatchExperienceSettings.cs" = "AuraToolsMatchExperienceSettings"
+    "AuraToolsCardRefreshSettings.cs" = "CardRefreshSettings"
+    "AuraToolsStarterDeckSettings.cs" = "StarterDeckSettings"
+    "AuraToolsSafeBoxSettings.cs" = "SafeBoxSettings"
+    "AuraToolsModSyncSettings.cs" = "ModSyncSettings"
+    "AuraToolsFeastSettings.cs" = "FeastSettings"
+    "AuraToolsDamageMeterSettings.cs" = "DamageMeterSettings"
     "AuraToolsSkillCgSettings.cs" = "AuraToolsSkillCgSettings"
     "AuraToolsSkinSettings.cs" = "AuraToolsSkinSettings"
     "AuraToolsLoggingSettings.cs" = "AuraToolsLoggingSettings"

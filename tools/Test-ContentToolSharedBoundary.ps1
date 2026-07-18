@@ -127,21 +127,25 @@ Assert-NotContains $auraToolsSkillCg 'RegisterBefore("GameEntryUI.StartGame"' "A
 $auraToolsSkillCgSettings = Read-RepoText "AuraToolsExp\Config\SkillCgSettings.json"
 Assert-NotContains $auraToolsSkillCgSettings '"SunExp' "AuraTools SkillCG defaults must not embed SunExp content semantics."
 
-$starterDeck = Read-RepoText "AuraToolsExp-Dev\Features\StarterDeck\AuraToolsStarterDeckRuntime.cs"
+$starterDeck = (Get-ChildItem -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\StarterDeck") -Recurse -Filter "*.cs" |
+    Sort-Object FullName |
+    ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join "`n"
 Assert-Contains $starterDeck "EvaluateStarterDeckMutation" "AuraTools starter deck must consume the generic active-mode policy decision."
 Assert-NotContains $starterDeck "SolarMemory" "AuraTools starter deck must not branch on a content-owned semantic mode."
 
-$damageMeterMode = Read-RepoText "AuraToolsExp-Dev\Features\DamageMeter\AuraToolsDamageMeterRuntime.cs"
+$damageMeterMode = (Get-ChildItem -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\DamageMeter") -Recurse -Filter "*.cs" |
+    Sort-Object FullName |
+    ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join "`n"
 Assert-Contains $damageMeterMode "AuraModeRuntime.Current" "DamageMeter must resolve semantic mode labels through AuraMode shared state."
 Assert-NotContains $damageMeterMode "SolarMemory" "DamageMeter must not hard-code a content-owned semantic mode."
 
-$damageMeter = Read-RepoText "AuraToolsExp-Dev\Features\DamageMeter\AuraToolsDamageMeterRuntime.cs"
+$damageMeter = $damageMeterMode
 Assert-Contains $damageMeter "AuraBattleLifecycleRouter.Register" "DamageMeter battle hooks must use the shared battle lifecycle router."
 Assert-NotContains $damageMeter 'RegisterBefore("FightInit.Init"' "DamageMeter must not own a private fight-init hook when shared lifecycle exists."
-Assert-Contains $damageMeter 'RegisterAfter("DamageText.Create", AfterDamageTextCreate)' "DamageMeter must observe DamageText.Create only after native command creation completes."
+Assert-Contains $damageMeter 'RegisterAfter("DamageText.Create", DamageCaptureCoordinator.AfterDamageTextCreate)' "DamageMeter must observe DamageText.Create only after native command creation completes."
 Assert-NotContains $damageMeter 'RegisterBefore("DamageText.Create"' "DamageMeter must not put native damage text creation behind a before-hook."
-Assert-Contains $damageMeter 'RegisterAfter("DamageText.InternalExecute", AfterDamageTextInternalExecute)' "DamageMeter diagnostics must observe native damage-text command execution."
-Assert-Contains $damageMeter 'RegisterAfter("FightUI.EnqueueDamageText", AfterFightUiEnqueueDamageText)' "DamageMeter diagnostics must observe the native damage-text UI queue."
+Assert-Contains $damageMeter 'RegisterAfter("DamageText.InternalExecute", DamageCaptureCoordinator.AfterDamageTextInternalExecute)' "DamageMeter diagnostics must observe native damage-text command execution."
+Assert-Contains $damageMeter 'RegisterAfter("FightUI.EnqueueDamageText", DamageCaptureCoordinator.AfterFightUiEnqueueDamageText)' "DamageMeter diagnostics must observe the native damage-text UI queue."
 Assert-Contains $damageMeter "if (AuraToolsPerformanceSettings.DiagnosticsEnabled)" "Pure damage-text diagnostics hooks must not register during normal gameplay."
 
 $sharedRuntimeProject = Read-RepoText "AuraSharedRuntime-Dev\Aura.Shared.csproj"

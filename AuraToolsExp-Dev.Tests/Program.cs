@@ -1,5 +1,6 @@
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
+using AuraToolsExp.Dll.Features.DamageMeter.Capture;
 using AuraToolsExp.Dll.Features.DamageMeter.Input;
 using AuraToolsExp.Dll.Features.DamageMeter.Network;
 using AuraToolsExp.Dll.Features.DamageMeter.SettlementCg;
@@ -36,6 +37,7 @@ TestSkillCgPresentationNormalization();
 TestSafeBoxDataCompatibility();
 TestRpcPayloadBudgetUsesUtf8Bytes();
 TestDamageMeterAuthorityPolicy();
+TestDamageCaptureFrameWindow();
 TestStarterDeckCardClassification();
 TestRuntimeArchitectureGuards();
 
@@ -656,6 +658,34 @@ void TestDamageMeterAuthorityPolicy()
         "non-lobby sender rejected");
 }
 
+void TestDamageCaptureFrameWindow()
+{
+    var released = 0;
+    var window = new DamageFrameWindow<TestCaptureFrame>(2, _ => released++);
+    var first = window.Rent(1);
+    first.Value = 11;
+    window.Add(first);
+    var second = window.Rent(2);
+    second.Value = 22;
+    window.Add(second);
+    var third = window.Rent(3);
+    third.Value = 33;
+    window.Add(third);
+
+    Assert(window.Count == 2 && released == 1, "capture window evicts oldest frame at capacity");
+    Assert(first.Frame == 0 && first.Value == 0, "evicted capture frame is reset before pooling");
+
+    window.PruneOlderThan(8, 4);
+    Assert(window.Count == 0 && released == 3, "capture window prunes every expired frame");
+
+    var reused = window.Rent(9);
+    Assert(reused.Frame == 9 && reused.Value == 0, "capture frame pool returns reset state");
+    window.Add(reused);
+    window.Clear();
+    Assert(window.Count == 0 && released == 4 && reused.Frame == 0,
+        "capture window clear releases and resets remaining frames");
+}
+
 void TestRuntimeArchitectureGuards()
 {
     var cardRefreshRuntime = ReadRepoText("AuraToolsExp-Dev/Features/CardRefresh/AuraToolsCardRefreshRuntime.cs");
@@ -678,31 +708,50 @@ void TestRuntimeArchitectureGuards()
         "shipped card refresh configuration is present and disabled by default");
 
     var damageMeterRuntime = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/AuraToolsDamageMeterRuntime.cs");
+    var damageMeterHookAdapter = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/DamageMeterHookAdapter.cs");
+    var damageMeterCapture = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/Capture/DamageCaptureCoordinator.cs");
+    var damageCaptureSession = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/Capture/DamageCaptureSession.cs");
+    var damageEventFactory = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/Capture/DamageEventFactory.cs");
+    var damageMeterSettlement = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/DamageMeterSettlementRuntime.cs");
+    var damageMeterAvailability = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/DamageMeterAvailabilityRuntime.cs");
+    var damageMeterLifecycle = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/DamageMeterLifecycleCoordinator.cs");
+    Assert(damageMeterRuntime.Contains("DamageMeterHookAdapter.Initialize", StringComparison.Ordinal)
+           && damageMeterRuntime.Contains("DamageMeterAvailabilityRuntime.ReconcileAvailabilitySafe", StringComparison.Ordinal)
+           && !damageMeterRuntime.Contains("ModHookContext", StringComparison.Ordinal)
+           && !damageMeterRuntime.Contains("DamageFrameWindow<", StringComparison.Ordinal),
+        "damage meter runtime stays a compatibility facade without hook or capture ownership");
+    Assert(damageMeterLifecycle.Contains("DamageCaptureCoordinator.ResetCaptureState", StringComparison.Ordinal)
+           && damageMeterLifecycle.Contains("DamageMeterNetworkRuntime.StartFight", StringComparison.Ordinal)
+           && !damageMeterCapture.Contains("AuraToolsDamageMeterUi", StringComparison.Ordinal)
+           && damageMeterCapture.Contains("DamageEventFactory.Normalize", StringComparison.Ordinal)
+           && damageEventFactory.Contains("DamageMeterProtocol.MaxDamagePerEvent", StringComparison.Ordinal),
+        "damage meter lifecycle coordinates boundaries while capture stays UI-independent");
     Assert(!damageMeterRuntime.Contains("EnsureOutOfRunHistoryLoaded();", StringComparison.Ordinal),
         "damage history load must be source-tagged and lazy");
     Assert(damageMeterRuntime.Contains("LoadHistoryOnStartup", StringComparison.Ordinal),
         "damage history startup load is guarded by config");
-    Assert(damageMeterRuntime.Contains("CaptureTeamAvatars", StringComparison.Ordinal),
+    Assert(damageMeterSettlement.Contains("CaptureTeamAvatars", StringComparison.Ordinal),
         "team avatar capture is explicitly configurable");
-    Assert(damageMeterRuntime.Contains("MaxAvatarEncodePixels", StringComparison.Ordinal)
-           && damageMeterRuntime.Contains("MaxAvatarPngBytes", StringComparison.Ordinal),
+    Assert(damageMeterSettlement.Contains("MaxAvatarEncodePixels", StringComparison.Ordinal)
+           && damageMeterSettlement.Contains("MaxAvatarPngBytes", StringComparison.Ordinal),
         "team avatar capture has pixel and byte budgets");
     Assert(damageMeterRuntime.Contains("UiRefreshIntervalMs", StringComparison.Ordinal),
         "damage meter UI refresh is config-throttled");
     Assert(damageMeterRuntime.Contains("!Available || !Visible", StringComparison.Ordinal)
-           && damageMeterRuntime.Contains("RestoreAdventureHistoryOnce", StringComparison.Ordinal)
+           && damageMeterSettlement.Contains("RestoreAdventureHistoryOnce", StringComparison.Ordinal)
            && !damageMeterRuntime.Contains("uiDirty = true;\r\n            return;", StringComparison.Ordinal)
            && !damageMeterRuntime.Contains("uiDirty = true;\n            return;", StringComparison.Ordinal),
         "damage meter idle UI and adventure-history work must be suppressed when unchanged");
-    Assert(damageMeterRuntime.Contains("DamageMeterPerformanceCounters.RecordHitHook", StringComparison.Ordinal)
+    Assert(damageMeterCapture.Contains("DamageMeterPerformanceCounters.RecordHitHook", StringComparison.Ordinal)
            && damageMeterRuntime.Contains("DamageMeterPerformanceCounters.MaybeLog", StringComparison.Ordinal),
         "damage meter hot hooks must be observable through aggregated performance counters");
-    Assert(damageMeterRuntime.Contains("DamageFrameWindow<HitFrame>", StringComparison.Ordinal)
-           && damageMeterRuntime.Contains("ReleaseTargetFrameList", StringComparison.Ordinal),
+    Assert(damageCaptureSession.Contains("DamageFrameWindow<HitFrame>", StringComparison.Ordinal)
+           && damageCaptureSession.Contains("ReleaseTargetFrameList", StringComparison.Ordinal)
+           && damageCaptureSession.Contains("void Reset()", StringComparison.Ordinal),
         "damage meter capture frames must use bounded pooled frame windows");
-    Assert(damageMeterRuntime.Contains("RegisterBefore(\"StatusManager.AddBuff\"", StringComparison.Ordinal)
-           && damageMeterRuntime.Contains("DamageFrameWindow<StatusBuffFrame>", StringComparison.Ordinal)
-           && damageMeterRuntime.Contains("RecordObservedApplication", StringComparison.Ordinal),
+    Assert(damageMeterHookAdapter.Contains("RegisterBefore(\"StatusManager.AddBuff\"", StringComparison.Ordinal)
+           && damageCaptureSession.Contains("DamageFrameWindow<StatusBuffFrame>", StringComparison.Ordinal)
+           && damageMeterCapture.Contains("RecordObservedApplication", StringComparison.Ordinal),
         "damage meter must capture direct StatusManager.AddBuff applications for broadcast-backed DoT attribution");
 
     var damageMeterNetwork = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/Network/DamageMeterNetworkRuntime.cs");
@@ -730,7 +779,7 @@ void TestRuntimeArchitectureGuards()
     Assert(performanceSettings.Contains("PerformanceDiagnostics", StringComparison.Ordinal)
            && auraToolsLog.Contains("public static void Performance", StringComparison.Ordinal)
            && cardUiBenchmark.Contains("if (!AuraToolsPerformanceSettings.DiagnosticsEnabled)", StringComparison.Ordinal)
-           && damageMeterRuntime.Contains("if (AuraToolsPerformanceSettings.DiagnosticsEnabled)", StringComparison.Ordinal),
+           && damageMeterHookAdapter.Contains("if (AuraToolsPerformanceSettings.DiagnosticsEnabled)", StringComparison.Ordinal),
         "AuraTools pure benchmark and damage-text diagnostic hooks must be opt-in and use a dedicated visible log channel");
 
     var damageMeterFightIndex = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/Resolution/DamageMeterFightIndex.cs");
@@ -858,8 +907,8 @@ void TestRuntimeArchitectureGuards()
            && buffAttribution.Contains("ConfidenceRank", StringComparison.Ordinal)
            && !buffAttribution.Contains("using System.Linq", StringComparison.Ordinal),
         "buff attribution must use the transaction/state-slot engine without LINQ hot-path allocation");
-    Assert(damageMeterRuntime.Contains("EventCenter.OnBroadcastEventWithParam", StringComparison.Ordinal)
-           && damageMeterRuntime.Contains("param is not AddBuffData", StringComparison.Ordinal),
+    Assert(damageMeterCapture.Contains("EventCenter.OnBroadcastEventWithParam", StringComparison.Ordinal)
+           && damageMeterCapture.Contains("param is not AddBuffData", StringComparison.Ordinal),
         "buff attribution must refine applications from native AddBuffData broadcasts");
 
     var damageMeterUi = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/AuraToolsDamageMeterUi.cs");
@@ -867,7 +916,7 @@ void TestRuntimeArchitectureGuards()
            && damageMeterUi.Contains("ShowCurrentDetails", StringComparison.Ordinal)
            && !damageMeterUi.Contains("details.onClick.AddListener(()", StringComparison.Ordinal),
         "damage meter UI rows must refresh by diff and bind click listeners once");
-    Assert(damageMeterRuntime.Contains("Visible = AuraToolsConfigService.MatchExperience.DamageMeter.ShowPanelByDefault", StringComparison.Ordinal)
+    Assert(damageMeterAvailability.Contains("AuraToolsConfigService.MatchExperience.DamageMeter.ShowPanelByDefault", StringComparison.Ordinal)
            && damageMeterUi.Contains("var panelVisible = available && AuraToolsDamageMeterRuntime.Visible", StringComparison.Ordinal),
         "damage meter availability must preserve the normalized collapsed-by-default presentation state");
 
@@ -893,10 +942,18 @@ void TestRuntimeArchitectureGuards()
         "SkillCG must not preload registered CG during fight start");
 
     var starterDeckRuntime = ReadRepoText("AuraToolsExp-Dev/Features/StarterDeck/AuraToolsStarterDeckRuntime.cs");
+    var starterDeckModule = ReadRepoSourceTree("AuraToolsExp-Dev/Features/StarterDeck");
+    var starterDeckHookAdapter = ReadRepoText("AuraToolsExp-Dev/Features/StarterDeck/StarterDeckHookAdapter.cs");
+    var starterDeckApplication = ReadRepoText("AuraToolsExp-Dev/Features/StarterDeck/StarterDeckApplicationCoordinator.cs");
+    var starterDeckCatalog = ReadRepoText("AuraToolsExp-Dev/Features/StarterDeck/StarterDeckCardCatalog.cs");
+    Assert(starterDeckRuntime.Contains("StarterDeckHookAdapter.Initialize", StringComparison.Ordinal)
+           && !starterDeckRuntime.Contains("ModHookContext", StringComparison.Ordinal)
+           && !starterDeckRuntime.Contains("RoleTable", StringComparison.Ordinal),
+        "starter deck runtime stays an initialization and compatibility facade");
     var starterDeckClassification = ReadRepoText("AuraToolsExp-Dev/Features/StarterDeck/StarterDeckCardClassification.cs");
-    Assert(starterDeckRuntime.Contains("RegisterBefore(modConfig, \"PlayerManager.CmdSyncRoleTable\"", StringComparison.Ordinal)
-           && starterDeckRuntime.Contains("ApplyStarterDeckBeforeRoleSubmit", StringComparison.Ordinal)
-           && starterDeckRuntime.Contains("context.Arguments?.OfType<RoleTable>().FirstOrDefault()", StringComparison.Ordinal),
+    Assert(starterDeckHookAdapter.Contains("RegisterBefore(modConfig, \"PlayerManager.CmdSyncRoleTable\"", StringComparison.Ordinal)
+           && starterDeckHookAdapter.Contains("ApplyStarterDeckBeforeRoleSubmit", StringComparison.Ordinal)
+           && starterDeckHookAdapter.Contains("context.Arguments?.OfType<RoleTable>().FirstOrDefault()", StringComparison.Ordinal),
         "starter deck must apply the local role-table argument before each client submits it natively");
     var registryAwareSkillCgRuntime = ReadRepoText("AuraToolsExp-Dev/Features/SkillCg/AuraToolsSkillCgRuntime.cs");
     Assert(registryAwareSkillCgRuntime.Contains("AuraCgRegistryRuntime.Changed += OnRegistryChanged", StringComparison.Ordinal)
@@ -907,24 +964,24 @@ void TestRuntimeArchitectureGuards()
     Assert(sharedCgRuntime.Contains("registeredRequestResolver(item, false)", StringComparison.Ordinal)
            && sharedCgRuntime.Contains("registeredRequestResolver(item, true)", StringComparison.Ordinal),
         "Skill CG server validation must be independent of the host visual toggle while recipients apply local activation");
-    Assert(!starterDeckRuntime.Contains("NormalMapManager.InitRoleTable", StringComparison.Ordinal),
+    Assert(!starterDeckModule.Contains("NormalMapManager.InitRoleTable", StringComparison.Ordinal),
         "starter deck must not write a provisional deck during early role-table initialization");
-    Assert(starterDeckRuntime.Contains("ReadDataId(roleTable.Career)", StringComparison.Ordinal)
-           && !starterDeckRuntime.Contains("GameEntryUI.career", StringComparison.Ordinal),
+    Assert(starterDeckApplication.Contains("ReadDataId(roleTable.Career)", StringComparison.Ordinal)
+           && !starterDeckModule.Contains("GameEntryUI.career", StringComparison.Ordinal),
         "starter deck multiplayer role resolution must use the owned role table instead of global lobby selection state");
-    Assert(starterDeckRuntime.Contains("IsLocalPlayerRoleTable", StringComparison.Ordinal)
-           && starterDeckRuntime.Contains("playerManager.PlayerId", StringComparison.Ordinal)
-           && starterDeckRuntime.Contains("ReflectionUtil.ReadString(roleTable, \"Id\", \"id\")", StringComparison.Ordinal),
+    Assert(starterDeckApplication.Contains("IsLocalPlayerRoleTable", StringComparison.Ordinal)
+           && starterDeckApplication.Contains("playerManager.PlayerId", StringComparison.Ordinal)
+           && starterDeckApplication.Contains("ReflectionUtil.ReadString(roleTable, \"Id\", \"id\")", StringComparison.Ordinal),
         "starter deck multiplayer path must guard by local player role-table ownership");
-    Assert(!starterDeckRuntime.Contains("multiplayer world-simulation keeps native per-player decks", StringComparison.Ordinal),
+    Assert(!starterDeckModule.Contains("multiplayer world-simulation keeps native per-player decks", StringComparison.Ordinal),
         "starter deck must not skip the whole feature for multiplayer world-simulation runs");
-    Assert(starterDeckRuntime.Contains("BuildCareerSkillCardIds", StringComparison.Ordinal)
-           && starterDeckRuntime.Contains("gameConfig.GetPackBelong", StringComparison.Ordinal)
-           && starterDeckRuntime.Contains("IsExcludedDerivedCard", StringComparison.Ordinal),
+    Assert(starterDeckCatalog.Contains("BuildCareerSkillCardIds", StringComparison.Ordinal)
+           && starterDeckCatalog.Contains("gameConfig.GetPackBelong", StringComparison.Ordinal)
+           && starterDeckCatalog.Contains("IsExcludedDerivedCard", StringComparison.Ordinal),
         "starter deck catalog uses authoritative career references, host pack ownership, and independent derived-card exclusion");
-    Assert(!starterDeckRuntime.Contains("hasSkillAction", StringComparison.Ordinal)
-           && !starterDeckRuntime.Contains("hasSkillIcon", StringComparison.Ordinal)
-           && !starterDeckRuntime.Contains("IsSkillLikeCard", StringComparison.Ordinal),
+    Assert(!starterDeckModule.Contains("hasSkillAction", StringComparison.Ordinal)
+           && !starterDeckModule.Contains("hasSkillIcon", StringComparison.Ordinal)
+           && !starterDeckModule.Contains("IsSkillLikeCard", StringComparison.Ordinal),
         "starter deck classification must not infer career skills from Action or icon presentation fields");
     Assert(starterDeckClassification.Contains("\"衍生牌\"", StringComparison.Ordinal)
            && !starterDeckClassification.Contains("SunExp_wuna_wuna_coronation_token", StringComparison.Ordinal),
@@ -1442,4 +1499,17 @@ void Assert(bool condition, string name)
     }
 
     assertions++;
+}
+
+internal sealed class TestCaptureFrame : IDamageCaptureFrame
+{
+    public int Frame { get; set; }
+
+    public int Value { get; set; }
+
+    public void Reset()
+    {
+        Frame = 0;
+        Value = 0;
+    }
 }

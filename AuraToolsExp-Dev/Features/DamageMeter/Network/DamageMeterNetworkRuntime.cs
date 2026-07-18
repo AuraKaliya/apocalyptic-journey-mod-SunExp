@@ -11,11 +11,6 @@ namespace AuraToolsExp.Dll.Features.DamageMeter.Network;
 
 internal static class DamageMeterNetworkRuntime
 {
-    private const int NetworkSnapshotSoftLimitBytes = AuraToolsRpcPayloadGuard.DefaultSoftLimitBytes;
-    private const int NetworkDetailsSoftLimit = 24;
-    private const int NetworkRoundsSoftLimit = 32;
-    private const int NetworkCombatantsSoftLimit = 16;
-    private const int NetworkMinimalCombatantsLimit = 8;
     private static readonly DamageLedger LedgerInstance = new();
     private static readonly DamageRunLedger RunAggregateInstance = new();
     private static readonly DamageHistoryStore HistoryInstance = new();
@@ -553,178 +548,15 @@ internal static class DamageMeterNetworkRuntime
         var snapshot = LedgerInstance.CreateSnapshot();
         snapshot.History = new List<DamageFightRecord>();
         snapshot.RunAggregate = RunAggregateInstance.CreateSnapshot();
-        var beforeBytes = EstimateSnapshotBytes(snapshot);
-        CompactNetworkSnapshot(snapshot, source);
-        var afterBytes = EstimateSnapshotBytes(snapshot);
+        var beforeBytes = DamageMeterSnapshotCompactor.EstimateSnapshotBytes(snapshot);
+        DamageMeterSnapshotCompactor.CompactNetworkSnapshot(snapshot, source);
+        var afterBytes = DamageMeterSnapshotCompactor.EstimateSnapshotBytes(snapshot);
         DamageMeterPerformanceCounters.RecordSnapshot(
             DamageMeterPerformanceCounters.ElapsedMs(startedAt),
             beforeBytes,
             afterBytes,
             afterBytes > 0 && beforeBytes > 0 && afterBytes < beforeBytes);
         return snapshot;
-    }
-
-    private static void CompactNetworkSnapshot(DamageMeterSnapshot snapshot, string source)
-    {
-        if (snapshot == null || SnapshotFits(snapshot))
-        {
-            return;
-        }
-
-        var beforeBytes = EstimateSnapshotBytes(snapshot);
-        TrimDetailsAndRounds(snapshot, NetworkDetailsSoftLimit, NetworkRoundsSoftLimit);
-        if (SnapshotFits(snapshot))
-        {
-            LogSnapshotCompacted(source, beforeBytes, EstimateSnapshotBytes(snapshot));
-            return;
-        }
-
-        TrimCombatants(snapshot, NetworkCombatantsSoftLimit);
-        if (SnapshotFits(snapshot))
-        {
-            LogSnapshotCompacted(source, beforeBytes, EstimateSnapshotBytes(snapshot));
-            return;
-        }
-
-        TrimDetailsAndRounds(snapshot, maxDetails: 8, maxRounds: 12);
-        if (SnapshotFits(snapshot))
-        {
-            LogSnapshotCompacted(source, beforeBytes, EstimateSnapshotBytes(snapshot));
-            return;
-        }
-
-        MinimizeNetworkSnapshot(snapshot);
-        LogSnapshotCompacted(source, beforeBytes, EstimateSnapshotBytes(snapshot));
-    }
-
-    private static void MinimizeNetworkSnapshot(DamageMeterSnapshot snapshot)
-    {
-        snapshot.History = new List<DamageFightRecord>();
-        TrimCombatants(snapshot, NetworkMinimalCombatantsLimit);
-        TrimDetailsAndRounds(snapshot, maxDetails: 0, maxRounds: 0);
-    }
-
-    private static DamageMeterSnapshot CreateStatusOnlySnapshot(DamageMeterSnapshot? source)
-    {
-        return new DamageMeterSnapshot
-        {
-            ProtocolVersion = DamageMeterProtocol.Version,
-            SessionId = source?.SessionId ?? LedgerInstance.SessionId,
-            InFight = source?.InFight ?? LedgerInstance.InFight,
-            SharedEnabled = source?.SharedEnabled ?? LedgerInstance.SharedEnabled,
-            CurrentRoundIndex = source?.CurrentRoundIndex ?? LedgerInstance.CurrentRoundIndex,
-            CompletedRoundCount = source?.CompletedRoundCount ?? LedgerInstance.CompletedRoundCount,
-            ServerSequence = source?.ServerSequence ?? LedgerInstance.ServerSequence,
-            RunAggregate = CreateStatusOnlyAggregate(source?.RunAggregate),
-            Combatants = new List<CombatantDamageStat>(),
-            History = new List<DamageFightRecord>()
-        };
-    }
-
-    private static DamageRunAggregateSnapshot CreateStatusOnlyAggregate(DamageRunAggregateSnapshot? source)
-    {
-        return new DamageRunAggregateSnapshot
-        {
-            AdventureId = source?.AdventureId ?? RunAggregateInstance.AdventureId,
-            StartedUtc = source?.StartedUtc ?? RunAggregateInstance.StartedUtc,
-            UpdatedUtc = source?.UpdatedUtc ?? RunAggregateInstance.UpdatedUtc,
-            EncounterCount = source?.EncounterCount ?? RunAggregateInstance.EncounterCount,
-            TotalRounds = source?.TotalRounds ?? RunAggregateInstance.TotalRounds,
-            ConfirmedEventCount = source?.ConfirmedEventCount ?? RunAggregateInstance.ConfirmedEventCount,
-            LastSessionId = source?.LastSessionId ?? RunAggregateInstance.LastSessionId,
-            LastServerSequence = source?.LastServerSequence ?? RunAggregateInstance.LastServerSequence,
-            BestHit = source?.BestHit?.Copy(),
-            Combatants = new List<CombatantDamageStat>()
-        };
-    }
-
-    private static bool SnapshotFits(DamageMeterSnapshot snapshot)
-    {
-        return !AuraToolsRpcPayloadGuard.TryMeasureUtf8Json(snapshot, out var bytes, out _)
-               || bytes <= NetworkSnapshotSoftLimitBytes;
-    }
-
-    private static int EstimateSnapshotBytes(DamageMeterSnapshot snapshot)
-    {
-        return AuraToolsRpcPayloadGuard.TryMeasureUtf8Json(snapshot, out var bytes, out _)
-            ? bytes
-            : 0;
-    }
-
-    private static void TrimCombatants(DamageMeterSnapshot snapshot, int maximum)
-    {
-        snapshot.Combatants = (snapshot.Combatants ?? new List<CombatantDamageStat>())
-            .Where(stat => stat != null)
-            .OrderByDescending(stat => stat.DisplayTotal(true))
-            .ThenBy(stat => stat.InstanceId, StringComparer.OrdinalIgnoreCase)
-            .Take(Math.Max(0, maximum))
-            .ToList();
-    }
-
-    private static void TrimDetailsAndRounds(DamageMeterSnapshot snapshot, int maxDetails, int maxRounds)
-    {
-        foreach (var stat in snapshot.Combatants ?? new List<CombatantDamageStat>())
-        {
-            if (stat == null)
-            {
-                continue;
-            }
-
-            stat.Rounds = maxRounds <= 0
-                ? new List<DamageRoundStat>()
-                : (stat.Rounds ?? new List<DamageRoundStat>())
-                    .Skip(Math.Max(0, (stat.Rounds?.Count ?? 0) - maxRounds))
-                    .ToList();
-
-            stat.Details = maxDetails <= 0
-                ? new Dictionary<string, DamageDetailStat>(StringComparer.OrdinalIgnoreCase)
-                : (stat.Details ?? new Dictionary<string, DamageDetailStat>(StringComparer.OrdinalIgnoreCase))
-                    .OrderByDescending(pair => (pair.Value?.HpDamage ?? 0) + (pair.Value?.ShieldDamage ?? 0))
-                    .ThenBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
-                    .Take(maxDetails)
-                    .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
-        }
-
-        TrimAggregateDetails(snapshot.RunAggregate, maxDetails);
-    }
-
-    private static void TrimAggregateDetails(DamageRunAggregateSnapshot? aggregate, int maxDetails)
-    {
-        if (aggregate == null)
-        {
-            return;
-        }
-
-        foreach (var stat in aggregate.Combatants ?? new List<CombatantDamageStat>())
-        {
-            if (stat == null)
-            {
-                continue;
-            }
-
-            stat.Rounds = new List<DamageRoundStat>();
-            stat.CurrentRoundHpDamage = 0;
-            stat.CurrentRoundShieldDamage = 0;
-            stat.Details = maxDetails <= 0
-                ? new Dictionary<string, DamageDetailStat>(StringComparer.OrdinalIgnoreCase)
-                : (stat.Details ?? new Dictionary<string, DamageDetailStat>(StringComparer.OrdinalIgnoreCase))
-                    .OrderByDescending(pair => (pair.Value?.HpDamage ?? 0) + (pair.Value?.ShieldDamage ?? 0))
-                    .ThenBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
-                    .Take(maxDetails)
-                    .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
-        }
-    }
-
-    private static void LogSnapshotCompacted(string source, int beforeBytes, int afterBytes)
-    {
-        AuraToolsLog.Warn("[DamageMeter] compacted network snapshot. source="
-                          + source
-                          + ", bytes="
-                          + beforeBytes
-                          + "->"
-                          + afterBytes
-                          + ", softLimit="
-                          + NetworkSnapshotSoftLimitBytes);
     }
 
     public static bool TryCreateServerSnapshot(
@@ -757,12 +589,12 @@ internal static class DamageMeterNetworkRuntime
             {
                 if (command.Snapshot != null)
                 {
-                    MinimizeNetworkSnapshot(command.Snapshot);
+                    DamageMeterSnapshotCompactor.MinimizeNetworkSnapshot(command.Snapshot);
                 }
             },
             () =>
             {
-                command.Snapshot = CreateStatusOnlySnapshot(command.Snapshot);
+                command.Snapshot = DamageMeterSnapshotCompactor.CreateStatusOnlySnapshot(command.Snapshot);
                 command.RejectionReason = "snapshot compacted: payload too large";
             },
             "control:" + command.Kind);
@@ -776,7 +608,7 @@ internal static class DamageMeterNetworkRuntime
             {
                 if (command.Snapshot != null)
                 {
-                    MinimizeNetworkSnapshot(command.Snapshot);
+                    DamageMeterSnapshotCompactor.MinimizeNetworkSnapshot(command.Snapshot);
                 }
             },
             () =>
