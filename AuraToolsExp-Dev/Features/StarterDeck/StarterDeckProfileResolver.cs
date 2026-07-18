@@ -70,27 +70,15 @@ internal static class StarterDeckProfileResolver
 
     internal static List<string> BuildDeckFromProfile(StarterDeckProfile profile)
     {
-        var deck = profile.CardIds
-            .Where(id => !string.IsNullOrWhiteSpace(id))
-            .Where(StarterDeckCardCatalog.IsValidCard)
-            .Where(id => !StarterDeckCardCatalog.IsStarterDeckExcludedCard(id))
-            .Take(profile.DeckSize)
-            .ToList();
-
-        if (deck.Count < profile.DeckSize && profile.CandidatePackIds.Count > 0)
-        {
-            foreach (var cardId in StarterDeckCardCatalog.BuildCandidateCardIds(profile.CandidatePackIds))
-            {
-                if (deck.Count >= profile.DeckSize)
-                {
-                    break;
-                }
-
-                deck.Add(cardId);
-            }
-        }
-
-        return deck.Take(profile.DeckSize).ToList();
+        IEnumerable<string> fallbackCardIds = profile.CandidatePackIds.Count > 0
+            ? StarterDeckCardCatalog.BuildCandidateCardIds(profile.CandidatePackIds)
+            : Array.Empty<string>();
+        return StarterDeckDeckBuilder.Build(
+            profile.CardIds,
+            profile.DeckSize,
+            StarterDeckCardCatalog.IsValidCard,
+            StarterDeckCardCatalog.IsStarterDeckExcludedCard,
+            fallbackCardIds);
     }
 
     internal static StarterDeckResolvedProfile? ResolveEffectiveProfile(string roleId)

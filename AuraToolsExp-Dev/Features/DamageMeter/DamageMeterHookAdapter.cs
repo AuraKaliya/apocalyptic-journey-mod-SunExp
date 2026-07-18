@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Globalization;
 using System.Reflection;
 using AuraMode.Shared;
@@ -22,9 +21,8 @@ namespace AuraToolsExp.Dll.Features.DamageMeter;
 
 internal static class DamageMeterHookAdapter
 {
-    private static readonly List<IDisposable> HookRegistrations = new();
+    private static readonly DamageMeterHookRegistrationSet HookRegistrations = new();
     private static ModConfig? modConfig;
-    private static bool hooksRegistered;
 
     internal static void Initialize(ModConfig config)
     {
@@ -47,11 +45,12 @@ internal static class DamageMeterHookAdapter
 
     private static void EnsureHooksRegistered()
     {
-        if (hooksRegistered || modConfig == null)
+        if (modConfig == null)
         {
             return;
         }
 
+        var countBefore = HookRegistrations.Count;
         RegisterAfter("GameEntryUI.Init", DamageMeterAvailabilityRuntime.HideForEntryUi);
         RegisterAfter("GameEntryUI.Outlobby", DamageMeterAvailabilityRuntime.HideForEntryUi);
         RegisterAfter("GameEntryUI.ReturnHouse", DamageMeterAvailabilityRuntime.HideForEntryUi);
@@ -73,70 +72,66 @@ internal static class DamageMeterHookAdapter
         RegisterAfter("MapSelectUI.ShowMap", DamageMeterAvailabilityRuntime.ShowForAdventureUi);
         RegisterAfter("MapSelectUI.MapAnimation", DamageMeterAvailabilityRuntime.ShowForAdventureUi);
 
-        RegisterBefore("StatusManager.Hit", DamageCaptureCoordinator.BeforeHit);
-        RegisterAfter("StatusManager.Hit", DamageCaptureCoordinator.AfterHit);
-        RegisterAfter("DamageText.Create", DamageCaptureCoordinator.AfterDamageTextCreate);
+        RegisterBefore("StatusManager.Hit", context => WithObservation(DamageMeterHookContextMapper.MapHit(context), DamageCaptureCoordinator.BeforeHit));
+        RegisterAfter("StatusManager.Hit", context => WithObservation(DamageMeterHookContextMapper.MapStatus(context), DamageCaptureCoordinator.AfterHit));
+        RegisterAfter("DamageText.Create", AfterDamageTextCreate);
         if (AuraToolsPerformanceSettings.DiagnosticsEnabled)
         {
-            RegisterAfter("DamageText.InternalExecute", DamageCaptureCoordinator.AfterDamageTextInternalExecute);
-            RegisterAfter("FightUI.EnqueueDamageText", DamageCaptureCoordinator.AfterFightUiEnqueueDamageText);
+            RegisterAfter("DamageText.InternalExecute", AfterDamageTextInternalExecute);
+            RegisterAfter("FightUI.EnqueueDamageText", AfterFightUiEnqueueDamageText);
         }
-        RegisterBefore("ScriptExecutor.PureChangeHp", DamageCaptureCoordinator.BeforePureChangeHp);
-        RegisterAfter("ScriptExecutor.PureChangeHp", DamageCaptureCoordinator.AfterPureChangeHp);
-        RegisterBefore("StatusManager.set_CurHp", DamageCaptureCoordinator.BeforeSetCurHp);
-        RegisterAfter("StatusManager.set_CurHp", DamageCaptureCoordinator.AfterSetCurHp);
-        RegisterBefore("ScriptExecutor.AddBuff", DamageCaptureCoordinator.BeforeScriptAddBuff);
-        RegisterAfter("ScriptExecutor.AddBuff", DamageCaptureCoordinator.AfterScriptAddBuff);
-        RegisterBefore("StatusManager.AddBuff", DamageCaptureCoordinator.BeforeStatusAddBuff);
-        RegisterAfter("StatusManager.AddBuff", DamageCaptureCoordinator.AfterStatusAddBuff);
-        RegisterAfter("BuffItemConfig.set_Level", DamageCaptureCoordinator.AfterBuffLevelChanged);
-        RegisterAfter("StatusManager.RemoveBuff", DamageCaptureCoordinator.AfterRemoveBuff);
-        RegisterAfter("FightManager.OnEnable", DamageCaptureCoordinator.AttachBuffBroadcastListener);
-        RegisterBefore("FightManager.OnDisable", DamageCaptureCoordinator.DetachBuffBroadcastListener);
+        RegisterBefore("ScriptExecutor.PureChangeHp", context => WithObservation(DamageMeterHookContextMapper.MapPureHp(context), DamageCaptureCoordinator.BeforePureChangeHp));
+        RegisterAfter("ScriptExecutor.PureChangeHp", context => WithObservation(DamageMeterHookContextMapper.MapPureHp(context), DamageCaptureCoordinator.AfterPureChangeHp));
+        RegisterBefore("StatusManager.set_CurHp", context => WithObservation(DamageMeterHookContextMapper.MapStatus(context), DamageCaptureCoordinator.BeforeSetCurHp));
+        RegisterAfter("StatusManager.set_CurHp", context => WithObservation(DamageMeterHookContextMapper.MapStatus(context), DamageCaptureCoordinator.AfterSetCurHp));
+        RegisterBefore("ScriptExecutor.AddBuff", context => WithObservation(DamageMeterHookContextMapper.MapScriptBuff(context), DamageCaptureCoordinator.BeforeScriptAddBuff));
+        RegisterAfter("ScriptExecutor.AddBuff", context => WithObservation(DamageMeterHookContextMapper.MapScriptBuff(context), DamageCaptureCoordinator.AfterScriptAddBuff));
+        RegisterBefore("StatusManager.AddBuff", context => WithObservation(DamageMeterHookContextMapper.MapStatusBuff(context), DamageCaptureCoordinator.BeforeStatusAddBuff));
+        RegisterAfter("StatusManager.AddBuff", context => WithObservation(DamageMeterHookContextMapper.MapStatusBuff(context), DamageCaptureCoordinator.AfterStatusAddBuff));
+        RegisterAfter("BuffItemConfig.set_Level", context => WithObservation(DamageMeterHookContextMapper.MapBuffLevel(context), DamageCaptureCoordinator.AfterBuffLevelChanged));
+        RegisterAfter("StatusManager.RemoveBuff", context => WithObservation(DamageMeterHookContextMapper.MapStatusBuff(context), DamageCaptureCoordinator.AfterRemoveBuff));
+        RegisterAfter("FightManager.OnEnable", _ => DamageCaptureCoordinator.AttachBuffBroadcastListener());
+        RegisterBefore("FightManager.OnDisable", _ => DamageCaptureCoordinator.DetachBuffBroadcastListener());
 
-        HookRegistrations.Add(AuraBattleLifecycleRouter.Register(
-            modConfig,
-            AuraToolsIds.ModId,
-            "DamageMeter",
-            new AuraBattleLifecycleSubscription
-            {
-                FightStarting = DamageMeterLifecycleCoordinator.OnFightInitStarting,
-                FightStarted = DamageMeterLifecycleCoordinator.OnFightStartFallback,
-                PlayerRoundStarted = DamageMeterLifecycleCoordinator.OnPlayerRoundStart,
-                FightEnding = DamageMeterLifecycleCoordinator.OnFightEnding,
-                FightEnded = DamageMeterLifecycleCoordinator.OnFightEnded
-            },
-            AuraToolsLog.Debug,
-            AuraToolsLog.Warn));
+        HookRegistrations.Register("lifecycle", () => AuraBattleLifecycleRouter.Register(
+                modConfig,
+                AuraToolsIds.ModId,
+                "DamageMeter",
+                new AuraBattleLifecycleSubscription
+                {
+                    FightStarting = context => DamageMeterLifecycleCoordinator.OnFightInitStarting(
+                        DamageMeterAvailabilityRuntime.IsSupportedDamageMeterContext(context, allowMapManagerFallback: true)),
+                    FightStarted = _ => DamageMeterLifecycleCoordinator.OnFightStartFallback(),
+                    PlayerRoundStarted = context => DamageMeterLifecycleCoordinator.OnPlayerRoundStart(
+                        DamageMeterHookContextMapper.MapRoundUnit(context)),
+                    FightEnding = context => DamageMeterLifecycleCoordinator.OnFightEnding(
+                        DamageMeterSettlementRuntime.FightResult(context)),
+                    FightEnded = _ => DamageMeterLifecycleCoordinator.OnFightEnded()
+                },
+                AuraToolsLog.Debug,
+                AuraToolsLog.Warn));
 
-        hooksRegistered = true;
-        AuraToolsLog.Info("[DamageMeter] routed hooks enabled.");
+        if (HookRegistrations.Count > countBefore)
+        {
+            AuraToolsLog.Info("[DamageMeter] routed hooks enabled.");
+        }
     }
 
     internal static void ReleaseHooks()
     {
-        if (!hooksRegistered && HookRegistrations.Count == 0)
+        if (HookRegistrations.Count == 0)
         {
             return;
         }
 
-        for (var i = HookRegistrations.Count - 1; i >= 0; i--)
-        {
-            try
-            {
-                HookRegistrations[i].Dispose();
-            }
-            catch
-            {
-            }
-        }
-
-        HookRegistrations.Clear();
-        hooksRegistered = false;
-        DamageCaptureCoordinator.DetachBuffBroadcastListener(null);
-        DamageCaptureCoordinator.ResetCaptureState();
+        var failed = HookRegistrations.DisposeAll((key, ex) =>
+            AuraToolsLog.Warn("[DamageMeter] hook release failed for " + key + ": " + ex.Message));
+        DamageCaptureCoordinator.DetachBuffBroadcastListener();
+        DamageMeterLifecycleCoordinator.ResetCaptureServices();
         DamageMeterNetworkRuntime.EndFight("disabled");
-        AuraToolsLog.Info("[DamageMeter] routed hooks disabled.");
+        AuraToolsLog.Info(failed == 0
+            ? "[DamageMeter] routed hooks disabled."
+            : "[DamageMeter] routed hook release incomplete; retained " + failed + " handle(s) for retry.");
     }
     private static void RegisterBefore(string target, Action<ModHookContext> action)
     {
@@ -145,11 +140,11 @@ internal static class DamageMeterHookAdapter
             return;
         }
 
-        HookRegistrations.Add(AuraToolsHookRegistry.BeforeRouted(
-            modConfig,
-            target,
-            action,
-            "DamageMeter"));
+        HookRegistrations.Register("before:" + target, () => AuraToolsHookRegistry.BeforeRouted(
+                modConfig,
+                target,
+                action,
+                "DamageMeter"));
     }
 
     private static void RegisterAfter(string target, Action<ModHookContext> action)
@@ -159,11 +154,34 @@ internal static class DamageMeterHookAdapter
             return;
         }
 
-        HookRegistrations.Add(AuraToolsHookRegistry.AfterRouted(
-            modConfig,
-            target,
-            action,
-            "DamageMeter"));
+        HookRegistrations.Register("after:" + target, () => AuraToolsHookRegistry.AfterRouted(
+                modConfig,
+                target,
+                action,
+                "DamageMeter"));
+    }
+
+    private static void WithObservation<T>(T? observation, Action<T> action) where T : class
+    {
+        if (observation != null)
+        {
+            action(observation);
+        }
+    }
+
+    private static void AfterDamageTextCreate(ModHookContext context)
+    {
+        WithObservation(DamageMeterHookContextMapper.MapDamageText(context), DamageCaptureCoordinator.AfterDamageTextCreate);
+    }
+
+    private static void AfterDamageTextInternalExecute(ModHookContext context)
+    {
+        DamageCaptureCoordinator.AfterDamageTextInternalExecute();
+    }
+
+    private static void AfterFightUiEnqueueDamageText(ModHookContext context)
+    {
+        DamageCaptureCoordinator.AfterFightUiEnqueueDamageText();
     }
 
     internal static void RunHook(string name, Action action)

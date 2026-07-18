@@ -1,7 +1,6 @@
 using AuraToolsExp.Dll.Features.DamageMeter.Network;
 using AuraToolsExp.Dll.Features.DamageMeter.Resolution;
 using UnityEngine;
-using Witch.Core;
 
 namespace AuraToolsExp.Dll.Features.DamageMeter;
 
@@ -19,21 +18,29 @@ internal static class DamageMeterLifecycleCoordinator
         lastRoundUnit = null;
     }
 
-    internal static void OnFightInitStarting(ModHookContext context)
+    internal static void ResetCaptureServices()
+    {
+        DamageCaptureCoordinator.ResetSession();
+        DamageCaptureCoordinator.ResetAttribution();
+        DamageMeterFightIndex.Clear();
+        ResetRoundDeduplication();
+    }
+
+    internal static void OnFightInitStarting(bool supportedContext)
     {
         DamageMeterHookAdapter.RunHook("fight init", () =>
         {
-            if (DamageMeterAvailabilityRuntime.IsSupportedDamageMeterContext(context, allowMapManagerFallback: true))
+            if (supportedContext)
             {
                 DamageMeterAvailabilityRuntime.PreparationUiActive = false;
                 DamageMeterAvailabilityRuntime.SetAvailable(true, "FightInit.Init");
                 DamageMeterSettlementRuntime.PrepareSettlementCgAssets("FightInit.Init");
             }
 
-            DamageCaptureCoordinator.ResetCaptureState();
+            ResetCaptureServices();
             DamageMeterFightIndex.SetFriendlyIdentitySnapshots(DamageMeterSettlementRuntime.AdventureTeamMembers);
             DamageMeterFightIndex.BeginFight();
-            DamageCaptureCoordinator.AttachBuffBroadcastListener(context);
+            DamageCaptureCoordinator.AttachBuffBroadcastListener();
             endingSent = false;
             DamageMeterNetworkRuntime.StartFight(AuraToolsDamageMeterRuntime.Enabled);
             AuraToolsDamageMeterUi.CloseDetails();
@@ -41,7 +48,7 @@ internal static class DamageMeterLifecycleCoordinator
         });
     }
 
-    internal static void OnFightStartFallback(ModHookContext context)
+    internal static void OnFightStartFallback()
     {
         DamageMeterHookAdapter.RunHook("fight start fallback", () =>
         {
@@ -52,10 +59,10 @@ internal static class DamageMeterLifecycleCoordinator
                     DamageMeterAvailabilityRuntime.SetAvailable(true, "Fight_Start.Init");
                 }
 
-                DamageCaptureCoordinator.ResetCaptureState();
+                ResetCaptureServices();
                 DamageMeterFightIndex.SetFriendlyIdentitySnapshots(DamageMeterSettlementRuntime.AdventureTeamMembers);
                 DamageMeterFightIndex.BeginFight();
-                DamageCaptureCoordinator.AttachBuffBroadcastListener(context);
+                DamageCaptureCoordinator.AttachBuffBroadcastListener();
                 endingSent = false;
                 DamageMeterNetworkRuntime.StartFight(AuraToolsDamageMeterRuntime.Enabled);
                 AuraToolsDamageMeterRuntime.NotifyLedgerChanged();
@@ -63,11 +70,11 @@ internal static class DamageMeterLifecycleCoordinator
         });
     }
 
-    internal static void OnPlayerRoundStart(ModHookContext context)
+    internal static void OnPlayerRoundStart(object? roundUnit)
     {
         DamageMeterHookAdapter.RunHook("round start", () =>
         {
-            if (context.Target != null && ReferenceEquals(lastRoundUnit, context.Target))
+            if (roundUnit != null && ReferenceEquals(lastRoundUnit, roundUnit))
             {
                 return;
             }
@@ -77,21 +84,21 @@ internal static class DamageMeterLifecycleCoordinator
                 return;
             }
 
-            lastRoundUnit = context.Target;
+            lastRoundUnit = roundUnit;
             lastRoundStartFrame = Time.frameCount;
             DamageMeterNetworkRuntime.StartRound();
             AuraToolsDamageMeterRuntime.NotifyLedgerChanged();
         });
     }
 
-    internal static void OnFightEnding(ModHookContext context)
+    internal static void OnFightEnding(string fightResult)
     {
         DamageMeterHookAdapter.RunHook("fight ending", () =>
         {
             if (!endingSent)
             {
                 endingSent = true;
-                DamageMeterNetworkRuntime.EndFight(DamageMeterSettlementRuntime.FightResult(context));
+                DamageMeterNetworkRuntime.EndFight(fightResult);
             }
 
             AuraToolsDamageMeterUi.CloseDetails();
@@ -99,11 +106,11 @@ internal static class DamageMeterLifecycleCoordinator
         });
     }
 
-    internal static void OnFightEnded(ModHookContext context)
+    internal static void OnFightEnded()
     {
         DamageMeterHookAdapter.RunHook("fight ended", () =>
         {
-            DamageCaptureCoordinator.ResetCaptureState();
+            ResetCaptureServices();
             AuraToolsDamageMeterRuntime.NotifyLedgerChanged();
         });
     }

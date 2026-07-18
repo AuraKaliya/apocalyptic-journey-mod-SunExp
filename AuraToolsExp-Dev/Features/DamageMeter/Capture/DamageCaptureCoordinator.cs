@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Reflection;
 using AuraMode.Shared;
 using AuraShared.Core;
@@ -15,7 +14,6 @@ using Data.Save;
 using UnityEngine;
 using Witch;
 using Witch.Core;
-using Witch.Mod;
 using Witch.UI.Window;
 
 namespace AuraToolsExp.Dll.Features.DamageMeter;
@@ -28,44 +26,42 @@ internal static class DamageCaptureCoordinator
     private static DamageFrameWindow<HpSetterFrame> HpSetterFrames => Session.HpSetterFrames;
     private static DamageFrameWindow<BuffApplicationFrame> BuffFrames => Session.BuffFrames;
     private static DamageFrameWindow<StatusBuffFrame> StatusBuffFrames => Session.StatusBuffFrames;
-    private static BuffAttributionEngine BuffAttribution => Session.BuffAttribution;
+    private static readonly BuffAttributionEngine BuffAttribution = new();
     private static readonly Action<string, ISourceData> BuffBroadcastListener = OnBroadcastEventWithParam;
     private static bool CaptureEnabled => AuraToolsDamageMeterRuntime.Ledger.InFight && AuraToolsDamageMeterRuntime.Ledger.SharedEnabled;
 
-    internal static void BeforeHit(ModHookContext context)
+    internal static void BeforeHit(HitHookObservation observation)
     {
         DamageMeterHookAdapter.RunHook("before hit", () =>
         {
-            if (!CaptureEnabled || context.Target is not IStatusManager target)
+            if (!CaptureEnabled)
             {
                 return;
             }
 
+            var target = observation.Target;
             DamageMeterPerformanceCounters.RecordHitHook();
-            Session.PruneFrames();
-            var arguments = context.Arguments ?? Array.Empty<object>();
+            Session.PruneFrames(BuffAttribution.CancelApplication);
             var frame = HitFrames.Rent(Time.frameCount);
             frame.CallId = Session.NextCallId();
             frame.Target = target;
-            frame.TargetId = SafeStatusId(target);
-            frame.BeforeHp = SafeHp(target);
-            frame.BeforeShield = SafeDefend(target);
-            frame.DamageType = ArgumentString(arguments, 1);
-            frame.SourceDataId = ArgumentString(arguments, 2);
-            frame.SourceInstanceId = ArgumentString(arguments, 3);
+            frame.TargetId = DamageCaptureHostReader.SafeStatusId(target);
+            frame.BeforeHp = DamageCaptureHostReader.SafeHp(target);
+            frame.BeforeShield = DamageCaptureHostReader.SafeDefend(target);
+            frame.DamageType = observation.DamageType;
+            frame.SourceDataId = observation.SourceDataId;
+            frame.SourceInstanceId = observation.SourceInstanceId;
             HitFrames.Add(frame);
         });
     }
 
-    internal static void AfterDamageTextCreate(ModHookContext context)
+    internal static void AfterDamageTextCreate(DamageTextHookObservation observation)
     {
         DamageMeterHookAdapter.RunHook("damage text", () =>
         {
             DamageMeterPerformanceCounters.RecordDamageTextCreateHook();
             if (!CaptureEnabled
-                || context.Arguments == null
-                || context.Arguments.Length == 0
-                || !Session.TryReadDamageText(context.Arguments[0], out var data))
+                || !Session.TryReadDamageText(observation.Value, out var data))
             {
                 return;
             }
@@ -81,8 +77,8 @@ internal static class DamageCaptureCoordinator
             var sourceInstanceId = frame.SourceInstanceId;
             var sourceDataId = frame.SourceDataId;
             var damageType = string.IsNullOrWhiteSpace(data.DamageType) ? frame.DamageType : data.DamageType;
-            var hpDamage = Math.Max(0, frame.BeforeHp - SafeHp(target));
-            var shieldDamage = Math.Max(0, frame.BeforeShield - SafeDefend(target));
+            var hpDamage = DamageCaptureMatchingPolicy.Loss(frame.BeforeHp, DamageCaptureHostReader.SafeHp(target));
+            var shieldDamage = DamageCaptureMatchingPolicy.Loss(frame.BeforeShield, DamageCaptureHostReader.SafeDefend(target));
             var finalDamage = Math.Max(0, data.Hit);
             HitFrames.RemoveAt(frameIndex);
             if (hpDamage <= 0 && shieldDamage <= 0)
@@ -102,16 +98,12 @@ internal static class DamageCaptureCoordinator
         });
     }
 
-    internal static void AfterHit(ModHookContext context)
+    internal static void AfterHit(StatusHookObservation observation)
     {
         DamageMeterHookAdapter.RunHook("after hit", () =>
         {
-            if (context.Target is not IStatusManager target)
-            {
-                return;
-            }
-
-            var targetId = SafeStatusId(target);
+            var target = observation.Target;
+            var targetId = DamageCaptureHostReader.SafeStatusId(target);
             var index = -1;
             for (var i = HitFrames.Count - 1; i >= 0; i--)
             {
@@ -131,19 +123,19 @@ internal static class DamageCaptureCoordinator
         });
     }
 
-    internal static void BeforePureChangeHp(ModHookContext context)
+    internal static void BeforePureChangeHp(PureHpHookObservation observation)
     {
         DamageMeterHookAdapter.RunHook("before pure hp", () =>
         {
             if (!CaptureEnabled
-                || context.Target is not IScriptExecutor executor
-                || ParseInt(ArgumentString(context.Arguments, 0)) >= 0)
+                || observation.Delta >= 0)
             {
                 return;
             }
 
             DamageMeterPerformanceCounters.RecordPureHpHook();
-            Session.PruneFrames();
+            var executor = observation.Executor;
+            Session.PruneFrames(BuffAttribution.CancelApplication);
             var source = executor.Self;
             var targets = Session.CaptureTargetHpFrames(executor);
             if (targets.Count == 0)
@@ -156,22 +148,18 @@ internal static class DamageCaptureCoordinator
             frame.CallId = Session.NextCallId();
             frame.Executor = executor;
             frame.Source = source;
-            frame.SourceId = SafeStatusId(source);
-            frame.SourceDataId = SafeDataId(executor.dataConfig);
+            frame.SourceId = DamageCaptureHostReader.SafeStatusId(source);
+            frame.SourceDataId = DamageCaptureHostReader.SafeDataId(executor.dataConfig);
             frame.Targets = targets;
             PureHpFrames.Add(frame);
         });
     }
 
-    internal static void AfterPureChangeHp(ModHookContext context)
+    internal static void AfterPureChangeHp(PureHpHookObservation observation)
     {
         DamageMeterHookAdapter.RunHook("after pure hp", () =>
         {
-            if (context.Target is not IScriptExecutor executor)
-            {
-                return;
-            }
-
+            var executor = observation.Executor;
             var index = -1;
             for (var i = PureHpFrames.Count - 1; i >= 0; i--)
             {
@@ -195,7 +183,7 @@ internal static class DamageCaptureCoordinator
                     continue;
                 }
 
-                var hpDamage = Math.Max(0, target.BeforeHp - SafeHp(target.Target));
+                var hpDamage = Math.Max(0, target.BeforeHp - DamageCaptureHostReader.SafeHp(target.Target));
                 if (hpDamage <= 0)
                 {
                     continue;
@@ -219,15 +207,16 @@ internal static class DamageCaptureCoordinator
         });
     }
 
-    internal static void BeforeSetCurHp(ModHookContext context)
+    internal static void BeforeSetCurHp(StatusHookObservation observation)
     {
         DamageMeterHookAdapter.RunHook("before set hp", () =>
         {
-            if (!CaptureEnabled || context.Target is not IStatusManager target)
+            if (!CaptureEnabled)
             {
                 return;
             }
 
+            var target = observation.Target;
             var pure = Session.FindPureFrameForTarget(target);
             if (pure == null)
             {
@@ -237,21 +226,17 @@ internal static class DamageCaptureCoordinator
             DamageMeterPerformanceCounters.RecordHpSetterHook();
             var frame = HpSetterFrames.Rent(Time.frameCount);
             frame.Target = target;
-            frame.BeforeHp = SafeHp(target);
+            frame.BeforeHp = DamageCaptureHostReader.SafeHp(target);
             frame.PureFrameId = pure.CallId;
             HpSetterFrames.Add(frame);
         });
     }
 
-    internal static void AfterSetCurHp(ModHookContext context)
+    internal static void AfterSetCurHp(StatusHookObservation observation)
     {
         DamageMeterHookAdapter.RunHook("after set hp", () =>
         {
-            if (context.Target is not IStatusManager target)
-            {
-                return;
-            }
-
+            var target = observation.Target;
             var setterIndex = -1;
             for (var i = HpSetterFrames.Count - 1; i >= 0; i--)
             {
@@ -279,7 +264,7 @@ internal static class DamageCaptureCoordinator
             }
 
             targetFrame.Recorded = true;
-            var hpDamage = Math.Max(0, beforeHp - SafeHp(target));
+            var hpDamage = Math.Max(0, beforeHp - DamageCaptureHostReader.SafeHp(target));
             if (hpDamage <= 0)
             {
                 return;
@@ -300,19 +285,20 @@ internal static class DamageCaptureCoordinator
         });
     }
 
-    internal static void BeforeScriptAddBuff(ModHookContext context)
+    internal static void BeforeScriptAddBuff(ScriptBuffHookObservation observation)
     {
         DamageMeterHookAdapter.RunHook("before add buff", () =>
         {
-            if (!CaptureEnabled || context.Target is not IScriptExecutor executor)
+            if (!CaptureEnabled)
             {
                 return;
             }
 
+            var executor = observation.Executor;
             DamageMeterPerformanceCounters.RecordBuffHook();
             var trackerId = BuffAttribution.BeginApplication(
                 executor,
-                ArgumentString(context.Arguments, 0),
+                observation.BuffId,
                 Time.frameCount);
             if (trackerId <= 0)
             {
@@ -326,15 +312,11 @@ internal static class DamageCaptureCoordinator
         });
     }
 
-    internal static void AfterScriptAddBuff(ModHookContext context)
+    internal static void AfterScriptAddBuff(ScriptBuffHookObservation observation)
     {
         DamageMeterHookAdapter.RunHook("after add buff", () =>
         {
-            if (context.Target is not IScriptExecutor executor)
-            {
-                return;
-            }
-
+            var executor = observation.Executor;
             var index = -1;
             for (var i = BuffFrames.Count - 1; i >= 0; i--)
             {
@@ -357,52 +339,49 @@ internal static class DamageCaptureCoordinator
         });
     }
 
-    internal static void AfterDamageTextInternalExecute(ModHookContext context)
+    internal static void AfterDamageTextInternalExecute()
     {
         DamageMeterPerformanceCounters.RecordDamageTextExecuteHook();
     }
 
-    internal static void AfterFightUiEnqueueDamageText(ModHookContext context)
+    internal static void AfterFightUiEnqueueDamageText()
     {
         DamageMeterPerformanceCounters.RecordDamageTextEnqueueHook();
     }
 
-    internal static void BeforeStatusAddBuff(ModHookContext context)
+    internal static void BeforeStatusAddBuff(StatusBuffHookObservation observation)
     {
         DamageMeterHookAdapter.RunHook("before status add buff", () =>
         {
-            if (!CaptureEnabled || context.Target is not IStatusManager target)
+            if (!CaptureEnabled)
             {
                 return;
             }
 
-            var buffId = StatusAddBuffId(context.Arguments);
+            var target = observation.Target;
+            var buffId = observation.BuffId;
             if (string.IsNullOrWhiteSpace(buffId))
             {
                 return;
             }
 
             DamageMeterPerformanceCounters.RecordBuffHook();
-            Session.PruneFrames();
+            Session.PruneFrames(BuffAttribution.CancelApplication);
             var frame = StatusBuffFrames.Rent(Time.frameCount);
             frame.Target = target;
-            frame.TargetId = SafeStatusId(target);
+            frame.TargetId = DamageCaptureHostReader.SafeStatusId(target);
             frame.BuffId = buffId;
-            frame.BeforeLevel = SafeBuffLevel(target, buffId);
+            frame.BeforeLevel = DamageCaptureHostReader.SafeBuffLevel(target, buffId);
             StatusBuffFrames.Add(frame);
         });
     }
 
-    internal static void AfterStatusAddBuff(ModHookContext context)
+    internal static void AfterStatusAddBuff(StatusBuffHookObservation observation)
     {
         DamageMeterHookAdapter.RunHook("after status add buff", () =>
         {
-            if (context.Target is not IStatusManager target)
-            {
-                return;
-            }
-
-            var buffId = StatusAddBuffId(context.Arguments);
+            var target = observation.Target;
+            var buffId = observation.BuffId;
             var index = Session.FindStatusBuffFrame(target, buffId);
             if (index < 0)
             {
@@ -413,7 +392,7 @@ internal static class DamageCaptureCoordinator
             var recordedBuffId = frame.BuffId;
             var beforeLevel = frame.BeforeLevel;
             StatusBuffFrames.RemoveAt(index);
-            var added = Math.Max(0, SafeBuffLevel(target, recordedBuffId) - beforeLevel);
+            var added = Math.Max(0, DamageCaptureHostReader.SafeBuffLevel(target, recordedBuffId) - beforeLevel);
             if (added <= 0)
             {
                 return;
@@ -427,32 +406,23 @@ internal static class DamageCaptureCoordinator
         });
     }
 
-    internal static void AfterRemoveBuff(ModHookContext context)
+    internal static void AfterRemoveBuff(StatusBuffHookObservation observation)
     {
         DamageMeterHookAdapter.RunHook("remove buff", () =>
         {
-            if (context.Target is IStatusManager target)
-            {
-                BuffAttribution.RemoveBuff(target, ArgumentString(context.Arguments, 0));
-            }
+            BuffAttribution.RemoveBuff(observation.Target, observation.BuffId);
         });
     }
 
-    internal static void AfterBuffLevelChanged(ModHookContext context)
+    internal static void AfterBuffLevelChanged(BuffLevelHookObservation observation)
     {
         DamageMeterHookAdapter.RunHook("buff level changed", () =>
         {
-            if (context.Target is IBuffItemConfig config)
-            {
-                BuffAttribution.OnLevelChanged(
-                    config,
-                    ParseInt(ArgumentString(context.Arguments, 0)),
-                    Time.frameCount);
-            }
+            BuffAttribution.OnLevelChanged(observation.Config, observation.Level, Time.frameCount);
         });
     }
 
-    internal static void AttachBuffBroadcastListener(ModHookContext? context)
+    internal static void AttachBuffBroadcastListener()
     {
         DamageMeterHookAdapter.RunHook("buff broadcast listener", () =>
         {
@@ -461,14 +431,15 @@ internal static class DamageCaptureCoordinator
         });
     }
 
-    internal static void DetachBuffBroadcastListener(ModHookContext? context)
+    internal static void DetachBuffBroadcastListener()
     {
         try
         {
             EventCenter.OnBroadcastEventWithParam -= BuffBroadcastListener;
         }
-        catch
+        catch (Exception ex)
         {
+            AuraToolsLog.Warn("[DamageMeter] buff broadcast listener release failed: " + ex.Message);
         }
     }
 
@@ -533,7 +504,7 @@ internal static class DamageCaptureCoordinator
                                   && (string.IsNullOrWhiteSpace(sourceInstanceId)
                                       || string.Equals(
                                           sourceInstanceId,
-                                          SafeStatusId(target),
+                                          DamageCaptureHostReader.SafeStatusId(target),
                                           StringComparison.Ordinal));
         if (unresolvedBuffOwner)
         {
@@ -571,139 +542,33 @@ internal static class DamageCaptureCoordinator
         var normalizedSourceId = string.IsNullOrWhiteSpace(sourceInstanceId)
             ? "unknown"
             : sourceInstanceId.Trim();
-        var damage = new DamageEvent
+        var damage = DamageEventFactory.Create(new ResolvedDamageInput
         {
             SourceInstanceId = normalizedSourceId,
             SourceDisplayName = string.IsNullOrWhiteSpace(sourceName)
                 ? CombatantTeamResolver.DisplayName(source, normalizedSourceId)
                 : sourceName!,
             SourceTeam = sourceTeam ?? CombatantTeamResolver.Resolve(source, normalizedSourceId),
-            TargetInstanceId = SafeStatusId(target),
+            TargetInstanceId = DamageCaptureHostReader.SafeStatusId(target),
             SourceDataId = sourceDataId?.Trim() ?? "",
             DetailLabel = DamageDetailResolver.ResolveLabel(sourceDataId ?? "", damageType),
             DamageType = string.IsNullOrWhiteSpace(damageType) ? "Unknown" : damageType.Trim(),
-            HpDamage = Math.Max(0, hpDamage),
-            ShieldDamage = Math.Max(0, shieldDamage),
-            FinalDamage = Math.Max(0, finalDamage),
+            HpDamage = hpDamage,
+            ShieldDamage = shieldDamage,
+            FinalDamage = finalDamage,
             AttributionConfidence = confidence
-        };
-        DamageEventFactory.Normalize(damage);
+        });
         DamageMeterNetworkRuntime.Submit(damage);
     }
 
-    internal static void ResetCaptureState()
+    internal static void ResetSession()
     {
         Session.Reset();
     }
 
-    internal static string ArgumentString(object[]? arguments, int index)
+    internal static void ResetAttribution()
     {
-        return arguments != null && index >= 0 && index < arguments.Length
-            ? arguments[index]?.ToString() ?? ""
-            : "";
-    }
-
-    internal static string StatusAddBuffId(object[]? arguments)
-    {
-        if (arguments == null || arguments.Length == 0 || arguments[0] == null)
-        {
-            return "";
-        }
-
-        if (arguments[0] is string text)
-        {
-            return text.Trim();
-        }
-
-        if (arguments[0] is IBuffItemConfig config)
-        {
-            return config.BuffId?.Trim() ?? "";
-        }
-
-        if (arguments[0] is IDataConfig dataConfig)
-        {
-            return SafeDataId(dataConfig);
-        }
-
-        return "";
-    }
-
-    internal static int ParseInt(string value)
-    {
-        return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
-            ? parsed
-            : 0;
-    }
-
-    internal static int SafeHp(IStatusManager status)
-    {
-        try
-        {
-            return status.CurHp;
-        }
-        catch
-        {
-            return 0;
-        }
-    }
-
-    internal static int SafeBuffLevel(IStatusManager status, string buffId)
-    {
-        try
-        {
-            return status.GetBuff(buffId)?.buffConfig?.Level ?? 0;
-        }
-        catch
-        {
-            return 0;
-        }
-    }
-
-    internal static int SafeDefend(IStatusManager status)
-    {
-        try
-        {
-            return status.Defend;
-        }
-        catch
-        {
-            return 0;
-        }
-    }
-
-    internal static string SafeStatusId(IStatusManager? status)
-    {
-        try
-        {
-            return status?.InstanceId?.Trim() ?? "";
-        }
-        catch
-        {
-            return "";
-        }
-    }
-
-    internal static string SafeDataId(IDataConfig? dataConfig)
-    {
-        try
-        {
-            if (dataConfig?.data != null && dataConfig.data.TryGetValue("Id", out var id))
-            {
-                return id?.Trim() ?? "";
-            }
-        }
-        catch
-        {
-        }
-
-        try
-        {
-            return dataConfig?.InstanceID?.Trim() ?? "";
-        }
-        catch
-        {
-            return "";
-        }
+        BuffAttribution.Clear();
     }
 
 }

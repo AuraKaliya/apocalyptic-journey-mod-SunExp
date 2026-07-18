@@ -136,7 +136,7 @@ internal static class DamageMeterSettlementRuntime
     public static void OpenOutOfRunHistory()
     {
         EnsureOutOfRunHistoryLoaded("open history");
-        DamageHistoryPresenter.ShowOutOfRunHistory(AuraToolsDamageMeterRuntime.OutOfRunHistory);
+        OutOfRunDamageHistoryPresenter.Show(AuraToolsDamageMeterRuntime.OutOfRunHistory);
     }
 
     public static void ClearOutOfRunHistory()

@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Reflection;
 using AuraToolsExp.Dll.Features.DamageMeter.Capture;
-using AuraToolsExp.Dll.Features.DamageMeter.Resolution;
-using AuraToolsExp.Dll.Features.DamageMeter.SettlementCg;
 using UnityEngine;
 using Witch;
 using Witch.Core;
@@ -33,8 +31,6 @@ internal sealed class DamageCaptureSession
     internal DamageFrameWindow<HpSetterFrame> HpSetterFrames { get; } = new(128);
     internal DamageFrameWindow<BuffApplicationFrame> BuffFrames { get; } = new(128);
     internal DamageFrameWindow<StatusBuffFrame> StatusBuffFrames { get; } = new(128);
-    internal BuffAttributionEngine BuffAttribution { get; } = new();
-
     internal long NextCallId() => ++nextCallId;
 
     internal int FindHitFrame(DamageTextInfo data)
@@ -42,14 +38,11 @@ internal sealed class DamageCaptureSession
         for (var i = HitFrames.Count - 1; i >= 0; i--)
         {
             var frame = HitFrames[i];
-            if (!string.Equals(frame.TargetId, data.To, StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            if (!string.IsNullOrWhiteSpace(data.From)
-                && !string.IsNullOrWhiteSpace(frame.SourceInstanceId)
-                && !string.Equals(frame.SourceInstanceId, data.From, StringComparison.Ordinal))
+            if (!DamageCaptureMatchingPolicy.IsHitMatch(
+                    frame.TargetId,
+                    frame.SourceInstanceId,
+                    data.To,
+                    data.From))
             {
                 continue;
             }
@@ -128,7 +121,7 @@ internal sealed class DamageCaptureSession
         }
     }
 
-    internal void PruneFrames()
+    internal void PruneFrames(Action<long> cancelBuffApplication)
     {
         var frame = Time.frameCount;
         if (lastPruneFrame == frame)
@@ -149,7 +142,7 @@ internal sealed class DamageCaptureSession
                 continue;
             }
 
-            BuffAttribution.CancelApplication(BuffFrames[i].TrackerId);
+            cancelBuffApplication(BuffFrames[i].TrackerId);
             BuffFrames.RemoveAt(i);
         }
     }
@@ -161,11 +154,8 @@ internal sealed class DamageCaptureSession
         HpSetterFrames.Clear();
         BuffFrames.Clear();
         StatusBuffFrames.Clear();
-        BuffAttribution.Clear();
-        DamageMeterFightIndex.Clear();
         nextCallId = 0;
         lastPruneFrame = -1;
-        DamageMeterLifecycleCoordinator.ResetRoundDeduplication();
     }
 
     internal List<TargetHpFrame> CaptureTargetHpFrames(IScriptExecutor executor)
@@ -180,7 +170,7 @@ internal sealed class DamageCaptureSession
 
             var frame = RentTargetFrame();
             frame.Target = target;
-            frame.BeforeHp = DamageCaptureCoordinator.SafeHp(target);
+            frame.BeforeHp = DamageCaptureHostReader.SafeHp(target);
             frames.Add(frame);
         }
 
@@ -214,7 +204,7 @@ internal sealed class DamageCaptureSession
     internal int FindStatusBuffFrame(IStatusManager target, string buffId)
     {
         buffId = buffId?.Trim() ?? "";
-        var targetId = DamageCaptureCoordinator.SafeStatusId(target);
+        var targetId = DamageCaptureHostReader.SafeStatusId(target);
         for (var i = StatusBuffFrames.Count - 1; i >= 0; i--)
         {
             var frame = StatusBuffFrames[i];

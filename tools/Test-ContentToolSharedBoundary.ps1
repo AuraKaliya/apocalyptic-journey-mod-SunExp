@@ -140,12 +140,17 @@ Assert-Contains $damageMeterMode "AuraModeRuntime.Current" "DamageMeter must res
 Assert-NotContains $damageMeterMode "SolarMemory" "DamageMeter must not hard-code a content-owned semantic mode."
 
 $damageMeter = $damageMeterMode
+$damageMeterCapture = Read-RepoText "AuraToolsExp-Dev\Features\DamageMeter\Capture\DamageCaptureCoordinator.cs"
+$damageMeterLifecycle = Read-RepoText "AuraToolsExp-Dev\Features\DamageMeter\DamageMeterLifecycleCoordinator.cs"
 Assert-Contains $damageMeter "AuraBattleLifecycleRouter.Register" "DamageMeter battle hooks must use the shared battle lifecycle router."
 Assert-NotContains $damageMeter 'RegisterBefore("FightInit.Init"' "DamageMeter must not own a private fight-init hook when shared lifecycle exists."
-Assert-Contains $damageMeter 'RegisterAfter("DamageText.Create", DamageCaptureCoordinator.AfterDamageTextCreate)' "DamageMeter must observe DamageText.Create only after native command creation completes."
+Assert-Contains $damageMeter 'RegisterAfter("DamageText.Create", AfterDamageTextCreate)' "DamageMeter must observe DamageText.Create only after native command creation completes."
 Assert-NotContains $damageMeter 'RegisterBefore("DamageText.Create"' "DamageMeter must not put native damage text creation behind a before-hook."
-Assert-Contains $damageMeter 'RegisterAfter("DamageText.InternalExecute", DamageCaptureCoordinator.AfterDamageTextInternalExecute)' "DamageMeter diagnostics must observe native damage-text command execution."
-Assert-Contains $damageMeter 'RegisterAfter("FightUI.EnqueueDamageText", DamageCaptureCoordinator.AfterFightUiEnqueueDamageText)' "DamageMeter diagnostics must observe the native damage-text UI queue."
+Assert-Contains $damageMeter 'RegisterAfter("DamageText.InternalExecute", AfterDamageTextInternalExecute)' "DamageMeter diagnostics must observe native damage-text command execution."
+Assert-Contains $damageMeter 'RegisterAfter("FightUI.EnqueueDamageText", AfterFightUiEnqueueDamageText)' "DamageMeter diagnostics must observe the native damage-text UI queue."
+Assert-Contains $damageMeter "DamageMeterHookContextMapper.MapDamageText" "DamageMeter hook arguments must be mapped at the adapter boundary."
+Assert-NotContains $damageMeterCapture "ModHookContext" "DamageMeter capture must not depend on raw hook contexts."
+Assert-NotContains $damageMeterLifecycle "ModHookContext" "DamageMeter lifecycle must not depend on raw hook contexts."
 Assert-Contains $damageMeter "if (AuraToolsPerformanceSettings.DiagnosticsEnabled)" "Pure damage-text diagnostics hooks must not register during normal gameplay."
 
 $sharedRuntimeProject = Read-RepoText "AuraSharedRuntime-Dev\Aura.Shared.csproj"

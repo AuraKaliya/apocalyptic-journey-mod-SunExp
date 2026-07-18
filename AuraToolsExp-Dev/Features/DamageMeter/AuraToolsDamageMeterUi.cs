@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using AuraToolsExp.Dll.Features.Settings;
@@ -121,94 +120,54 @@ internal static class AuraToolsDamageMeterUi
         }
 
         panel.transform.SetAsLastSibling();
-        var inFight = ledger.InFight;
-        var height = inFight
-            ? Math.Min(720f, 132f + Math.Max(1, settings.MaxRows) * 48f)
-            : 250f;
-        if (Math.Abs(lastPanelHeight - height) > 0.1f
+        var presentation = DamageMeterHudPresenter.Build(ledger, runAggregate, history, settings, networkStatus);
+        if (Math.Abs(lastPanelHeight - presentation.Height) > 0.1f
             || Math.Abs(panelRect.sizeDelta.x - PanelWidth) > 0.1f)
         {
-            panelRect.sizeDelta = new Vector2(PanelWidth, height);
-            lastPanelHeight = height;
+            panelRect.sizeDelta = new Vector2(PanelWidth, presentation.Height);
+            lastPanelHeight = presentation.Height;
             UpdatePanelPosition();
         }
 
-        SetTextIfChanged(
-            title,
-            inFight
-                ? "DPS统计（按回合/DPT）  回合 " + ledger.CurrentRoundIndex
-                : "DPS统计（世界推演）");
+        SetTextIfChanged(title, presentation.Title);
         if (historyButton != null)
         {
-            var hasHistory = history.Records.Count > 0;
-            if (historyButton.interactable != hasHistory)
+            if (historyButton.interactable != presentation.HasHistory)
             {
-                historyButton.interactable = hasHistory;
+                historyButton.interactable = presentation.HasHistory;
             }
         }
 
-        SetActiveIfChanged(columns, inFight);
-        SetActiveIfChanged(rows.gameObject, inFight);
-        SetActiveIfChanged(emptyState, !inFight);
+        SetActiveIfChanged(columns, presentation.InFight);
+        SetActiveIfChanged(rows.gameObject, presentation.InFight);
+        SetActiveIfChanged(emptyState, !presentation.InFight);
 
-        if (!inFight)
+        if (!presentation.InFight)
         {
             HideAllRows();
-            var emptyMessage = history.Records.Count > 0
-                ? "当前没有进行中的战斗。\n可通过“查看历史”回顾本轮冒险的输出记录。"
-                : "等待下一场战斗开始。\n悬浮球会在世界推演的备战、地图和战斗界面保持可用。";
-            var idleRunTotal = runAggregate.DisplayGrandTotal(
-                settings.CountShieldLoss,
-                settings.FriendlyOnly,
-                settings.IncludeUnknownTeam);
-            if (runAggregate.HasDamage)
-            {
-                emptyMessage = "本轮冒险累计伤害 " + idleRunTotal
-                               + "\n战斗 " + runAggregate.EncounterCount
-                               + " 场 / 回合 " + runAggregate.TotalRounds;
-            }
-
-            SetTextIfChanged(emptyText, emptyMessage);
-            SetTextIfChanged(footer, networkStatus + "  /  拖动悬浮球可调整位置");
+            SetTextIfChanged(emptyText, presentation.EmptyMessage);
+            SetTextIfChanged(footer, presentation.Footer);
             return;
         }
 
-        var visibleRows = ledger.VisibleRows(
-            settings.FriendlyOnly,
-            settings.IncludeUnknownTeam,
-            settings.CountShieldLoss,
-            settings.MaxRows);
         EnsureRows(settings.MaxRows);
-        var grandTotal = ledger.DisplayGrandTotal(
-            settings.CountShieldLoss,
-            settings.FriendlyOnly,
-            settings.IncludeUnknownTeam);
         for (var i = 0; i < RowPool.Count; i++)
         {
-            if (i >= visibleRows.Count || i >= settings.MaxRows)
+            if (i >= presentation.VisibleRows.Count || i >= settings.MaxRows)
             {
                 RowPool[i].SetVisible(false);
                 continue;
             }
 
             RowPool[i].Bind(
-                visibleRows[i],
+                presentation.VisibleRows[i],
                 ledger,
                 settings,
-                grandTotal,
+                presentation.GrandTotal,
                 ShowDetails);
         }
 
-        SetTextIfChanged(
-            footer,
-            "本场合计 " + grandTotal
-            + "  /  Run total " + runAggregate.DisplayGrandTotal(
-                settings.CountShieldLoss,
-                settings.FriendlyOnly,
-                settings.IncludeUnknownTeam)
-            + "  /  已完成 " + ledger.CompletedRoundCount + " 回合"
-            + "  /  " + networkStatus
-            + "  /  拖动悬浮球可调整位置");
+        SetTextIfChanged(footer, presentation.Footer);
     }
 
     public static void CloseDetails()
@@ -360,7 +319,7 @@ internal static class AuraToolsDamageMeterUi
         historyButton = AddButton(
             headerActions.transform,
             "查看历史",
-            () => DamageHistoryPresenter.ShowHistory(
+            () => FightDamageHistoryPresenter.Show(
                 AuraToolsDamageMeterRuntime.History,
                 AuraToolsConfigService.MatchExperience.DamageMeter),
             82f,
@@ -536,116 +495,7 @@ internal static class AuraToolsDamageMeterUi
 
     internal static void ShowDetails(string instanceId, DamageLedger ledger, DamageMeterSettings settings)
     {
-        EnsureRoot();
-        var stat = ledger.Combatants.FirstOrDefault(item =>
-            string.Equals(item.InstanceId, instanceId, StringComparison.OrdinalIgnoreCase));
-        if (root == null || stat == null)
-        {
-            return;
-        }
-
-        CloseDetails();
-        var overlay = CreateRect(DetailName, root.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-        AddPanel(overlay, new Color(0f, 0f, 0f, 0.35f));
-        var blocker = overlay.AddComponent<Button>();
-        blocker.targetGraphic = overlay.GetComponent<Image>();
-        blocker.onClick.AddListener(CloseDetails);
-
-        var window = CreateRect(
-            "Window",
-            overlay.transform,
-            new Vector2(0.5f, 0.5f),
-            new Vector2(0.5f, 0.5f),
-            new Vector2(0.5f, 0.5f),
-            new Vector2(500f, 440f));
-        AddPanel(window, new Color(0.04f, 0.035f, 0.06f, 0.98f));
-        var layout = window.AddComponent<VerticalLayoutGroup>();
-        layout.padding = new RectOffset(12, 12, 10, 10);
-        layout.spacing = 6f;
-        layout.childControlWidth = true;
-        layout.childControlHeight = true;
-        layout.childForceExpandWidth = true;
-        layout.childForceExpandHeight = false;
-
-        var header = CreateLayout("Header", window.transform);
-        SetHeight(header, 36f);
-        var headerLayout = header.AddComponent<HorizontalLayoutGroup>();
-        headerLayout.spacing = 8f;
-        headerLayout.childControlWidth = true;
-        headerLayout.childControlHeight = true;
-        headerLayout.childForceExpandWidth = false;
-        AddText(
-            header.transform,
-            stat.DisplayName + " 伤害明细",
-            16,
-            TextAnchor.MiddleLeft,
-            AuraToolsUi.Accent,
-            32f,
-            1f);
-        AddButton(header.transform, "关闭", CloseDetails, 74f, 32f);
-
-        var summary = "本回合 " + stat.DisplayCurrentRound(settings.CountShieldLoss)
-                      + "　 本场 " + stat.DisplayTotal(settings.CountShieldLoss)
-                      + "　 平均DPT " + stat.AveragePerCompletedRound(
-                          settings.CountShieldLoss,
-                          Math.Max(1, ledger.AveragingRoundCount)).ToString("0.0")
-                      + "\nHP伤害 " + stat.TotalHpDamage
-                      + "　 护盾伤害 " + stat.TotalShieldDamage
-                      + "　 最高单回合 " + stat.HighestRound(settings.CountShieldLoss);
-        AddText(window.transform, summary, 13, TextAnchor.MiddleLeft, AuraToolsUi.Text, 48f, 1f);
-
-        var content = CreateLayout("Content", window.transform);
-        content.AddComponent<LayoutElement>().flexibleHeight = 1f;
-        var contentLayout = content.AddComponent<VerticalLayoutGroup>();
-        contentLayout.spacing = 4f;
-        contentLayout.childControlWidth = true;
-        contentLayout.childControlHeight = true;
-        contentLayout.childForceExpandWidth = true;
-        contentLayout.childForceExpandHeight = false;
-
-        foreach (var detail in stat.Details.Values
-                     .OrderByDescending(item => item.HpDamage + (settings.CountShieldLoss ? item.ShieldDamage : 0))
-                     .Take(12))
-        {
-            var detailRow = CreateLayout("Detail-" + detail.Key, content.transform);
-            SetHeight(detailRow, 32f);
-            AddPanel(detailRow, AuraToolsUi.Row);
-            var detailLayout = detailRow.AddComponent<HorizontalLayoutGroup>();
-            detailLayout.padding = new RectOffset(8, 8, 2, 2);
-            detailLayout.spacing = 8f;
-            detailLayout.childControlWidth = true;
-            detailLayout.childControlHeight = true;
-            AddText(detailRow.transform, detail.Label, 13, TextAnchor.MiddleLeft, AuraToolsUi.Text, 28f, 1f);
-            AddText(
-                detailRow.transform,
-                ConfidenceLabel(detail.Confidence),
-                11,
-                TextAnchor.MiddleCenter,
-                AuraToolsUi.MutedText,
-                28f,
-                0f,
-                60f);
-            AddText(
-                detailRow.transform,
-                (detail.HpDamage + (settings.CountShieldLoss ? detail.ShieldDamage : 0)).ToString(),
-                13,
-                TextAnchor.MiddleRight,
-                AuraToolsUi.Accent,
-                28f,
-                0f,
-                86f);
-        }
-    }
-
-    private static string ConfidenceLabel(DamageAttributionConfidence confidence)
-    {
-        return confidence switch
-        {
-            DamageAttributionConfidence.Exact => "精确",
-            DamageAttributionConfidence.Derived => "推导",
-            DamageAttributionConfidence.Mixed => "混合",
-            _ => "未知"
-        };
+        DamageDetailsPresenter.Show(instanceId, ledger, settings);
     }
 
     internal static GameObject CreateRect(

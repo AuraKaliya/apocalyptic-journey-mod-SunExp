@@ -1,5 +1,6 @@
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
+using AuraToolsExp.Dll.Features.DamageMeter;
 using AuraToolsExp.Dll.Features.DamageMeter.Capture;
 using AuraToolsExp.Dll.Features.DamageMeter.Input;
 using AuraToolsExp.Dll.Features.DamageMeter.Network;
@@ -38,7 +39,12 @@ TestSafeBoxDataCompatibility();
 TestRpcPayloadBudgetUsesUtf8Bytes();
 TestDamageMeterAuthorityPolicy();
 TestDamageCaptureFrameWindow();
+TestDamageCaptureMatchingPolicy();
+TestDamageEventFactory();
+TestDamageMeterHookRegistrationSet();
+TestDamageMeterHudPresenter();
 TestStarterDeckCardClassification();
+TestStarterDeckDeckBuilder();
 TestRuntimeArchitectureGuards();
 
 Console.WriteLine($"AuraToolsExp tests passed: {assertions} assertions.");
@@ -686,6 +692,98 @@ void TestDamageCaptureFrameWindow()
         "capture window clear releases and resets remaining frames");
 }
 
+void TestDamageCaptureMatchingPolicy()
+{
+    Assert(DamageCaptureMatchingPolicy.IsHitMatch("target", "source", "target", "source"),
+        "damage text pairs with the exact hit frame");
+    Assert(DamageCaptureMatchingPolicy.IsHitMatch("target", "source", "target", ""),
+        "damage text without a source can pair by target");
+    Assert(!DamageCaptureMatchingPolicy.IsHitMatch("target", "source-a", "target", "source-b"),
+        "damage text rejects a conflicting source");
+    Assert(!DamageCaptureMatchingPolicy.IsHitMatch("target-a", "source", "target-b", "source"),
+        "damage text rejects a conflicting target");
+    Assert(DamageCaptureMatchingPolicy.Loss(100, 35) == 65
+           && DamageCaptureMatchingPolicy.Loss(35, 100) == 0,
+        "capture loss is positive-only for damage and healing boundaries");
+}
+
+void TestDamageEventFactory()
+{
+    var damage = DamageEventFactory.Create(new ResolvedDamageInput
+    {
+        SourceInstanceId = "  ",
+        SourceDisplayName = "",
+        TargetInstanceId = " target ",
+        SourceDataId = new string('x', DamageMeterProtocol.MaxStringLength + 10),
+        DetailLabel = " detail ",
+        DamageType = " ",
+        HpDamage = -1,
+        ShieldDamage = DamageMeterProtocol.MaxDamagePerEvent + 1,
+        FinalDamage = 12,
+        AttributionConfidence = DamageAttributionConfidence.Exact
+    });
+
+    Assert(damage.SourceInstanceId == "unknown" && damage.SourceDisplayName == "unknown",
+        "damage event factory supplies stable source fallbacks");
+    Assert(damage.TargetInstanceId == "target" && damage.DetailLabel == "detail"
+           && damage.DamageType == "Unknown",
+        "damage event factory trims and normalizes labels");
+    Assert(damage.SourceDataId.Length == DamageMeterProtocol.MaxStringLength
+           && damage.HpDamage == 0
+           && damage.ShieldDamage == DamageMeterProtocol.MaxDamagePerEvent
+           && damage.FinalDamage == 12,
+        "damage event factory enforces protocol budgets");
+}
+
+void TestDamageMeterHookRegistrationSet()
+{
+    var registrations = new DamageMeterHookRegistrationSet();
+    var disposed = 0;
+    Assert(registrations.Register("before:Hit", () => new TestDisposable(() => disposed++)),
+        "hook registration accepts a new key");
+    Assert(!registrations.Register("before:Hit", () => new TestDisposable(() => disposed += 100)),
+        "hook registration is idempotent by route key");
+    Assert(registrations.Register("after:Hit", () => new TestDisposable(() => throw new InvalidOperationException("busy"))),
+        "hook registration accepts an independent phase");
+    var failures = new List<string>();
+    Assert(registrations.DisposeAll((key, _) => failures.Add(key)) == 1,
+        "failed hook disposal remains registered for retry");
+    Assert(disposed == 1 && failures.SequenceEqual(new[] { "after:Hit" }),
+        "hook disposal releases healthy handles and reports the failing key");
+}
+
+void TestDamageMeterHudPresenter()
+{
+    var settings = new DamageMeterSettings();
+    settings.Normalize();
+    var idle = DamageMeterHudPresenter.Build(
+        new DamageLedger(),
+        new DamageRunLedger(),
+        new DamageHistoryStore(),
+        settings,
+        "offline");
+    Assert(!idle.InFight && idle.Height == 250f && idle.VisibleRows.Count == 0,
+        "damage HUD presenter builds the idle layout without runtime UI state");
+    Assert(idle.Title.Contains("世界推演", StringComparison.Ordinal)
+           && idle.Footer.Contains("offline", StringComparison.Ordinal),
+        "damage HUD presenter keeps idle title and network state");
+
+    var ledger = NewLedger();
+    ledger.StartRound(1);
+    Apply(ledger, 1, "hero", 30, 5, DamageTeam.Friendly, "card");
+    var active = DamageMeterHudPresenter.Build(
+        ledger,
+        new DamageRunLedger(),
+        new DamageHistoryStore(),
+        settings,
+        "host");
+    Assert(active.InFight && active.VisibleRows.Count == 1 && active.GrandTotal == 35,
+        "damage HUD presenter builds active rows and shield-inclusive totals");
+    Assert(active.Title.Contains("回合 1", StringComparison.Ordinal)
+           && active.Footer.Contains("本场合计 35", StringComparison.Ordinal),
+        "damage HUD presenter formats active fight summary");
+}
+
 void TestRuntimeArchitectureGuards()
 {
     var cardRefreshRuntime = ReadRepoText("AuraToolsExp-Dev/Features/CardRefresh/AuraToolsCardRefreshRuntime.cs");
@@ -715,17 +813,48 @@ void TestRuntimeArchitectureGuards()
     var damageMeterSettlement = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/DamageMeterSettlementRuntime.cs");
     var damageMeterAvailability = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/DamageMeterAvailabilityRuntime.cs");
     var damageMeterLifecycle = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/DamageMeterLifecycleCoordinator.cs");
+    var damageMeterUiSource = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/AuraToolsDamageMeterUi.cs");
+    var damageDetailsPresenter = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/DamageDetailsPresenter.cs");
+    var damageHudPresenter = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/DamageMeterHudPresenter.cs");
+    var fightHistoryPresenter = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/FightDamageHistoryPresenter.cs");
+    var outOfRunHistoryPresenter = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/OutOfRunDamageHistoryPresenter.cs");
+    var damageMeterContextMapper = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/DamageMeterHookContextMapper.cs");
+    var damageMeterHookRegistrations = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/DamageMeterHookRegistrationSet.cs");
     Assert(damageMeterRuntime.Contains("DamageMeterHookAdapter.Initialize", StringComparison.Ordinal)
            && damageMeterRuntime.Contains("DamageMeterAvailabilityRuntime.ReconcileAvailabilitySafe", StringComparison.Ordinal)
            && !damageMeterRuntime.Contains("ModHookContext", StringComparison.Ordinal)
            && !damageMeterRuntime.Contains("DamageFrameWindow<", StringComparison.Ordinal),
         "damage meter runtime stays a compatibility facade without hook or capture ownership");
-    Assert(damageMeterLifecycle.Contains("DamageCaptureCoordinator.ResetCaptureState", StringComparison.Ordinal)
+    Assert(damageMeterLifecycle.Contains("ResetCaptureServices", StringComparison.Ordinal)
            && damageMeterLifecycle.Contains("DamageMeterNetworkRuntime.StartFight", StringComparison.Ordinal)
            && !damageMeterCapture.Contains("AuraToolsDamageMeterUi", StringComparison.Ordinal)
-           && damageMeterCapture.Contains("DamageEventFactory.Normalize", StringComparison.Ordinal)
+           && !damageMeterCapture.Contains("ModHookContext", StringComparison.Ordinal)
+           && !damageMeterLifecycle.Contains("ModHookContext", StringComparison.Ordinal)
+           && damageMeterContextMapper.Contains("MapHit", StringComparison.Ordinal)
+           && damageMeterCapture.Contains("DamageEventFactory.Create", StringComparison.Ordinal)
            && damageEventFactory.Contains("DamageMeterProtocol.MaxDamagePerEvent", StringComparison.Ordinal),
-        "damage meter lifecycle coordinates boundaries while capture stays UI-independent");
+        "damage meter hook context is mapped at the adapter while lifecycle and capture stay boundary-focused");
+    Assert(damageMeterHookAdapter.Contains("DisposeAll", StringComparison.Ordinal)
+           && damageMeterHookRegistrations.Contains("onFailure(key, ex)", StringComparison.Ordinal)
+           && damageMeterHookRegistrations.Contains("registrations.Remove(key)", StringComparison.Ordinal),
+        "damage meter hook release reports failures and retains failed handles for retry");
+    Assert(!damageCaptureSession.Contains("BuffAttributionEngine", StringComparison.Ordinal)
+           && !damageCaptureSession.Contains("DamageMeterFightIndex", StringComparison.Ordinal)
+           && !damageCaptureSession.Contains("DamageMeterLifecycleCoordinator", StringComparison.Ordinal),
+        "damage capture session owns frame state without reverse lifecycle or attribution dependencies");
+    Assert(damageMeterUiSource.Contains("DamageDetailsPresenter.Show", StringComparison.Ordinal)
+           && damageDetailsPresenter.Contains("RenderHeader", StringComparison.Ordinal)
+           && damageDetailsPresenter.Contains("RenderSummary", StringComparison.Ordinal)
+           && damageDetailsPresenter.Contains("RenderRows", StringComparison.Ordinal),
+        "damage meter details rendering is delegated to a focused presenter");
+    Assert(damageMeterUiSource.Contains("DamageMeterHudPresenter.Build", StringComparison.Ordinal)
+           && damageHudPresenter.Contains("DamageMeterHudPresentation", StringComparison.Ordinal),
+        "damage meter HUD calculations are delegated to a pure presenter");
+    Assert(damageMeterUiSource.Contains("FightDamageHistoryPresenter.Show", StringComparison.Ordinal)
+           && damageMeterSettlement.Contains("OutOfRunDamageHistoryPresenter.Show", StringComparison.Ordinal)
+           && fightHistoryPresenter.Contains("DamageHistoryWindowRenderer.ShowHistory", StringComparison.Ordinal)
+           && outOfRunHistoryPresenter.Contains("DamageHistoryWindowRenderer.ShowOutOfRunHistory", StringComparison.Ordinal),
+        "fight and out-of-run history use separate presentation entry points");
     Assert(!damageMeterRuntime.Contains("EnsureOutOfRunHistoryLoaded();", StringComparison.Ordinal),
         "damage history load must be source-tagged and lazy");
     Assert(damageMeterRuntime.Contains("LoadHistoryOnStartup", StringComparison.Ordinal),
@@ -1501,6 +1630,29 @@ void Assert(bool condition, string name)
     assertions++;
 }
 
+void TestStarterDeckDeckBuilder()
+{
+    var valid = new HashSet<string>(new[] { "a", "b", "c", "d" }, StringComparer.OrdinalIgnoreCase);
+    var excluded = new HashSet<string>(new[] { "b" }, StringComparer.OrdinalIgnoreCase);
+    var deck = StarterDeckDeckBuilder.Build(
+        new[] { "", "a", "missing", "b" },
+        3,
+        valid.Contains,
+        excluded.Contains,
+        new[] { "c", "d" });
+    Assert(deck.SequenceEqual(new[] { "a", "c", "d" }),
+        "starter deck builder preserves configured order and fills only valid non-excluded cards");
+
+    var bounded = StarterDeckDeckBuilder.Build(
+        new[] { "a", "c", "d" },
+        2,
+        valid.Contains,
+        excluded.Contains,
+        new[] { "d" });
+    Assert(bounded.SequenceEqual(new[] { "a", "c" }),
+        "starter deck builder enforces deck size before fallback expansion");
+}
+
 internal sealed class TestCaptureFrame : IDamageCaptureFrame
 {
     public int Frame { get; set; }
@@ -1512,4 +1664,13 @@ internal sealed class TestCaptureFrame : IDamageCaptureFrame
         Frame = 0;
         Value = 0;
     }
+}
+
+internal sealed class TestDisposable : IDisposable
+{
+    private readonly Action dispose;
+
+    internal TestDisposable(Action dispose) => this.dispose = dispose;
+
+    public void Dispose() => dispose();
 }

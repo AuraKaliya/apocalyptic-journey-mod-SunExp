@@ -28,6 +28,8 @@
              Link="CardRefresh\CardRefreshPoolPolicy.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\StarterDeck\StarterDeckCardClassification.cs"
              Link="StarterDeck\StarterDeckCardClassification.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\StarterDeck\StarterDeckDeckBuilder.cs"
+             Link="StarterDeck\StarterDeckDeckBuilder.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Model\DamageMeterModels.cs"
              Link="DamageMeter\DamageMeterModels.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Model\DamageLedger.cs"
@@ -54,6 +56,14 @@
              Link="DamageMeter\DamageMeterHotkeyCore.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Capture\DamageCaptureFrameStore.cs"
              Link="DamageMeter\DamageCaptureFrameStore.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Capture\DamageCaptureMatchingPolicy.cs"
+             Link="DamageMeter\DamageCaptureMatchingPolicy.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Capture\DamageEventFactory.cs"
+             Link="DamageMeter\DamageEventFactory.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\DamageMeterHookRegistrationSet.cs"
+             Link="DamageMeter\DamageMeterHookRegistrationSet.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\DamageMeterHudPresenter.cs"
+             Link="DamageMeter\DamageMeterHudPresenter.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Network\DamageMeterAuthorityPolicy.cs"
              Link="DamageMeter\DamageMeterAuthorityPolicy.cs" />
   </ItemGroup>

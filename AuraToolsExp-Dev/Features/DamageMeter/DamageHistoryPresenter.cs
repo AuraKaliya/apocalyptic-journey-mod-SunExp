@@ -13,7 +13,7 @@ using Witch.Core;
 using Object = UnityEngine.Object;
 
 namespace AuraToolsExp.Dll.Features.DamageMeter;
-internal static class DamageHistoryPresenter
+internal static class DamageHistoryWindowRenderer
 {
     private const string HistoryName = "AuraToolsDamageMeterHistory";
 
