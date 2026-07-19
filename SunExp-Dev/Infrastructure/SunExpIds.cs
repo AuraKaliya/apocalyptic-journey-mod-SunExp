@@ -2,6 +2,16 @@ namespace SunExp.Dll.Infrastructure;
 
 public static class SunExpIds
 {
+    public const string ColumbinaCareerId = "SunExp_columbina_columbina";
+    public const string ColumbinaEternalTideCardId = "SunExp_columbina_columbina_eternal_tide";
+    public const string ColumbinaHomesicknessCardId = "SunExp_columbina_columbina_homesickness";
+    public const string FateStarCardShortId = "fate_star";
+    public const string FateStarCardId = "SunExp_sunexp_fate_star";
+    public const string GravityRipple = "SunExp_sunexp_gravity_ripple";
+    public const string GravityValue = "SunExp_sunexp_gravity_value";
+    public const string MoonDomain = "SunExp_sunexp_moon_domain";
+    public const string Constellation = "SunExp_sunexp_constellation";
+    public const string ConstellationStorage = "SunExpConstellation";
     public const string ModId = "SunExp";
 
     public const string ModLogTag = "SunExp.DLL";
@@ -66,6 +76,17 @@ public static class SunExpIds
     public const string SolarCrownTier = "SunExp_sunexp_solar_crown_tier";
     public const string GatheredFlame = "SunExp_sunexp_gathered_flame";
     public const string Burn = "buff_burn";
+    public const string Vulnerability = "buff_vulnerability";
+    public const string PyroAttachment = "SunExp_sunexp_element_pyro";
+    public const string ElectroAttachment = "SunExp_sunexp_element_electro";
+    public const string CryoAttachment = "SunExp_sunexp_element_cryo";
+    public const string HydroAttachment = "SunExp_sunexp_element_hydro";
+    public const string DendroAttachment = "SunExp_sunexp_element_dendro";
+    public const string DendroCore = "SunExp_sunexp_dendro_core";
+    public const string Frozen = "SunExp_sunexp_frozen";
+    public const string ElementalEnemyMagicKey = "SunExpElementalMagic";
+    public const string ElementalEnemyMagicRarityKey = "SunExpElementalMagicRarity";
+    public const string ElementalCrystalUiRoot = "SunExp_ElementalCrystalOverlay";
     public const string Ember = "SunExp_sunexp_ember";
     public const string EmberCloak = "SunExp_sunexp_ember_cloak";
     public const string ScorchingCanopy = "SunExp_sunexp_scorching_canopy";
@@ -83,6 +104,7 @@ public static class SunExpIds
     public const string StarStonePouch = "SunExp_sunexp_star_stone_pouch";
     public const string MiracleClock = "SunExp_sunexp_miracle_clock";
     public const string Starlight = "SunExp_sunexp_starlight";
+    public const string Moonlight = "SunExp_sunexp_moonlight";
     public const string StarBlessing = "SunExp_sunexp_star_blessing";
     public const string StarScore = "SunExp_sunexp_star_score";
     public const string Resonance = "SunExp_sunexp_resonance";

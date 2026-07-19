@@ -11,8 +11,11 @@ public static class AudioApi
     private const string ModId = "SunExp";
     private const string ManifestPath = "audio.registry.json";
     private const string WunaCareerId = "wuna";
+    private const string ColumbinaCareerId = "columbina";
     private const string WhiteSunPrayerKind = "SunExp.Wuna.WhiteSunPrayer";
     private const string GraveSongKind = "SunExp.Wuna.GraveSong";
+    private const string EternalTideKind = "SunExp.Columbina.EternalTide";
+    private const string HomesicknessKind = "SunExp.Columbina.Homesickness";
 
     private static ModConfig? currentModConfig;
     private static bool initialized;
@@ -44,15 +47,25 @@ public static class AudioApi
 
     public static void PlayWhiteSunPrayer()
     {
-        Request(WhiteSunPrayerKind, "White Sun Prayer");
+        Request(WunaCareerId, WhiteSunPrayerKind, "White Sun Prayer");
     }
 
     public static void PlayGraveSong()
     {
-        Request(GraveSongKind, "Grave Song");
+        Request(WunaCareerId, GraveSongKind, "Grave Song");
     }
 
-    private static void Request(string kind, string label)
+    public static void PlayColumbinaEternalTide()
+    {
+        Request(ColumbinaCareerId, EternalTideKind, "Columbina Eternal Tide");
+    }
+
+    public static void PlayColumbinaHomesickness()
+    {
+        Request(ColumbinaCareerId, HomesicknessKind, "Columbina Homesickness");
+    }
+
+    private static void Request(string careerId, string kind, string label)
     {
         if (currentModConfig == null)
         {
@@ -65,8 +78,8 @@ public static class AudioApi
             ModConfig = currentModConfig,
             OwnerModId = ModId,
             Kind = kind,
-            CareerId = WunaCareerId,
-            RoleId = WunaCareerId,
+            CareerId = careerId,
+            RoleId = careerId,
             SourceName = "SunExp.AudioApi." + label
         });
     }

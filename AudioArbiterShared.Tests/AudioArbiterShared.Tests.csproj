@@ -23,5 +23,6 @@
     <Compile Include="..\AudioArbiterShared\AudioProviderResolver.cs" Link="Shared\AudioProviderResolver.cs" />
     <Compile Include="..\AudioArbiterShared\AudioReplacementCoordinator.cs" Link="Shared\AudioReplacementCoordinator.cs" />
     <Compile Include="..\AudioArbiterShared\AudioRequestFactory.cs" Link="Shared\AudioRequestFactory.cs" />
+    <Compile Include="..\AudioArbiterShared\AudioVariantSelectionPolicy.cs" Link="Shared\AudioVariantSelectionPolicy.cs" />
   </ItemGroup>
 </Project>

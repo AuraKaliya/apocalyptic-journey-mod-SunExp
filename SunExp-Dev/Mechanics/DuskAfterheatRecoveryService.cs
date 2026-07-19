@@ -219,7 +219,8 @@ public static class DuskAfterheatRecoveryService
         }
 
         var traitGain = activeTraitBuff == null ? 0 : snapshot.StacksAtTrigger / 3;
-        var emberGain = traitGain;
+        var duskMultiplier = FamiliarFinalBlessingService.EffectAmountFor("DuskAfterheatMultiplierAndCap");
+        var emberGain = traitGain * Math.Max(1, duskMultiplier);
         var ash = FamiliarBlessingEffectRuntime.EffectAmount("BurnTriggeredEmber");
         if (ash > 0 && familiarAshAvailable)
         {
@@ -240,7 +241,13 @@ public static class DuskAfterheatRecoveryService
         owner.SetStatus("Self");
         if (emberGain > 0)
         {
+            var emberBefore = BuffApi.Level(owner.Self, SunExpIds.Ember);
             owner.AddBuff(SunExpIds.Ember, emberGain.ToString());
+            if (duskMultiplier > 0)
+            {
+                var cap = FamiliarFinalBlessingService.EffectParameterInt("DuskAfterheatMultiplierAndCap", "cap", 150);
+                BuffApi.SetExactLevel(owner.Self, SunExpIds.Ember, Math.Min(cap, emberBefore + emberGain));
+            }
             BuffApi.SyncEmberDamageBonus(owner, owner.Self);
         }
         if (traitGain > 0)

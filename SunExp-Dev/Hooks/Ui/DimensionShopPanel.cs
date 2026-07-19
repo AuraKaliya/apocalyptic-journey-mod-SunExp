@@ -10,6 +10,8 @@ namespace SunExp.Dll.Hooks.Ui;
 public static class DimensionShopPanel
 {
     private const string PanelName = "SunExp_DimensionShopPanel";
+    private const int RolePersistRetryLimit = 12;
+    private const int RolePersistRetryDelayFrames = 2;
     private static readonly Color WindowTint = new(0.035f, 0.035f, 0.055f, 0.985f);
     private static readonly Color HeaderTint = new(0.075f, 0.055f, 0.08f, 0.98f);
     private static readonly Color ItemTint = new(0.07f, 0.075f, 0.095f, 0.98f);
@@ -24,6 +26,8 @@ public static class DimensionShopPanel
     private static Button? refreshButton;
     private static DimensionShopNativeSkin? nativeSkin;
     private static bool busy;
+    private static bool rolePersistRetryScheduled;
+    private static int rolePersistRetryAttempts;
 
     public static bool IsOpen => activePanel != null;
 
@@ -87,6 +91,8 @@ public static class DimensionShopPanel
 
     public static void Close(string source)
     {
+        DimensionShopGameApi.FlushPendingRolePersist(source + ".Close");
+        SchedulePendingRolePersistRetry();
         nativeSkin?.Dispose();
         nativeSkin = null;
         if (productRoot != null)
@@ -191,6 +197,7 @@ public static class DimensionShopPanel
     private static void Render()
     {
         var view = DimensionShopService.View();
+        SchedulePendingRolePersistRetry();
         if (nativeSkin != null)
         {
             try
@@ -467,6 +474,53 @@ public static class DimensionShopPanel
         busy = true;
         Close("DimensionShop.Leave");
         DimensionShopGameApi.AdvanceMap();
+    }
+
+    private static void SchedulePendingRolePersistRetry()
+    {
+        if (!DimensionShopGameApi.HasPendingRolePersist)
+        {
+            rolePersistRetryAttempts = 0;
+            return;
+        }
+
+        if (rolePersistRetryScheduled)
+        {
+            return;
+        }
+
+        if (rolePersistRetryAttempts >= RolePersistRetryLimit)
+        {
+            SunExpLog.WarnOnce(
+                "DimensionShop.RolePersistRetryExhausted",
+                "[DimensionShop] role persist remained pending after bounded retries; native role collection may still commit the latest local role at the next save boundary.");
+            return;
+        }
+
+        var attempt = ++rolePersistRetryAttempts;
+        rolePersistRetryScheduled = true;
+        if (SunExpFrameScheduler.RunOnceAfterFrames(
+                "DimensionShop.RolePersistRetry." + attempt,
+                RolePersistRetryDelayFrames,
+                () =>
+                {
+                    rolePersistRetryScheduled = false;
+                    if (DimensionShopGameApi.FlushPendingRolePersist("DimensionShop.Retry." + attempt))
+                    {
+                        rolePersistRetryAttempts = 0;
+                        return;
+                    }
+
+                    SchedulePendingRolePersistRetry();
+                }))
+        {
+            return;
+        }
+
+        rolePersistRetryScheduled = false;
+        SunExpLog.WarnOnce(
+            "DimensionShop.RolePersistRetryScheduleFailed",
+            "[DimensionShop] pending role persist retry could not be scheduled.");
     }
 
     private static void SetHint(string value)

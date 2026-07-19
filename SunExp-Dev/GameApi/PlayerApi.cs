@@ -99,13 +99,18 @@ public static class PlayerApi
 
     public static string ScopedGameVarKey(string key, IStatusManager? status)
     {
+        return ScopedGameVarKeyForScope(key, status?.InstanceId);
+    }
+
+    public static string ScopedGameVarKeyForScope(string key, string? scopeId)
+    {
         if (string.IsNullOrWhiteSpace(key))
         {
             return "";
         }
 
-        var scopeId = SanitizeGameVarKeyPart(status?.InstanceId);
-        return string.IsNullOrWhiteSpace(scopeId) ? key : key + "_" + scopeId;
+        var safeScopeId = SanitizeGameVarKeyPart(scopeId);
+        return string.IsNullOrWhiteSpace(safeScopeId) ? key : key + "_" + safeScopeId;
     }
 
     public static string GetScopedGameVar(string key, IStatusManager? status, string fallback = "", bool migrateLegacyWhenSolo = false)
@@ -151,6 +156,21 @@ public static class PlayerApi
         SetGameVar(scopedKey, value);
     }
 
+    public static string GetScopedGameVarForScope(string key, string? scopeId, string fallback = "")
+    {
+        var scopedKey = ScopedGameVarKeyForScope(key, scopeId);
+        return string.IsNullOrWhiteSpace(scopedKey) ? fallback : GetGameVar(scopedKey, fallback);
+    }
+
+    public static void SetScopedGameVarForScope(string key, string? scopeId, string value)
+    {
+        var scopedKey = ScopedGameVarKeyForScope(key, scopeId);
+        if (!string.IsNullOrWhiteSpace(scopedKey))
+        {
+            SetGameVar(scopedKey, value);
+        }
+    }
+
     public static void ShowCaption(string text)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -188,6 +208,63 @@ public static class PlayerApi
     public static void AddCard(string cardId)
     {
         InvokeStaticPlayerInfo("AddCard", cardId);
+    }
+
+    public static string GetCareerIdForPlayer(string playerId)
+    {
+        if (string.IsNullOrWhiteSpace(playerId))
+        {
+            return "";
+        }
+
+        try
+        {
+            var roleTables = GameSaveManager.GetRoleTables();
+            if (roleTables != null
+                && roleTables.TryGetValue(playerId, out var roleTable)
+                && roleTable?.Career != null)
+            {
+                return DictionaryUtil.Get(roleTable.Career.data, "Id");
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Debug("[PlayerApi] player career lookup failed: player=" + playerId + "; error=" + ex.Message);
+        }
+
+        return "";
+    }
+
+    public static string GetSpecialVar(string key, string fallback = "")
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return fallback;
+        }
+
+        var values = GetStaticMember(PlayerInfo, "SpecialVars") as IDictionary;
+        if (values == null || !values.Contains(key))
+        {
+            return fallback;
+        }
+
+        return Convert.ToString(values[key]) ?? fallback;
+    }
+
+    public static void SetSpecialVar(string key, string value)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return;
+        }
+
+        var values = GetStaticMember(PlayerInfo, "SpecialVars") as IDictionary;
+        if (values == null)
+        {
+            return;
+        }
+
+        values[key] = value ?? "";
     }
 
     public static bool TryAddCardToDeck(string cardId, out string grantedCardId, out string message)

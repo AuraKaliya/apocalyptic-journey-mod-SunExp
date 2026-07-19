@@ -10,17 +10,57 @@ namespace AudioArbiter.Shared;
 public sealed class FileSoundProvider : IDisposable
 {
     private readonly Func<object?, bool>? condition;
-    private readonly string audioPath;
+    private readonly string[] audioPaths;
     private readonly ProviderRunner runner;
-    private AudioClip? clip;
+    private AudioClip?[] clips;
     private string loadState = "NotStarted";
     private int generation;
+    private int pendingLoads;
     private bool disposed;
 
     public FileSoundProvider(
         string providerId,
         string ownerModId,
         string audioPath,
+        int priority,
+        string bus,
+        string policy,
+        bool hardClaim,
+        Func<object?, bool>? condition,
+        float cooldownSeconds = 0f,
+        bool sync = true,
+        float gainDb = 0f,
+        float volumeMultiplier = 1f,
+        string kind = "",
+        float? lowHealthCrossDownThreshold = null,
+        string[]? suppressVocalStates = null,
+        int[]? suppressNarrationIds = null)
+        : this(
+            providerId,
+            ownerModId,
+            audioPath,
+            Array.Empty<string>(),
+            priority,
+            bus,
+            policy,
+            hardClaim,
+            condition,
+            cooldownSeconds,
+            sync,
+            gainDb,
+            volumeMultiplier,
+            kind,
+            lowHealthCrossDownThreshold,
+            suppressVocalStates,
+            suppressNarrationIds)
+    {
+    }
+
+    public FileSoundProvider(
+        string providerId,
+        string ownerModId,
+        string audioPath,
+        string[]? variantAudioPaths,
         int priority,
         string bus,
         string policy,
@@ -49,7 +89,8 @@ public sealed class FileSoundProvider : IDisposable
         VolumeMultiplier = volumeMultiplier;
         SuppressVocalStates = string.Join("|", suppressVocalStates ?? Array.Empty<string>());
         SuppressNarrationIds = string.Join("|", suppressNarrationIds ?? Array.Empty<int>());
-        this.audioPath = audioPath;
+        audioPaths = BuildAudioPaths(audioPath, variantAudioPaths);
+        clips = new AudioClip?[audioPaths.Length];
         this.condition = condition;
 
         var gameObject = new GameObject("AudioProvider." + ownerModId + "." + providerId);
@@ -98,7 +139,24 @@ public sealed class FileSoundProvider : IDisposable
 
     public AudioClip? GetClip(object? request)
     {
-        return clip;
+        if (clips.Length == 0)
+        {
+            return null;
+        }
+
+        var eventId = AudioPropertyReader.ReadString(request, "EventId");
+        var providerIdentity = AudioProviderResolver.QualifyProviderId(OwnerModId, ProviderId);
+        var startIndex = AudioVariantSelectionPolicy.SelectStartIndex(eventId, providerIdentity, clips.Length);
+        for (var offset = 0; offset < clips.Length; offset++)
+        {
+            var candidate = clips[(startIndex + offset) % clips.Length];
+            if (candidate != null)
+            {
+                return candidate;
+            }
+        }
+
+        return null;
     }
 
     public void Dispose()
@@ -116,7 +174,7 @@ public sealed class FileSoundProvider : IDisposable
             UnityEngine.Object.Destroy(runner.gameObject);
         }
 
-        clip = null;
+        clips = Array.Empty<AudioClip?>();
         loadState = "Disposed";
     }
 
@@ -124,41 +182,105 @@ public sealed class FileSoundProvider : IDisposable
     {
         generation++;
         var currentGeneration = generation;
-        if (!File.Exists(audioPath))
+        if (audioPaths.Length == 0)
         {
             loadState = "Missing";
-            Debug.LogWarning("[AudioArbiter] Sound file missing: provider=" + ProviderId + ", path=" + audioPath);
+            return;
+        }
+
+        clips = new AudioClip?[audioPaths.Length];
+        pendingLoads = audioPaths.Length;
+        loadState = "Loading";
+        for (var i = 0; i < audioPaths.Length; i++)
+        {
+            StartPathLoad(i, audioPaths[i], currentGeneration);
+        }
+    }
+
+    private void StartPathLoad(int index, string audioPath, int currentGeneration)
+    {
+        if (!File.Exists(audioPath))
+        {
+            CompletePathLoad(currentGeneration, index, audioPath, null, "file missing");
             return;
         }
 
         if (AudioFileLoadPolicy.Classify(audioPath) == AudioFileEncoding.UnsupportedVideoContainer)
         {
-            loadState = "Unsupported";
-            Debug.LogWarning("[AudioArbiter] Sound file uses a video container and will not be loaded as AudioClip. "
-                + "Export the audio track as .mp3, .wav, or .ogg. provider=" + ProviderId + ", path=" + audioPath);
+            CompletePathLoad(currentGeneration, index, audioPath, null, "unsupported video container");
             return;
         }
 
-        loadState = "Loading";
         runner.LoadAudio(audioPath, currentGeneration, (completedGeneration, loadedClip, error) =>
+            CompletePathLoad(completedGeneration, index, audioPath, loadedClip, error));
+    }
+
+    private void CompletePathLoad(
+        int completedGeneration,
+        int index,
+        string audioPath,
+        AudioClip? loadedClip,
+        string? error)
+    {
+        if (disposed || completedGeneration != generation)
         {
-            if (disposed || completedGeneration != generation)
-            {
-                return;
-            }
+            return;
+        }
 
-            if (loadedClip == null)
-            {
-                loadState = "Failed";
-                Debug.LogWarning("[AudioArbiter] Sound load failed: provider=" + ProviderId + ", error=" + (error ?? "<none>"));
-                return;
-            }
-
+        if (loadedClip == null)
+        {
+            Debug.LogWarning("[AudioArbiter] Sound load failed: provider=" + ProviderId
+                + ", path=" + audioPath
+                + ", error=" + (error ?? "<none>"));
+        }
+        else
+        {
             loadedClip.name = Path.GetFileNameWithoutExtension(audioPath);
-            clip = loadedClip;
-            loadState = "Ready";
-            AuraSharedLog.DebugLog("AudioArbiter", "Sound loaded: provider=" + ProviderId + ", clip=" + loadedClip.name, false);
-        });
+            clips[index] = loadedClip;
+            AuraSharedLog.DebugLog("AudioArbiter", "Sound loaded: provider=" + ProviderId
+                + ", clip=" + loadedClip.name, false);
+        }
+
+        pendingLoads = Math.Max(0, pendingLoads - 1);
+        if (pendingLoads == 0)
+        {
+            loadState = HasLoadedClip() ? "Ready" : "Failed";
+        }
+    }
+
+    private bool HasLoadedClip()
+    {
+        for (var i = 0; i < clips.Length; i++)
+        {
+            if (clips[i] != null)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string[] BuildAudioPaths(string audioPath, string[]? variantAudioPaths)
+    {
+        var paths = new System.Collections.Generic.List<string>();
+        var seen = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        AddPath(audioPath);
+        foreach (var variantPath in variantAudioPaths ?? Array.Empty<string>())
+        {
+            AddPath(variantPath);
+        }
+
+        return paths.ToArray();
+
+        void AddPath(string path)
+        {
+            var normalized = (path ?? "").Trim();
+            if (normalized.Length > 0 && seen.Add(normalized))
+            {
+                paths.Add(normalized);
+            }
+        }
     }
 
     private sealed class ProviderRunner : MonoBehaviour

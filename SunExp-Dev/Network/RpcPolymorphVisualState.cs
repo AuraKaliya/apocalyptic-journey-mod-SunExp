@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using Network.Command;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
@@ -73,23 +72,17 @@ public sealed class RpcPolymorphVisualState : RpcCommandBase, ISunExpServerBound
         if (!string.IsNullOrWhiteSpace(ownerStatusId)
             && !string.Equals(ownerStatusId, serverSender.PlayerId, StringComparison.Ordinal))
         {
-            var mapped = false;
-            try
+            if (!SunExpStatusOwnershipPolicy.SenderOwnsStatus(
+                    serverSender.PlayerId,
+                    ownerStatusId,
+                    out var ownershipDetail))
             {
-                var values = Singleton<TempDataManager>.Instance?.RoleStatusMap;
-                mapped = values != null
-                    && values.TryGetValue(serverSender.PlayerId, out var statusIds)
-                    && statusIds != null
-                    && statusIds.Contains(ownerStatusId);
-            }
-            catch
-            {
-                mapped = false;
-            }
-
-            if (!mapped)
-            {
-                rejection = "owner mismatch: owner=" + ownerStatusId + ", sender=" + serverSender.PlayerId;
+                rejection = "owner mismatch: owner="
+                    + ownerStatusId
+                    + ", sender="
+                    + serverSender.PlayerId
+                    + ", authority="
+                    + ownershipDetail;
                 return false;
             }
         }

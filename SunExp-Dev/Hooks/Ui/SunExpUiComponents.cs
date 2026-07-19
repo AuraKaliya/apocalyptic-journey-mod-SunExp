@@ -28,6 +28,28 @@ public static class SunExpUiComponents
         public ScrollRect Scroll { get; }
     }
 
+    public sealed class GridScrollArea
+    {
+        public GridScrollArea(GameObject root, RectTransform viewport, RectTransform content, ScrollRect scroll, GridLayoutGroup grid)
+        {
+            Root = root;
+            Viewport = viewport;
+            Content = content;
+            Scroll = scroll;
+            Grid = grid;
+        }
+
+        public GameObject Root { get; }
+
+        public RectTransform Viewport { get; }
+
+        public RectTransform Content { get; }
+
+        public ScrollRect Scroll { get; }
+
+        public GridLayoutGroup Grid { get; }
+    }
+
     public static GameObject CreateRect(
         string name,
         Transform parent,
@@ -206,6 +228,109 @@ public static class SunExpUiComponents
         scroll.movementType = ScrollRect.MovementType.Clamped;
         scroll.scrollSensitivity = scrollSensitivity;
         return new ScrollArea(root, viewport, content, scroll);
+    }
+
+    public static GridScrollArea CreateUniformGridScrollArea(
+        Transform parent,
+        string name,
+        float minHeight,
+        float flexibleHeight,
+        int columns,
+        Vector2 cellSize,
+        Vector2 spacing,
+        RectOffset padding,
+        float scrollSensitivity,
+        Color viewportColor)
+    {
+        var root = CreateLayoutObject("GridScroll-" + name, parent);
+        var element = AuraUiComponents.EnsureLayoutElement(root);
+        element.minHeight = minHeight;
+        element.flexibleHeight = flexibleHeight;
+        element.flexibleWidth = 1f;
+
+        var viewport = SunExpUiBuilder.CreateRect("Viewport", root.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        viewport.offsetMin = Vector2.zero;
+        viewport.offsetMax = Vector2.zero;
+        var viewportImage = viewport.gameObject.AddComponent<Image>();
+        viewportImage.color = viewportColor;
+        viewportImage.raycastTarget = true;
+        viewport.gameObject.AddComponent<Mask>().showMaskGraphic = false;
+
+        var content = SunExpUiBuilder.CreateRect(
+            "Cards",
+            viewport,
+            new Vector2(0f, 1f),
+            new Vector2(1f, 1f),
+            new Vector2(0.5f, 1f),
+            Vector2.zero);
+        var grid = content.gameObject.AddComponent<GridLayoutGroup>();
+        grid.padding = padding;
+        grid.spacing = spacing;
+        grid.cellSize = cellSize;
+        grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+        grid.constraintCount = Math.Max(1, columns);
+        grid.startAxis = GridLayoutGroup.Axis.Horizontal;
+        grid.startCorner = GridLayoutGroup.Corner.UpperLeft;
+        grid.childAlignment = TextAnchor.UpperLeft;
+        content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        var scroll = root.AddComponent<ScrollRect>();
+        scroll.viewport = viewport;
+        scroll.content = content;
+        scroll.horizontal = false;
+        scroll.vertical = true;
+        scroll.movementType = ScrollRect.MovementType.Clamped;
+        scroll.scrollSensitivity = scrollSensitivity;
+        return new GridScrollArea(root, viewport, content, scroll, grid);
+    }
+
+    public static GameObject CreateBadgeContentCard(
+        Transform parent,
+        string name,
+        string badge,
+        string title,
+        string body,
+        float badgeWidth,
+        float titleHeight,
+        float bodyHeight,
+        Sprite? sprite,
+        Color cardTint,
+        Color badgeTint,
+        Color badgeTextColor,
+        Color titleColor,
+        Color bodyColor)
+    {
+        var card = CreateLayoutObject(name, parent);
+        SunExpUiBuilder.ApplyPanelImage(card, sprite, cardTint, true);
+        ConfigureHorizontalLayout(
+            card,
+            new RectOffset(6, 8, 6, 6),
+            8f,
+            childControlWidth: true,
+            childControlHeight: true,
+            childForceExpandHeight: true,
+            alignment: TextAnchor.MiddleLeft);
+
+        var badgeRoot = CreateLayoutObject("Badge", card.transform);
+        var badgeElement = AuraUiComponents.EnsureLayoutElement(badgeRoot);
+        badgeElement.minWidth = badgeWidth;
+        badgeElement.preferredWidth = badgeWidth;
+        badgeElement.flexibleWidth = 0f;
+        SunExpUiBuilder.ApplyPanelImage(badgeRoot, null, badgeTint, false);
+        AddTextFill(badgeRoot.transform, badge, 18, TextAnchor.MiddleCenter, badgeTextColor);
+
+        var content = CreateLayoutObject("Content", card.transform);
+        var contentElement = AuraUiComponents.EnsureLayoutElement(content);
+        contentElement.flexibleWidth = 1f;
+        ConfigureVerticalLayout(
+            content,
+            new RectOffset(0, 0, 0, 0),
+            2f,
+            childForceExpandHeight: false,
+            alignment: TextAnchor.UpperLeft);
+        AddTextBlock(content.transform, title, 17, TextAnchor.MiddleLeft, titleColor, titleHeight, 1f);
+        AddTextBlock(content.transform, body, 14, TextAnchor.UpperLeft, bodyColor, bodyHeight, 1f);
+        return card;
     }
 
     public static Text AddTextFill(Transform parent, string value, int fontSize, TextAnchor anchor, Color color)

@@ -61,7 +61,6 @@ public static class SunExpUiLifecycleRuntime
         CloseAll(source);
         FrameSpriteCache.Clear();
         SunExpUiSprites.Clear();
-        AssetBundleCache.Clear();
         SunExpResourceCache.ClearCategory("visual.effect-texture");
         SunExpResourceCache.ClearCategory("visual.card-skin");
         SunExpResourceCache.ClearCategory("visual.frame-animation");

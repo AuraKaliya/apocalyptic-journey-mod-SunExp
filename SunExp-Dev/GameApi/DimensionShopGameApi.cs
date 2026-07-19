@@ -4,6 +4,7 @@ using System.Linq;
 using AuraShared.Core;
 using AuraUi.Shared;
 using Data.Save;
+using Mirror;
 using SunExp.Dll.Infrastructure;
 using UnityEngine;
 using UnityEngine.Events;
@@ -18,6 +19,20 @@ public static class DimensionShopGameApi
 {
     private const string TruthCurrencyResourcePath = "Icon/UI_Icons/Native/Icon/\u771f\u7406\u4e4b\u6676";
     private const string TruthCurrencyFallbackResourcePath = "Icon/\u6210\u5c31/\u771f\u7406\u4e4b\u6676";
+    private static readonly object RolePersistGate = new();
+    private static bool rolePersistPending;
+    private static string pendingRolePersistSource = "";
+
+    public static bool HasPendingRolePersist
+    {
+        get
+        {
+            lock (RolePersistGate)
+            {
+                return rolePersistPending;
+            }
+        }
+    }
 
     public static int TruthBalance()
     {
@@ -94,7 +109,6 @@ public static class DimensionShopGameApi
             }
 
             role.UnCardList.Add(new DataConfig(resolved, DataType.Card));
-            PersistRole("DimensionShop.Card");
             return true;
         }
         catch (Exception ex)
@@ -118,7 +132,6 @@ public static class DimensionShopGameApi
             }
 
             role.WithoutArmedRelicList.Add(new DataConfig(relicId, DataType.Relic));
-            PersistRole("DimensionShop.Relic");
             return true;
         }
         catch (Exception ex)
@@ -405,18 +418,96 @@ public static class DimensionShopGameApi
         }
     }
 
-    public static void PersistRole(string source)
+    public static bool PersistRole(string source)
     {
+        var normalizedSource = string.IsNullOrWhiteSpace(source) ? "DimensionShop.Unknown" : source.Trim();
         try
         {
-            if (RoleTable.Instance != null)
+            var role = RoleTable.Instance;
+            if (role == null)
             {
-                GameSaveManager.UpdateRoles(RoleTable.Instance);
+                DeferRolePersist(normalizedSource, "local role is unavailable");
+                return false;
             }
+
+            if (NetworkClient.active)
+            {
+                var playerManager = PlayerManager.Instance;
+                if (playerManager == null)
+                {
+                    DeferRolePersist(normalizedSource, "network player manager is unavailable");
+                    return false;
+                }
+
+                playerManager.CmdSyncRoleTable(role);
+                ClearPendingRolePersist();
+                return true;
+            }
+
+            var save = GameSaveManager.GetNowSave();
+            if (save?.roleTable == null)
+            {
+                DeferRolePersist(normalizedSource, "local save role table is unavailable");
+                return false;
+            }
+
+            GameSaveManager.UpdateRoles(role);
+            ClearPendingRolePersist();
+            return true;
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[DimensionShopGameApi] role persist skipped from " + source + ": " + ex.Message);
+            DeferRolePersist(normalizedSource, ex.Message);
+            return false;
+        }
+    }
+
+    public static bool FlushPendingRolePersist(string source)
+    {
+        string pendingSource;
+        lock (RolePersistGate)
+        {
+            if (!rolePersistPending)
+            {
+                return true;
+            }
+
+            pendingSource = pendingRolePersistSource;
+        }
+
+        var retrySource = string.IsNullOrWhiteSpace(source) ? "DimensionShop.PendingRetry" : source.Trim();
+        return PersistRole(pendingSource + " via " + retrySource);
+    }
+
+    private static void DeferRolePersist(string source, string reason)
+    {
+        var shouldLog = false;
+        lock (RolePersistGate)
+        {
+            shouldLog = !rolePersistPending;
+            rolePersistPending = true;
+            if (shouldLog)
+            {
+                pendingRolePersistSource = source;
+            }
+        }
+
+        if (shouldLog)
+        {
+            SunExpLog.Warn("[DimensionShopGameApi] role persist deferred from "
+                           + source
+                           + ": "
+                           + reason
+                           + ".");
+        }
+    }
+
+    private static void ClearPendingRolePersist()
+    {
+        lock (RolePersistGate)
+        {
+            rolePersistPending = false;
+            pendingRolePersistSource = "";
         }
     }
 

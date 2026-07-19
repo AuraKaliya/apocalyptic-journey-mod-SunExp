@@ -5,6 +5,7 @@ using System.Reflection;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
+using AuraUi.Shared;
 using Michsky.MUIP;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -22,6 +23,8 @@ namespace AuraToolsExp.Dll.Features.SafeBox;
 public static class AuraToolsSafeBoxRuntime
 {
     private const string ButtonName = "AuraToolsSafeBoxButton";
+    private const string IconPath = "Mods/AuraToolsExp/ModResource/Images/UI/\u968f\u8eab\u4fdd\u9669\u7bb1.png";
+    private const string HoverHint = "\u968f\u8eab\u4fdd\u9669\u7bb1";
     private const int UnlimitedMoneyActionCount = 999999;
     private const int RelaxedCardBottomCount = 0;
     private const int RelaxedCardTopCount = 999999;
@@ -68,6 +71,7 @@ public static class AuraToolsSafeBoxRuntime
 
     internal static void HandleButtonClicked()
     {
+        AuraToolsLog.Info("[SafeBox] TopBar click received.");
         OpenSafeBox();
     }
 
@@ -145,7 +149,7 @@ public static class AuraToolsSafeBoxRuntime
         if (existing != null)
         {
             BindButton(existing.gameObject);
-            ConfigureButton(existing.gameObject);
+            ConfigureButton(existing.gameObject, logDiagnostics: false);
             return true;
         }
 
@@ -154,7 +158,7 @@ public static class AuraToolsSafeBoxRuntime
         buttonObject.transform.SetAsLastSibling();
         buttonObject.SetActive(false);
         BindButton(buttonObject);
-        ConfigureButton(buttonObject);
+        ConfigureButton(buttonObject, logDiagnostics: true);
         return true;
     }
 
@@ -179,9 +183,16 @@ public static class AuraToolsSafeBoxRuntime
         {
             if (component != null && component.GetType().Name == "KeyItem")
             {
+                if (component is Behaviour behaviour)
+                {
+                    behaviour.enabled = false;
+                }
+
                 Object.Destroy(component);
             }
         }
+
+        AuraUiNativeHoverHint.Attach(buttonObject, HoverHint);
 
         var relay = buttonObject.GetComponent<AuraToolsSafeBoxButtonRelay>();
         if (relay == null)
@@ -190,22 +201,59 @@ public static class AuraToolsSafeBoxRuntime
         }
     }
 
-    private static void ConfigureButton(GameObject buttonObject)
+    private static void ConfigureButton(GameObject buttonObject, bool logDiagnostics)
     {
         const string label = "保险箱";
         var manager = buttonObject.GetComponent<ButtonManager>();
         if (manager != null)
         {
-            manager.enableText = true;
+            var icon = AuraToolsResourceCache.Load<Sprite>(IconPath, true);
+            manager.enableIcon = icon != null;
+            manager.enableText = icon == null;
             manager.buttonText = label;
-            manager.SetText(label);
+            if (icon != null)
+            {
+                var result = AuraUiNativeButtonIconOwner.Apply(manager, icon);
+                if (logDiagnostics || !result.Success)
+                {
+                    var message = "[SafeBox] TopBar icon apply: success="
+                                  + result.Success
+                                  + ", ownedStates="
+                                  + result.OwnedStateCount
+                                  + ", customContent="
+                                  + result.UsedCustomContent
+                                  + ", resource="
+                                  + IconPath
+                                  + (result.Success ? "." : ", reason=" + result.FailureReason + ".");
+                    if (result.Success)
+                    {
+                        AuraToolsLog.Info(message);
+                    }
+                    else
+                    {
+                        AuraToolsLog.Warn(message);
+                    }
+                }
+            }
+            else
+            {
+                manager.SetText(label);
+                if (logDiagnostics)
+                {
+                    AuraToolsLog.Warn("[SafeBox] TopBar icon resource missing: " + IconPath + ".");
+                }
+            }
+
             manager.UpdateUI();
         }
 
-        var text = buttonObject.GetComponentInChildren<Text>(true);
-        if (text != null)
+        if (manager == null || manager.enableText)
         {
-            text.text = label;
+            var text = buttonObject.GetComponentInChildren<Text>(true);
+            if (text != null)
+            {
+                text.text = label;
+            }
         }
     }
 

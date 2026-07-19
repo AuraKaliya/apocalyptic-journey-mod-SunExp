@@ -2370,6 +2370,9 @@ function Invoke-SourceAssertions {
     Assert-True ($dimensionShopRuntime.Contains('RegisterBefore(modConfig, "MapSelectUI.SetNodes", RestoreBeforeMapSelectionBoundary);') -and $dimensionShopRuntime.Contains('RegisterBefore(modConfig, "MapItem.OnPointerDown", RestoreBeforeMapItemBoundary);')) "Dimension shop must restore residual native NodeIds before persistence or user interaction."
     Assert-True ($dimensionShopRuntime.Contains('RegisterBefore(modConfig, "Commands.load", PrepareDimensionShopRoute);') -and $dimensionShopRuntime.Contains("DimensionShopGameApi.CloseNativeBreakFallback()")) "Dimension shop must recover a residual native NodeId that reaches command routing."
     Assert-True ($dimensionShopGameApi.Contains('GameObject.Find("Breaks")') -and $dimensionShopGameApi.Contains("background.SetActive(true)")) "Dimension shop route recovery must remove the native break screen and restore the adventure background."
+    Assert-True ($dimensionShopGameApi.Contains("NetworkClient.active") -and $dimensionShopGameApi.Contains("playerManager.CmdSyncRoleTable(role)") -and $dimensionShopGameApi.Contains("save?.roleTable == null")) "Dimension shop role persistence must route multiplayer snapshots through the native server command and reserve direct save writes for a complete offline save."
+    Assert-True ($dimensionShopGameApi.Contains("HasPendingRolePersist") -and $dimensionShopPanel.Contains("FlushPendingRolePersist") -and $dimensionShopPanel.Contains("RolePersistRetryLimit")) "Dimension shop must retain and boundedly retry a role snapshot when native submission is temporarily unavailable."
+    Assert-True (-not $dimensionShopGameApi.Contains('PersistRole("DimensionShop.Card")') -and -not $dimensionShopGameApi.Contains('PersistRole("DimensionShop.Relic")') -and -not $dimensionShopService.Contains("DimensionShop.BuyCard.Rollback") -and -not $dimensionShopService.Contains("DimensionShop.BuyRelic.Rollback")) "Dimension shop purchases must submit exactly at their transaction boundary instead of from grant or rollback intermediates."
     Assert-True $dimensionShopPanel.Contains("DimensionShopNativeSkin.TryCreate") "Dimension shop must prefer the official ShopUI visual shell while retaining fallback orchestration."
     Assert-True ($dimensionShopPanel.Contains("SunExpModalHost.NativeUiParent()") -and $dimensionShopPanel.Contains("SunExpModalHost.CreateNativeFullscreenRoot") -and -not $dimensionShopPanel.Contains("SunExpModalHost.ModalParent()") -and $sharedUiModalHost.Contains("return UIManager.Instance?.canvasTf;")) "Dimension shop must share the official main Canvas with Tooltip and Floating Window instead of rendering above them."
     Assert-True ($dimensionShopNativeSkin.Contains('NativeShopResourcePath = "UI/ShopUI"') -and $dimensionShopNativeSkin.Contains("source.ItemPrefab") -and $dimensionShopNativeSkin.Contains("source.SellCardPrefab") -and $dimensionShopNativeSkin.Contains("source.TopRelicPrefab")) "Dimension shop native skin must source official ShopUI visual templates."
@@ -3437,10 +3440,16 @@ function Invoke-SourceAssertions {
     Assert-True $runtimeHooks.Contains("EndlessAbyssEvacuationRuntime.Initialize(modConfig)") "RuntimeHooks must initialize Endless Abyss evacuation."
     Assert-True $endlessAbyssEvacuationButtonRuntime.Contains('buttons?.Find("CardBack")') "Endless Abyss evacuation must clone the native TopBar card button template."
     Assert-True $endlessAbyssEvacuationButtonRuntime.Contains("EndlessAbyssEvacuationButtonRelay") "Endless Abyss evacuation must replace cloned native button listeners with a dedicated relay."
+    Assert-True $endlessAbyssEvacuationButtonRuntime.Contains('Mods/SunExp/ModResource/Images/UI/\u65e0\u5c3d\u4e4b\u6e0a-\u9000\u51fa.png') "Endless Abyss evacuation must use the shipped evacuation icon."
+    Assert-True $endlessAbyssEvacuationButtonRuntime.Contains('AuraUiNativeButtonIconOwner.Apply(manager, icon)') "Endless Abyss evacuation must own all three native button-state images."
+    Assert-True $endlessAbyssEvacuationButtonRuntime.Contains('AuraUiNativeHoverHint.Attach(buttonObject, HoverHint)') "Endless Abyss evacuation must register a native-style settlement hover hint."
     Assert-True $endlessAbyssEvacuationRuntime.Contains("EndlessSeaRunPhase.MapPlanning") "Endless Abyss evacuation must only start from stable map planning."
+    Assert-True $endlessAbyssEvacuationRuntime.Contains('GetBlockReason(allowConfirmationWindow: true)') "Endless Abyss evacuation confirmation must not reject its own closing modal window."
     Assert-True $endlessAbyssEvacuationRuntime.Contains("EndlessAbyssShockService.PendingRequest()") "Endless Abyss evacuation must not bypass pending shock resolution."
     Assert-True $endlessAbyssEvacuationRuntime.Contains("EndlessAbyssMilestoneRewardService.CanClaimCurrentFloor()") "Endless Abyss evacuation must not bypass pending milestone rewards."
     Assert-True $endlessAbyssEvacuationRuntime.Contains("GameExitUI.loss = false") "Endless Abyss evacuation must settle as a successful mode clear."
+    Assert-True $endlessAbyssEvacuationRuntime.Contains("AuraModeOutcomeRuntime.Publish") "Endless Abyss evacuation must publish a generic run-scoped completed outcome for shared settlement consumers."
+    Assert-True $endlessAbyssEvacuationRuntime.Contains('confirmation accepted; scheduling authoritative commit') "Endless Abyss evacuation must expose the modal-to-commit diagnostic boundary."
     Assert-True $endlessAbyssEvacuationRuntime.Contains('"GameExitUI.ReturnAsync"') "Endless Abyss evacuation must arm finalization only when the settlement is accepted."
     Assert-True $endlessAbyssEvacuationRuntime.Contains('"GameApp.ReturnToMenu"') "Endless Abyss evacuation must persist Ended immediately before the native menu return."
     Assert-True $endlessAbyssEvacuationService.Contains("EndlessAbyssEvacuationDepth.Calculate") "Endless Abyss evacuation must delegate total-depth projection to its pure calculator."
@@ -3553,7 +3562,7 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemoryRoleCommit.Contains("CommittedTokens.Add(commitToken)") "Solar memory final role command must suppress duplicate network delivery."
     Assert-True ($modConfig.ModVersion -eq "0.4.2") "SunExp network protocol change must ship as version 0.4.2."
     Assert-True ($modConfig.MustSame -eq $true) "SunExp must require an identical multiplayer mod version."
-    Assert-True $audioArbiterRuntime.Contains('CurrentBuildId = "audio-arbiter-2026-07-11-v8"') "Audio arbiter must expose the fight-scoped presentation runtime build id."
+    Assert-True $audioArbiterRuntime.Contains('CurrentBuildId = "audio-arbiter-2026-07-19-v9"') "Audio arbiter must expose the fight-scoped presentation runtime build id."
     Assert-True $audioArbiterRuntime.Contains('const string sharedPrefix = "Shared:"') "Audio arbiter must resolve AuraShared resource paths."
     Assert-True $audioProviderResolver.Contains("MatchesProviderRequest") "Audio provider resolver must own owner-aware provider matching."
     Assert-True ([regex]::IsMatch($audioProviderResolver, 'requestedId,\s*"",\s*ownerStrict:\s*false')) "Audio bare provider matching must remain backward-compatible."
@@ -3638,6 +3647,8 @@ try {
     }
 
     Invoke-SourceAssertions -RepoRoot $repoRoot
+    & (Join-Path $repoRoot "tools\Test-SunExpElemental.ps1") -Configuration $Configuration
+    & (Join-Path $repoRoot "tools\Test-SunExpColumbina.ps1")
 }
 finally {
     if ($KeepTemp) {

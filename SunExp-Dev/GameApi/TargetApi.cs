@@ -97,6 +97,46 @@ public static class TargetApi
         return result;
     }
 
+    public static List<IStatusManager> SameSideTargets(ScriptExecutor? executor, IStatusManager? anchor, bool aliveOnly = true)
+    {
+        if (executor == null || anchor == null)
+        {
+            return new List<IStatusManager>();
+        }
+
+        var opponents = EnemyTargets(executor);
+        var sameSide = opponents.Any(target => SameStatus(target, anchor))
+            ? opponents
+            : FriendlyTargets(executor, includeSelf: true);
+        if (!sameSide.Any(target => SameStatus(target, anchor)))
+        {
+            sameSide.Add(anchor);
+        }
+
+        return sameSide
+            .Where(target => target != null && (!aliveOnly || StatusApi.IsAlive(target)))
+            .GroupBy(StatusKey, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .OrderBy(StatusKey, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    public static List<IStatusManager> OpposingSideTargets(ScriptExecutor? executor, IStatusManager? source, bool aliveOnly = true)
+    {
+        if (executor == null || source == null)
+        {
+            return new List<IStatusManager>();
+        }
+
+        var sourceSide = new HashSet<string>(SameSideTargets(executor, source, aliveOnly: false).Select(StatusKey), StringComparer.Ordinal);
+        return AllCombatTargets(executor, includeSelf: true)
+            .Where(target => !sourceSide.Contains(StatusKey(target)) && (!aliveOnly || StatusApi.IsAlive(target)))
+            .GroupBy(StatusKey, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .OrderBy(StatusKey, StringComparer.Ordinal)
+            .ToList();
+    }
+
     public static IStatusManager? RandomEnemyTarget(ScriptExecutor? executor, bool requireBurn)
     {
         var candidates = EnemyTargets(executor)
@@ -221,5 +261,21 @@ public static class TargetApi
             ? target.GetHashCode().ToString()
             : target.InstanceId;
         return seen.Add(key);
+    }
+
+    private static bool SameStatus(IStatusManager? left, IStatusManager? right)
+    {
+        return left != null
+            && right != null
+            && (ReferenceEquals(left, right)
+                || !string.IsNullOrWhiteSpace(left.InstanceId)
+                && string.Equals(left.InstanceId, right.InstanceId, StringComparison.Ordinal));
+    }
+
+    private static string StatusKey(IStatusManager target)
+    {
+        return string.IsNullOrWhiteSpace(target.InstanceId)
+            ? target.GetHashCode().ToString()
+            : target.InstanceId;
     }
 }

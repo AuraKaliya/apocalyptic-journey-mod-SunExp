@@ -1,7 +1,9 @@
 using System;
 using System.Collections;
+using AuraUi.Shared;
 using Data.Save;
 using Michsky.MUIP;
+using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
 using UnityEngine;
@@ -20,6 +22,8 @@ namespace SunExp.Dll.Hooks.Ui;
 public static class EndlessAbyssEvacuationButtonRuntime
 {
     private const string ButtonName = "SunExp_EndlessAbyssEvacuationButton";
+    private const string IconPath = "Mods/SunExp/ModResource/Images/UI/\u65e0\u5c3d\u4e4b\u6e0a-\u9000\u51fa.png";
+    private const string HoverHint = "\u7ed3\u7b97\u9000\u51fa";
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -35,6 +39,7 @@ public static class EndlessAbyssEvacuationButtonRuntime
 
     internal static void HandleButtonClicked()
     {
+        SunExpLog.Info("[EndlessAbyssEvacuation] toolbar click received.");
         EndlessAbyssEvacuationRuntime.RequestFromToolbar();
     }
 
@@ -103,7 +108,7 @@ public static class EndlessAbyssEvacuationButtonRuntime
         if (existing != null)
         {
             Bind(existing.gameObject);
-            Configure(existing.gameObject);
+            Configure(existing.gameObject, logDiagnostics: false);
             return true;
         }
 
@@ -112,7 +117,7 @@ public static class EndlessAbyssEvacuationButtonRuntime
         buttonObject.transform.SetSiblingIndex(Math.Min(buttons.childCount - 1, template.GetSiblingIndex() + 1));
         buttonObject.SetActive(false);
         Bind(buttonObject);
-        Configure(buttonObject);
+        Configure(buttonObject, logDiagnostics: true);
         return true;
     }
 
@@ -132,9 +137,16 @@ public static class EndlessAbyssEvacuationButtonRuntime
         {
             if (component != null && component.GetType().Name == "KeyItem")
             {
+                if (component is Behaviour behaviour)
+                {
+                    behaviour.enabled = false;
+                }
+
                 Object.Destroy(component);
             }
         }
+
+        AuraUiNativeHoverHint.Attach(buttonObject, HoverHint);
 
         if (buttonObject.GetComponent<EndlessAbyssEvacuationButtonRelay>() == null)
         {
@@ -142,22 +154,59 @@ public static class EndlessAbyssEvacuationButtonRuntime
         }
     }
 
-    private static void Configure(GameObject buttonObject)
+    private static void Configure(GameObject buttonObject, bool logDiagnostics)
     {
         const string label = "\u64a4\u79bb";
         var manager = buttonObject.GetComponent<ButtonManager>();
         if (manager != null)
         {
-            manager.enableText = true;
+            var icon = SunExpResourceCache.Load<Sprite>(IconPath, true, "ui.endless-abyss-evacuation");
+            manager.enableIcon = icon != null;
+            manager.enableText = icon == null;
             manager.buttonText = label;
-            manager.SetText(label);
+            if (icon != null)
+            {
+                var result = AuraUiNativeButtonIconOwner.Apply(manager, icon);
+                if (logDiagnostics || !result.Success)
+                {
+                    var message = "[EndlessAbyssEvacuationButton] icon apply: success="
+                                  + result.Success
+                                  + ", ownedStates="
+                                  + result.OwnedStateCount
+                                  + ", customContent="
+                                  + result.UsedCustomContent
+                                  + ", resource="
+                                  + IconPath
+                                  + (result.Success ? "." : ", reason=" + result.FailureReason + ".");
+                    if (result.Success)
+                    {
+                        SunExpLog.Info(message);
+                    }
+                    else
+                    {
+                        SunExpLog.Warn(message);
+                    }
+                }
+            }
+            else
+            {
+                manager.SetText(label);
+                if (logDiagnostics)
+                {
+                    SunExpLog.Warn("[EndlessAbyssEvacuationButton] icon resource missing: " + IconPath + ".");
+                }
+            }
+
             manager.UpdateUI();
         }
 
-        var text = buttonObject.GetComponentInChildren<Text>(true);
-        if (text != null)
+        if (manager == null || manager.enableText)
         {
-            text.text = label;
+            var text = buttonObject.GetComponentInChildren<Text>(true);
+            if (text != null)
+            {
+                text.text = label;
+            }
         }
     }
 

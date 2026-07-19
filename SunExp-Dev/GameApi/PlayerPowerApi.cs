@@ -31,4 +31,44 @@ public static class PlayerPowerApi
             return false;
         }
     }
+
+    public static bool TryRestoreToMax()
+    {
+        var player = FightPlayer.Instance;
+        if (player == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            player.CurPowerCount = Math.Max(0, player.MaxPowerCount);
+            return player.CurPowerCount == Math.Max(0, player.MaxPowerCount);
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("FightPlayer power restore failed: " + ex.Message);
+            return false;
+        }
+    }
+
+    public static bool TryGainPower(int amount)
+    {
+        var player = FightPlayer.Instance;
+        if (player == null || amount <= 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            player.CurPowerCount = Math.Max(0, player.CurPowerCount) + amount;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("FightPlayer power gain failed: " + ex.Message);
+            return false;
+        }
+    }
 }

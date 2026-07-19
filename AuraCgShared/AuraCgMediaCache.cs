@@ -138,6 +138,19 @@ internal sealed class AuraCgMediaCache<TSprite, TBundle>
         Store(bundles, entry.StringKey, entry);
     }
 
+    public bool RemoveMissingBundle(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key)
+            || !bundles.TryGetValue(key, out var entry)
+            || entry.Bundle != null)
+        {
+            return false;
+        }
+
+        Remove(entry);
+        return true;
+    }
+
     public bool TryGetDerivedSprite(int sourceId, out TSprite? sprite)
     {
         if (derivedSprites.TryGetValue(sourceId, out var entry) && entry.Sprites.Count > 0)

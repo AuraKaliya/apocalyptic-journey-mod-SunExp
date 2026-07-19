@@ -15,7 +15,7 @@ public static class AudioArbiterRuntime
 {
     private const string GlobalObjectName = "AudioArbiter.Global";
     private const string ComponentFullName = "AudioArbiter.Shared.AudioArbiterRuntime+AudioArbiterComponent";
-    public const string CurrentBuildId = "audio-arbiter-2026-07-11-v8";
+    public const string CurrentBuildId = "audio-arbiter-2026-07-19-v9";
     public const int CurrentProtocolVersion = 6;
     public const int MinimumSupportedProtocolVersion = 6;
     public const int SupportedManifestSchemaVersion = 2;
@@ -432,6 +432,7 @@ public static class AudioArbiterRuntime
                         providerId: plan.ProviderId,
                         ownerModId: plan.OwnerModId,
                         audioPath: plan.AudioPath,
+                        variantAudioPaths: plan.AudioVariantPaths,
                         priority: plan.Priority,
                         bus: plan.Bus,
                         policy: plan.Policy,

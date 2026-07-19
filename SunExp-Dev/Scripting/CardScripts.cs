@@ -33,7 +33,9 @@ public static class CardScripts
         [SunExpIds.ProjectionRoleTemplateShortId] = InitCommonCard,
         [SunExpIds.SpiritBallCardShortId] = InitSpiritBall,
         [SunExpIds.SpiritCardTemplateShortId] = InitSpiritCard,
-        [SunExpIds.HeartChangeCardShortId] = InitHeartChange
+        [SunExpIds.HeartChangeCardShortId] = InitHeartChange,
+        [SunExpIds.FateStarCardShortId] = InitFateStar,
+        ["lucky_jackpot_b"] = InitCommonCard
     };
 
     private static readonly Dictionary<string, Action<ScriptExecutor>> UseHandlers = new(StringComparer.Ordinal)
@@ -74,7 +76,9 @@ public static class CardScripts
         [SunExpIds.ProjectionRoleTemplateShortId] = UseProjectionRoleCard,
         [SunExpIds.SpiritBallCardShortId] = UseSpiritBall,
         [SunExpIds.SpiritCardTemplateShortId] = UseSpiritCard,
-        [SunExpIds.HeartChangeCardShortId] = UseHeartChange
+        [SunExpIds.HeartChangeCardShortId] = UseHeartChange,
+        [SunExpIds.FateStarCardShortId] = UseFateStar,
+        ["lucky_jackpot_b"] = UseLuckyJackpotB
     };
 
     public static void Init(ScriptExecutor self, string id)
@@ -245,6 +249,12 @@ public static class CardScripts
         CardApi.MarkForAdventureRemoval(self?.dataConfig);
     }
 
+    private static void InitFateStar(ScriptExecutor self)
+    {
+        InitCommonCard(self);
+        CardApi.MarkForAdventureRemoval(self?.dataConfig);
+    }
+
     private static void InitSpiritCard(ScriptExecutor self)
     {
         ExecutorApi.SetBaseScript(self, "CommonCardItem");
@@ -258,6 +268,37 @@ public static class CardScripts
     private static void InitTargetedAttackCard(ScriptExecutor self)
     {
         ExecutorApi.SetBaseScript(self, "AttackCardItem", canSelf: false);
+    }
+
+    private static void UseLuckyJackpotB(ScriptExecutor self)
+    {
+        var result = self.CheckDice.Roll().Value;
+        if (result >= 95)
+        {
+            var role = RoleTable.Instance;
+            var allRows = Singleton<GameConfigManager>.Instance.CardPackCheck(SunExpConfigIndex.Rows(DataType.Relic))
+                .Where(row => DictionaryUtil.GetInt(row, "Rarity") == 4)
+                .Where(row => !SunExpIds.IsHiddenRelicId(DictionaryUtil.Get(row, "Id")))
+                .Where(row => !Singleton<GameRuntimeData>.Instance.IsLocked(DictionaryUtil.Get(row, "Id")))
+                .ToList();
+            var unownedRows = allRows
+                .Where(row => role == null || !role.relicGets.ContainsKey(DictionaryUtil.Get(row, "Id")))
+                .ToList();
+            var rows = unownedRows.Count > 0 ? unownedRows : allRows;
+            if (rows.Count > 0)
+            {
+                PlayerApi.AddRelic(DictionaryUtil.Get(rows[UnityEngine.Random.Range(0, rows.Count)], "Id"));
+                return;
+            }
+        }
+
+        self.SetStatus("Self");
+        self.DrawCount("1");
+    }
+
+    private static void UseFateStar(ScriptExecutor self)
+    {
+        ConstellationService.LightUp(self);
     }
 
     private static void InitAnnihilatingTargetedAttackCard(ScriptExecutor self)

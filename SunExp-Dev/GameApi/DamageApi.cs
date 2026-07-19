@@ -5,6 +5,49 @@ namespace SunExp.Dll.GameApi;
 
 public static class DamageApi
 {
+    public static bool HasNativeDamageIdentity(ScriptExecutor? executor)
+    {
+        return !string.IsNullOrWhiteSpace(DictionaryUtil.Get(executor?.dataConfig?.data, "Id"));
+    }
+
+    public static ScriptExecutor? CreateCardSourceExecutor(
+        IStatusManager? source,
+        string sourceCardId,
+        string origin)
+    {
+        if (source == null || string.IsNullOrWhiteSpace(sourceCardId))
+        {
+            return null;
+        }
+
+        try
+        {
+            var resolvedCardId = CardApi.ResolveCardId(sourceCardId);
+            var config = new DataConfig(resolvedCardId, DataType.Card);
+            var executor = config.scriptExecutor as ScriptExecutor;
+            if (executor == null)
+            {
+                SunExpLog.Warn("[DamageSource] card executor unavailable; origin=" + origin + ", card=" + resolvedCardId + ".");
+                return null;
+            }
+
+            executor.Self = source;
+            executor.SetStatus("Self");
+            if (!HasNativeDamageIdentity(executor))
+            {
+                SunExpLog.Warn("[DamageSource] card executor has no native Id; origin=" + origin + ", card=" + resolvedCardId + ".");
+                return null;
+            }
+
+            return executor;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("[DamageSource] failed to create card executor; origin=" + origin + ", card=" + sourceCardId + ".", ex);
+            return null;
+        }
+    }
+
     public static bool AddStatusBuff(ScriptExecutor? executor, IStatusManager? target, string buffId, int amount, string fallbackStatus = "Target")
     {
         if (executor == null || string.IsNullOrWhiteSpace(buffId) || amount <= 0)
@@ -71,16 +114,38 @@ public static class DamageApi
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(damageType))
+        if (!HasNativeDamageIdentity(executor))
         {
-            executor.Damage(amount.ToString());
-        }
-        else
-        {
-            executor.Damage(amount.ToString(), damageType);
+            SunExpLog.WarnOnce(
+                "damage-source-missing-id",
+                "[DamageSource] rejected native damage because the executor has no data Id. Use CreateCardSourceExecutor for status-triggered damage.");
+            return false;
         }
 
-        return true;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(damageType))
+            {
+                executor.Damage(amount.ToString());
+            }
+            else
+            {
+                executor.Damage(amount.ToString(), damageType);
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Error("[DamageSource] native damage failed; id="
+                + DictionaryUtil.Get(executor.dataConfig?.data, "Id")
+                + ", amount="
+                + amount
+                + ", type="
+                + (string.IsNullOrWhiteSpace(damageType) ? "Normal" : damageType)
+                + ".", ex);
+            return false;
+        }
     }
 
     public static bool DealDamageToTarget(

@@ -225,12 +225,31 @@ public static class StarScoreService
             return;
         }
 
-        var before = ExecutorApi.SelfBuffLevel(self, SunExpIds.Starlight);
-        self.SetStatus("Self");
-        self.AddBuff(SunExpIds.Starlight, amount.ToString());
-        var after = ExecutorApi.SelfBuffLevel(self, SunExpIds.Starlight);
-        GrantBlessingsForThresholds(self, before, after);
-        ClampStarlight(self);
+        var before = Math.Max(0, ExecutorApi.SelfBuffLevel(self, SunExpIds.Starlight));
+        var total = before + amount;
+        var completedCycles = total / 30;
+        var remainder = total % 30;
+        if (completedCycles <= 0)
+        {
+            self.SetStatus("Self");
+            self.AddBuff(SunExpIds.Starlight, amount.ToString());
+            GrantBlessingsForThresholds(self, before, ExecutorApi.SelfBuffLevel(self, SunExpIds.Starlight));
+            return;
+        }
+
+        GrantBlessingsForThresholds(self, before, 30);
+        FamiliarFinalBlessingService.OnStarlightCycle(self);
+        for (var cycle = 1; cycle < completedCycles; cycle++)
+        {
+            GrantBlessingsForThresholds(self, 0, 30);
+            FamiliarFinalBlessingService.OnStarlightCycle(self);
+        }
+
+        BuffApi.SetExactLevel(self.Self, SunExpIds.Starlight, remainder);
+        if (remainder > 0)
+        {
+            GrantBlessingsForThresholds(self, 0, remainder);
+        }
     }
 
     public static void TryApplyResonanceBeforeAddBuff(object[]? args)
@@ -313,6 +332,7 @@ public static class StarScoreService
             PublishChanged(self.Self, state, isCadencePreview: true, completedCadencePattern: pattern);
             ResolveCadence(self, notes);
             FamiliarBlessingEffectRuntime.OnStarScoreCadenceCompleted(self.Self);
+            FamiliarFinalBlessingService.OnStarScoreCadenceCompleted(self);
             state.RetainLastNoteAsCadenceStart();
             SyncScoreBuff(self, state.Notes.Count);
             PublishChanged(self.Self, state);

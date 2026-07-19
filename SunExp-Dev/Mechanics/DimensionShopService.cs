@@ -218,7 +218,6 @@ public static class DimensionShopService
             {
                 SetPlayerValue(SunExpIds.DimensionShopCardBoughtKey, "0");
                 DimensionShopGameApi.RefundTruth(price);
-                DimensionShopGameApi.PersistRole("DimensionShop.BuyCard.Rollback");
                 message = error == "reserve is full"
                     ? "\u5361\u724c\u4ed3\u5e93\u5df2\u6ee1\uff0c\u65e0\u6cd5\u8d2d\u4e70\u3002"
                     : "\u5361\u724c\u53d1\u653e\u5931\u8d25\uff0c\u672a\u6263\u9664\u771f\u7406\u4e4b\u6676\u3002";
@@ -288,7 +287,6 @@ public static class DimensionShopService
                 bought.Remove(Canonical(relicId));
                 SetPlayerValue(SunExpIds.DimensionShopBoughtRelicsKey, JoinIds(bought));
                 DimensionShopGameApi.RefundTruth(price);
-                DimensionShopGameApi.PersistRole("DimensionShop.BuyRelic.Rollback");
                 message = "\u9057\u7269\u53d1\u653e\u5931\u8d25\uff0c\u672a\u6263\u9664\u771f\u7406\u4e4b\u6676\u3002";
                 return false;
             }

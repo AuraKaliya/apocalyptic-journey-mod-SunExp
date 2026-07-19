@@ -37,6 +37,34 @@ public static class StatusApi
         return status != null && status.CurHp > 0 && status.state != IStatusManager.State.Dead;
     }
 
+    public static string RoleId(IStatusManager? status)
+    {
+        if (status == null)
+        {
+            return "";
+        }
+
+        try
+        {
+            var roleId = status.fatherObject?.Id;
+            if (!string.IsNullOrWhiteSpace(roleId))
+            {
+                return roleId ?? "";
+            }
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Debug("[StatusApi] status role id fallback used: " + ex.Message);
+        }
+
+        var local = FightPlayer.Instance?.Status;
+        return local != null
+            && (ReferenceEquals(status, local)
+                || string.Equals(status.InstanceId, local.InstanceId, StringComparison.Ordinal))
+            ? PlayerApi.GetCurrentCareerId()
+            : "";
+    }
+
     public static bool TryHeal(IStatusManager? target, int amount)
     {
         if (!IsAlive(target) || amount <= 0)
@@ -61,6 +89,26 @@ public static class StatusApi
         }
     }
 
+    public static bool TryIncreaseMaxHp(IStatusManager? target, int amount)
+    {
+        if (target == null || amount <= 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            target.MaxHp = Math.Max(1, target.MaxHp + amount);
+            target.UpdateStatus(true);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[StatusApi] max hp increase failed: " + ex.Message);
+            return false;
+        }
+    }
+
     public static float DynamicFloat(IStatusManager? status, string key, float fallback = 0f)
     {
         if (status == null || string.IsNullOrWhiteSpace(key))
@@ -75,6 +123,51 @@ public static class StatusApi
     public static float DynamicMultiplier(IStatusManager? status, string key)
     {
         return Math.Max(0f, DynamicFloat(status, key, 1f));
+    }
+
+    public static IStatusManager? FindById(string? statusId)
+    {
+        return !string.IsNullOrWhiteSpace(statusId)
+            && FightManager.Instance?.statuses?.TryGetValue(statusId, out var status) == true
+                ? status
+                : null;
+    }
+
+    public static bool SetDynamicFloat(IStatusManager? status, string key, float value)
+    {
+        if (status == null || string.IsNullOrWhiteSpace(key) || float.IsNaN(value) || float.IsInfinity(value))
+        {
+            return false;
+        }
+
+        status.dynamicVariables ??= new Dictionary<string, float>();
+        status.dynamicVariables[key] = value;
+        return true;
+    }
+
+    public static bool TryAddShield(IStatusManager? target, int amount)
+    {
+        if (!IsAlive(target) || amount <= 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            target!.Defend = Math.Max(0, target.Defend + amount);
+            target.UpdateStatus(true);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Warn("[StatusApi] shield grant failed: target="
+                + (target!.InstanceId ?? "")
+                + ", amount="
+                + amount
+                + ", error="
+                + ex.Message);
+            return false;
+        }
     }
 
     public static bool AddDynamicPercent(IStatusManager? status, string key, int percent)

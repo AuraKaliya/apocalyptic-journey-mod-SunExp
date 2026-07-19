@@ -13,7 +13,8 @@ internal static class AuraCgMediaCacheKeys
 
     public static string Sequence(SkillCgRequest request)
     {
-        return (request.BundlePath ?? "")
+        return (request.OwnerModId ?? "")
+            + "\u001f" + (request.BundlePath ?? "")
             + "\u001f" + (request.BundleAssetPrefix ?? "")
             + "\u001f" + (request.ImagePath ?? "")
             + "\u001f" + SkillCgAlphaModes.Normalize(request.AlphaMode)
@@ -27,5 +28,12 @@ internal static class AuraCgMediaCacheKeys
             + "\u001f" + SkillCgAlphaModes.Normalize(alphaMode)
             + "\u001f" + keyThreshold.ToString("0.####")
             + "\u001f" + keySoftness.ToString("0.####");
+    }
+
+    public static string Bundle(string ownerModId, string bundleId)
+    {
+        var owner = (ownerModId ?? "").Trim();
+        var id = AuraCgMediaPathResolver.NormalizeBundleId(bundleId);
+        return owner.Length == 0 ? id : owner + "\u001f" + id;
     }
 }

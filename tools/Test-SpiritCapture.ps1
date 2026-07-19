@@ -169,7 +169,7 @@ $cardApiSource = Get-Content -LiteralPath (Join-Path $repoRoot "SunExp-Dev\GameA
 $cardScriptsSource = Get-Content -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Scripting\CardScripts.cs") -Raw -Encoding UTF8
 Assert-True ($cardApiSource.Contains("DictionaryUtil.Set(config.Vars, `"NeedRemove`", `"True`");")) "adventure removal must use the host NeedRemove runtime contract."
 Assert-True ($cardScriptsSource.Contains("[`"afterglow_omen_card`"] = InitAnnihilatingTargetedAttackCard")) "Court Purification must route through annihilating initialization."
-Assert-True (([regex]::Matches($cardScriptsSource, "CardApi\.MarkForAdventureRemoval\(self\?\.dataConfig\);")).Count -eq 2) "Spirit Ball and Court Purification must share the permanent-removal facade."
+Assert-True (([regex]::Matches($cardScriptsSource, "CardApi\.MarkForAdventureRemoval\(self\?\.dataConfig\);")).Count -eq 3) "Spirit Ball, Court Purification, and Fate Star must share the permanent-removal facade."
 
 $stateStoreSource = Get-Content -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Mechanics\SpiritStateStore.cs") -Raw -Encoding UTF8
 Assert-True ($stateStoreSource.Contains("var spirit = state.Spirit;")) "spirit cleanup must capture the Unity object before validity checks."

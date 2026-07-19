@@ -42,6 +42,7 @@ public sealed class AudioProviderManifest
     public string bus = "";
     public string policy = "";
     public string path = "";
+    public string[]? variantPaths;
     public int priority;
     public bool? hardClaim;
     public bool? sync;

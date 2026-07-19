@@ -107,7 +107,7 @@ foreach ($forbidden in @("Input.GetKeyDown", "Input.GetMouseButtonDown", "preser
 }
 
 foreach ($required in @(
-    "FightPlayer.Instance?.Status",
+    "CompanionFriendlyRosterService.Snapshot(includeControlled: false)",
     "EnemyManager.Instance?.enemyList",
     "Battle.OpeningDirector",
     "InputAndProgression",
@@ -117,6 +117,9 @@ foreach ($required in @(
     if (-not $sunExpSource.Contains($required)) {
         throw "SunExp director request-source contract is missing: $required"
     }
+}
+if ($sunExpSource.Contains("CreateActor(localPlayer")) {
+    throw "SunExp director request source must not collapse the friendly roster to the local player."
 }
 if (-not $sunExpEntry.Contains('RunStep("director runtime"')) {
     throw "SunExp must initialize the local director runtime."

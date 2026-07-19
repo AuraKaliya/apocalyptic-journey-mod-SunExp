@@ -22,6 +22,7 @@ internal sealed class AudioArbiterContractTests
         VerifyNetworkSessionState();
         VerifyManifestLoader();
         VerifyManifestMatchPolicy();
+        VerifyVariantSelectionPolicy();
         VerifyProviderIdentityAndOrdering();
         VerifyProviderResolution();
         VerifyCooldownPolicy();
@@ -60,6 +61,7 @@ internal sealed class AudioArbiterContractTests
         Equal("", provider.kind, "provider kind default");
         Equal("", provider.vocalState, "provider vocal default");
         Equal("", provider.path, "provider path default");
+        Null(provider.variantPaths, "provider variant paths default");
         Equal(0, provider.priority, "provider priority default");
         Null(provider.match, "provider match default");
         Null(provider.suppressOriginal, "provider suppression default");
@@ -664,6 +666,12 @@ internal sealed class AudioArbiterContractTests
         {
             providerId = " voice ",
             path = "Shared:Audio/voice.ogg",
+            variantPaths = new[]
+            {
+                "Shared:Audio/voice-2.ogg",
+                "Shared:Audio/voice.ogg",
+                ""
+            },
             priority = 9,
             policy = " Additive ",
             kind = "CardUse",
@@ -683,6 +691,8 @@ internal sealed class AudioArbiterContractTests
         Equal("voice", plan.ProviderId, "planned provider id");
         Equal("OwnerA", plan.OwnerModId, "planned provider owner");
         Equal("shared/Audio/voice.ogg", plan.AudioPath, "shared provider path");
+        Equal(1, plan.AudioVariantPaths.Length, "provider variant paths are normalized and deduplicated");
+        Equal("shared/Audio/voice-2.ogg", plan.AudioVariantPaths[0], "shared provider variant path");
         Equal(9, plan.Priority, "planned priority");
         Equal("Vocal", plan.Bus, "default bus merged");
         Equal("Additive", plan.Policy, "provider policy overrides default");
@@ -699,6 +709,24 @@ internal sealed class AudioArbiterContractTests
         Equal(Path.Combine(root, "Audio", "voice.ogg"),
             AudioManifestLoader.ResolveProviderPath(root, "Audio/voice.ogg", path => path),
             "relative provider path");
+    }
+
+    private void VerifyVariantSelectionPolicy()
+    {
+        Equal(0, AudioVariantSelectionPolicy.SelectStartIndex("event", "Owner:voice", 0), "empty variant pool selects zero");
+        Equal(0, AudioVariantSelectionPolicy.SelectStartIndex("event", "Owner:voice", 1), "single variant pool selects zero");
+
+        var first = AudioVariantSelectionPolicy.SelectStartIndex("event-1", "Owner:voice", 3);
+        Equal(first, AudioVariantSelectionPolicy.SelectStartIndex("event-1", "Owner:voice", 3), "variant selection is event-stable");
+        True(first >= 0 && first < 3, "variant selection stays in range");
+
+        var selected = new HashSet<int>();
+        for (var i = 0; i < 64; i++)
+        {
+            selected.Add(AudioVariantSelectionPolicy.SelectStartIndex("event-" + i, "Owner:voice", 3));
+        }
+
+        Equal(3, selected.Count, "stable event hashing reaches every equal-weight variant");
     }
 
     private void VerifyManifestMatchPolicy()

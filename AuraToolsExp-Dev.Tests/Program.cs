@@ -786,6 +786,15 @@ void TestDamageMeterHudPresenter()
 
 void TestRuntimeArchitectureGuards()
 {
+    var roleCatalog = ReadRepoText("AuraToolsExp-Dev/Infrastructure/RoleCatalog.cs");
+    var roleDisplayResolver = roleCatalog.Substring(
+        roleCatalog.IndexOf("private static string ResolveDisplayName", StringComparison.Ordinal),
+        roleCatalog.IndexOf("private static List<RoleSkillInfo> ResolveSkills", StringComparison.Ordinal)
+        - roleCatalog.IndexOf("private static string ResolveDisplayName", StringComparison.Ordinal));
+    Assert(roleDisplayResolver.Contains("row.Localize(\"Name\")", StringComparison.Ordinal)
+           && !roleDisplayResolver.Contains("new DataConfig", StringComparison.Ordinal),
+        "role catalog resolves startup display names from loaded rows without forcing the unfinished DataConfig id cache");
+
     var cardRefreshRuntime = ReadRepoText("AuraToolsExp-Dev/Features/CardRefresh/AuraToolsCardRefreshRuntime.cs");
     var cardRefreshNativeApi = ReadRepoText("AuraToolsExp-Dev/Features/CardRefresh/CardChoiceRefreshNativeApi.cs");
     var matchExperienceConfig = ReadRepoText("AuraToolsExp/Config/MatchExperienceSettings.json");
@@ -804,6 +813,13 @@ void TestRuntimeArchitectureGuards()
            && matchExperienceConfig.Contains("\"cardRefresh\"", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"enabled\": false", StringComparison.Ordinal),
         "shipped card refresh configuration is present and disabled by default");
+
+    var safeBoxRuntime = ReadRepoText("AuraToolsExp-Dev/Features/SafeBox/AuraToolsSafeBoxRuntime.cs");
+    Assert(safeBoxRuntime.Contains("Mods/AuraToolsExp/ModResource/Images/UI/\\u968f\\u8eab\\u4fdd\\u9669\\u7bb1.png", StringComparison.Ordinal)
+           && safeBoxRuntime.Contains("AuraUiNativeButtonIconOwner.Apply(manager, icon)", StringComparison.Ordinal),
+        "safe box TopBar button owns all native visual-state images for the shipped portable-safe icon");
+    Assert(safeBoxRuntime.Contains("AuraUiNativeHoverHint.Attach(buttonObject, HoverHint)", StringComparison.Ordinal),
+        "safe box TopBar button registers a native-style portable-safe hover hint");
 
     var damageMeterRuntime = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/AuraToolsDamageMeterRuntime.cs");
     var damageMeterHookAdapter = ReadRepoText("AuraToolsExp-Dev/Features/DamageMeter/DamageMeterHookAdapter.cs");
@@ -861,6 +877,10 @@ void TestRuntimeArchitectureGuards()
         "damage history startup load is guarded by config");
     Assert(damageMeterSettlement.Contains("CaptureTeamAvatars", StringComparison.Ordinal),
         "team avatar capture is explicitly configurable");
+    Assert(damageMeterSettlement.Contains("AuraModeOutcomeRuntime.TryReadRecent", StringComparison.Ordinal)
+           && damageMeterSettlement.Contains("sharedOutcome.IsCompleted", StringComparison.Ordinal)
+           && !damageMeterSettlement.Contains("SunExp", StringComparison.Ordinal),
+        "damage settlement consumes the generic run-scoped mode outcome without depending on a content mod");
     Assert(damageMeterSettlement.Contains("MaxAvatarEncodePixels", StringComparison.Ordinal)
            && damageMeterSettlement.Contains("MaxAvatarPngBytes", StringComparison.Ordinal),
         "team avatar capture has pixel and byte budgets");

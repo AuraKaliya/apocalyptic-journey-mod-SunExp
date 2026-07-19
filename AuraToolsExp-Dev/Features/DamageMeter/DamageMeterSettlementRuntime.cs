@@ -82,7 +82,9 @@ internal static class DamageMeterSettlementRuntime
                 return;
             }
 
-            ArchiveActiveFightForSettlement();
+            var mode = ResolvePlayMode();
+            var completed = IsCurrentAdventureCompleted(mode.Id);
+            ArchiveActiveFightForSettlement(completed);
             var aggregate = AuraToolsDamageMeterRuntime.RunAggregate.CreateSnapshot();
             if (!AuraToolsDamageMeterRuntime.RunAggregate.HasDamage && AuraToolsDamageMeterRuntime.History.Records.Count == 0)
             {
@@ -91,13 +93,12 @@ internal static class DamageMeterSettlementRuntime
             }
 
             adventureSettlementRecorded = true;
-            var mode = ResolvePlayMode();
             var request = new OutOfRunDamageHistoryBuildRequest
             {
                 AdventureId = DamageMeterNetworkRuntime.CurrentAdventureId,
                 ModeId = mode.Id,
                 ModeDisplayName = mode.DisplayName,
-                Status = IsCurrentAdventureCompleted()
+                Status = completed
                     ? OutOfRunDamageHistoryStatus.Completed
                     : OutOfRunDamageHistoryStatus.Failed,
                 EndedUtc = DateTime.UtcNow.ToString("O"),
@@ -168,7 +169,7 @@ internal static class DamageMeterSettlementRuntime
         }
     }
 
-    internal static void ArchiveActiveFightForSettlement()
+    internal static void ArchiveActiveFightForSettlement(bool? completed = null)
     {
         if (!AuraToolsDamageMeterRuntime.Ledger.InFight)
         {
@@ -176,7 +177,7 @@ internal static class DamageMeterSettlementRuntime
         }
 
         DamageMeterLifecycleCoordinator.MarkEndingSent();
-        DamageMeterNetworkRuntime.EndFight(IsGameExitLoss() ? "Loss" : "Win");
+        DamageMeterNetworkRuntime.EndFight((completed ?? !IsGameExitLoss()) ? "Win" : "Loss");
     }
 
     internal static PlayModeInfo ResolvePlayMode()
@@ -218,8 +219,32 @@ internal static class DamageMeterSettlementRuntime
         return new PlayModeInfo(string.IsNullOrWhiteSpace(modeType) ? "Unknown" : modeType, "未知模式");
     }
 
-    internal static bool IsCurrentAdventureCompleted()
+    internal static bool IsCurrentAdventureCompleted(string? expectedModeId = null)
     {
+        var activeMode = AuraModeRuntime.Current(AuraToolsIds.ModId);
+        var modeId = string.IsNullOrWhiteSpace(expectedModeId) ? activeMode?.ModeId ?? "" : (expectedModeId ?? "").Trim();
+        var runId = activeMode != null
+                    && string.Equals(activeMode.ModeId, modeId, StringComparison.OrdinalIgnoreCase)
+            ? activeMode.Run?.RunId ?? ""
+            : "";
+        if (AuraModeOutcomeRuntime.TryReadRecent(
+                modeId,
+                runId,
+                TimeSpan.FromSeconds(30),
+                out var sharedOutcome))
+        {
+            AuraToolsLog.Info("[DamageMeter] adventure outcome resolved from shared mode handoff: mode="
+                              + sharedOutcome.ModeId
+                              + ", runId="
+                              + sharedOutcome.RunId
+                              + ", status="
+                              + sharedOutcome.Status
+                              + ", source="
+                              + sharedOutcome.Source
+                              + ".");
+            return sharedOutcome.IsCompleted;
+        }
+
         if (IsGameExitLoss())
         {
             return false;

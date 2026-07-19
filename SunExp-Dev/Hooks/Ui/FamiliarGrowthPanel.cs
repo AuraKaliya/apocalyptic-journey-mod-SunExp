@@ -67,6 +67,7 @@ public static class FamiliarGrowthPanel
 
     public static void Close()
     {
+        FamiliarBlessingCodexPanel.Close("FamiliarGrowthPanel.Close");
         ClearChildren(listContent);
         ClearChildren(detailContent);
         ClearChildren(actionContent);
@@ -102,15 +103,14 @@ public static class FamiliarGrowthPanel
         layout.childForceExpandHeight = false;
 
         var header = CreateLayoutObject("Header", window.transform);
-        header.AddComponent<LayoutElement>().preferredHeight = 74f;
+        header.AddComponent<LayoutElement>().preferredHeight = 46f;
         ApplyPanelImage(header, HeaderTint);
         var headerLayout = header.AddComponent<VerticalLayoutGroup>();
-        headerLayout.padding = new RectOffset(12, 12, 6, 6);
+        headerLayout.padding = new RectOffset(12, 12, 4, 4);
         headerLayout.childControlWidth = true;
         headerLayout.childControlHeight = true;
         headerLayout.childForceExpandHeight = false;
         AddTextBlock(header.transform, "\u4f7f\u9b54\u6863\u6848", 27, TextAnchor.MiddleCenter, Gold, 34f);
-        AddTextBlock(header.transform, "培养原生 Partner 本体；当前选择的 Partner 会在下轮冒险生效。", 14, TextAnchor.MiddleCenter, Pale, 24f);
 
         var body = CreateLayoutObject("Body", window.transform);
         var bodyElement = body.AddComponent<LayoutElement>();
@@ -142,7 +142,24 @@ public static class FamiliarGrowthPanel
         footerLayout.childForceExpandHeight = false;
         footerLayout.childForceExpandWidth = false;
         hintText = AddTextBlock(footer.transform, "", 13, TextAnchor.MiddleLeft, Pale, ButtonHeight, 1f);
-        CreateButton(footer.transform, "\u5173\u95ed", new Vector2(InlineButtonWidth, ButtonHeight), Close);
+        SunExpUiComponents.CreateTextButton(
+            footer.transform,
+            "使魔祝福图鉴",
+            new Vector2(150f, ButtonHeight),
+            SunExpUiSprites.Button("[FamiliarGrowth]"),
+            HeaderTint,
+            Pale,
+            14,
+            FamiliarBlessingCodexPanel.Open);
+        SunExpUiComponents.CreateTextButton(
+            footer.transform,
+            "\u5173\u95ed",
+            new Vector2(InlineButtonWidth, ButtonHeight),
+            SunExpUiSprites.Button("[FamiliarGrowth]"),
+            HeaderTint,
+            Pale,
+            14,
+            Close);
 
         RefreshAll();
     }
@@ -225,7 +242,7 @@ public static class FamiliarGrowthPanel
         var selected = string.Equals(activePartnerId, instance.FullSpeciesId, StringComparison.OrdinalIgnoreCase)
             ? "  [当前使魔]"
             : "";
-        AddTextBlock(row.transform, instance.Name + selected + "\nLv." + instance.Level + "  " + instance.InstanceId,
+        AddTextBlock(row.transform, instance.Name + selected + "\nLv." + instance.Level,
             13, TextAnchor.MiddleLeft, Pale, 46f, 1f);
         var button = row.AddComponent<Button>();
         AuraUiButtonFeedback.Apply(button, row.GetComponent<Image>(), Pale);
@@ -273,7 +290,6 @@ public static class FamiliarGrowthPanel
         AddInfo(detailContent, "\u7ecf\u9a8c", ExperienceText(instance));
         AddInfo(detailContent, "\u8d44\u8d28", FamiliarBlessingRoller.AptitudeLabel(instance.Aptitude) + " (" + instance.Aptitude + ")");
         AddInfo(detailContent, "重生次数", instance.RebirthCount.ToString());
-        AddInfo(detailContent, "祝福节点", "Lv.2 / 4 / 6 成长，Lv.8 最终，Lv.10 重生");
         if (species != null && !string.IsNullOrWhiteSpace(species.NativeBlessingId))
         {
             AddInfo(detailContent, "\u539f\u751f\u795d\u798f", BlessingDisplayName(species.NativeBlessingId));

@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using AuraDirector.Detour;
 using AuraDirector.Shared;
 using AuraShared.Core;
+using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
+using SunExp.Dll.Mechanics;
 using Witch.Mod;
 
 namespace SunExp.Dll.Features.Director;
@@ -47,17 +49,25 @@ public static class SunExpDirectorRuntime
                 return null;
             }
 
-            var localPlayer = FightPlayer.Instance?.Status as StatusManager;
+            var friendlyStatuses = CompanionFriendlyRosterService.Snapshot(includeControlled: false);
             var enemies = EnemyManager.Instance?.enemyList;
-            if (localPlayer == null || enemies == null || enemies.Count == 0)
+            if (friendlyStatuses.Count == 0 || enemies == null || enemies.Count == 0)
             {
                 return null;
             }
 
-            var actors = new List<AuraDirectorActorRef>(1 + enemies.Count)
+            var actors = new List<AuraDirectorActorRef>(friendlyStatuses.Count + enemies.Count);
+            foreach (var status in friendlyStatuses)
             {
-                CreateActor(localPlayer, AuraDirectorActorKind.Player, AuraDirectorActorSide.Friendly)
-            };
+                if (!StatusApi.IsAlive(status))
+                {
+                    continue;
+                }
+
+                actors.Add(CreateActor(status, AuraDirectorActorKind.Player, AuraDirectorActorSide.Friendly));
+            }
+
+            var friendlyCount = actors.Count;
 
             foreach (var enemy in enemies)
             {
@@ -69,10 +79,21 @@ public static class SunExpDirectorRuntime
                 actors.Add(CreateActor(status, AuraDirectorActorKind.Enemy, AuraDirectorActorSide.Hostile));
             }
 
-            if (actors.Count == 1)
+            var hostileCount = actors.Count - friendlyCount;
+            if (friendlyCount == 0 || hostileCount == 0)
             {
                 return null;
             }
+
+            SunExpLog.Info("[AuraDirector] opening roster captured; battleSession="
+                + battleSessionId
+                + ", friendlyCount="
+                + friendlyCount
+                + ", hostileCount="
+                + hostileCount
+                + ", actors="
+                + string.Join(",", actors.ConvertAll(actor => actor.ActorKey))
+                + ".");
 
             return new AuraDirectorRequest
             {
@@ -96,12 +117,12 @@ public static class SunExpDirectorRuntime
         }
 
         private static AuraDirectorActorRef CreateActor(
-            StatusManager status,
+            IStatusManager status,
             AuraDirectorActorKind kind,
             AuraDirectorActorSide side)
         {
             var actorId = string.IsNullOrWhiteSpace(status.InstanceId)
-                ? "status-" + status.GetInstanceID()
+                ? "status-" + status.GetHashCode()
                 : status.InstanceId;
             return new AuraDirectorActorRef
             {

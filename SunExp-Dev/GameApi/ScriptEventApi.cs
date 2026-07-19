@@ -79,6 +79,26 @@ public static class ScriptEventApi
         }), context);
     }
 
+    public static bool TryAddEvent<T>(ScriptExecutor? executor, string eventName, Action<T> script, string context = "")
+        where T : ISourceData
+    {
+        if (executor == null || executor.Self == null || string.IsNullOrWhiteSpace(eventName) || script == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            executor.AddEvent(eventName, script);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Debug("TryAddEvent<T> skipped: " + context + ", event=" + eventName + ", error=" + ex.Message);
+            return false;
+        }
+    }
+
     public static bool TryAddOwnedEventListener(
         string eventName,
         Action script,

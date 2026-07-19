@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "packageId": "SunExp.SharedResources",
-  "packageVersion": 8,
+  "packageVersion": 10,
   "ownerModId": "SunExp",
   "packageKind": "RolePack",
   "displayName": "SunExp bundled role resources",
@@ -22,6 +22,21 @@
       "destination": "Audio/SunExp/WuNa",
       "targetRoleIds": [
         "SunExp_wuna_wuna"
+      ],
+      "tags": [
+        "role-pack",
+        "voice"
+      ]
+    },
+    {
+      "system": "Audio",
+      "resourceId": "SunExp.Columbina.VoicePack",
+      "kind": "Directory",
+      "source": "Audio/Columbina",
+      "destination": "Audio/SunExp/Columbina",
+      "targetRoleIds": [
+        "SunExp_columbina_columbina",
+        "columbina"
       ],
       "tags": [
         "role-pack",
@@ -67,6 +82,29 @@
       ],
       "metadata": {
         "cardId": "SunExp_wuna_wuna_white_sun_prayer",
+        "presentationMode": "fullscreenFade",
+        "fit": "cover",
+        "focusX": "0.5",
+        "focusY": "0.5",
+        "safeScale": "1.0"
+      }
+    },
+    {
+      "system": "CG",
+      "resourceId": "SunExp.Columbina.Homesickness.SkillCg",
+      "kind": "File",
+      "source": "CG/Columbina/Columbina_她的乡愁.png",
+      "destination": "CG/SunExp/Columbina/Columbina_她的乡愁.png",
+      "targetRoleIds": [
+        "SunExp_columbina_columbina",
+        "columbina"
+      ],
+      "tags": [
+        "skill-cg",
+        "active-skill"
+      ],
+      "metadata": {
+        "cardId": "SunExp_columbina_columbina_homesickness",
         "presentationMode": "fullscreenFade",
         "fit": "cover",
         "focusX": "0.5",
@@ -138,6 +176,27 @@
       "targetRoleIds": [
         "SunExp_wuna_wuna",
         "wuna"
+      ],
+      "tags": [
+        "feast-cg"
+      ],
+      "metadata": {
+        "presentationMode": "fullscreenFade",
+        "fit": "cover",
+        "focusX": "0.5",
+        "focusY": "0.5",
+        "safeScale": "1.0"
+      }
+    },
+    {
+      "system": "CG",
+      "resourceId": "SunExp.Columbina.FeastCg",
+      "kind": "File",
+      "source": "CG/Columbina/Columbina_美餐.png",
+      "destination": "CG/SunExp/Columbina/Columbina_美餐.png",
+      "targetRoleIds": [
+        "SunExp_columbina_columbina",
+        "columbina"
       ],
       "tags": [
         "feast-cg"

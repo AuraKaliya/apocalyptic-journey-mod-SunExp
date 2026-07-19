@@ -26,6 +26,7 @@ public static class SkillCgArbiterRuntime
     private static readonly HashSet<string> ReuseLogOwners = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> CompatibilityErrorsShown = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, string> DataDirectories = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, string> ContentDirectories = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, Material> RegisteredMaterials = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, AssetBundle> RegisteredBundles = new(StringComparer.OrdinalIgnoreCase);
     private static readonly AuraCgRegisteredRequestResolver RegisteredRequestResolver = new(
@@ -44,6 +45,7 @@ public static class SkillCgArbiterRuntime
         {
             AuraSharedRuntime.Initialize(modConfig, ownerModId);
             DataDirectories[ownerModId] = AuraSharedPaths.RootDirectory;
+            ContentDirectories[ownerModId] = modConfig.DirectoryName;
             AuraCgRpcAuthorityRuntime.Initialize(modConfig);
         }
 
@@ -98,7 +100,14 @@ public static class SkillCgArbiterRuntime
             return;
         }
 
-        RegisteredBundles[id] = bundle;
+        var owner = BundleOwnerFromPath(id);
+        RegisteredBundles[AuraCgMediaCacheKeys.Bundle(owner, id)] = bundle;
+
+        var gameObject = GameObject.Find(GlobalObjectName);
+        if (gameObject != null)
+        {
+            Invoke(FindArbiterComponent(gameObject), "InvalidateRegisteredBundle", new RegisteredBundleChange(owner, id));
+        }
     }
 
     public static void PreloadCg(string ownerModId, IEnumerable<SkillCgRequest> requests)
@@ -466,9 +475,22 @@ public static class SkillCgArbiterRuntime
         var normalizedResource = NormalizeRelativeResourcePath(resource);
         var candidates = new List<string>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var ownerContentRelative = OwnerContentRelativePath(ownerModId, normalizedResource);
+        var isOwnerQualifiedModPath = !string.Equals(ownerContentRelative, normalizedResource, StringComparison.OrdinalIgnoreCase);
+        if (isOwnerQualifiedModPath && ContentDirectories.TryGetValue(ownerModId, out var qualifiedContentDirectory))
+        {
+            AddCandidate(candidates, seen, qualifiedContentDirectory, ownerContentRelative);
+        }
+
         if (DataDirectories.TryGetValue(ownerModId, out var dataDirectory))
         {
             AddCandidate(candidates, seen, dataDirectory, normalizedResource);
+        }
+
+        if (!isOwnerQualifiedModPath
+            && ContentDirectories.TryGetValue(ownerModId, out var contentDirectory))
+        {
+            AddCandidate(candidates, seen, contentDirectory, ownerContentRelative);
         }
 
         AddCandidate(candidates, seen, fallbackPath?.Trim() ?? "");
@@ -484,6 +506,20 @@ public static class SkillCgArbiterRuntime
         return candidates.Count > 0 ? candidates[0] : normalizedResource;
     }
 
+    private static string OwnerContentRelativePath(string ownerModId, string resource)
+    {
+        var owner = (ownerModId ?? "").Trim().Trim('/');
+        if (owner.Length == 0)
+        {
+            return resource;
+        }
+
+        var prefix = "Mods/" + owner + "/";
+        return resource.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            ? resource.Substring(prefix.Length)
+            : resource;
+    }
+
     private static string NormalizeRelativeResourcePath(string value)
     {
         return AuraCgMediaPathResolver.NormalizeRelativeResourcePath(value);
@@ -492,6 +528,14 @@ public static class SkillCgArbiterRuntime
     private static string NormalizeBundleId(string value)
     {
         return AuraCgMediaPathResolver.NormalizeBundleId(value);
+    }
+
+    private static string BundleOwnerFromPath(string bundleId)
+    {
+        var segments = NormalizeBundleId(bundleId).Split('/');
+        return segments.Length >= 3 && string.Equals(segments[0], "Mods", StringComparison.OrdinalIgnoreCase)
+            ? segments[1].Trim()
+            : "";
     }
 
     private static void AddCandidate(List<string> candidates, HashSet<string> seen, string rootDirectory, string relativeResource)
@@ -696,7 +740,7 @@ public static class SkillCgArbiterRuntime
         }
 
         var method = target.GetType()
-            .GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public);
+            .GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         if (method == null)
         {
             return false;
@@ -718,6 +762,19 @@ public static class SkillCgArbiterRuntime
         public string OwnerModId { get; }
 
         public string Reason { get; }
+    }
+
+    private sealed class RegisteredBundleChange
+    {
+        public RegisteredBundleChange(string ownerModId, string bundleId)
+        {
+            OwnerModId = ownerModId;
+            BundleId = bundleId;
+        }
+
+        public string OwnerModId { get; }
+
+        public string BundleId { get; }
     }
 
     public sealed class SkillCgAdventurePreloadRequest
@@ -767,13 +824,25 @@ public static class SkillCgArbiterRuntime
             overlayPresenter = new AuraCgOverlayPresenter(this, ResolveRegisteredMaterial);
             mediaRepository = new AuraCgUnityMediaRepository(
                 ResolveRegisteredBundle,
-                bundleId => ResolveImagePath("", bundleId, bundleId),
+                (ownerModId, bundleId) => ResolveImagePath(ownerModId, bundleId, bundleId),
                 overlayPresenter.ShouldApplyCpuAlphaMode);
         }
 
-        private static AssetBundle? ResolveRegisteredBundle(string bundleId)
+        private static AssetBundle? ResolveRegisteredBundle(string ownerModId, string bundleId)
         {
-            return RegisteredBundles.TryGetValue(bundleId, out var bundle) ? bundle : null;
+            if (RegisteredBundles.TryGetValue(AuraCgMediaCacheKeys.Bundle(ownerModId, bundleId), out var bundle))
+            {
+                return bundle;
+            }
+
+            return RegisteredBundles.TryGetValue(AuraCgMediaCacheKeys.Bundle("", bundleId), out bundle) ? bundle : null;
+        }
+
+        private void InvalidateRegisteredBundle(object change)
+        {
+            mediaRepository?.InvalidateBundleMiss(
+                ReadStringProperty(change, "OwnerModId"),
+                ReadStringProperty(change, "BundleId"));
         }
 
         private static Material? ResolveRegisteredMaterial(string materialId)

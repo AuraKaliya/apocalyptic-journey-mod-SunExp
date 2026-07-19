@@ -42,6 +42,103 @@ public static class BuffApi
         return status?.GetBuff(buffId) != null;
     }
 
+    public static bool PrepareRuntimePresentation(
+        IBuffItemConfig? buffConfig,
+        IReadOnlyDictionary<string, string> presentationFields)
+    {
+        var source = buffConfig?.dataConfig;
+        if (source?.data == null || source.Vars == null
+            || presentationFields == null || presentationFields.Count == 0)
+        {
+            return false;
+        }
+
+        var mergedData = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var field in source.data)
+        {
+            mergedData[field.Key] = field.Value;
+        }
+
+        var mergedVars = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var field in source.Vars)
+        {
+            mergedVars[field.Key] = field.Value;
+        }
+
+        foreach (var field in presentationFields)
+        {
+            if (string.IsNullOrWhiteSpace(field.Key))
+            {
+                continue;
+            }
+
+            mergedData[field.Key] = field.Value ?? "";
+            mergedVars[field.Key] = field.Value ?? "";
+        }
+
+        var replacement = new DataConfig(
+            mergedData,
+            mergedVars,
+            ifPreCompile: false,
+            type: DataType.Buff);
+        var scripts = source.scriptExecutor?.ScriptDict;
+        if (scripts != null && replacement.scriptExecutor != null)
+        {
+            replacement.scriptExecutor.ScriptDict = new Dictionary<string, Delegate>(scripts);
+        }
+
+        buffConfig!.dataConfig = replacement;
+        return true;
+    }
+
+    public static bool ApplyRuntimePresentation(
+        IStatusManager? status,
+        string buffId,
+        IReadOnlyDictionary<string, string> presentationFields)
+    {
+        return ApplyRuntimePresentation(status?.GetBuff(buffId), presentationFields);
+    }
+
+    public static bool ApplyRuntimePresentation(
+        IBuffItem? buff,
+        IReadOnlyDictionary<string, string> presentationFields)
+    {
+        var config = buff?.buffConfig?.dataConfig;
+        if (config?.Vars == null || presentationFields == null || presentationFields.Count == 0)
+        {
+            return false;
+        }
+
+        var changed = false;
+        foreach (var field in presentationFields)
+        {
+            if (string.IsNullOrWhiteSpace(field.Key)
+                || string.Equals(DictionaryUtil.Get(config.Vars, field.Key), field.Value, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            DictionaryUtil.Set(config.Vars, field.Key, field.Value ?? "");
+            changed = true;
+        }
+
+        if (!changed)
+        {
+            return false;
+        }
+
+        try
+        {
+            buff!.UpdateMsg();
+        }
+        catch (Exception ex)
+        {
+            SunExpLog.Debug("[BuffApi] runtime presentation refresh skipped: " + ex.Message);
+        }
+
+        return true;
+    }
+
     public static bool TryAddBattleScopedBuffOnce(
         IStatusManager? status,
         string buffId,
@@ -413,6 +510,42 @@ public static class BuffApi
         }
 
         buff.buffConfig.Level = level;
+    }
+
+    public static int SetExactLevelWithNativeRefresh(IStatusManager? status, string buffId, int nextLevel)
+    {
+        if (status == null || string.IsNullOrWhiteSpace(buffId))
+        {
+            return 0;
+        }
+
+        var requested = Math.Max(0, nextLevel);
+        var current = Level(status, buffId);
+        if (requested == current)
+        {
+            return current;
+        }
+
+        if (requested > current)
+        {
+            status.AddBuff(buffId, requested - current);
+            var refreshed = Level(status, buffId);
+            if (refreshed == requested)
+            {
+                return refreshed;
+            }
+
+            SunExpLog.Warn("[BuffApi] native level refresh did not reach the requested level; buff="
+                + buffId
+                + ", requested="
+                + requested
+                + ", actual="
+                + refreshed
+                + ". Applying exact fallback.");
+        }
+
+        SetExactLevel(status, buffId, requested);
+        return Level(status, buffId);
     }
 
     public static void SetExactLevel(IStatusManager? status, string buffId, int nextLevel, bool keepZero)

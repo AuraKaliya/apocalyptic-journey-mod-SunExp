@@ -83,6 +83,44 @@
       "enabled": true
     },
     {
+      "cgId": "columbina.homesickness",
+      "displayName": "Columbina - 她的乡愁",
+      "kind": "skill",
+      "targetRoleIds": [
+        "SunExp_columbina_columbina",
+        "columbina"
+      ],
+      "cardIds": [
+        "SunExp_columbina_columbina_homesickness",
+        "*columbina_homesickness"
+      ],
+      "media": {
+        "type": "image",
+        "resource": "CG/SunExp/Columbina/Columbina_她的乡愁.png",
+        "fallbackImage": "CG/SunExp/Columbina/Columbina_她的乡愁.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.4,
+        "hold": 2.1,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "contentOwned"
+      },
+      "priority": 20,
+      "tags": [
+        "skill-cg",
+        "active-skill"
+      ],
+      "enabled": true
+    },
+    {
       "cgId": "sunexp.blazing-crown-collapse",
       "displayName": "SunExp - 炽冕崩落",
       "kind": "cardUse",
@@ -184,6 +222,43 @@
         "type": "image",
         "resource": "CG/SunExp/WuNa/WuNa_美餐.png",
         "fallbackImage": "CG/SunExp/WuNa/WuNa_美餐.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 20,
+      "tags": [
+        "feast-cg"
+      ],
+      "enabled": true
+    },
+    {
+      "cgId": "columbina.feast",
+      "displayName": "Columbina - 美餐",
+      "kind": "feast",
+      "targetRoleIds": [
+        "SunExp_columbina_columbina",
+        "columbina"
+      ],
+      "cardIds": [
+        "*"
+      ],
+      "media": {
+        "type": "image",
+        "resource": "CG/SunExp/Columbina/Columbina_美餐.png",
+        "fallbackImage": "CG/SunExp/Columbina/Columbina_美餐.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade",

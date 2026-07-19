@@ -20,17 +20,40 @@ public static class FamiliarBlessingRegistry
         "BurnStackToEmber",
         "BurnTriggeredEmber",
         "CombatStartBuff",
+        "CombatStartCard",
         "CombatStartDraw",
         "CombatStartEnemyBuffRandom",
         "CombatStartField",
         "CombatStartHeal",
+        "CombatStartModifiedCard",
+        "CombatStartRandomModification",
         "CombatStartResource",
         "CombatStartShield",
+        "CardUseAdventureOrigin",
+        "CompositeDoomProcPlayerBuff",
+        "CompositeDoomProcRandomEnemyBundle",
+        "CrowEveryNthSettlementHpDamage",
+        "CrowExtraSettlement",
+        "DamageNormalEchoByBuff",
+        "DamageTrueEchoByBuff",
+        "DuskAfterheatMultiplierAndCap",
         "EmberOffsetBurnTransfer",
+        "EnemyDeathBurnTransfer",
+        "EnemyDeathPersistentSoul",
         "FirstActionResource",
         "FirstDamageTargetBuff",
+        "FirstDamageTargetBuffPerRound",
+        "FirstDamageTrueEchoPerRound",
         "FirstStarScoreExtraBlessing",
-        "RunDiceBonus"
+        "AfterResurrectionRecovery",
+        "NetherChaseRebirthBonus",
+        "PocketCardReplacePerRound",
+        "RoundStartExtraordinaryPerEnemyDebuffKind",
+        "RunDiceBonus",
+        "StarScoreCadenceRandomOverture",
+        "StarlightCycleBuffs",
+        "StarlightCycleStarClayShape",
+        "UnusedNetherChaseWinBlessing"
     };
 
     private static FamiliarBlessingRegistryDocument document = Normalize(BuiltInDocument());
@@ -39,7 +62,7 @@ public static class FamiliarBlessingRegistry
     {
         lock (SyncRoot)
         {
-            var merged = new FamiliarBlessingRegistryDocument { SchemaVersion = 2, OwnerModId = SunExpIds.ModId };
+            var merged = new FamiliarBlessingRegistryDocument { SchemaVersion = 3, OwnerModId = SunExpIds.ModId };
             MergeInto(merged, BuiltInDocument(), "built-in");
             var mainPath = Path.Combine(modConfig.DirectoryName, SunExpIds.FamiliarBlessingRegistryFile);
             if (TryRead(mainPath, SunExpIds.ModId, out var main))
@@ -73,6 +96,14 @@ public static class FamiliarBlessingRegistry
         }
     }
 
+    public static IReadOnlyList<FamiliarSpeciesGrowthProfile> SpeciesProfiles()
+    {
+        lock (SyncRoot)
+        {
+            return document.SpeciesProfiles.ToArray();
+        }
+    }
+
     public static FamiliarBlessingDefinition? Find(string blessingId)
     {
         var id = (blessingId ?? "").Trim();
@@ -88,6 +119,7 @@ public static class FamiliarBlessingRegistry
         {
             return document.Blessings
                 .Where(IsGrowth)
+                .Where(blessing => string.Equals(blessing.Pool, "common", StringComparison.OrdinalIgnoreCase))
                 .Where(blessing => blessing.RequiredLevel <= milestone && blessing.Tier <= maxTier)
                 .Where(blessing => Allows(blessing, instance))
                 .OrderBy(blessing => blessing.Tier)
@@ -102,6 +134,7 @@ public static class FamiliarBlessingRegistry
         {
             return document.Blessings
                 .Where(blessing => string.Equals(blessing.Category, FamiliarBlessingCategory.FinalGeneric, StringComparison.Ordinal))
+                .Where(blessing => string.Equals(blessing.Pool, "final_common", StringComparison.OrdinalIgnoreCase))
                 .Where(blessing => Allows(blessing, instance))
                 .OrderBy(blessing => blessing.Id, StringComparer.Ordinal)
                 .ToArray();
@@ -116,7 +149,11 @@ public static class FamiliarBlessingRegistry
             if (profile != null && profile.FinalBlessingIds.Count > 0)
             {
                 var ids = new HashSet<string>(profile.FinalBlessingIds, StringComparer.Ordinal);
-                var explicitFinals = document.Blessings.Where(blessing => ids.Contains(blessing.Id) && IsFinal(blessing)).ToArray();
+                var explicitFinals = document.Blessings
+                    .Where(blessing => ids.Contains(blessing.Id)
+                        && string.Equals(blessing.Category, FamiliarBlessingCategory.FinalSpecies, StringComparison.Ordinal)
+                        && IsSpeciesFinalPool(blessing.Pool))
+                    .ToArray();
                 if (explicitFinals.Length > 0)
                 {
                     return explicitFinals;
@@ -128,6 +165,7 @@ public static class FamiliarBlessingRegistry
                 var tags = new HashSet<string>(profile.Tags, StringComparer.OrdinalIgnoreCase);
                 var tagged = document.Blessings
                     .Where(blessing => string.Equals(blessing.Category, FamiliarBlessingCategory.FinalTag, StringComparison.Ordinal))
+                    .Where(blessing => string.Equals(blessing.Pool, "final_tag", StringComparison.OrdinalIgnoreCase))
                     .Where(blessing => blessing.RequiredTags.Count > 0 && blessing.RequiredTags.Any(tags.Contains))
                     .ToArray();
                 if (tagged.Length > 0)
@@ -138,6 +176,7 @@ public static class FamiliarBlessingRegistry
 
             return document.Blessings
                 .Where(blessing => string.Equals(blessing.Category, FamiliarBlessingCategory.FinalSpecies, StringComparison.Ordinal))
+                .Where(blessing => IsSpeciesFinalPool(blessing.Pool))
                 .Where(blessing => AllowsSpecies(blessing, instance))
                 .ToArray();
         }
@@ -217,6 +256,14 @@ public static class FamiliarBlessingRegistry
                    || string.Equals(FamiliarId.NormalizeSpeciesId(value), FamiliarId.NormalizeSpeciesId(instance.SpeciesId), StringComparison.OrdinalIgnoreCase));
     }
 
+    private static bool IsSpeciesFinalPool(string pool)
+    {
+        var value = (pool ?? "").Trim();
+        return value.StartsWith("final_", StringComparison.OrdinalIgnoreCase)
+               && !string.Equals(value, "final_common", StringComparison.OrdinalIgnoreCase)
+               && !string.Equals(value, "final_tag", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static bool TryRead(string path, string defaultOwner, out FamiliarBlessingRegistryDocument result)
     {
         result = new FamiliarBlessingRegistryDocument();
@@ -288,6 +335,7 @@ public static class FamiliarBlessingRegistry
 
     private static void MergeInto(FamiliarBlessingRegistryDocument target, FamiliarBlessingRegistryDocument source, string sourceName)
     {
+        target.SchemaVersion = Math.Max(target.SchemaVersion, source.SchemaVersion);
         var owner = string.IsNullOrWhiteSpace(source.OwnerModId) ? SunExpIds.ModId : source.OwnerModId.Trim();
         foreach (var blessing in source.Blessings ?? new List<FamiliarBlessingDefinition>())
         {
@@ -316,7 +364,7 @@ public static class FamiliarBlessingRegistry
     {
         var result = new FamiliarBlessingRegistryDocument
         {
-            SchemaVersion = Math.Max(2, source.SchemaVersion),
+            SchemaVersion = Math.Max(3, source.SchemaVersion),
             OwnerModId = string.IsNullOrWhiteSpace(source.OwnerModId) ? SunExpIds.ModId : source.OwnerModId.Trim()
         };
         foreach (var blessing in source.Blessings ?? new List<FamiliarBlessingDefinition>())
@@ -335,7 +383,9 @@ public static class FamiliarBlessingRegistry
             blessing.Category = NormalizeCategory(blessing.Category);
             blessing.Tier = Math.Max(1, Math.Min(5, blessing.Tier));
             blessing.Weight = Math.Max(0, blessing.Weight);
-            blessing.Pool = string.IsNullOrWhiteSpace(blessing.Pool) ? "common" : blessing.Pool.Trim();
+            blessing.Pool = string.IsNullOrWhiteSpace(blessing.Pool)
+                ? DefaultPool(blessing.Category)
+                : blessing.Pool.Trim().ToLowerInvariant();
             blessing.ExclusiveGroup = blessing.ExclusiveGroup?.Trim() ?? "";
             blessing.RequiredLevel = Math.Max(1, Math.Min(FamiliarRosterService.MaxLevel, blessing.RequiredLevel));
             blessing.MaxRank = 1;
@@ -349,6 +399,12 @@ public static class FamiliarBlessingRegistry
                 effect.Value = effect.Value?.Trim() ?? "";
                 effect.Pool = effect.Pool?.Trim() ?? "";
                 effect.Amount = Math.Max(0, effect.Amount);
+                effect.Parameters = (effect.Parameters ?? new Dictionary<string, string>())
+                    .Where(pair => !string.IsNullOrWhiteSpace(pair.Key))
+                    .ToDictionary(
+                        pair => pair.Key.Trim(),
+                        pair => pair.Value?.Trim() ?? "",
+                        StringComparer.OrdinalIgnoreCase);
             }
 
             result.Blessings.RemoveAll(existing => string.Equals(existing.Id, blessing.Id, StringComparison.Ordinal));
@@ -359,6 +415,7 @@ public static class FamiliarBlessingRegistry
         {
             profile.FullSpeciesId = FamiliarId.NormalizeFullSpeciesId(profile.FullSpeciesId, profile.SpeciesId);
             profile.SpeciesId = FamiliarId.NormalizeSpeciesId(profile.SpeciesId.Length > 0 ? profile.SpeciesId : profile.FullSpeciesId);
+            profile.DisplayName = profile.DisplayName?.Trim() ?? "";
             profile.Tags = NormalizeList(profile.Tags, allowWildcard: false);
             profile.FinalBlessingIds = (profile.FinalBlessingIds ?? new List<string>())
                 .Where(id => !string.IsNullOrWhiteSpace(id))
@@ -387,6 +444,17 @@ public static class FamiliarBlessingRegistry
             : FamiliarBlessingCategory.Growth;
     }
 
+    private static string DefaultPool(string category)
+    {
+        return category switch
+        {
+            FamiliarBlessingCategory.FinalGeneric => "final_common",
+            FamiliarBlessingCategory.FinalTag => "final_tag",
+            FamiliarBlessingCategory.FinalSpecies => "final_species",
+            _ => "common"
+        };
+    }
+
     private static List<string> NormalizeList(IEnumerable<string>? values, bool allowWildcard)
     {
         var result = new List<string>();
@@ -411,14 +479,14 @@ public static class FamiliarBlessingRegistry
     {
         return new FamiliarBlessingRegistryDocument
         {
-            SchemaVersion = 2,
+            SchemaVersion = 3,
             OwnerModId = SunExpIds.ModId,
             Blessings = new List<FamiliarBlessingDefinition>
             {
                 new() { Id = "*familiar_guard_paw", Name = "防护", Description = "战斗开始时，获得10点护盾。", Category = FamiliarBlessingCategory.Growth, Tier = 1, RequiredLevel = 2, Effects = new List<FamiliarBlessingEffect> { new() { Kind = "CombatStartShield", Amount = 10 } } },
                 new() { Id = "*familiar_first_aid", Name = "治疗", Description = "战斗开始时，恢复5点生命。", Category = FamiliarBlessingCategory.Growth, Tier = 1, RequiredLevel = 2, Effects = new List<FamiliarBlessingEffect> { new() { Kind = "CombatStartHeal", Amount = 5 } } },
-                new() { Id = "*familiar_reward_omen", Name = "奖赏预感", Description = "战斗奖励额外出现1个选择。", Category = FamiliarBlessingCategory.FinalGeneric, Tier = 5, RequiredLevel = 8, Effects = new List<FamiliarBlessingEffect> { new() { Kind = "BattleRewardExtraChoice", Amount = 1 } } },
-                new() { Id = "*familiar_law_of_luck", Name = "幸运之骰", Description = "本轮冒险中，数值骰和检定骰获得少量加成。", Category = FamiliarBlessingCategory.FinalGeneric, Tier = 5, RequiredLevel = 8, Effects = new List<FamiliarBlessingEffect> { new() { Kind = "RunDiceBonus", Amount = 1 } } }
+                new() { Id = "*familiar_reward_omen", Name = "这是我应得的", Description = "战斗奖励额外出现1个选择。", Category = FamiliarBlessingCategory.FinalGeneric, Tier = 5, RequiredLevel = 8, Effects = new List<FamiliarBlessingEffect> { new() { Kind = "BattleRewardExtraChoice", Amount = 1 } } },
+                new() { Id = "*familiar_law_of_luck", Name = "幸运之骰", Description = "本轮冒险中，数值骰和检定骰的结果各增加20。", Category = FamiliarBlessingCategory.FinalGeneric, Tier = 5, RequiredLevel = 8, Effects = new List<FamiliarBlessingEffect> { new() { Kind = "RunDiceBonus", Amount = 20 } } }
             }
         };
     }

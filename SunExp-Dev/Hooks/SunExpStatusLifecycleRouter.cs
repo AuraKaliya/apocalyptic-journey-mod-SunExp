@@ -12,7 +12,10 @@ public sealed class SunExpStatusLifecycleSubscription
     public Action<ModHookContext>? AfterAddBuff { get; set; }
     public Action<ModHookContext>? AfterRemoveBuff { get; set; }
     public Action<ModHookContext>? AfterBuffLevelChanged { get; set; }
+    public Action<ModHookContext>? BeforeHit { get; set; }
     public Action<ModHookContext>? AfterHit { get; set; }
+    public Action<ModHookContext>? BeforeEnemyDead { get; set; }
+    public Action<ModHookContext>? AfterEnemyDead { get; set; }
     public Action<ModHookContext>? AfterCurHpChanged { get; set; }
     public Action<ModHookContext>? AfterMaxHpChanged { get; set; }
     public Action<ModHookContext>? AfterEnemyInit { get; set; }
@@ -40,7 +43,10 @@ public static class SunExpStatusLifecycleRouter
         After(modConfig, SunExpHookTargets.StatusManagerAddBuff, subscription => subscription.AfterAddBuff);
         After(modConfig, SunExpHookTargets.StatusManagerRemoveBuff, subscription => subscription.AfterRemoveBuff);
         After(modConfig, SunExpHookTargets.BuffItemConfigSetLevel, subscription => subscription.AfterBuffLevelChanged);
+        Before(modConfig, SunExpHookTargets.StatusManagerHit, subscription => subscription.BeforeHit);
         After(modConfig, SunExpHookTargets.StatusManagerHit, subscription => subscription.AfterHit);
+        Before(modConfig, SunExpHookTargets.StatusManagerEnemyDead, subscription => subscription.BeforeEnemyDead);
+        After(modConfig, SunExpHookTargets.StatusManagerEnemyDead, subscription => subscription.AfterEnemyDead);
         After(modConfig, SunExpHookTargets.StatusManagerSetCurHp, subscription => subscription.AfterCurHpChanged);
         After(modConfig, SunExpHookTargets.StatusManagerSetMaxHp, subscription => subscription.AfterMaxHpChanged);
         After(modConfig, SunExpHookTargets.EnemyInit, subscription => subscription.AfterEnemyInit);

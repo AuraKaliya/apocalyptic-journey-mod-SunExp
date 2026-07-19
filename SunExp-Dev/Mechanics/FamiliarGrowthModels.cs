@@ -179,7 +179,7 @@ public sealed class FamiliarRosterDocument
 
 public sealed class FamiliarBlessingRegistryDocument
 {
-    public int SchemaVersion { get; set; } = 2;
+    public int SchemaVersion { get; set; } = 3;
 
     public string OwnerModId { get; set; } = "";
 
@@ -193,6 +193,8 @@ public sealed class FamiliarSpeciesGrowthProfile
     public string FullSpeciesId { get; set; } = "";
 
     public string SpeciesId { get; set; } = "";
+
+    public string DisplayName { get; set; } = "";
 
     public List<string> Tags { get; set; } = new();
 
@@ -217,7 +219,7 @@ public sealed class FamiliarBlessingDefinition
 
     public int Weight { get; set; } = 100;
 
-    public string Pool { get; set; } = "common";
+    public string Pool { get; set; } = "";
 
     public string ExclusiveGroup { get; set; } = "";
 
@@ -243,6 +245,8 @@ public sealed class FamiliarBlessingEffect
     public string Pool { get; set; } = "";
 
     public int Amount { get; set; }
+
+    public Dictionary<string, string> Parameters { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 public readonly struct FamiliarExperienceResult

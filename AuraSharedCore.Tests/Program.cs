@@ -236,6 +236,38 @@ void TestModeContracts()
     snapshot.ResolvedPolicies.StarterDeck.MutationAuthority = AuraModeStarterDeckAuthorities.OfficialOnly;
     Assert(!AuraModePolicyEvaluator.EvaluateStarterDeckMutation(snapshot, "Content").Allowed,
         "official-only starter deck policy rejects every external provider");
+
+    Assert(AuraModeOutcomeRuntime.Publish(new AuraModeOutcomeSnapshot
+        {
+            OwnerModId = "Content",
+            ModeId = "Content:challenge",
+            RunId = "run-a",
+            OutcomeId = "outcome-a",
+            Status = AuraModeOutcomeStates.Completed,
+            Source = "authoritative settlement"
+        }),
+        "mode outcome accepts a complete authoritative handoff");
+    Assert(AuraModeOutcomeRuntime.TryReadRecent(
+               "Content:challenge",
+               "run-a",
+               TimeSpan.FromSeconds(30),
+               out var completedOutcome)
+           && completedOutcome.IsCompleted
+           && completedOutcome.Sequence > 0,
+        "mode outcome resolves a matching recent run");
+    Assert(!AuraModeOutcomeRuntime.TryReadRecent(
+            "Content:challenge",
+            "run-b",
+            TimeSpan.FromSeconds(30),
+            out _),
+        "mode outcome rejects a different run id");
+    Assert(AuraModeOutcomeRuntime.Clear("Content", "Content:challenge", "run-a")
+           && !AuraModeOutcomeRuntime.TryReadRecent(
+               "Content:challenge",
+               "run-a",
+               TimeSpan.FromSeconds(30),
+               out _),
+        "mode outcome conditional clear removes the handoff");
 }
 
 void TestDirectorContracts()

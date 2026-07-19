@@ -14,15 +14,15 @@ internal sealed class AuraCgUnityMediaRepository
     private const int MaximumCacheEntries = 512;
     private const long MaximumCacheEstimatedBytes = 256L * 1024L * 1024L;
     private const long EstimatedAssetBundleHandleBytes = 1024L * 1024L;
-    private readonly Func<string, AssetBundle?> registeredBundleResolver;
-    private readonly Func<string, string> bundlePathResolver;
+    private readonly Func<string, string, AssetBundle?> registeredBundleResolver;
+    private readonly Func<string, string, string> bundlePathResolver;
     private readonly Func<string, bool> shouldApplyCpuAlphaMode;
     private readonly AuraCgMediaReleaseQueue<Sprite, AssetBundle> releaseQueue = new();
     private readonly AuraCgMediaCache<Sprite, AssetBundle> cache;
 
     public AuraCgUnityMediaRepository(
-        Func<string, AssetBundle?> registeredBundleResolver,
-        Func<string, string> bundlePathResolver,
+        Func<string, string, AssetBundle?> registeredBundleResolver,
+        Func<string, string, string> bundlePathResolver,
         Func<string, bool> shouldApplyCpuAlphaMode)
     {
         this.registeredBundleResolver = registeredBundleResolver ?? throw new ArgumentNullException(nameof(registeredBundleResolver));
@@ -195,7 +195,7 @@ internal sealed class AuraCgUnityMediaRepository
         List<Sprite> result,
         Func<bool>? keepLoading)
     {
-        var bundle = ResolveAssetBundle(request.BundlePath);
+        var bundle = ResolveAssetBundle(request.OwnerModId, request.BundlePath);
         if (bundle == null)
         {
             yield break;
@@ -264,7 +264,12 @@ internal sealed class AuraCgUnityMediaRepository
         }
     }
 
-    private AssetBundle? ResolveAssetBundle(string bundlePath)
+    public void InvalidateBundleMiss(string ownerModId, string bundlePath)
+    {
+        cache.RemoveMissingBundle(AuraCgMediaCacheKeys.Bundle(ownerModId, bundlePath));
+    }
+
+    private AssetBundle? ResolveAssetBundle(string ownerModId, string bundlePath)
     {
         var id = AuraCgMediaPathResolver.NormalizeBundleId(bundlePath);
         if (id.Length == 0)
@@ -272,35 +277,40 @@ internal sealed class AuraCgUnityMediaRepository
             return null;
         }
 
-        var registered = registeredBundleResolver(id);
+        var registered = registeredBundleResolver(ownerModId, id);
         if (registered != null)
         {
             return registered;
         }
 
-        if (cache.TryGetBundle(id, out var cached))
+        var cacheKey = AuraCgMediaCacheKeys.Bundle(ownerModId, id);
+        if (cache.TryGetBundle(cacheKey, out var cached))
         {
             return cached;
         }
 
-        var resolved = bundlePathResolver(id);
+        var resolved = bundlePathResolver(ownerModId, id);
         if (!File.Exists(resolved))
         {
-            cache.StoreBundle(id, null);
-            AuraCgLog.WarnOnce("bundle-missing:" + id, "CG asset bundle is not registered or found: " + id);
+            cache.StoreBundle(cacheKey, null);
+            AuraCgLog.WarnOnce(
+                "bundle-missing:" + cacheKey,
+                "CG asset bundle is not registered or found: owner=" + ownerModId + ", bundle=" + id + ", resolved=" + resolved);
             return null;
         }
 
         try
         {
             var bundle = AssetBundle.LoadFromFile(resolved);
-            cache.StoreBundle(id, bundle, EstimatedAssetBundleHandleBytes);
+            cache.StoreBundle(cacheKey, bundle, EstimatedAssetBundleHandleBytes);
             return bundle;
         }
         catch (Exception ex)
         {
-            cache.StoreBundle(id, null);
-            AuraCgLog.WarnOnce("bundle-load-failed:" + id, "CG asset bundle load failed: " + id + ", error=" + ex.Message);
+            cache.StoreBundle(cacheKey, null);
+            AuraCgLog.WarnOnce(
+                "bundle-load-failed:" + cacheKey,
+                "CG asset bundle load failed: owner=" + ownerModId + ", bundle=" + id + ", resolved=" + resolved + ", error=" + ex.Message);
             return null;
         }
     }

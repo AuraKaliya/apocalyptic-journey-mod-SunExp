@@ -66,6 +66,7 @@ public static class SunExpHookTargets
     public const string BuffItemConfigSetLevel = "BuffItemConfig.set_Level";
     public const string BuffBarUiCheckAllBuff = "BuffBarUI.CheckAllBuff";
     public const string StatusManagerHit = "StatusManager.Hit";
+    public const string StatusManagerEnemyDead = "StatusManager.EnemyDead";
     public const string StatusManagerSetCurHp = "StatusManager.set_CurHp";
     public const string StatusManagerSetMaxHp = "StatusManager.set_MaxHp";
     public const string StatusManagerInitAnimator = "StatusManager.InitAnimator";

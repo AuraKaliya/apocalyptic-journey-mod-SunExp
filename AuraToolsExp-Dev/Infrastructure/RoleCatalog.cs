@@ -126,8 +126,11 @@ public static class RoleCatalog
     {
         try
         {
-            var data = new DataConfig(id, DataType.Career).data;
-            var localized = data.Localize("Name");
+            // Role scans can run while registered CG defaults are being imported,
+            // before DataConfig's id cache is ready. The table row is already the
+            // authoritative source here, so localize it directly without forcing
+            // an early DataConfig lookup that logs a false missing-key error.
+            var localized = row.Localize("Name");
             if (!string.IsNullOrWhiteSpace(localized) && !string.Equals(localized, "Name", StringComparison.OrdinalIgnoreCase))
             {
                 return localized;
@@ -135,7 +138,7 @@ public static class RoleCatalog
         }
         catch
         {
-            // Fall through to raw CSV values.
+            // Fall through to raw table values.
         }
 
         return row.TryGetValue("Name", out var name) && !string.IsNullOrWhiteSpace(name) ? name : id;

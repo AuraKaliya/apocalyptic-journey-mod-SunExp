@@ -125,6 +125,112 @@
           "Win"
         ]
       }
+    },
+    {
+      "providerId": "SunExp.Columbina.CareerSelected",
+      "kind": "CareerSelected",
+      "bus": "Vocal",
+      "policy": "ReplaceOriginal",
+      "priority": 100,
+      "path": "Shared:Audio/SunExp/Columbina/columbina_career_selected_01.ogg",
+      "variantPaths": [
+        "Shared:Audio/SunExp/Columbina/columbina_career_selected_02.ogg",
+        "Shared:Audio/SunExp/Columbina/columbina_career_selected_03.ogg",
+        "Shared:Audio/SunExp/Columbina/columbina_career_selected_04.ogg"
+      ],
+      "gainDb": 8,
+      "match": {
+        "careerIds": [
+          "columbina",
+          "SunExp_columbina_columbina"
+        ],
+        "roleIds": [
+          "columbina",
+          "SunExp_columbina_columbina"
+        ]
+      }
+    },
+    {
+      "providerId": "SunExp.Columbina.LowHealth",
+      "kind": "LowHealth",
+      "bus": "Vocal",
+      "policy": "ReplaceOriginal",
+      "priority": 200,
+      "path": "Shared:Audio/SunExp/Columbina/columbina_low_health_01.ogg",
+      "variantPaths": [
+        "Shared:Audio/SunExp/Columbina/columbina_low_health_02.ogg"
+      ],
+      "gainDb": 8,
+      "cooldownSeconds": 1.0,
+      "match": {
+        "careerIds": [
+          "columbina",
+          "SunExp_columbina_columbina"
+        ],
+        "roleIds": [
+          "columbina",
+          "SunExp_columbina_columbina"
+        ],
+        "hpRatioCrossDown": 0.2,
+        "localOwnerOnly": true
+      },
+      "suppressOriginal": {
+        "vocalStates": [
+          "Dying"
+        ],
+        "narrationIds": [
+          17,
+          18
+        ]
+      }
+    },
+    {
+      "providerId": "SunExp.Columbina.EternalTide",
+      "kind": "SunExp.Columbina.EternalTide",
+      "bus": "Vocal",
+      "policy": "Additive",
+      "priority": 120,
+      "path": "Shared:Audio/SunExp/Columbina/columbina_eternal_tide_01.ogg",
+      "variantPaths": [
+        "Shared:Audio/SunExp/Columbina/columbina_eternal_tide_02.ogg",
+        "Shared:Audio/SunExp/Columbina/columbina_eternal_tide_03.ogg"
+      ],
+      "gainDb": 8,
+      "cooldownSeconds": 0.2,
+      "match": {
+        "careerIds": [
+          "columbina",
+          "SunExp_columbina_columbina"
+        ],
+        "roleIds": [
+          "columbina",
+          "SunExp_columbina_columbina"
+        ]
+      }
+    },
+    {
+      "providerId": "SunExp.Columbina.Homesickness",
+      "kind": "SunExp.Columbina.Homesickness",
+      "bus": "Vocal",
+      "policy": "Additive",
+      "priority": 120,
+      "path": "Shared:Audio/SunExp/Columbina/columbina_homesickness_01.ogg",
+      "variantPaths": [
+        "Shared:Audio/SunExp/Columbina/columbina_homesickness_02.ogg",
+        "Shared:Audio/SunExp/Columbina/columbina_homesickness_03.ogg"
+      ],
+      "gainDb": 8,
+      "cooldownSeconds": 0.2,
+      "match": {
+        "careerIds": [
+          "columbina",
+          "SunExp_columbina_columbina"
+        ],
+        "roleIds": [
+          "columbina",
+          "SunExp_columbina_columbina"
+        ]
+      }
     }
   ],
   "battleBgmDefaults": {

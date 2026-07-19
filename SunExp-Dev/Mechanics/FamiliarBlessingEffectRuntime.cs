@@ -41,10 +41,12 @@ public static class FamiliarBlessingEffectRuntime
         round = 0;
         firstActionPending = false;
         AttachDiceBonus(status.MirrorSc as ScriptExecutor);
-        if (status.MirrorSc is ScriptExecutor executor && HasAnyEffect("BurnTriggeredEmber", "BurnStackToEmber", "EmberOffsetBurnTransfer"))
+        if (status.MirrorSc is ScriptExecutor executor && HasAnyEffect("BurnTriggeredEmber", "BurnStackToEmber", "EmberOffsetBurnTransfer", "DuskAfterheatMultiplierAndCap", "DamageNormalEchoByBuff", "EnemyDeathBurnTransfer"))
         {
             DuskAfterheatRecoveryService.ActivateFamiliar(executor, "FamiliarGrowth.BeginEpoch");
         }
+
+        FamiliarFinalBlessingService.BeginEpoch(status);
 
         return ApplyCombatStartEffects(status);
     }
@@ -54,6 +56,7 @@ public static class FamiliarBlessingEffectRuntime
         activeEpoch = 0;
         round = 0;
         firstActionPending = false;
+        FamiliarFinalBlessingService.EndEpoch();
     }
 
     public static void BeginPlayerRound()
@@ -66,6 +69,7 @@ public static class FamiliarBlessingEffectRuntime
         round++;
         firstActionPending = true;
         DuskAfterheatRecoveryService.BeginPlayerRound();
+        FamiliarFinalBlessingService.BeginPlayerRound();
     }
 
     public static void AfterPlayerAction()
@@ -174,7 +178,30 @@ public static class FamiliarBlessingEffectRuntime
             "BurnTriggeredEmber",
             "BurnStackToEmber",
             "EmberOffsetBurnTransfer",
-            "CombatStartField"
+            "CombatStartField",
+            "CombatStartCard",
+            "CombatStartModifiedCard",
+            "CombatStartRandomModification",
+            "CardUseAdventureOrigin",
+            "CompositeDoomProcPlayerBuff",
+            "CompositeDoomProcRandomEnemyBundle",
+            "CrowEveryNthSettlementHpDamage",
+            "CrowExtraSettlement",
+            "DamageNormalEchoByBuff",
+            "DamageTrueEchoByBuff",
+            "DuskAfterheatMultiplierAndCap",
+            "EnemyDeathBurnTransfer",
+            "EnemyDeathPersistentSoul",
+            "FirstDamageTargetBuffPerRound",
+            "FirstDamageTrueEchoPerRound",
+            "AfterResurrectionRecovery",
+            "NetherChaseRebirthBonus",
+            "PocketCardReplacePerRound",
+            "RoundStartExtraordinaryPerEnemyDebuffKind",
+            "StarScoreCadenceRandomOverture",
+            "StarlightCycleBuffs",
+            "StarlightCycleStarClayShape",
+            "UnusedNetherChaseWinBlessing"
         };
         return SelectedEffects()
             .Select(entry => entry.Effect.Kind ?? "")
@@ -384,6 +411,13 @@ public static class FamiliarBlessingEffectRuntime
         if (buffId.Length == 0 || amount <= 0)
         {
             return false;
+        }
+
+        if (string.Equals(buffId, SunExpIds.Starlight, StringComparison.Ordinal)
+            && status.MirrorSc is ScriptExecutor executor)
+        {
+            StarScoreService.AddStarlight(executor, amount);
+            return true;
         }
 
         status.AddBuff(buffId, amount);

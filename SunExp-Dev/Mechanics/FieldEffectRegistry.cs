@@ -141,6 +141,15 @@ public static class FieldEffectRegistry
             maxVisualTier: 4,
             fallbackMaxStacks: 5,
             hasRoundStartHandler: true,
+            hasBuffAddedPolicy: false),
+        [SunExpFieldId.MoonDomain] = new FieldEffectDefinition(
+            SunExpFieldId.MoonDomain,
+            "moon_domain",
+            SunExpIds.MoonDomain,
+            hudIconPath: "Mods/SunExp/ModResource/Images/Buff/Area/月之领域",
+            maxVisualTier: 1,
+            fallbackMaxStacks: 1,
+            hasRoundStartHandler: false,
             hasBuffAddedPolicy: false)
     };
     private static readonly object Sync = new();

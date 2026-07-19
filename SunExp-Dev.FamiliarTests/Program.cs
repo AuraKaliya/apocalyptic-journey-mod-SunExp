@@ -17,9 +17,44 @@ var documentField = typeof(FamiliarBlessingRegistry).GetField("document", Bindin
                     ?? throw new MissingFieldException("FamiliarBlessingRegistry.document");
 documentField.SetValue(null, registry);
 
-Assert(registry.SchemaVersion == 2, "registry schema must be 2");
+Assert(registry.SchemaVersion == 3, "registry schema must be 3");
 Assert(registry.Blessings.All(item => item.Effects.All(effect => effect.Kind is not "ManifestEnable" and not "SpeciesManifest" and not "CompanionIntentPoolPatch")),
     "registry must not contain familiar combat manifestation effects");
+Assert(registry.SpeciesProfiles.Count(profile => profile.FinalBlessingIds.Count == 3) >= 7,
+    "all five native familiars plus Dusk and Star Clay Doll must define three species finals");
+Assert(registry.Blessings.Where(item => item.Category == FamiliarBlessingCategory.Growth).All(item => item.Pool == "common"),
+    "growth blessings must be isolated in the common pool");
+Assert(registry.Blessings.Where(item => item.Category == FamiliarBlessingCategory.FinalGeneric).All(item => item.Pool == "final_common"),
+    "generic finals must be isolated in the final_common pool");
+Assert(registry.Blessings.Single(item => item.Id == "*familiar_law_of_luck").Effects.Single().Amount == 20,
+    "Lucky Dice must add 20 to value and check dice");
+Assert(registry.Blessings.Single(item => item.Id == "*familiar_bleeding_mark").ExclusiveGroup.Length == 0
+       && registry.Blessings.Single(item => item.Id == "*familiar_burn_mark").ExclusiveGroup.Length == 0
+       && registry.Blessings.Single(item => item.Id == "*familiar_armor_break").ExclusiveGroup.Length == 0,
+    "bleed, burn, and armor-break first-hit blessings must remain mutually compatible");
+Assert(registry.Blessings.Single(item => item.Id == "*familiar_dusk_ember_stomach").Name == "不落日魂"
+       && registry.Blessings.Single(item => item.Id == "*familiar_star_clay_handed_light").Name == "摘星",
+    "Dusk and Star Clay final blessing updates must ship with their final names");
+var codexPools = FamiliarBlessingCodexService.Build(
+    registry.Blessings,
+    Array.Empty<FamiliarSpeciesSpec>(),
+    registry.SpeciesProfiles);
+Assert(codexPools.Count == 10 && codexPools.Sum(pool => pool.Blessings.Count) == registry.Blessings.Count,
+    "the familiar codex must expose every registered blessing exactly once across all pools");
+Assert(codexPools.First().Id == "common" && codexPools.First().Name == "通用祝福",
+    "the familiar codex must place the common blessing pool first");
+Assert(codexPools.Skip(3).Select(pool => pool.Name).SequenceEqual(new[]
+    { "报丧偈羽", "匣上黑猫", "噩梦原型", "使魔猫猫", "小克莉斯娜", "黄昏", "星泥人傀" }),
+    "species-final codex pools must use registered familiar display names and profile order");
+Assert(codexPools.SelectMany(pool => pool.Blessings).Any(item => item.Tier == 1 && item.TierLabel == "Ⅰ阶")
+       && codexPools.SelectMany(pool => pool.Blessings).Any(item => item.Tier == 5 && item.TierLabel == "Ⅴ阶"),
+    "the familiar codex must render first through fifth tier labels");
+foreach (var species in new[] { "10001", "*10002", "10003", "*10004", "*10005", "SunExp_sunexp_dusk", "SunExp_sunexp_star_clay_doll" })
+{
+    var instance = new FamiliarInstance { FullSpeciesId = species, SpeciesId = species, Aptitude = 70, Level = 8 };
+    Assert(FamiliarBlessingRegistry.SpecificFinals(instance).Count == 3,
+        species + " must resolve exactly three species-final blessings from its own pool");
+}
 Assert(FamiliarBlessingRoller.ChoiceSize(69) == 2, "aptitude below 70 must produce two candidates");
 Assert(FamiliarBlessingRoller.ChoiceSize(70) == 3, "aptitude 70 or above must produce three candidates");
 Assert(FamiliarBlessingRoller.AptitudeFloor(0) == 30, "initial aptitude floor must be 30");

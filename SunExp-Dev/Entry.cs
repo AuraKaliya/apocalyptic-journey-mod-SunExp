@@ -137,7 +137,9 @@ public static class Entry
                 + "assert(xlua.import_type('SunExp.Dll.Scripting.RelicScripts'), 'SunExp RelicScripts unavailable');"
                 + "assert(xlua.import_type('SunExp.Dll.Scripting.FamiliarGrowthScripts'), 'SunExp FamiliarGrowthScripts unavailable');"
                 + "assert(xlua.import_type('SunExp.Dll.Scripting.DuskPartnerScripts'), 'SunExp DuskPartnerScripts unavailable');"
-                + "assert(xlua.import_type('SunExp.Dll.Scripting.StarClayDollScripts'), 'SunExp StarClayDollScripts unavailable');",
+                + "assert(xlua.import_type('SunExp.Dll.Scripting.StarClayDollScripts'), 'SunExp StarClayDollScripts unavailable');"
+                + "assert(xlua.import_type('SunExp.Dll.Scripting.ElementalScripts'), 'SunExp ElementalScripts unavailable');"
+                + "assert(xlua.import_type('SunExp.Dll.Scripting.ColumbinaScripts'), 'SunExp ColumbinaScripts unavailable');",
                 "SunExp.RegisterLuaVisibleAssembly");
             SunExpLog.Info("Registered C# script assembly for XLua: " + assemblyName);
         }

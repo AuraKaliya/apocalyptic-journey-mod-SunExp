@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 
@@ -55,6 +56,8 @@ internal sealed class AudioManifestProviderPlan
     public string OwnerModId { get; set; } = "";
 
     public string AudioPath { get; set; } = "";
+
+    public string[] AudioVariantPaths { get; set; } = Array.Empty<string>();
 
     public int Priority { get; set; }
 
@@ -166,6 +169,11 @@ internal static class AudioManifestLoader
             ProviderId = provider.providerId?.Trim() ?? "",
             OwnerModId = string.IsNullOrWhiteSpace(provider.ownerModId) ? manifestOwner : provider.ownerModId.Trim(),
             AudioPath = ResolveProviderPath(modRoot, provider.path, resolveSharedPath),
+            AudioVariantPaths = ResolveProviderVariantPaths(
+                modRoot,
+                provider.path,
+                provider.variantPaths,
+                resolveSharedPath),
             Priority = provider.priority,
             Bus = Coalesce(provider.bus, defaults.bus, SoundBuses.Effect),
             Policy = Coalesce(provider.policy, defaults.policy, SoundPolicies.Additive),
@@ -207,6 +215,32 @@ internal static class AudioManifestLoader
         return Path.IsPathRooted(relativeOrAbsolutePath)
             ? relativeOrAbsolutePath
             : Path.Combine(modRoot, relativeOrAbsolutePath.Replace('/', Path.DirectorySeparatorChar));
+    }
+
+    public static string[] ResolveProviderVariantPaths(
+        string modRoot,
+        string primaryPath,
+        string[]? variantPaths,
+        Func<string, string> resolveSharedPath)
+    {
+        var primary = ResolveProviderPath(modRoot, primaryPath, resolveSharedPath);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(primary))
+        {
+            seen.Add(primary);
+        }
+
+        var resolved = new List<string>();
+        foreach (var variantPath in variantPaths ?? Array.Empty<string>())
+        {
+            var candidate = ResolveProviderPath(modRoot, variantPath, resolveSharedPath);
+            if (!string.IsNullOrWhiteSpace(candidate) && seen.Add(candidate))
+            {
+                resolved.Add(candidate);
+            }
+        }
+
+        return resolved.ToArray();
     }
 
     public static AudioRegistryManifest? DeserializeManifest(string json)

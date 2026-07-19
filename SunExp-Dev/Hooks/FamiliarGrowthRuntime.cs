@@ -38,12 +38,21 @@ public static class FamiliarGrowthRuntime
         RegisterAfter(modConfig, "HouseManager.OpenLibrary", EnsureLibraryButton);
         RegisterAfter(modConfig, "GameEntryUI.NormalGame", MarkActiveForRun);
         RegisterBefore(modConfig, SunExpHookTargets.FightWinResetStates, GrantBattleWinExperience);
-        SunExpHookRegistry.Before(modConfig, SunExpHookTargets.StatusManagerHit, OnStatusHitBefore, "FamiliarGrowth");
-        SunExpHookRegistry.After(modConfig, SunExpHookTargets.StatusManagerHit, OnStatusHitAfter, "FamiliarGrowth");
+        SunExpStatusLifecycleRouter.Register("FamiliarGrowth", new SunExpStatusLifecycleSubscription
+        {
+            BeforeHit = FamiliarFinalBlessingService.BeforeHit,
+            AfterHit = FamiliarFinalBlessingService.AfterHit,
+            BeforeEnemyDead = FamiliarFinalBlessingService.BeforeEnemyDead,
+            AfterEnemyDead = FamiliarFinalBlessingService.AfterEnemyDead
+        });
         SunExpCombatActionRouter.RegisterActionEventHandler(
             "FamiliarGrowth",
-            null,
-            FamiliarBlessingEffectRuntime.AfterPlayerAction);
+            FamiliarFinalBlessingService.OnAction,
+            () =>
+            {
+                FamiliarBlessingEffectRuntime.AfterPlayerAction();
+                FamiliarFinalBlessingService.OnActionAfter();
+            });
         BattleRewardAdjustmentService.Register(new BattleRewardAdjustmentRule(
             "FamiliarGrowth.ExtraChoices",
             context => BattleRewardApi.IsCurrentBattleReward()
@@ -206,6 +215,7 @@ public static class FamiliarGrowthRuntime
             }
 
             ApplySelectedBattleWinEffects();
+            FamiliarFinalBlessingService.ApplyBattleWinEffects();
             var result = FamiliarGrowthApi.GrantActiveExperience(FamiliarRosterService.BattleWinExperience);
             if (result == null)
             {
@@ -251,40 +261,6 @@ public static class FamiliarGrowthRuntime
         catch (Exception ex)
         {
             SunExpLog.Warn(LogPrefix + " failed to apply combat start effects: " + ex.Message);
-        }
-    }
-
-    private static void OnStatusHitBefore(ModHookContext context)
-    {
-        FamiliarBlessingEffectRuntime.BeforePotentialLethal(
-            context.Target as IStatusManager,
-            HitAmount(context.Arguments));
-    }
-
-    private static void OnStatusHitAfter(ModHookContext context)
-    {
-        FamiliarBlessingEffectRuntime.AfterDamage(
-            context.Target as IStatusManager,
-            HitAmount(context.Arguments),
-            context.Arguments != null && context.Arguments.Length > 3
-                ? Convert.ToString(context.Arguments[3]) ?? ""
-                : "");
-    }
-
-    private static int HitAmount(object[]? args)
-    {
-        if (args == null || args.Length == 0)
-        {
-            return 0;
-        }
-
-        try
-        {
-            return Math.Max(0, Convert.ToInt32(args[0]));
-        }
-        catch
-        {
-            return 0;
         }
     }
 

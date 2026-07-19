@@ -23,6 +23,9 @@ public static class BuffScripts
         ["star_stone_pouch"] = ApplyStarStonePouch,
         ["star_score"] = ApplyStarScore,
         ["star_stage"] = ApplyStarStage,
+        ["moonlight"] = ApplyMoonlight,
+        ["frozen"] = ApplyFrozen,
+        ["dendro_core"] = ApplyDendroCore,
         ["abyss_blessing"] = EndlessAbyssBlessingService.Apply,
         [SunExpIds.PolymorphTraitBuffShortId] = ApplyPolymorphTrait,
         [SunExpIds.HeartChangeBuffShortId] = ApplyHeartChange
@@ -43,6 +46,9 @@ public static class BuffScripts
         ["star_stone_pouch"] = ClearStarStonePouch,
         ["star_score"] = ClearStarScore,
         ["star_stage"] = ClearStarStage,
+        ["moonlight"] = ClearMoonlight,
+        ["frozen"] = ClearFrozen,
+        ["dendro_core"] = ClearDendroCore,
         ["abyss_blessing"] = EndlessAbyssBlessingService.Clear,
         [SunExpIds.PolymorphTraitBuffShortId] = ClearPolymorphTrait,
         [SunExpIds.HeartChangeBuffShortId] = ClearHeartChange
@@ -196,6 +202,81 @@ public static class BuffScripts
             self.SetStatus("Self");
             self.AddBuff("buff_extraordinary", gain.ToString());
         }), "solar_radiance");
+    }
+
+    private static void ApplyMoonlight(ScriptExecutor self)
+    {
+        var token = ExecutorApi.RegisterHook(self, "SunExpMoonlightHook", "SunExpMoonlightToken");
+        if (token == null)
+        {
+            return;
+        }
+
+        ExecutorApi.TryAddTokenedEvent(self, "EndRound", "SunExpMoonlightToken", token, new Action(() =>
+        {
+            var level = ExecutorApi.SelfBuffLevel(self, SunExpIds.Moonlight);
+            if (level <= 0)
+            {
+                return;
+            }
+
+            self.SetStatus("Self");
+            self.AddBuff("buff_keenedge", level.ToString());
+            self.AddBuff("buff_resilient", level.ToString());
+        }), "moonlight");
+    }
+
+    private static void ClearMoonlight(ScriptExecutor self)
+    {
+        ExecutorApi.ClearHook(self, "SunExpMoonlightHook", "SunExpMoonlightToken");
+    }
+
+    private static void ApplyFrozen(ScriptExecutor self)
+    {
+        var token = ExecutorApi.RegisterHook(self, "SunExpFrozenHook", "SunExpFrozenToken");
+        if (token == null)
+        {
+            return;
+        }
+
+        ExecutorApi.TryAddTokenedEvent(self, "StartRound", "SunExpFrozenToken", token, new Action(() =>
+        {
+            self.SetStatus("Self");
+            self.ChangeRound();
+        }), "elemental.frozen");
+    }
+
+    private static void ClearFrozen(ScriptExecutor self)
+    {
+        ExecutorApi.ClearHook(self, "SunExpFrozenHook", "SunExpFrozenToken");
+    }
+
+    private static void ApplyDendroCore(ScriptExecutor self)
+    {
+        var token = ExecutorApi.RegisterHook(self, "SunExpDendroCoreHook", "SunExpDendroCoreToken");
+        if (token == null)
+        {
+            return;
+        }
+
+        ExecutorApi.TryAddTokenedEvent(self, "StartRound", "SunExpDendroCoreToken", token, new Action(() =>
+        {
+            var stacks = ExecutorApi.SelfBuffLevel(self, SunExpIds.DendroCore);
+            if (stacks <= 0)
+            {
+                return;
+            }
+
+            self.SetStatus("Self");
+            self.Damage((10 * stacks).ToString(), "True");
+            self.SetStatus("Self");
+            self.RemoveBuff(SunExpIds.DendroCore);
+        }), "elemental.dendro-core");
+    }
+
+    private static void ClearDendroCore(ScriptExecutor self)
+    {
+        ExecutorApi.ClearHook(self, "SunExpDendroCoreHook", "SunExpDendroCoreToken");
     }
 
     private static void ApplyStarStonePouch(ScriptExecutor self)

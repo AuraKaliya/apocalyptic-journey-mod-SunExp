@@ -3,6 +3,7 @@ using AuraShared.Core;
 using Network.Command;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
+using SunExp.Dll.Mechanics;
 using Witch.Core;
 
 namespace SunExp.Dll.Network;
@@ -145,7 +146,16 @@ public sealed class RpcFieldStateRequest : RpcCommandBase, ISunExpServerBoundRpc
     {
         if (RejectionCode != 0)
         {
-            SunExpLog.Debug("[FieldNetwork] request rejected: code=" + RejectionCode + ", token=" + Token + ".");
+            SunExpLog.Debug("[FieldNetwork] rejected response received: code="
+                + FieldNetworkSync.RejectionName(RejectionCode)
+                + "(" + RejectionCode + ")"
+                + ", command=" + (FieldNetworkCommandKind)CommandKind
+                + ", field=" + (SunExpFieldId)FieldId
+                + ", intent=" + (IntentId ?? "")
+                + ", owner=" + (OwnerStatusId ?? "")
+                + ", token=" + Token
+                + ", battleSerial=" + BattleSerial
+                + ", battleSession=" + (BattleSessionId ?? "") + ".");
             return;
         }
 
@@ -223,13 +233,48 @@ public static class FieldNetworkSync
         rejectionCode = ValidateRequest(protocolVersion, commandKind, field, amount, token, requestBattleSerial, requestBattleSessionId, intentId, ownerStatusId, sender);
         if (rejectionCode != 0)
         {
+            LogRejectedRequest(
+                rejectionCode,
+                commandKind,
+                field,
+                intentId,
+                ownerStatusId,
+                sender,
+                token,
+                requestBattleSerial,
+                requestBattleSessionId);
             return FieldStateSnapshot.Capture();
         }
 
         switch (commandKind)
         {
             case FieldNetworkCommandKind.Activate:
-                ResolveActivateIntent(field, intentId, ownerStatusId, sender.PlayerId);
+                var resolvedAmount = ResolveActivateIntent(field, intentId, ownerStatusId, sender.PlayerId);
+                if (resolvedAmount <= 0)
+                {
+                    rejectionCode = 9;
+                    LogRejectedRequest(
+                        rejectionCode,
+                        commandKind,
+                        field,
+                        intentId,
+                        ownerStatusId,
+                        sender,
+                        token,
+                        requestBattleSerial,
+                        requestBattleSessionId);
+                    return FieldStateSnapshot.Capture();
+                }
+
+                LogAcceptedActivation(
+                    field,
+                    intentId,
+                    ownerStatusId,
+                    sender,
+                    token,
+                    requestBattleSerial,
+                    requestBattleSessionId,
+                    resolvedAmount);
                 break;
         }
 
@@ -349,31 +394,33 @@ public static class FieldNetworkSync
 
     private static bool ValidateActivateIntent(SunExpFieldId field, string intentId, string ownerStatusId, SunExpRpcSender sender)
     {
-        if (field != SunExpFieldId.ScorchingCanopy
-            || !SenderOwnsStatus(sender.PlayerId, ownerStatusId))
+        if (!SunExpStatusOwnershipPolicy.SenderOwnsStatus(sender.PlayerId, ownerStatusId, out _))
         {
             return false;
         }
 
-        return string.Equals(intentId, "card.scorching_canopy", StringComparison.Ordinal)
-               || string.Equals(intentId, "card.canopy_return", StringComparison.Ordinal)
-               || string.Equals(intentId, "card.radiant_oath", StringComparison.Ordinal)
-               || string.Equals(intentId, "carrier.scorching_canopy", StringComparison.Ordinal);
+        return FieldActivationIntentCatalog.TryResolve(field, intentId, out _);
     }
 
-    private static void ResolveActivateIntent(SunExpFieldId field, string intentId, string ownerStatusId, string senderPlayerId)
+    private static int ResolveActivateIntent(SunExpFieldId field, string intentId, string ownerStatusId, string senderPlayerId)
     {
-        var amount = string.Equals(intentId, "card.canopy_return", StringComparison.Ordinal) ? 2 : 1;
-        if (string.Equals(intentId, "carrier.scorching_canopy", StringComparison.Ordinal))
+        if (!FieldActivationIntentCatalog.TryResolve(field, intentId, out var definition))
+        {
+            return 0;
+        }
+
+        var amount = definition.FixedAmount;
+        if (definition.AmountPolicy == FieldActivationAmountPolicy.AuthoritativeScorchingCanopyCarrierStacks)
         {
             amount = ResolveAuthoritativeCarrierStacks(ownerStatusId);
             if (amount <= 0)
             {
-                return;
+                return 0;
             }
         }
 
         FieldApi.ActivateFieldAuthoritative(field, amount, "FieldNetworkSync.Intent:" + intentId + ":" + senderPlayerId, broadcast: false);
+        return amount;
     }
 
     private static int ResolveAuthoritativeCarrierStacks(string ownerStatusId)
@@ -394,29 +441,78 @@ public static class FieldNetworkSync
         }
     }
 
-    private static bool SenderOwnsStatus(string playerId, string ownerStatusId)
+    internal static string RejectionName(int rejectionCode)
     {
-        if (string.IsNullOrWhiteSpace(playerId) || string.IsNullOrWhiteSpace(ownerStatusId))
+        switch (rejectionCode)
         {
-            return false;
+            case 0:
+                return "Accepted";
+            case 1:
+                return "ProtocolMismatch";
+            case 2:
+                return "SenderUnavailable";
+            case 3:
+                return "SenderNotInLobby";
+            case 4:
+                return "MissingField";
+            case 5:
+                return "InvalidRequestedAmount";
+            case 6:
+                return "DuplicateToken";
+            case 7:
+                return "BattleSessionMismatch";
+            case 8:
+                return "InvalidActivationIntent";
+            case 9:
+                return "ActivationResolutionFailed";
+            default:
+                return "Unknown";
         }
+    }
 
-        if (string.Equals(playerId, ownerStatusId, StringComparison.Ordinal))
-        {
-            return true;
-        }
+    private static void LogRejectedRequest(
+        int rejectionCode,
+        FieldNetworkCommandKind commandKind,
+        SunExpFieldId field,
+        string intentId,
+        string ownerStatusId,
+        SunExpRpcSender sender,
+        int token,
+        int requestBattleSerial,
+        string requestBattleSessionId)
+    {
+        SunExpLog.Warn("[FieldNetwork] request rejected: code="
+            + RejectionName(rejectionCode)
+            + "(" + rejectionCode + ")"
+            + ", command=" + commandKind
+            + ", field=" + field + "(" + (int)field + ")"
+            + ", intent=" + (intentId ?? "")
+            + ", sender=" + (sender?.PlayerId ?? "")
+            + ", owner=" + (ownerStatusId ?? "")
+            + ", token=" + token
+            + ", battleSerial=" + requestBattleSerial
+            + ", requestSession=" + (requestBattleSessionId ?? "")
+            + ", hostSession=" + hostBattleSessionId + ".");
+    }
 
-        try
-        {
-            var map = Singleton<TempDataManager>.Instance?.RoleStatusMap;
-            return map != null
-                   && map.TryGetValue(playerId, out var statuses)
-                   && statuses != null
-                   && statuses.Contains(ownerStatusId);
-        }
-        catch
-        {
-            return false;
-        }
+    private static void LogAcceptedActivation(
+        SunExpFieldId field,
+        string intentId,
+        string ownerStatusId,
+        SunExpRpcSender sender,
+        int token,
+        int requestBattleSerial,
+        string requestBattleSessionId,
+        int resolvedAmount)
+    {
+        SunExpLog.InfoAlways("[FieldNetwork] activation accepted: code=Accepted(0)"
+            + ", field=" + field + "(" + (int)field + ")"
+            + ", intent=" + (intentId ?? "")
+            + ", sender=" + (sender?.PlayerId ?? "")
+            + ", owner=" + (ownerStatusId ?? "")
+            + ", token=" + token
+            + ", battleSerial=" + requestBattleSerial
+            + ", battleSession=" + (requestBattleSessionId ?? "")
+            + ", resolvedAmount=" + resolvedAmount + ".");
     }
 }

@@ -18,6 +18,8 @@ public static class RuntimeHooks
         RunHookStep("card lifecycle router", () => SunExpCardLifecycleRouter.Initialize(modConfig));
         RunHookStep("combat action router", () => SunExpCombatActionRouter.Initialize(modConfig));
         RunHookStep("status lifecycle router", () => SunExpStatusLifecycleRouter.Initialize(modConfig));
+        RunHookStep("elemental mechanics", () => ElementalMechanicsRuntime.Initialize(modConfig));
+        RunHookStep("columbina and constellation", () => ColumbinaRuntime.Initialize(modConfig));
         RunHookStep("field effect registry", () => FieldEffectRegistry.WarmupConfigCache("RuntimeHooks.Initialize"));
         RunHookStep("field runtime", () => FieldRuntime.Initialize(modConfig));
         RunHookStep("card visual skin", () => CardVisualSkinRuntime.Initialize(modConfig));

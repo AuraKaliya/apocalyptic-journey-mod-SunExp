@@ -319,11 +319,24 @@ $sunAudioSource = [System.IO.Path]::GetFullPath((Join-Path $sunPackageRoot $sunA
 if (-not (Test-Path -LiteralPath $sunAudioSource -PathType Container)) {
     throw "SunExp shared Audio package source is missing: $sunAudioSource"
 }
+$sunColumbinaAudioResource = $sunPackage.resources | Where-Object {
+    $_.system -eq "Audio" -and $_.resourceId -eq "SunExp.Columbina.VoicePack" -and $_.kind -eq "Directory"
+} | Select-Object -First 1
+if ($null -eq $sunColumbinaAudioResource) {
+    throw "SunExp shared Audio package manifest is missing Columbina voice pack."
+}
+$sunColumbinaAudioSource = [System.IO.Path]::GetFullPath((Join-Path $sunPackageRoot $sunColumbinaAudioResource.source))
+if (-not (Test-Path -LiteralPath $sunColumbinaAudioSource -PathType Container) -or
+    @(Get-ChildItem -LiteralPath $sunColumbinaAudioSource -Filter "*.ogg" -File).Count -ne 12) {
+    throw "SunExp Columbina shared Audio package must contain exactly 12 Ogg voice variants."
+}
 $requiredSunCgResources = @(
     "SunExp.Loneer.MorningStarPrayer.SkillCg",
     "SunExp.WuNa.WhiteSunPrayer.SkillCg",
+    "SunExp.Columbina.Homesickness.SkillCg",
     "SunExp.Loneer.FeastCg",
-    "SunExp.WuNa.FeastCg"
+    "SunExp.WuNa.FeastCg",
+    "SunExp.Columbina.FeastCg"
 )
 foreach ($resourceId in $requiredSunCgResources) {
     $resource = $sunPackage.resources | Where-Object {
@@ -351,10 +364,10 @@ if (-not (Test-Path -LiteralPath $sunCardUseCgSource -PathType Container)) {
 }
 $sunCgManifestPath = Join-Path $repoRoot "SunExp\SharedResources\cg.registry.json"
 $sunCgManifest = Get-Content -Raw -Encoding UTF8 -LiteralPath $sunCgManifestPath | ConvertFrom-Json
-if ($sunCgManifest.ownerModId -ne "SunExp" -or @($sunCgManifest.entries).Count -lt 4) {
+if ($sunCgManifest.ownerModId -ne "SunExp" -or @($sunCgManifest.entries).Count -lt 7) {
     throw "SunExp CG registry manifest is invalid."
 }
-foreach ($cgId in @("loneer.morning-star-prayer", "wuna.white-sun-prayer")) {
+foreach ($cgId in @("loneer.morning-star-prayer", "wuna.white-sun-prayer", "columbina.homesickness")) {
     $entry = $sunCgManifest.entries | Where-Object { $_.cgId -eq $cgId } | Select-Object -First 1
     if ($null -eq $entry -or $entry.kind -ne "skill" -or $entry.media.type -ne "image" -or
         [string]::IsNullOrWhiteSpace($entry.media.resource) -or [string]::IsNullOrWhiteSpace($entry.defaultPresentation.mode)) {
@@ -372,7 +385,7 @@ if ($null -eq $blazingCrownCgEntry -or $blazingCrownCgEntry.kind -ne "cardUse" -
     $blazingCrownCgEntry.media.flashMode -ne "hybridBwPulse") {
     throw "Blazing Crown Collapse must be registered as a card-use CG sequence."
 }
-foreach ($cgId in @("loneer.feast", "wuna.feast")) {
+foreach ($cgId in @("loneer.feast", "wuna.feast", "columbina.feast")) {
     $entry = $sunCgManifest.entries | Where-Object { $_.cgId -eq $cgId } | Select-Object -First 1
     if ($null -eq $entry -or $entry.kind -ne "feast" -or $entry.media.type -ne "image" -or
         [string]::IsNullOrWhiteSpace($entry.media.resource) -or
@@ -395,6 +408,10 @@ if (Test-Path -LiteralPath (Join-Path $repoRoot "SunExp\ModResource\audio")) {
 $audioManifestText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "SunExp\audio.registry.json")
 if ($audioManifestText.Contains("ModResource/audio") -or -not $audioManifestText.Contains("Shared:Audio/SunExp/WuNa")) {
     throw "SunExp audio registry does not resolve through the shared resource layer."
+}
+if (-not $audioManifestText.Contains("Shared:Audio/SunExp/Columbina") -or
+    -not $audioManifestText.Contains('"variantPaths"')) {
+    throw "SunExp Columbina audio registry does not declare shared voice variants."
 }
 
 $auraToolsPackagePath = Join-Path $repoRoot "AuraToolsExp\SharedResources\package.json"
