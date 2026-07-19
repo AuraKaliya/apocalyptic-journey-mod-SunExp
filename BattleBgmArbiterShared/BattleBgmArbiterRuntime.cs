@@ -4,7 +4,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using AuraAudio.Shared;
 using AuraShared.Core;
+using AudioArbiter.Shared;
 using UnityEngine;
 using UnityEngine.Networking;
 using Witch;
@@ -19,7 +21,7 @@ public static class BattleBgmArbiterRuntime
 {
     private const string GlobalObjectName = "BattleBgmArbiter.Global";
     private const string ComponentFullName = "BattleBgmArbiter.Shared.BattleBgmArbiterRuntime+BattleBgmArbiterComponent";
-    public const string CurrentBuildId = "battle-bgm-arbiter-2026-06-23-v4";
+    public const string CurrentBuildId = "battle-bgm-arbiter-2026-07-20-v5";
     public const int CurrentProtocolVersion = 3;
     public const int MinimumSupportedProtocolVersion = 3;
     public static bool VerboseLogging { get; set; }
@@ -1430,6 +1432,7 @@ public sealed class FileBattleBgmProvider : IDisposable
     private string loadState = "NotStarted";
     private int generation;
     private bool disposed;
+    private AudioFileFormatDescriptor? currentFormat;
 
     public FileBattleBgmProvider(
         string providerId,
@@ -1535,10 +1538,32 @@ public sealed class FileBattleBgmProvider : IDisposable
             return;
         }
 
+        currentFormat = AudioFileFormatProbe.Probe(audioPath);
+        AuraSharedLog.Info("BattleBgmArbiter", LogPrefix + "BGM probe. provider=" + ProviderId
+            + ", path=" + audioPath
+            + ", sourceExtension=" + Display(Path.GetExtension(audioPath))
+            + ", " + currentFormat.Describe());
+        if (!currentFormat.Success || !AudioUnityFileLoadPolicy.TryResolve(currentFormat, out var audioType))
+        {
+            clip = null;
+            loadState = "Failed";
+            Debug.LogWarning(LogPrefix + "BGM probe failed. provider=" + ProviderId
+                + ", path=" + audioPath
+                + ", failureCode=" + Display(currentFormat.FailureCode)
+                + ", message=" + currentFormat.Message);
+            return;
+        }
+
         clip = null;
         loadState = "Loading";
-        AuraSharedLog.DebugLog("BattleBgmArbiter", LogPrefix + "BGM load started. provider=" + ProviderId + ", reason=" + reason + ", generation=" + currentGeneration + ", signature=" + cachedSignature, false);
-        runner.LoadAudio(audioPath, currentGeneration, OnLoadCompleted);
+        AuraSharedLog.Info("BattleBgmArbiter", LogPrefix + "BGM load started. provider=" + ProviderId
+            + ", reason=" + reason
+            + ", generation=" + currentGeneration
+            + ", signature=" + cachedSignature
+            + ", format=" + currentFormat.Format
+            + ", codec=" + currentFormat.Codec
+            + ", unityAudioType=" + audioType);
+        runner.LoadAudio(audioPath, audioType, currentGeneration, OnLoadCompleted);
     }
 
     private void OnLoadCompleted(int completedGeneration, AudioClip? loadedClip, string? error)
@@ -1566,12 +1591,15 @@ public sealed class FileBattleBgmProvider : IDisposable
         loadedClip.name = Path.GetFileNameWithoutExtension(audioPath);
         clip = loadedClip;
         loadState = "Ready";
-        AuraSharedLog.DebugLog("BattleBgmArbiter", LogPrefix + "BGM load succeeded. provider=" + ProviderId
+        AuraSharedLog.Info("BattleBgmArbiter", LogPrefix + "BGM load ready. provider=" + ProviderId
+            + ", path=" + audioPath
+            + ", format=" + (currentFormat?.Format.ToString() ?? "Unknown")
+            + ", codec=" + (currentFormat?.Codec ?? "Unknown")
             + ", signature=" + cachedSignature
             + ", clip=" + loadedClip.name
             + ", length=" + loadedClip.length.ToString("0.000") + "s"
             + ", frequency=" + loadedClip.frequency
-            + ", channels=" + loadedClip.channels, false);
+            + ", channels=" + loadedClip.channels);
     }
 
     private void CheckAudioFile()
@@ -1624,6 +1652,11 @@ public sealed class FileBattleBgmProvider : IDisposable
 
     private string LogPrefix => "[" + OwnerModId + ".BGM] ";
 
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "<none>" : value ?? "<none>";
+    }
+
     private readonly struct FileSignature : IEquatable<FileSignature>
     {
         public static readonly FileSignature Missing = new(false, -1L, -1L);
@@ -1674,9 +1707,13 @@ public sealed class FileBattleBgmProvider : IDisposable
     {
         private Coroutine? watcherCoroutine;
 
-        public void LoadAudio(string path, int generation, Action<int, AudioClip?, string?> onCompleted)
+        public void LoadAudio(
+            string path,
+            AudioType audioType,
+            int generation,
+            Action<int, AudioClip?, string?> onCompleted)
         {
-            StartCoroutine(LoadAudioCoroutine(path, generation, onCompleted));
+            StartCoroutine(LoadAudioCoroutine(path, audioType, generation, onCompleted));
         }
 
         public void StartFileWatcher(float intervalSeconds, Action onCheck)
@@ -1700,10 +1737,14 @@ public sealed class FileBattleBgmProvider : IDisposable
             StopAllCoroutines();
         }
 
-        private static IEnumerator LoadAudioCoroutine(string path, int generation, Action<int, AudioClip?, string?> onCompleted)
+        private static IEnumerator LoadAudioCoroutine(
+            string path,
+            AudioType audioType,
+            int generation,
+            Action<int, AudioClip?, string?> onCompleted)
         {
             var uri = new Uri(path).AbsoluteUri;
-            using var request = UnityWebRequestMultimedia.GetAudioClip(uri, AudioType.MPEG);
+            using var request = UnityWebRequestMultimedia.GetAudioClip(uri, audioType);
             yield return request.SendWebRequest();
 
             if (request.result != UnityWebRequest.Result.Success)
@@ -1724,7 +1765,7 @@ public sealed class FileBattleBgmProvider : IDisposable
             }
             catch (Exception ex)
             {
-                error = ex.ToString();
+                error = ex.Message;
             }
 
             onCompleted(generation, loadedClip, error);

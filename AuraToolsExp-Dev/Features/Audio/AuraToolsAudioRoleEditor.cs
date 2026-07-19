@@ -28,7 +28,7 @@ public static class AuraToolsAudioRoleEditor
         toolbarLayout.childControlWidth = true;
         toolbarLayout.childControlHeight = true;
         toolbarLayout.childForceExpandHeight = false;
-        hintText = AuraToolsUi.AddText(toolbar.transform, "提示：选择音频后会复制到 ModsData/AuraShared/Audio/Roles/ 下。", 14, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 34f, 1f);
+        hintText = AuraToolsUi.AddText(toolbar.transform, "提示：选择音频后会写入 AuraShared/Audio/Role/{角色ID}/LocalAudio/AuraToolsExp/。", 14, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 34f, 1f);
         AuraToolsUi.AddButton(toolbar.transform, "扫描角色", () =>
         {
             EnsureRoleEntries(true);
@@ -174,8 +174,8 @@ public static class AuraToolsAudioRoleEditor
         var imported = FileResourceUtil.ImportAudioPath(trimmed, FileResourceUtil.RoleAudioDirectory(settings.RoleId), baseName, out var message);
         if (string.IsNullOrWhiteSpace(imported))
         {
-            settings.RelativePath = trimmed;
-            SetHint(message + " 已保留输入路径。");
+            AuraToolsLog.Warn("[AudioRoleEditor] audio import rejected; current configuration preserved: " + message);
+            SetHint("导入失败，当前配置未更改：" + message);
         }
         else
         {

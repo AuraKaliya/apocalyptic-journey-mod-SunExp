@@ -53,6 +53,7 @@ entry.Media.Type = SkillCgMediaTypes.Sequence;
 
 Assert(AuraCgRegistryQueryService.MatchesRole(entry, ""), "empty role keeps existing wildcard behavior");
 Assert(AuraCgRegistryQueryService.MatchesRole(entry, "WUNA"), "role match ignores case");
+Assert(AuraCgRegistryQueryService.MatchesRole(entry, "SunExp_wuna_wuna"), "owner-scoped short role id matches full runtime role id");
 Assert(!AuraCgRegistryQueryService.MatchesRole(entry, "loneer"), "other role rejected");
 entry.TargetRoleIds = new List<string> { "*" };
 Assert(AuraCgRegistryQueryService.MatchesRole(entry, "loneer"), "role wildcard accepted");
@@ -60,6 +61,11 @@ entry.TargetRoleIds = new List<string> { "wuna" };
 
 Assert(AuraCgRegistryQueryService.MatchesCard(entry, "sun_card"), "leading-star card identity matches");
 Assert(AuraCgRegistryQueryService.MatchesCard(entry, "*sun_card"), "exact decorated card identity matches");
+entry.CardIds = new List<string> { "careercard_*8" };
+Assert(AuraCgRegistryQueryService.MatchesCard(entry, "careercard_8"), "internal table marker card identity matches");
+entry.CardIds = new List<string> { "solar_prayer" };
+Assert(AuraCgRegistryQueryService.MatchesCard(entry, "SunExp_solar_prayer"), "owner-scoped short card identity matches");
+entry.CardIds = new List<string> { "*sun_card" };
 Assert(!AuraCgRegistryQueryService.MatchesCard(entry, "other"), "other card rejected");
 entry.CardIds = new List<string> { "*" };
 Assert(AuraCgRegistryQueryService.MatchesCard(entry, "other"), "card wildcard accepted");

@@ -10,6 +10,12 @@
   <ItemGroup>
     <Compile Include="..\AuraSharedCore\AuraSharedJson.cs" Link="Core\AuraSharedJson.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedIdentity.cs" Link="Core\AuraSharedIdentity.cs" />
+    <Compile Include="..\AuraSharedCore\AuraSharedContentId.cs" Link="Core\AuraSharedContentId.cs" />
+    <Compile Include="..\AuraSharedCore\AuraSharedResourceReference.cs" Link="Core\AuraSharedResourceReference.cs" />
+    <Compile Include="..\AuraSharedCore\AuraSharedResourceProtocolModels.cs" Link="Core\AuraSharedResourceProtocolModels.cs" />
+    <Compile Include="..\AuraSharedCore\AuraSharedResourcePathPolicy.cs" Link="Core\AuraSharedResourcePathPolicy.cs" />
+    <Compile Include="..\AuraSharedCore\AuraSharedRegistrationCoordinator.cs" Link="Core\AuraSharedRegistrationCoordinator.cs" />
+    <Compile Include="..\AuraSharedCore\AuraSharedEffectiveResolverV3.cs" Link="Core\AuraSharedEffectiveResolverV3.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedSecureEnvelope.cs" Link="Core\AuraSharedSecureEnvelope.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedOperationLog.cs" Link="Core\AuraSharedOperationLog.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedResourceLockTable.cs" Link="Core\AuraSharedResourceLockTable.cs" />
@@ -17,6 +23,9 @@
     <Compile Include="..\AuraSharedCore\AuraSharedStorageCoordinator.cs" Link="Core\AuraSharedStorageCoordinator.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedPackageModels.cs" Link="Core\AuraSharedPackageModels.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedPackageCoordinator.cs" Link="Core\AuraSharedPackageCoordinator.cs" />
+    <Compile Include="..\AuraSharedCore\AuraSharedEditableResourceModels.cs" Link="Core\AuraSharedEditableResourceModels.cs" />
+    <Compile Include="..\AuraSharedCore\AuraSharedEditableResourceCoordinator.cs" Link="Core\AuraSharedEditableResourceCoordinator.cs" />
+    <Compile Include="..\AuraRoleShared\AuraRoleRegistryModels.cs" Link="Role\AuraRoleRegistryModels.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedBootstrapResult.cs" Link="Core\AuraSharedBootstrapResult.cs" />
     <Compile Include="..\AuraSharedCore\AuraFeatureSwitchRuntime.cs" Link="Core\AuraFeatureSwitchRuntime.cs" />
     <Compile Include="..\AuraSharedCore\AuraLifecycleSessionRuntime.cs" Link="Core\AuraLifecycleSessionRuntime.cs" />

@@ -9,7 +9,7 @@ namespace AuraToolsExp.Dll.Config;
 public sealed class AuraToolsAudioSettings
 {
     [JsonProperty("schemaVersion")]
-    public int SchemaVersion { get; set; } = 2;
+    public int SchemaVersion { get; set; } = 3;
 
     [JsonProperty("audioSystemVersion")]
     public string AudioSystemVersion { get; set; } = "2.0.0";
@@ -22,22 +22,12 @@ public sealed class AuraToolsAudioSettings
 
     public void Normalize()
     {
-        SchemaVersion = Math.Max(2, SchemaVersion);
+        SchemaVersion = Math.Max(3, SchemaVersion);
         AudioSystemVersion = string.IsNullOrWhiteSpace(AudioSystemVersion) ? "2.0.0" : AudioSystemVersion.Trim();
         BattleBgm ??= AudioFeatureSettings.CreateBattleBgmDefault();
         CardUse ??= AudioFeatureSettings.CreateCardUseDefault();
-        BattleBgm.Normalize("Audio/AuraToolsExp/Common/battle_bgm.mp3", -1000, false);
-        CardUse.Normalize("Audio/AuraToolsExp/Common/card_use.mp3", -1000, false);
-        MigrateBundledPath(BattleBgm.Common, "Audio/Common/battle_bgm.mp3", "Audio/AuraToolsExp/Common/battle_bgm.mp3");
-        MigrateBundledPath(CardUse.Common, "Audio/Common/card_use.mp3", "Audio/AuraToolsExp/Common/card_use.mp3");
-    }
-
-    private static void MigrateBundledPath(AudioCommonSettings settings, string legacy, string current)
-    {
-        if (string.Equals(settings.RelativePath, legacy, StringComparison.OrdinalIgnoreCase))
-        {
-            settings.RelativePath = current;
-        }
+        BattleBgm.Normalize("Audio/Global/all/BattleBgm/AuraToolsExp/default-battle-bgm/content.mp3", -1000, false);
+        CardUse.Normalize("Audio/Global/all/CardUse/AuraToolsExp/default-card-use/content.mp3", -1000, false);
     }
 }
 
@@ -67,7 +57,7 @@ public sealed class AudioFeatureSettings
             SyncRemote = false,
             Common = new AudioCommonSettings
             {
-                RelativePath = "Audio/AuraToolsExp/Common/battle_bgm.mp3",
+                RelativePath = "Audio/Global/all/BattleBgm/AuraToolsExp/default-battle-bgm/content.mp3",
                 Priority = -1000,
                 HardClaim = false,
                 SilenceWhenLoading = false,
@@ -85,7 +75,7 @@ public sealed class AudioFeatureSettings
             SyncRemote = false,
             Common = new AudioCommonSettings
             {
-                RelativePath = "Audio/AuraToolsExp/Common/card_use.mp3",
+                RelativePath = "Audio/Global/all/CardUse/AuraToolsExp/default-card-use/content.mp3",
                 Priority = -1000,
                 HardClaim = false,
                 GainDb = 6f
@@ -181,4 +171,3 @@ public sealed class AudioRoleSettings
         }
     }
 }
-

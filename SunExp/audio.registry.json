@@ -19,7 +19,7 @@
       "bus": "Vocal",
       "policy": "ReplaceOriginal",
       "priority": 100,
-      "path": "Shared:Audio/SunExp/WuNa/wuna_career_selected.wav",
+      "path": "Shared:Audio/Role/SunExp_wuna_wuna/Voice/SunExp/wuna.voice-pack/content/wuna_career_selected.wav",
       "gainDb": 20,
       "match": {
         "careerIds": [
@@ -38,7 +38,7 @@
       "bus": "Vocal",
       "policy": "ReplaceOriginal",
       "priority": 200,
-      "path": "Shared:Audio/SunExp/WuNa/wuna_low_health.wav",
+      "path": "Shared:Audio/Role/SunExp_wuna_wuna/Voice/SunExp/wuna.voice-pack/content/wuna_low_health.wav",
       "gainDb": 22,
       "cooldownSeconds": 1.0,
       "match": {
@@ -69,7 +69,7 @@
       "bus": "Vocal",
       "policy": "Additive",
       "priority": 120,
-      "path": "Shared:Audio/SunExp/WuNa/wuna_white_sun_prayer.wav",
+      "path": "Shared:Audio/Role/SunExp_wuna_wuna/Voice/SunExp/wuna.voice-pack/content/wuna_white_sun_prayer.wav",
       "gainDb": 20,
       "cooldownSeconds": 0.2,
       "match": {
@@ -89,7 +89,7 @@
       "bus": "Vocal",
       "policy": "Additive",
       "priority": 120,
-      "path": "Shared:Audio/SunExp/WuNa/wuna_grave_song.wav",
+      "path": "Shared:Audio/Role/SunExp_wuna_wuna/Voice/SunExp/wuna.voice-pack/content/wuna_grave_song.wav",
       "gainDb": 20,
       "cooldownSeconds": 0.2,
       "match": {
@@ -109,7 +109,7 @@
       "bus": "Vocal",
       "policy": "Additive",
       "priority": 100,
-      "path": "Shared:Audio/SunExp/WuNa/wuna_battle_win.wav",
+      "path": "Shared:Audio/Role/SunExp_wuna_wuna/Voice/SunExp/wuna.voice-pack/content/wuna_battle_win.wav",
       "gainDb": 20,
       "cooldownSeconds": 0.5,
       "match": {
@@ -132,11 +132,11 @@
       "bus": "Vocal",
       "policy": "ReplaceOriginal",
       "priority": 100,
-      "path": "Shared:Audio/SunExp/Columbina/columbina_career_selected_01.ogg",
+      "path": "Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content/columbina_career_selected_01.ogg",
       "variantPaths": [
-        "Shared:Audio/SunExp/Columbina/columbina_career_selected_02.ogg",
-        "Shared:Audio/SunExp/Columbina/columbina_career_selected_03.ogg",
-        "Shared:Audio/SunExp/Columbina/columbina_career_selected_04.ogg"
+        "Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content/columbina_career_selected_02.ogg",
+        "Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content/columbina_career_selected_03.ogg",
+        "Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content/columbina_career_selected_04.ogg"
       ],
       "gainDb": 8,
       "match": {
@@ -156,9 +156,9 @@
       "bus": "Vocal",
       "policy": "ReplaceOriginal",
       "priority": 200,
-      "path": "Shared:Audio/SunExp/Columbina/columbina_low_health_01.ogg",
+      "path": "Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content/columbina_low_health_01.ogg",
       "variantPaths": [
-        "Shared:Audio/SunExp/Columbina/columbina_low_health_02.ogg"
+        "Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content/columbina_low_health_02.ogg"
       ],
       "gainDb": 8,
       "cooldownSeconds": 1.0,
@@ -190,10 +190,10 @@
       "bus": "Vocal",
       "policy": "Additive",
       "priority": 120,
-      "path": "Shared:Audio/SunExp/Columbina/columbina_eternal_tide_01.ogg",
+      "path": "Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content/columbina_eternal_tide_01.ogg",
       "variantPaths": [
-        "Shared:Audio/SunExp/Columbina/columbina_eternal_tide_02.ogg",
-        "Shared:Audio/SunExp/Columbina/columbina_eternal_tide_03.ogg"
+        "Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content/columbina_eternal_tide_02.ogg",
+        "Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content/columbina_eternal_tide_03.ogg"
       ],
       "gainDb": 8,
       "cooldownSeconds": 0.2,
@@ -214,10 +214,10 @@
       "bus": "Vocal",
       "policy": "Additive",
       "priority": 120,
-      "path": "Shared:Audio/SunExp/Columbina/columbina_homesickness_01.ogg",
+      "path": "Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content/columbina_homesickness_01.ogg",
       "variantPaths": [
-        "Shared:Audio/SunExp/Columbina/columbina_homesickness_02.ogg",
-        "Shared:Audio/SunExp/Columbina/columbina_homesickness_03.ogg"
+        "Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content/columbina_homesickness_02.ogg",
+        "Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content/columbina_homesickness_03.ogg"
       ],
       "gainDb": 8,
       "cooldownSeconds": 0.2,

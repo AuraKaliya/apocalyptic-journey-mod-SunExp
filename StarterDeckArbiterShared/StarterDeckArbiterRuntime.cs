@@ -658,7 +658,12 @@ public static class StarterDeckArbiterRuntime
             return 1;
         }
 
-        foreach (var target in profile.TargetRoleIds.Select(NormalizeRoleId).Where(value => !string.IsNullOrWhiteSpace(value)))
+        var targets = profile.TargetRoleIds
+            .Select(NormalizeRoleId)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        foreach (var target in targets)
         {
             if (string.Equals(role, target, StringComparison.OrdinalIgnoreCase))
             {
@@ -672,7 +677,13 @@ public static class StarterDeckArbiterRuntime
             }
         }
 
-        return 0;
+        return targets.Count(target => AuraSharedContentId.Resolve(
+                   target,
+                   new[] { role },
+                   profile.OwnerModId,
+                   AuraSharedIdentity.OfficialCareerPrefix).Success) == 1
+            ? 2
+            : 0;
     }
 
     private static bool RegisterProfileResource(StarterDeckProfile profile, string sourcePath, string baseDirectory)

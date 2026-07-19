@@ -15,6 +15,9 @@ public sealed class SkinPackageManifest
     [JsonProperty("packageVersion")]
     public int PackageVersion { get; set; } = 1;
 
+    [JsonProperty("participantKind")]
+    public string ParticipantKind { get; set; } = "Content";
+
     [JsonProperty("resources")]
     public List<SkinPackageResource> Resources { get; set; } = new();
 }

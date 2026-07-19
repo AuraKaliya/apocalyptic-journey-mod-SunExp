@@ -24,6 +24,10 @@ Assert-True ($career.Id -eq "columbina") "Columbina career row is missing."
 Assert-True ([int]$career.SanMax -eq 95) "Columbina SanMax must be 95."
 Assert-True ($career.DollIcon.StartsWith("DollAni/") -and $career.DollIcon.EndsWith("_0")) "Columbina must reuse the original witch doll."
 Assert-True ([string]::IsNullOrWhiteSpace($career.Dialogue)) "Columbina Dialogue must remain empty."
+Assert-True ($career.AttackEffect -eq "Hit") "Columbina attacks must use a target-side role effect."
+Assert-True ($career.SkillEffect -eq "Hit") "Columbina skills must use a target-side role effect."
+Assert-True ($career.HitEffect -eq "Hit") "Columbina hit reactions must use the native Hit effect."
+Assert-True ($career.DefendEffect -eq "HitDefend") "Columbina defend reactions must use the native defend effect."
 Assert-True ($skills.Count -eq 2) "Columbina must ship exactly two career skill cards."
 
 foreach ($id in @("gravity_ripple", "gravity_value", "moon_domain", "constellation")) {
@@ -59,6 +63,17 @@ foreach ($resource in @(
     "SunExp\ModResource\AnimationLib\columbina\Idle\config.json"
 )) {
     Assert-True (Test-Path -LiteralPath (Join-Path $repoRoot $resource)) "Missing Columbina resource: $resource"
+}
+
+$baseAnimationRoot = Join-Path $repoRoot "SunExp\ModResource\AnimationLib\columbina"
+$idleFrame = Join-Path $baseAnimationRoot "Idle\matte_00001.png"
+$idleHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $idleFrame).Hash
+foreach ($state in @("Attack", "Buff", "Debuff", "Defend", "Hit", "Skill", "Special", "Special1", "Special2")) {
+    $stateRoot = Join-Path $baseAnimationRoot $state
+    $stateFrame = Join-Path $stateRoot ($state + "_00.png")
+    Assert-True (Test-Path -LiteralPath (Join-Path $stateRoot "config.json") -PathType Leaf) "Missing Columbina base animation config: $state"
+    Assert-True (Test-Path -LiteralPath $stateFrame -PathType Leaf) "Missing Columbina base animation frame: $state"
+    Assert-True ((Get-FileHash -Algorithm SHA256 -LiteralPath $stateFrame).Hash -eq $idleHash) "Columbina placeholder animation must reuse the first Idle frame: $state"
 }
 
 foreach ($modPath in @($career.ActionImage1, $career.ActionImage2)) {
@@ -108,7 +123,7 @@ foreach ($providerId in $expectedVoiceCounts.Keys) {
     Assert-True ($paths.Count -eq $expectedVoiceCounts[$providerId]) "Unexpected Columbina voice variant count: $providerId"
     Assert-True ([double]$provider.gainDb -eq 8) "Columbina voices must use the configured +8 dB provider gain: $providerId"
     foreach ($path in $paths) {
-        Assert-True ($path.StartsWith("Shared:Audio/SunExp/Columbina/")) "Columbina voice must resolve through shared resources: $path"
+        Assert-True ($path.StartsWith("Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content/")) "Columbina voice must resolve through the v3 shared scope: $path"
         Assert-True (Test-Path -LiteralPath (Join-Path $voiceRoot ([System.IO.Path]::GetFileName($path))) -PathType Leaf) "Missing declared Columbina voice file: $path"
     }
 }
@@ -139,6 +154,24 @@ $columbinaScripts = [System.IO.File]::ReadAllText((Join-Path $repoRoot "SunExp-D
 Assert-True (-not $columbinaScripts.Contains('NewMoonLaw')) "Columbina career initialization must not add a New Moon Law Buff."
 Assert-True ($columbinaScripts.Contains('AudioApi.PlayColumbinaEternalTide();')) "Eternal Tide must play its voice after a successful cooldown check."
 Assert-True ($columbinaScripts.Contains('AudioApi.PlayColumbinaHomesickness();')) "Homesickness must play its voice after a successful cooldown check."
+
+$actionPresentationCatalog = [System.IO.File]::ReadAllText((Join-Path $repoRoot "SunExp-Dev\Mechanics\RoleActionPresentationCatalog.cs"))
+Assert-True ($actionPresentationCatalog.Contains('columbina_homesickness') -and $actionPresentationCatalog.Contains('RoleActionTargetMode.AllOpponents')) "Homesickness must be registered as an all-opponent presentation action."
+Assert-True ($actionPresentationCatalog.Contains('columbina_eternal_tide') -and $actionPresentationCatalog.Contains('RoleActionTargetMode.SelfOnly')) "Eternal Tide must be registered as a self-only presentation action."
+Assert-True ($actionPresentationCatalog.Contains('IsColumbinaRole')) "The shared role presentation catalog must recognize Columbina."
+Assert-True ($actionPresentationCatalog.Contains("return normalized.TrimStart('*');")) "Action card ids must normalize generated-card asterisks after full mod prefixes."
+
+$actionAnimationRuntime = [System.IO.File]::ReadAllText((Join-Path $repoRoot "SunExp-Dev\Hooks\RoleActionAnimationRuntime.cs"))
+$allOpponentBranch = $actionAnimationRuntime.IndexOf('targetMode == RoleActionTargetMode.AllOpponents', [StringComparison]::Ordinal)
+$existingTargetFastPath = $actionAnimationRuntime.IndexOf('var hasNonSelfTarget', [StringComparison]::Ordinal)
+Assert-True ($allOpponentBranch -ge 0 -and $allOpponentBranch -lt $existingTargetFastPath) "All-opponent presentation rules must run before the existing-target fast path."
+Assert-True ($actionAnimationRuntime.Contains('executor.SetStatus("AllTarget")')) "All-opponent actions must restore the native enemy target set before presentation."
+Assert-True ($actionAnimationRuntime.Contains('currentTargets.Add(executor.Target)')) "Single-target actions must restore the selected native target before presentation."
+Assert-True ($actionAnimationRuntime.Contains('currentTargets.RemoveAll(target => !IsValidNonSelfTarget(self, target))')) "Target-side effects must remove the actor from mixed presentation target sets."
+Assert-True ($actionAnimationRuntime.Contains('targetMode == RoleActionTargetMode.SelfOnly') -and $actionAnimationRuntime.Contains('currentTargets.Clear();')) "Self-only actions must not target their own hit effect."
+
+$runtimeHooks = [System.IO.File]::ReadAllText((Join-Path $repoRoot "SunExp-Dev\Hooks\RuntimeHooks.cs"))
+Assert-True ($runtimeHooks.Contains('RoleActionAnimationRuntime.Initialize(modConfig)')) "The shared role action animation runtime must be initialized."
 
 $audioApi = [System.IO.File]::ReadAllText((Join-Path $repoRoot "SunExp-Dev\GameApi\AudioApi.cs"))
 Assert-True ($audioApi.Contains('public static void PlayColumbinaEternalTide()')) "AudioApi must expose Columbina Eternal Tide playback."

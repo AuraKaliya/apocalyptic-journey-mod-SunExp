@@ -35,6 +35,7 @@ TestDamageSettlementCgSettingsAndLayout();
 TestDamageSettlementCgPayloadOrdering();
 TestDamageSettlementCgAnimationSpec();
 TestSkillCgPresentationNormalization();
+TestFeastRoleResourceIdentity();
 TestSafeBoxDataCompatibility();
 TestRpcPayloadBudgetUsesUtf8Bytes();
 TestDamageMeterAuthorityPolicy();
@@ -302,16 +303,16 @@ void TestConfigModelSerializationCompatibility()
     var audio = JsonConvert.DeserializeObject<AuraToolsAudioSettings>(
         "{\"schemaVersion\":1,\"audioSystemVersion\":\" \",\"battleBgm\":{\"common\":{\"relativePath\":\"Audio/Common/battle_bgm.mp3\"}},\"cardUse\":null}")!;
     audio.Normalize();
-    Assert(audio.SchemaVersion == 2
+    Assert(audio.SchemaVersion == 3
            && audio.AudioSystemVersion == "2.0.0"
-           && audio.BattleBgm.Common.RelativePath == "Audio/AuraToolsExp/Common/battle_bgm.mp3"
-           && audio.CardUse.Common.RelativePath == "Audio/AuraToolsExp/Common/card_use.mp3",
-        "audio config keeps legacy path migration and null-domain recovery after the file split");
+           && audio.BattleBgm.Common.RelativePath == "Audio/Common/battle_bgm.mp3"
+           && audio.CardUse.Common.RelativePath == "Audio/Global/all/CardUse/AuraToolsExp/default-card-use/content.mp3",
+        "audio config preserves user resource paths while recovering missing domains");
 
     var matchExperience = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
         "{\"schemaVersion\":1,\"starterDeck\":{\"preferRoleModProfile\":false},\"safeBox\":null,\"modSync\":null,\"feast\":null,\"damageMeter\":null,\"cardRefresh\":null}")!;
     matchExperience.Normalize();
-    Assert(matchExperience.SchemaVersion == 7
+    Assert(matchExperience.SchemaVersion == 8
            && matchExperience.StarterDeck.PreferRoleModProfile
            && matchExperience.SafeBox != null
            && matchExperience.ModSync != null
@@ -335,7 +336,7 @@ void TestCardRefreshSettingsAndPoolPolicy()
         CardRefresh = null!
     };
     settings.Normalize();
-    Assert(settings.SchemaVersion == 7, "match-experience settings migrate to the card-refresh schema");
+    Assert(settings.SchemaVersion == 8, "match-experience settings migrate to the feast editable-resource schema");
     Assert(settings.CardRefresh != null && !settings.CardRefresh.Enabled,
         "card refresh is restored with a disabled default during normalization");
 
@@ -570,7 +571,7 @@ void TestSkillCgPresentationNormalization()
                     new SkillCgRuleSettings
                     {
                         CardId = "careercard_1",
-                        Image = "CG/AuraToolsExp/Roles/1/skill_cg.png"
+                        Image = "CG/Roles/1/skill_cg.png"
                     },
                     new SkillCgRuleSettings
                     {
@@ -592,13 +593,15 @@ void TestSkillCgPresentationNormalization()
 
     settings.Normalize();
     var rules = settings.Roles["career_1"].Rules;
-    Assert(rules[0].EffectivePresentation.Mode == "fullscreenFade"
+    Assert(settings.SchemaVersion == 4
+           && rules[0].Image == "CG/Roles/1/skill_cg.png"
+           && rules[0].EffectivePresentation.Mode == "fullscreenFade"
            && rules[0].EffectivePresentation.Fit == "cover"
            && Math.Abs(rules[0].EffectivePresentation.Hold - 2f) < 0.001f
            && Math.Abs(rules[0].EffectivePresentation.FocusX - 0.4f) < 0.001f
            && Math.Abs(rules[0].EffectivePresentation.FocusY - 0.6f) < 0.001f
            && Math.Abs(rules[0].EffectivePresentation.SafeScale - 1.1f) < 0.001f,
-        "skill CG presentation inherits global defaults");
+        "skill CG preserves imported paths and presentation inherits global defaults");
     Assert(rules[1].EffectivePresentation.Mode == "centerFade"
            && rules[1].EffectivePresentation.Fit == "stretch"
            && Math.Abs(rules[1].EffectivePresentation.FadeIn - 0.2f) < 0.001f
@@ -662,6 +665,19 @@ void TestDamageMeterAuthorityPolicy()
     Assert(!DamageMeterAuthorityPolicy.TryBindReporter(candidate, outsider, out _, out var outsideReject)
            && outsideReject == "sender not in lobby",
         "non-lobby sender rejected");
+}
+
+void TestFeastRoleResourceIdentity()
+{
+    var first = AuraToolsExp.Dll.Features.Feast.FeastRoleResourceIdentity.FolderName("Mod/Role:A");
+    var second = AuraToolsExp.Dll.Features.Feast.FeastRoleResourceIdentity.FolderName("Mod\\Role:A");
+    Assert(first.StartsWith("Mod_Role_A--", StringComparison.Ordinal)
+           && second.StartsWith("Mod_Role_A--", StringComparison.Ordinal)
+           && first != second,
+        "feast role folders stay readable while hash suffixes prevent sanitized id collisions");
+    Assert(AuraToolsExp.Dll.Features.Feast.FeastRoleResourceIdentity.CgId("RoleA")
+           == AuraToolsExp.Dll.Features.Feast.FeastRoleResourceIdentity.CgId("rolea"),
+        "feast generated CG identity is stable across case-insensitive role ids");
 }
 
 void TestDamageCaptureFrameWindow()
@@ -809,7 +825,7 @@ void TestRuntimeArchitectureGuards()
            && cardRefreshNativeApi.Contains("new RandomPool(pool, dice).DrawByRarity", StringComparison.Ordinal)
            && cardRefreshNativeApi.Contains("manager.CardPackCheck", StringComparison.Ordinal),
         "card refresh recreates clean choice items and uses a window-local clone of the native reward draw pipeline");
-    Assert(matchExperienceConfig.Contains("\"schemaVersion\": 7", StringComparison.Ordinal)
+    Assert(matchExperienceConfig.Contains("\"schemaVersion\": 8", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"cardRefresh\"", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"enabled\": false", StringComparison.Ordinal),
         "shipped card refresh configuration is present and disabled by default");
@@ -1089,6 +1105,34 @@ void TestRuntimeArchitectureGuards()
         "SkillCG hooks must have runtime failure isolation");
     Assert(!skillCgRuntime.Contains("PreloadOnFightStart", StringComparison.Ordinal),
         "SkillCG must not preload registered CG during fight start");
+
+    var feastDefaults = ReadRepoText("AuraToolsExp-Dev/Features/Feast/AuraToolsFeastDefaultMaterializer.cs");
+    var feastRoleCatalog = ReadRepoText("AuraToolsExp-Dev/Infrastructure/RoleCatalog.cs");
+    var cgRegistry = ReadRepoText("AuraCgShared/AuraCgRegistry.cs");
+    var feastPackage = ReadRepoText("AuraToolsExp/SharedResources/aura.registration.json");
+    var feastRegistry = ReadRepoText("AuraToolsExp/SharedResources/cg.registry.json");
+    Assert(feastDefaults.Contains("AuraRoleRegistryRuntime.Changed += OnRoleRegistryChanged", StringComparison.Ordinal)
+           && feastRoleCatalog.Contains("AuraRoleRegistryRuntime.PublishRuntimeRoles", StringComparison.Ordinal)
+           && feastDefaults.Contains("AuraSharedEditableResource.Seed", StringComparison.Ordinal),
+        "feast defaults must react to the shared role directory and materialize through the editable-resource authority");
+    Assert(feastDefaults.Contains("RegisterContribution(AuraToolsIds.ModId, ContributionId", StringComparison.Ordinal)
+           && cgRegistry.Contains("ReplaceContributionEntries", StringComparison.Ordinal)
+           && cgRegistry.Contains("RegistrationSourceId", StringComparison.Ordinal),
+        "generated feast CG entries must use an isolated owner contribution instead of replacing manifest entries");
+    Assert(feastPackage.Contains("\"featureId\": \"Feast\"", StringComparison.Ordinal)
+           && feastPackage.Contains("\"participantKind\": \"Tool\"", StringComparison.Ordinal)
+           && feastPackage.Contains("CG/AuraToolsExp/Templates/Feast/Roles/", StringComparison.Ordinal)
+           && feastRegistry.Contains("CG/Role/", StringComparison.Ordinal)
+           && feastRegistry.Contains("/Feast/AuraToolsExp/", StringComparison.Ordinal)
+           && !feastRegistry.Contains("CG/AuraToolsExp/Feast/Roles/", StringComparison.Ordinal),
+        "packaged feast defaults must use the v3 role scope while retaining old paths only as migration aliases");
+    Assert(!feastDefaults.Contains("LogicalId = \"feast.default.\"", StringComparison.Ordinal)
+           && feastDefaults.Contains("DefaultTemplateResource = \"CG/Global/all/Feast/AuraToolsExp/default-template/content.png\"", StringComparison.Ordinal),
+        "new roles must reference one shared feast fallback instead of copying one default image per role");
+    Assert(feastDefaults.Contains("TryPrepareCanonicalPng", StringComparison.Ordinal)
+           && feastDefaults.Contains("StageTemporary", StringComparison.Ordinal)
+           && feastDefaults.Contains("ImageConversion.EncodeToPNG", StringComparison.Ordinal),
+        "feast image import must validate PNG and normalize JPG/JPEG through the shared temporary-resource boundary");
 
     var starterDeckRuntime = ReadRepoText("AuraToolsExp-Dev/Features/StarterDeck/AuraToolsStarterDeckRuntime.cs");
     var starterDeckModule = ReadRepoSourceTree("AuraToolsExp-Dev/Features/StarterDeck");
@@ -1671,6 +1715,16 @@ void TestStarterDeckDeckBuilder()
         new[] { "d" });
     Assert(bounded.SequenceEqual(new[] { "a", "c" }),
         "starter deck builder enforces deck size before fallback expansion");
+
+    var compatible = StarterDeckDeckBuilder.Build(
+        new[] { "short_a", "legacy_b" },
+        2,
+        valid.Contains,
+        excluded.Contains,
+        Array.Empty<string>(),
+        id => id == "short_a" ? "a" : id == "legacy_b" ? "b" : id);
+    Assert(compatible.SequenceEqual(new[] { "a" }),
+        "starter deck builder validates and applies resolved runtime card ids");
 }
 
 internal sealed class TestCaptureFrame : IDamageCaptureFrame

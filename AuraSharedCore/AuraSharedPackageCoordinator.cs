@@ -85,6 +85,22 @@ public sealed class AuraSharedPackageCoordinator
             {
                 if (destinationFingerprint != null && !HashEquals(destinationFingerprint.Hash, sourceFingerprint.Hash))
                 {
+                    if (request.PreserveLocalChanges)
+                    {
+                        var preserved = CreateRecord(request, sourceFingerprint, destinationPath);
+                        preserved.Customized = true;
+                        AddOrUpdateSource(preserved, request);
+                        index.Resources.Add(preserved);
+                        SaveIndex(index, request.System);
+                        return Success(
+                            "PreservedLocal",
+                            false,
+                            destinationFingerprint.Hash,
+                            destinationPath,
+                            sourceFingerprint.Hash,
+                            customized: true);
+                    }
+
                     return Conflict("Unmanaged destination already contains different content.");
                 }
 
@@ -121,6 +137,23 @@ public sealed class AuraSharedPackageCoordinator
                     return Success("Deduplicated", false, sourceFingerprint.Hash, destinationPath);
                 }
 
+                if (request.PreserveLocalChanges && destinationFingerprint != null)
+                {
+                    existing.Customized = true;
+                    if (sourceChanged)
+                    {
+                        SaveIndex(index, request.System);
+                    }
+
+                    return Success(
+                        "PreservedLocal",
+                        false,
+                        destinationFingerprint.Hash,
+                        destinationPath,
+                        sourceFingerprint.Hash,
+                        customized: true);
+                }
+
                 var repaired = CreateRecord(request, sourceFingerprint, destinationPath, existing.Sources);
                 return Commit(index, existing, repaired, request, sourceFingerprint, destinationPath, "Repaired");
             }
@@ -143,6 +176,24 @@ public sealed class AuraSharedPackageCoordinator
             if (request.PackageVersion <= previousVersion)
             {
                 return Conflict("Different content requires a higher packageVersion.");
+            }
+
+            if (request.PreserveLocalChanges
+                && destinationFingerprint != null
+                && !HashEquals(destinationFingerprint.Hash, existing.ContentHash))
+            {
+                var preserved = CreateRecord(request, sourceFingerprint, destinationPath, existing.Sources);
+                preserved.Customized = true;
+                AddOrUpdateSource(preserved, request);
+                ReplaceRecord(index, existing, preserved);
+                SaveIndex(index, request.System);
+                return Success(
+                    "PreservedLocal",
+                    false,
+                    destinationFingerprint.Hash,
+                    destinationPath,
+                    sourceFingerprint.Hash,
+                    customized: true);
             }
 
             var updated = CreateRecord(request, sourceFingerprint, destinationPath, existing.Sources);
@@ -675,7 +726,13 @@ public sealed class AuraSharedPackageCoordinator
         };
     }
 
-    private static AuraSharedInstallResponse Success(string status, bool changed, string hash, string path)
+    private static AuraSharedInstallResponse Success(
+        string status,
+        bool changed,
+        string hash,
+        string path,
+        string seedHash = "",
+        bool customized = false)
     {
         return new AuraSharedInstallResponse
         {
@@ -683,6 +740,8 @@ public sealed class AuraSharedPackageCoordinator
             Changed = changed,
             Status = status,
             ContentHash = hash,
+            SeedHash = string.IsNullOrWhiteSpace(seedHash) ? hash : seedHash,
+            Customized = customized,
             InstalledPath = path
         };
     }

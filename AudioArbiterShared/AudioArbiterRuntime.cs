@@ -15,7 +15,7 @@ public static class AudioArbiterRuntime
 {
     private const string GlobalObjectName = "AudioArbiter.Global";
     private const string ComponentFullName = "AudioArbiter.Shared.AudioArbiterRuntime+AudioArbiterComponent";
-    public const string CurrentBuildId = "audio-arbiter-2026-07-19-v9";
+    public const string CurrentBuildId = "audio-arbiter-2026-07-20-v10";
     public const int CurrentProtocolVersion = 6;
     public const int MinimumSupportedProtocolVersion = 6;
     public const int SupportedManifestSchemaVersion = 2;
@@ -427,7 +427,7 @@ public static class AudioArbiterRuntime
                         loaded.Defaults,
                         loaded.ManifestOwner,
                         modConfig.DirectoryName,
-                        AuraSharedPaths.ResolveSharedPath);
+                        path => AuraSharedResourceProtocol.ResolvePath(loaded.ManifestOwner, path));
                     RegisterSoundProvider(new FileSoundProvider(
                         providerId: plan.ProviderId,
                         ownerModId: plan.OwnerModId,

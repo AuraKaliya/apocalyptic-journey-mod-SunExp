@@ -445,7 +445,7 @@ public sealed class AuraToolsSkillCgProvider
                     continue;
                 }
 
-                var imagePath = AuraToolsConfigService.ResolveConfiguredPath(rule.Image);
+                var imagePath = AuraToolsConfiguredResourceResolver.ResolveSkillCgPath(rule.Image);
                 if (!File.Exists(imagePath))
                 {
                     AuraToolsLog.Warn("[SkillCG] preload image missing: " + rule.Image);
@@ -544,7 +544,7 @@ public sealed class AuraToolsSkillCgProvider
                     continue;
                 }
 
-                var imagePath = AuraToolsConfigService.ResolveConfiguredPath(rule.Image);
+                var imagePath = AuraToolsConfiguredResourceResolver.ResolveSkillCgPath(rule.Image);
                 if (!ImageExists(rule.Image, imagePath))
                 {
                     AuraToolsLog.Warn("[SkillCG] image missing: " + rule.Image);
@@ -599,6 +599,21 @@ public sealed class AuraToolsSkillCgProvider
     private static IEnumerable<SkillCgRoleSettings> MatchingRoles(string roleId)
     {
         var normalizedRoleId = RoleCatalog.NormalizeRoleId(roleId);
+        var configuredRoleIds = AuraToolsConfigService.SkillCg.Roles
+            .Where(pair => !string.Equals(pair.Key, "*", StringComparison.Ordinal))
+            .SelectMany(pair => new[] { pair.Key, pair.Value?.RoleId ?? "" })
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var matchingConfiguredRoleIds = configuredRoleIds
+            .Where(configuredRoleId => AuraSharedContentId.Resolve(
+                configuredRoleId,
+                new[] { normalizedRoleId },
+                knownPrefixes: new[] { AuraSharedIdentity.OfficialCareerPrefix }).Success)
+            .ToList();
+        var resolvedRoleId = matchingConfiguredRoleIds.Count == 1
+            ? matchingConfiguredRoleIds[0]
+            : normalizedRoleId;
         foreach (var pair in AuraToolsConfigService.SkillCg.Roles)
         {
             var role = pair.Value;
@@ -609,8 +624,8 @@ public sealed class AuraToolsSkillCgProvider
 
             if (string.Equals(role.RoleId, "*", StringComparison.Ordinal)
                 || string.Equals(pair.Key, "*", StringComparison.Ordinal)
-                || string.Equals(RoleCatalog.NormalizeRoleId(role.RoleId), normalizedRoleId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(RoleCatalog.NormalizeRoleId(pair.Key), normalizedRoleId, StringComparison.OrdinalIgnoreCase))
+                || string.Equals(RoleCatalog.NormalizeRoleId(role.RoleId), RoleCatalog.NormalizeRoleId(resolvedRoleId), StringComparison.OrdinalIgnoreCase)
+                || string.Equals(RoleCatalog.NormalizeRoleId(pair.Key), RoleCatalog.NormalizeRoleId(resolvedRoleId), StringComparison.OrdinalIgnoreCase))
             {
                 yield return role;
             }
@@ -642,7 +657,7 @@ public sealed class AuraToolsSkillCgProvider
             return false;
         }
 
-        return Matches(rule.CardId, trigger.CardId)
+        return AuraSharedContentId.Matches(rule.CardId, trigger.CardId, rule.SourceOwnerModId, "careercard_")
                && Matches(rule.Action, trigger.Action);
     }
 
@@ -716,7 +731,7 @@ public static class AuraToolsSkillCgEditor
         toolbarLayout.childControlHeight = true;
         toolbarLayout.childForceExpandWidth = false;
         toolbarLayout.childForceExpandHeight = false;
-        hintText = Settings.AuraToolsUi.AddText(toolbar.transform, "提示：图片会复制到 ModsData/AuraShared/CG/Roles/{角色ID}/ 下。", 14, TextAnchor.MiddleLeft, Settings.AuraToolsUi.MutedText, 34f, 1f);
+        hintText = Settings.AuraToolsUi.AddText(toolbar.transform, "提示：图片会写入 AuraShared/CG/Role/{角色ID}/SkillCg/AuraToolsExp/。", 14, TextAnchor.MiddleLeft, Settings.AuraToolsUi.MutedText, 34f, 1f);
         Settings.AuraToolsUi.AddButton(toolbar.transform, "扫描角色", () => RefreshRoles(true), 92f);
         Settings.AuraToolsUi.AddButton(toolbar.transform, "保存", RefreshAndSave, 78f);
 
@@ -1115,7 +1130,7 @@ public static class AuraToolsSkillCgEditor
         {
             if (!string.IsNullOrWhiteSpace(rule.Image))
             {
-                var path = AuraToolsConfigService.ResolveConfiguredPath(rule.Image);
+                var path = AuraToolsConfiguredResourceResolver.ResolveSkillCgPath(rule.Image);
                 if (File.Exists(path))
                 {
                     directory = Path.GetDirectoryName(path) ?? directory;

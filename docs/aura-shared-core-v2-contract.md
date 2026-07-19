@@ -15,9 +15,9 @@ Core 负责共享路径、存储、资源注册、包事务、变更序列、诊
 
 ## Compatibility（兼容性）
 
-- `CurrentProtocolVersion`: 2
+- `CurrentProtocolVersion`: 3
 - `MinimumSupportedProtocolVersion`: 2
-- `BuildId`: `aura-shared-core-v2-<assembly-mvid>`
+- `BuildId`: `aura-shared-core-v3-<assembly-mvid>`
 
 运行时复用条件是：
 
@@ -46,6 +46,11 @@ Core 负责共享路径、存储、资源注册、包事务、变更序列、诊
 - `WriteStorageJson(requestJson)`
 - `InstallResourceJson(requestJson)`
 - `GetInstalledResourcesJson(system)`
+- `RegisterPackageV3Json(ownerModId, manifestJson, baseDirectory)`
+- `ResolveResourceV3Json(requestedPath)`
+- `ResolveEffectiveV3Json(scopeJson, localOverrideJson)`
+- `WriteUserOverrideV3Json(scopeJson, writerId, localOverrideJson, expectedRevision)`
+- `GetScopeRevisionV3(scopeKey)`
 - `GetChangesJson(sinceSequence)`
 - `GetOwners()`
 
@@ -179,6 +184,24 @@ Core 负责共享路径、存储、资源注册、包事务、变更序列、诊
   `AuraSharedStorageCoordinator.ExecuteWrite` 使用稳定 lock key 协调并发。
 - 共享缓存 payload 使用 `WriteTextAtomic`；cache metadata 也必须原子写入，不能让
   元数据先于主体提交而暴露半完成状态。
+
+### Editable Resource Seed（可编辑资源种子）
+
+需要允许用户手动替换的资源不得继续作为 package-managed 目标反复修复。内容或工具包
+先把只读模板安装到自身命名空间，再由 `AuraSharedEditableResource` 将模板物化到
+`CG/Overrides/<Owner>/...` 等可编辑目录。协调器记录模板哈希和当前内容哈希：目标缺失时
+创建；仍等于旧模板时允许随新模板升级；已经偏离旧模板时视为用户自定义并保留；只有
+显式 Reset 才覆盖，并在 `Backups/Editable/<Owner>` 留下可恢复备份。由 JPG/JPEG 转换
+产生的临时 PNG 也必须通过该协调器进入和离开 `Cache/Editable`，消费者不能直接写入。
+
+### Role Directory（角色目录）
+
+内容 MOD 通过 `SharedResources/role.registry.json` 声明自己拥有的角色；工具或共享适配器
+可以把当前游戏职业表扫描结果作为独立 contribution 发布到 `AuraRoleShared`。贡献以
+`contributorModId + contributionId + sessionId` 分区，避免旧会话或某个动态扫描器覆盖
+其他 MOD 的声明。AuraToolsExp 订阅角色目录 revision，并为新角色生成自己的默认美餐
+CG 配置和可编辑工作副本；它只注册 `generated-feast-defaults` 贡献，不改写内容 MOD 的
+CG manifest 贡献。
 
 ## Conflict And Candidate Policy（冲突与候选策略）
 

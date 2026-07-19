@@ -9,7 +9,7 @@ namespace AuraToolsExp.Dll.Config;
 public sealed class AuraToolsSkillCgSettings
 {
     [JsonProperty("schemaVersion")]
-    public int SchemaVersion { get; set; } = 3;
+    public int SchemaVersion { get; set; } = 4;
 
     [JsonProperty("enabled")]
     public bool Enabled { get; set; } = true;
@@ -43,7 +43,7 @@ public sealed class AuraToolsSkillCgSettings
 
     public void Normalize()
     {
-        SchemaVersion = Math.Max(3, SchemaVersion);
+        SchemaVersion = Math.Max(4, SchemaVersion);
         CardUseCg ??= new AuraToolsCardUseCgSettings();
         CardUseCg.Normalize();
         MaxQueueLength = Math.Max(1, Math.Min(30, MaxQueueLength));
@@ -356,10 +356,6 @@ public sealed class SkillCgRuleSettings
         SourceOwnerModId = SourceOwnerModId?.Trim() ?? "";
         SourceCgId = SourceCgId?.Trim() ?? "";
         Image = Image?.Trim() ?? "";
-        if (Image.StartsWith("CG/Roles/", StringComparison.OrdinalIgnoreCase))
-        {
-            Image = "CG/AuraToolsExp/Roles/" + Image.Substring("CG/Roles/".Length);
-        }
         ProviderId = ProviderId?.Trim() ?? "";
         Presentation ??= SkillCgPresentationSettings.CreateInherited();
         EffectivePresentation = Presentation.ResolveRule(fallbackPresentation, FadeIn, Hold, FadeOut);
@@ -368,4 +364,3 @@ public sealed class SkillCgRuleSettings
         FadeOut = EffectivePresentation.FadeOut;
     }
 }
-

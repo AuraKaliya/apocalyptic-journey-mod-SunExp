@@ -1003,14 +1003,33 @@ public static class AuraToolsSettingsRuntime
     private static void ApplyCommonAudioPath(AudioFeatureSettings settings, bool battleBgm, string path, bool rebuild)
     {
         var trimmed = path?.Trim() ?? "";
-        var baseName = battleBgm ? "battle_bgm" : "card_use";
-        var imported = FileResourceUtil.ImportAudioPath(trimmed, FileResourceUtil.CommonAudioDirectory(), baseName, out var message);
-        settings.Common.RelativePath = string.IsNullOrWhiteSpace(imported) ? trimmed : imported;
-        if (string.IsNullOrWhiteSpace(imported) && !string.IsNullOrWhiteSpace(trimmed))
+        if (string.IsNullOrWhiteSpace(trimmed))
         {
-            AuraToolsLog.Warn("[Settings] common audio path kept as typed: " + message);
+            settings.Common.RelativePath = "";
+            AuraToolsConfigService.SaveAudio();
+            AuraToolsAudioRuntime.RegisterProviders();
+            if (rebuild && activePanel != null)
+            {
+                RebuildPanel(activePanel.transform);
+            }
+
+            return;
         }
 
+        var baseName = battleBgm ? "battle_bgm" : "card_use";
+        var imported = FileResourceUtil.ImportAudioPath(trimmed, FileResourceUtil.CommonAudioDirectory(), baseName, out var message);
+        if (string.IsNullOrWhiteSpace(imported))
+        {
+            AuraToolsLog.Warn("[Settings] common audio import rejected; current configuration preserved: " + message);
+            if (rebuild && activePanel != null)
+            {
+                RebuildPanel(activePanel.transform);
+            }
+
+            return;
+        }
+
+        settings.Common.RelativePath = imported;
         AuraToolsConfigService.SaveAudio();
         AuraToolsAudioRuntime.RegisterProviders();
         if (rebuild && activePanel != null)
@@ -1026,7 +1045,7 @@ public static class AuraToolsSettingsRuntime
             return "未设置音频";
         }
 
-        return File.Exists(AuraToolsConfigService.ResolveConfiguredPath(relativeOrAbsolute))
+        return File.Exists(AuraToolsConfiguredResourceResolver.ResolveAudioPath(relativeOrAbsolute))
             ? "文件存在"
             : "文件缺失";
     }

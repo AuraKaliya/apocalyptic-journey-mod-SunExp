@@ -20,6 +20,8 @@ public sealed class AuraSharedBootstrapResult
 
     public int Deduplicated => CountStatus("Deduplicated");
 
+    public int PreservedLocal => CountStatus("PreservedLocal");
+
     public int Conflicts => responses.Count(response => response.Conflict);
 
     public int Failures => responses.Count(response => !response.Success && !response.Conflict);
@@ -31,6 +33,7 @@ public sealed class AuraSharedBootstrapResult
         + ", repaired=" + Repaired
         + ", updated=" + Updated
         + ", deduplicated=" + Deduplicated
+        + ", preservedLocal=" + PreservedLocal
         + ", conflicts=" + Conflicts
         + ", failures=" + Failures;
 

@@ -76,7 +76,7 @@ public static class RuntimeHooks
         RunHookStep("heart change control", () => HeartChangeControlRuntime.Initialize(modConfig));
         RunHookStep("projection runtime", () => ProjectionRuntime.Initialize(modConfig));
         RunHookStep("spirit runtime", () => SpiritRuntime.Initialize(modConfig));
-        RunHookStep("wuna action animation", () => WunaActionAnimationRuntime.Initialize(modConfig));
+        RunHookStep("role action animation", () => RoleActionAnimationRuntime.Initialize(modConfig));
         RunHookStep("wuna orbit fire", () => WunaOrbitFireRuntime.Initialize(modConfig));
         RunHookStep("star score runtime", () => StarScoreRuntime.Initialize(modConfig));
         RunHookStep("star score HUD", () => StarScoreHudRuntime.Initialize(modConfig));

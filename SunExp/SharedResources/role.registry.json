@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "ownerModId": "SunExp",
+  "contributionId": "manifest",
+  "entries": [
+    {
+      "roleId": "SunExp_loneer_loneer",
+      "displayName": "洛奈尔",
+      "aliases": ["loneer"],
+      "packBelong": "SunExp",
+      "icon": "Mods/SunExp/ModResource/Images/Icon/Loneer",
+      "priority": 100,
+      "tags": ["playable-role", "sunexp"],
+      "enabled": true
+    },
+    {
+      "roleId": "SunExp_wuna_wuna",
+      "displayName": "乌娜",
+      "aliases": ["wuna"],
+      "packBelong": "SunExp",
+      "icon": "Mods/SunExp/ModResource/Images/Icon/WuNa",
+      "priority": 100,
+      "tags": ["playable-role", "sunexp"],
+      "enabled": true
+    },
+    {
+      "roleId": "SunExp_columbina_columbina",
+      "displayName": "哥伦比娅",
+      "aliases": ["columbina"],
+      "packBelong": "SunExp",
+      "icon": "Mods/SunExp/ModResource/Images/Icon/Columbina",
+      "priority": 100,
+      "tags": ["playable-role", "sunexp"],
+      "enabled": true
+    }
+  ]
+}

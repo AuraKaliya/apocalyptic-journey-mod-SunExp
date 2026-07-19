@@ -12,7 +12,6 @@ namespace AuraSkin.Shared.Services;
 
 public static class SkinRegistry
 {
-    private const string CharacterManifestFileName = "character.json";
     private const string SkinManifestFileName = "skin.json";
     private static readonly Dictionary<string, SkinDefinition> ByKey = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, List<SkinDefinition>> ByCareer = new(StringComparer.OrdinalIgnoreCase);
@@ -25,32 +24,25 @@ public static class SkinRegistry
         ByCareer.Clear();
 
         var root = SkinPaths.SkinRootDirectory;
-        if (!Directory.Exists(root))
+        var activeResources = SkinPackageInstaller.GetActiveResources();
+        if (activeResources.Count == 0)
         {
-            SkinLog.Warn("Shared skin scan skipped: " + root + " does not exist");
+            SkinLog.Info("Shared skin scan found no active package leases; residual files under " + root + " remain inactive");
             return;
         }
 
-        string[] characterDirectories;
-        try
+        foreach (var resource in activeResources)
         {
-            characterDirectories = Directory.EnumerateDirectories(root)
-                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-        }
-        catch (Exception ex)
-        {
-            SkinLog.Warn("Failed to enumerate shared character skin directories: " + ex.Message);
-            return;
-        }
-
-        foreach (var characterDirectory in characterDirectories)
-        {
-            var manifestPath = Path.Combine(characterDirectory, CharacterManifestFileName);
-            if (File.Exists(manifestPath))
+            var resolvedDirectory = AuraSharedResourceProtocol.ResolvePath(
+                "AuraSkinShared",
+                resource.CanonicalRelativePath);
+            var manifestPath = Path.Combine(resolvedDirectory, SkinManifestFileName);
+            if (!File.Exists(manifestPath))
             {
-                TryLoadCharacterDirectory(manifestPath);
+                SkinLog.Warn("Active shared skin resource is unavailable: " + resource.CanonicalRelativePath);
+                continue;
             }
+            TryLoadSkin(manifestPath, resource);
         }
 
         foreach (var list in ByCareer.Values)
@@ -96,51 +88,7 @@ public static class SkinRegistry
                + (skinId ?? "").Trim().ToLowerInvariant();
     }
 
-    private static void TryLoadCharacterDirectory(string characterManifestPath)
-    {
-        try
-        {
-            var characterManifest = JsonConvert.DeserializeObject<CharacterSkinManifest>(
-                File.ReadAllText(characterManifestPath));
-            if (characterManifest == null || !characterManifest.Enabled)
-            {
-                return;
-            }
-
-            var characterDirectory = Path.GetDirectoryName(characterManifestPath) ?? "";
-            var targetCareerId = characterManifest.TargetCareerId?.Trim() ?? "";
-            if (string.IsNullOrWhiteSpace(targetCareerId))
-            {
-                targetCareerId = new DirectoryInfo(characterDirectory).Name;
-            }
-            targetCareerId = CareerConfigApi.NormalizeId(targetCareerId);
-            var characterDirectoryName = new DirectoryInfo(characterDirectory).Name;
-
-            if (characterManifest.SchemaVersion != 2
-                || string.IsNullOrWhiteSpace(targetCareerId)
-                || !string.Equals(characterDirectoryName, targetCareerId, StringComparison.OrdinalIgnoreCase))
-            {
-                SkinLog.Warn("Ignored non-canonical shared character skin directory: " + characterManifestPath);
-                return;
-            }
-
-            foreach (var skinDirectory in Directory.EnumerateDirectories(characterDirectory)
-                         .OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
-            {
-                var skinManifestPath = Path.Combine(skinDirectory, SkinManifestFileName);
-                if (File.Exists(skinManifestPath))
-                {
-                    TryLoadSkin(skinManifestPath, targetCareerId);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            SkinLog.Warn("Failed to load shared character skin directory " + characterManifestPath + ": " + ex.Message);
-        }
-    }
-
-    private static void TryLoadSkin(string path, string inheritedCareerId)
+    private static void TryLoadSkin(string path, SkinPackageInstaller.RegisteredSkinResource registered)
     {
         try
         {
@@ -154,9 +102,9 @@ public static class SkinRegistry
             manifest.TargetCareerId = CareerConfigApi.NormalizeId(manifest.TargetCareerId);
             if (string.IsNullOrWhiteSpace(manifest.TargetCareerId))
             {
-                manifest.TargetCareerId = inheritedCareerId;
+                manifest.TargetCareerId = registered.TargetCareerId;
             }
-            else if (!string.Equals(manifest.TargetCareerId, inheritedCareerId, StringComparison.OrdinalIgnoreCase))
+            else if (!string.Equals(manifest.TargetCareerId, registered.TargetCareerId, StringComparison.OrdinalIgnoreCase))
             {
                 SkinLog.Warn("Ignored skin whose targetCareerId differs from its shared character folder: " + path);
                 return;
@@ -170,8 +118,7 @@ public static class SkinRegistry
                 return;
             }
 
-            var skinDirectoryName = new DirectoryInfo(Path.GetDirectoryName(path) ?? "").Name;
-            if (!string.Equals(skinDirectoryName, manifest.SkinId, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(registered.SkinId, manifest.SkinId, StringComparison.OrdinalIgnoreCase))
             {
                 SkinLog.Warn("Ignored non-canonical shared skin directory: " + path);
                 return;
@@ -192,9 +139,11 @@ public static class SkinRegistry
                 Author = manifest.Author?.Trim() ?? "",
                 ManifestPath = path,
                 PreviewPath = SkinPaths.ResolveManifestAsset(path, manifest.Preview, false),
-                Assets = ResolveAssets(path, manifest.Assets ?? new SkinAssets())
+                Assets = ResolveAssets(path, manifest.Assets ?? new SkinAssets()),
+                PackageId = registered.PackageId,
+                PackageVersion = registered.PackageVersion
             };
-            ApplyInstalledMetadata(definition);
+            ApplyInstalledMetadata(definition, registered.OwnerModId);
 
             if (string.IsNullOrWhiteSpace(definition.Assets.CareerImage)
                 && string.IsNullOrWhiteSpace(definition.Assets.Avatar)
@@ -235,13 +184,16 @@ public static class SkinRegistry
         };
     }
 
-    private static void ApplyInstalledMetadata(SkinDefinition definition)
+    private static void ApplyInstalledMetadata(SkinDefinition definition, string ownerModId)
     {
         try
         {
-            var logicalId = definition.TargetCareerId.Trim().ToLowerInvariant()
-                            + "::"
-                            + definition.SkinId.Trim().ToLowerInvariant();
+            var logicalId = "Skin:Skin:Role:"
+                            + definition.TargetCareerId
+                            + ":"
+                            + ownerModId
+                            + ":"
+                            + definition.SkinId;
             var resource = AuraSharedPackageEngine.GetResources("AuraSkin", AuraSharedSystems.Skin)
                 .FirstOrDefault(item => string.Equals(item.LogicalId, logicalId, StringComparison.OrdinalIgnoreCase));
             if (resource == null)
@@ -251,6 +203,7 @@ public static class SkinRegistry
 
             definition.ContentHash = resource.ContentHash ?? "";
             var source = resource.Sources?
+                .Where(item => string.Equals(item.OwnerModId, ownerModId, StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(item => item.PackageVersion)
                 .ThenBy(item => item.OwnerModId, StringComparer.OrdinalIgnoreCase)
                 .FirstOrDefault();

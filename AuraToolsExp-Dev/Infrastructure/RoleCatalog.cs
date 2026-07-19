@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using AuraShared.Core;
+using AuraRole.Shared;
 using Witch.Core;
 
 namespace AuraToolsExp.Dll.Infrastructure;
@@ -115,11 +116,24 @@ public static class RoleCatalog
             AuraToolsLog.Warn("Role scan failed: " + ex.Message);
         }
 
-        return result
+        var roles = result
             .OrderBy(role => role.PackBelong)
             .ThenBy(role => role.DisplayName)
             .ThenBy(role => role.Id)
             .ToList();
+        AuraRoleRegistryRuntime.PublishRuntimeRoles(
+            AuraToolsIds.ModId,
+            "game-career-scan",
+            roles.Select(role => new AuraRoleRegistryEntry
+            {
+                RoleId = role.Id,
+                DisplayName = role.DisplayName,
+                PackBelong = role.PackBelong,
+                Icon = role.Icon,
+                Priority = 0,
+                Tags = new List<string> { "game-career-table" }
+            }));
+        return roles;
     }
 
     private static string ResolveDisplayName(string id, Dictionary<string, string> row)

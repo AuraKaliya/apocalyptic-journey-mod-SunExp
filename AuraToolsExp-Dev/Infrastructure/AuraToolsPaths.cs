@@ -61,16 +61,26 @@ public static class AuraToolsPaths
 
     public static string ResolveConfiguredPath(string relativeOrAbsolute)
     {
-        var candidate = NormalizePathInput(relativeOrAbsolute);
+        var raw = (relativeOrAbsolute ?? "").Trim().Trim('"');
+        if (Path.IsPathRooted(raw))
+        {
+            return Path.GetFullPath(raw);
+        }
+
+        var candidate = NormalizePathInput(raw);
         if (string.IsNullOrWhiteSpace(candidate))
         {
             return DataRootDirectory;
         }
 
+        var shared = AuraSharedResourceProtocol.Resolve(AuraToolsIds.ModId, candidate);
+        if (shared.Active || shared.Success)
+        {
+            return shared.ResolvedPath;
+        }
+
         var systemPath = candidate.Replace('/', Path.DirectorySeparatorChar);
-        return Path.IsPathRooted(systemPath)
-            ? Path.GetFullPath(systemPath)
-            : Path.GetFullPath(Path.Combine(DataRootDirectory, systemPath));
+        return Path.GetFullPath(Path.Combine(DataRootDirectory, systemPath));
     }
 
     public static string ToDataRelativePath(string absoluteOrRelative)

@@ -268,28 +268,32 @@ public static class SunExpSkillCgRuntime
             return true;
         }
 
-        foreach (var target in entry.TargetRoleIds ?? new List<string>())
+        var targets = (entry.TargetRoleIds ?? new List<string>())
+            .Where(target => !string.IsNullOrWhiteSpace(target))
+            .Select(target => target.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        foreach (var target in targets)
         {
             var normalizedTarget = NormalizeId(target);
-            if (string.Equals(normalizedTarget, "*", StringComparison.Ordinal)
-                || string.Equals(normalizedTarget, normalizedRole, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(normalizedTarget, "*", StringComparison.Ordinal))
             {
                 return true;
             }
         }
 
-        return false;
+        return targets.Count(target => AuraSharedContentId.Resolve(
+            target,
+            new[] { normalizedRole },
+            entry.OwnerModId,
+            AuraSharedIdentity.OfficialCareerPrefix).Success) == 1;
     }
 
     private static bool EntryMatchesCard(AuraCgRegistryEntry entry, string cardId)
     {
-        var normalizedCard = NormalizeId(cardId).TrimStart('*');
         foreach (var value in entry.CardIds ?? new List<string>())
         {
-            var pattern = (value ?? "").Trim();
-            if (string.Equals(pattern, "*", StringComparison.Ordinal)
-                || string.Equals(pattern, cardId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(pattern.TrimStart('*'), normalizedCard, StringComparison.OrdinalIgnoreCase))
+            if (AuraSharedContentId.Matches(value, cardId, entry.OwnerModId, "careercard_"))
             {
                 return true;
             }

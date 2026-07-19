@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using Newtonsoft.Json;
 using AuraShared.Core;
 using AuraSkin.Shared.GameApi;
@@ -12,12 +13,27 @@ namespace AuraSkin.Shared.Services;
 public static class SkinPackageInstaller
 {
     private static readonly object SyncRoot = new();
+    private static readonly Dictionary<string, List<RegisteredSkinResource>> ActivePackages =
+        new(StringComparer.OrdinalIgnoreCase);
 
     public static SkinPackageInstallResult InstallPackage(string ownerModId, string packageManifestPath)
     {
         lock (SyncRoot)
         {
             return InstallPackageLocked(ownerModId, packageManifestPath);
+        }
+    }
+
+    public static IReadOnlyList<RegisteredSkinResource> GetActiveResources()
+    {
+        lock (SyncRoot)
+        {
+            return ActivePackages.Values
+                .SelectMany(resources => resources)
+                .OrderBy(resource => resource.TargetCareerId, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(resource => resource.OwnerModId, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(resource => resource.SkinId, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
         }
     }
 
@@ -45,8 +61,10 @@ public static class SkinPackageInstaller
             }
 
             package.PackageId = package.PackageId.Trim();
+            package.ParticipantKind = AuraSharedParticipantKinds.Normalize(package.ParticipantKind);
             var packageDirectory = Path.GetDirectoryName(manifestPath) ?? "";
             var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var preparedResources = new List<PreparedSkinResource>();
             foreach (var resource in package.Resources)
             {
                 var prepared = PrepareResource(packageDirectory, resource);
@@ -54,57 +72,62 @@ public static class SkinPackageInstaller
                 {
                     throw new InvalidDataException("Duplicate skin identity in package " + package.PackageId + ": " + prepared.ResourceKey);
                 }
+                preparedResources.Add(prepared);
+            }
 
-                var characterResponse = AuraSharedPackageEngine.Install(owner, new AuraSharedInstallRequest
+            var registration = new AuraSharedRegistrationManifestV3
+            {
+                OwnerModId = owner,
+                ParticipantKind = package.ParticipantKind,
+                PackageId = package.PackageId,
+                PackageVersion = package.PackageVersion,
+                Resources = preparedResources.Select(prepared => CreateDeclaration(prepared)).ToList()
+            };
+            var registered = AuraSharedResourceProtocol.Register(owner, registration, packageDirectory);
+            result.Success = registered.Success && registered.Items.All(item => item.Success);
+            result.Changed = registered.Items.Any(item => item.Changed)
+                             || registered.ChangedScopeKeys.Count > 0;
+            foreach (var item in registered.Items)
+            {
+                switch (item.Status)
                 {
-                    OwnerModId = owner,
-                    System = AuraSharedSystems.Skin,
-                    LogicalId = "character::" + prepared.TargetCareerId,
-                    PackageId = package.PackageId,
-                    PackageVersion = package.PackageVersion,
-                    Kind = AuraSharedResourceKinds.File,
-                    SourcePath = prepared.CharacterManifestPath,
-                    DestinationRelativePath = "Skins/" + prepared.TargetCareerId + "/character.json"
-                });
-                if (!characterResponse.Success)
-                {
-                    RecordFailure(result, prepared.ResourceKey, characterResponse);
-                    continue;
-                }
-
-                var skinResponse = AuraSharedPackageEngine.Install(owner, new AuraSharedInstallRequest
-                {
-                    OwnerModId = owner,
-                    System = AuraSharedSystems.Skin,
-                    LogicalId = prepared.ResourceKey,
-                    PackageId = package.PackageId,
-                    PackageVersion = package.PackageVersion,
-                    Kind = AuraSharedResourceKinds.Directory,
-                    SourcePath = prepared.SourceDirectory,
-                    DestinationRelativePath = "Skins/" + prepared.TargetCareerId + "/" + prepared.SkinId
-                });
-                if (!skinResponse.Success)
-                {
-                    RecordFailure(result, prepared.ResourceKey, skinResponse);
-                    continue;
-                }
-
-                result.Changed |= characterResponse.Changed || skinResponse.Changed;
-                switch (skinResponse.Status)
-                {
-                    case "Installed":
+                    case AuraSharedRegistrationStatuses.Installed:
                         result.Installed++;
                         break;
-                    case "Updated":
+                    case AuraSharedRegistrationStatuses.Updated:
                         result.Updated++;
                         break;
                     case "Repaired":
                         result.Repaired++;
                         break;
+                    case AuraSharedRegistrationStatuses.Invalid:
+                    case AuraSharedRegistrationStatuses.RejectedProtocol:
+                    case AuraSharedRegistrationStatuses.Unavailable:
+                        result.Conflicts++;
+                        SkinLog.Error("Shared skin registration rejected for " + item.ResourceId + ": " + item.Message);
+                        break;
                     default:
                         result.Deduplicated++;
                         break;
                 }
+            }
+
+            if (result.Success)
+            {
+                ActivePackages[owner + "\n" + package.PackageId] = preparedResources
+                    .Select(prepared => new RegisteredSkinResource
+                    {
+                        OwnerModId = owner,
+                        PackageId = package.PackageId,
+                        PackageVersion = package.PackageVersion,
+                        TargetCareerId = prepared.TargetCareerId,
+                        SkinId = prepared.SkinId,
+                        CanonicalRelativePath = AuraSharedResourcePathPolicy.ResourcePath(
+                            CreateDeclaration(prepared).Scope,
+                            owner,
+                            CreateDeclaration(prepared))
+                    })
+                    .ToList();
             }
 
             SkinLog.Info("Skin package " + package.PackageId
@@ -180,22 +203,33 @@ public static class SkinPackageInstaller
             ResourceKey = targetCareerId.Trim().ToLowerInvariant() + "::" + skin.SkinId.ToLowerInvariant(),
             TargetCareerId = targetCareerId,
             SkinId = skin.SkinId,
-            CharacterManifestPath = characterManifestPath,
-            SourceDirectory = sourceDirectory
+            RelativeSource = relativeSource
         };
     }
 
-    private static void RecordFailure(
-        SkinPackageInstallResult result,
-        string resourceKey,
-        AuraSharedInstallResponse response)
+    private static AuraSharedResourceDeclarationV3 CreateDeclaration(PreparedSkinResource prepared)
     {
-        result.Success = false;
-        if (response.Conflict)
+        return new AuraSharedResourceDeclarationV3
         {
-            result.Conflicts++;
-        }
-        SkinLog.Error("Shared skin install rejected for " + resourceKey + ": " + response.Message);
+            ModuleId = AuraSharedSystems.Skin,
+            FeatureId = "Skin",
+            ScopeType = "Role",
+            ScopeId = prepared.TargetCareerId,
+            ResourceId = prepared.SkinId,
+            Kind = AuraSharedResourceKinds.Directory,
+            Source = prepared.RelativeSource,
+            LegacyPaths = new List<string>
+            {
+                "Skins/" + prepared.TargetCareerId + "/" + prepared.SkinId
+            },
+            EffectMode = AuraSharedEffectModes.Additive,
+            MissingPolicy = AuraSharedMissingPolicies.Skip,
+            Metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["targetCareerId"] = prepared.TargetCareerId,
+                ["skinId"] = prepared.SkinId
+            }
+        };
     }
 
     private static void ValidateAssets(string sourceDirectory, SkinManifest skin)
@@ -290,8 +324,17 @@ public static class SkinPackageInstaller
         public string ResourceKey { get; set; } = "";
         public string TargetCareerId { get; set; } = "";
         public string SkinId { get; set; } = "";
-        public string CharacterManifestPath { get; set; } = "";
-        public string SourceDirectory { get; set; } = "";
+        public string RelativeSource { get; set; } = "";
+    }
+
+    public sealed class RegisteredSkinResource
+    {
+        public string OwnerModId { get; set; } = "";
+        public string PackageId { get; set; } = "";
+        public int PackageVersion { get; set; }
+        public string TargetCareerId { get; set; } = "";
+        public string SkinId { get; set; } = "";
+        public string CanonicalRelativePath { get; set; } = "";
     }
 
     private sealed class AssetReference

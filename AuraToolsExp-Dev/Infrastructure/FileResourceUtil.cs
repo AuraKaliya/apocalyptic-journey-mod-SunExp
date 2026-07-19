@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using AuraAudio.Shared;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 
@@ -7,7 +8,6 @@ namespace AuraToolsExp.Dll.Infrastructure;
 
 public static class FileResourceUtil
 {
-    private static readonly string[] SupportedAudioExtensions = { ".mp3", ".wav", ".ogg" };
     private static readonly string[] SupportedImageExtensions = { ".png", ".jpg", ".jpeg" };
 
     public static string EnsureDirectory(params string[] segments)
@@ -22,25 +22,49 @@ public static class FileResourceUtil
 
     public static string RoleAudioDirectory(string roleId)
     {
-        return EnsureDirectory(
-            AuraToolsConfigService.AudioDirectory,
-            "Roles",
-            SafeFolderName(roleId));
+        return EnsureDirectory(AuraToolsConfigService.DataRootDirectory,
+            AuraSharedResourcePathPolicy.ResourcePath(
+                Scope(AuraSharedSystems.Audio, "LocalAudio", "Role", roleId),
+                AuraToolsIds.ModId,
+                DirectoryResource("user-imports")));
     }
 
     public static string RoleSkillCgDirectory(string roleId)
     {
-        return EnsureDirectory(
-            AuraToolsConfigService.CgDirectory,
-            "Roles",
-            SafeFolderName(roleId));
+        return EnsureDirectory(AuraToolsConfigService.DataRootDirectory,
+            AuraSharedResourcePathPolicy.ResourcePath(
+                Scope(AuraSharedSystems.Cg, "SkillCg", "Role", roleId),
+                AuraToolsIds.ModId,
+                DirectoryResource("user-imports")));
     }
 
     public static string CommonAudioDirectory()
     {
-        return EnsureDirectory(
-            AuraToolsConfigService.AudioDirectory,
-            "Common");
+        return EnsureDirectory(AuraToolsConfigService.DataRootDirectory,
+            AuraSharedResourcePathPolicy.ResourcePath(
+                Scope(AuraSharedSystems.Audio, "LocalAudio", "Global", "all"),
+                AuraToolsIds.ModId,
+                DirectoryResource("user-imports")));
+    }
+
+    private static AuraSharedScopeKey Scope(string module, string feature, string scopeType, string scopeId)
+    {
+        return new AuraSharedScopeKey
+        {
+            ModuleId = module,
+            FeatureId = feature,
+            ScopeType = scopeType,
+            ScopeId = SafeFolderName(scopeId)
+        };
+    }
+
+    private static AuraSharedResourceDeclarationV3 DirectoryResource(string resourceId)
+    {
+        return new AuraSharedResourceDeclarationV3
+        {
+            ResourceId = resourceId,
+            Kind = AuraSharedResourceKinds.Directory
+        };
     }
 
     public static void OpenDirectory(string directory)
@@ -54,7 +78,7 @@ public static class FileResourceUtil
 
     public static bool IsSupportedAudioFile(string path)
     {
-        return AuraSharedFileResource.HasSupportedExtension(path, SupportedAudioExtensions);
+        return AudioFileFormatProbe.Probe(path).Success;
     }
 
     public static bool IsSupportedImageFile(string path)
@@ -64,14 +88,64 @@ public static class FileResourceUtil
 
     public static string ImportAudioPath(string inputPath, string targetDirectory, string targetBaseName, out string message)
     {
-        return ImportPath(
-            inputPath,
-            targetDirectory,
-            targetBaseName,
-            IsSupportedAudioFile,
-            "音频",
-            "仅支持 mp3、wav、ogg 音频文件。",
-            out message);
+        message = "";
+        var candidate = NormalizePathInput(inputPath);
+        if (string.IsNullOrWhiteSpace(candidate))
+        {
+            message = "音频路径为空。";
+            return "";
+        }
+
+        string fullPath;
+        try
+        {
+            fullPath = ResolveInputPath(candidate);
+        }
+        catch (Exception ex)
+        {
+            message = "音频路径无效：" + ex.Message;
+            LogAudioImportFailure("invalid-path", candidate, null, message);
+            return "";
+        }
+
+        var descriptor = AudioFileFormatProbe.Probe(fullPath);
+        AuraSharedLog.Info("AuraTools.AudioImport", "probe: source=" + fullPath
+            + ", sourceExtension=" + Display(Path.GetExtension(fullPath))
+            + ", targetDirectory=" + targetDirectory
+            + ", targetBaseName=" + targetBaseName
+            + ", " + descriptor.Describe());
+        if (!descriptor.Success)
+        {
+            message = "无法导入音频：" + descriptor.Message
+                      + "（" + Display(descriptor.FailureCode) + "）";
+            LogAudioImportFailure(descriptor.FailureCode, fullPath, descriptor, message);
+            return "";
+        }
+
+        try
+        {
+            var relative = CopyIntoData(
+                fullPath,
+                targetDirectory,
+                targetBaseName,
+                descriptor.CanonicalExtension,
+                descriptor);
+            if (string.IsNullOrWhiteSpace(relative))
+            {
+                message = "复制音频失败。";
+                LogAudioImportFailure("copy-failed", fullPath, descriptor, message);
+                return "";
+            }
+
+            message = "已识别为 " + descriptor.Codec + " 并复制为规范文件。";
+            return relative;
+        }
+        catch (Exception ex)
+        {
+            message = "复制音频失败：" + ex.Message;
+            LogAudioImportFailure("registry-commit-failed", fullPath, descriptor, message);
+            return "";
+        }
     }
 
     public static string ImportImagePath(string inputPath, string targetDirectory, string targetBaseName, out string message)
@@ -93,20 +167,34 @@ public static class FileResourceUtil
 
     public static string CopyIntoData(string sourcePath, string targetDirectory, string targetBaseName)
     {
+        return CopyIntoData(sourcePath, targetDirectory, targetBaseName, null, null);
+    }
+
+    private static string CopyIntoData(
+        string sourcePath,
+        string targetDirectory,
+        string targetBaseName,
+        string? canonicalExtension,
+        AudioFileFormatDescriptor? descriptor)
+    {
         if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
         {
             return "";
         }
 
-        var extension = Path.GetExtension(sourcePath);
+        var extension = string.IsNullOrWhiteSpace(canonicalExtension)
+            ? Path.GetExtension(sourcePath)
+            : canonicalExtension;
         if (string.IsNullOrWhiteSpace(extension))
         {
             extension = ".dat";
         }
 
+        extension ??= ".dat";
+
         var targetPath = Path.Combine(
             targetDirectory,
-            SafeFolderName(targetBaseName) + extension);
+            SafeFolderName(targetBaseName) + extension.ToLowerInvariant());
         var destination = AuraToolsConfigService.ToDataRelativePath(targetPath);
         var system = AuraToolsPaths.IsInsideDirectory(targetPath, AuraToolsConfigService.AudioDirectory)
             ? AuraSharedSystems.Audio
@@ -127,6 +215,19 @@ public static class FileResourceUtil
         if (!response.Success)
         {
             throw new IOException("Shared resource import failed: " + response.Message);
+        }
+
+        if (descriptor != null)
+        {
+            AuraSharedLog.Info("AuraTools.AudioImport", "committed: source=" + sourcePath
+                + ", destination=" + destination
+                + ", format=" + descriptor.Format
+                + ", container=" + descriptor.Container
+                + ", codec=" + descriptor.Codec
+                + ", canonicalExtension=" + descriptor.CanonicalExtension
+                + ", packageStatus=" + Display(response.Status)
+                + ", changed=" + response.Changed
+                + ", contentHash=" + Display(response.ContentHash));
         }
 
         return destination;
@@ -203,6 +304,20 @@ public static class FileResourceUtil
         }
     }
 
+    private static void LogAudioImportFailure(
+        string? failureCode,
+        string source,
+        AudioFileFormatDescriptor? descriptor,
+        string message)
+    {
+        AuraSharedLog.Warn("AuraTools.AudioImport", "failed: failureCode=" + Display(failureCode)
+            + ", source=" + source
+            + ", format=" + (descriptor?.Format.ToString() ?? "Unknown")
+            + ", container=" + (descriptor?.Container ?? "Unknown")
+            + ", codec=" + (descriptor?.Codec ?? "Unknown")
+            + ", message=" + message);
+    }
+
     private static string ResolveInputPath(string inputPath)
     {
         var normalized = inputPath.Replace('/', Path.DirectorySeparatorChar);
@@ -214,5 +329,10 @@ public static class FileResourceUtil
     private static string NormalizePathInput(string value)
     {
         return (value ?? "").Trim().Trim('"');
+    }
+
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "<none>" : value ?? "<none>";
     }
 }

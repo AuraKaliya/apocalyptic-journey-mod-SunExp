@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "packageId": "AuraToolsExp.BundledSkins",
   "packageVersion": 2,
+  "participantKind": "Tool",
   "resources": [
     {
       "source": "career_1/summer_cool"

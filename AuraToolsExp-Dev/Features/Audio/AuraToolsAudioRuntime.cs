@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using AuraAudio.Shared;
+using AuraShared.Core;
 using AudioArbiter.Shared;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
@@ -68,7 +69,8 @@ public static class AuraToolsAudioRuntime
 
     private static void RegisterBattleBgmProviders(ModConfig config)
     {
-        var commonPath = AuraToolsConfigService.ResolveConfiguredPath(AuraToolsConfigService.Audio.BattleBgm.Common.RelativePath);
+        var commonPath = AuraToolsConfiguredResourceResolver.ResolveAudioPath(
+            AuraToolsConfigService.Audio.BattleBgm.Common.RelativePath);
         BattleBgmArbiterRuntime.RegisterProvider(
             config,
             AuraToolsIds.ModId,
@@ -95,7 +97,7 @@ public static class AuraToolsAudioRuntime
                 new FileBattleBgmProvider(
                     providerId: providerId,
                     ownerModId: AuraToolsIds.ModId,
-                    audioPath: AuraToolsConfigService.ResolveConfiguredPath(settings.RelativePath),
+                    audioPath: AuraToolsConfiguredResourceResolver.ResolveAudioPath(settings.RelativePath),
                     priority: settings.Priority,
                     hardClaim: settings.HardClaim,
                     silenceWhenLoading: false,
@@ -118,7 +120,7 @@ public static class AuraToolsAudioRuntime
             new FileSoundProvider(
                 providerId: ProviderIds.CommonCardUse,
                 ownerModId: AuraToolsIds.ModId,
-                audioPath: AuraToolsConfigService.ResolveConfiguredPath(common.RelativePath),
+                audioPath: AuraToolsConfiguredResourceResolver.ResolveAudioPath(common.RelativePath),
                 priority: common.Priority,
                 bus: SoundBuses.Effect,
                 policy: SoundPolicies.Replace,
@@ -139,7 +141,7 @@ public static class AuraToolsAudioRuntime
                 new FileSoundProvider(
                     providerId: ProviderIds.RoleCardUse(roleId),
                     ownerModId: AuraToolsIds.ModId,
-                    audioPath: AuraToolsConfigService.ResolveConfiguredPath(settings.RelativePath),
+                    audioPath: AuraToolsConfiguredResourceResolver.ResolveAudioPath(settings.RelativePath),
                     priority: settings.Priority,
                     bus: SoundBuses.Effect,
                     policy: SoundPolicies.Replace,
@@ -194,7 +196,7 @@ public static class AuraToolsAudioRuntime
             return;
         }
 
-        PathExistsCache[key] = File.Exists(AuraToolsConfigService.ResolveConfiguredPath(key));
+        PathExistsCache[key] = File.Exists(AuraToolsConfiguredResourceResolver.ResolveAudioPath(key));
     }
 
     private static bool CachedPathExists(string relativeOrAbsolute)
@@ -210,7 +212,7 @@ public static class AuraToolsAudioRuntime
             return exists;
         }
 
-        exists = File.Exists(AuraToolsConfigService.ResolveConfiguredPath(key));
+        exists = File.Exists(AuraToolsConfiguredResourceResolver.ResolveAudioPath(key));
         PathExistsCache[key] = exists;
         return exists;
     }
@@ -239,7 +241,7 @@ public static class AuraToolsAudioRuntime
             return false;
         }
 
-        return MatchesCareer(context, roleId);
+        return MatchesCareer(context, roleId, settings.Roles.Keys);
     }
 
     private static bool IsCommonCardUseEnabled(object? context)
@@ -268,7 +270,7 @@ public static class AuraToolsAudioRuntime
             return false;
         }
 
-        return MatchesCareer(context, roleId);
+        return MatchesCareer(context, roleId, settings.Roles.Keys);
     }
 
     private static bool IsCardUse(object? context)
@@ -276,11 +278,39 @@ public static class AuraToolsAudioRuntime
         return string.Equals(AudioArbiterRuntime.ReadString(context, "Kind"), SoundEventKinds.CardUse, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool MatchesCareer(object? context, string roleId)
+    private static bool MatchesCareer(object? context, string roleId, IEnumerable<string> configuredRoleIds)
     {
         var careerId = ReadCareerId(context);
-        return !string.IsNullOrWhiteSpace(careerId)
-               && string.Equals(careerId, roleId, StringComparison.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(careerId))
+        {
+            return false;
+        }
+
+        var configured = configuredRoleIds
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var resolution = AuraSharedContentId.Resolve(
+            careerId,
+            configured,
+            knownPrefixes: new[] { AuraSharedIdentity.OfficialCareerPrefix });
+        var resolvedRoleId = resolution.Success ? resolution.ResolvedId : "";
+        if (resolvedRoleId.Length == 0)
+        {
+            var reverseMatches = configured
+                .Where(configuredRoleId => AuraSharedContentId.Resolve(
+                    configuredRoleId,
+                    new[] { careerId },
+                    knownPrefixes: new[] { AuraSharedIdentity.OfficialCareerPrefix }).Success)
+                .ToList();
+            resolvedRoleId = reverseMatches.Count == 1 ? reverseMatches[0] : "";
+        }
+
+        return resolvedRoleId.Length > 0
+               && string.Equals(
+                   AuraSharedIdentity.NormalizeRoleId(resolvedRoleId),
+                   AuraSharedIdentity.NormalizeRoleId(roleId),
+                   StringComparison.OrdinalIgnoreCase);
     }
 
     private static string ReadCareerId(object? context)

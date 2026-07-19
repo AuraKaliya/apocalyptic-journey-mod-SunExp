@@ -5,7 +5,7 @@
     "enabled": true,
     "mode": "Common",
     "common": {
-      "relativePath": "Audio/AuraToolsExp/Common/battle_bgm.mp3",
+      "relativePath": "Audio/Global/all/BattleBgm/AuraToolsExp/default-battle-bgm/content.mp3",
       "priority": -1000,
       "hardClaim": false,
       "silenceWhenLoading": false,
@@ -18,7 +18,7 @@
     "mode": "Common",
     "syncRemote": false,
     "common": {
-      "relativePath": "Audio/AuraToolsExp/Common/card_use.mp3",
+      "relativePath": "Audio/Global/all/CardUse/AuraToolsExp/default-card-use/content.mp3",
       "priority": -1000,
       "hardClaim": false,
       "gainDb": 6.0

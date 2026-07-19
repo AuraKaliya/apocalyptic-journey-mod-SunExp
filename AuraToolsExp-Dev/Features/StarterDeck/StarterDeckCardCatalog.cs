@@ -104,6 +104,28 @@ internal static class StarterDeckCardCatalog
         return GetCardCatalogSnapshot("system-skill-cards").SystemSkillCardIds.ToList();
     }
 
+    public static string ResolveCardId(string cardId, string ownerModId = "")
+    {
+        var declared = (cardId ?? "").Trim();
+        var resolution = AuraSharedContentId.Resolve(
+            declared,
+            GetCardCatalogSnapshot("resolve-card-id").AllCards.Select(card => card.Id),
+            ownerModId,
+            "careercard_");
+        if (resolution.Success)
+        {
+            return resolution.ResolvedId;
+        }
+
+        if (resolution.Kind == AuraSharedContentIdResolutionKind.Ambiguous)
+        {
+            AuraToolsLog.Warn("[StarterDeck] card id is ambiguous: declared="
+                              + declared + ", matches=" + string.Join("|", resolution.Matches));
+        }
+
+        return declared;
+    }
+
     internal static void Warm(string source)
     {
         _ = GetCardCatalogSnapshot(source);

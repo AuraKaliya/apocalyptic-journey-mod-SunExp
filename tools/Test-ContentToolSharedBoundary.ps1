@@ -84,6 +84,7 @@ $sharedRoots = @(
     "AuraLogShared",
     "AuraModeShared",
     "AuraOnlineShared",
+    "AuraRoleShared",
     "AuraSharedCore",
     "AuraSkinShared",
     "AuraUiShared",

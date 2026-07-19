@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Reflection;
 using AuraCg.Shared;
+using AuraRole.Shared;
 using AuraShared.Core;
 using AuraSkin.Shared;
 using StarterDeckArbiter.Shared;
@@ -29,6 +30,7 @@ public static class Entry
         RunStep("rpc authority", () => SunExpRpcAuthorityRuntime.Initialize(modConfig));
         RunStep("shared resource package", () => RegisterSharedResourcePackage(modConfig));
         RunStep("shared registry", () => AuraSharedRegistry.RegisterManifest(modConfig, "SunExp"));
+        RunStep("role registry", () => AuraRoleRegistryRuntime.RegisterManifest(modConfig, "SunExp"));
         RunStep("visual registry", () => VisualRegistry.Load(modConfig));
         RunStep("director runtime", () => SunExpDirectorRuntime.Initialize(modConfig));
         RunStep("endless abyss config", () => EndlessAbyssConfigStore.Load(modConfig));
@@ -74,8 +76,8 @@ public static class Entry
 
     private static void RegisterSharedResourcePackage(ModConfig modConfig)
     {
-        var responses = AuraSharedPackageEngine.InstallManifest(modConfig, "SunExp");
-        foreach (var response in responses)
+        var result = AuraSharedResourceBootstrapper.Bootstrap(modConfig, "SunExp");
+        foreach (var response in result.Responses)
         {
             if (!response.Success)
             {

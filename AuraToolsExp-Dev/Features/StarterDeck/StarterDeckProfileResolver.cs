@@ -78,7 +78,8 @@ internal static class StarterDeckProfileResolver
             profile.DeckSize,
             StarterDeckCardCatalog.IsValidCard,
             StarterDeckCardCatalog.IsStarterDeckExcludedCard,
-            fallbackCardIds);
+            fallbackCardIds,
+            cardId => StarterDeckCardCatalog.ResolveCardId(cardId, profile.OwnerModId));
     }
 
     internal static StarterDeckResolvedProfile? ResolveEffectiveProfile(string roleId)

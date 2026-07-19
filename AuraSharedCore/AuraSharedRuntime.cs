@@ -12,10 +12,10 @@ public static class AuraSharedRuntime
     private const string GlobalObjectName = "AuraShared.Global";
     private const string ComponentFullName = "AuraShared.Core.AuraSharedRuntime+AuraSharedComponent";
 
-    public const string BuildIdPrefix = "aura-shared-core-v2-";
+    public const string BuildIdPrefix = "aura-shared-core-v3-";
     public static readonly string CurrentBuildId = BuildIdPrefix
                                                    + typeof(AuraSharedRuntime).Assembly.ManifestModule.ModuleVersionId.ToString("N");
-    public const int CurrentProtocolVersion = 2;
+    public const int CurrentProtocolVersion = 3;
     public const int MinimumSupportedProtocolVersion = 2;
 
     private static readonly HashSet<string> ReuseLogOwners = new(StringComparer.OrdinalIgnoreCase);
@@ -112,6 +112,11 @@ public static class AuraSharedRuntime
                 "WriteStorageJson",
                 "InstallResourceJson",
                 "GetInstalledResourcesJson",
+                "RegisterPackageV3Json",
+                "ResolveResourceV3Json",
+                "ResolveEffectiveV3Json",
+                "WriteUserOverrideV3Json",
+                "GetScopeRevisionV3",
                 "GetChangesJson",
                 "GetOwners"
             }
@@ -182,6 +187,7 @@ public static class AuraSharedRuntime
         private string rootDirectory = "";
         private AuraSharedStorageCoordinator? storage;
         private AuraSharedPackageCoordinator? packages;
+        private AuraSharedRegistrationCoordinator? registrations;
         private bool recoveredTransactions;
         private string ensuredStandardDirectoryRoot = "";
 
@@ -201,6 +207,7 @@ public static class AuraSharedRuntime
             {
                 storage = new AuraSharedStorageCoordinator(rootDirectory);
                 packages = new AuraSharedPackageCoordinator(storage);
+                registrations = new AuraSharedRegistrationCoordinator(storage, packages);
             }
             else
             {
@@ -368,6 +375,88 @@ public static class AuraSharedRuntime
             return AuraSharedJson.Serialize(packages == null || string.IsNullOrWhiteSpace(systemName)
                 ? Array.Empty<AuraSharedInstalledResource>()
                 : packages.GetResources(systemName));
+        }
+
+        public string RegisterPackageV3Json(
+            object? ownerModId,
+            object? manifestJson,
+            object? baseDirectory)
+        {
+            var owner = Convert.ToString(ownerModId)?.Trim() ?? "";
+            var manifest = DeserializeRequest<AuraSharedRegistrationManifestV3>(manifestJson);
+            var root = Convert.ToString(baseDirectory)?.Trim() ?? "";
+            var response = manifest == null || registrations == null
+                ? new AuraSharedRegistrationResultV3
+                {
+                    Success = false,
+                    OwnerModId = owner,
+                    Message = "Shared v3 registration is unavailable."
+                }
+                : registrations.Register(owner, manifest, root);
+            if (response.ChangedScopeKeys != null)
+            {
+                foreach (var scopeKey in response.ChangedScopeKeys)
+                {
+                    PublishChange("Scope", "ResourceV3", scopeKey, registrations?.GetScopeRevision(scopeKey) ?? 0);
+                }
+            }
+            return AuraSharedJson.Serialize(response);
+        }
+
+        public string ResolveResourceV3Json(object? requestedPath)
+        {
+            return AuraSharedJson.Serialize(registrations?.Resolve(Convert.ToString(requestedPath) ?? "")
+                ?? new AuraSharedResourceResolutionV3
+                {
+                    Success = false,
+                    Outcome = "Unavailable",
+                    Fallback = "CoreUnavailable"
+                });
+        }
+
+        public long GetScopeRevisionV3(object? scopeKey)
+        {
+            return registrations?.GetScopeRevision(Convert.ToString(scopeKey) ?? "") ?? 0;
+        }
+
+        public string ResolveEffectiveV3Json(object? scopeJson, object? localOverrideJson)
+        {
+            var scope = DeserializeRequest<AuraSharedScopeKey>(scopeJson) ?? new AuraSharedScopeKey();
+            var localOverride = string.IsNullOrWhiteSpace(Convert.ToString(localOverrideJson))
+                ? null
+                : DeserializeRequest<AuraSharedLocalOverrideV3>(localOverrideJson);
+            return AuraSharedJson.Serialize(registrations?.ResolveEffective(scope, localOverride)
+                ?? new AuraSharedEffectiveResolutionV3
+                {
+                    ScopeKey = scope.Key,
+                    Outcome = "Unavailable",
+                    Fallback = "CoreUnavailable"
+                });
+        }
+
+        public string WriteUserOverrideV3Json(
+            object? scopeJson,
+            object? writerId,
+            object? localOverrideJson,
+            object? expectedRevision)
+        {
+            var scope = DeserializeRequest<AuraSharedScopeKey>(scopeJson) ?? new AuraSharedScopeKey();
+            var localOverride = DeserializeRequest<AuraSharedLocalOverrideV3>(localOverrideJson)
+                                ?? new AuraSharedLocalOverrideV3();
+            long.TryParse(Convert.ToString(expectedRevision), out var expected);
+            var result = registrations?.WriteUserOverride(
+                scope,
+                Convert.ToString(writerId) ?? "LocalUser",
+                localOverride,
+                expected) ?? new AuraSharedUserOverrideWriteResultV3
+                {
+                    Message = "Shared v3 registration is unavailable."
+                };
+            if (result.Success)
+            {
+                PublishChange("UserOverride", scope.ModuleId, scope.Key, registrations?.GetScopeRevision(scope.Key) ?? 0);
+            }
+            return AuraSharedJson.Serialize(result);
         }
 
         public string GetChangesJson(object? sinceSequence)

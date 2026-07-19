@@ -14,8 +14,8 @@
       "cardIds": ["careercard_1"],
       "media": {
         "type": "image",
-        "resource": "CG/AuraToolsExp/Roles/1/skill_cg.png",
-        "fallbackImage": "CG/AuraToolsExp/Roles/1/skill_cg.png"
+        "resource": "CG/Role/career_1/SkillCg/AuraToolsExp/official.career_1.careercard_1/content.png",
+        "fallbackImage": "CG/Role/career_1/SkillCg/AuraToolsExp/official.career_1.careercard_1/content.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade", "fit": "contain", "fadeIn": 0.35, "hold": 1.5, "fadeOut": 0.5,
@@ -34,8 +34,8 @@
       "cardIds": ["careercard_4"],
       "media": {
         "type": "image",
-        "resource": "CG/AuraToolsExp/Roles/_3/skill_cg.png",
-        "fallbackImage": "CG/AuraToolsExp/Roles/_3/skill_cg.png"
+        "resource": "CG/Role/career_3/SkillCg/AuraToolsExp/official.career_3.careercard_4/content.png",
+        "fallbackImage": "CG/Role/career_3/SkillCg/AuraToolsExp/official.career_3.careercard_4/content.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade", "fit": "contain", "fadeIn": 0.35, "hold": 1.5, "fadeOut": 0.5,
@@ -54,8 +54,8 @@
       "cardIds": ["*"],
       "media": {
         "type": "image",
-        "resource": "CG/AuraToolsExp/Feast/Roles/career_1/feast_cg.png",
-        "fallbackImage": "CG/AuraToolsExp/Feast/Roles/career_1/feast_cg.png"
+        "resource": "CG/Role/career_1/Feast/AuraToolsExp/template.career_1/content.png",
+        "fallbackImage": "CG/Role/career_1/Feast/AuraToolsExp/template.career_1/content.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade",
@@ -84,8 +84,8 @@
       "cardIds": ["*"],
       "media": {
         "type": "image",
-        "resource": "CG/AuraToolsExp/Feast/Roles/career_2/feast_cg.png",
-        "fallbackImage": "CG/AuraToolsExp/Feast/Roles/career_2/feast_cg.png"
+        "resource": "CG/Role/career_2/Feast/AuraToolsExp/template.career_2/content.png",
+        "fallbackImage": "CG/Role/career_2/Feast/AuraToolsExp/template.career_2/content.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade",
@@ -114,8 +114,8 @@
       "cardIds": ["*"],
       "media": {
         "type": "image",
-        "resource": "CG/AuraToolsExp/Feast/Roles/career_3/feast_cg.png",
-        "fallbackImage": "CG/AuraToolsExp/Feast/Roles/career_3/feast_cg.png"
+        "resource": "CG/Role/career_3/Feast/AuraToolsExp/template.career_3/content.png",
+        "fallbackImage": "CG/Role/career_3/Feast/AuraToolsExp/template.career_3/content.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade",
@@ -144,8 +144,8 @@
       "cardIds": ["*"],
       "media": {
         "type": "image",
-        "resource": "CG/AuraToolsExp/Feast/Roles/career_5/feast_cg.png",
-        "fallbackImage": "CG/AuraToolsExp/Feast/Roles/career_5/feast_cg.png"
+        "resource": "CG/Role/career_5/Feast/AuraToolsExp/template.career_5/content.png",
+        "fallbackImage": "CG/Role/career_5/Feast/AuraToolsExp/template.career_5/content.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade",
@@ -174,8 +174,8 @@
       "cardIds": ["*"],
       "media": {
         "type": "image",
-        "resource": "CG/AuraToolsExp/Feast/Roles/career_6/feast_cg.png",
-        "fallbackImage": "CG/AuraToolsExp/Feast/Roles/career_6/feast_cg.png"
+        "resource": "CG/Role/career_6/Feast/AuraToolsExp/template.career_6/content.png",
+        "fallbackImage": "CG/Role/career_6/Feast/AuraToolsExp/template.career_6/content.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade",
@@ -204,8 +204,8 @@
       "cardIds": ["*"],
       "media": {
         "type": "image",
-        "resource": "CG/AuraToolsExp/Feast/Roles/career_7/feast_cg.png",
-        "fallbackImage": "CG/AuraToolsExp/Feast/Roles/career_7/feast_cg.png"
+        "resource": "CG/Role/career_7/Feast/AuraToolsExp/template.career_7/content.png",
+        "fallbackImage": "CG/Role/career_7/Feast/AuraToolsExp/template.career_7/content.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade",
@@ -234,8 +234,8 @@
       "cardIds": ["*"],
       "media": {
         "type": "image",
-        "resource": "CG/AuraToolsExp/Feast/Roles/career_8/feast_cg.png",
-        "fallbackImage": "CG/AuraToolsExp/Feast/Roles/career_8/feast_cg.png"
+        "resource": "CG/Role/career_8/Feast/AuraToolsExp/template.career_8/content.png",
+        "fallbackImage": "CG/Role/career_8/Feast/AuraToolsExp/template.career_8/content.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade",
@@ -264,8 +264,8 @@
       "cardIds": ["*"],
       "media": {
         "type": "image",
-        "resource": "CG/AuraToolsExp/Feast/Roles/career_9/feast_cg.png",
-        "fallbackImage": "CG/AuraToolsExp/Feast/Roles/career_9/feast_cg.png"
+        "resource": "CG/Role/career_9/Feast/AuraToolsExp/template.career_9/content.png",
+        "fallbackImage": "CG/Role/career_9/Feast/AuraToolsExp/template.career_9/content.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade",
@@ -294,8 +294,8 @@
       "cardIds": ["*"],
       "media": {
         "type": "image",
-        "resource": "CG/AuraToolsExp/Feast/Roles/agua/feast_cg.png",
-        "fallbackImage": "CG/AuraToolsExp/Feast/Roles/agua/feast_cg.png"
+        "resource": "CG/Role/agua/Feast/AuraToolsExp/template.agua/content.png",
+        "fallbackImage": "CG/Role/agua/Feast/AuraToolsExp/template.agua/content.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade",
@@ -324,8 +324,8 @@
       "cardIds": ["*"],
       "media": {
         "type": "image",
-        "resource": "CG/AuraToolsExp/Feast/Roles/saya/feast_cg.png",
-        "fallbackImage": "CG/AuraToolsExp/Feast/Roles/saya/feast_cg.png"
+        "resource": "CG/Role/saya/Feast/AuraToolsExp/template.saya/content.png",
+        "fallbackImage": "CG/Role/saya/Feast/AuraToolsExp/template.saya/content.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade",
@@ -354,8 +354,8 @@
       "cardIds": ["*"],
       "media": {
         "type": "image",
-        "resource": "CG/AuraToolsExp/Feast/Roles/pw_chiha_career_time_jk_chiha/feast_cg.png",
-        "fallbackImage": "CG/AuraToolsExp/Feast/Roles/pw_chiha_career_time_jk_chiha/feast_cg.png"
+        "resource": "CG/Role/pw_chiha_career_time_jk_chiha/Feast/AuraToolsExp/template.pw_chiha.jk_chiha/content.png",
+        "fallbackImage": "CG/Role/pw_chiha_career_time_jk_chiha/Feast/AuraToolsExp/template.pw_chiha.jk_chiha/content.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade",
@@ -384,8 +384,8 @@
       "cardIds": ["*"],
       "media": {
         "type": "image",
-        "resource": "CG/AuraToolsExp/Feast/Roles/pw_chiha_career_time_mg_chiha/feast_cg.png",
-        "fallbackImage": "CG/AuraToolsExp/Feast/Roles/pw_chiha_career_time_mg_chiha/feast_cg.png"
+        "resource": "CG/Role/pw_chiha_career_time_mg_chiha/Feast/AuraToolsExp/template.pw_chiha.mg_chiha/content.png",
+        "fallbackImage": "CG/Role/pw_chiha_career_time_mg_chiha/Feast/AuraToolsExp/template.pw_chiha.mg_chiha/content.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade",

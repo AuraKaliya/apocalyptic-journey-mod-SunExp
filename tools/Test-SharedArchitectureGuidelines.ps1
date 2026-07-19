@@ -91,6 +91,9 @@ $audioNetworkSession = Read-RepoText "AudioArbiterShared\AudioNetworkSessionStat
 $audioNetworkRuntime = Read-RepoText "AudioArbiterShared\AudioNetworkRuntime.cs"
 $audioPropertyReader = Read-RepoText "AudioArbiterShared\AudioPropertyReader.cs"
 $audioFileLoadPolicy = Read-RepoText "AudioArbiterShared\AudioFileLoadPolicy.cs"
+$audioFileFormatProbe = Read-RepoText "AuraAudioShared\AudioFileFormatProbe.cs"
+$audioUnityFileLoadPolicy = Read-RepoText "AudioArbiterShared\AudioUnityFileLoadPolicy.cs"
+$battleBgmRuntime = Read-RepoText "BattleBgmArbiterShared\BattleBgmArbiterRuntime.cs"
 $audioVariantSelectionPolicy = Read-RepoText "AudioArbiterShared\AudioVariantSelectionPolicy.cs"
 $audioHookCatalog = Read-RepoText "AudioArbiterShared\AudioHookCatalog.cs"
 $audioHookAdapter = Read-RepoText "AudioArbiterShared\AudioHookAdapter.cs"
@@ -147,8 +150,12 @@ Require-Text $audioComponentRuntime '"audio-hooks"' "Audio component must isolat
 Require-Text $audioComponentRuntime "AuraSharedHooks\.RunStep" "Audio component initialization steps must fail independently."
 Require-Text $audioPropertyReader "internal static class AudioPropertyReader" "Audio reflection reads must stay in their isolated reader."
 Require-Text $audioPropertyReader "BindingFlags\.Instance\s*\|\s*BindingFlags\.Public" "Audio property reader must only inspect public instance properties."
-Require-Text $audioFileLoadPolicy "internal static class AudioFileLoadPolicy" "Audio file extension classification must stay in a pure policy."
-Require-Text $audioFileLoadPolicy "UnsupportedVideoContainer" "Audio file policy must reject video containers before Unity loading."
+Require-Text $audioFileFormatProbe "public static class AudioFileFormatProbe" "Audio content format detection must stay in a shared pure policy."
+Require-Text $audioFileFormatProbe '"RIFF"' "Audio format probe must recognize WAV content by signature."
+Require-Text $audioFileFormatProbe '"OggS"' "Audio format probe must recognize Ogg content by signature."
+Require-Text $audioFileFormatProbe '"OpusHead"' "Audio format probe must explicitly reject unsupported Ogg Opus content."
+Require-Text $audioFileFormatProbe "TryFindMpegAudioFrame" "Audio format probe must validate MPEG audio frames instead of trusting MP3 extensions."
+Require-Text $audioUnityFileLoadPolicy "AudioFileFormat\.OggVorbis[\s\S]*AudioType\.OGGVORBIS" "Unity audio type selection must map detected Ogg Vorbis content explicitly."
 Require-Text $audioVariantSelectionPolicy "internal static class AudioVariantSelectionPolicy" "Audio variant selection must stay in a pure policy."
 Require-Text $audioVariantSelectionPolicy "StableHash" "Audio variant selection must remain deterministic across synchronized peers."
 Require-Text $audioHookCatalog "internal static class AudioHookCatalog" "Audio hook targets and phases must stay in a pure catalog."
@@ -223,7 +230,10 @@ Require-Text $audioFileSoundProvider "public sealed class FileSoundProvider" "Au
 Require-Text $audioFileSoundProvider "UnityWebRequestMultimedia\.GetAudioClip" "Audio file provider adapter must own Unity audio loading."
 Require-Text $audioFileSoundProvider "private sealed class ProviderRunner\s*:\s*MonoBehaviour" "Audio file provider must isolate its Coroutine runner."
 Require-Text $audioFileSoundProvider "completedGeneration != generation" "Audio file provider must reject stale load completions."
-Require-Text $audioFileSoundProvider "AudioFileLoadPolicy\.Classify" "Audio file provider must use the pure extension policy."
+Require-Text $audioFileSoundProvider "AudioFileFormatProbe\.Probe" "Audio file provider must detect the real file format before Unity loading."
+Require-Text $audioFileSoundProvider "AudioUnityFileLoadPolicy\.TryResolve" "Audio file provider must map detected formats through the shared Unity load policy."
+Require-Text $battleBgmRuntime "AudioFileFormatProbe\.Probe" "Battle BGM provider must detect the real file format before Unity loading."
+Require-Text $battleBgmRuntime "AudioUnityFileLoadPolicy\.TryResolve" "Battle BGM provider must share detected-format Unity type mapping with ordinary audio."
 Require-Text $audioFileSoundProvider "AudioVariantSelectionPolicy\.SelectStartIndex" "Audio file provider must select synchronized variants through the pure policy."
 Require-Text $audioFileSoundProvider "pendingLoads" "Audio multi-variant providers must wait for all configured paths before becoming ready."
 Require-Text $audioManifestLoader "internal static class AudioManifestLoader" "Audio manifest loading and compatibility validation must stay in its dedicated loader."
@@ -268,6 +278,9 @@ if ($audioPropertyReader -match "UnityEngine|Witch\.|AudioManager|PlayerManager|
 }
 if ($audioFileLoadPolicy -match "UnityEngine|Witch\.|AudioManager|PlayerManager|ModHookContext|MonoBehaviour|UnityWebRequest") {
     throw "Audio file extension classification must remain independent from Unity, game APIs, hooks, and transport."
+}
+if ($audioFileFormatProbe -match "UnityEngine|Witch\.|AudioManager|PlayerManager|ModHookContext|MonoBehaviour|UnityWebRequest") {
+    throw "Audio content format detection must remain independent from Unity, game APIs, hooks, and transport."
 }
 if ($audioHookCatalog -match "using\s+UnityEngine|using\s+Witch\.|ModHookContext|ModConfig|MonoBehaviour") {
     throw "Audio hook catalog must remain plain target/phase metadata without game or hook objects."
@@ -764,6 +777,7 @@ $sharedRoots = @(
     "AuraLogShared",
     "AuraModeShared",
     "AuraOnlineShared",
+    "AuraRoleShared",
     "AuraSharedCore",
     "AuraSkinShared",
     "AuraUiShared",
@@ -785,6 +799,8 @@ foreach ($required in @("RegisterMode", "ActivateMode", "DeactivateMode", "Evalu
 $rawWriteAllowed = @(
     "AuraSharedCore\AuraSharedStorageCoordinator.cs",
     "AuraSharedCore\AuraSharedPackageCoordinator.cs",
+    "AuraSharedCore\AuraSharedRegistrationCoordinator.cs",
+    "AuraSharedCore\AuraSharedEditableResourceCoordinator.cs",
     "AuraSharedCore\AuraSharedOperationLog.cs",
     "AuraSharedCore\AuraSharedLogStore.cs",
     "AuraLogShared\AuraLogRuntime.cs",
@@ -837,6 +853,11 @@ $guidelines = Read-RepoText "docs\aura-shared-core-v2-contract.md"
 Require-Text $guidelines "Ownership And Mutability" "Shared guidelines must document ownership and mutability."
 Require-Text $guidelines "Conflict And Candidate Policy" "Shared guidelines must document conflict and candidate policy."
 Require-Text $guidelines "Resolution Priority" "Shared guidelines must document resolution priority."
+
+$resourceV3 = Read-RepoText "docs\aura-shared-resource-v3-contract.md"
+Require-Text $resourceV3 "Active lease" "Shared v3 guidelines must separate active leases from persistent registrations."
+Require-Text $resourceV3 "module/scopeType/scopeId/featureId/ownerModId/resourceId" "Shared v3 guidelines must define the canonical module-owned layout."
+Require-Text $resourceV3 "dual-read" "Shared v3 guidelines must define legacy dual-read migration."
 
 $auditFile = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot "docs\SunExp") -File -Filter "04-Aura*.md")
 if ($auditFile.Count -ne 1) {

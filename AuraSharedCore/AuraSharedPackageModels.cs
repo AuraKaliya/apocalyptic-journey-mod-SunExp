@@ -107,6 +107,9 @@ public sealed class AuraSharedInstallRequest
 
     [JsonProperty("destinationRelativePath")]
     public string DestinationRelativePath { get; set; } = "";
+
+    [JsonProperty("preserveLocalChanges")]
+    public bool PreserveLocalChanges { get; set; }
 }
 
 public sealed class AuraSharedInstallResponse
@@ -125,6 +128,12 @@ public sealed class AuraSharedInstallResponse
 
     [JsonProperty("contentHash")]
     public string ContentHash { get; set; } = "";
+
+    [JsonProperty("seedHash")]
+    public string SeedHash { get; set; } = "";
+
+    [JsonProperty("customized")]
+    public bool Customized { get; set; }
 
     [JsonProperty("installedPath")]
     public string InstalledPath { get; set; } = "";
@@ -161,6 +170,9 @@ public sealed class AuraSharedInstalledResource
 
     [JsonProperty("contentHash")]
     public string ContentHash { get; set; } = "";
+
+    [JsonProperty("customized")]
+    public bool Customized { get; set; }
 
     [JsonProperty("path")]
     public string Path { get; set; } = "";

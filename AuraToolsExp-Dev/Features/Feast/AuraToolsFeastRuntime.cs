@@ -51,6 +51,7 @@ public static class AuraToolsFeastRuntime
         RegisterAfter(modConfig, "FightManager.CmdChangeCareer", CaptureCurrentRole);
         RegisterAfter(modConfig, "FightManager.RpcChangeCareer", CaptureCurrentRole);
         AuraToolsConfigService.Changed += Reconfigure;
+        AuraToolsFeastDefaultMaterializer.Initialize();
     }
 
     public static int RegisteredFeastCgCount()
@@ -60,6 +61,7 @@ public static class AuraToolsFeastRuntime
 
     public static IReadOnlyList<FeastCgCandidate> BuildCandidateCgsForRole(string roleId)
     {
+        AuraToolsFeastDefaultMaterializer.EnsureCurrent();
         var normalizedRole = RoleCatalog.NormalizeRoleId(roleId);
         if (string.IsNullOrWhiteSpace(normalizedRole))
         {
@@ -401,7 +403,11 @@ public static class AuraToolsFeastRuntime
 
     private static bool TargetsRole(AuraCgRegistryEntry entry, string roleId)
     {
-        var targets = entry.TargetRoleIds ?? new List<string>();
+        var targets = (entry.TargetRoleIds ?? new List<string>())
+            .Where(target => !string.IsNullOrWhiteSpace(target))
+            .Select(target => target.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
         if (targets.Count == 0)
         {
             return false;
@@ -409,14 +415,17 @@ public static class AuraToolsFeastRuntime
 
         foreach (var target in targets)
         {
-            if (string.Equals(target, "*", StringComparison.Ordinal)
-                || string.Equals(RoleCatalog.NormalizeRoleId(target), roleId, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(target, "*", StringComparison.Ordinal))
             {
                 return true;
             }
         }
 
-        return false;
+        return targets.Count(target => AuraSharedContentId.Resolve(
+            target,
+            new[] { roleId },
+            entry.OwnerModId,
+            AuraSharedIdentity.OfficialCareerPrefix).Success) == 1;
     }
 
     private static bool IsEnabled()
@@ -429,6 +438,7 @@ public static class AuraToolsFeastRuntime
     {
         try
         {
+            AuraToolsFeastDefaultMaterializer.EnsureCurrent();
             var selected = AuraSharedIdentity.SelectRoleId(
                 ExtractRoleId(context.Arguments),
                 ExtractRoleId(context.Target),

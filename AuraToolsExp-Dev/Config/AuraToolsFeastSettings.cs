@@ -83,6 +83,27 @@ public sealed class FeastRoleSettings
     [JsonProperty("selectedCgId")]
     public string SelectedCgId { get; set; } = "";
 
+    [JsonProperty("active")]
+    public bool Active { get; set; } = true;
+
+    [JsonProperty("localCgId")]
+    public string LocalCgId { get; set; } = "";
+
+    [JsonProperty("localResource")]
+    public string LocalResource { get; set; } = "";
+
+    [JsonProperty("localSeedHash")]
+    public string LocalSeedHash { get; set; } = "";
+
+    [JsonProperty("localContentHash")]
+    public string LocalContentHash { get; set; } = "";
+
+    [JsonProperty("localCustomized")]
+    public bool LocalCustomized { get; set; }
+
+    [JsonProperty("lastSeenRoleRevision")]
+    public long LastSeenRoleRevision { get; set; }
+
     [JsonProperty("presentation")]
     public SkillCgPresentationSettings Presentation { get; set; } = SkillCgPresentationSettings.CreateInherited();
 
@@ -94,6 +115,11 @@ public sealed class FeastRoleSettings
         RoleId = RoleCatalog.NormalizeRoleId(string.IsNullOrWhiteSpace(RoleId) ? fallbackRoleId : RoleId);
         DisplayName = DisplayName?.Trim() ?? "";
         SelectedCgId = (SelectedCgId ?? "").Trim();
+        LocalCgId = (LocalCgId ?? "").Trim();
+        LocalResource = (LocalResource ?? "").Trim().Replace('\\', '/').TrimStart('/');
+        LocalSeedHash = (LocalSeedHash ?? "").Trim();
+        LocalContentHash = (LocalContentHash ?? "").Trim();
+        LastSeenRoleRevision = Math.Max(0, LastSeenRoleRevision);
         Presentation = (Presentation ?? SkillCgPresentationSettings.CreateInherited()).Resolve(fallbackPresentation);
         EffectivePresentation = Presentation;
     }

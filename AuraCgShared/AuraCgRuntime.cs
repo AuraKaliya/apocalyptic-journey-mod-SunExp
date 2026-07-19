@@ -18,7 +18,7 @@ public static class SkillCgArbiterRuntime
     public const string FeastCgKind = "feast";
     private const string GlobalObjectName = "AuraCg.Global";
     private const string ComponentFullName = "AuraCg.Shared.SkillCgArbiterRuntime+SkillCgArbiterComponent";
-    public const string CurrentBuildId = "aura-cg-shared-2026-07-10-v11";
+    public const string CurrentBuildId = "aura-cg-shared-2026-07-20-v12";
     public const int CurrentProtocolVersion = 9;
     public const int MinimumSupportedProtocolVersion = CurrentProtocolVersion;
     private const int MaxPreloadSubmissionItems = 256;
@@ -475,6 +475,11 @@ public static class SkillCgArbiterRuntime
         var normalizedResource = NormalizeRelativeResourcePath(resource);
         var candidates = new List<string>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var sharedResolution = AuraSharedResourceProtocol.Resolve(ownerModId, normalizedResource);
+        if (!string.IsNullOrWhiteSpace(sharedResolution.ResolvedPath))
+        {
+            AddCandidate(candidates, seen, sharedResolution.ResolvedPath);
+        }
         var ownerContentRelative = OwnerContentRelativePath(ownerModId, normalizedResource);
         var isOwnerQualifiedModPath = !string.Equals(ownerContentRelative, normalizedResource, StringComparison.OrdinalIgnoreCase);
         if (isOwnerQualifiedModPath && ContentDirectories.TryGetValue(ownerModId, out var qualifiedContentDirectory))
@@ -497,7 +502,7 @@ public static class SkillCgArbiterRuntime
 
         foreach (var candidate in candidates)
         {
-            if (File.Exists(candidate))
+            if (File.Exists(candidate) || Directory.Exists(candidate))
             {
                 return candidate;
             }

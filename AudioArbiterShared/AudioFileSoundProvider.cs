@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.IO;
+using AuraAudio.Shared;
 using AuraShared.Core;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -201,24 +202,37 @@ public sealed class FileSoundProvider : IDisposable
     {
         if (!File.Exists(audioPath))
         {
-            CompletePathLoad(currentGeneration, index, audioPath, null, "file missing");
+            CompletePathLoad(currentGeneration, index, audioPath, null, null, "file missing");
             return;
         }
 
-        if (AudioFileLoadPolicy.Classify(audioPath) == AudioFileEncoding.UnsupportedVideoContainer)
+        var descriptor = AudioFileFormatProbe.Probe(audioPath);
+        AuraSharedLog.Info("AudioArbiter", "Sound probe: provider=" + ProviderId
+            + ", owner=" + OwnerModId
+            + ", path=" + audioPath
+            + ", sourceExtension=" + Display(Path.GetExtension(audioPath))
+            + ", " + descriptor.Describe());
+        if (!descriptor.Success || !AudioUnityFileLoadPolicy.TryResolve(descriptor, out var audioType))
         {
-            CompletePathLoad(currentGeneration, index, audioPath, null, "unsupported video container");
+            CompletePathLoad(
+                currentGeneration,
+                index,
+                audioPath,
+                descriptor,
+                null,
+                "probe-failed: code=" + Display(descriptor.FailureCode) + ", message=" + descriptor.Message);
             return;
         }
 
-        runner.LoadAudio(audioPath, currentGeneration, (completedGeneration, loadedClip, error) =>
-            CompletePathLoad(completedGeneration, index, audioPath, loadedClip, error));
+        runner.LoadAudio(audioPath, audioType, currentGeneration, (completedGeneration, loadedClip, error) =>
+            CompletePathLoad(completedGeneration, index, audioPath, descriptor, loadedClip, error));
     }
 
     private void CompletePathLoad(
         int completedGeneration,
         int index,
         string audioPath,
+        AudioFileFormatDescriptor? descriptor,
         AudioClip? loadedClip,
         string? error)
     {
@@ -230,15 +244,25 @@ public sealed class FileSoundProvider : IDisposable
         if (loadedClip == null)
         {
             Debug.LogWarning("[AudioArbiter] Sound load failed: provider=" + ProviderId
+                + ", owner=" + OwnerModId
                 + ", path=" + audioPath
+                + ", format=" + (descriptor?.Format.ToString() ?? "Unknown")
+                + ", failureCode=" + Display(descriptor?.FailureCode)
                 + ", error=" + (error ?? "<none>"));
         }
         else
         {
             loadedClip.name = Path.GetFileNameWithoutExtension(audioPath);
             clips[index] = loadedClip;
-            AuraSharedLog.DebugLog("AudioArbiter", "Sound loaded: provider=" + ProviderId
-                + ", clip=" + loadedClip.name, false);
+            AuraSharedLog.Info("AudioArbiter", "Sound load ready: provider=" + ProviderId
+                + ", owner=" + OwnerModId
+                + ", path=" + audioPath
+                + ", format=" + (descriptor?.Format.ToString() ?? "Unknown")
+                + ", codec=" + (descriptor?.Codec ?? "Unknown")
+                + ", clip=" + loadedClip.name
+                + ", duration=" + loadedClip.length.ToString("0.000")
+                + ", channels=" + loadedClip.channels
+                + ", frequency=" + loadedClip.frequency);
         }
 
         pendingLoads = Math.Max(0, pendingLoads - 1);
@@ -246,6 +270,11 @@ public sealed class FileSoundProvider : IDisposable
         {
             loadState = HasLoadedClip() ? "Ready" : "Failed";
         }
+    }
+
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "<none>" : value ?? "<none>";
     }
 
     private bool HasLoadedClip()
@@ -285,62 +314,49 @@ public sealed class FileSoundProvider : IDisposable
 
     private sealed class ProviderRunner : MonoBehaviour
     {
-        public void LoadAudio(string path, int generation, Action<int, AudioClip?, string?> onCompleted)
+        public void LoadAudio(
+            string path,
+            AudioType audioType,
+            int generation,
+            Action<int, AudioClip?, string?> onCompleted)
         {
-            StartCoroutine(LoadAudioCoroutine(path, generation, onCompleted));
+            StartCoroutine(LoadAudioCoroutine(path, audioType, generation, onCompleted));
         }
 
-        private static IEnumerator LoadAudioCoroutine(string path, int generation, Action<int, AudioClip?, string?> onCompleted)
+        private static IEnumerator LoadAudioCoroutine(
+            string path,
+            AudioType audioType,
+            int generation,
+            Action<int, AudioClip?, string?> onCompleted)
         {
             var uri = new Uri(path).AbsoluteUri;
-            string? lastError = null;
-            foreach (var audioType in ResolveAudioTypes(path))
+            using var request = UnityWebRequestMultimedia.GetAudioClip(uri, audioType);
+            yield return request.SendWebRequest();
+
+            if (request.result != UnityWebRequest.Result.Success)
             {
-                using var request = UnityWebRequestMultimedia.GetAudioClip(uri, audioType);
-                yield return request.SendWebRequest();
-
-                if (request.result != UnityWebRequest.Result.Success)
-                {
-                    lastError = "type=" + audioType + ", result=" + request.result + ", error=" + request.error;
-                    continue;
-                }
-
-                AudioClip? loadedClip = null;
-                string? error = null;
-                try
-                {
-                    loadedClip = DownloadHandlerAudioClip.GetContent(request);
-                }
-                catch (Exception ex)
-                {
-                    error = ex.ToString();
-                }
-
-                if (loadedClip != null)
-                {
-                    onCompleted(generation, loadedClip, null);
-                    yield break;
-                }
-
-                lastError = "type=" + audioType + ", contentError=" + (error ?? "AudioClip is null");
+                onCompleted(generation, null, "type=" + audioType + ", result=" + request.result + ", error=" + request.error);
+                yield break;
             }
 
-            onCompleted(generation, null, lastError);
-        }
-
-        private static AudioType[] ResolveAudioTypes(string path)
-        {
-            switch (AudioFileLoadPolicy.Classify(path))
+            AudioClip? loadedClip = null;
+            string? error = null;
+            try
             {
-                case AudioFileEncoding.Wav:
-                    return new[] { AudioType.WAV };
-                case AudioFileEncoding.OggVorbis:
-                    return new[] { AudioType.OGGVORBIS };
-                case AudioFileEncoding.Mpeg:
-                case AudioFileEncoding.UnsupportedVideoContainer:
-                default:
-                    return new[] { AudioType.MPEG };
+                loadedClip = DownloadHandlerAudioClip.GetContent(request);
             }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+            }
+
+            if (loadedClip != null)
+            {
+                onCompleted(generation, loadedClip, null);
+                yield break;
+            }
+
+            onCompleted(generation, null, "type=" + audioType + ", contentError=" + (error ?? "AudioClip is null"));
         }
     }
 }

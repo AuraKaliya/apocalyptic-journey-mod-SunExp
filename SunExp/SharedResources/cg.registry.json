@@ -20,8 +20,8 @@
       ],
       "media": {
         "type": "image",
-        "resource": "CG/SunExp/Loneer/Loneer_晨星祈愿.png",
-        "fallbackImage": "CG/SunExp/Loneer/Loneer_晨星祈愿.png"
+        "resource": "CG/Role/SunExp_loneer_loneer/SkillCg/SunExp/loneer.morning-star-prayer/content.png",
+        "fallbackImage": "CG/Role/SunExp_loneer_loneer/SkillCg/SunExp/loneer.morning-star-prayer/content.png"
       },
       "defaultPresentation": {
         "mode": "slide",
@@ -58,8 +58,8 @@
       ],
       "media": {
         "type": "image",
-        "resource": "CG/SunExp/WuNa/WuNa_白曜圣祷.png",
-        "fallbackImage": "CG/SunExp/WuNa/WuNa_白曜圣祷.png"
+        "resource": "CG/Role/SunExp_wuna_wuna/SkillCg/SunExp/wuna.white-sun-prayer/content.png",
+        "fallbackImage": "CG/Role/SunExp_wuna_wuna/SkillCg/SunExp/wuna.white-sun-prayer/content.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade",
@@ -96,8 +96,8 @@
       ],
       "media": {
         "type": "image",
-        "resource": "CG/SunExp/Columbina/Columbina_她的乡愁.png",
-        "fallbackImage": "CG/SunExp/Columbina/Columbina_她的乡愁.png"
+        "resource": "CG/Role/SunExp_columbina_columbina/SkillCg/SunExp/columbina.homesickness/content.png",
+        "fallbackImage": "CG/Role/SunExp_columbina_columbina/SkillCg/SunExp/columbina.homesickness/content.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade",
@@ -133,8 +133,8 @@
       ],
       "media": {
         "type": "sequence",
-        "resource": "CG/SunExp/WuNa/BlazingCrownCollapse",
-        "fallbackImage": "CG/SunExp/WuNa/BlazingCrownCollapse",
+        "resource": "CG/Card/SunExp_sunexp_blazing_crown_collapse/CardUse/SunExp/sunexp.blazing-crown-collapse/content",
+        "fallbackImage": "CG/Card/SunExp_sunexp_blazing_crown_collapse/CardUse/SunExp/sunexp.blazing-crown-collapse/content",
         "bundlePath": "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
         "bundleAssetPrefix": "Assets/SunExp/Visuals/CG/WuNa/BlazingCrownCollapse",
         "frameSeconds": 0.054054,
@@ -183,8 +183,8 @@
       ],
       "media": {
         "type": "image",
-        "resource": "CG/SunExp/Loneer/Loneer_美餐.png",
-        "fallbackImage": "CG/SunExp/Loneer/Loneer_美餐.png"
+        "resource": "CG/Role/SunExp_loneer_loneer/Feast/SunExp/loneer.feast/content.png",
+        "fallbackImage": "CG/Role/SunExp_loneer_loneer/Feast/SunExp/loneer.feast/content.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade",
@@ -220,8 +220,8 @@
       ],
       "media": {
         "type": "image",
-        "resource": "CG/SunExp/WuNa/WuNa_美餐.png",
-        "fallbackImage": "CG/SunExp/WuNa/WuNa_美餐.png"
+        "resource": "CG/Role/SunExp_wuna_wuna/Feast/SunExp/wuna.feast/content.png",
+        "fallbackImage": "CG/Role/SunExp_wuna_wuna/Feast/SunExp/wuna.feast/content.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade",
@@ -257,8 +257,8 @@
       ],
       "media": {
         "type": "image",
-        "resource": "CG/SunExp/Columbina/Columbina_美餐.png",
-        "fallbackImage": "CG/SunExp/Columbina/Columbina_美餐.png"
+        "resource": "CG/Role/SunExp_columbina_columbina/Feast/SunExp/columbina.feast/content.png",
+        "fallbackImage": "CG/Role/SunExp_columbina_columbina/Feast/SunExp/columbina.feast/content.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade",

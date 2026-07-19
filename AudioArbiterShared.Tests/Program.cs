@@ -1,4 +1,5 @@
 using AudioArbiter.Shared;
+using AuraAudio.Shared;
 
 var tests = new AudioArbiterContractTests();
 tests.Run();
@@ -12,6 +13,7 @@ internal sealed class AudioArbiterContractTests
         VerifyManifestDefaults();
         VerifyConstants();
         VerifyFileLoadPolicy();
+        VerifyFileFormatProbe();
         VerifyHookCatalog();
         VerifyRequestFactory();
         VerifyLowHealthCoordinator();
@@ -98,6 +100,114 @@ internal sealed class AudioArbiterContractTests
         Equal(AudioFileEncoding.UnsupportedVideoContainer, AudioFileLoadPolicy.Classify("voice.mp4"), "mp4 video container rejected");
         Equal(AudioFileEncoding.UnsupportedVideoContainer, AudioFileLoadPolicy.Classify("voice.m4v"), "m4v video container rejected");
         Equal(AudioFileEncoding.UnsupportedVideoContainer, AudioFileLoadPolicy.Classify("voice.mov"), "mov video container rejected");
+    }
+
+    private void VerifyFileFormatProbe()
+    {
+        var mp3 = AudioFileFormatProbe.Probe(new byte[] { 0xff, 0xfb, 0x90, 0x64 });
+        Equal(true, mp3.Success, "mp3 frame detected");
+        Equal(AudioFileFormat.Mp3, mp3.Format, "mp3 format");
+        Equal(".mp3", mp3.CanonicalExtension, "mp3 canonical extension");
+
+        var id3Mp3 = AudioFileFormatProbe.Probe(new byte[]
+        {
+            (byte)'I', (byte)'D', (byte)'3', 4, 0, 0, 0, 0, 0, 0,
+            0xff, 0xfb, 0x90, 0x64
+        });
+        Equal(true, id3Mp3.Success, "mp3 after id3 detected");
+
+        const int largeTagSize = 140 * 1024;
+        var largeId3Path = Path.Combine(Path.GetTempPath(), "audio-probe-large-id3-" + Guid.NewGuid().ToString("N") + ".bin");
+        try
+        {
+            var largeId3Mp3 = new byte[10 + largeTagSize + 4];
+            largeId3Mp3[0] = (byte)'I';
+            largeId3Mp3[1] = (byte)'D';
+            largeId3Mp3[2] = (byte)'3';
+            largeId3Mp3[3] = 4;
+            largeId3Mp3[6] = (byte)((largeTagSize >> 21) & 0x7f);
+            largeId3Mp3[7] = (byte)((largeTagSize >> 14) & 0x7f);
+            largeId3Mp3[8] = (byte)((largeTagSize >> 7) & 0x7f);
+            largeId3Mp3[9] = (byte)(largeTagSize & 0x7f);
+            largeId3Mp3[10 + largeTagSize] = 0xff;
+            largeId3Mp3[11 + largeTagSize] = 0xfb;
+            largeId3Mp3[12 + largeTagSize] = 0x90;
+            largeId3Mp3[13 + largeTagSize] = 0x64;
+            File.WriteAllBytes(largeId3Path, largeId3Mp3);
+
+            var largeId3Result = AudioFileFormatProbe.Probe(largeId3Path);
+            Equal(true, largeId3Result.Success, "mp3 after id3 larger than probe window detected");
+            Equal(AudioFileFormat.Mp3, largeId3Result.Format, "large-id3 file resolves mp3 format");
+        }
+        finally
+        {
+            if (File.Exists(largeId3Path))
+            {
+                File.Delete(largeId3Path);
+            }
+        }
+
+        var wav = new byte[44];
+        Array.Copy(System.Text.Encoding.ASCII.GetBytes("RIFF"), 0, wav, 0, 4);
+        Array.Copy(System.Text.Encoding.ASCII.GetBytes("WAVE"), 0, wav, 8, 4);
+        Array.Copy(System.Text.Encoding.ASCII.GetBytes("fmt "), 0, wav, 12, 4);
+        wav[16] = 16;
+        wav[20] = 1;
+        var wavResult = AudioFileFormatProbe.Probe(wav);
+        Equal(true, wavResult.Success, "pcm wav detected");
+        Equal(AudioFileFormat.WavPcm, wavResult.Format, "pcm wav format");
+
+        var floatWav = (byte[])wav.Clone();
+        floatWav[20] = 3;
+        var floatWavResult = AudioFileFormatProbe.Probe(floatWav);
+        Equal(true, floatWavResult.Success, "float wav detected");
+        Equal(AudioFileFormat.WavIeeeFloat, floatWavResult.Format, "float wav format");
+
+        var compressedWav = (byte[])wav.Clone();
+        compressedWav[20] = 2;
+        var compressedWavResult = AudioFileFormatProbe.Probe(compressedWav);
+        Equal(false, compressedWavResult.Success, "compressed wav rejected");
+        Equal("unsupported-wav-encoding", compressedWavResult.FailureCode, "compressed wav failure code");
+
+        var oggVorbis = System.Text.Encoding.ASCII.GetBytes("OggSxxxxxxxx\u0001vorbis");
+        var oggResult = AudioFileFormatProbe.Probe(oggVorbis);
+        Equal(true, oggResult.Success, "ogg vorbis detected");
+        Equal(AudioFileFormat.OggVorbis, oggResult.Format, "ogg vorbis format");
+        Equal(".ogg", oggResult.CanonicalExtension, "ogg canonical extension");
+
+        var mislabeledPath = Path.Combine(Path.GetTempPath(), "audio-probe-" + Guid.NewGuid().ToString("N") + ".mp3");
+        try
+        {
+            File.WriteAllBytes(mislabeledPath, oggVorbis);
+            var mislabeled = AudioFileFormatProbe.Probe(mislabeledPath);
+            Equal(AudioFileFormat.OggVorbis, mislabeled.Format, "content wins over file extension");
+            Equal(".ogg", mislabeled.CanonicalExtension, "mislabeled file receives real extension");
+        }
+        finally
+        {
+            if (File.Exists(mislabeledPath))
+            {
+                File.Delete(mislabeledPath);
+            }
+        }
+
+        var oggOpus = AudioFileFormatProbe.Probe(System.Text.Encoding.ASCII.GetBytes("OggSxxxxxxxxOpusHead"));
+        Equal(false, oggOpus.Success, "ogg opus rejected");
+        Equal(AudioFileFormat.OggOpus, oggOpus.Format, "ogg opus recognized");
+        Equal("unsupported-ogg-opus", oggOpus.FailureCode, "ogg opus failure code");
+
+        var iso = new byte[12];
+        Array.Copy(System.Text.Encoding.ASCII.GetBytes("ftyp"), 0, iso, 4, 4);
+        var isoResult = AudioFileFormatProbe.Probe(iso);
+        Equal(false, isoResult.Success, "iso base media rejected");
+        Equal(AudioFileFormat.IsoBaseMedia, isoResult.Format, "iso base media recognized");
+
+        var id3Only = AudioFileFormatProbe.Probe(new byte[]
+        {
+            (byte)'I', (byte)'D', (byte)'3', 4, 0, 0, 0, 0, 0, 0
+        });
+        Equal(false, id3Only.Success, "id3 without mp3 frame rejected");
+        Equal(false, AudioFileFormatProbe.Probe(new byte[] { 1, 2, 3, 4 }).Success, "unknown bytes rejected");
     }
 
     private void VerifyHookCatalog()

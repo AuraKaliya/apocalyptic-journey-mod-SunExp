@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "packageId": "AuraToolsExp.SharedResources",
-  "packageVersion": 4,
+  "packageVersion": 5,
   "ownerModId": "AuraToolsExp",
   "packageKind": "ToolingPack",
   "displayName": "AuraToolsExp bundled resources",
@@ -25,11 +25,11 @@
     },
     {
       "system": "CG",
-      "resourceId": "AuraToolsExp.DefaultFeastCg",
+      "resourceId": "AuraToolsExp.DefaultFeastTemplates",
       "kind": "Directory",
       "source": "CG/Feast",
-      "destination": "CG/AuraToolsExp/Feast",
-      "tags": ["tooling", "feast-cg"]
+      "destination": "CG/AuraToolsExp/Templates/Feast",
+      "tags": ["tooling", "feast-cg", "editable-seed-template"]
     }
   ]
 }

@@ -26,6 +26,8 @@
              Link="SafeBox\AuraToolsSafeBoxDataCompatibility.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\CardRefresh\CardRefreshPoolPolicy.cs"
              Link="CardRefresh\CardRefreshPoolPolicy.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\Feast\FeastRoleResourceIdentity.cs"
+             Link="Feast\FeastRoleResourceIdentity.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\StarterDeck\StarterDeckCardClassification.cs"
              Link="StarterDeck\StarterDeckCardClassification.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\StarterDeck\StarterDeckDeckBuilder.cs"

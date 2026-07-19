@@ -46,15 +46,20 @@ if ($sharedAssemblyName.Name -ne "Aura.Shared") {
 
 $runtimeText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedRuntime.cs")
 foreach ($required in @(
-    "CurrentProtocolVersion = 2",
+    "CurrentProtocolVersion = 3",
     '"ReadStorageJson"',
     '"WriteStorageJson"',
     '"InstallResourceJson"',
     '"GetInstalledResourcesJson"',
+    '"RegisterPackageV3Json"',
+    '"ResolveResourceV3Json"',
+    '"ResolveEffectiveV3Json"',
+    '"WriteUserOverrideV3Json"',
+    '"GetScopeRevisionV3"',
     '"GetChangesJson"'
 )) {
     if (-not $runtimeText.Contains($required)) {
-        throw "AuraShared Core v2 runtime contract is missing: $required"
+        throw "AuraShared Core v3 runtime contract is missing: $required"
     }
 }
 
@@ -319,6 +324,17 @@ $sunAudioSource = [System.IO.Path]::GetFullPath((Join-Path $sunPackageRoot $sunA
 if (-not (Test-Path -LiteralPath $sunAudioSource -PathType Container)) {
     throw "SunExp shared Audio package source is missing: $sunAudioSource"
 }
+
+$v3ContractPath = Join-Path $repoRoot "docs\aura-shared-resource-v3-contract.md"
+if (-not (Test-Path -LiteralPath $v3ContractPath)) {
+    throw "AuraShared resource v3 protocol contract document is missing."
+}
+$v3ContractText = Get-Content -Raw -LiteralPath $v3ContractPath
+foreach ($required in @("Active lease", "module/scopeType/scopeId/featureId/ownerModId/resourceId", "dual-read", "LocalUser > ToolDefault > ContentDefault > ModuleDefault")) {
+    if (-not $v3ContractText.Contains($required)) {
+        throw "AuraShared resource v3 protocol contract is missing: $required"
+    }
+}
 $sunColumbinaAudioResource = $sunPackage.resources | Where-Object {
     $_.system -eq "Audio" -and $_.resourceId -eq "SunExp.Columbina.VoicePack" -and $_.kind -eq "Directory"
 } | Select-Object -First 1
@@ -406,10 +422,10 @@ if (Test-Path -LiteralPath (Join-Path $repoRoot "SunExp\ModResource\audio")) {
 }
 
 $audioManifestText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "SunExp\audio.registry.json")
-if ($audioManifestText.Contains("ModResource/audio") -or -not $audioManifestText.Contains("Shared:Audio/SunExp/WuNa")) {
+if ($audioManifestText.Contains("ModResource/audio") -or -not $audioManifestText.Contains("Shared:Audio/Role/SunExp_wuna_wuna/Voice/SunExp/wuna.voice-pack/content")) {
     throw "SunExp audio registry does not resolve through the shared resource layer."
 }
-if (-not $audioManifestText.Contains("Shared:Audio/SunExp/Columbina") -or
+if (-not $audioManifestText.Contains("Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content") -or
     -not $audioManifestText.Contains('"variantPaths"')) {
     throw "SunExp Columbina audio registry does not declare shared voice variants."
 }
@@ -430,6 +446,34 @@ foreach ($resource in $auraToolsPackage.resources) {
     }
     if (-not $resource.destination.StartsWith($resource.system + "/AuraToolsExp/", [System.StringComparison]::OrdinalIgnoreCase)) {
         throw "AuraTools bundled resource destination is not owner-qualified: $($resource.destination)"
+    }
+}
+
+foreach ($v3RelativePath in @(
+    "SunExp\SharedResources\aura.registration.json",
+    "AuraToolsExp\SharedResources\aura.registration.json"
+)) {
+    $v3Path = Join-Path $repoRoot $v3RelativePath
+    $v3 = Get-Content -Raw -Encoding UTF8 -LiteralPath $v3Path | ConvertFrom-Json
+    if ($v3.schemaVersion -ne 3 -or [string]::IsNullOrWhiteSpace($v3.ownerModId) -or
+        @($v3.resources).Count -eq 0) {
+        throw "AuraShared v3 registration manifest is invalid: $v3RelativePath"
+    }
+
+    foreach ($resource in $v3.resources) {
+        if ([string]::IsNullOrWhiteSpace($resource.moduleId) -or
+            [string]::IsNullOrWhiteSpace($resource.scopeType) -or
+            [string]::IsNullOrWhiteSpace($resource.scopeId) -or
+            [string]::IsNullOrWhiteSpace($resource.featureId) -or
+            [string]::IsNullOrWhiteSpace($resource.resourceId) -or
+            @($resource.legacyPaths).Count -eq 0) {
+            throw "AuraShared v3 resource identity or migration aliases are incomplete: $($resource.resourceId)"
+        }
+
+        $source = [System.IO.Path]::GetFullPath((Join-Path (Split-Path -Parent $v3Path) $resource.source))
+        if (-not (Test-Path -LiteralPath $source)) {
+            throw "AuraShared v3 resource source is missing: $source"
+        }
     }
 }
 
@@ -473,14 +517,14 @@ if ($skillCgEditorText.Contains('"打开目录"')) {
     throw "AuraTools SkillCG editor still uses the old generic open-directory button label."
 }
 
-foreach ($required in @("AuraSharedIdentity.SelectRoleId", "activation-skip:", "no AuraTools rule emitted")) {
+foreach ($required in @("AuraSharedIdentity.SelectRoleId", "AuraSharedContentId.Matches", "AuraToolsConfiguredResourceResolver.ResolveSkillCgPath", "activation-skip:", "no AuraTools rule emitted")) {
     if (-not $skillCgEditorText.Contains($required)) {
         throw "AuraTools SkillCG runtime is missing trigger diagnostics/role fallback: $required"
     }
 }
 
 $sunSkillCgRuntimeText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Features\SkillCg\SunExpSkillCgRuntime.cs")
-foreach ($required in @("AuraCombatActionRouter.RegisterBefore", "BuildRequests(trigger)", "BuildRegisteredCardUseRequests", "TrimStart('*')", "no CG request matched")) {
+foreach ($required in @("AuraCombatActionRouter.RegisterBefore", "BuildRequests(trigger)", "BuildRegisteredCardUseRequests", "AuraSharedContentId.Matches", "no CG request matched")) {
     if (-not $sunSkillCgRuntimeText.Contains($required)) {
         throw "SunExp SkillCG runtime is missing trigger diagnostics/role fallback: $required"
     }
@@ -505,7 +549,7 @@ $sharedConsumerProjects = @(
     "SanGuoShaExp-Dev\SanGuoShaExp.Dll.csproj",
     "AuraToolsExp-Dev\AuraToolsExp.Dll.csproj"
 )
-$linkedSharedPattern = 'Compile Include="[^"]*(AuraSharedCore|AuraAudioShared|AuraCardUseFxShared|AuraLogShared|AuraJourneyShared|AuraModeShared|AuraSkinShared|AudioArbiterShared|BattleBgmArbiterShared|StarterDeckArbiterShared|UiRaycastSafetyShared|UiTransitionGuardShared|AuraCgShared|AuraDirectorShared|AuraDirectorDetour-Dev|AuraOnlineShared)'
+$linkedSharedPattern = 'Compile Include="[^"]*(AuraSharedCore|AuraAudioShared|AuraCardUseFxShared|AuraLogShared|AuraJourneyShared|AuraModeShared|AuraSkinShared|AudioArbiterShared|BattleBgmArbiterShared|StarterDeckArbiterShared|UiRaycastSafetyShared|UiTransitionGuardShared|AuraCgShared|AuraDirectorShared|AuraDirectorDetour-Dev|AuraOnlineShared|AuraRoleShared)'
 foreach ($relativeProject in $sharedConsumerProjects) {
     $consumerText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot $relativeProject)
     if (-not $consumerText.Contains("AuraSharedRuntime-Dev\Aura.Shared.csproj")) {

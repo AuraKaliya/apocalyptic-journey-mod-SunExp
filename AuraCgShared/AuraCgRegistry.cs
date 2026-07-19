@@ -12,7 +12,7 @@ public static class AuraCgRegistryRuntime
 {
     public const string RegistryAuthorityId = "AuraCgShared";
     public const string RegistryFileName = "cg.registry.json";
-    public const int CurrentRegistrySchemaVersion = 1;
+    public const int CurrentRegistrySchemaVersion = 2;
     private static readonly object CacheGate = new();
     private static AuraCgRegistryDocument? cachedDocument;
     private static DateTime cachedDocumentUtc;
@@ -86,15 +86,11 @@ public static class AuraCgRegistryRuntime
             .Select(entry =>
             {
                 entry.OwnerModId = manifest.OwnerModId;
+                entry.RegistrationSourceId = manifest.ContributionId;
                 entry.Normalize(manifest.OwnerModId);
                 return entry;
             })
             .ToList();
-        if (accepted.Count == 0)
-        {
-            return false;
-        }
-
         for (var attempt = 0; attempt < 3; attempt++)
         {
             var snapshot = AuraSharedConfigStore.ReadShared(
@@ -104,7 +100,17 @@ public static class AuraCgRegistryRuntime
                 new AuraCgRegistryDocument());
             var document = snapshot.Value ?? new AuraCgRegistryDocument();
             document.Normalize();
-            document.ReplaceOwnerEntries(manifest.OwnerModId, accepted);
+            if (!document.ReplaceContributionEntries(manifest.OwnerModId, manifest.ContributionId, accepted))
+            {
+                lock (CacheGate)
+                {
+                    cachedDocument = document;
+                    cachedRevision = snapshot.Found ? snapshot.Revision : 0;
+                    cachedDocumentUtc = DateTime.UtcNow;
+                }
+
+                return true;
+            }
             var result = AuraSharedConfigStore.WriteShared(
                 RegistryAuthorityId,
                 AuraSharedSystems.Cg,
@@ -115,23 +121,42 @@ public static class AuraCgRegistryRuntime
             if (result.Success)
             {
                 InvalidateCache();
-                AuraCgActivationRuntime.ApplyManifestDefaults(manifest.OwnerModId, accepted);
+                if (accepted.Count > 0)
+                {
+                    AuraCgActivationRuntime.ApplyManifestDefaults(manifest.OwnerModId, accepted);
+                }
                 NotifyChanged(result.Revision);
                 AuraCgLog.InfoOnce(
-                    "cg-manifest-registered:" + manifest.OwnerModId,
-                    "CG registry manifest registered. owner=" + manifest.OwnerModId + ", entries=" + accepted.Count);
+                    "cg-manifest-registered:" + manifest.OwnerModId + ":" + manifest.ContributionId,
+                    "CG registry manifest registered. owner=" + manifest.OwnerModId
+                    + ", contribution=" + manifest.ContributionId
+                    + ", entries=" + accepted.Count);
                 return true;
             }
 
             if (!result.Conflict)
             {
-                AuraCgLog.WarnOnce("cg-registry-write-failed:" + manifest.OwnerModId, "CG registry write failed: " + result.Message);
+                AuraCgLog.WarnOnce("cg-registry-write-failed:" + manifest.OwnerModId + ":" + manifest.ContributionId, "CG registry write failed: " + result.Message);
                 return false;
             }
         }
 
-        AuraCgLog.WarnOnce("cg-registry-conflict:" + manifest.OwnerModId, "CG registry write conflicted repeatedly for " + manifest.OwnerModId + ".");
+        AuraCgLog.WarnOnce("cg-registry-conflict:" + manifest.OwnerModId + ":" + manifest.ContributionId, "CG registry write conflicted repeatedly for " + manifest.OwnerModId + ".");
         return false;
+    }
+
+    public static bool RegisterContribution(
+        string ownerModId,
+        string contributionId,
+        IEnumerable<AuraCgRegistryEntry> entries)
+    {
+        return RegisterManifest(ownerModId, new AuraCgManifest
+        {
+            SchemaVersion = CurrentRegistrySchemaVersion,
+            OwnerModId = ownerModId,
+            ContributionId = contributionId,
+            Entries = (entries ?? Array.Empty<AuraCgRegistryEntry>()).ToList()
+        });
     }
 
     public static IReadOnlyList<AuraCgRegistryEntry> GetRegisteredEntries(string ownerModId = "")
@@ -252,11 +277,55 @@ public sealed class AuraCgRegistryDocument
 
     public void ReplaceOwnerEntries(string ownerModId, IEnumerable<AuraCgRegistryEntry> entries)
     {
+        ReplaceContributionEntries(ownerModId, "manifest", entries);
+    }
+
+    public bool ReplaceContributionEntries(
+        string ownerModId,
+        string contributionId,
+        IEnumerable<AuraCgRegistryEntry> entries)
+    {
         var owner = (ownerModId ?? "").Trim();
+        var source = string.IsNullOrWhiteSpace(contributionId) ? "manifest" : contributionId.Trim();
         Entries ??= new List<AuraCgRegistryEntry>();
-        Entries.RemoveAll(entry => string.Equals(entry.OwnerModId, owner, StringComparison.OrdinalIgnoreCase));
-        Entries.AddRange(entries ?? Array.Empty<AuraCgRegistryEntry>());
+        var incoming = (entries ?? Array.Empty<AuraCgRegistryEntry>())
+            .Where(entry => entry != null)
+            .Select(entry =>
+            {
+                entry.OwnerModId = owner;
+                entry.RegistrationSourceId = source;
+                entry.Normalize(owner);
+                return entry;
+            })
+            .OrderBy(entry => entry.CgId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var existing = Entries
+            .Where(entry => string.Equals(entry.OwnerModId, owner, StringComparison.OrdinalIgnoreCase)
+                            && (string.Equals(entry.RegistrationSourceId, source, StringComparison.OrdinalIgnoreCase)
+                                || string.Equals(source, "manifest", StringComparison.OrdinalIgnoreCase)
+                                   && string.IsNullOrWhiteSpace(entry.RegistrationSourceId)))
+            .OrderBy(entry => entry.CgId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (string.Equals(
+                AuraSharedJson.Serialize(existing),
+                AuraSharedJson.Serialize(incoming),
+                StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        Entries.RemoveAll(entry =>
+            string.Equals(entry.OwnerModId, owner, StringComparison.OrdinalIgnoreCase)
+            && (string.Equals(entry.RegistrationSourceId, source, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(source, "manifest", StringComparison.OrdinalIgnoreCase)
+                   && string.IsNullOrWhiteSpace(entry.RegistrationSourceId)));
+        foreach (var entry in incoming)
+        {
+            Entries.Add(entry);
+        }
+
         Normalize();
+        return true;
     }
 }
 
@@ -268,6 +337,9 @@ public sealed class AuraCgManifest
     [JsonProperty("ownerModId")]
     public string OwnerModId { get; set; } = "";
 
+    [JsonProperty("contributionId")]
+    public string ContributionId { get; set; } = "manifest";
+
     [JsonProperty("protocol")]
     public AuraCgProtocolManifest Protocol { get; set; } = new();
 
@@ -278,6 +350,7 @@ public sealed class AuraCgManifest
     {
         SchemaVersion = Math.Max(1, SchemaVersion);
         OwnerModId = string.IsNullOrWhiteSpace(OwnerModId) ? fallbackOwner : OwnerModId.Trim();
+        ContributionId = string.IsNullOrWhiteSpace(ContributionId) ? "manifest" : ContributionId.Trim();
         Protocol ??= new AuraCgProtocolManifest();
         Protocol.Normalize();
         Entries ??= new List<AuraCgRegistryEntry>();
@@ -310,6 +383,9 @@ public sealed class AuraCgRegistryEntry
 
     [JsonProperty("ownerModId")]
     public string OwnerModId { get; set; } = "";
+
+    [JsonProperty("registrationSourceId")]
+    public string RegistrationSourceId { get; set; } = "";
 
     [JsonProperty("displayName")]
     public string DisplayName { get; set; } = "";
@@ -354,6 +430,7 @@ public sealed class AuraCgRegistryEntry
     public void Normalize(string fallbackOwner)
     {
         OwnerModId = string.IsNullOrWhiteSpace(OwnerModId) ? fallbackOwner : OwnerModId.Trim();
+        RegistrationSourceId = (RegistrationSourceId ?? "").Trim();
         CgId = (CgId ?? "").Trim();
         DisplayName = (DisplayName ?? "").Trim();
         Kind = string.IsNullOrWhiteSpace(Kind) ? "skill" : Kind.Trim();

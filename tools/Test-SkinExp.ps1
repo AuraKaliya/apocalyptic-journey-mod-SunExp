@@ -161,10 +161,12 @@ foreach ($requiredText in @("SkinExp.career_1.summer_cool", "AuraToolsExp.career
 
 $installerText = Get-Content -Raw -LiteralPath (Join-Path $sharedRoot "Services\SkinPackageInstaller.cs")
 foreach ($requiredText in @(
-    "AuraSharedPackageEngine.Install",
-    "AuraSharedResourceKinds.File",
+    "AuraSharedResourceProtocol.Register",
+    "AuraSharedResourcePathPolicy.ResourcePath",
     "AuraSharedResourceKinds.Directory",
-    "AuraSharedSystems.Skin"
+    "AuraSharedSystems.Skin",
+    "LegacyPaths",
+    "GetActiveResources"
 )) {
     if (-not $installerText.Contains($requiredText)) {
         throw "Skin package installer safety contract is missing: $requiredText"
@@ -309,6 +311,10 @@ foreach ($packagePath in $packagePaths) {
         $package.resources.Count -eq 0) {
         throw "Invalid skin package manifest: $packagePath"
     }
+    if (-not [string]::IsNullOrWhiteSpace([string]$package.participantKind) -and
+        @("Content", "Tool") -notcontains [string]$package.participantKind) {
+        throw "Invalid skin participantKind: $packagePath"
+    }
 
     $packageKey = ([string]$package.packageId).ToLowerInvariant()
     if ($seenPackages.ContainsKey($packageKey)) {
@@ -391,6 +397,9 @@ foreach ($state in $columbinaStates) {
 $official = @($installedSources | Where-Object { $_.TargetCareerId -eq "career_1" -and $_.SkinId -eq "AuraToolsExp.career_1.summer_cool" })
 if ($official.Count -ne 1 -or $official[0].Path -notlike "$(Join-Path $auraToolsModRoot '*')") {
     throw "Official career_1 summer skin must be published exactly once by AuraToolsExp."
+}
+if ((Read-JsonFile (Join-Path $auraToolsModRoot "SharedResources\Skins\package.json")).participantKind -ne "Tool") {
+    throw "AuraToolsExp skin package must declare Tool participantKind."
 }
 
 Write-Host "AuraSkinShared validation passed. Packages: $($packagePaths.Count); installable skins: $($installedSources.Count); identities: $($seenIdentities.Count)."

@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\AuraAudioShared\AudioFileFormatProbe.cs" Link="Shared\AudioFileFormatProbe.cs" />
     <Compile Include="..\AudioArbiterShared\AudioContracts.cs" Link="Shared\AudioContracts.cs" />
     <Compile Include="..\AudioArbiterShared\AudioFileLoadPolicy.cs" Link="Shared\AudioFileLoadPolicy.cs" />
     <Compile Include="..\AudioArbiterShared\AudioHookCatalog.cs" Link="Shared\AudioHookCatalog.cs" />

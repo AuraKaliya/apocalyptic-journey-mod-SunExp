@@ -33,6 +33,7 @@
     <Compile Include="..\AuraModeShared\*.cs" Link="AuraModeShared\%(Filename)%(Extension)" />
     <Compile Include="..\AuraSkinShared\**\*.cs" Link="AuraSkinShared\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\AuraOnlineShared\*.cs" Link="AuraOnlineShared\%(Filename)%(Extension)" />
+    <Compile Include="..\AuraRoleShared\*.cs" Link="AuraRoleShared\%(Filename)%(Extension)" />
     <Compile Include="..\AudioArbiterShared\*.cs" Link="AudioArbiterShared\%(Filename)%(Extension)" />
     <Compile Include="..\BattleBgmArbiterShared\*.cs" Link="BattleBgmArbiterShared\%(Filename)%(Extension)" />
     <Compile Include="..\StarterDeckArbiterShared\*.cs" Link="StarterDeckArbiterShared\%(Filename)%(Extension)" />

@@ -49,6 +49,7 @@ public static class AuraToolsFeastRoleEditor
 
     private static void EnsureRoleEntries(bool forceScan)
     {
+        AuraToolsFeastDefaultMaterializer.EnsureCurrent(forceScan);
         foreach (var role in RoleCatalog.GetRoles(forceScan))
         {
             AuraToolsFeastRuntime.EnsureRoleSettings(role.Id, role.DisplayName);
@@ -90,7 +91,7 @@ public static class AuraToolsFeastRoleEditor
         var effective = AuraToolsFeastRuntime.ResolveEffectiveCandidateForPreview(role.Id);
 
         var block = Settings.AuraToolsUi.CreateLayout("FeastRole-" + role.Id, roleContent!);
-        Settings.AuraToolsUi.SetFixedHeight(block, 110f);
+        Settings.AuraToolsUi.SetFixedHeight(block, 154f);
         Settings.AuraToolsUi.AddImage(block, effective == null ? Settings.AuraToolsUi.Row : Settings.AuraToolsUi.ActiveRow);
         var blockLayout = block.AddComponent<VerticalLayoutGroup>();
         blockLayout.padding = new RectOffset(8, 8, 6, 6);
@@ -134,6 +135,58 @@ public static class AuraToolsFeastRoleEditor
             settings.SelectedCgId = options[index].QualifiedCgId;
             RefreshRows(false);
         }, 620f);
+
+        var actions = Settings.AuraToolsUi.CreateLayout("Actions", block.transform);
+        Settings.AuraToolsUi.SetFixedHeight(actions, Settings.AuraToolsUi.ButtonHeight);
+        var actionsLayout = actions.AddComponent<HorizontalLayoutGroup>();
+        actionsLayout.spacing = 8f;
+        actionsLayout.childControlWidth = true;
+        actionsLayout.childControlHeight = true;
+        actionsLayout.childForceExpandWidth = false;
+        actionsLayout.childForceExpandHeight = false;
+        Settings.AuraToolsUi.AddText(
+            actions.transform,
+            "资源：" + AuraToolsFeastDefaultMaterializer.DescribeRoleResource(role.Id),
+            Settings.AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft,
+            settings.LocalCustomized ? Settings.AuraToolsUi.SuccessText : Settings.AuraToolsUi.MutedText,
+            Settings.AuraToolsUi.TextMinHeight,
+            1f);
+        Settings.AuraToolsUi.AddButton(actions.transform, "打开目录", () =>
+            FileResourceUtil.OpenDirectory(AuraToolsFeastDefaultMaterializer.RoleDirectory(role.Id)), 88f, 30f);
+        Settings.AuraToolsUi.AddButton(actions.transform, "选择PNG", () => PickRoleImage(role), 88f, 30f);
+        Settings.AuraToolsUi.AddButton(actions.transform, "重置默认", () => ResetRoleImage(role), 88f, 30f);
+    }
+
+    private static void PickRoleImage(RoleInfo role)
+    {
+        SetHint("正在打开图片选择器……");
+        OptionalFileDialog.PickImageFileAsync(AuraToolsFeastDefaultMaterializer.RoleDirectory(role.Id), result =>
+        {
+            if (result.Selected)
+            {
+                if (AuraToolsFeastDefaultMaterializer.ImportRoleImage(role.Id, result.Path, out var message))
+                {
+                    SetHint(message);
+                    RefreshRows(false);
+                    return;
+                }
+
+                SetHint(message);
+                return;
+            }
+
+            SetHint(result.Status == OptionalFileDialogStatus.Cancelled
+                ? "已取消选择图片。"
+                : "无法打开文件选择器：" + result.Message);
+        });
+    }
+
+    private static void ResetRoleImage(RoleInfo role)
+    {
+        AuraToolsFeastDefaultMaterializer.ResetRoleImage(role.Id, out var message);
+        SetHint(message);
+        RefreshRows(false);
     }
 
     private static List<CgOption> BuildCgOptions(IReadOnlyList<FeastCgCandidate> candidates, string selected)
