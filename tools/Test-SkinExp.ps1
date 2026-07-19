@@ -338,6 +338,56 @@ if ($wuna.Count -ne 1 -or $wuna[0].SkinId -ne "SunExp.SunExp_wuna_wuna.summer_co
     throw "WuNa summer skin must be published exactly once by SunExp."
 }
 
+$columbina = @($installedSources | Where-Object { $_.TargetCareerId -eq "SunExp_columbina_columbina" })
+if ($columbina.Count -ne 1 -or $columbina[0].SkinId -ne "SunExp.SunExp_columbina_columbina.restore_colors" -or
+    $columbina[0].Path -notlike "$(Join-Path $sunModRoot '*')") {
+    throw "Columbina Restore Colors skin must be published exactly once by SunExp."
+}
+
+$sunSkinPackage = Read-JsonFile (Join-Path $sunModRoot "SharedResources\Skins\package.json")
+if ([int]$sunSkinPackage.packageVersion -lt 3 -or
+    @($sunSkinPackage.resources | Where-Object { $_.source -eq "SunExp_columbina_columbina/DoByHand" }).Count -ne 1) {
+    throw "SunExp skin package must publish Columbina Restore Colors at package version 3 or newer."
+}
+
+$columbinaSkinDirectory = Split-Path -Parent $columbina[0].Path
+$columbinaManifest = Read-JsonFile $columbina[0].Path
+$expectedColumbinaSkinName = -join @([char]0x590D, [char]0x539F, [char]0x8272, [char]0x5F69)
+if ($columbinaManifest.name -ne $expectedColumbinaSkinName -or $columbinaManifest.author -ne "Aura" -or
+    $columbinaManifest.preview -ne "Columbina.png" -or
+    $columbinaManifest.assets.CareerImage -ne "Columbina.png" -or
+    $columbinaManifest.assets.Character -ne "Columbina.png" -or
+    $columbinaManifest.assets.Animation -ne ".") {
+    throw "Columbina Restore Colors skin metadata is incomplete or inconsistent."
+}
+
+$columbinaIdleFirst = Join-Path $columbinaSkinDirectory "Idle\frame_01.png"
+$columbinaIdleHash = (Get-FileHash -LiteralPath $columbinaIdleFirst -Algorithm SHA256).Hash
+$columbinaStates = @("Idle", "Attack", "Hit", "Buff", "Debuff", "Skill", "Special", "Special1", "Special2", "Defend")
+foreach ($state in $columbinaStates) {
+    $stateDirectory = Join-Path $columbinaSkinDirectory $state
+    $stateConfigPath = Join-Path $stateDirectory "config.json"
+    if (-not (Test-Path -LiteralPath $stateDirectory -PathType Container) -or
+        -not (Test-Path -LiteralPath $stateConfigPath -PathType Leaf)) {
+        throw "Columbina Restore Colors is missing animation state '$state'."
+    }
+
+    $stateConfig = Read-JsonFile $stateConfigPath
+    if ([double]$stateConfig.AnimationPerFrame -ne 0.2 -or $stateConfig.isLoop -ne $true -or $stateConfig.Direction -ne "Right") {
+        throw "Columbina Restore Colors animation config is invalid for state '$state'."
+    }
+
+    $stateFrames = @(Get-ChildItem -LiteralPath $stateDirectory -Filter "*.png" -File)
+    $expectedFrameCount = if ($state -eq "Idle") { 8 } else { 1 }
+    if ($stateFrames.Count -ne $expectedFrameCount) {
+        throw "Columbina Restore Colors state '$state' expected $expectedFrameCount frame(s), found $($stateFrames.Count)."
+    }
+
+    if ($state -ne "Idle" -and (Get-FileHash -LiteralPath $stateFrames[0].FullName -Algorithm SHA256).Hash -ne $columbinaIdleHash) {
+        throw "Columbina Restore Colors state '$state' must reuse Idle frame_01.png."
+    }
+}
+
 $official = @($installedSources | Where-Object { $_.TargetCareerId -eq "career_1" -and $_.SkinId -eq "AuraToolsExp.career_1.summer_cool" })
 if ($official.Count -ne 1 -or $official[0].Path -notlike "$(Join-Path $auraToolsModRoot '*')") {
     throw "Official career_1 summer skin must be published exactly once by AuraToolsExp."

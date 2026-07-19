@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 2,
+  "enabled": true,
+  "skinId": "SunExp.SunExp_columbina_columbina.restore_colors",
+  "targetCareerId": "SunExp_columbina_columbina",
+  "name": "复原色彩",
+  "author": "Aura",
+  "preview": "Columbina.png",
+  "assets": {
+    "CareerImage": "Columbina.png",
+    "Character": "Columbina.png",
+    "Animation": "."
+  }
+}
