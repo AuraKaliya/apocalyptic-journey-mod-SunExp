@@ -77,6 +77,15 @@ public static class AuraCardUseFxRegistryRuntime
         {
             return false;
         }
+        var duplicateId = accepted
+            .GroupBy(entry => entry.QualifiedEffectId, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(group => group.Count() > 1)?.Key;
+        if (!string.IsNullOrWhiteSpace(duplicateId))
+        {
+            AuraSharedLog.WarnOnce(RegistryAuthorityId, "manifest-duplicate:" + duplicateId,
+                "Card-use FX manifest rejected duplicate qualified identity: " + duplicateId);
+            return false;
+        }
 
         for (var attempt = 0; attempt < 3; attempt++)
         {

@@ -91,6 +91,15 @@ public static class AuraCgRegistryRuntime
                 return entry;
             })
             .ToList();
+        var duplicateId = accepted
+            .GroupBy(entry => entry.QualifiedCgId, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(group => group.Count() > 1)?.Key;
+        if (!string.IsNullOrWhiteSpace(duplicateId))
+        {
+            AuraCgLog.WarnOnce("cg-manifest-duplicate:" + duplicateId,
+                "CG registry rejected duplicate qualified identity in one contribution: " + duplicateId);
+            return false;
+        }
         for (var attempt = 0; attempt < 3; attempt++)
         {
             var snapshot = AuraSharedConfigStore.ReadShared(
@@ -100,6 +109,20 @@ public static class AuraCgRegistryRuntime
                 new AuraCgRegistryDocument());
             var document = snapshot.Value ?? new AuraCgRegistryDocument();
             document.Normalize();
+            var ownerConflict = document.Entries.FirstOrDefault(entry =>
+                string.Equals(entry.OwnerModId, manifest.OwnerModId, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(entry.RegistrationSourceId, manifest.ContributionId, StringComparison.OrdinalIgnoreCase)
+                && accepted.Any(candidate => string.Equals(
+                    candidate.QualifiedCgId,
+                    entry.QualifiedCgId,
+                    StringComparison.OrdinalIgnoreCase)));
+            if (ownerConflict != null)
+            {
+                AuraCgLog.WarnOnce("cg-contribution-identity-conflict:" + ownerConflict.QualifiedCgId,
+                    "CG registry rejected qualified identity owned by another contribution: "
+                    + ownerConflict.QualifiedCgId);
+                return false;
+            }
             if (!document.ReplaceContributionEntries(manifest.OwnerModId, manifest.ContributionId, accepted))
             {
                 lock (CacheGate)

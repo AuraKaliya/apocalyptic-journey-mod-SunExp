@@ -1,10 +1,10 @@
-# AuraSharedCore v2 契约
+# AuraSharedCore v4 契约
 
 > 当前校验日期：2026-07-13。本文以 `AuraSharedCore/*.cs`、
 > `AuraSharedRuntime-Dev/Aura.Shared.csproj` 和 `tools/shared-release-matrix.json`
 > 为准，描述当前可发布实现，而不是 2026-06 初版设计草案。
 
-AuraSharedCore v2 是参与 Aura 共享生态的 MOD DLL 使用的无业务语义基础层。
+AuraSharedCore v4 是参与 Aura 共享生态的 MOD DLL 使用的无业务语义基础层。
 产品 MOD 通过项目引用使用真实的 `Aura.Shared.dll`，并在发布包中携带哈希一致的
 DLL；不得各自编译私有共享源码。首个兼容消费者创建持久化的
 `AuraShared.Global`，后续消费者通过反射 JSON 协议复用该组件。
@@ -15,9 +15,9 @@ Core 负责共享路径、存储、资源注册、包事务、变更序列、诊
 
 ## Compatibility（兼容性）
 
-- `CurrentProtocolVersion`: 3
-- `MinimumSupportedProtocolVersion`: 2
-- `BuildId`: `aura-shared-core-v3-<assembly-mvid>`
+- `CurrentProtocolVersion`: 4
+- `MinimumSupportedProtocolVersion`: 3
+- `BuildId`: `aura-shared-core-v4-<assembly-mvid>`
 
 运行时复用条件是：
 
@@ -49,8 +49,10 @@ Core 负责共享路径、存储、资源注册、包事务、变更序列、诊
 - `RegisterPackageV3Json(ownerModId, manifestJson, baseDirectory)`
 - `ResolveResourceV3Json(requestedPath)`
 - `ResolveEffectiveV3Json(scopeJson, localOverrideJson)`
+- `ReadUserOverrideV3Json(scopeJson)`
 - `WriteUserOverrideV3Json(scopeJson, writerId, localOverrideJson, expectedRevision)`
 - `GetScopeRevisionV3(scopeKey)`
+- `QueryCatalogV3Json(queryJson)`
 - `GetChangesJson(sinceSequence)`
 - `GetOwners()`
 
@@ -173,6 +175,11 @@ Core 负责共享路径、存储、资源注册、包事务、变更序列、诊
 ## Ownership And Mutability（所有权与可变性）
 
 - 每个注册项必须有稳定的 `ownerModId` 和 owner-qualified domain id。
+- Core 目录项的硬身份是
+  `module/scopeType/scopeId/featureId/ownerModId/resourceId`；不含 owner 的
+  `module:feature:scopeType:scopeId:resourceId` 只用于语义分组，不能用于读取时覆盖或去重。
+- 同一 owner 的同一硬身份只能由一个活动 package 声明；不同 owner 的相同语义资源必须
+  同时保留为候选。内容哈希只能复用物理存储，不能删除注册、所有权或工具配置记录。
 - 内容 MOD 安装并注册自己拥有的资源；工具 MOD 可以读取注册表、注册工具自有扩展和
   保存本地覆盖，但不能改写外部 MOD 的注册源或伪造所有权。
 - Core 只维护 identity、ownership、revision 和事务，不解释资源内容。

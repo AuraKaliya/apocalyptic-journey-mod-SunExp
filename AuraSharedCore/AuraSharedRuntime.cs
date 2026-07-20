@@ -12,11 +12,11 @@ public static class AuraSharedRuntime
     private const string GlobalObjectName = "AuraShared.Global";
     private const string ComponentFullName = "AuraShared.Core.AuraSharedRuntime+AuraSharedComponent";
 
-    public const string BuildIdPrefix = "aura-shared-core-v3-";
+    public const string BuildIdPrefix = "aura-shared-core-v4-";
     public static readonly string CurrentBuildId = BuildIdPrefix
                                                    + typeof(AuraSharedRuntime).Assembly.ManifestModule.ModuleVersionId.ToString("N");
-    public const int CurrentProtocolVersion = 3;
-    public const int MinimumSupportedProtocolVersion = 2;
+    public const int CurrentProtocolVersion = AuraSharedResourceProtocolVersions.Current;
+    public const int MinimumSupportedProtocolVersion = AuraSharedResourceProtocolVersions.MinimumSupported;
 
     private static readonly HashSet<string> ReuseLogOwners = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> CompatibilityErrorsShown = new(StringComparer.OrdinalIgnoreCase);
@@ -115,8 +115,10 @@ public static class AuraSharedRuntime
                 "RegisterPackageV3Json",
                 "ResolveResourceV3Json",
                 "ResolveEffectiveV3Json",
+                "ReadUserOverrideV3Json",
                 "WriteUserOverrideV3Json",
                 "GetScopeRevisionV3",
+                "QueryCatalogV3Json",
                 "GetChangesJson",
                 "GetOwners"
             }
@@ -419,6 +421,13 @@ public static class AuraSharedRuntime
             return registrations?.GetScopeRevision(Convert.ToString(scopeKey) ?? "") ?? 0;
         }
 
+        public string QueryCatalogV3Json(object? queryJson)
+        {
+            var query = DeserializeRequest<AuraSharedCatalogQueryV3>(queryJson) ?? new AuraSharedCatalogQueryV3();
+            return AuraSharedJson.Serialize(registrations?.QueryCatalog(query)
+                ?? new AuraSharedCatalogSnapshotV3());
+        }
+
         public string ResolveEffectiveV3Json(object? scopeJson, object? localOverrideJson)
         {
             var scope = DeserializeRequest<AuraSharedScopeKey>(scopeJson) ?? new AuraSharedScopeKey();
@@ -432,6 +441,13 @@ public static class AuraSharedRuntime
                     Outcome = "Unavailable",
                     Fallback = "CoreUnavailable"
                 });
+        }
+
+        public string ReadUserOverrideV3Json(object? scopeJson)
+        {
+            var scope = DeserializeRequest<AuraSharedScopeKey>(scopeJson) ?? new AuraSharedScopeKey();
+            return AuraSharedJson.Serialize(registrations?.ReadUserOverride(scope)
+                                            ?? new AuraSharedUserOverrideDocumentV3());
         }
 
         public string WriteUserOverrideV3Json(

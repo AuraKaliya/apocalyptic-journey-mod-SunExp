@@ -31,31 +31,7 @@ internal static class AuraCgRegistryQueryService
 
     public static bool MatchesRole(AuraCgRegistryEntry entry, string roleId)
     {
-        var normalizedRole = (roleId ?? "").Trim();
-        if (string.IsNullOrWhiteSpace(normalizedRole))
-        {
-            return true;
-        }
-
-        var targets = (entry.TargetRoleIds ?? new List<string>())
-            .Where(target => !string.IsNullOrWhiteSpace(target))
-            .Select(target => target.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        foreach (var target in targets)
-        {
-            var normalizedTarget = (target ?? "").Trim();
-            if (string.Equals(normalizedTarget, "*", StringComparison.Ordinal))
-            {
-                return true;
-            }
-        }
-
-        return targets.Count(target => AuraSharedContentId.Resolve(
-            target,
-            new[] { normalizedRole },
-            entry.OwnerModId,
-            AuraSharedIdentity.OfficialCareerPrefix).Success) == 1;
+        return AuraCgTargetMatcher.MatchesRole(entry, roleId);
     }
 
     public static bool MatchesCard(AuraCgRegistryEntry entry, string cardId)

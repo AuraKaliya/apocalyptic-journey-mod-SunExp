@@ -16,6 +16,8 @@ public sealed class AuraSharedRegistrationCoordinator
     private readonly AuraSharedEditableResourceCoordinator editable;
     private readonly Dictionary<string, AuraSharedRegistrationManifestV3> active =
         new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, bool> activeAvailability =
+        new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, long> revisions =
         new(StringComparer.OrdinalIgnoreCase);
     private long revision;
@@ -137,11 +139,14 @@ public sealed class AuraSharedRegistrationCoordinator
 
     public AuraSharedUserOverrideDocumentV3 ReadUserOverride(AuraSharedScopeKey scope)
     {
-        scope ??= new AuraSharedScopeKey();
-        scope.Normalize();
-        return storage.LoadRawJsonOrDefault(
-            Absolute(AuraSharedResourcePathPolicy.UserOverridePath(scope)),
-            new AuraSharedUserOverrideDocumentV3());
+        lock (gate)
+        {
+            scope ??= new AuraSharedScopeKey();
+            scope.Normalize();
+            return storage.LoadRawJsonOrDefault(
+                Absolute(AuraSharedResourcePathPolicy.UserOverridePath(scope)),
+                new AuraSharedUserOverrideDocumentV3());
+        }
     }
 
     private AuraSharedUserOverrideDocumentV3? TryReadUserOverride(AuraSharedScopeKey scope)
@@ -206,6 +211,50 @@ public sealed class AuraSharedRegistrationCoordinator
         }
     }
 
+    public AuraSharedCatalogSnapshotV3 QueryCatalog(AuraSharedCatalogQueryV3? query)
+    {
+        lock (gate)
+        {
+            query ??= new AuraSharedCatalogQueryV3();
+            query.Normalize();
+            var activeKeys = new HashSet<string>(active.Keys, StringComparer.OrdinalIgnoreCase);
+            var manifests = active.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
+            if (query.IncludeInactive)
+            {
+                foreach (var manifest in ReadPersistedManifests())
+                {
+                    var key = RegistrationKey(manifest.OwnerModId, manifest.PackageId);
+                    if (!manifests.ContainsKey(key))
+                    {
+                        manifests[key] = manifest;
+                    }
+                }
+            }
+
+            var entries = manifests
+                .SelectMany(pair => pair.Value.Resources.Select(resource => CreateCatalogEntry(
+                    pair.Value,
+                    resource,
+                    activeKeys.Contains(pair.Key),
+                    IsActiveResourceAvailable(pair.Key, resource))))
+                .Where(entry => MatchesCatalogQuery(entry, query))
+                .OrderBy(entry => entry.Resource.ModuleId, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(entry => entry.Resource.ScopeType, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(entry => entry.Resource.ScopeId, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(entry => entry.Resource.FeatureId, StringComparer.OrdinalIgnoreCase)
+                .ThenByDescending(entry => entry.Resource.Priority)
+                .ThenBy(entry => entry.OwnerModId, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(entry => entry.Resource.ResourceId, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            return new AuraSharedCatalogSnapshotV3
+            {
+                SessionId = SessionId,
+                Revision = revision,
+                Entries = entries
+            };
+        }
+    }
+
     private AuraSharedRegistrationResultV3 RegisterNoLock(
         string callerOwnerModId,
         AuraSharedRegistrationManifestV3 manifest,
@@ -255,13 +304,36 @@ public sealed class AuraSharedRegistrationCoordinator
             var previous = active.TryGetValue(registrationKey, out var registered)
                 ? AuraSharedJson.Serialize(registered)
                 : "";
+            var registrationIdentities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var acceptedResources = new List<AuraSharedResourceDeclarationV3>();
             foreach (var resource in manifest.Resources.Where(item => item != null))
             {
-                result.Items.Add(RegisterResource(manifest, resource, sourceRoot));
+                var identity = ResourceIdentity(manifest.OwnerModId, resource);
+                AuraSharedRegistrationItemResultV3 item;
+                if (!HasCanonicalIdentitySegments(manifest.OwnerModId, resource))
+                {
+                    item = InvalidIdentityResult(resource, "Resource identity contains a non-canonical path segment: " + identity);
+                }
+                else if (!registrationIdentities.Add(identity))
+                {
+                    item = InvalidIdentityResult(resource, "Duplicate qualified resource identity in registration: " + identity);
+                }
+                else if (HasActiveIdentityConflict(registrationKey, manifest.OwnerModId, resource))
+                {
+                    item = InvalidIdentityResult(resource, "Qualified resource identity is already owned by another active package: " + identity);
+                }
+                else
+                {
+                    item = RegisterResource(manifest, resource, sourceRoot);
+                    acceptedResources.Add(resource);
+                }
+                result.Items.Add(item);
+                activeAvailability[AvailabilityKey(registrationKey, resource)] = item.Success;
             }
 
-            WriteLayeredMetadata(manifest, result.Items);
-            active[registrationKey] = manifest;
+            var activeManifest = CloneWithResources(manifest, acceptedResources);
+            active[registrationKey] = activeManifest;
+            WriteLayeredMetadata(activeManifest, result.Items);
             storage.ExecuteWrite("RegistrationV3/" + manifest.OwnerModId, () =>
             {
                 storage.WriteRawJsonAtomic(
@@ -271,7 +343,7 @@ public sealed class AuraSharedRegistrationCoordinator
                 storage.WriteRawJsonAtomic(
                     Absolute("_Runtime/Leases/" + Safe(SessionId) + "/" + Safe(manifest.OwnerModId)
                              + "/" + Safe(manifest.PackageId) + ".json"),
-                    CreateLease(manifest),
+                    CreateLease(activeManifest),
                     false);
                 return true;
             });
@@ -319,6 +391,166 @@ public sealed class AuraSharedRegistrationCoordinator
             result.Message = ex.Message;
             return result;
         }
+    }
+
+    private IEnumerable<AuraSharedRegistrationManifestV3> ReadPersistedManifests()
+    {
+        var root = Absolute("_Registry/V3/Owners");
+        if (!Directory.Exists(root))
+        {
+            return Array.Empty<AuraSharedRegistrationManifestV3>();
+        }
+
+        var manifests = new List<AuraSharedRegistrationManifestV3>();
+        foreach (var path in Directory.EnumerateFiles(root, "*.json", SearchOption.AllDirectories)
+                     .OrderBy(value => value, StringComparer.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var manifest = AuraSharedJson.Deserialize<AuraSharedRegistrationManifestV3>(File.ReadAllText(path));
+                if (manifest == null)
+                {
+                    continue;
+                }
+
+                manifest.Normalize(manifest.OwnerModId);
+                if (manifest.SchemaVersion == 3 && !string.IsNullOrWhiteSpace(manifest.OwnerModId))
+                {
+                    manifests.Add(manifest);
+                }
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine("[AuraShared.Catalog] Ignored persisted registration " + path + ": " + ex.Message);
+            }
+        }
+
+        return manifests;
+    }
+
+    private AuraSharedCatalogEntryV3 CreateCatalogEntry(
+        AuraSharedRegistrationManifestV3 manifest,
+        AuraSharedResourceDeclarationV3 resource,
+        bool isActive,
+        bool activeResourceAvailable)
+    {
+        var canonical = AuraSharedResourcePathPolicy.ResourcePath(resource.Scope, manifest.OwnerModId, resource);
+        return new AuraSharedCatalogEntryV3
+        {
+            Active = isActive,
+            Available = isActive ? activeResourceAvailable : Exists(Absolute(canonical)),
+            OwnerModId = manifest.OwnerModId,
+            ParticipantKind = manifest.ParticipantKind,
+            PackageId = manifest.PackageId,
+            PackageVersion = manifest.PackageVersion,
+            Resource = resource,
+            Defaults = manifest.Defaults
+                .Where(profile => profile.Scope.Equals(resource.Scope))
+                .Where(profile => string.IsNullOrWhiteSpace(profile.ResourceOwnerModId)
+                                  || string.Equals(profile.ResourceOwnerModId, manifest.OwnerModId, StringComparison.OrdinalIgnoreCase))
+                .Where(profile => string.IsNullOrWhiteSpace(profile.ResourceId)
+                                  || string.Equals(profile.ResourceId, resource.ResourceId, StringComparison.OrdinalIgnoreCase))
+                .ToList(),
+            CanonicalPath = canonical
+        };
+    }
+
+    private static bool MatchesCatalogQuery(AuraSharedCatalogEntryV3 entry, AuraSharedCatalogQueryV3 query)
+    {
+        return MatchesFilter(entry.Resource.ModuleId, query.ModuleId)
+               && MatchesFilter(entry.Resource.FeatureId, query.FeatureId)
+               && MatchesFilter(entry.Resource.ScopeType, query.ScopeType)
+               && MatchesFilter(entry.Resource.ScopeId, query.ScopeId)
+               && MatchesFilter(entry.OwnerModId, query.OwnerModId);
+    }
+
+    private static bool MatchesFilter(string value, string filter)
+    {
+        return string.IsNullOrWhiteSpace(filter)
+               || string.Equals(value, filter, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool IsActiveResourceAvailable(string registrationKey, AuraSharedResourceDeclarationV3 resource)
+    {
+        return activeAvailability.TryGetValue(AvailabilityKey(registrationKey, resource), out var available)
+               && available;
+    }
+
+    private static string AvailabilityKey(string registrationKey, AuraSharedResourceDeclarationV3 resource)
+    {
+        return registrationKey + "\n" + resource.Scope.Key + "\n" + resource.ResourceId;
+    }
+
+    private bool HasActiveIdentityConflict(
+        string registrationKey,
+        string ownerModId,
+        AuraSharedResourceDeclarationV3 resource)
+    {
+        var identity = ResourceIdentity(ownerModId, resource);
+        return active
+            .Where(pair => !string.Equals(pair.Key, registrationKey, StringComparison.OrdinalIgnoreCase))
+            .SelectMany(pair => pair.Value.Resources.Select(candidate => new
+            {
+                pair.Value.OwnerModId,
+                Resource = candidate
+            }))
+            .Any(candidate => string.Equals(
+                ResourceIdentity(candidate.OwnerModId, candidate.Resource),
+                identity,
+                StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static AuraSharedRegistrationItemResultV3 InvalidIdentityResult(
+        AuraSharedResourceDeclarationV3 resource,
+        string message)
+    {
+        return new AuraSharedRegistrationItemResultV3
+        {
+            ScopeKey = resource.Scope.Key,
+            ResourceId = resource.ResourceId,
+            Status = AuraSharedRegistrationStatuses.Invalid,
+            Message = message
+        };
+    }
+
+    private static string ResourceIdentity(string ownerModId, AuraSharedResourceDeclarationV3 resource)
+    {
+        return resource.Scope.Key + ":" + (ownerModId ?? "").Trim() + ":" + resource.ResourceId;
+    }
+
+    private static bool HasCanonicalIdentitySegments(string ownerModId, AuraSharedResourceDeclarationV3 resource)
+    {
+        return IsCanonicalIdentitySegment(resource.ModuleId)
+               && IsCanonicalIdentitySegment(resource.ScopeType)
+               && IsCanonicalIdentitySegment(resource.ScopeId)
+               && IsCanonicalIdentitySegment(resource.FeatureId)
+               && IsCanonicalIdentitySegment(ownerModId)
+               && IsCanonicalIdentitySegment(resource.ResourceId);
+    }
+
+    private static bool IsCanonicalIdentitySegment(string value)
+    {
+        var normalized = (value ?? "").Trim();
+        return normalized.Length > 0
+               && normalized != "."
+               && normalized != ".."
+               && string.Equals(AuraSharedPaths.SafeSegment(normalized, "invalid"), normalized, StringComparison.Ordinal);
+    }
+
+    private static AuraSharedRegistrationManifestV3 CloneWithResources(
+        AuraSharedRegistrationManifestV3 manifest,
+        IEnumerable<AuraSharedResourceDeclarationV3> resources)
+    {
+        return new AuraSharedRegistrationManifestV3
+        {
+            SchemaVersion = manifest.SchemaVersion,
+            OwnerModId = manifest.OwnerModId,
+            ParticipantKind = manifest.ParticipantKind,
+            PackageId = manifest.PackageId,
+            PackageVersion = manifest.PackageVersion,
+            Resources = resources.ToList(),
+            Defaults = manifest.Defaults.ToList()
+        };
     }
 
     private AuraSharedRegistrationItemResultV3 RegisterResource(
@@ -487,6 +719,15 @@ public sealed class AuraSharedRegistrationCoordinator
         AuraSharedRegistrationManifestV3 manifest,
         IReadOnlyList<AuraSharedRegistrationItemResultV3> items)
     {
+        storage.WriteRawJsonAtomic(Absolute(AuraSharedResourcePathPolicy.RootManifestPath()), new
+        {
+            schemaVersion = 3,
+            protocolVersion = AuraSharedResourceProtocolVersions.Current,
+            layout = "module/scopeType/scopeId/featureId/ownerModId/resourceId",
+            readPolicy = "onDemand",
+            generated = true
+        }, false);
+
         foreach (var module in manifest.Resources.Select(item => item.ModuleId)
                      .Concat(manifest.Defaults.Select(item => item.ModuleId))
                      .Distinct(StringComparer.OrdinalIgnoreCase))
@@ -500,23 +741,83 @@ public sealed class AuraSharedRegistrationCoordinator
             }, false);
         }
 
+
+        foreach (var scopeType in manifest.Resources.Select(item => item.Scope)
+                     .Concat(manifest.Defaults.Select(item => item.Scope))
+                     .GroupBy(scope => scope.ModuleId + "\n" + scope.ScopeType, StringComparer.OrdinalIgnoreCase)
+                     .Select(group => group.First()))
+        {
+            storage.WriteRawJsonAtomic(
+                Absolute(AuraSharedResourcePathPolicy.ScopeTypeManifestPath(scopeType.ModuleId, scopeType.ScopeType)),
+                new
+                {
+                    schemaVersion = 3,
+                    moduleId = scopeType.ModuleId,
+                    scopeType = scopeType.ScopeType,
+                    generated = true
+                },
+                false);
+        }
+
         var scopes = manifest.Resources.Select(item => item.Scope)
             .Concat(manifest.Defaults.Select(item => item.Scope))
             .GroupBy(scope => scope.Key, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First());
         foreach (var scope in scopes)
         {
+            storage.WriteRawJsonAtomic(Absolute(AuraSharedResourcePathPolicy.ScopeManifestPath(scope)), new
+            {
+                schemaVersion = 3,
+                moduleId = scope.ModuleId,
+                scopeType = scope.ScopeType,
+                scopeId = scope.ScopeId,
+                generated = true
+            }, false);
+
+            var scopeResources = active.Values.SelectMany(value => value.Resources)
+                .Where(item => item.Scope.Equals(scope))
+                .ToArray();
             storage.WriteRawJsonAtomic(Absolute(AuraSharedResourcePathPolicy.FeatureManifestPath(scope)), new
             {
                 schemaVersion = 3,
                 scope,
-                effectModes = manifest.Resources.Where(item => item.Scope.Equals(scope))
+                effectModes = scopeResources
                     .Select(item => item.EffectMode).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
-                missingPolicies = manifest.Resources.Where(item => item.Scope.Equals(scope))
+                missingPolicies = scopeResources
                     .Select(item => item.MissingPolicy).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
             }, false);
 
-            var defaults = manifest.Defaults.Where(item => item.Scope.Equals(scope)).ToArray();
+            var ownerManifests = active.Values
+                .Where(value => string.Equals(value.OwnerModId, manifest.OwnerModId, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+            var defaults = ownerManifests
+                .SelectMany(value => value.Defaults)
+                .Where(item => item.Scope.Equals(scope))
+                .ToArray();
+            var providerResources = ownerManifests
+                .SelectMany(value => value.Resources)
+                .Where(item => item.Scope.Equals(scope))
+                .ToArray();
+            storage.WriteRawJsonAtomic(
+                Absolute(AuraSharedResourcePathPolicy.ProviderManifestPath(scope, manifest.OwnerModId)),
+                new
+                {
+                    schemaVersion = 3,
+                    ownerModId = manifest.OwnerModId,
+                    participantKinds = ownerManifests.Select(value => value.ParticipantKind)
+                        .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+                    packages = ownerManifests.Select(value => new
+                        {
+                            value.PackageId,
+                            value.PackageVersion
+                        })
+                        .OrderBy(value => value.PackageId, StringComparer.OrdinalIgnoreCase)
+                        .ToArray(),
+                    resources = providerResources.Select(item => item.ResourceId)
+                        .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+                    generated = true
+                },
+                false);
             storage.WriteRawJsonAtomic(
                 Absolute(AuraSharedResourcePathPolicy.ProviderDefaultsPath(scope, manifest.OwnerModId)),
                 new

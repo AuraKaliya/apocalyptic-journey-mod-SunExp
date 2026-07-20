@@ -106,9 +106,9 @@ $skinRuntimeText = Get-Content -Raw -LiteralPath (Join-Path $sharedRoot "AuraSki
 if (-not $skinRuntimeText.Contains('private const string GlobalObjectName = "AuraSkin.Global"')) {
     throw "AuraSkinShared global runtime identity is missing."
 }
-if (-not $skinRuntimeText.Contains("CurrentProtocolVersion = 4") -or
+if (-not $skinRuntimeText.Contains("CurrentProtocolVersion = 5") -or
     -not $skinRuntimeText.Contains('"RegisterPackage"')) {
-    throw "AuraSkinShared package protocol v4 is incomplete."
+    throw "AuraSkinShared owner-qualified candidate protocol v5 is incomplete."
 }
 if ($skinRuntimeText.Contains("RegisterSkinRoot")) {
     throw "Legacy external skin root registration must not remain in AuraSkinShared."
@@ -131,9 +131,15 @@ foreach ($forbiddenText in @("ModsRootDirectory", "PackageDirectories", "Additio
 
 $skinRegistryText = Get-Content -Raw -LiteralPath (Join-Path $sharedRoot "Services\SkinRegistry.cs")
 if (-not $skinRegistryText.Contains("SkinPaths.SkinRootDirectory") -or
-    -not $skinRegistryText.Contains("ResourceKey(careerId, skinId)") -or
+    -not $skinRegistryText.Contains("ByQualifiedId") -or
+    -not $skinRegistryText.Contains("BySemanticKey") -or
+    -not $skinRegistryText.Contains("QualifiedSkinId") -or
+    -not $skinRegistryText.Contains("ConfigureCandidateEnablement") -or
     -not $skinRegistryText.Contains("non-canonical shared skin directory")) {
-    throw "SkinRegistry does not use the shared-only composite identity contract."
+    throw "SkinRegistry does not preserve owner-qualified candidates and semantic groups."
+}
+if ($skinRegistryText.Contains("Ignored duplicate shared skin identity")) {
+    throw "SkinRegistry must not destructively discard cross-owner semantic duplicates."
 }
 if ($skinRegistryText.Contains('"*.skin.json"') -or $skinRegistryText.Contains("SearchOption.AllDirectories")) {
     throw "SkinRegistry still contains legacy or broad recursive discovery."
@@ -150,7 +156,7 @@ foreach ($forbiddenText in @("SkinExp.career_1.summer_cool", "AuraToolsExp.caree
 }
 if (-not $selectionText.Contains("AuraSharedConfigStore.ReadShared") -or
     -not $selectionText.Contains("AuraSharedConfigStore.WriteShared")) {
-    throw "Skin selections do not use Core v2 shared configuration storage."
+    throw "Skin selections do not use shared configuration storage."
 }
 
 foreach ($requiredText in @("SkinExp.career_1.summer_cool", "AuraToolsExp.career_1.summer_cool", "SkinRuntime.TryRemapSelection")) {
@@ -159,10 +165,19 @@ foreach ($requiredText in @("SkinExp.career_1.summer_cool", "AuraToolsExp.career
     }
 }
 
+$skinSettingsText = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot "AuraToolsExp-Dev\Config\AuraToolsSkinSettings.cs")
+foreach ($requiredText in @("CandidateSelectionConfigured", "EnabledSkinIds", "SetCandidateEnabled")) {
+    if (-not $skinSettingsText.Contains($requiredText)) {
+        throw "AuraTools skin candidate configuration is missing: $requiredText"
+    }
+}
+
 $installerText = Get-Content -Raw -LiteralPath (Join-Path $sharedRoot "Services\SkinPackageInstaller.cs")
 foreach ($requiredText in @(
     "AuraSharedResourceProtocol.Register",
-    "AuraSharedResourcePathPolicy.ResourcePath",
+    "AuraSharedResourceProtocol.QueryCatalog",
+    "entry.Active && entry.Available",
+    "CanonicalRelativePath = entry.CanonicalPath",
     "AuraSharedResourceKinds.Directory",
     "AuraSharedSystems.Skin",
     "LegacyPaths",
@@ -172,7 +187,7 @@ foreach ($requiredText in @(
         throw "Skin package installer safety contract is missing: $requiredText"
     }
 }
-foreach ($forbiddenText in @("SHA256.Create", "File.Copy", "Directory.Move", "InstalledSkinRegistry")) {
+foreach ($forbiddenText in @("SHA256.Create", "File.Copy", "Directory.Move", "InstalledSkinRegistry", "ActivePackages")) {
     if ($installerText.Contains($forbiddenText)) {
         throw "Skin adapter still owns Core-level storage behavior: $forbiddenText"
     }

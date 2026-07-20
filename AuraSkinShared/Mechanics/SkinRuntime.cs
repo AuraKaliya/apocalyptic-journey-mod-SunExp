@@ -44,6 +44,16 @@ public static class SkinRuntime
 
     public static IReadOnlyList<SkinDefinition> GetSkins(string careerId) => SkinRegistry.GetForCareer(careerId);
 
+    public static IReadOnlyList<SkinDefinition> GetAllSkins(string careerId) => SkinRegistry.GetAllForCareer(careerId);
+
+    public static IReadOnlyList<SkinDefinition> GetAllSkinCandidates() => SkinRegistry.GetAll();
+
+    public static void ConfigureCandidates(bool configured, IEnumerable<string>? enabledQualifiedSkinIds)
+    {
+        SkinRegistry.ConfigureCandidateEnablement(configured, enabledQualifiedSkinIds);
+        ApplyAllKnownSelections();
+    }
+
     public static void ConfigurePresentation(bool featureEnabled, bool entryPanelEnabled)
     {
         FeatureEnabled = featureEnabled;
@@ -66,15 +76,27 @@ public static class SkinRuntime
         if (remote != null
             && string.Equals(remote.CareerId, CareerConfigApi.NormalizeId(careerId), StringComparison.OrdinalIgnoreCase))
         {
-            return SkinRegistry.Find(remote.CareerId, remote.SkinId);
+            var remoteReference = string.IsNullOrWhiteSpace(remote.QualifiedSkinId)
+                ? remote.SkinId
+                : remote.QualifiedSkinId;
+            return SkinRegistry.ResolveReference(
+                remote.CareerId,
+                remoteReference,
+                string.IsNullOrWhiteSpace(remote.QualifiedSkinId) ? remote.OwnerModId : "",
+                remote.ContentHash);
         }
 
-        return SkinRegistry.Find(careerId, SkinSelectionStore.Get(careerId));
+        return SkinRegistry.ResolveReference(careerId, SkinSelectionStore.Get(careerId));
     }
 
     public static string GetSelectedSkinId(string careerId, string instanceId = "")
     {
         return GetSelectedSkin(careerId, instanceId)?.SkinId ?? "";
+    }
+
+    public static string GetSelectedQualifiedSkinId(string careerId, string instanceId = "")
+    {
+        return GetSelectedSkin(careerId, instanceId)?.QualifiedSkinId ?? "";
     }
 
     public static void Select(DataConfig career, string skinId)
@@ -90,15 +112,19 @@ public static class SkinRuntime
             return;
         }
 
-        var skin = SkinRegistry.Find(careerId, skinId);
-        SkinSelectionStore.Set(careerId, skin?.SkinId ?? "");
+        var skin = SkinRegistry.ResolveReference(careerId, skinId);
+        SkinSelectionStore.Set(careerId, skin?.QualifiedSkinId ?? "");
         ApplyAnimation(career, true);
         LocalSelectionChanged?.Invoke(CreateLocalSelectionSnapshot(career, "", ""));
     }
 
     public static bool TryRemapSelection(string careerId, string oldSkinId, string newSkinId)
     {
-        var changed = SkinSelectionStore.TryRemapSelection(careerId, oldSkinId, newSkinId);
+        var replacement = SkinRegistry.ResolveReference(careerId, newSkinId, effectiveOnly: false);
+        var changed = SkinSelectionStore.TryRemapSelection(
+            careerId,
+            oldSkinId,
+            replacement?.QualifiedSkinId ?? newSkinId);
         if (changed)
         {
             ApplyAllKnownSelections();
@@ -217,10 +243,11 @@ public static class SkinRuntime
             PlayerName = playerName?.Trim() ?? "",
             CareerId = careerId,
             SkinId = skin?.SkinId ?? "",
+            QualifiedSkinId = skin?.QualifiedSkinId ?? "",
             ContentHash = skin?.ContentHash ?? "",
             PackageId = skin?.PackageId ?? "",
             PackageVersion = skin?.PackageVersion ?? 0,
-            OwnerModId = SourceOwner(skin)
+            OwnerModId = skin?.OwnerModId ?? ""
         };
     }
 
@@ -248,6 +275,7 @@ public static class SkinRuntime
         var normalized = CloneSnapshot(snapshot!);
         normalized.CareerId = CareerConfigApi.NormalizeId(normalized.CareerId);
         normalized.SkinId = normalized.SkinId.Trim();
+        normalized.QualifiedSkinId = normalized.QualifiedSkinId.Trim();
         RemoteSelections[playerId] = normalized;
         if (CareerConfigApi.TryCreate(normalized.CareerId, out var career) && career != null)
         {
@@ -281,7 +309,7 @@ public static class SkinRuntime
         }
 
         var skin = GetSelectedSkin(careerId, instanceId);
-        var selectedId = skin?.SkinId ?? "";
+        var selectedId = skin?.QualifiedSkinId ?? "";
         if (!force
             && AppliedAnimationSkin.TryGetValue(careerId, out var applied)
             && string.Equals(applied, selectedId, StringComparison.OrdinalIgnoreCase))
@@ -335,6 +363,7 @@ public static class SkinRuntime
         var playerId = snapshot?.PlayerId?.Trim() ?? "";
         var careerId = CareerConfigApi.NormalizeId(snapshot?.CareerId);
         var skinId = snapshot?.SkinId?.Trim() ?? "";
+        var qualifiedSkinId = snapshot?.QualifiedSkinId?.Trim() ?? "";
         var prefix = "player=" + (string.IsNullOrWhiteSpace(playerId) ? "<unknown>" : playerId)
                      + ", career=" + (string.IsNullOrWhiteSpace(careerId) ? "<missing>" : careerId)
                      + ", skin=" + (string.IsNullOrWhiteSpace(skinId) ? "<default>" : skinId);
@@ -342,7 +371,8 @@ public static class SkinRuntime
         {
             PlayerId = playerId,
             CareerId = careerId,
-            SkinId = skinId
+            SkinId = skinId,
+            QualifiedSkinId = qualifiedSkinId
         };
 
         if (string.IsNullOrWhiteSpace(playerId) || string.IsNullOrWhiteSpace(careerId))
@@ -360,7 +390,12 @@ public static class SkinRuntime
             return result;
         }
 
-        var skin = SkinRegistry.Find(careerId, skinId);
+        var reference = string.IsNullOrWhiteSpace(qualifiedSkinId) ? skinId : qualifiedSkinId;
+        var skin = SkinRegistry.ResolveReference(
+            careerId,
+            reference,
+            string.IsNullOrWhiteSpace(qualifiedSkinId) ? snapshot?.OwnerModId ?? "" : "",
+            snapshot?.ContentHash ?? "");
         if (skin == null)
         {
             result.Warning = "[SkinSync] Missing remote skin resource. " + prefix + ". Fallback to default skin.";
@@ -379,6 +414,7 @@ public static class SkinRuntime
         }
 
         result.Success = true;
+        result.QualifiedSkinId = skin.QualifiedSkinId;
         result.Status = prefix + " / synced";
         return result;
     }
@@ -392,6 +428,7 @@ public static class SkinRuntime
             PlayerName = snapshot.PlayerName ?? "",
             CareerId = snapshot.CareerId ?? "",
             SkinId = snapshot.SkinId ?? "",
+            QualifiedSkinId = snapshot.QualifiedSkinId ?? "",
             ContentHash = snapshot.ContentHash ?? "",
             PackageId = snapshot.PackageId ?? "",
             PackageVersion = snapshot.PackageVersion,
@@ -399,14 +436,4 @@ public static class SkinRuntime
         };
     }
 
-    private static string SourceOwner(SkinDefinition? skin)
-    {
-        if (skin == null || string.IsNullOrWhiteSpace(skin.PackageId))
-        {
-            return "";
-        }
-
-        var separator = skin.PackageId.IndexOf('.');
-        return separator > 0 ? skin.PackageId.Substring(0, separator) : skin.PackageId;
-    }
 }

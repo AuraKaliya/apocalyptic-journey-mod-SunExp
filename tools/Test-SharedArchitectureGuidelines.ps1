@@ -110,6 +110,8 @@ $audioProviderResolver = Read-RepoText "AudioArbiterShared\AudioProviderResolver
 $audioPresentationPolicy = Read-RepoText "AudioArbiterShared\AudioPresentationPolicy.cs"
 $audioReplacementCoordinator = Read-RepoText "AudioArbiterShared\AudioReplacementCoordinator.cs"
 $audioUnityPlaybackService = Read-RepoText "AudioArbiterShared\AudioUnityPlaybackService.cs"
+Require-Text $battleBgmRuntime "ResolveProviderRequest" "Battle BGM explicit switches must use the owner-aware provider resolver."
+Require-Text $battleBgmRuntime "rejected ambiguous bare provider id" "Battle BGM must reject ambiguous bare provider ids instead of selecting the first registration."
 Require-Text $audioRuntime "MatchesProviderRequest" "AudioArbiterRuntime must expose owner-aware provider request matching."
 Require-Text $audioRuntime "ownerStrict:\s*true" "AudioArbiterRuntime must have an owner-strict provider matching path."
 Require-Text $audioRuntime "request\.IsRemote[\s\S]*Remote sound provider mismatch" "AudioArbiterRuntime must fail closed for remote owner/provider mismatches."
@@ -386,6 +388,7 @@ if ($auraCgRuntime -match "manager\?\.(upperCanvasTf|canvasTf)|GameUIManager|Gra
 }
 
 $auraCgRegistryQuery = Read-RepoText "AuraCgShared\AuraCgRegistryQueryService.cs"
+$auraCgRegistry = Read-RepoText "AuraCgShared\AuraCgRegistry.cs"
 $auraCgNetworkPolicy = Read-RepoText "AuraCgShared\AuraCgNetworkPolicy.cs"
 $auraCgNetworkSession = Read-RepoText "AuraCgShared\AuraCgNetworkSessionState.cs"
 $auraCgNetworkRuntime = Read-RepoText "AuraCgShared\AuraCgNetworkRuntime.cs"
@@ -407,6 +410,8 @@ $auraCgMediaPathResolver = Read-RepoText "AuraCgShared\AuraCgMediaPathResolver.c
 $auraCgUnityMediaRepository = Read-RepoText "AuraCgShared\AuraCgUnityMediaRepository.cs"
 Require-Text $auraCgRegistryQuery "internal static class AuraCgRegistryQueryService" "AuraCg registry matching must stay in its pure query service."
 Require-Text $auraCgRegistryQuery "MatchesTrigger" "AuraCg registry query service must own trigger matching."
+Require-Text $auraCgRegistry "cg-manifest-duplicate" "AuraCg registration must reject duplicate owner-qualified ids inside one contribution."
+Require-Text $auraCgRegistry "cg-contribution-identity-conflict" "AuraCg registration must reject one qualified id across multiple owner contributions."
 Require-Text $auraCgNetworkPolicy "internal static class AuraCgNetworkPolicy" "AuraCg network validation must stay in its pure policy service."
 Require-Text $auraCgNetworkPolicy "HasValidPlaybackShape" "AuraCg network policy must own envelope shape validation."
 Require-Text $auraCgNetworkSession "internal sealed class AuraCgNetworkSessionState" "AuraCg transient network identity must stay in a dedicated session state."
@@ -618,6 +623,7 @@ Require-Text $cardUseFxRegistry "OwnerModId" "Card-use FX entries must retain ow
 Require-Text $cardUseFxRegistry "WriteShared" "Card-use FX registry writes must route through AuraShared Core."
 Require-Text $cardUseFxRegistry "OrderByDescending\(entry => entry\.Priority\)" "Card-use FX resolution must be priority deterministic."
 Require-Text $cardUseFxRegistry "AuraCardUseFxPresentationScopes" "Card-use FX entries must declare whether they target the owner, observers, or both."
+Require-Text $cardUseFxRegistry "manifest-duplicate:" "Card-use FX registration must reject duplicate owner-qualified manifest ids."
 Require-Text $cardUseFxRuntime "AuraCardLifecycleRouter" "Card-use FX must capture the real local card before native use processing."
 Require-Text $cardUseFxRuntime "AuraCombatActionRouter" "Card-use FX must use the successful local action-animation commit boundary."
 Require-Text $cardUseFxRuntime "LocalCommitted" "Card-use FX must distinguish local committed uses from remote observations."

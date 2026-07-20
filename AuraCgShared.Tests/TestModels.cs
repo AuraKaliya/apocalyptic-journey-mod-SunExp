@@ -22,7 +22,7 @@ internal static class SkillCgAlphaModes
     }
 }
 
-internal sealed class AuraCgRegistryEntry
+public sealed class AuraCgRegistryEntry
 {
     public string CgId { get; set; } = "";
     public string OwnerModId { get; set; } = "";
@@ -39,7 +39,7 @@ internal sealed class AuraCgRegistryEntry
         : OwnerModId + ":" + CgId;
 }
 
-internal sealed class AuraCgMediaSpec
+public sealed class AuraCgMediaSpec
 {
     public string Type { get; set; } = SkillCgMediaTypes.Image;
     public string Resource { get; set; } = "";
@@ -59,7 +59,7 @@ internal sealed class AuraCgMediaSpec
     public float FlashStrength { get; set; }
 }
 
-internal sealed class AuraCgPresentationSpec
+public sealed class AuraCgPresentationSpec
 {
     public float FadeIn { get; set; }
     public float Hold { get; set; }
@@ -71,7 +71,7 @@ internal sealed class AuraCgPresentationSpec
     public float SafeScale { get; set; }
 }
 
-internal sealed class SkillCgTriggerContext
+public sealed class SkillCgTriggerContext
 {
     public long ActionSequence { get; set; }
     public string Action { get; set; } = "";
@@ -81,7 +81,7 @@ internal sealed class SkillCgTriggerContext
     public string OwnerRoleId { get; set; } = "";
 }
 
-internal sealed class SkillCgRequest
+public sealed class SkillCgRequest
 {
     public string ProviderId { get; set; } = "";
     public string OwnerModId { get; set; } = "";

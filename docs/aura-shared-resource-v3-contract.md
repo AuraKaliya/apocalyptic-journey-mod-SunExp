@@ -16,8 +16,12 @@ module/scopeType/scopeId/featureId/ownerModId/resourceId
 Concrete payloads live below the resource leaf as `content.<ext>` for files or
 `content/` for directories. Core writes the following layered documents:
 
+- `aura.shared.json`: root layout and on-demand read policy.
 - `<module>/aura.module.json`: protocol and layout metadata.
+- `<module>/<scopeType>/aura.scope-type.json`: module-defined granularity metadata.
+- `<module>/<scopeType>/<scopeId>/aura.scope.json`: concrete scope metadata.
 - `<feature scope>/aura.feature.json`: scope, effect mode and missing policy.
+- `<owner>/aura.provider.json`: all active packages and resources from one MOD at this scope.
 - `<owner>/aura.defaults.json`: owner-qualified default profiles.
 - `<resource>/aura.resource.json`: immutable declaration and canonical path.
 - `<resource>/aura.state.json`: seed hash, current hash and customization state.
@@ -36,10 +40,31 @@ one owner remain active together; re-registering the same package replaces only
 that package. Persistent data without a lease is residual data and cannot become
 an active candidate.
 
+Core distinguishes two identities for every catalog entry:
+
+```text
+semanticResourceId = module:feature:scopeType:scopeId:resourceId
+qualifiedResourceId = module/scopeType/scopeId/feature/ownerModId/resourceId
+```
+
+Different owners may publish the same semantic identity and remain visible as
+independent candidates. The same owner cannot publish one qualified identity
+from two active packages; Core returns `Invalid` for the conflicting declaration
+and keeps the previously valid candidate active. Repeating one package is the
+supported idempotent update path.
+Identity segments must already be canonical filesystem segments; Core rejects
+values that would be rewritten by path sanitization so two ids cannot collapse
+onto one directory.
+
 Registration is idempotent. Each changed scope receives a new revision and is
 published independently. Late tool loading therefore re-resolves only affected
 scopes and does not depend on a global “all mods loaded” phase. Runtime indices
 below `_Runtime/Index` are rebuildable caches, not authority.
+
+Consumers enumerate registrations through `QueryCatalogV3Json`; they do not scan
+another MOD's private directory. By default the catalog returns only current-session
+active and available resources. `includeInactive: true` is a diagnostic view of
+persisted redundant declarations and never activates them.
 
 One missing declaration produces an `Unavailable` item result without failing
 unrelated declarations from the same Mod. Additive features use `Skip`;
@@ -58,6 +83,18 @@ Formal resource selection is independent. A ToolDefault profile may win while
 the selected payload remains owned by a content Mod. A tool cannot re-own or
 rewrite a foreign declaration. A local override is sparse and changes only the
 effective local result.
+
+When a feature enables multiple additive candidates, its domain shared layer owns
+one list-based selector. `priority`, deterministic `random`, and `sequential` modes
+all consume the same enabled candidate list; tools must not implement separate
+single-choice side paths. Feature-local choices are persisted in the scope's
+`aura.user.json` and read on demand. Tool-owned aggregate settings may retain a
+compatibility copy, but they are not the shared scope authority.
+
+Domain catalogs must not discard entries by a bare semantic key during scanning.
+They preserve qualified entries, group them by semantic key, and apply an explicit
+selection policy. Content hashes may deduplicate physical storage, but never erase
+owner declarations or tool enablement records.
 
 ## User modifications
 

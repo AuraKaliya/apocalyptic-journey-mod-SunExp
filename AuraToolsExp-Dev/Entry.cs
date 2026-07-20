@@ -28,7 +28,6 @@ public static class Entry
     public static void Initialize(ModConfig modConfig)
     {
         RunStep("shared core", () => AuraSharedRuntime.Initialize(modConfig, AuraToolsIds.ModId));
-        RunStep("shared registry", () => AuraSharedRegistry.RegisterManifest(modConfig, AuraToolsIds.ModId));
         RunStep("journey runtime", () => AuraJourneyRuntime.Initialize(modConfig, AuraToolsIds.ModId));
         RunStep("mode runtime", () => AuraModeRuntime.Initialize(modConfig, AuraToolsIds.ModId));
         RunStep("rpc authority", () => AuraToolsRpcAuthorityRuntime.Initialize(modConfig));

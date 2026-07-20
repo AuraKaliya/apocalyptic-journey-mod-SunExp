@@ -64,11 +64,11 @@ public sealed class SkinPanelController : MonoBehaviour
 
         var careerId = SkinRuntime.CareerId(career);
         skins = SkinRuntime.GetSkins(careerId);
-        var selectedId = SkinRuntime.GetSelectedSkinId(careerId);
+        var selectedId = SkinRuntime.GetSelectedQualifiedSkinId(careerId);
         var selectedIndex = 0;
         for (var i = 0; i < skins.Count; i++)
         {
-            if (string.Equals(skins[i].SkinId, selectedId, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(skins[i].QualifiedSkinId, selectedId, StringComparison.OrdinalIgnoreCase))
             {
                 selectedIndex = i + 1;
                 break;
@@ -91,7 +91,8 @@ public sealed class SkinPanelController : MonoBehaviour
         {
             authorText.text = selected == null
                 ? "官方 / 角色 MOD 原始资源"
-                : (string.IsNullOrWhiteSpace(selected.Author) ? "作者：未注明" : "作者：" + selected.Author);
+                : (string.IsNullOrWhiteSpace(selected.Author) ? "作者：未注明" : "作者：" + selected.Author)
+                  + " / " + selected.OwnerModId;
         }
 
         if (countText != null)
@@ -237,11 +238,11 @@ public sealed class SkinPanelController : MonoBehaviour
             return;
         }
 
-        var selectedId = SkinRuntime.GetSelectedSkinId(SkinRuntime.CareerId(career));
+        var selectedId = SkinRuntime.GetSelectedQualifiedSkinId(SkinRuntime.CareerId(career));
         var index = 0;
         for (var i = 0; i < skins.Count; i++)
         {
-            if (string.Equals(skins[i].SkinId, selectedId, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(skins[i].QualifiedSkinId, selectedId, StringComparison.OrdinalIgnoreCase))
             {
                 index = i + 1;
                 break;
@@ -250,7 +251,7 @@ public sealed class SkinPanelController : MonoBehaviour
 
         var total = skins.Count + 1;
         var next = (index + delta + total) % total;
-        ApplySelection(next == 0 ? "" : skins[next - 1].SkinId);
+        ApplySelection(next == 0 ? "" : skins[next - 1].QualifiedSkinId);
     }
 
     private void SelectDefault()

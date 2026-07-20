@@ -121,7 +121,7 @@ sequenceDiagram
 ### 5.1 安装与注册不是同一件事
 
 - **安装**：`AuraSharedPackageEngine.InstallManifest` 把声明的共享资源事务性安装到共享路径，并维护来源和安装索引。
-- **注册**：`AuraSharedRegistry.RegisterManifest` 把资源 identity、owner、system、kind、路径、优先级等公开给消费者。
+- **注册**：`AuraSharedResourceProtocol.RegisterManifest` 把 owner、module、scope、feature、resource 等声明写入 v3 分层目录；消费者通过 Catalog API 枚举当前会话的活跃注册。
 - **领域解析**：CG、Skin、Audio 等领域组件读取自己的协议字段，执行校验、匹配、优先级和 fallback。
 
 只复制文件不等于完成注册，只写注册表也不保证目标资源已经安装。

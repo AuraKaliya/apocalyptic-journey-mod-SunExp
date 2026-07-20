@@ -5,6 +5,11 @@ namespace AuraShared.Core;
 
 public static class AuraSharedResourcePathPolicy
 {
+    public static string RootManifestPath()
+    {
+        return "aura.shared.json";
+    }
+
     public static string FeatureDirectory(AuraSharedScopeKey scope)
     {
         scope ??= new AuraSharedScopeKey();
@@ -52,6 +57,18 @@ public static class AuraSharedResourcePathPolicy
         return Join(Segment(moduleId, "General"), "aura.module.json");
     }
 
+    public static string ScopeTypeManifestPath(string moduleId, string scopeType)
+    {
+        return Join(Segment(moduleId, "General"), Segment(scopeType, "Global"), "aura.scope-type.json");
+    }
+
+    public static string ScopeManifestPath(AuraSharedScopeKey scope)
+    {
+        scope ??= new AuraSharedScopeKey();
+        scope.Normalize();
+        return Join(scope.ModuleId, scope.ScopeType, scope.ScopeId, "aura.scope.json");
+    }
+
     public static string FeatureManifestPath(AuraSharedScopeKey scope)
     {
         return Join(FeatureDirectory(scope), "aura.feature.json");
@@ -65,6 +82,11 @@ public static class AuraSharedResourcePathPolicy
     public static string ProviderDefaultsPath(AuraSharedScopeKey scope, string ownerModId)
     {
         return Join(ProviderDirectory(scope, ownerModId), "aura.defaults.json");
+    }
+
+    public static string ProviderManifestPath(AuraSharedScopeKey scope, string ownerModId)
+    {
+        return Join(ProviderDirectory(scope, ownerModId), "aura.provider.json");
     }
 
     public static string ResourceManifestPath(

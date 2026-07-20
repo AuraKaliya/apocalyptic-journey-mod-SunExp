@@ -5,6 +5,12 @@ using Newtonsoft.Json;
 
 namespace AuraShared.Core;
 
+public static class AuraSharedResourceProtocolVersions
+{
+    public const int Current = 4;
+    public const int MinimumSupported = 3;
+}
+
 public static class AuraSharedParticipantKinds
 {
     public const string Foundation = "Foundation";
@@ -299,6 +305,92 @@ public sealed class AuraSharedActiveLeaseV3
 
     [JsonProperty("scopeKeys")]
     public List<string> ScopeKeys { get; set; } = new();
+}
+
+public sealed class AuraSharedCatalogQueryV3
+{
+    [JsonProperty("moduleId")]
+    public string ModuleId { get; set; } = "";
+
+    [JsonProperty("featureId")]
+    public string FeatureId { get; set; } = "";
+
+    [JsonProperty("scopeType")]
+    public string ScopeType { get; set; } = "";
+
+    [JsonProperty("scopeId")]
+    public string ScopeId { get; set; } = "";
+
+    [JsonProperty("ownerModId")]
+    public string OwnerModId { get; set; } = "";
+
+    [JsonProperty("includeInactive")]
+    public bool IncludeInactive { get; set; }
+
+    public void Normalize()
+    {
+        ModuleId = (ModuleId ?? "").Trim();
+        FeatureId = (FeatureId ?? "").Trim();
+        ScopeType = (ScopeType ?? "").Trim();
+        ScopeId = (ScopeId ?? "").Trim();
+        OwnerModId = (OwnerModId ?? "").Trim();
+    }
+}
+
+public sealed class AuraSharedCatalogEntryV3
+{
+    [JsonProperty("active")]
+    public bool Active { get; set; }
+
+    [JsonProperty("available")]
+    public bool Available { get; set; }
+
+    [JsonProperty("ownerModId")]
+    public string OwnerModId { get; set; } = "";
+
+    [JsonProperty("participantKind")]
+    public string ParticipantKind { get; set; } = "";
+
+    [JsonProperty("packageId")]
+    public string PackageId { get; set; } = "";
+
+    [JsonProperty("packageVersion")]
+    public long PackageVersion { get; set; }
+
+    [JsonProperty("resource")]
+    public AuraSharedResourceDeclarationV3 Resource { get; set; } = new();
+
+    [JsonProperty("defaults")]
+    public List<AuraSharedDefaultProfileV3> Defaults { get; set; } = new();
+
+    [JsonProperty("canonicalPath")]
+    public string CanonicalPath { get; set; } = "";
+
+    [JsonIgnore]
+    public string SemanticResourceId => Resource.Scope.Key + ":" + Resource.ResourceId;
+
+    [JsonIgnore]
+    public string QualifiedResourceId => Resource.ModuleId
+                                         + "/" + Resource.ScopeType
+                                         + "/" + Resource.ScopeId
+                                         + "/" + Resource.FeatureId
+                                         + "/" + OwnerModId
+                                         + "/" + Resource.ResourceId;
+}
+
+public sealed class AuraSharedCatalogSnapshotV3
+{
+    [JsonProperty("schemaVersion")]
+    public int SchemaVersion { get; set; } = 3;
+
+    [JsonProperty("sessionId")]
+    public string SessionId { get; set; } = "";
+
+    [JsonProperty("revision")]
+    public long Revision { get; set; }
+
+    [JsonProperty("entries")]
+    public List<AuraSharedCatalogEntryV3> Entries { get; set; } = new();
 }
 
 public sealed class AuraSharedResourceStateV3

@@ -9,6 +9,7 @@ using AuraToolsExp.Dll.Features.CardRefresh;
 using AuraToolsExp.Dll.Features.SafeBox;
 using AuraToolsExp.Dll.Features.StarterDeck;
 using AuraToolsExp.Dll.Infrastructure;
+using AuraSkin.Shared.Models;
 using Newtonsoft.Json;
 
 var assertions = 0;
@@ -312,7 +313,7 @@ void TestConfigModelSerializationCompatibility()
     var matchExperience = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
         "{\"schemaVersion\":1,\"starterDeck\":{\"preferRoleModProfile\":false},\"safeBox\":null,\"modSync\":null,\"feast\":null,\"damageMeter\":null,\"cardRefresh\":null}")!;
     matchExperience.Normalize();
-    Assert(matchExperience.SchemaVersion == 8
+    Assert(matchExperience.SchemaVersion == 9
            && matchExperience.StarterDeck.PreferRoleModProfile
            && matchExperience.SafeBox != null
            && matchExperience.ModSync != null
@@ -321,11 +322,41 @@ void TestConfigModelSerializationCompatibility()
            && matchExperience.CardRefresh != null,
         "match-experience config keeps legacy schema migration and nested defaults after the file split");
 
+    var legacyFeast = JsonConvert.DeserializeObject<FeastSettings>(
+        "{\"roles\":{\"role-a\":{\"selectedCgId\":\"SunExp:feast-a\"}}}")!;
+    legacyFeast.Normalize();
+    var migratedRole = legacyFeast.Roles["role-a"];
+    Assert(migratedRole.CandidateSelectionConfigured
+           && migratedRole.EnabledCgIds.SequenceEqual(new[] { "SunExp:feast-a" })
+           && migratedRole.SelectionMode == "priority",
+        "legacy single Feast selection migrates to the enabled candidate list");
+    var unconfiguredRole = new FeastRoleSettings();
+    unconfiguredRole.SetCandidateEnabled("ContentB:feast-b", false, new[] { "ContentA:feast-a", "ContentB:feast-b" });
+    Assert(unconfiguredRole.CandidateSelectionConfigured
+           && unconfiguredRole.EnabledCgIds.SequenceEqual(new[] { "ContentA:feast-a" }),
+        "first Feast toggle snapshots all discovered candidates before applying the local override");
+
     var skin = JsonConvert.DeserializeObject<AuraToolsSkinSettings>(
         "{\"schemaVersion\":0,\"autoInstallBundledSkins\":false}")!;
     skin.Normalize();
-    Assert(skin.SchemaVersion == 1 && skin.AutoInstallBundledSkins,
+    Assert(skin.SchemaVersion == 2 && skin.AutoInstallBundledSkins,
         "skin config keeps its always-on bundled installation policy after the file split");
+    skin.SetCandidateEnabled("ContentB:summer", false, new[] { "ContentA:summer", "ContentB:summer" });
+    Assert(skin.CandidateSelectionConfigured
+           && skin.EnabledSkinIds.SequenceEqual(new[] { "ContentA:summer" })
+           && skin.IsCandidateEnabled("ContentA:summer")
+           && !skin.IsCandidateEnabled("ContentB:summer"),
+        "first skin toggle preserves every discovered owner-qualified candidate before applying the override");
+    var qualifiedSkin = new SkinDefinition
+    {
+        OwnerModId = "ContentA",
+        TargetCareerId = "role-a",
+        SkinId = "summer"
+    };
+    Assert(qualifiedSkin.QualifiedSkinId == "ContentA:role-a:summer"
+           && qualifiedSkin.SemanticKey == "role-a::summer"
+           && SkinDefinition.Qualify("ContentA", "role-b", "summer") != qualifiedSkin.QualifiedSkinId,
+        "skin hard identity includes owner, canonical role, and local skin id while semantic grouping omits owner");
 }
 
 void TestCardRefreshSettingsAndPoolPolicy()
@@ -336,7 +367,7 @@ void TestCardRefreshSettingsAndPoolPolicy()
         CardRefresh = null!
     };
     settings.Normalize();
-    Assert(settings.SchemaVersion == 8, "match-experience settings migrate to the feast editable-resource schema");
+    Assert(settings.SchemaVersion == 9, "match-experience settings migrate to multi-candidate Feast selection");
     Assert(settings.CardRefresh != null && !settings.CardRefresh.Enabled,
         "card refresh is restored with a disabled default during normalization");
 
@@ -825,7 +856,7 @@ void TestRuntimeArchitectureGuards()
            && cardRefreshNativeApi.Contains("new RandomPool(pool, dice).DrawByRarity", StringComparison.Ordinal)
            && cardRefreshNativeApi.Contains("manager.CardPackCheck", StringComparison.Ordinal),
         "card refresh recreates clean choice items and uses a window-local clone of the native reward draw pipeline");
-    Assert(matchExperienceConfig.Contains("\"schemaVersion\": 8", StringComparison.Ordinal)
+    Assert(matchExperienceConfig.Contains("\"schemaVersion\": 9", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"cardRefresh\"", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"enabled\": false", StringComparison.Ordinal),
         "shipped card refresh configuration is present and disabled by default");
@@ -1107,6 +1138,10 @@ void TestRuntimeArchitectureGuards()
         "SkillCG must not preload registered CG during fight start");
 
     var feastDefaults = ReadRepoText("AuraToolsExp-Dev/Features/Feast/AuraToolsFeastDefaultMaterializer.cs");
+    var feastRuntime = ReadRepoText("AuraToolsExp-Dev/Features/Feast/AuraToolsFeastRuntime.cs");
+    var feastRoleEditor = ReadRepoText("AuraToolsExp-Dev/Features/Feast/AuraToolsFeastRoleEditor.cs");
+    var cgCatalogQuery = ReadRepoText("AuraCgShared/AuraCgCatalogQueryService.cs");
+    var cgCandidateSelector = ReadRepoText("AuraCgShared/AuraCgCandidateSelector.cs");
     var feastRoleCatalog = ReadRepoText("AuraToolsExp-Dev/Infrastructure/RoleCatalog.cs");
     var cgRegistry = ReadRepoText("AuraCgShared/AuraCgRegistry.cs");
     var feastPackage = ReadRepoText("AuraToolsExp/SharedResources/aura.registration.json");
@@ -1119,6 +1154,20 @@ void TestRuntimeArchitectureGuards()
            && cgRegistry.Contains("ReplaceContributionEntries", StringComparison.Ordinal)
            && cgRegistry.Contains("RegistrationSourceId", StringComparison.Ordinal),
         "generated feast CG entries must use an isolated owner contribution instead of replacing manifest entries");
+    Assert(feastRuntime.Contains("AuraCgCatalogQueryService.GetActiveResourceKeys", StringComparison.Ordinal)
+           && feastRuntime.Contains("AuraCgCatalogQueryService.IsActive", StringComparison.Ordinal)
+           && cgCatalogQuery.Contains("QueryCatalog", StringComparison.Ordinal)
+           && cgCatalogQuery.Contains("entry.CanonicalPath", StringComparison.Ordinal),
+        "Feast must join semantic CG declarations to active shared-module registrations by resource identity or canonical path");
+    Assert(feastRuntime.Contains("AuraSharedResourceProtocol.ReadUserOverride", StringComparison.Ordinal)
+           && feastRuntime.Contains("AuraSharedResourceProtocol.WriteUserOverride", StringComparison.Ordinal)
+           && feastRuntime.Contains("enabledCgIds", StringComparison.Ordinal)
+           && feastRoleEditor.Contains("SetCandidateEnabledForRole", StringComparison.Ordinal),
+        "Feast role choices must persist through the role scope aura.user.json instead of a tool-only selection path");
+    Assert(cgCandidateSelector.Contains("public const string Random = \"random\"", StringComparison.Ordinal)
+           && cgCandidateSelector.Contains("public const string Sequential = \"sequential\"", StringComparison.Ordinal)
+           && feastRuntime.Contains("AuraCgCandidateSelector.Select", StringComparison.Ordinal),
+        "Feast multi-enable selection must share one priority/random/sequential candidate selector");
     Assert(feastPackage.Contains("\"featureId\": \"Feast\"", StringComparison.Ordinal)
            && feastPackage.Contains("\"participantKind\": \"Tool\"", StringComparison.Ordinal)
            && feastPackage.Contains("CG/AuraToolsExp/Templates/Feast/Roles/", StringComparison.Ordinal)

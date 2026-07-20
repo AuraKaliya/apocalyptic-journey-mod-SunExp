@@ -13,8 +13,6 @@ namespace AuraSkin.Shared.Services;
 public static class SkinPackageInstaller
 {
     private static readonly object SyncRoot = new();
-    private static readonly Dictionary<string, List<RegisteredSkinResource>> ActivePackages =
-        new(StringComparer.OrdinalIgnoreCase);
 
     public static SkinPackageInstallResult InstallPackage(string ownerModId, string packageManifestPath)
     {
@@ -26,15 +24,28 @@ public static class SkinPackageInstaller
 
     public static IReadOnlyList<RegisteredSkinResource> GetActiveResources()
     {
-        lock (SyncRoot)
-        {
-            return ActivePackages.Values
-                .SelectMany(resources => resources)
-                .OrderBy(resource => resource.TargetCareerId, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(resource => resource.OwnerModId, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(resource => resource.SkinId, StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-        }
+        return AuraSharedResourceProtocol.QueryCatalog("AuraSkinShared", new AuraSharedCatalogQueryV3
+            {
+                ModuleId = AuraSharedSystems.Skin,
+                FeatureId = "Skin",
+                ScopeType = "Role"
+            })
+            .Entries
+            .Where(entry => entry.Active && entry.Available)
+            .Select(entry => new RegisteredSkinResource
+            {
+                OwnerModId = entry.OwnerModId,
+                PackageId = entry.PackageId,
+                PackageVersion = (int)Math.Max(0, Math.Min(int.MaxValue, entry.PackageVersion)),
+                Priority = entry.Resource.Priority,
+                TargetCareerId = MetadataOrDefault(entry.Resource.Metadata, "targetCareerId", entry.Resource.ScopeId),
+                SkinId = MetadataOrDefault(entry.Resource.Metadata, "skinId", entry.Resource.ResourceId),
+                CanonicalRelativePath = entry.CanonicalPath
+            })
+            .OrderBy(resource => resource.TargetCareerId, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(resource => resource.OwnerModId, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(resource => resource.SkinId, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static SkinPackageInstallResult InstallPackageLocked(string ownerModId, string packageManifestPath)
@@ -110,24 +121,6 @@ public static class SkinPackageInstaller
                         result.Deduplicated++;
                         break;
                 }
-            }
-
-            if (result.Success)
-            {
-                ActivePackages[owner + "\n" + package.PackageId] = preparedResources
-                    .Select(prepared => new RegisteredSkinResource
-                    {
-                        OwnerModId = owner,
-                        PackageId = package.PackageId,
-                        PackageVersion = package.PackageVersion,
-                        TargetCareerId = prepared.TargetCareerId,
-                        SkinId = prepared.SkinId,
-                        CanonicalRelativePath = AuraSharedResourcePathPolicy.ResourcePath(
-                            CreateDeclaration(prepared).Scope,
-                            owner,
-                            CreateDeclaration(prepared))
-                    })
-                    .ToList();
             }
 
             SkinLog.Info("Skin package " + package.PackageId
@@ -319,6 +312,16 @@ public static class SkinPackageInstaller
         }
     }
 
+    private static string MetadataOrDefault(
+        IReadOnlyDictionary<string, string>? metadata,
+        string key,
+        string fallback)
+    {
+        return metadata != null && metadata.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value)
+            ? value.Trim()
+            : (fallback ?? "").Trim();
+    }
+
     private sealed class PreparedSkinResource
     {
         public string ResourceKey { get; set; } = "";
@@ -332,6 +335,7 @@ public static class SkinPackageInstaller
         public string OwnerModId { get; set; } = "";
         public string PackageId { get; set; } = "";
         public int PackageVersion { get; set; }
+        public int Priority { get; set; }
         public string TargetCareerId { get; set; } = "";
         public string SkinId { get; set; } = "";
         public string CanonicalRelativePath { get; set; } = "";

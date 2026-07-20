@@ -648,8 +648,8 @@ public static class AuraToolsSettingsRuntime
         }, content =>
         {
             var statusRow = CreateInlineRow(content, "SkinStatusRow");
-            AuraToolsUi.AddText(statusRow.transform, "共享皮肤目录：" + AuraToolsConfigService.SkinsDirectory, AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
-            AuraToolsUi.AddButton(statusRow.transform, "打开目录", () => FileResourceUtil.OpenDirectory(AuraToolsConfigService.SkinsDirectory), 92f);
+            AuraToolsUi.AddText(statusRow.transform, "共享皮肤目录：" + AuraToolsConfigService.SkinDirectory, AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
+            AuraToolsUi.AddButton(statusRow.transform, "打开目录", () => FileResourceUtil.OpenDirectory(AuraToolsConfigService.SkinDirectory), 92f);
             AuraToolsUi.AddButton(statusRow.transform, "重新扫描", () =>
             {
                 AuraToolsSkinRuntime.RegisterBundledPackage();
@@ -678,6 +678,23 @@ public static class AuraToolsSettingsRuntime
                 RebuildPanel(activePanel!.transform);
             });
             AuraToolsUi.AddText(entryRow.transform, "在角色选择界面显示皮肤按钮", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
+
+            foreach (var candidate in AuraToolsSkinRuntime.CandidateDefinitions())
+            {
+                var candidateRow = CreateInlineRow(content, "SkinCandidate-" + candidate.QualifiedSkinId);
+                AuraToolsUi.AddToggle(candidateRow.transform,
+                    AuraToolsConfigService.Skin.IsCandidateEnabled(candidate.QualifiedSkinId),
+                    value =>
+                    {
+                        AuraToolsSkinRuntime.SetCandidateEnabled(candidate.QualifiedSkinId, value);
+                        RebuildPanel(activePanel!.transform);
+                    });
+                var label = candidate.TargetCareerId + " / " + candidate.Name
+                            + " / " + candidate.OwnerModId
+                            + "\n" + candidate.QualifiedSkinId;
+                AuraToolsUi.AddText(candidateRow.transform, label, AuraToolsUi.BodyFontSize,
+                    TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
+            }
 
             foreach (var line in AuraToolsSkinRuntime.StatusLines())
             {

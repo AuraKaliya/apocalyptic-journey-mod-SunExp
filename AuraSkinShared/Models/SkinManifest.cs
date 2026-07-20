@@ -67,6 +67,7 @@ public sealed class SkinAssets
 
 public sealed class SkinDefinition
 {
+    public string OwnerModId { get; set; } = "";
     public string SkinId { get; set; } = "";
     public string TargetCareerId { get; set; } = "";
     public string Name { get; set; } = "";
@@ -77,12 +78,32 @@ public sealed class SkinDefinition
     public string ContentHash { get; set; } = "";
     public string PackageId { get; set; } = "";
     public long PackageVersion { get; set; }
+    public int Priority { get; set; }
+
+    [JsonIgnore]
+    public string QualifiedSkinId => Qualify(OwnerModId, TargetCareerId, SkinId);
+
+    [JsonIgnore]
+    public string SemanticKey => TargetCareerId + "::" + SkinId;
+
+    public static string Qualify(string ownerModId, string targetCareerId, string skinId)
+    {
+        var owner = (ownerModId ?? "").Trim();
+        var career = (targetCareerId ?? "").Trim();
+        var id = (skinId ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(owner))
+        {
+            return string.IsNullOrWhiteSpace(career) ? id : career + ":" + id;
+        }
+
+        return owner + ":" + career + ":" + id;
+    }
 }
 
 [System.Serializable]
 public sealed class SkinSelectionSnapshot
 {
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } = 2;
     public string PlayerId { get; set; } = "";
     public string PlayerName { get; set; } = "";
     public string CareerId { get; set; } = "";
@@ -91,6 +112,7 @@ public sealed class SkinSelectionSnapshot
     public string PackageId { get; set; } = "";
     public long PackageVersion { get; set; }
     public string OwnerModId { get; set; } = "";
+    public string QualifiedSkinId { get; set; } = "";
 }
 
 public sealed class SkinSelectionResolveResult
@@ -100,6 +122,7 @@ public sealed class SkinSelectionResolveResult
     public string PlayerId { get; set; } = "";
     public string CareerId { get; set; } = "";
     public string SkinId { get; set; } = "";
+    public string QualifiedSkinId { get; set; } = "";
     public string Status { get; set; } = "";
     public string Warning { get; set; } = "";
 }

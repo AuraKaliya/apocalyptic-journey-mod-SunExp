@@ -29,7 +29,6 @@ public static class Entry
         RunStep("shared feature defaults", RegisterSharedFeatureDefaults);
         RunStep("rpc authority", () => SunExpRpcAuthorityRuntime.Initialize(modConfig));
         RunStep("shared resource package", () => RegisterSharedResourcePackage(modConfig));
-        RunStep("shared registry", () => AuraSharedRegistry.RegisterManifest(modConfig, "SunExp"));
         RunStep("role registry", () => AuraRoleRegistryRuntime.RegisterManifest(modConfig, "SunExp"));
         RunStep("visual registry", () => VisualRegistry.Load(modConfig));
         RunStep("director runtime", () => SunExpDirectorRuntime.Initialize(modConfig));

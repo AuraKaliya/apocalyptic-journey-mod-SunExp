@@ -46,7 +46,7 @@ if ($sharedAssemblyName.Name -ne "Aura.Shared") {
 
 $runtimeText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedRuntime.cs")
 foreach ($required in @(
-    "CurrentProtocolVersion = 3",
+    "CurrentProtocolVersion = AuraSharedResourceProtocolVersions.Current",
     '"ReadStorageJson"',
     '"WriteStorageJson"',
     '"InstallResourceJson"',
@@ -54,13 +54,33 @@ foreach ($required in @(
     '"RegisterPackageV3Json"',
     '"ResolveResourceV3Json"',
     '"ResolveEffectiveV3Json"',
+    '"ReadUserOverrideV3Json"',
     '"WriteUserOverrideV3Json"',
+    '"QueryCatalogV3Json"',
     '"GetScopeRevisionV3"',
     '"GetChangesJson"'
 )) {
     if (-not $runtimeText.Contains($required)) {
-        throw "AuraShared Core v3 runtime contract is missing: $required"
+        throw "AuraShared Core v4 runtime contract is missing: $required"
     }
+}
+$resourceProtocolModelsText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedResourceProtocolModels.cs")
+foreach ($required in @("public const int Current = 4", "public const int MinimumSupported = 3", "AuraSharedCatalogSnapshotV3")) {
+    if (-not $resourceProtocolModelsText.Contains($required)) {
+        throw "AuraShared Core v4 resource protocol contract is missing: $required"
+    }
+}
+$registrationCoordinatorText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedRegistrationCoordinator.cs")
+foreach ($required in @("QueryCatalog", "IncludeInactive", "RootManifestPath", "ScopeTypeManifestPath", "ScopeManifestPath", "ProviderManifestPath")) {
+    if (-not $registrationCoordinatorText.Contains($required)) {
+        throw "AuraShared layered catalog contract is missing: $required"
+    }
+}
+$sharedPathsText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedPaths.cs")
+if ((-not $sharedPathsText.Contains("SkinDirectory => Path.Combine(RootDirectory, AuraSharedSystems.Skin)")) -or
+    $sharedPathsText.Contains("SkinsDirectory") -or
+    $sharedPathsText.Contains('Path.Combine(RootDirectory, "Skins")')) {
+    throw "AuraShared must expose only the canonical singular Skin module directory."
 }
 
 $identityText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedIdentity.cs")
@@ -244,12 +264,12 @@ foreach ($required in @("FocusX", "FocusY", "SafeScale", "CalculateCoverImageOff
 
 $contractPath = Join-Path $repoRoot "docs\aura-shared-core-v2-contract.md"
 if (-not (Test-Path -LiteralPath $contractPath)) {
-    throw "AuraShared Core v2 protocol contract document is missing."
+    throw "AuraShared Core protocol contract document is missing."
 }
 $contractText = Get-Content -Raw -LiteralPath $contractPath
 foreach ($required in @("Storage Request Template", "Package Install Request Template", "Operation Log", "Lock Keys")) {
     if (-not $contractText.Contains($required)) {
-        throw "AuraShared Core v2 protocol contract is missing section: $required"
+        throw "AuraShared Core protocol contract is missing section: $required"
     }
 }
 

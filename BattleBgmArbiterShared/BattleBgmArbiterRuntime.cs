@@ -21,9 +21,9 @@ public static class BattleBgmArbiterRuntime
 {
     private const string GlobalObjectName = "BattleBgmArbiter.Global";
     private const string ComponentFullName = "BattleBgmArbiter.Shared.BattleBgmArbiterRuntime+BattleBgmArbiterComponent";
-    public const string CurrentBuildId = "battle-bgm-arbiter-2026-07-20-v5";
-    public const int CurrentProtocolVersion = 3;
-    public const int MinimumSupportedProtocolVersion = 3;
+    public const string CurrentBuildId = "battle-bgm-arbiter-2026-07-20-v6";
+    public const int CurrentProtocolVersion = 4;
+    public const int MinimumSupportedProtocolVersion = 4;
     public static bool VerboseLogging { get; set; }
     private static readonly HashSet<string> ReuseLogOwners = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> CompatibilityWarningsShown = new(StringComparer.OrdinalIgnoreCase);
@@ -543,7 +543,7 @@ public static class BattleBgmArbiterRuntime
                     return;
                 }
 
-                var provider = providers.FirstOrDefault(item => item.MatchesProviderId(providerId));
+                var provider = ResolveProviderRequest(providerId);
                 if (provider == null)
                 {
                     Warn("Battle switch ignored: provider not registered. provider=" + providerId + ", reason=" + reason);
@@ -602,6 +602,30 @@ public static class BattleBgmArbiterRuntime
             {
                 Warn("Battle switch request failed: " + ex);
             }
+        }
+
+        private ProviderHandle? ResolveProviderRequest(string providerId)
+        {
+            var request = (providerId ?? "").Trim();
+            if (request.Contains(":"))
+            {
+                return providers.FirstOrDefault(item => string.Equals(
+                    item.QualifiedProviderId,
+                    request,
+                    StringComparison.OrdinalIgnoreCase));
+            }
+
+            var matches = providers
+                .Where(item => string.Equals(item.ProviderId, request, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+            if (matches.Length > 1)
+            {
+                Warn("Battle switch rejected ambiguous bare provider id " + request
+                     + ". Use one of: " + string.Join(", ", matches.Select(item => item.QualifiedProviderId)));
+                return null;
+            }
+
+            return matches.FirstOrDefault();
         }
 
         private void ReplaceCurrentBattleBgm(ProviderHandle provider, AudioClip clip, string reason)

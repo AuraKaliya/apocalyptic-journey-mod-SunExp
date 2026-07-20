@@ -230,6 +230,7 @@ try
 
     TestIdentityContracts();
     TestResourceProtocolV3();
+    TestQualifiedResourceIdentityConflicts();
     TestRoleRegistryContracts();
     TestSecureEnvelopeContracts();
     TestLifecycleContracts();
@@ -310,8 +311,12 @@ void TestResourceProtocolV3()
            && registered.Items.Single().Status == "PreservedLocal"
            && File.ReadAllText(canonical) == "user-customized",
         "v3 registration migrates and preserves a legacy user customization");
-    Assert(File.Exists(Path.Combine(root, "CG", "aura.module.json"))
+    Assert(File.Exists(Path.Combine(root, "aura.shared.json"))
+           && File.Exists(Path.Combine(root, "CG", "aura.module.json"))
+           && File.Exists(Path.Combine(root, "CG", "Role", "aura.scope-type.json"))
+           && File.Exists(Path.Combine(root, "CG", "Role", "role_a", "aura.scope.json"))
            && File.Exists(Path.Combine(root, "CG", "Role", "role_a", "Feast", "aura.feature.json"))
+           && File.Exists(Path.Combine(root, "CG", "Role", "role_a", "Feast", "Content", "aura.provider.json"))
            && File.Exists(Path.Combine(root, "CG", "Role", "role_a", "Feast", "Content", "aura.defaults.json"))
            && File.Exists(Path.Combine(root, "CG", "Role", "role_a", "Feast", "Content", "role-a.feast", "aura.resource.json"))
            && File.Exists(Path.Combine(root, "CG", "Role", "role_a", "Feast", "Content", "role-a.feast", "aura.state.json")),
@@ -333,11 +338,49 @@ void TestResourceProtocolV3()
         OwnerModId = "Content",
         ParticipantKind = AuraSharedParticipantKinds.Content,
         PackageId = "Content.Skins",
-        Resources = new List<AuraSharedResourceDeclarationV3>()
+        Resources = new List<AuraSharedResourceDeclarationV3>
+        {
+            new()
+            {
+                ModuleId = "CG",
+                FeatureId = "Feast",
+                ScopeType = "Role",
+                ScopeId = "role_a",
+                ResourceId = "role-a.alternate",
+                Source = "CG/default.png",
+                FileName = "content.png",
+                Priority = 10,
+                EffectMode = AuraSharedEffectModes.Additive,
+                MissingPolicy = AuraSharedMissingPolicies.Skip
+            }
+        }
     };
     var siblingRegistered = v3.Register("Content", siblingPackage, sources);
-    Assert(siblingRegistered.Success && v3.GetActiveLeases().Length == 2,
-        "v3 keeps multiple packages from the same owner active in one session");
+    var providerManifest = JObject.Parse(File.ReadAllText(Path.Combine(
+        root,
+        "CG", "Role", "role_a", "Feast", "Content", "aura.provider.json")));
+    Assert(siblingRegistered.Success
+           && v3.GetActiveLeases().Length == 2
+           && providerManifest["packages"]!.Count() == 2
+           && providerManifest["resources"]!.Count() == 2,
+        "v3 keeps and aggregates multiple packages from the same owner in one provider layer");
+
+    var contentCatalog = v3.QueryCatalog(new AuraSharedCatalogQueryV3
+    {
+        ModuleId = "CG",
+        FeatureId = "Feast",
+        ScopeType = "Role",
+        ScopeId = "role_a",
+        OwnerModId = "Content"
+    });
+    Assert(contentCatalog.SessionId == "session-a"
+           && contentCatalog.Entries.Count == 2
+           && contentCatalog.Entries.All(entry => entry.Active && entry.Available)
+           && contentCatalog.Entries[0].SemanticResourceId == "CG:Feast:Role:role_a:role-a.feast"
+           && contentCatalog.Entries[0].QualifiedResourceId == "CG/Role/role_a/Feast/Content/role-a.feast"
+           && contentCatalog.Entries.Select(entry => entry.Resource.ResourceId)
+               .SequenceEqual(new[] { "role-a.feast", "role-a.alternate" }),
+        "v3 catalog enumerates active content registrations at module granularity");
 
     var tool = new AuraSharedRegistrationManifestV3
     {
@@ -471,6 +514,21 @@ void TestResourceProtocolV3()
     var residual = nextSession.Resolve(canonicalRelative);
     Assert(residual.Success && !residual.Active && residual.Outcome == "LegacyUnregistered",
         "persistent residual data is inactive without a current-session lease");
+    Assert(nextSession.QueryCatalog(new AuraSharedCatalogQueryV3
+        {
+            ModuleId = "CG",
+            FeatureId = "Feast"
+        }).Entries.Count == 0,
+        "v3 catalog excludes residual registrations by default");
+    var residualCatalog = nextSession.QueryCatalog(new AuraSharedCatalogQueryV3
+    {
+        ModuleId = "CG",
+        FeatureId = "Feast",
+        IncludeInactive = true
+    });
+    Assert(residualCatalog.Entries.Count == 3
+           && residualCatalog.Entries.All(entry => !entry.Active && entry.Available),
+        "v3 catalog can inspect redundant persisted registrations without activating them");
 
     var missing = new AuraSharedRegistrationManifestV3
     {
@@ -499,6 +557,77 @@ void TestResourceProtocolV3()
            && !missingResolution.Success
            && missingResolution.Fallback == AuraSharedMissingPolicies.NativeFallback,
         "missing replacement resource is isolated and resolves to native fallback");
+    var staleMissingPath = Path.Combine(root, "Audio", "Role", "role_a", "BattleBgm", "MissingContent", "missing-bgm", "content.ogg");
+    Directory.CreateDirectory(Path.GetDirectoryName(staleMissingPath)!);
+    File.WriteAllText(staleMissingPath, "residual-from-an-older-install");
+    var missingCatalogEntry = v3.QueryCatalog(new AuraSharedCatalogQueryV3
+    {
+        ModuleId = "Audio",
+        FeatureId = "BattleBgm",
+        OwnerModId = "MissingContent"
+    }).Entries.Single();
+    Assert(missingCatalogEntry.Active && !missingCatalogEntry.Available,
+        "active catalog declarations retain unavailable registration outcomes even if residual files exist");
+}
+
+void TestQualifiedResourceIdentityConflicts()
+{
+    var root = Path.Combine(tempRoot, "qualified-identity");
+    var sources = Path.Combine(sourceRoot, "qualified-identity");
+    Directory.CreateDirectory(root);
+    Directory.CreateDirectory(sources);
+    File.WriteAllText(Path.Combine(sources, "skin-a.txt"), "a");
+    File.WriteAllText(Path.Combine(sources, "skin-b.txt"), "b");
+
+    using var identityStorage = new AuraSharedStorageCoordinator(root);
+    var identityPackages = new AuraSharedPackageCoordinator(identityStorage);
+    var coordinator = new AuraSharedRegistrationCoordinator(identityStorage, identityPackages, "identity-session");
+    AuraSharedRegistrationManifestV3 Manifest(string packageId, string source) => new()
+    {
+        OwnerModId = "ContentA",
+        PackageId = packageId,
+        Resources = new List<AuraSharedResourceDeclarationV3>
+        {
+            new()
+            {
+                ModuleId = "Skin",
+                ScopeType = "Role",
+                ScopeId = "role-a",
+                FeatureId = "Skin",
+                ResourceId = "summer",
+                Source = source
+            }
+        }
+    };
+
+    var first = coordinator.Register("ContentA", Manifest("ContentA.Skins", "skin-a.txt"), sources);
+    var conflict = coordinator.Register("ContentA", Manifest("ContentA.AlternateSkins", "skin-b.txt"), sources);
+    var catalog = coordinator.QueryCatalog(new AuraSharedCatalogQueryV3 { ModuleId = "Skin" });
+    Assert(first.Items.Single().Success
+           && !conflict.Items.Single().Success
+           && conflict.Items.Single().Status == AuraSharedRegistrationStatuses.Invalid
+           && catalog.Entries.Count == 1
+           && catalog.Entries.Single().QualifiedResourceId == "Skin/Role/role-a/Skin/ContentA/summer",
+        "qualified resource identity rejects a second active package from the same owner without hiding the valid entry");
+
+    var otherOwner = Manifest("ContentB.Skins", "skin-b.txt");
+    otherOwner.OwnerModId = "ContentB";
+    var coexist = coordinator.Register("ContentB", otherOwner, sources);
+    var candidates = coordinator.QueryCatalog(new AuraSharedCatalogQueryV3 { ModuleId = "Skin" }).Entries;
+    Assert(coexist.Items.Single().Success
+           && candidates.Count == 2
+           && candidates.Select(entry => entry.SemanticResourceId).Distinct(StringComparer.OrdinalIgnoreCase).Count() == 1
+           && candidates.Select(entry => entry.QualifiedResourceId).Distinct(StringComparer.OrdinalIgnoreCase).Count() == 2,
+        "different owners may contribute distinct qualified candidates to one semantic resource group");
+
+    var unsafeIdentity = Manifest("ContentC.Skins", "skin-b.txt");
+    unsafeIdentity.OwnerModId = "ContentC";
+    unsafeIdentity.Resources[0].ResourceId = "summer/alternate";
+    var unsafeResult = coordinator.Register("ContentC", unsafeIdentity, sources);
+    Assert(!unsafeResult.Items.Single().Success
+           && unsafeResult.Items.Single().Status == AuraSharedRegistrationStatuses.Invalid
+           && coordinator.QueryCatalog(new AuraSharedCatalogQueryV3 { OwnerModId = "ContentC" }).Entries.Count == 0,
+        "resource registration rejects identity segments that would collapse to the same canonical directory");
 }
 
 void TestRoleRegistryContracts()
@@ -534,6 +663,13 @@ void TestRoleRegistryContracts()
                 DisplayName = "Declared Role",
                 Aliases = new List<string> { "role" },
                 Priority = 100
+            },
+            new()
+            {
+                RoleId = "Mod_role",
+                OwnerModId = "Content",
+                Aliases = new List<string> { "role-alternate" },
+                Priority = 90
             }
         }
     };
@@ -542,8 +678,9 @@ void TestRoleRegistryContracts()
     Assert(active.Count == 2
            && active.Any(role => role.RoleId == "career_7")
            && active.Single(role => role.RoleId == "Mod_role").DisplayName == "Declared Role"
-           && active.Single(role => role.RoleId == "Mod_role").Aliases.Contains("role"),
-        "role registry merges live discovery with higher-priority declared metadata");
+           && active.Single(role => role.RoleId == "Mod_role").Aliases.Contains("role")
+           && active.Single(role => role.RoleId == "Mod_role").Aliases.Contains("role-alternate"),
+        "role registry preserves duplicate semantic contributions and merges their metadata by explicit priority");
 }
 
 void TestObjectPoolContracts()

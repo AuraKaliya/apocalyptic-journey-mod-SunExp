@@ -23,10 +23,20 @@
 
 Publication source folders may use shorter names because the installer derives canonical scope and resource identities from the manifests.
 
-## Installation and deduplication
+## Installation, identity, and candidate selection
 
 Consumers call `AuraSkinRuntime.RegisterPackage(modConfig, ownerModId)`. SkinShared validates skin manifests, translates
 the package into v3 resource declarations, and delegates path policy, migration aliases, storage, hashing, leases, locking,
 and recovery to AuraSharedCore. Registration identity is `(ownerModId, packageId)` and resource identity is the normalized
-`targetCareerId::skinId` pair. Multiple packages from one owner remain active together, while repeated registration of one
-package is idempotent.
+`Skin/Role/targetCareerId/Skin/ownerModId/skinId` tuple. `targetCareerId::skinId` is only the semantic grouping key.
+
+Different owners may publish the same role and skin id. `SkinRegistry` keeps every
+`ownerModId:targetCareerId:skinId` candidate, groups
+semantic duplicates, and orders them by priority and qualified id. It never uses directory order as conflict policy.
+Selections and multiplayer snapshots persist the qualified id; legacy bare ids are resolved deterministically and rewritten
+on the next explicit selection. AuraToolsExp can enable or disable individual qualified candidates while leaving inactive
+or temporarily missing MOD ids in JSON. With no tool override, all content-owned candidates remain enabled.
+
+Repeated registration of one package is idempotent. A second active package from the same owner cannot claim an existing
+qualified resource identity. Equal content hashes may share physical package storage, but their owner registrations remain
+independent.

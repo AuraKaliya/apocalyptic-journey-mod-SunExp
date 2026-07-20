@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using AuraShared.Core;
 using AuraSkin.Shared;
 using AuraSkin.Shared.Mechanics;
@@ -61,6 +63,8 @@ public static class AuraToolsSkinRuntime
             return;
         }
 
+        ConfigureFromSettings();
+
         if (SkinRuntime.TryRemapSelection(OfficialCareerId, LegacyOfficialSummerSkinId, OfficialSummerSkinId))
         {
             AuraToolsLog.Info("[Skin] migrated legacy official summer skin selection to AuraToolsExp ownership.");
@@ -78,6 +82,7 @@ public static class AuraToolsSkinRuntime
         var reloaded = AuraSkinRuntime.Reload(currentConfig, AuraToolsIds.ModId);
         if (reloaded)
         {
+            ConfigureFromSettings();
             BroadcastLocalSelection();
         }
 
@@ -86,16 +91,39 @@ public static class AuraToolsSkinRuntime
 
     public static string[] StatusLines()
     {
+        var candidates = SkinRuntime.GetAllSkinCandidates();
+        var semanticGroups = candidates
+            .GroupBy(candidate => candidate.SemanticKey, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var summary = "共享皮肤候选：" + candidates.Count
+                      + "，语义分组：" + semanticGroups.Length
+                      + "，多提供者分组：" + semanticGroups.Count(group => group.Count() > 1);
         var remote = SkinRuntime.RemoteStatusLines();
         if (remote.Length == 0)
         {
-            return new[] { lastInstallStatus, "No remote skin selections received." };
+            return new[] { lastInstallStatus, summary, "No remote skin selections received." };
         }
 
-        var lines = new string[remote.Length + 1];
+        var lines = new string[remote.Length + 2];
         lines[0] = lastInstallStatus;
-        Array.Copy(remote, 0, lines, 1, remote.Length);
+        lines[1] = summary;
+        Array.Copy(remote, 0, lines, 2, remote.Length);
         return lines;
+    }
+
+    public static IReadOnlyList<SkinDefinition> CandidateDefinitions()
+    {
+        return SkinRuntime.GetAllSkinCandidates();
+    }
+
+    public static void SetCandidateEnabled(string qualifiedSkinId, bool enabled)
+    {
+        var candidateIds = SkinRuntime.GetAllSkinCandidates()
+            .Select(candidate => candidate.QualifiedSkinId)
+            .ToArray();
+        AuraToolsConfigService.Skin.SetCandidateEnabled(qualifiedSkinId, enabled, candidateIds);
+        AuraToolsConfigService.SaveSkin();
+        ConfigureFromSettings();
     }
 
     public static void ReceiveRemoteSelection(SkinSelectionSnapshot snapshot)
@@ -130,6 +158,9 @@ public static class AuraToolsSkinRuntime
         SkinRuntime.ConfigurePresentation(
             AuraToolsConfigService.Root.Skin.Enabled && AuraToolsConfigService.Skin.Enabled,
             AuraToolsConfigService.Skin.ShowEntrySkinButton);
+        SkinRuntime.ConfigureCandidates(
+            AuraToolsConfigService.Skin.CandidateSelectionConfigured,
+            AuraToolsConfigService.Skin.EnabledSkinIds);
     }
 
     private static void OnLocalSelectionChanged(SkinSelectionSnapshot snapshot)

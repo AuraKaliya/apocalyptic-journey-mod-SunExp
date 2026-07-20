@@ -44,7 +44,7 @@ public static class AuraSharedPaths
 
     public static string CgDirectory => Path.Combine(RootDirectory, "CG");
 
-    public static string SkinsDirectory => Path.Combine(RootDirectory, "Skins");
+    public static string SkinDirectory => Path.Combine(RootDirectory, AuraSharedSystems.Skin);
 
     public static string LogsRootDirectory => Path.Combine(RootDirectory, "Logs");
 
@@ -85,7 +85,7 @@ public static class AuraSharedPaths
         CreateDirectorySafe(RuntimeConfigDirectory);
         CreateDirectorySafe(AudioDirectory);
         CreateDirectorySafe(CgDirectory);
-        CreateDirectorySafe(SkinsDirectory);
+        CreateDirectorySafe(SkinDirectory);
         CreateDirectorySafe(LogsRootDirectory);
         CreateDirectorySafe(OperationsLogDirectory);
         CreateDirectorySafe(RegistriesRootDirectory);
@@ -142,11 +142,6 @@ public static class AuraSharedPaths
     public static string CgPath(params string[] segments)
     {
         return Combine(CgDirectory, segments);
-    }
-
-    public static string SkinsPath(params string[] segments)
-    {
-        return Combine(SkinsDirectory, segments);
     }
 
     public static string ResolveSharedPath(string relativeOrAbsolute)

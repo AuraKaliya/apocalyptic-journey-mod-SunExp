@@ -27,7 +27,7 @@ public static class AuraToolsPaths
 
     public static string CgDirectory => AuraSharedPaths.CgDirectory;
 
-    public static string SkinsDirectory => AuraSharedPaths.SkinsDirectory;
+    public static string SkinDirectory => AuraSharedPaths.SkinDirectory;
 
     public static string LogsDirectory => AuraSharedLogStore.OwnerDirectory(AuraToolsIds.ModId);
 
@@ -45,7 +45,7 @@ public static class AuraToolsPaths
         CreateDirectorySafe(ConfigDirectory);
         CreateDirectorySafe(AudioDirectory);
         CreateDirectorySafe(CgDirectory);
-        CreateDirectorySafe(SkinsDirectory);
+        CreateDirectorySafe(SkinDirectory);
         CreateDirectorySafe(LogsDirectory);
     }
 

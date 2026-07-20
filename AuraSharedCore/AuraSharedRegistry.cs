@@ -215,6 +215,7 @@ public sealed class AuraSharedResourceRecord
 
 public static class AuraSharedRegistry
 {
+    [Obsolete("Use AuraSharedResourceProtocol.RegisterManifest for canonical layered resource registration.")]
     public static bool RegisterManifest(ModConfig? modConfig, string ownerModId, string manifestRelativePath = "aura.shared.registry.json")
     {
         AuraSharedRuntime.Initialize(modConfig, ownerModId);

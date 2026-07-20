@@ -12,7 +12,6 @@ public static class Entry
     public static void Initialize(ModConfig modConfig)
     {
         RunStep("shared core", () => AuraSharedRuntime.Initialize(modConfig, "SkinExp"));
-        RunStep("shared registry", () => AuraSharedRegistry.RegisterManifest(modConfig, "SkinExp"));
         RunStep("shared skin runtime", () => AuraSkinRuntime.Initialize(modConfig, "SkinExp"));
         RunStep("shared skin package", () => RegisterSkinPackage(modConfig));
         SkinLog.Info("SkinExp loaded");

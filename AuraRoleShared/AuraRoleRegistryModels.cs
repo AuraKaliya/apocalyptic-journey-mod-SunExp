@@ -97,17 +97,17 @@ public sealed class AuraRoleRegistryContribution
         ContributionId = string.IsNullOrWhiteSpace(ContributionId) ? "default" : ContributionId.Trim();
         SessionId = (SessionId ?? "").Trim();
         Entries ??= new List<AuraRoleRegistryEntry>();
-        var normalized = new Dictionary<string, AuraRoleRegistryEntry>(StringComparer.OrdinalIgnoreCase);
-        foreach (var entry in Entries)
-        {
-            entry?.Normalize();
-            if (entry != null && entry.Enabled && !string.IsNullOrWhiteSpace(entry.RoleId))
+        Entries = Entries
+            .Where(entry => entry != null)
+            .Select(entry =>
             {
-                normalized[entry.RoleId] = entry;
-            }
-        }
-
-        Entries = normalized.Values.OrderBy(entry => entry.RoleId, StringComparer.OrdinalIgnoreCase).ToList();
+                entry.Normalize();
+                return entry;
+            })
+            .Where(entry => entry.Enabled && !string.IsNullOrWhiteSpace(entry.RoleId))
+            .OrderBy(entry => entry.RoleId, StringComparer.OrdinalIgnoreCase)
+            .ThenByDescending(entry => entry.Priority)
+            .ToList();
     }
 
     public bool SemanticallyEquals(AuraRoleRegistryContribution other)

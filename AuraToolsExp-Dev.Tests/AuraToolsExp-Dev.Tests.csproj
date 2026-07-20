@@ -28,6 +28,10 @@
              Link="CardRefresh\CardRefreshPoolPolicy.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\Feast\FeastRoleResourceIdentity.cs"
              Link="Feast\FeastRoleResourceIdentity.cs" />
+    <Compile Include="..\AuraCgShared\AuraCgCandidateSelector.cs"
+             Link="Feast\AuraCgCandidateSelector.cs" />
+    <Compile Include="..\AuraSkinShared\Models\SkinManifest.cs"
+             Link="Skin\SkinManifest.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\StarterDeck\StarterDeckCardClassification.cs"
              Link="StarterDeck\StarterDeckCardClassification.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\StarterDeck\StarterDeckDeckBuilder.cs"

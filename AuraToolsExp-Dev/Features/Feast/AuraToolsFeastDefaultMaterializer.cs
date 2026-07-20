@@ -377,7 +377,7 @@ public static class AuraToolsFeastDefaultMaterializer
         var staticEntry = AuraCgRegistryRuntime.GetRegisteredEntries(AuraToolsIds.ModId)
             .Where(entry => string.Equals(entry.Kind, AuraToolsFeastRuntime.FeastKind, StringComparison.OrdinalIgnoreCase))
             .Where(entry => !string.Equals(entry.RegistrationSourceId, ContributionId, StringComparison.OrdinalIgnoreCase))
-            .FirstOrDefault(entry => TargetsRole(entry, roleId)
+            .FirstOrDefault(entry => AuraCgTargetMatcher.MatchesRole(entry, roleId)
                                      && (entry.Media.Resource.StartsWith(TemplateRolePrefix, StringComparison.OrdinalIgnoreCase)
                                          || entry.Media.Resource.StartsWith(LegacyPrefix, StringComparison.OrdinalIgnoreCase)));
         if (staticEntry != null)
@@ -526,25 +526,6 @@ public static class AuraToolsFeastDefaultMaterializer
         {
             return false;
         }
-    }
-
-    private static bool TargetsRole(AuraCgRegistryEntry entry, string roleId)
-    {
-        var targets = (entry.TargetRoleIds ?? new List<string>())
-            .Where(target => !string.IsNullOrWhiteSpace(target))
-            .Select(target => target.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        if (targets.Any(target => string.Equals(target, "*", StringComparison.Ordinal)))
-        {
-            return true;
-        }
-
-        return targets.Count(target => AuraSharedContentId.Resolve(
-            target,
-            new[] { roleId },
-            entry.OwnerModId,
-            AuraSharedIdentity.OfficialCareerPrefix).Success) == 1;
     }
 
     private static bool Set<T>(T current, T value, Action<T> assign)

@@ -11,7 +11,7 @@ public static class SkinPaths
 
     public static string SettingsPath => Path.Combine(SettingsDirectory, "selections.json");
 
-    public static string SkinRootDirectory => AuraSharedPaths.SkinsDirectory;
+    public static string SkinRootDirectory => AuraSharedPaths.SkinDirectory;
 
     public static string RegistryDirectory => Path.Combine(AuraSharedPaths.RegistriesRootDirectory, "Skin");
 
@@ -24,7 +24,7 @@ public static class SkinPaths
         Directory.CreateDirectory(RegistryDirectory);
 
         SkinLog.Info("owner=" + ownerModId
-                     + ", sharedSkins=" + SkinRootDirectory
+                     + ", sharedSkin=" + SkinRootDirectory
                      + ", registry=" + RegistryDirectory);
     }
 

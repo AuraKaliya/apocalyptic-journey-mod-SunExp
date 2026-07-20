@@ -11,6 +11,8 @@
     <Compile Include="..\AuraSharedCore\AuraSharedIdentity.cs" Link="Core\AuraSharedIdentity.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedContentId.cs" Link="Core\AuraSharedContentId.cs" />
     <Compile Include="..\AuraCgShared\AuraCgRegistryQueryService.cs" Link="Shared\AuraCgRegistryQueryService.cs" />
+    <Compile Include="..\AuraCgShared\AuraCgTargetMatcher.cs" Link="Shared\AuraCgTargetMatcher.cs" />
+    <Compile Include="..\AuraCgShared\AuraCgCandidateSelector.cs" Link="Shared\AuraCgCandidateSelector.cs" />
     <Compile Include="..\AuraCgShared\AuraCgRegisteredRequestResolver.cs" Link="Shared\AuraCgRegisteredRequestResolver.cs" />
     <Compile Include="..\AuraCgShared\AuraCgProviderCoordinator.cs" Link="Shared\AuraCgProviderCoordinator.cs" />
     <Compile Include="..\AuraCgShared\AuraCgNetworkPolicy.cs" Link="Shared\AuraCgNetworkPolicy.cs" />

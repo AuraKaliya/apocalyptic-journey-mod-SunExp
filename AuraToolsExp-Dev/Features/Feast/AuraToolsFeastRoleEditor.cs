@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
@@ -91,7 +90,7 @@ public static class AuraToolsFeastRoleEditor
         var effective = AuraToolsFeastRuntime.ResolveEffectiveCandidateForPreview(role.Id);
 
         var block = Settings.AuraToolsUi.CreateLayout("FeastRole-" + role.Id, roleContent!);
-        Settings.AuraToolsUi.SetFixedHeight(block, 154f);
+        Settings.AuraToolsUi.SetFixedHeight(block, 126f + candidates.Count * 36f);
         Settings.AuraToolsUi.AddImage(block, effective == null ? Settings.AuraToolsUi.Row : Settings.AuraToolsUi.ActiveRow);
         var blockLayout = block.AddComponent<VerticalLayoutGroup>();
         blockLayout.padding = new RectOffset(8, 8, 6, 6);
@@ -110,7 +109,8 @@ public static class AuraToolsFeastRoleEditor
         topLayout.childForceExpandWidth = false;
         topLayout.childForceExpandHeight = false;
 
-        Settings.AuraToolsUi.AddToggle(top.transform, settings.Enabled, value => settings.Enabled = value);
+        Settings.AuraToolsUi.AddToggle(top.transform, settings.Enabled, value =>
+            AuraToolsFeastRuntime.SetRoleEnabled(role.Id, value));
         Settings.AuraToolsUi.AddText(top.transform, RoleTitle(role), Settings.AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, Settings.AuraToolsUi.Text, Settings.AuraToolsUi.TextMinHeight, 1f);
         Settings.AuraToolsUi.AddButton(top.transform, "预览", () => AuraToolsFeastRuntime.PreviewRole(role.Id), 78f, 34f);
 
@@ -123,18 +123,45 @@ public static class AuraToolsFeastRoleEditor
         bottomLayout.childForceExpandWidth = false;
         bottomLayout.childForceExpandHeight = false;
 
-        var options = BuildCgOptions(candidates, settings.SelectedCgId);
-        Settings.AuraToolsUi.AddText(bottom.transform, "CG", Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 0f, 36f);
-        Settings.AuraToolsUi.AddSelectButton(bottom.transform, options.Select(option => option.Label).ToList(), SelectedOptionIndex(options, settings.SelectedCgId), index =>
+        var modes = new[] { AuraCg.Shared.AuraCgSelectionModes.Priority, AuraCg.Shared.AuraCgSelectionModes.Random, AuraCg.Shared.AuraCgSelectionModes.Sequential };
+        var modeLabels = new[] { "按优先级", "随机", "按顺序" };
+        var selectedMode = Array.FindIndex(modes, mode => string.Equals(mode, settings.SelectionMode, StringComparison.OrdinalIgnoreCase));
+        Settings.AuraToolsUi.AddText(bottom.transform, "选择方式", Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 0f, 72f);
+        Settings.AuraToolsUi.AddSelectButton(bottom.transform, modeLabels.ToList(), Math.Max(0, selectedMode), index =>
         {
-            if (index < 0 || index >= options.Count)
+            if (index < 0 || index >= modes.Length)
             {
                 return;
             }
 
-            settings.SelectedCgId = options[index].QualifiedCgId;
+            AuraToolsFeastRuntime.SetSelectionModeForRole(role.Id, modes[index]);
             RefreshRows(false);
-        }, 620f);
+        }, 180f);
+        var enabledCount = candidates.Count(candidate => settings.IsCandidateEnabled(candidate.QualifiedCgId));
+        Settings.AuraToolsUi.AddText(bottom.transform, "已启用 " + enabledCount + "/" + candidates.Count, Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 1f);
+
+        var candidateIds = candidates.Select(candidate => candidate.QualifiedCgId).ToArray();
+        foreach (var candidate in candidates)
+        {
+            var candidateRow = Settings.AuraToolsUi.CreateLayout("Candidate-" + candidate.QualifiedCgId, block.transform);
+            Settings.AuraToolsUi.SetFixedHeight(candidateRow, 30f);
+            var candidateLayout = candidateRow.AddComponent<HorizontalLayoutGroup>();
+            candidateLayout.spacing = 8f;
+            candidateLayout.childControlWidth = true;
+            candidateLayout.childControlHeight = true;
+            candidateLayout.childForceExpandWidth = false;
+            candidateLayout.childForceExpandHeight = false;
+            Settings.AuraToolsUi.AddToggle(candidateRow.transform, settings.IsCandidateEnabled(candidate.QualifiedCgId), enabled =>
+            {
+                AuraToolsFeastRuntime.SetCandidateEnabledForRole(
+                    role.Id,
+                    candidate.QualifiedCgId,
+                    enabled,
+                    candidateIds);
+                RefreshRows(false);
+            });
+            Settings.AuraToolsUi.AddText(candidateRow.transform, candidate.DisplayName + " / " + candidate.OwnerModId, Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, Settings.AuraToolsUi.Text, Settings.AuraToolsUi.TextMinHeight, 1f);
+        }
 
         var actions = Settings.AuraToolsUi.CreateLayout("Actions", block.transform);
         Settings.AuraToolsUi.SetFixedHeight(actions, Settings.AuraToolsUi.ButtonHeight);
@@ -189,52 +216,6 @@ public static class AuraToolsFeastRoleEditor
         RefreshRows(false);
     }
 
-    private static List<CgOption> BuildCgOptions(IReadOnlyList<FeastCgCandidate> candidates, string selected)
-    {
-        var options = new List<CgOption>
-        {
-            new() { Label = "自动选择", QualifiedCgId = "" }
-        };
-        foreach (var candidate in candidates)
-        {
-            options.Add(new CgOption
-            {
-                Label = candidate.DisplayName + " / " + candidate.OwnerModId,
-                QualifiedCgId = candidate.QualifiedCgId
-            });
-        }
-
-        if (!string.IsNullOrWhiteSpace(selected)
-            && !options.Any(option => string.Equals(option.QualifiedCgId, selected, StringComparison.OrdinalIgnoreCase)))
-        {
-            options.Add(new CgOption
-            {
-                Label = "已失效：" + selected,
-                QualifiedCgId = selected
-            });
-        }
-
-        return options;
-    }
-
-    private static int SelectedOptionIndex(IReadOnlyList<CgOption> options, string selected)
-    {
-        if (string.IsNullOrWhiteSpace(selected))
-        {
-            return 0;
-        }
-
-        for (var i = 0; i < options.Count; i++)
-        {
-            if (string.Equals(options[i].QualifiedCgId, selected, StringComparison.OrdinalIgnoreCase))
-            {
-                return i;
-            }
-        }
-
-        return 0;
-    }
-
     private static string RoleTitle(RoleInfo role)
     {
         return string.IsNullOrWhiteSpace(role.DisplayName) ? role.Id : role.DisplayName;
@@ -255,10 +236,4 @@ public static class AuraToolsFeastRoleEditor
         }
     }
 
-    private sealed class CgOption
-    {
-        public string Label { get; set; } = "";
-
-        public string QualifiedCgId { get; set; } = "";
-    }
 }

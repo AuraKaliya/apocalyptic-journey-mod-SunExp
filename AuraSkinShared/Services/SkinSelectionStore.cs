@@ -13,7 +13,7 @@ public static class SkinSelectionStore
 
     private sealed class SelectionFile
     {
-        public int SchemaVersion { get; set; } = 1;
+        public int SchemaVersion { get; set; } = 2;
         public Dictionary<string, string> Selections { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     }
 
@@ -89,7 +89,7 @@ public static class SkinSelectionStore
         }
 
         if (!state.Selections.TryGetValue(normalizedCareerId, out var current)
-            || !string.Equals(NormalizeSkinId(current), oldId, StringComparison.OrdinalIgnoreCase))
+            || !MatchesReference(NormalizeSkinId(current), oldId))
         {
             return false;
         }
@@ -102,7 +102,7 @@ public static class SkinSelectionStore
 
         Load();
         if (!state.Selections.TryGetValue(normalizedCareerId, out current)
-            || !string.Equals(NormalizeSkinId(current), oldId, StringComparison.OrdinalIgnoreCase))
+            || !MatchesReference(NormalizeSkinId(current), oldId))
         {
             return false;
         }
@@ -161,6 +161,12 @@ public static class SkinSelectionStore
         return (skinId ?? "").Trim();
     }
 
+    private static bool MatchesReference(string storedReference, string requestedReference)
+    {
+        return string.Equals(storedReference, requestedReference, StringComparison.OrdinalIgnoreCase)
+               || storedReference.EndsWith(":" + requestedReference, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static bool Save()
     {
         try
@@ -171,7 +177,7 @@ public static class SkinSelectionStore
                 ConfigFileName,
                 state,
                 revision,
-                schemaVersion: 1);
+                schemaVersion: 2);
             if (!result.Success)
             {
                 SkinLog.Warn("Failed to save skin selections: " + result.Message);

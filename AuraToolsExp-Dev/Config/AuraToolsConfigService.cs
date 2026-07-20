@@ -39,7 +39,7 @@ public static class AuraToolsConfigService
 
     public static string CgDirectory => AuraToolsPaths.CgDirectory;
 
-    public static string SkinsDirectory => AuraToolsPaths.SkinsDirectory;
+    public static string SkinDirectory => AuraToolsPaths.SkinDirectory;
 
     public static string LogsDirectory => AuraToolsPaths.LogsDirectory;
 

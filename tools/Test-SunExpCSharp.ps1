@@ -3571,7 +3571,7 @@ function Invoke-SourceAssertions {
     Assert-True $audioNetworkRuntime.Contains("request.ProviderId = providerId") "Audio network adapter must retain bare ProviderId for legacy receivers."
     Assert-True $audioNetworkRuntime.Contains("request.OwnerModId = ownerModId") "Audio network adapter must preserve OwnerModId for deterministic remote matching."
     Assert-True $audioNetworkRuntime.Contains("OwnerModId to disambiguate") "Audio RPC compatibility comment must document OwnerModId-based matching."
-    Assert-True $battleBgmArbiterRuntime.Contains('CurrentBuildId = "battle-bgm-arbiter-2026-07-20-v5"') "Battle BGM arbiter must expose its content-probed provider runtime build id."
+    Assert-True $battleBgmArbiterRuntime.Contains('CurrentBuildId = "battle-bgm-arbiter-2026-07-20-v6"') "Battle BGM arbiter must expose its owner-qualified provider runtime build id."
     Assert-True $battleBgmArbiterRuntime.Contains("Fake loss detected; BGM settlement deferred until escape reset") "Battle BGM arbiter must defer fake-loss settlement."
     Assert-True $battleBgmArbiterRuntime.Contains("Duplicate fight end ignored") "Battle BGM arbiter must ignore duplicate end callbacks."
     Assert-True $battleBgmArbiterRuntime.Contains("leaving current BGM unchanged") "Battle BGM arbiter must preserve audio when no snapshot exists."

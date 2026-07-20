@@ -110,6 +110,25 @@ public static class AuraSharedResourceProtocol
         return long.TryParse(Convert.ToString(value), out var revision) ? revision : 0;
     }
 
+    public static AuraSharedCatalogSnapshotV3 QueryCatalog(string callerId, AuraSharedCatalogQueryV3? query = null)
+    {
+        try
+        {
+            var json = AuraSharedRuntime.InvokeComponent(
+                null,
+                callerId,
+                "QueryCatalogV3Json",
+                AuraSharedJson.Serialize(query ?? new AuraSharedCatalogQueryV3())) as string;
+            return string.IsNullOrWhiteSpace(json)
+                ? new AuraSharedCatalogSnapshotV3()
+                : AuraSharedJson.Deserialize<AuraSharedCatalogSnapshotV3>(json!) ?? new AuraSharedCatalogSnapshotV3();
+        }
+        catch
+        {
+            return new AuraSharedCatalogSnapshotV3();
+        }
+    }
+
     public static AuraSharedEffectiveResolutionV3 ResolveEffective(
         string callerId,
         AuraSharedScopeKey scope,
@@ -136,6 +155,28 @@ public static class AuraSharedResourceProtocol
                 Outcome = "Unavailable",
                 Fallback = "Error:" + ex.Message
             };
+        }
+    }
+
+    public static AuraSharedUserOverrideDocumentV3 ReadUserOverride(
+        string callerId,
+        AuraSharedScopeKey scope)
+    {
+        try
+        {
+            var json = AuraSharedRuntime.InvokeComponent(
+                null,
+                callerId,
+                "ReadUserOverrideV3Json",
+                AuraSharedJson.Serialize(scope)) as string;
+            return string.IsNullOrWhiteSpace(json)
+                ? new AuraSharedUserOverrideDocumentV3()
+                : AuraSharedJson.Deserialize<AuraSharedUserOverrideDocumentV3>(json!)
+                  ?? new AuraSharedUserOverrideDocumentV3();
+        }
+        catch
+        {
+            return new AuraSharedUserOverrideDocumentV3();
         }
     }
 

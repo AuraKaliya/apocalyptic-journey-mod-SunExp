@@ -268,25 +268,7 @@ public static class SunExpSkillCgRuntime
             return true;
         }
 
-        var targets = (entry.TargetRoleIds ?? new List<string>())
-            .Where(target => !string.IsNullOrWhiteSpace(target))
-            .Select(target => target.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        foreach (var target in targets)
-        {
-            var normalizedTarget = NormalizeId(target);
-            if (string.Equals(normalizedTarget, "*", StringComparison.Ordinal))
-            {
-                return true;
-            }
-        }
-
-        return targets.Count(target => AuraSharedContentId.Resolve(
-            target,
-            new[] { normalizedRole },
-            entry.OwnerModId,
-            AuraSharedIdentity.OfficialCareerPrefix).Success) == 1;
+        return AuraCgTargetMatcher.MatchesRole(entry, normalizedRole);
     }
 
     private static bool EntryMatchesCard(AuraCgRegistryEntry entry, string cardId)
