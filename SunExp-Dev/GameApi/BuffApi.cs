@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AuraShared.Core;
+using AuraGameData.Shared.GameApi;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
 
@@ -76,11 +77,7 @@ public static class BuffApi
             mergedVars[field.Key] = field.Value ?? "";
         }
 
-        var replacement = new DataConfig(
-            mergedData,
-            mergedVars,
-            ifPreCompile: false,
-            type: DataType.Buff);
+        var replacement = AuraGameDataHostApi.CloneWritable(source, mergedData, mergedVars, preCompile: false);
         var scripts = source.scriptExecutor?.ScriptDict;
         if (scripts != null && replacement.scriptExecutor != null)
         {
@@ -834,7 +831,7 @@ public static class BuffApi
 
         try
         {
-            var config = Singleton<GameConfigManager>.Instance.GetOne(DataType.Buff, buffId);
+            var config = AuraGameDataHostApi.Row(DataType.Buff, buffId);
             return predicate(DictionaryUtil.Get(config, "Type"));
         }
         catch

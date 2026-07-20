@@ -229,7 +229,7 @@ Assert-True (-not $constellationCatalog.Contains('IndexOf("columbina"')) "Conste
 $buffApiSource = [System.IO.File]::ReadAllText((Join-Path $repoRoot "SunExp-Dev\GameApi\BuffApi.cs"))
 Assert-True ($buffApiSource.Contains('ApplyRuntimePresentation(')) "BuffApi must own live Buff presentation mutation."
 Assert-True ($buffApiSource.Contains('DictionaryUtil.Set(config.Vars')) "Dynamic Buff presentation must write through instance Vars."
-Assert-True ($buffApiSource.Contains('new DataConfig(') -and $buffApiSource.Contains('mergedData')) "Dynamic Buff names must use a merged per-instance DataConfig instead of mutating base data."
+Assert-True ($buffApiSource.Contains('AuraGameDataHostApi.CloneWritable(source, mergedData, mergedVars, preCompile: false)')) "Dynamic Buff names must use the shared per-instance clone API instead of mutating base data."
 
 $columbinaRuntime = [System.IO.File]::ReadAllText((Join-Path $repoRoot "SunExp-Dev\Hooks\ColumbinaRuntime.cs"))
 Assert-True ($columbinaRuntime.Contains('SunExpHookRegistry.Before(') -and $columbinaRuntime.Contains('"BuffItem.Init"') -and $columbinaRuntime.Contains('ConstellationService.PreparePresentation')) "Constellation presentation must be prepared before native Buff UI initialization."

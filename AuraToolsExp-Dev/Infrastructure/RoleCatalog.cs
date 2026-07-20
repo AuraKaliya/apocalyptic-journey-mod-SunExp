@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using AuraShared.Core;
+using AuraGameData.Shared.GameApi;
 using AuraRole.Shared;
 using Witch.Core;
 
@@ -97,13 +98,7 @@ public static class RoleCatalog
 
         try
         {
-            var lines = Singleton<GameConfigManager>.Instance
-                ?.GetTable(DataType.Career)
-                ?.Getlines();
-            if (lines == null)
-            {
-                return result;
-            }
+            var lines = AuraGameDataHostApi.Rows(DataType.Career);
 
             foreach (var row in lines)
             {
@@ -265,7 +260,11 @@ public static class RoleCatalog
     {
         try
         {
-            var data = new DataConfig(cardId, DataType.Card).data;
+            var data = AuraGameDataHostApi.Row(DataType.Card, cardId);
+            if (data == null)
+            {
+                return cardId;
+            }
             var localized = data.Localize("Name");
             if (!string.IsNullOrWhiteSpace(localized) && !string.Equals(localized, "Name", StringComparison.OrdinalIgnoreCase))
             {

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraGameData.Shared.GameApi;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Network;
@@ -420,37 +421,33 @@ public static class SpiritSummonService
 
     public static DataConfig CreateSpiritDataConfig(CapturedEnemySnapshot snapshot, CompanionStats stats)
     {
-        IDictionary<string, string> source;
-        try
+        var handle = AuraGameDataHostApi.ResolveHandle(DataType.Enemy, snapshot.EnemyId)
+            ?? throw new InvalidOperationException("Spirit enemy definition is not registered: " + snapshot.EnemyId);
+        var result = AuraGameDataHostApi.Materialize(new AuraGameDataMaterializeRequest
         {
-            source = new DataConfig(snapshot.EnemyId, DataType.Enemy).data;
-        }
-        catch
-        {
-            source = new Dictionary<string, string>();
-        }
-
-        var data = new Dictionary<string, string>(source)
-        {
-            ["Id"] = snapshot.EnemyId,
-            ["Name"] = snapshot.DisplayName,
-            ["Animation"] = snapshot.AnimationPath,
-            ["Attack"] = stats.Attack.ToString(),
-            ["Defend"] = "0",
-            ["Hp"] = "1",
-            ["ActionCount"] = "1",
-            ["CardList"] = string.Join(",", new[]
+            Definition = handle,
+            DataOverrides = new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                SunExpIds.ProjectionActionStaffTapCardId,
-                SunExpIds.ProjectionActionShieldBlessingCardId,
-                SunExpIds.ProjectionActionStaffComboCardId,
-                SunExpIds.ProjectionActionMagicInterferenceCardId,
-                SunExpIds.ProjectionActionYouAreEnhancedCardId,
-                SunExpIds.ProjectionActionChargeCardId,
-                SunExpIds.ProjectionActionHolyHealCardId
-            })
-        };
-        return new DataConfig(data, new Dictionary<string, string>());
+                ["Name"] = snapshot.DisplayName,
+                ["Animation"] = snapshot.AnimationPath,
+                ["Attack"] = stats.Attack.ToString(),
+                ["Defend"] = "0",
+                ["Hp"] = "1",
+                ["ActionCount"] = "1",
+                ["CardList"] = string.Join(",", new[]
+                {
+                    SunExpIds.ProjectionActionStaffTapCardId,
+                    SunExpIds.ProjectionActionShieldBlessingCardId,
+                    SunExpIds.ProjectionActionStaffComboCardId,
+                    SunExpIds.ProjectionActionMagicInterferenceCardId,
+                    SunExpIds.ProjectionActionYouAreEnhancedCardId,
+                    SunExpIds.ProjectionActionChargeCardId,
+                    SunExpIds.ProjectionActionHolyHealCardId
+                })
+            }
+        });
+        return result.Instance as DataConfig
+            ?? throw new InvalidOperationException("Spirit enemy materialization failed: " + result.Message);
     }
 
     public static void RegisterFightState(SpiritOtherObj spirit)

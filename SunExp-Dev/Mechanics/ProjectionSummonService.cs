@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraGameData.Shared.GameApi;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Network;
@@ -171,29 +172,36 @@ public static class ProjectionSummonService
     public static DataConfig CreateProjectionDataConfig(PolymorphRoleSpec role, CompanionStats? stats = null)
     {
         var activeStats = stats ?? CompanionStatsService.ProjectionStats(role);
-        var data = new Dictionary<string, string>(new DataConfig(role.Id, DataType.Career).data);
-        var vars = new Dictionary<string, string>();
         var name = role.DisplayName + "的投影";
-        data["Id"] = role.Id;
-        data["Name"] = name;
-        data["Name_zh-Hant"] = role.DisplayName + "的投影";
-        data["Name_en"] = role.DisplayName + " Projection";
-        data["Name_ja"] = role.DisplayName + "の投影";
-        data["Attack"] = activeStats.Attack.ToString();
-        data["Defend"] = "0";
-        data["Hp"] = "1";
-        data["ActionCount"] = "1";
-        data["CardList"] = string.Join(",", new[]
+        var handle = AuraGameDataHostApi.ResolveHandle(DataType.Career, role.Id)
+            ?? throw new InvalidOperationException("Projection career definition is not registered: " + role.Id);
+        var result = AuraGameDataHostApi.Materialize(new AuraGameDataMaterializeRequest
         {
-            SunExpIds.ProjectionActionStaffTapCardId,
-            SunExpIds.ProjectionActionShieldBlessingCardId,
-            SunExpIds.ProjectionActionStaffComboCardId,
-            SunExpIds.ProjectionActionMagicInterferenceCardId,
-            SunExpIds.ProjectionActionYouAreEnhancedCardId,
-            SunExpIds.ProjectionActionChargeCardId,
-            SunExpIds.ProjectionActionHolyHealCardId
+            Definition = handle,
+            DataOverrides = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["Name"] = name,
+                ["Name_zh-Hant"] = role.DisplayName + "的投影",
+                ["Name_en"] = role.DisplayName + " Projection",
+                ["Name_ja"] = role.DisplayName + "の投影",
+                ["Attack"] = activeStats.Attack.ToString(),
+                ["Defend"] = "0",
+                ["Hp"] = "1",
+                ["ActionCount"] = "1",
+                ["CardList"] = string.Join(",", new[]
+                {
+                    SunExpIds.ProjectionActionStaffTapCardId,
+                    SunExpIds.ProjectionActionShieldBlessingCardId,
+                    SunExpIds.ProjectionActionStaffComboCardId,
+                    SunExpIds.ProjectionActionMagicInterferenceCardId,
+                    SunExpIds.ProjectionActionYouAreEnhancedCardId,
+                    SunExpIds.ProjectionActionChargeCardId,
+                    SunExpIds.ProjectionActionHolyHealCardId
+                })
+            }
         });
-        return new DataConfig(data, vars);
+        return result.Instance as DataConfig
+            ?? throw new InvalidOperationException("Projection career materialization failed: " + result.Message);
     }
 
     public static void RegisterFightState(ProjectionOtherObj projection, string source)

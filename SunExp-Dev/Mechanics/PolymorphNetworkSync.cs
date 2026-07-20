@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using AuraGameData.Shared.GameApi;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Network;
@@ -167,10 +168,13 @@ public static class PolymorphNetworkSync
     {
         try
         {
-            var type = Singleton<GameConfigManager>.Instance.GetOne(DataType.Enemy, careerId) != null
+            var type = AuraGameDataHostApi.Resolve(DataType.Enemy, careerId) != null
                 ? DataType.Enemy
                 : DataType.Career;
-            return new DataConfig(careerId, type);
+            var handle = AuraGameDataHostApi.ResolveHandle(type, careerId);
+            return handle == null
+                ? null
+                : AuraGameDataHostApi.Materialize(new AuraGameDataMaterializeRequest { Definition = handle }).Instance as DataConfig;
         }
         catch (Exception ex)
         {

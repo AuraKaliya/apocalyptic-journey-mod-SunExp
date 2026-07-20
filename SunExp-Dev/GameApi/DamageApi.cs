@@ -1,4 +1,5 @@
 using System;
+using AuraGameData.Shared.GameApi;
 using SunExp.Dll.Infrastructure;
 
 namespace SunExp.Dll.GameApi;
@@ -23,7 +24,15 @@ public static class DamageApi
         try
         {
             var resolvedCardId = CardApi.ResolveCardId(sourceCardId);
-            var config = new DataConfig(resolvedCardId, DataType.Card);
+            var handle = AuraGameDataHostApi.ResolveHandle(DataType.Card, resolvedCardId);
+            var config = handle == null
+                ? null
+                : AuraGameDataHostApi.Materialize(new AuraGameDataMaterializeRequest { Definition = handle }).Instance as DataConfig;
+            if (config == null)
+            {
+                SunExpLog.Warn("[DamageSource] registered card definition unavailable; origin=" + origin + ", card=" + resolvedCardId + ".");
+                return null;
+            }
             var executor = config.scriptExecutor as ScriptExecutor;
             if (executor == null)
             {

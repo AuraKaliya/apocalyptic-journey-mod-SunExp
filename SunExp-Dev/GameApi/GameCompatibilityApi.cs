@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using AuraGameData.Shared.GameApi;
 using SunExp.Dll.Infrastructure;
 using Witch;
 using Witch.Core;
@@ -103,7 +104,7 @@ public static class GameCompatibilityApi
             }
         }
 
-        return GetItemsByPackFallback(manager, type, packId, includeLocked);
+        return GetItemsByPackFallback(type, packId, includeLocked);
     }
 
     private static bool ShouldUseSteamLobby()
@@ -151,20 +152,13 @@ public static class GameCompatibilityApi
     }
 
     private static List<Dictionary<string, string>> GetItemsByPackFallback(
-        GameConfigManager manager,
         DataType type,
         string packId,
         bool includeLocked)
     {
         var result = new List<Dictionary<string, string>>();
-        var table = manager.GetTable(type);
-        if (table == null)
-        {
-            return result;
-        }
-
         var targetPackId = string.IsNullOrWhiteSpace(packId) ? "cardpack_1" : packId.Trim();
-        foreach (var item in table.Getlines())
+        foreach (var item in AuraGameDataHostApi.Rows(type))
         {
             if (item == null)
             {

@@ -778,6 +778,7 @@ $sharedRoots = @(
     "BattleBgmArbiterShared",
     "AuraCgShared",
     "AuraDirectorShared",
+    "AuraGameDataShared",
     "AuraDirectorDetour-Dev",
     "AuraJourneyShared",
     "AuraLogShared",
@@ -791,6 +792,50 @@ $sharedRoots = @(
     "UiRaycastSafetyShared",
     "UiTransitionGuardShared"
 )
+
+$gameDataModels = Read-RepoText "AuraGameDataShared\AuraGameDataModels.cs"
+$gameDataCatalog = Read-RepoText "AuraGameDataShared\AuraGameDataCatalog.cs"
+$gameDataApplication = Read-RepoText "AuraGameDataShared\Application\AuraGameInstanceServices.cs"
+$gameDataHost = Read-RepoText "AuraGameDataShared\GameApi\AuraGameDataHostApi.cs"
+foreach ($required in @("SchemaVersion = 4", "OwnerModId", "WriterId", "UserManual", "Registered", "Default", "Native")) {
+    Require-Text $gameDataModels ([regex]::Escape($required)) "AuraGameDataShared must expose v4 identity and provenance: $required"
+}
+foreach ($required in @("Register", "Patch", "Retire", "QueryHistory", "ValidateHandle", "SourceOrder")) {
+    Require-Text $gameDataCatalog ([regex]::Escape($required)) "AuraGameDataShared catalog is missing its controlled CRUD/search contract: $required"
+}
+foreach ($required in @("IAuraCardInstancePort", "IAuraRelicInstancePort", "AuraCardInstanceService", "AuraRelicInstanceService", "Authoritative")) {
+    Require-Text $gameDataApplication ([regex]::Escape($required)) "AuraGameDataShared application layer is missing an aggregate boundary: $required"
+}
+foreach ($required in @("Capture", "PatchVars", "Materialize", "CloneWritable", "IDataConfig", "GameConfigManager")) {
+    Require-Text $gameDataHost ([regex]::Escape($required)) "AuraGameDataShared Witch adapter is missing: $required"
+}
+if ($gameDataApplication -match "GameConfigManager|DataConfig|ScriptExecutor|FightCardManager|RoleTable") {
+    throw "AuraGameDataShared Application must depend on ports and snapshots, not Witch runtime types."
+}
+
+$sunConfigIndex = Read-RepoText "SunExp-Dev\Mechanics\SunExpConfigIndex.cs"
+$toolsRoleCatalog = Read-RepoText "AuraToolsExp-Dev\Infrastructure\RoleCatalog.cs"
+$toolsStarterDeckCatalog = Read-RepoText "AuraToolsExp-Dev\Features\StarterDeck\StarterDeckCardCatalog.cs"
+foreach ($consumer in @($sunConfigIndex, $toolsRoleCatalog, $toolsStarterDeckCatalog)) {
+    Require-Text $consumer "AuraGameDataHostApi" "Shared game-data catalog consumers must delegate to AuraGameDataHostApi."
+}
+if ($sunConfigIndex -match "GameConfigManager|GetTable\(" -or $toolsRoleCatalog -match "GetTable\(") {
+    throw "Shared game-data consumers must not restore private table scans."
+}
+
+foreach ($consumerRoot in @("SunExp-Dev", "AuraToolsExp-Dev", "SanGuoShaExp-Dev", "AuraJourneyShared", "AuraSkinShared")) {
+    $consumerPath = Join-Path $repoRoot $consumerRoot
+    foreach ($file in Get-ChildItem -LiteralPath $consumerPath -Recurse -Filter "*.cs" -File) {
+        $text = Get-Content -Raw -LiteralPath $file.FullName
+        if ($text -match "\bGetTable\s*\(|\bGetOne\s*\(|GetOneById\s*\(|GetTypeById\s*\(") {
+            throw "Main consumers must query game definitions through AuraGameDataShared: $($file.FullName)"
+        }
+
+        if ($text -match "new\s+DataConfig\s*\(") {
+            throw "Main consumers must materialize IDataConfig instances through AuraGameDataShared GameApi: $($file.FullName)"
+        }
+    }
+}
 
 $resourceCacheText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedResourceCache.cs")
 foreach ($required in @("MaximumEntries", "MaximumReferences", "MaximumEntriesPerOwner", "MaximumReferencesPerOwner", "LinkedList<string>", "EnforceLimitsNoLock", "RemoveEntryNoLock", "EstimatedBytes")) {

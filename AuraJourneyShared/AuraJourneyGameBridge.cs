@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraGameData.Shared.GameApi;
 using Data.Save;
 using Witch;
 using Witch.Core;
@@ -113,29 +114,7 @@ public static class AuraJourneyGameBridge
             return null;
         }
 
-        try
-        {
-            var manager = Singleton<GameConfigManager>.Instance;
-            var candidates = AuraJourneyMapIdAliasRegistry.Expand(mapId);
-            foreach (var candidate in candidates)
-            {
-                var direct = manager.GetOne(DataType.Map, candidate);
-                if (direct != null)
-                {
-                    return new Dictionary<string, string>(direct, StringComparer.Ordinal);
-                }
-            }
-
-            var candidateSet = new HashSet<string>(candidates, StringComparer.Ordinal);
-            return manager.GetTable(DataType.Map).Getlines()
-                .FirstOrDefault(row => candidateSet.Contains(Field(row, "Id"))) is { } row
-                ? new Dictionary<string, string>(row, StringComparer.Ordinal)
-                : null;
-        }
-        catch
-        {
-            return null;
-        }
+        return AuraGameDataHostApi.Row(DataType.Map, AuraJourneyMapIdAliasRegistry.Expand(mapId).ToArray());
     }
 
     private static Dice? ResolveDice(MapTree tree, string dicePolicy)

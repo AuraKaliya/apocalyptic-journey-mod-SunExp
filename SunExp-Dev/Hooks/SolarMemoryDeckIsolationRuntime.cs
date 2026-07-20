@@ -119,7 +119,11 @@ public static class SolarMemoryDeckIsolationRuntime
 
         try
         {
-            var data = new DataConfig(cardId, DataType.Card).data;
+            var data = SunExpConfigIndex.Row(DataType.Card, cardId);
+            if (data == null)
+            {
+                return false;
+            }
             return IsSolarMemoryEventCard(data) || HasLocalizedEventCardType(cardId);
         }
         catch
@@ -214,7 +218,11 @@ public static class SolarMemoryDeckIsolationRuntime
 
         try
         {
-            var data = new DataConfig(cardId, DataType.Card).data;
+            var data = SunExpConfigIndex.Row(DataType.Card, cardId);
+            if (data == null)
+            {
+                return false;
+            }
             return ContainsEventTypeMarker(data.Localize("Type"))
                 || ContainsEventTypeMarker(data.Localize("Note"));
         }

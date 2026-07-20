@@ -1,4 +1,5 @@
 using System;
+using AuraGameData.Shared.GameApi;
 using SunExp.Dll.Infrastructure;
 
 namespace SunExp.Dll.GameApi;
@@ -108,7 +109,7 @@ public static class BuffOverflowApi
 
         try
         {
-            var data = Singleton<GameConfigManager>.Instance.GetOne(DataType.Buff, buffId);
+            var data = AuraGameDataHostApi.Row(DataType.Buff, buffId);
             var configured = DictionaryUtil.ParseInt(DictionaryUtil.Get(data, "UpperBound"));
             return configured > 0 ? configured : fallback;
         }

@@ -109,7 +109,7 @@ public static class PolymorphRoleRegistry
     {
         try
         {
-            return new Dictionary<string, string>(new DataConfig(id, DataType.Career).data);
+            return SunExpConfigIndex.Row(DataType.Career, id) ?? fallback;
         }
         catch
         {

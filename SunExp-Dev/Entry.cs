@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Reflection;
 using AuraCg.Shared;
+using AuraGameData.Shared.GameApi;
 using AuraRole.Shared;
 using AuraShared.Core;
 using AuraSkin.Shared;
@@ -26,6 +27,7 @@ public static class Entry
     {
         RunStep("XLua assembly registration", RegisterLuaVisibleAssembly);
         RunStep("shared core", () => AuraSharedRuntime.Initialize(modConfig, "SunExp"));
+        RunStep("shared game data", RegisterSharedGameData);
         RunStep("shared feature defaults", RegisterSharedFeatureDefaults);
         RunStep("rpc authority", () => SunExpRpcAuthorityRuntime.Initialize(modConfig));
         RunStep("shared resource package", () => RegisterSharedResourcePackage(modConfig));
@@ -71,6 +73,15 @@ public static class Entry
         AuraFeatureSwitchRuntime.RegisterFeature(SunExpIds.ModId, "Battle.StartTraitBuffs", defaultEnabled: true, "SunExp default");
         AuraFeatureSwitchRuntime.RegisterFeature(SunExpIds.ModId, "Battle.OpeningDirector", defaultEnabled: true, "SunExp default");
         AuraFeatureSwitchRuntime.RegisterFeature(SunExpIds.ModId, "SolarMemory", defaultEnabled: true, "SunExp default");
+    }
+
+    private static void RegisterSharedGameData()
+    {
+        var result = AuraGameDataHostApi.RegisterLoadedDefinitionsV4("SunExp", "SunExp_");
+        if (!result.Success)
+        {
+            throw new InvalidOperationException("SunExp v4 game-data registration failed: " + result.Message);
+        }
     }
 
     private static void RegisterSharedResourcePackage(ModConfig modConfig)

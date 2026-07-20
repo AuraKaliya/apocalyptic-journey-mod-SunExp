@@ -186,7 +186,7 @@ public static class EndlessSeaStarterDeckCatalog
 
         try
         {
-            var data = new DataConfig(cardId, DataType.Card).data;
+            var data = SunExpConfigIndex.Row(DataType.Card, cardId);
             return data == null || string.IsNullOrWhiteSpace(DictionaryUtil.Get(data, "Id"));
         }
         catch
@@ -199,7 +199,7 @@ public static class EndlessSeaStarterDeckCatalog
     {
         try
         {
-            var data = new DataConfig(cardId, DataType.Card).data;
+            var data = SunExpConfigIndex.Row(DataType.Card, cardId);
             var localizedName = data.Localize("Name");
             if (!string.IsNullOrWhiteSpace(localizedName) && localizedName != "Name")
             {

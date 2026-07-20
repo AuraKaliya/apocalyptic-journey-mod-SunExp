@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using AuraGameData.Shared.GameApi;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -21,21 +22,36 @@ public sealed class ProjectionTurnAnchorObj : OtherObj
             return false;
         }
 
-        var anchorData = new Dictionary<string, string>(StringComparer.Ordinal)
+        if (!templateData.TryGetValue("Id", out var templateId)
+            || AuraGameDataHostApi.ResolveHandle(DataType.Career, templateId) is not { } handle)
         {
-            ["Id"] = "SunExp_projection_turn_anchor",
-            ["Name"] = "",
-            ["Name_zh-Hant"] = "",
-            ["Name_en"] = "",
-            ["Name_ja"] = "",
-            ["Attack"] = "0",
-            ["Defend"] = "0",
-            ["Hp"] = "1",
-            ["ActionCount"] = "1",
-            ["CardList"] = "",
-            ["Animation"] = animation
-        };
-        dataConfig = new DataConfig(anchorData, new Dictionary<string, string>(), false);
+            return false;
+        }
+
+        var result = AuraGameDataHostApi.Materialize(new AuraGameDataMaterializeRequest
+        {
+            Definition = handle,
+            PreCompile = false,
+            DataOverrides = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["Name"] = "",
+                ["Name_zh-Hant"] = "",
+                ["Name_en"] = "",
+                ["Name_ja"] = "",
+                ["Attack"] = "0",
+                ["Defend"] = "0",
+                ["Hp"] = "1",
+                ["ActionCount"] = "1",
+                ["CardList"] = "",
+                ["Animation"] = animation
+            }
+        });
+        dataConfig = result.Instance as DataConfig;
+        if (dataConfig == null)
+        {
+            return false;
+        }
+
         data = dataConfig.data;
         FightAction = new ObjectAction(this);
         Attack = 0;

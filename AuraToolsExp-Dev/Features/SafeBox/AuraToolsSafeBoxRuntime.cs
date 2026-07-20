@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using AuraShared.Core;
+using AuraGameData.Shared.GameApi;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
 using AuraUi.Shared;
@@ -636,12 +637,7 @@ public static class AuraToolsSafeBoxRuntime
     {
         try
         {
-            if (Singleton<GameConfigManager>.Instance == null)
-            {
-                return null;
-            }
-
-            return Singleton<GameConfigManager>.Instance.GetTypeById(id);
+            return AuraGameDataHostApi.ResolveDataType(id);
         }
         catch
         {

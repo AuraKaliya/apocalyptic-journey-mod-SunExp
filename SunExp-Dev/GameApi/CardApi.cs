@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using AuraGameData.Shared.GameApi;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
 
@@ -419,22 +420,7 @@ public static class CardApi
             return "";
         }
 
-        foreach (var candidate in Candidates(id))
-        {
-            try
-            {
-                if (Singleton<GameConfigManager>.Instance.GetOne(DataType.Card, candidate) != null)
-                {
-                    return candidate;
-                }
-            }
-            catch
-            {
-                // Keep trying fallbacks.
-            }
-        }
-
-        return id;
+        return AuraGameDataHostApi.ResolveId(DataType.Card, Candidates(id), id);
     }
 
     private static string[] Candidates(string id)
@@ -477,28 +463,7 @@ public static class CardApi
             throw new ArgumentNullException(nameof(source));
         }
 
-        var data = source.data == null
-            ? new Dictionary<string, string>()
-            : new Dictionary<string, string>(source.data);
-        var vars = source.Vars == null
-            ? new Dictionary<string, string>()
-            : new Dictionary<string, string>(source.Vars);
-        if (runtimePresentation != null)
-        {
-            foreach (var entry in runtimePresentation)
-            {
-                data[entry.Key] = entry.Value ?? "";
-                vars[entry.Key] = entry.Value ?? "";
-            }
-        }
-
-        var id = DictionaryUtil.Get(data, "Id", CardConfigApi.Id(source));
-        if (!string.IsNullOrWhiteSpace(id))
-        {
-            data["Id"] = id;
-        }
-
-        var writable = new DataConfig(data, vars);
+        var writable = AuraGameDataHostApi.CloneWritable(source, runtimePresentation, runtimePresentation);
         var index = IndexOfReference(cards, source);
         if (index < 0)
         {

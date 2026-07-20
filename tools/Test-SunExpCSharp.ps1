@@ -194,6 +194,101 @@ namespace AuraShared.Core
     }
 }
 
+namespace AuraGameData.Shared
+{
+    public sealed class AuraGameDataDefinitionHandle
+    {
+        public DataType DataType { get; set; }
+        public string Id { get; set; } = "";
+    }
+}
+
+namespace AuraGameData.Shared.GameApi
+{
+    using AuraGameData.Shared;
+
+    public enum AuraGameDataFieldAccess { Base, Runtime, Effective }
+
+    public sealed class AuraGameDataMaterializeRequest
+    {
+        public AuraGameDataDefinitionHandle? Definition { get; set; }
+        public Dictionary<string, string> Vars { get; set; } = new(StringComparer.Ordinal);
+        public Dictionary<string, string> DataOverrides { get; set; } = new(StringComparer.Ordinal);
+        public bool PreCompile { get; set; } = true;
+    }
+
+    public sealed class AuraGameDataHostMutationResult
+    {
+        public IDataConfig? Instance { get; set; }
+    }
+
+    public static class AuraGameDataHostApi
+    {
+        public static string ResolveId(DataType dataType, IEnumerable<string> candidates, string fallback = "")
+        {
+            foreach (var candidate in candidates ?? Array.Empty<string>())
+            {
+                if (Singleton<GameConfigManager>.Instance.GetOne(dataType, candidate) != null)
+                {
+                    return candidate;
+                }
+            }
+            return fallback;
+        }
+
+        public static AuraGameDataDefinitionHandle? ResolveHandle(DataType dataType, params string[] candidates)
+        {
+            var id = ResolveId(dataType, candidates, "");
+            return string.IsNullOrWhiteSpace(id) ? null : new AuraGameDataDefinitionHandle { DataType = dataType, Id = id };
+        }
+
+        public static AuraGameDataHostMutationResult Materialize(AuraGameDataMaterializeRequest request)
+        {
+            return new AuraGameDataHostMutationResult
+            {
+                Instance = request.Definition == null
+                    ? null
+                    : new DataConfig(
+                        new Dictionary<string, string>
+                        {
+                            ["Id"] = request.Definition.Id,
+                            ["Expend"] = "2",
+                            ["Tag"] = ""
+                        },
+                        new Dictionary<string, string> { ["Id"] = request.Definition.Id })
+            };
+        }
+
+        public static AuraGameDataHostMutationResult Materialize(DataType dataType, params string[] candidates)
+        {
+            return Materialize(new AuraGameDataMaterializeRequest
+            {
+                Definition = ResolveHandle(dataType, candidates)
+            });
+        }
+
+        public static DataConfig CloneWritable(
+            IDataConfig source,
+            IReadOnlyDictionary<string, string>? dataOverrides = null,
+            IReadOnlyDictionary<string, string>? varsOverrides = null,
+            bool preCompile = true)
+        {
+            var data = new Dictionary<string, string>(source.data);
+            var vars = new Dictionary<string, string>(source.Vars);
+            foreach (var pair in dataOverrides ?? new Dictionary<string, string>()) data[pair.Key] = pair.Value;
+            foreach (var pair in varsOverrides ?? new Dictionary<string, string>()) vars[pair.Key] = pair.Value;
+            return new DataConfig(data, vars);
+        }
+
+        public static string ReadField(IDataConfig? source, string field, AuraGameDataFieldAccess access, string fallback = "")
+        {
+            if (source == null) return fallback;
+            if (access != AuraGameDataFieldAccess.Base && source.Vars.TryGetValue(field, out var runtime)) return runtime;
+            return source.data.TryGetValue(field, out var value) ? value : fallback;
+        }
+    }
+}
+
 namespace UnityEngine
 {
     public sealed class Transform
@@ -342,6 +437,15 @@ public sealed class DataConfig : IDataConfig
         this.data = data;
         Vars = vars ?? new Dictionary<string, string>();
         InstanceID = Guid.NewGuid().ToString("N");
+    }
+
+    public DataConfig(
+        IDictionary<string, string> data,
+        IDictionary<string, string>? vars,
+        bool preCompile,
+        DataType type)
+        : this(data, vars)
+    {
     }
 
     public IDictionary<string, string> data
@@ -2053,7 +2157,7 @@ function Invoke-SourceAssertions {
     Assert-True $fieldApi.Contains("ActiveFieldStacksKey") "FieldApi must keep battle-wide field stacks outside player status buffs."
     Assert-True $fieldApi.Contains("MaxStacksFor") "FieldApi must clamp field stacks through the configured buff upper bound."
     Assert-True $fieldEffectRegistry.Contains("WarmupConfigCache") "Field effect registry must preload Buff runtime data once during initialization."
-    Assert-True $fieldEffectRegistry.Contains("GetOne(DataType.Buff, definition.BuffId)") "Field stack caps must read the current Buff data row during registry warmup."
+    Assert-True $fieldEffectRegistry.Contains("AuraGameDataHostApi.Row(DataType.Buff, definition.BuffId)") "Field stack caps must read the current Buff data row through the shared query API during registry warmup."
     Assert-True $fieldEffectRegistry.Contains("FieldEffectRuntimeSpec") "Field effect registry must expose precomputed runtime specs for field hot paths and HUD."
     Assert-True $fieldEffectRegistry.Contains("description = description.Description();") "Field descriptions must resolve localized Buff placeholders during registry warmup."
     Assert-True $fieldEffectRegistry.Contains("public string HudIconPath") "Field effect definitions must own dedicated HUD icon paths."
@@ -2200,7 +2304,7 @@ function Invoke-SourceAssertions {
     Assert-True $executorApi.Contains("public static int BurnUpperBound(IStatusManager? target)") "ExecutorApi must expose a dynamic burn upper bound helper."
     Assert-True $buffOverflowApi.Contains("private const int BurnUpperBoundFallback = 1;") "Invalid burn upper bounds must fall back to the minimum valid stack count."
     Assert-True $buffOverflowApi.Contains("target.GetBuff(buffId)?.buffConfig?.UpperBound") "Burn upper bound must prefer the live BuffItemConfig.UpperBound."
-    Assert-True $buffOverflowApi.Contains('GetOne(DataType.Buff, buffId)') "Burn upper bound must fall back to the current Buff data row."
+    Assert-True $buffOverflowApi.Contains('AuraGameDataHostApi.Row(DataType.Buff, buffId)') "Burn upper bound must fall back to the current Buff data row through the shared query API."
     Assert-True $buffOverflowApi.Contains("var upperBound = BurnUpperBound(target);") "Burn overflow must use the dynamic burn upper bound."
     Assert-True $sunExpStatusLifecycleRouter.Contains("SunExpHookTargets.StatusManagerAddBuff") "Burn overflow must route StatusManager.AddBuff through the shared status lifecycle router."
     Assert-True $runtimeHooks.Contains('SunExpStatusLifecycleRouter.Register("RuntimeStatusBuff"') "RuntimeHooks must subscribe burn overflow to the shared StatusManager.AddBuff lifecycle."
@@ -2376,7 +2480,7 @@ function Invoke-SourceAssertions {
     Assert-True $dimensionShopPanel.Contains("DimensionShopNativeSkin.TryCreate") "Dimension shop must prefer the official ShopUI visual shell while retaining fallback orchestration."
     Assert-True ($dimensionShopPanel.Contains("SunExpModalHost.NativeUiParent()") -and $dimensionShopPanel.Contains("SunExpModalHost.CreateNativeFullscreenRoot") -and -not $dimensionShopPanel.Contains("SunExpModalHost.ModalParent()") -and $sharedUiModalHost.Contains("return UIManager.Instance?.canvasTf;")) "Dimension shop must share the official main Canvas with Tooltip and Floating Window instead of rendering above them."
     Assert-True ($dimensionShopNativeSkin.Contains('NativeShopResourcePath = "UI/ShopUI"') -and $dimensionShopNativeSkin.Contains("source.ItemPrefab") -and $dimensionShopNativeSkin.Contains("source.SellCardPrefab") -and $dimensionShopNativeSkin.Contains("source.TopRelicPrefab")) "Dimension shop native skin must source official ShopUI visual templates."
-    Assert-True ($dimensionShopNativeSkin.Contains("AuraUiNativeGameItemAdapter.AdoptShopItem(holder)") -and $dimensionShopNativeSkin.Contains("nativeItem.Init(new DataConfig(item.Id, type))") -and -not $dimensionShopNativeSkin.Contains("ShowUI<ShopUI>")) "Dimension shop offers must initialize through a real ShopItem without activating the ShopUI controller."
+    Assert-True ($dimensionShopNativeSkin.Contains("AuraUiNativeGameItemAdapter.AdoptShopItem(holder)") -and $dimensionShopNativeSkin.Contains("AuraGameDataHostApi.Materialize(type, item.Id)") -and $dimensionShopNativeSkin.Contains("nativeItem.Init(nativeConfig)") -and -not $dimensionShopNativeSkin.Contains("ShowUI<ShopUI>")) "Dimension shop offers must initialize through a real ShopItem and the shared definition materializer without activating the ShopUI controller."
     Assert-True ($dimensionShopNativeSkin.Contains("AuraUiNativeButtonBinding.NeutralizeTree") -and $sharedUiNativeInteraction.Contains("target.onClick = new UnityEvent()") -and $sharedUiNativeInteraction.Contains("unityButton.onClick = new Button.ButtonClickedEvent()")) "Dimension shop native visual clones must sever persistent native button listeners through AuraUiShared."
     Assert-True ($dimensionShopNativeSkin.Contains("MakeReadOnly") -and -not $dimensionShopNativeSkin.Contains(".TryBuy(")) "Dimension shop held-item visuals must remain read-only and must not invoke native purchases."
     Assert-True (-not $dimensionShopNativeSkin.Contains("belongsToGameAssembly") -and -not $dimensionShopNativeSkin.Contains("GetComponentsInChildren<MonoBehaviour>(true)") -and -not $dimensionShopNativeSkin.Contains("GetComponentsInChildren<EventTrigger>") -and -not $dimensionShopNativeSkin.Contains("trigger.triggers?.Clear()")) "Dimension shop must retain native UI components and CardItem EventTrigger hover actions."
@@ -2705,8 +2809,8 @@ function Invoke-SourceAssertions {
     Assert-True $combatCardUiDiagnostics.Contains('",remainder="') "Slow-card summaries must expose unhookable native presentation work."
     Assert-True $combatCardUiDiagnostics.Contains("WithSetCardMsgFallback") "Card UI diagnostics must fall back to DataUpdate timing when SetCardMsg is not hookable."
     Assert-True $combatCardUiDiagnostics.Contains("context.Target is CardItem") "Card UI diagnostics must resolve DataUpdate card ids from the hook receiver."
-    Assert-True $projectionTurnAnchorObj.Contains("new Dictionary<string, string>(StringComparer.Ordinal)") "Projection turn anchors must construct minimal synthetic data."
-    Assert-True $projectionTurnAnchorObj.Contains("new DataConfig(anchorData, new Dictionary<string, string>(), false)") "Projection turn anchors must disable script precompilation."
+    Assert-True $projectionTurnAnchorObj.Contains("AuraGameDataHostApi.ResolveHandle(DataType.Career, templateId)") "Projection turn anchors must derive from a registered career definition."
+    Assert-True ($projectionTurnAnchorObj.Contains("DataOverrides = new Dictionary<string, string>(StringComparer.Ordinal)") -and $projectionTurnAnchorObj.Contains("PreCompile = false")) "Projection turn anchors must use minimal overrides and disable script precompilation through the shared materializer."
     Assert-True (-not $projectionTurnAnchorObj.Contains("new Dictionary<string, string>(templateData)")) "Projection turn anchors must not inherit role script fields."
     Assert-True $solarMemoryJourneyApi.Contains('JourneyId = "SunExp:SunExp.SolarMemory"') "Solar Memory journey identity must be owner-qualified without changing its stable id."
     Assert-True $sunExpCardPresentationLifecycleBridge.Contains("Card = card") "Card presentation lifecycle must retain the exact initialized CardItem."
@@ -3499,11 +3603,11 @@ function Invoke-SourceAssertions {
     Assert-True $endlessSeaStarterDeckCatalog.Contains('"burningcard_1"') "Endless Sea starter decks must use official default cards."
     Assert-True (-not $endlessSeaStarterDeckCatalog.Contains('"spark"')) "Endless Sea starter decks must not use unresolved SunExp short card ids."
     Assert-True (-not $endlessSeaStarterDeckCatalog.Contains('"solar_prayer"')) "Endless Sea starter decks must not use unresolved SunExp short card ids."
-    Assert-True $endlessSeaStarterDeckCatalog.Contains("new DataConfig(cardId, DataType.Card)") "Endless Sea starter deck catalog must validate card ids through DataConfig."
+    Assert-True $endlessSeaStarterDeckCatalog.Contains("SunExpConfigIndex.Row(DataType.Card, cardId)") "Endless Sea starter deck catalog must validate card ids through the shared query index."
     Assert-True $endlessSeaRichTextSanitizer.Contains("AllowedSimpleTags") "Endless Sea rich text sanitizer must use an explicit simple-tag allowlist."
     Assert-True $endlessSeaRichTextSanitizer.Contains("AllowedScopedTags") "Endless Sea rich text sanitizer must use an explicit scoped-tag allowlist."
     Assert-True (-not $endlessSeaRichTextSanitizer.Contains("link")) "Endless Sea rich text sanitizer must not allow link tags."
-    Assert-True $endlessSeaOriginService.Contains('role.enchasedDict[card.InstanceID] = new DataConfig("enchtag_2", DataType.EnchTag);') "Endless Sea Magic 50 unstable thoughts must attach the Extinction enchant tag."
+    Assert-True ($endlessSeaOriginService.Contains('AuraGameDataHostApi.Materialize(DataType.EnchTag, "enchtag_2")') -and $endlessSeaOriginService.Contains('role.enchasedDict[card.InstanceID] = enchant;')) "Endless Sea Magic 50 unstable thoughts must attach the registered Extinction enchant tag through the shared materializer."
     Assert-True $endlessSeaOriginService.Contains("FortuneExtraTriggerThreshold = 150") "Endless Sea Fortune 50 must define the 150-point extra trigger threshold."
     Assert-True $endlessSeaOriginService.Contains("bonus += FortuneExtraTriggers") "Endless Sea Fortune 50 must add two extra triggers after reaching 150."
     Assert-True $endlessSeaCardAffixRuntime.Contains("EndlessSeaCardAffixService.ApplyBurnout") "Endless Sea card affix runtime must delegate Burnout application to the service."

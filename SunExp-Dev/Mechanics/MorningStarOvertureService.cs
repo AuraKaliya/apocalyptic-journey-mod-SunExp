@@ -286,7 +286,7 @@ public static class MorningStarOvertureService
         try
         {
             var id = CardApi.ResolveCardId(DictionaryUtil.Get(row, "Id"));
-            var data = new DataConfig(id, DataType.Card).data;
+            var data = SunExpConfigIndex.Row(DataType.Card, id);
             var localized = data.Localize("Name");
             if (!string.IsNullOrWhiteSpace(localized) && localized != "Name")
             {

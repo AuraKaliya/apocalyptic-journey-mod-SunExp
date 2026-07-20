@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AuraMode.Shared;
+using AuraGameData.Shared.GameApi;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
@@ -164,7 +165,7 @@ internal static class StarterDeckCardCatalog
             var existingPacks = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var selectablePacks = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var row in gameConfig.GetTable(DataType.CardPack).Getlines())
+            foreach (var row in AuraGameDataHostApi.Rows(DataType.CardPack))
             {
                 if (!row.TryGetValue("Id", out var packId) || string.IsNullOrWhiteSpace(packId) || !IsValidPackForCurrentLobby(packId))
                 {
@@ -189,9 +190,9 @@ internal static class StarterDeckCardCatalog
             var excludedDerivedCards = new List<string>();
             var otherCards = new List<string>();
             var careerSkillCardIds = StarterDeckCardClassification.BuildCareerSkillCardIds(
-                gameConfig.GetTable(DataType.Career).Getlines());
+                AuraGameDataHostApi.Rows(DataType.Career));
 
-            foreach (var row in gameConfig.GetTable(DataType.Card).Getlines())
+            foreach (var row in AuraGameDataHostApi.Rows(DataType.Card))
             {
                 if (!row.TryGetValue("Id", out var id) || string.IsNullOrWhiteSpace(id))
                 {
@@ -356,8 +357,7 @@ internal static class StarterDeckCardCatalog
     {
         try
         {
-            return Singleton<GameConfigManager>.Instance.GetTable(DataType.CardPack)
-                .Getlines()
+            return AuraGameDataHostApi.Rows(DataType.CardPack)
                 .Where(row => row.TryGetValue("Id", out var id)
                               && IsValidPackForCurrentLobby(id)
                               && !Singleton<GameRuntimeData>.Instance.IsLocked(id))
@@ -377,7 +377,11 @@ internal static class StarterDeckCardCatalog
     {
         try
         {
-            var data = new DataConfig(packId, DataType.CardPack).data;
+            var data = AuraGameDataHostApi.Row(DataType.CardPack, packId);
+            if (data == null)
+            {
+                return packId;
+            }
             var localized = data.Localize("Name");
             if (!string.IsNullOrWhiteSpace(localized) && localized != "Name")
             {
@@ -401,7 +405,7 @@ internal static class StarterDeckCardCatalog
 
         try
         {
-            return new DataConfig(packId, DataType.CardPack).data != null;
+            return AuraGameDataHostApi.Resolve(DataType.CardPack, packId) != null;
         }
         catch
         {
@@ -448,7 +452,7 @@ internal static class StarterDeckCardCatalog
     {
         try
         {
-            return new DataConfig(cardId, DataType.Card).data != null;
+            return AuraGameDataHostApi.Resolve(DataType.Card, cardId) != null;
         }
         catch
         {

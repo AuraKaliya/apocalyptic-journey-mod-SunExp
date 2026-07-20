@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AuraShared.Core;
+using AuraGameData.Shared.GameApi;
 using Data.Save;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
@@ -103,7 +104,10 @@ public static class SunExpHardTagRuntime
 
                 for (var i = 0; i < entry.DynamicValue; i++)
                 {
-                    result.Add(new DataConfig(id, DataType.Hard));
+                    if (AuraGameDataHostApi.Materialize(DataType.Hard, id).Instance is DataConfig hard)
+                    {
+                        result.Add(hard);
+                    }
                 }
             }
         }

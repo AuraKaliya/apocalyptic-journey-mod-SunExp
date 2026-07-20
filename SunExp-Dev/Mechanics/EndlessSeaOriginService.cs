@@ -1,6 +1,7 @@
 using System;
 using System.Reflection;
 using Data.Save;
+using AuraGameData.Shared.GameApi;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using Witch.Core;
@@ -221,7 +222,12 @@ public static class EndlessSeaOriginService
                 return;
             }
 
-            role.enchasedDict[card.InstanceID] = new DataConfig("enchtag_2", DataType.EnchTag);
+            var enchant = AuraGameDataHostApi.Materialize(DataType.EnchTag, "enchtag_2").Instance as DataConfig;
+            if (enchant == null)
+            {
+                return;
+            }
+            role.enchasedDict[card.InstanceID] = enchant;
         }
         catch (Exception ex)
         {

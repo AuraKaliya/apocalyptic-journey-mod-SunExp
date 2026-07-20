@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using AuraGameData.Shared.GameApi;
 using SunExp.Dll.Infrastructure;
 using Witch.Core;
 
@@ -292,7 +293,11 @@ public static class FieldEffectRegistry
         var description = "";
         try
         {
-            var data = Singleton<GameConfigManager>.Instance.GetOne(DataType.Buff, definition.BuffId);
+            var data = AuraGameDataHostApi.Row(DataType.Buff, definition.BuffId);
+            if (data == null)
+            {
+                throw new InvalidOperationException("Buff definition is unavailable: " + definition.BuffId);
+            }
             maxStacks = Math.Max(1, DictionaryUtil.ParseInt(DictionaryUtil.Get(data, "UpperBound"), definition.FallbackMaxStacks));
             displayName = data.Localize("Name");
             description = data.Localize("Description");

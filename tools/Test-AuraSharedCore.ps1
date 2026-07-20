@@ -8,6 +8,16 @@ $project = Join-Path $repoRoot "AuraSharedCore.Tests\AuraSharedCore.Tests.csproj
 $sharedProject = Join-Path $repoRoot "AuraSharedRuntime-Dev\Aura.Shared.csproj"
 $managedPath = Join-Path $repoRoot "Managed"
 
+$gameDataReadme = Join-Path $repoRoot "AuraGameDataShared\README.md"
+if (-not (Test-Path -LiteralPath $gameDataReadme -PathType Leaf)) {
+    throw "AuraGameDataShared bounded-context documentation is missing."
+}
+$gameDataSchema = Join-Path $repoRoot "AuraGameDataShared\Schemas\aura-game-data-v4.schema.json"
+if (-not (Test-Path -LiteralPath $gameDataSchema -PathType Leaf) -or
+    (Get-Content -Raw -LiteralPath $gameDataSchema) -notmatch '"schemaVersion"\s*:\s*\{\s*"const"\s*:\s*4') {
+    throw "AuraGameDataShared v4 JSON schema is missing or invalid."
+}
+
 function Read-RepoSourceTree {
     param([string]$RelativeDirectory)
 

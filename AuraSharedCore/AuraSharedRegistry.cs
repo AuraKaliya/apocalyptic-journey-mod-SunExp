@@ -18,6 +18,7 @@ public static class AuraSharedSystems
     public const string Journey = "Journey";
     public const string CardUseFx = "CardUseFx";
     public const string Role = "Role";
+    public const string GameData = "GameData";
 }
 
 public sealed class AuraSharedRegistryManifest

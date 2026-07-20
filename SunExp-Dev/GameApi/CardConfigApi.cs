@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using AuraGameData.Shared.GameApi;
 using SunExp.Dll.Infrastructure;
 using Witch.Core;
 
@@ -51,26 +52,24 @@ public static class CardConfigApi
     private static IDataConfig? FromDataRow(IDictionary<string, string> row)
     {
         var id = DictionaryUtil.Get(row, "Id");
-        return string.IsNullOrWhiteSpace(id)
+        var handle = AuraGameDataHostApi.ResolveHandle(DataType.Card, id);
+        return handle == null
             ? null
-            : new DataConfig(
-                new Dictionary<string, string>(row),
-                new Dictionary<string, string>());
+            : AuraGameDataHostApi.Materialize(new AuraGameDataMaterializeRequest { Definition = handle }).Instance;
     }
 
     private static IDataConfig? FromCardId(string? cardId)
     {
         var id = (cardId ?? "").Trim();
-        return id.Length == 0
+        var handle = AuraGameDataHostApi.ResolveHandle(DataType.Card, id);
+        return handle == null
             ? null
-            : new DataConfig(
-                new Dictionary<string, string> { ["Id"] = id },
-                new Dictionary<string, string>());
+            : AuraGameDataHostApi.Materialize(new AuraGameDataMaterializeRequest { Definition = handle }).Instance;
     }
 
     public static string Id(IDataConfig? config)
     {
-        return DictionaryUtil.Get(config?.data, "Id", "unknown");
+        return AuraGameDataHostApi.ReadField(config, "Id", AuraGameDataFieldAccess.Base, "unknown");
     }
 
     public static int CurrentCost(IDataConfig? config)

@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Reflection;
+using AuraGameData.Shared.GameApi;
 using AuraJourney.Shared;
 using AuraShared.Core;
 using SanGuoShaExp.Dll.GameApi;
@@ -17,6 +18,8 @@ public static class Entry
     public static void Initialize(ModConfig modConfig)
     {
         RegisterLuaVisibleAssembly();
+        RunStep("shared core", () => AuraSharedRuntime.Initialize(modConfig, SanGuoShaExpIds.ModId));
+        RunStep("shared game data", () => RegisterSharedGameData());
         SanGuoShaUiRaycastGuardRuntime.Initialize(modConfig);
         SanGuoShaCombatRuntime.Initialize(modConfig);
         SanGuoShaDodgeRuntime.Initialize(modConfig);
@@ -30,6 +33,15 @@ public static class Entry
     private static void RunStep(string name, Action action)
     {
         AuraSharedHooks.RunStep(name, action, (step, ex) => SanGuoShaExpLog.Error("Initialization step failed: " + step, ex));
+    }
+
+    private static void RegisterSharedGameData()
+    {
+        var result = AuraGameDataHostApi.RegisterLoadedDefinitionsV4(SanGuoShaExpIds.ModId, "SanGuoShaExp_");
+        if (!result.Success)
+        {
+            throw new InvalidOperationException("SanGuoShaExp v4 game-data registration failed: " + result.Message);
+        }
     }
 
     private static void RegisterLuaVisibleAssembly()

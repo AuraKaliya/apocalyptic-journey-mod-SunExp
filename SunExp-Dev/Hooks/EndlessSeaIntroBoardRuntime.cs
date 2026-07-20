@@ -813,7 +813,7 @@ public static class EndlessSeaIntroBoardRuntime
     {
         try
         {
-            var data = new DataConfig(packId, DataType.CardPack).data;
+            var data = SunExpConfigIndex.Row(DataType.CardPack, packId);
             var iconPath = DictionaryUtil.Get(data, "Icon");
             return string.IsNullOrWhiteSpace(iconPath) ? null : SunExpResourceCache.Load<Sprite>(iconPath, true);
         }
@@ -834,7 +834,7 @@ public static class EndlessSeaIntroBoardRuntime
         Sprite? sprite = null;
         try
         {
-            var data = new DataConfig(cardId, DataType.Card).data;
+            var data = SunExpConfigIndex.Row(DataType.Card, cardId);
             var iconPath = DictionaryUtil.Get(data, "Icon");
             if (!string.IsNullOrWhiteSpace(iconPath))
             {

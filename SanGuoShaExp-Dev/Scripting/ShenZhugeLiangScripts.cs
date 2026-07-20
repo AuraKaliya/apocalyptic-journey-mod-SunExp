@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraGameData.Shared.GameApi;
 using SanGuoShaExp.Dll.GameApi;
 using SanGuoShaExp.Dll.Hooks;
 using SanGuoShaExp.Dll.Infrastructure;
@@ -146,7 +147,11 @@ public static class ShenZhugeLiangScripts
     private static DataConfig CopyCardConfig(DataConfig card)
     {
         var cardId = card.data.GetValueOrDefault("Id", card.InstanceID);
-        return new DataConfig(cardId, DataType.Card);
+        var handle = AuraGameDataHostApi.ResolveHandle(DataType.Card, cardId);
+        return handle != null
+               && AuraGameDataHostApi.Materialize(new AuraGameDataMaterializeRequest { Definition = handle }).Instance is DataConfig copy
+            ? copy
+            : throw new InvalidOperationException("Registered card definition is unavailable: " + cardId);
     }
 
     private static void UseQixing(ScriptExecutor self)

@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using AuraGameData.Shared.GameApi;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using TMPro;
@@ -165,7 +166,11 @@ public sealed class ProjectionOtherObj : OtherObj
         {
             status = Status as StatusManager
         };
-        var actionConfig = new DataConfig(cardId, DataType.EnemyCard);
+        var actionConfig = AuraGameDataHostApi.Materialize(DataType.EnemyCard, cardId).Instance as DataConfig;
+        if (actionConfig == null)
+        {
+            return;
+        }
         NormalizeProjectionActionConfig(actionConfig, priority);
         objectCard.Init(actionConfig);
         NormalizeProjectionActionConfig(objectCard.dataConfig, priority);

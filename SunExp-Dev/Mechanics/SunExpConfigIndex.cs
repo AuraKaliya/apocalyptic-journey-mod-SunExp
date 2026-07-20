@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraGameData.Shared.GameApi;
 using SunExp.Dll.Infrastructure;
 using Witch.Core;
 
@@ -9,7 +10,6 @@ namespace SunExp.Dll.Mechanics;
 public static class SunExpConfigIndex
 {
     private const string SunExpPrefix = "SunExp_sunexp_";
-    private static readonly Dictionary<DataType, TableCache> TableCaches = new();
     private static readonly Dictionary<string, FilterCache> FilterCaches = new(StringComparer.Ordinal);
 
     public static List<Dictionary<string, string>> Rows(DataType type)
@@ -17,19 +17,11 @@ public static class SunExpConfigIndex
         var start = SunExpPerformanceCounters.Timestamp();
         try
         {
-            var rows = Singleton<GameConfigManager>.Instance.GetTable(type).Getlines();
-            if (TableCaches.TryGetValue(type, out var cache) && cache.SourceCount == rows.Count)
-            {
-                return cache.Rows;
-            }
-
-            cache = new TableCache(rows);
-            TableCaches[type] = cache;
-            return cache.Rows;
+            return AuraGameDataHostApi.Rows(type);
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[ConfigIndex] failed to read " + type + " rows: " + ex.Message);
+            SunExpLog.Warn("[ConfigIndex] shared catalog failed to read " + type + " rows: " + ex.Message);
             return new List<Dictionary<string, string>>();
         }
         finally
@@ -49,17 +41,7 @@ public static class SunExpConfigIndex
         try
         {
             var normalized = id.Trim();
-            var direct = TryGetOne(type, normalized)
-                ?? TryGetOne(type, AlternateSunExpId(normalized));
-            if (direct != null)
-            {
-                return direct;
-            }
-
-            var cache = EnsureTableCache(type);
-            return cache.ById.TryGetValue(normalized, out var row)
-                ? row
-                : null;
+            return AuraGameDataHostApi.Row(type, normalized, AlternateSunExpId(normalized));
         }
         finally
         {
@@ -77,19 +59,22 @@ public static class SunExpConfigIndex
             return new List<Dictionary<string, string>>();
         }
 
-        var rows = Rows(type);
+        var snapshot = AuraGameDataHostApi.Query(type);
         var cacheKey = type + "\u001f" + key;
-        if (FilterCaches.TryGetValue(cacheKey, out var cached) && cached.SourceCount == rows.Count)
+        if (FilterCaches.TryGetValue(cacheKey, out var cached) && cached.Revision == snapshot.Revision)
         {
-            return cached.Rows;
+            return cached.Rows.Select(Clone).ToList();
         }
 
         var start = SunExpPerformanceCounters.Timestamp();
         try
         {
-            var filtered = rows.Where(predicate).ToList();
-            FilterCaches[cacheKey] = new FilterCache(rows.Count, filtered);
-            return filtered;
+            var filtered = snapshot.Items
+                .Select(item => item.Fields.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal))
+                .Where(predicate)
+                .ToList();
+            FilterCaches[cacheKey] = new FilterCache(snapshot.Revision, filtered);
+            return filtered.Select(Clone).ToList();
         }
         finally
         {
@@ -99,33 +84,8 @@ public static class SunExpConfigIndex
 
     public static void Reset()
     {
-        TableCaches.Clear();
         FilterCaches.Clear();
-    }
-
-    private static TableCache EnsureTableCache(DataType type)
-    {
-        Rows(type);
-        return TableCaches.TryGetValue(type, out var cache)
-            ? cache
-            : new TableCache(new List<Dictionary<string, string>>());
-    }
-
-    private static Dictionary<string, string>? TryGetOne(DataType type, string id)
-    {
-        if (string.IsNullOrWhiteSpace(id))
-        {
-            return null;
-        }
-
-        try
-        {
-            return Singleton<GameConfigManager>.Instance.GetOne(type, id);
-        }
-        catch
-        {
-            return null;
-        }
+        AuraGameDataHostApi.InvalidateNativeCatalog();
     }
 
     private static string AlternateSunExpId(string id)
@@ -135,60 +95,20 @@ public static class SunExpConfigIndex
             : SunExpPrefix + id;
     }
 
-    private sealed class TableCache
+    private static Dictionary<string, string> Clone(Dictionary<string, string> row)
     {
-        public TableCache(List<Dictionary<string, string>> rows)
-        {
-            Rows = rows;
-            SourceCount = rows.Count;
-            ById = BuildIndex(rows);
-        }
-
-        public List<Dictionary<string, string>> Rows { get; }
-
-        public int SourceCount { get; }
-
-        public Dictionary<string, Dictionary<string, string>> ById { get; }
-
-        private static Dictionary<string, Dictionary<string, string>> BuildIndex(IEnumerable<Dictionary<string, string>> rows)
-        {
-            var index = new Dictionary<string, Dictionary<string, string>>(StringComparer.Ordinal);
-            foreach (var row in rows)
-            {
-                var id = DictionaryUtil.Get(row, "Id");
-                if (string.IsNullOrWhiteSpace(id))
-                {
-                    continue;
-                }
-
-                Add(index, id, row);
-                Add(index, AlternateSunExpId(id), row);
-            }
-
-            return index;
-        }
-
-        private static void Add(
-            IDictionary<string, Dictionary<string, string>> index,
-            string key,
-            Dictionary<string, string> row)
-        {
-            if (!string.IsNullOrWhiteSpace(key) && !index.ContainsKey(key))
-            {
-                index[key] = row;
-            }
-        }
+        return new Dictionary<string, string>(row, StringComparer.Ordinal);
     }
 
     private sealed class FilterCache
     {
-        public FilterCache(int sourceCount, List<Dictionary<string, string>> rows)
+        public FilterCache(long revision, List<Dictionary<string, string>> rows)
         {
-            SourceCount = sourceCount;
-            Rows = rows;
+            Revision = revision;
+            Rows = rows.Select(Clone).ToList();
         }
 
-        public int SourceCount { get; }
+        public long Revision { get; }
 
         public List<Dictionary<string, string>> Rows { get; }
     }

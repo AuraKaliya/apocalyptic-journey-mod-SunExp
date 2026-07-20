@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using AuraGameData.Shared.GameApi;
 using UnityEngine;
 using Witch;
 using Witch.Core;
@@ -166,7 +167,7 @@ internal static class CardChoiceRefreshNativeApi
         {
             var manager = Singleton<GameConfigManager>.Instance;
             var runtime = Singleton<GameRuntimeData>.Instance;
-            var rows = manager?.GetTable(DataType.Card)?.Getlines();
+            var rows = AuraGameDataHostApi.Rows(DataType.Card);
             if (manager == null || runtime == null || rows == null)
             {
                 return false;

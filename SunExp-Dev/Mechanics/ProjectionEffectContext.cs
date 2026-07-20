@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraGameData.Shared.GameApi;
 using SunExp.Dll.GameApi;
 
 namespace SunExp.Dll.Mechanics;
@@ -131,9 +132,7 @@ public static class ProjectionModifierPolicyRegistry
     {
         try
         {
-            return string.IsNullOrWhiteSpace(buffId)
-                ? null
-                : Singleton<GameConfigManager>.Instance?.GetOne(DataType.Buff, buffId);
+            return string.IsNullOrWhiteSpace(buffId) ? null : AuraGameDataHostApi.Row(DataType.Buff, buffId);
         }
         catch
         {

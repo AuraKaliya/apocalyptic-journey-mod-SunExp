@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using AuraGameData.Shared.GameApi;
 using SanGuoShaExp.Dll.Infrastructure;
 using Witch.Core;
 using Witch.Mod;
@@ -196,32 +197,31 @@ public static class SanGuoShaDodgeRuntime
         string sourceId,
         string fromInstanceId)
     {
-        var manager = Singleton<GameConfigManager>.Instance;
-        if (manager != null)
+        if (!string.IsNullOrWhiteSpace(sourceId))
         {
-            if (HasConfig(manager, DataType.Buff, sourceId))
+            if (HasConfig(DataType.Buff, sourceId))
             {
                 return SourceClassification.Ignore("Buff");
             }
 
-            if (HasConfig(manager, DataType.Card, sourceId))
+            if (HasConfig(DataType.Card, sourceId))
             {
                 return SourceClassification.Attack("Card");
             }
 
-            if (HasConfig(manager, DataType.EnemyCard, sourceId))
+            if (HasConfig(DataType.EnemyCard, sourceId))
             {
                 return SourceClassification.Attack("EnemyCard");
             }
 
-            if (HasConfig(manager, DataType.PartnerCard, sourceId))
+            if (HasConfig(DataType.PartnerCard, sourceId))
             {
                 return SourceClassification.Attack("PartnerCard");
             }
 
-            if (HasConfig(manager, DataType.Relic, sourceId)
-                || HasConfig(manager, DataType.Bless, sourceId)
-                || HasConfig(manager, DataType.Food, sourceId))
+            if (HasConfig(DataType.Relic, sourceId)
+                || HasConfig(DataType.Bless, sourceId)
+                || HasConfig(DataType.Food, sourceId))
             {
                 return SourceClassification.Ignore("known non-attack");
             }
@@ -244,7 +244,7 @@ public static class SanGuoShaDodgeRuntime
         return SourceClassification.Ignore("unresolved");
     }
 
-    private static bool HasConfig(GameConfigManager manager, DataType type, string sourceId)
+    private static bool HasConfig(DataType type, string sourceId)
     {
         if (string.IsNullOrEmpty(sourceId))
         {
@@ -253,7 +253,7 @@ public static class SanGuoShaDodgeRuntime
 
         try
         {
-            return manager.GetOne(type, sourceId) != null;
+            return AuraGameDataHostApi.Resolve(type, sourceId) != null;
         }
         catch
         {

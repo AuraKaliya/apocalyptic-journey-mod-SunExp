@@ -1,6 +1,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
+using AuraGameData.Shared.GameApi;
 using SunExp.Dll.Infrastructure;
 using TMPro;
 using UnityEngine;
@@ -184,10 +186,24 @@ public sealed class SpiritOtherObj : OtherObj
             ? SunExpIds.ProjectionActionWaitCardId
             : cardId.Trim();
         var presentationData = PresentationDataFor(sourceCardId);
-        var config = new DataConfig(presentationData, new Dictionary<string, string>());
-        DictionaryUtil.Set(config.Vars, SunExpIds.SpiritIntentSourceCardVar, sourceCardId);
-        DictionaryUtil.Set(config.Vars, "CD", "0");
-        DictionaryUtil.Set(config.Vars, "priority", Math.Max(1, priority).ToString());
+        var adapterHandle = AuraGameDataHostApi.ResolveHandle(DataType.EnemyCard, SunExpIds.SpiritIntentAdapterCardId)
+            ?? throw new InvalidOperationException("Spirit intent adapter definition is not registered.");
+        var materialized = AuraGameDataHostApi.Materialize(new AuraGameDataMaterializeRequest
+        {
+            Definition = adapterHandle,
+            DataOverrides = presentationData
+                .Where(pair => !string.Equals(pair.Key, "Id", StringComparison.Ordinal)
+                    && pair.Key.IndexOf("Script", StringComparison.OrdinalIgnoreCase) < 0)
+                .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal),
+            Vars = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                [SunExpIds.SpiritIntentSourceCardVar] = sourceCardId,
+                ["CD"] = "0",
+                ["priority"] = Math.Max(1, priority).ToString()
+            }
+        });
+        var config = materialized.Instance as DataConfig
+            ?? throw new InvalidOperationException("Spirit intent materialization failed: " + materialized.Message);
         card.Init(config);
         VerifyPresentationBinding(config, sourceCardId);
         FightAction.AddCard(card);
@@ -205,11 +221,13 @@ public sealed class SpiritOtherObj : OtherObj
         {
             if (!PresentationTemplates.TryGetValue(key, out var template))
             {
-                var source = new DataConfig(key, DataType.EnemyCard);
-                presentationAdapterData ??= new Dictionary<string, string>(
-                    new DataConfig(SunExpIds.SpiritIntentAdapterCardId, DataType.EnemyCard).data,
-                    StringComparer.Ordinal);
-                template = SpiritIntentPresentationDataComposer.Compose(source.data, presentationAdapterData);
+                var source = AuraGameDataHostApi.Row(DataType.EnemyCard, key)
+                    ?? throw new InvalidOperationException("Spirit source intent definition is not registered: " + key);
+                presentationAdapterData ??= AuraGameDataHostApi.Row(
+                    DataType.EnemyCard,
+                    SunExpIds.SpiritIntentAdapterCardId)
+                    ?? throw new InvalidOperationException("Spirit intent adapter definition is not registered.");
+                template = SpiritIntentPresentationDataComposer.Compose(source, presentationAdapterData);
                 PresentationTemplates[key] = template;
             }
 

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AuraMode.Shared;
+using AuraGameData.Shared.GameApi;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
@@ -28,7 +29,7 @@ internal static class StarterDeckCardPresentation
     {
         try
         {
-            var data = new DataConfig(cardId, DataType.Card).data;
+            var data = CardData(cardId);
             var rarity = data.TryGetValue("Rarity", out var r) ? r : "9";
             var cost = data.TryGetValue("Expend", out var c) ? c : "9";
             return rarity.PadLeft(2, '0') + "|" + cost.PadLeft(2, '0') + "|" + cardId;
@@ -48,7 +49,7 @@ internal static class StarterDeckCardPresentation
 
         try
         {
-            var data = new DataConfig(cardId, DataType.Card).data;
+            var data = CardData(cardId);
             var localized = data.Localize("Name");
             if (!string.IsNullOrWhiteSpace(localized) && localized != "Name")
             {
@@ -87,7 +88,7 @@ internal static class StarterDeckCardPresentation
 
         try
         {
-            var data = new DataConfig(cardId, DataType.Card).data;
+            var data = CardData(cardId);
             var rarity = data.TryGetValue("Rarity", out var r) ? "R" + r : "R?";
             var cost = data.TryGetValue("Expend", out var c) ? c : "?";
             return rarity + " / 费 " + cost + " / " + cardId;
@@ -107,7 +108,7 @@ internal static class StarterDeckCardPresentation
 
         try
         {
-            var data = new DataConfig(cardId, DataType.Card).data;
+            var data = CardData(cardId);
             return data.TryGetValue("Rarity", out var rarity) && !string.IsNullOrWhiteSpace(rarity) ? "R" + rarity : "?";
         }
         catch
@@ -125,7 +126,7 @@ internal static class StarterDeckCardPresentation
 
         try
         {
-            var data = new DataConfig(cardId, DataType.Card).data;
+            var data = CardData(cardId);
             return data.TryGetValue("Expend", out var cost) && !string.IsNullOrWhiteSpace(cost) ? cost : "?";
         }
         catch
@@ -151,7 +152,7 @@ internal static class StarterDeckCardPresentation
             }
             else
             {
-                var data = new DataConfig(cardId, DataType.Card).data;
+                var data = CardData(cardId);
                 if (data.TryGetValue("Icon", out var rawIconPath))
                 {
                     iconPath = rawIconPath;
@@ -170,5 +171,11 @@ internal static class StarterDeckCardPresentation
 
         cardIconCache[cardId] = sprite;
         return sprite;
+    }
+
+    private static Dictionary<string, string> CardData(string cardId)
+    {
+        return AuraGameDataHostApi.Row(DataType.Card, cardId)
+            ?? new Dictionary<string, string>(StringComparer.Ordinal);
     }
 }

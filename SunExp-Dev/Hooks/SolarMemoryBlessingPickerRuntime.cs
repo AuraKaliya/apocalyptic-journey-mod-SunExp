@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraGameData.Shared.GameApi;
 using AuraUi.Shared;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks.Ui;
@@ -977,7 +978,11 @@ public static class SolarMemoryBlessingPickerRuntime
     {
         try
         {
-            var data = new DataConfig(blessId, DataType.Bless).data;
+            var data = AuraGameDataHostApi.Row(DataType.Bless, blessId);
+            if (data == null)
+            {
+                return blessId;
+            }
             var localizedName = data.Localize("Name");
             if (!string.IsNullOrWhiteSpace(localizedName) && localizedName != "Name")
             {
@@ -1001,8 +1006,9 @@ public static class SolarMemoryBlessingPickerRuntime
     {
         try
         {
-            var description = new DataConfig(blessId, DataType.Bless).Description();
-            return string.IsNullOrWhiteSpace(description) ? blessId : description;
+            var definition = AuraGameDataHostApi.Materialize(DataType.Bless, blessId).Instance as DataConfig;
+            var description = definition?.Description();
+            return string.IsNullOrWhiteSpace(description) ? blessId : description ?? blessId;
         }
         catch
         {
@@ -1014,7 +1020,11 @@ public static class SolarMemoryBlessingPickerRuntime
     {
         try
         {
-            var data = new DataConfig(blessId, DataType.Bless).data;
+            var data = AuraGameDataHostApi.Row(DataType.Bless, blessId);
+            if (data == null)
+            {
+                return "";
+            }
             return data.TryGetValue("Icon", out var icon) ? icon : "";
         }
         catch

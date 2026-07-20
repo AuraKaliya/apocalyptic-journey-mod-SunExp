@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraGameData.Shared.Application;
+using AuraGameData.Shared.GameApi;
 using Fight.ActionCommand;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
@@ -218,11 +220,6 @@ public static class EndlessAbyssCurseService
                 return false;
             }
 
-            var config = new DataConfig(resolved, DataType.Card);
-            CardMutationService.SetRuntimeMarkers(config, TemporaryCombatCardMarker, TemporaryCombatCurseMarker);
-            DictionaryUtil.Set(config.Vars, TemporaryCombatSourceKey, "AbyssGaze");
-            DictionaryUtil.Set(config.Vars, "SunExpRuntimeCreatedAt", source);
-
             var drawPile = FightCardManager.Instance?.cardList;
             if (drawPile == null)
             {
@@ -230,8 +227,44 @@ public static class EndlessAbyssCurseService
                 return false;
             }
 
-            drawPile.Add(config);
-            RandomizeLastCardIntoDrawPile(drawPile, source);
+            var handle = AuraGameDataHostApi.ResolveHandle(DataType.Card, resolved);
+            if (handle == null)
+            {
+                SunExpLog.Warn("[EndlessAbyssCurse] registered card definition missing from " + source + ".");
+                return false;
+            }
+
+            var result = new AuraCardInstanceService(new WitchCardInstancePort())
+                .GrantToManagerDraw(new AuraCardGrantCommand
+                {
+                    Definition = handle,
+                    Vars = new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        [SunExpIds.RuntimeMarkersKey] = TemporaryCombatCardMarker + "," + TemporaryCombatCurseMarker,
+                        [TemporaryCombatSourceKey] = "AbyssGaze",
+                        ["SunExpRuntimeCreatedAt"] = source ?? ""
+                    },
+                    Context = new AuraGameMutationContext
+                    {
+                        RequesterModId = SunExpIds.ModId,
+                        Source = source ?? "",
+                        Authoritative = true
+                    }
+                });
+            if (!result.Success || result.Instance == null)
+            {
+                SunExpLog.Warn("[EndlessAbyssCurse] shared card grant failed from " + source + ": " + result.FailureStep + ": " + result.Message);
+                return false;
+            }
+
+            var config = drawPile.FirstOrDefault(card => string.Equals(card.InstanceID, result.Instance.InstanceId, StringComparison.Ordinal));
+            if (config == null)
+            {
+                SunExpLog.Warn("[EndlessAbyssCurse] granted card could not be located from " + source + ".");
+                return false;
+            }
+
+            RandomizeLastCardIntoDrawPile(drawPile, source ?? "");
             TryPlayCombatDeckAddAnimation(config);
             SunExpLog.Info("[EndlessAbyssCurse] added temporary curse to combat deck: "
                 + resolved

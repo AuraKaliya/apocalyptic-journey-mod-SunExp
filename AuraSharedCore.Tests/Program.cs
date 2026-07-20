@@ -4,6 +4,7 @@ using AuraMode.Shared;
 using AuraOnline.Shared;
 using AuraDirector.Shared;
 using AuraRole.Shared;
+using AuraGameData.Shared;
 using Newtonsoft.Json.Linq;
 
 var assertions = 0;
@@ -241,8 +242,10 @@ try
     TestModeContracts();
     TestDirectorContracts();
 
+    TestGameDataCatalog();
     Console.WriteLine($"AuraSharedCore tests passed: {assertions} assertions.");
 }
+
 finally
 {
     TryDelete(tempRoot);
@@ -250,6 +253,70 @@ finally
 }
 
 return;
+
+void TestGameDataCatalog()
+{
+    AuraSharedConfigStore.ResetGameDataTestStore();
+    var source = new FakeGameDataSource(new AuraGameDataDefinition
+    {
+        Key = new AuraGameDataKey("Card", "card_a"),
+        OwnerModId = "BaseGame",
+        WriterId = AuraGameDataConstants.RegistryAuthorityId,
+        SourceKind = AuraGameDataSourceKinds.Native,
+        Fields = new Dictionary<string, string> { ["Id"] = "card_a", ["Name"] = "Native" }
+    });
+    AuraGameDataCatalogRuntime.ConfigureSource(source);
+
+    var rejectedV3 = AuraGameDataCatalogRuntime.Register("ModA", new AuraGameDataDefinition
+    {
+        SchemaVersion = 3,
+        Key = new AuraGameDataKey("Card", "card_a"),
+        OwnerModId = "ModA",
+        WriterId = "ModA"
+    });
+    Assert(!rejectedV3.Success && rejectedV3.Message.Contains("schemaVersion 4"), "game data rejects non-v4 registration");
+
+    var registered = AuraGameDataCatalogRuntime.Register("ModA", new AuraGameDataDefinition
+    {
+        Key = new AuraGameDataKey("Card", "card_a"),
+        OwnerModId = "ModA",
+        WriterId = "ModA",
+        SourceKind = AuraGameDataSourceKinds.Registered,
+        Fields = new Dictionary<string, string> { ["Id"] = "card_a", ["Name"] = "Registered" }
+    });
+    Assert(registered.Success && registered.Handle != null, "game data registers owner-qualified v4 definition");
+
+    var effective = AuraGameDataCatalogRuntime.Resolve("Card", new[] { "card_a" });
+    Assert(effective != null
+           && effective.SourceKind == AuraGameDataSourceKinds.Registered
+           && effective.Fields["Name"] == "Registered",
+        "game data uses centralized source search order");
+
+    var foreignPatch = AuraGameDataCatalogRuntime.Patch(
+        "OtherMod",
+        new AuraGameDataKey("Card", "card_a"),
+        "ModA",
+        new AuraGameDataPatch { SetFields = new Dictionary<string, string> { ["Name"] = "Foreign" } },
+        registered.Handle!.Revision);
+    Assert(!foreignPatch.Success && foreignPatch.Conflict, "game data rejects foreign definition patch");
+
+    var scriptPatch = AuraGameDataCatalogRuntime.Patch(
+        "ModA",
+        new AuraGameDataKey("Card", "card_a"),
+        "ModA",
+        new AuraGameDataPatch { SetFields = new Dictionary<string, string> { ["UseScript"] = "unsafe" } },
+        registered.Handle.Revision);
+    Assert(!scriptPatch.Success && scriptPatch.Message.Contains("registration-time"), "game data blocks runtime script patch");
+
+    var retired = AuraGameDataCatalogRuntime.Retire(
+        "ModA",
+        new AuraGameDataKey("Card", "card_a"),
+        "ModA",
+        registered.Handle.Revision);
+    var history = AuraGameDataCatalogRuntime.QueryHistory(new AuraGameDataQuery { DataType = "Card" });
+    Assert(retired.Success && history.Items.Count == 1 && history.Items[0].Retired,
+        "game data keeps retired definitions in independent history view");
+}
 
 void TestResourceProtocolV4()
 {
@@ -1332,4 +1399,29 @@ sealed class PoolValue
     public string Name { get; }
 
     public bool IsValid { get; set; } = true;
+}
+
+sealed class FakeGameDataSource : IAuraGameDataSource
+{
+    private readonly IReadOnlyList<AuraGameDataDefinition> definitions;
+
+    public FakeGameDataSource(params AuraGameDataDefinition[] definitions)
+    {
+        this.definitions = definitions.Select(value => value.Clone()).ToList();
+    }
+
+    public long Revision { get; private set; } = 1;
+
+    public IReadOnlyList<AuraGameDataDefinition> Read(string dataType)
+    {
+        return definitions
+            .Where(value => string.Equals(value.Key.DataType, dataType, StringComparison.OrdinalIgnoreCase))
+            .Select(value => value.Clone())
+            .ToList();
+    }
+
+    public void Invalidate()
+    {
+        Revision++;
+    }
 }

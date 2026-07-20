@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using AuraGameData.Shared.GameApi;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using Witch;
 using Witch.Core;
@@ -222,7 +223,7 @@ internal static class DamageMeterFightIndex
         var result = false;
         try
         {
-            result = Singleton<GameConfigManager>.Instance?.GetOne(DataType.Buff, dataId) != null;
+            result = AuraGameDataHostApi.Resolve(DataType.Buff, dataId) != null;
         }
         catch
         {
@@ -251,7 +252,7 @@ internal static class DamageMeterFightIndex
         {
             try
             {
-                var row = Singleton<GameConfigManager>.Instance?.GetOne(DataTypes[i], dataId);
+                var row = AuraGameDataHostApi.Row(DataTypes[i], dataId);
                 if (row != null
                     && row.TryGetValue("Name", out var name)
                     && !string.IsNullOrWhiteSpace(name))

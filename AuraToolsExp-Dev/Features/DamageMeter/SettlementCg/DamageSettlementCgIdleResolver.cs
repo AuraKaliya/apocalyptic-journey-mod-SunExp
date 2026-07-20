@@ -148,7 +148,8 @@ internal static class DamageSettlementCgIdleResolver
     {
         if (!CareerConfigApi.TryCreate(roleId, out var career) || career == null)
         {
-            career = new DataConfig(roleId, DataType.Career);
+            AuraToolsLog.Warn("[SettlementCG] registered career definition unavailable for role=" + roleId + ".");
+            return null;
         }
 
         var animation = ReadData(career, "Animation");

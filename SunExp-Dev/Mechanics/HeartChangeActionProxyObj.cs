@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using AuraGameData.Shared.GameApi;
 using SunExp.Dll.Infrastructure;
 using UnityEngine;
 using Witch.UI;
@@ -246,7 +247,12 @@ public sealed class HeartChangeActionProxyObj : OtherObj
             isIgnored = false,
             nowCD = 0
         };
-        actionCard.Init(new DataConfig(SunExpIds.HeartChangeActionStrikeCardId, DataType.EnemyCard));
+        var actionConfig = AuraGameDataHostApi.Materialize(DataType.EnemyCard, SunExpIds.HeartChangeActionStrikeCardId).Instance as DataConfig;
+        if (actionConfig == null)
+        {
+            throw new InvalidOperationException("Heart-change action definition is not registered.");
+        }
+        actionCard.Init(actionConfig);
         return actionCard;
     }
 

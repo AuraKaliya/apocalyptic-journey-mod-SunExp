@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using AuraShared.Core;
+using AuraGameData.Shared.GameApi;
 using AuraSkin.Shared.Infrastructure;
 
 namespace AuraSkin.Shared.GameApi;
@@ -22,14 +23,19 @@ public static class CareerConfigApi
                 continue;
             }
 
-            try
+            var handle = AuraGameDataHostApi.ResolveHandle(DataType.Career, candidate);
+            var materialized = handle == null
+                ? AuraGameDataHostMutationResult.Fail("resolve", "Career definition was not found.")
+                : AuraGameDataHostApi.Materialize(new AuraGameDataMaterializeRequest { Definition = handle });
+            if (materialized.Success && materialized.Instance is DataConfig resolved)
             {
-                career = new DataConfig(candidate, DataType.Career);
+                career = resolved;
                 return true;
             }
-            catch (Exception ex)
+
+            if (!string.IsNullOrWhiteSpace(materialized.Message))
             {
-                SkinLog.Warn("Career config exists but could not be created: " + candidate + ": " + ex.Message);
+                SkinLog.Warn("Career config exists but could not be created: " + candidate + ": " + materialized.Message);
             }
         }
 
@@ -59,15 +65,7 @@ public static class CareerConfigApi
             return false;
         }
 
-        try
-        {
-            return Singleton<GameConfigManager>.Instance?.GetOne(DataType.Career, careerId) != null;
-        }
-        catch (Exception ex)
-        {
-            SkinLog.Warn("Career config lookup failed: " + careerId + ": " + ex.Message);
-            return false;
-        }
+        return AuraGameDataHostApi.Resolve(DataType.Career, careerId) != null;
     }
 
 }

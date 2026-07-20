@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aura.local/schemas/aura-game-data-v4.schema.json",
+  "title": "Aura Game Data Registration v4",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "definitions"],
+  "properties": {
+    "schemaVersion": { "const": 4 },
+    "definitions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/definition" }
+    }
+  },
+  "$defs": {
+    "key": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dataType", "id"],
+      "properties": {
+        "dataType": { "type": "string", "minLength": 1 },
+        "id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "definition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "key",
+        "ownerModId",
+        "writerId",
+        "sourceKind",
+        "enabled",
+        "retired",
+        "revision",
+        "aliases",
+        "fields"
+      ],
+      "properties": {
+        "schemaVersion": { "const": 4 },
+        "key": { "$ref": "#/$defs/key" },
+        "ownerModId": { "type": "string", "minLength": 1 },
+        "writerId": { "type": "string", "minLength": 1 },
+        "sourceKind": {
+          "enum": ["UserManual", "Registered", "Default", "Native"]
+        },
+        "priority": { "type": "integer" },
+        "enabled": { "type": "boolean" },
+        "retired": { "type": "boolean" },
+        "revision": { "type": "integer", "minimum": 0 },
+        "aliases": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "fields": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "updatedUtc": { "type": "string" }
+      }
+    }
+  }
+}

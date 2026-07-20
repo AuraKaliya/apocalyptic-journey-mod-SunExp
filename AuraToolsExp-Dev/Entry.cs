@@ -1,5 +1,6 @@
 using System;
 using AuraCg.Shared;
+using AuraGameData.Shared.GameApi;
 using AuraJourney.Shared;
 using AuraMode.Shared;
 using AuraShared.Core;
@@ -28,6 +29,7 @@ public static class Entry
     public static void Initialize(ModConfig modConfig)
     {
         RunStep("shared core", () => AuraSharedRuntime.Initialize(modConfig, AuraToolsIds.ModId));
+        RunStep("shared game data", () => AuraGameDataHostApi.RegisterOwnerPrefix(AuraToolsIds.ModId, "AuraToolsExp_"));
         RunStep("journey runtime", () => AuraJourneyRuntime.Initialize(modConfig, AuraToolsIds.ModId));
         RunStep("mode runtime", () => AuraModeRuntime.Initialize(modConfig, AuraToolsIds.ModId));
         RunStep("rpc authority", () => AuraToolsRpcAuthorityRuntime.Initialize(modConfig));

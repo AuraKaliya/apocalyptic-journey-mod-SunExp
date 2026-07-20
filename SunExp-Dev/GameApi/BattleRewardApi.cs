@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using AuraGameData.Shared.GameApi;
 using SunExp.Dll.Infrastructure;
 using SunExp.Dll.Mechanics;
 using UnityEngine;
@@ -253,7 +254,7 @@ public static class BattleRewardApi
             return new List<Dictionary<string, string>>();
         }
 
-        var all = manager.GetTable(DataType.Relic)?.Getlines() ?? new List<Dictionary<string, string>>();
+        var all = AuraGameDataHostApi.Rows(DataType.Relic);
         if (all.Count == 0)
         {
             return new List<Dictionary<string, string>>();

@@ -7,6 +7,7 @@ using StarterDeckArbiter.Shared;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Hooks.Ui;
 using SunExp.Dll.Infrastructure;
+using SunExp.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.UI;
 using Witch;
@@ -776,7 +777,7 @@ public static class SolarMemoryStarterDeckRuntime
     {
         try
         {
-            var data = new DataConfig(cardId, DataType.Card).data;
+            var data = CardData(cardId);
             var localizedName = data.Localize("Name");
             if (!string.IsNullOrWhiteSpace(localizedName) && localizedName != "Name")
             {
@@ -806,7 +807,7 @@ public static class SolarMemoryStarterDeckRuntime
         Sprite? sprite = null;
         try
         {
-            var data = new DataConfig(cardId, DataType.Card).data;
+            var data = CardData(cardId);
             if (data.TryGetValue("Icon", out var iconPath) && !string.IsNullOrWhiteSpace(iconPath))
             {
                 sprite = SunExpResourceCache.Load<Sprite>(iconPath, true);
@@ -825,7 +826,7 @@ public static class SolarMemoryStarterDeckRuntime
     {
         try
         {
-            var data = new DataConfig(cardId, DataType.Card).data;
+            var data = CardData(cardId);
             return data.TryGetValue("Rarity", out var rarity) && !string.IsNullOrWhiteSpace(rarity) ? "R" + rarity : "?";
         }
         catch
@@ -838,7 +839,7 @@ public static class SolarMemoryStarterDeckRuntime
     {
         try
         {
-            var data = new DataConfig(cardId, DataType.Card).data;
+            var data = CardData(cardId);
             return data.TryGetValue("Expend", out var cost) && !string.IsNullOrWhiteSpace(cost) ? cost : "?";
         }
         catch
@@ -851,7 +852,7 @@ public static class SolarMemoryStarterDeckRuntime
     {
         try
         {
-            var data = new DataConfig(cardId, DataType.Card).data;
+            var data = CardData(cardId);
             var rarity = data.TryGetValue("Rarity", out var r) ? r : "9";
             var cost = data.TryGetValue("Expend", out var c) ? c : "9";
             return rarity.PadLeft(2, '0') + "|" + cost.PadLeft(2, '0') + "|" + cardId;
@@ -860,6 +861,12 @@ public static class SolarMemoryStarterDeckRuntime
         {
             return "99|99|" + cardId;
         }
+    }
+
+    private static Dictionary<string, string> CardData(string cardId)
+    {
+        return SunExpConfigIndex.Row(DataType.Card, cardId)
+            ?? new Dictionary<string, string>(StringComparer.Ordinal);
     }
 
     private static void ApplyStarterDeck(RoleTable roleTable, IReadOnlyCollection<string> deck)

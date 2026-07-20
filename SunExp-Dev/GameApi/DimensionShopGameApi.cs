@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraGameData.Shared.Application;
+using AuraGameData.Shared.GameApi;
 using AuraShared.Core;
 using AuraUi.Shared;
 using Data.Save;
@@ -108,8 +110,26 @@ public static class DimensionShopGameApi
                 return false;
             }
 
-            role.UnCardList.Add(new DataConfig(resolved, DataType.Card));
-            return true;
+            var handle = AuraGameDataHostApi.ResolveHandle(DataType.Card, resolved);
+            if (handle == null)
+            {
+                error = "registered card definition is unavailable";
+                return false;
+            }
+
+            var result = new AuraCardInstanceService(new WitchCardInstancePort())
+                .GrantToReserveDeck(new AuraCardGrantCommand
+                {
+                    Definition = handle,
+                    Context = new AuraGameMutationContext
+                    {
+                        RequesterModId = SunExpIds.ModId,
+                        Source = "DimensionShop.Card",
+                        Authoritative = true
+                    }
+                });
+            error = result.Success ? "" : result.FailureStep + ": " + result.Message;
+            return result.Success;
         }
         catch (Exception ex)
         {
@@ -131,8 +151,27 @@ public static class DimensionShopGameApi
                 return false;
             }
 
-            role.WithoutArmedRelicList.Add(new DataConfig(relicId, DataType.Relic));
-            return true;
+            var handle = AuraGameDataHostApi.ResolveHandle(DataType.Relic, relicId);
+            if (handle == null)
+            {
+                error = "registered relic definition is unavailable";
+                return false;
+            }
+
+            var result = new AuraRelicInstanceService(new WitchRelicInstancePort())
+                .Grant(new AuraRelicGrantCommand
+                {
+                    Definition = handle,
+                    PreferEquippedSlot = false,
+                    Context = new AuraGameMutationContext
+                    {
+                        RequesterModId = SunExpIds.ModId,
+                        Source = "DimensionShop.Relic",
+                        Authoritative = true
+                    }
+                });
+            error = result.Success ? "" : result.FailureStep + ": " + result.Message;
+            return result.Success;
         }
         catch (Exception ex)
         {

@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using AuraGameData.Shared.GameApi;
 using Data.Save;
 using SanGuoShaExp.Dll.GameApi;
 using SanGuoShaExp.Dll.Hooks;
@@ -720,7 +721,7 @@ public static class SanGuoShaCardScripts
         try
         {
             var manager = Singleton<GameConfigManager>.Instance;
-            var rows = manager.GetTable(DataType.Card)?.Getlines();
+            var rows = AuraGameDataHostApi.Rows(DataType.Card);
             if (rows == null || rows.Count == 0)
             {
                 return new List<DataConfig>();
@@ -738,7 +739,14 @@ public static class SanGuoShaCardScripts
             {
                 try
                 {
-                    result.Add(new DataConfig(row["Id"], DataType.Card));
+                    var handle = AuraGameDataHostApi.ResolveHandle(DataType.Card, row["Id"]);
+                    var materialized = handle == null
+                        ? null
+                        : AuraGameDataHostApi.Materialize(new AuraGameDataMaterializeRequest { Definition = handle }).Instance as DataConfig;
+                    if (materialized != null)
+                    {
+                        result.Add(materialized);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -857,7 +865,11 @@ public static class SanGuoShaCardScripts
     private static DataConfig CopyCardConfig(DataConfig card)
     {
         var cardId = card.data.GetValueOrDefault("Id", card.InstanceID);
-        return new DataConfig(cardId, DataType.Card);
+        var handle = AuraGameDataHostApi.ResolveHandle(DataType.Card, cardId);
+        return handle != null
+               && AuraGameDataHostApi.Materialize(new AuraGameDataMaterializeRequest { Definition = handle }).Instance is DataConfig copy
+            ? copy
+            : throw new InvalidOperationException("Registered card definition is unavailable: " + cardId);
     }
 
     private static List<IStatusManager> FriendlyTargets(ScriptExecutor self)

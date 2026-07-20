@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraGameData.Shared.GameApi;
 using AuraUi.Shared;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
@@ -536,7 +537,11 @@ public static class FamiliarGrowthPanel
 
         try
         {
-            var data = new DataConfig(id, DataType.Bless).data;
+            var data = AuraGameDataHostApi.Row(DataType.Bless, id);
+            if (data == null)
+            {
+                return id;
+            }
             var localizedName = data.Localize("Name");
             if (!string.IsNullOrWhiteSpace(localizedName) && localizedName != "Name")
             {

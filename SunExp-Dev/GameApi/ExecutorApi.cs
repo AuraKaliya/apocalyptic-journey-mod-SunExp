@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraGameData.Shared.GameApi;
 using SunExp.Dll.Infrastructure;
 
 namespace SunExp.Dll.GameApi;
@@ -552,8 +553,14 @@ public static class ExecutorApi
             return false;
         }
 
+        var action = AuraGameDataHostApi.Materialize(DataType.EnemyCard, enemyCardId).Instance as DataConfig;
+        if (action == null)
+        {
+            return false;
+        }
+
         executor.SetStatus("Self");
-        executor.AddEnemyAction(new DataConfig(enemyCardId, DataType.EnemyCard));
+        executor.AddEnemyAction(action);
         return true;
     }
 

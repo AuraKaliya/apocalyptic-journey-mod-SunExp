@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using AuraUi.Shared;
+using AuraGameData.Shared.GameApi;
 using Michsky.MUIP;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
@@ -304,7 +305,13 @@ internal sealed class DimensionShopNativeSkin : IDisposable
         NeutralizeNativeTree(holder, removeTutorial: false);
         var nativeItem = AuraUiNativeGameItemAdapter.AdoptShopItem(holder);
         nativeItem.ItemType = type.ToString();
-        nativeItem.Init(new DataConfig(item.Id, type));
+        var nativeConfig = AuraGameDataHostApi.Materialize(type, item.Id).Instance as DataConfig;
+        if (nativeConfig == null)
+        {
+            UnityEngine.Object.Destroy(holder);
+            return;
+        }
+        nativeItem.Init(nativeConfig);
         holder.name = GeneratedPrefix + "Offer_" + type;
         LogNativeComponentTopology("offer-" + type, holder, nativeItem);
 
@@ -753,7 +760,8 @@ internal sealed class DimensionShopNativeSkin : IDisposable
             + ", id="
             + item.Id
             + ".");
-        return new DataConfig(item.Id, type);
+        return AuraGameDataHostApi.Materialize(type, item.Id).Instance as DataConfig
+            ?? throw new InvalidOperationException("Registered presenter definition is unavailable: " + type + ":" + item.Id);
     }
 
     private static TMP_Text ConfigureCurrencyRow(

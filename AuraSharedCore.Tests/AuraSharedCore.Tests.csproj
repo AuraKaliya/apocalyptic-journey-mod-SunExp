@@ -26,6 +26,8 @@
     <Compile Include="..\AuraSharedCore\AuraSharedEditableResourceModels.cs" Link="Core\AuraSharedEditableResourceModels.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedEditableResourceCoordinator.cs" Link="Core\AuraSharedEditableResourceCoordinator.cs" />
     <Compile Include="..\AuraRoleShared\AuraRoleRegistryModels.cs" Link="Role\AuraRoleRegistryModels.cs" />
+    <Compile Include="..\AuraGameDataShared\AuraGameDataModels.cs" Link="GameData\AuraGameDataModels.cs" />
+    <Compile Include="..\AuraGameDataShared\AuraGameDataCatalog.cs" Link="GameData\AuraGameDataCatalog.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedBootstrapResult.cs" Link="Core\AuraSharedBootstrapResult.cs" />
     <Compile Include="..\AuraSharedCore\AuraFeatureSwitchRuntime.cs" Link="Core\AuraFeatureSwitchRuntime.cs" />
     <Compile Include="..\AuraSharedCore\AuraLifecycleSessionRuntime.cs" Link="Core\AuraLifecycleSessionRuntime.cs" />
