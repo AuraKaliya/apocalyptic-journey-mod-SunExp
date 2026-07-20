@@ -1036,6 +1036,15 @@ public static class AuraToolsSettingsRuntime
         }
 
         settings.Common.RelativePath = imported;
+        FileResourceUtil.RegisterManualDirectory(
+            AuraSharedSystems.Audio,
+            "LocalAudio",
+            "Global",
+            "all",
+            AuraToolsIds.ModId,
+            "user-imports",
+            FileResourceUtil.CommonAudioDirectory(),
+            out _);
         AuraToolsConfigService.SaveAudio();
         AuraToolsAudioRuntime.RegisterProviders();
         if (rebuild && activePanel != null)

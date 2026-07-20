@@ -34,9 +34,7 @@ public static class FeastRoleResourceIdentity
 
     public static string ManualId(string roleId, string manualId)
     {
-        return "manual:CG:Feast:Role:"
-               + (roleId ?? "").Trim()
-               + ":"
+        return "CG/Role/" + (roleId ?? "").Trim() + "/Feast/AuraToolsExp/manual."
                + (manualId ?? "").Trim();
     }
 

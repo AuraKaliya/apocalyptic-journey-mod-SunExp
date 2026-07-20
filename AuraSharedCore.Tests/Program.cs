@@ -145,7 +145,7 @@ try
         System = "CG",
         LogicalId = "feast.role-a",
         SourcePath = editableSeed,
-        DestinationRelativePath = "CG/Overrides/Tool/role-a/feast_cg.png"
+        DestinationRelativePath = "CG/Role/role-a/Feast/Tool/manual.local/content.png"
     };
     var editableCreated = editable.Seed(editableRequest);
     Assert(editableCreated.Success && editableCreated.Changed && !editableCreated.Customized
@@ -155,7 +155,7 @@ try
     Assert(editableExisting.Success && !editableExisting.Changed && !editableExisting.Customized
            && editableExisting.Status == AuraSharedEditableResourceStatuses.ExistingDefault,
         "editable resource seed is idempotent");
-    var editablePath = Path.Combine(tempRoot, "CG", "Overrides", "Tool", "role-a", "feast_cg.png");
+    var editablePath = Path.Combine(tempRoot, "CG", "Role", "role-a", "Feast", "Tool", "manual.local", "content.png");
     File.WriteAllText(editablePath, "user-customized");
     editableRequest.PreviousSeedHash = editableCreated.SeedHash;
     var editableCustomized = editable.Seed(editableRequest);
@@ -180,15 +180,15 @@ try
         System = "CG",
         LogicalId = "feast.role-b",
         SourcePath = editableSeed,
-        DestinationRelativePath = "CG/Overrides/Tool/role-b/feast_cg.png"
+        DestinationRelativePath = "CG/Role/role-b/Feast/Tool/manual.local/content.png"
     };
     var untouchedCreated = editable.Seed(untouchedRequest);
-    File.WriteAllText(editableSeed, "seed-v3");
+    File.WriteAllText(editableSeed, "seed-updated");
     untouchedRequest.PreviousSeedHash = untouchedCreated.SeedHash;
     var untouchedUpdated = editable.Seed(untouchedRequest);
     Assert(untouchedUpdated.Success && untouchedUpdated.Changed && !untouchedUpdated.Customized
            && untouchedUpdated.Status == AuraSharedEditableResourceStatuses.UpdatedDefault
-           && File.ReadAllText(untouchedUpdated.InstalledPath) == "seed-v3",
+           && File.ReadAllText(untouchedUpdated.InstalledPath) == "seed-updated",
         "editable resource updates an untouched older seed");
 
     var stagedEditable = editable.StageTemporary("Tool", "feast-import", "png", new byte[] { 1, 2, 3 });
@@ -229,7 +229,7 @@ try
     Assert(true, "transaction recovery");
 
     TestIdentityContracts();
-    TestResourceProtocolV3();
+    TestResourceProtocolV4();
     TestQualifiedResourceIdentityConflicts();
     TestRoleRegistryContracts();
     TestSecureEnvelopeContracts();
@@ -251,323 +251,177 @@ finally
 
 return;
 
-void TestResourceProtocolV3()
+void TestResourceProtocolV4()
 {
-    var root = Path.Combine(tempRoot, "protocol-v3");
-    var sources = Path.Combine(sourceRoot, "protocol-v3");
+    var root = Path.Combine(tempRoot, "protocol-v4");
+    var sources = Path.Combine(sourceRoot, "protocol-v4");
     Directory.CreateDirectory(root);
-    Directory.CreateDirectory(Path.Combine(sources, "CG"));
-    var source = Path.Combine(sources, "CG", "default.png");
-    File.WriteAllText(source, "packaged-default");
-    var legacyRelative = "CG/Tool/Templates/Feast/Roles/role_a/feast_cg.png";
-    var legacy = Path.Combine(root, legacyRelative.Replace('/', Path.DirectorySeparatorChar));
-    Directory.CreateDirectory(Path.GetDirectoryName(legacy)!);
-    File.WriteAllText(legacy, "user-customized");
+    Directory.CreateDirectory(sources);
+    File.WriteAllText(Path.Combine(sources, "first.png"), "first");
+    File.WriteAllText(Path.Combine(sources, "second.png"), "second");
+    using var v4Storage = new AuraSharedStorageCoordinator(root);
+    var v4Packages = new AuraSharedPackageCoordinator(v4Storage);
+    var v4 = new AuraSharedRegistrationCoordinator(v4Storage, v4Packages, "session-v4");
 
-    using var v3Storage = new AuraSharedStorageCoordinator(root);
-    var v3Packages = new AuraSharedPackageCoordinator(v3Storage);
-    var v3 = new AuraSharedRegistrationCoordinator(v3Storage, v3Packages, "session-a");
-    var content = new AuraSharedRegistrationManifestV3
+    AuraSharedResourceDeclarationV4 Resource(string id, string source, int priority) => new()
+    {
+        ModuleId = "CG",
+        FeatureId = "Feast",
+        ScopeType = "Role",
+        ScopeId = "Content_role_a",
+        ScopeOwnerModId = "Content",
+        ScopeAliases = new List<string> { "role_a" },
+        ResourceId = id,
+        Source = source,
+        FileName = "content.png",
+        OriginKind = AuraSharedOriginKinds.ContentRegistered,
+        WriterId = "Content",
+        DefaultEnabled = true,
+        Priority = priority
+    };
+
+    var manifest = new AuraSharedRegistrationManifestV4
     {
         OwnerModId = "Content",
         ParticipantKind = AuraSharedParticipantKinds.Content,
-        PackageId = "Content.Resources",
-        PackageVersion = 1,
-        Resources = new List<AuraSharedResourceDeclarationV3>
+        PackageSourceKind = AuraSharedPackageSourceKinds.ModPackage,
+        PackageId = "Content.Resources.V4",
+        Resources = new List<AuraSharedResourceDeclarationV4>
         {
-            new()
-            {
-                ModuleId = "CG",
-                FeatureId = "Feast",
-                ScopeType = "Role",
-                ScopeId = "role_a",
-                ResourceId = "role-a.feast",
-                Source = "CG/default.png",
-                FileName = "content.png",
-                LegacyPaths = new List<string> { legacyRelative },
-                Priority = 20,
-                EffectMode = AuraSharedEffectModes.Additive,
-                MissingPolicy = AuraSharedMissingPolicies.Skip
-            }
-        },
-        Defaults = new List<AuraSharedDefaultProfileV3>
-        {
-            new()
-            {
-                ModuleId = "CG",
-                FeatureId = "Feast",
-                ScopeType = "Role",
-                ScopeId = "role_a",
-                ProfileId = "content-default",
-                ResourceOwnerModId = "Content",
-                ResourceId = "role-a.feast"
-            }
+            Resource("first", "first.png", 20),
+            Resource("second", "second.png", 10)
         }
     };
-    var registered = v3.Register("Content", content, sources);
-    var canonicalRelative = "CG/Role/role_a/Feast/Content/role-a.feast/content.png";
-    var canonical = Path.Combine(root, canonicalRelative.Replace('/', Path.DirectorySeparatorChar));
-    Assert(registered.Success
-           && registered.Items.Single().Status == "PreservedLocal"
-           && File.ReadAllText(canonical) == "user-customized",
-        "v3 registration migrates and preserves a legacy user customization");
+    var registered = v4.Register("Content", manifest, sources);
+    var firstPath = "CG/Role/Content_role_a/Feast/Content/first/content.png";
+    Assert(registered.Success && registered.Items.All(item => item.Success)
+           && File.Exists(Path.Combine(root, firstPath.Replace('/', Path.DirectorySeparatorChar))),
+        "v4 atomically registers resources into the canonical hierarchy");
     Assert(File.Exists(Path.Combine(root, "aura.shared.json"))
-           && File.Exists(Path.Combine(root, "CG", "aura.module.json"))
-           && File.Exists(Path.Combine(root, "CG", "Role", "aura.scope-type.json"))
-           && File.Exists(Path.Combine(root, "CG", "Role", "role_a", "aura.scope.json"))
-           && File.Exists(Path.Combine(root, "CG", "Role", "role_a", "Feast", "aura.feature.json"))
-           && File.Exists(Path.Combine(root, "CG", "Role", "role_a", "Feast", "Content", "aura.provider.json"))
-           && File.Exists(Path.Combine(root, "CG", "Role", "role_a", "Feast", "Content", "aura.defaults.json"))
-           && File.Exists(Path.Combine(root, "CG", "Role", "role_a", "Feast", "Content", "role-a.feast", "aura.resource.json"))
-           && File.Exists(Path.Combine(root, "CG", "Role", "role_a", "Feast", "Content", "role-a.feast", "aura.state.json")),
-        "v3 registration writes layered module feature provider and resource metadata");
-    Assert(File.Exists(Path.Combine(root, "_Runtime", "Leases", "session-a", "Content", "Content.Resources.json"))
-           && File.Exists(Path.Combine(root, "_Migration", "V2ToV3", "Content", "journal.json")),
-        "v3 registration records an active lease and migration journal");
-    var compatibility = v3.Resolve(legacyRelative);
-    Assert(compatibility.Success && compatibility.Active && !compatibility.UsedLegacyPath
-           && string.Equals(compatibility.ResolvedPath, canonical, StringComparison.OrdinalIgnoreCase),
-        "v3 resolver maps a legacy path to the canonical active resource");
-    var stableRevision = registered.Revision;
-    var repeated = v3.Register("Content", content, sources);
-    Assert(repeated.Success && repeated.Revision == stableRevision && repeated.ChangedScopeKeys.Count == 0,
-        "v3 registration is idempotent for an unchanged owner package");
+           && File.Exists(Path.Combine(root, "CG", "Role", "Content_role_a", "Feast", "aura.feature.json"))
+           && File.Exists(Path.Combine(root, "_Registry", "V4", "Owners", "Content", "Content.Resources.V4.json")),
+        "v4 writes layered metadata and a persistent registration");
+    var unregistered = v4.Resolve("CG/legacy.png");
+    Assert(!unregistered.Success && unregistered.Outcome == "Unregistered",
+        "v4 never resolves an unregistered raw file");
 
-    var siblingPackage = new AuraSharedRegistrationManifestV3
+    var rejectedV3 = new AuraSharedRegistrationManifestV4
     {
-        OwnerModId = "Content",
-        ParticipantKind = AuraSharedParticipantKinds.Content,
-        PackageId = "Content.Skins",
-        Resources = new List<AuraSharedResourceDeclarationV3>
+        SchemaVersion = 3,
+        OwnerModId = "OldContent",
+        PackageId = "Old.V3"
+    };
+    var rejected = v4.Register("OldContent", rejectedV3, sources);
+    Assert(!rejected.Success && rejected.Status == AuraSharedRegistrationStatuses.UnsupportedSchema,
+        "v4 rejects v3 manifests without an adapter");
+
+    var missingManifest = new AuraSharedRegistrationManifestV4
+    {
+        OwnerModId = "Missing",
+        PackageId = "Missing.Resources.V4",
+        Resources = new List<AuraSharedResourceDeclarationV4>
         {
             new()
             {
-                ModuleId = "CG",
-                FeatureId = "Feast",
-                ScopeType = "Role",
-                ScopeId = "role_a",
-                ResourceId = "role-a.alternate",
-                Source = "CG/default.png",
-                FileName = "content.png",
-                Priority = 10,
-                EffectMode = AuraSharedEffectModes.Additive,
-                MissingPolicy = AuraSharedMissingPolicies.Skip
+                ModuleId = "CG", FeatureId = "Feast", ScopeType = "Role", ScopeId = "Missing_role",
+                ScopeOwnerModId = "Missing", ResourceId = "available", Source = "first.png",
+                OriginKind = AuraSharedOriginKinds.ContentRegistered, WriterId = "Missing"
+            },
+            new()
+            {
+                ModuleId = "CG", FeatureId = "Feast", ScopeType = "Role", ScopeId = "Missing_role",
+                ScopeOwnerModId = "Missing", ResourceId = "missing", Source = "missing.png",
+                OriginKind = AuraSharedOriginKinds.ContentRegistered, WriterId = "Missing"
             }
         }
     };
-    var siblingRegistered = v3.Register("Content", siblingPackage, sources);
-    var providerManifest = JObject.Parse(File.ReadAllText(Path.Combine(
-        root,
-        "CG", "Role", "role_a", "Feast", "Content", "aura.provider.json")));
-    Assert(siblingRegistered.Success
-           && v3.GetActiveLeases().Length == 2
-           && providerManifest["packages"]!.Count() == 2
-           && providerManifest["resources"]!.Count() == 2,
-        "v3 keeps and aggregates multiple packages from the same owner in one provider layer");
+    var atomicReject = v4.Register("Missing", missingManifest, sources);
+    Assert(!atomicReject.Success
+           && v4.QueryCatalog(new AuraSharedCatalogQueryV4 { OwnerModId = "Missing" }).Entries.Count == 0,
+        "v4 rejects an unavailable package atomically");
 
-    var contentCatalog = v3.QueryCatalog(new AuraSharedCatalogQueryV3
-    {
-        ModuleId = "CG",
-        FeatureId = "Feast",
-        ScopeType = "Role",
-        ScopeId = "role_a",
-        OwnerModId = "Content"
-    });
-    Assert(contentCatalog.SessionId == "session-a"
-           && contentCatalog.Entries.Count == 2
-           && contentCatalog.Entries.All(entry => entry.Active && entry.Available)
-           && contentCatalog.Entries[0].SemanticResourceId == "CG:Feast:Role:role_a:role-a.feast"
-           && contentCatalog.Entries[0].QualifiedResourceId == "CG/Role/role_a/Feast/Content/role-a.feast"
-           && contentCatalog.Entries.Select(entry => entry.Resource.ResourceId)
-               .SequenceEqual(new[] { "role-a.feast", "role-a.alternate" }),
-        "v3 catalog enumerates active content registrations at module granularity");
-
-    var tool = new AuraSharedRegistrationManifestV3
-    {
-        OwnerModId = "Tool",
-        ParticipantKind = AuraSharedParticipantKinds.Tool,
-        PackageId = "Tool.Defaults",
-        PackageVersion = 1,
-        Resources = new List<AuraSharedResourceDeclarationV3>
-        {
-            new()
-            {
-                ModuleId = "CG",
-                FeatureId = "Feast",
-                ScopeType = "Role",
-                ScopeId = "role_a",
-                ResourceId = "role-a.feast",
-                Source = "CG/default.png",
-                FileName = "content.png",
-                Priority = 5,
-                EffectMode = AuraSharedEffectModes.Additive,
-                MissingPolicy = AuraSharedMissingPolicies.Skip
-            }
-        },
-        Defaults = new List<AuraSharedDefaultProfileV3>
-        {
-            new()
-            {
-                ModuleId = "CG",
-                FeatureId = "Feast",
-                ScopeType = "Role",
-                ScopeId = "role_a",
-                ProfileId = "tool-default",
-                Priority = 100,
-                ResourceOwnerModId = "Content",
-                ResourceId = "role-a.feast"
-            }
-        }
-    };
-    var lateTool = v3.Register("Tool", tool, sources);
-    Assert(lateTool.Success && lateTool.ChangedScopeKeys.Single() == "CG:Feast:Role:role_a"
-           && v3.GetActiveLeases().Length == 3
-           && File.Exists(Path.Combine(root, "CG", "Role", "role_a", "Feast", "Tool", "role-a.feast", "content.png"))
-           && lateTool.Revision > stableRevision,
-        "late tool registration keeps sibling leases and allows the same resource id under another owner");
-    var effective = v3.ResolveEffective(new AuraSharedScopeKey
-    {
-        ModuleId = "CG",
-        FeatureId = "Feast",
-        ScopeType = "Role",
-        ScopeId = "role_a"
-    });
-    Assert(effective.ConfigSource == "ToolDefault"
-           && effective.ConfigOwnerModId == "Tool"
-           && effective.ResourceOwnerModId == "Content"
-           && effective.ResourceId == "role-a.feast",
-        "tool default config priority is independent from formal resource ownership priority");
-    var localDisabled = v3.ResolveEffective(new AuraSharedScopeKey
-    {
-        ModuleId = "CG",
-        FeatureId = "Feast",
-        ScopeType = "Role",
-        ScopeId = "role_a"
-    }, new AuraSharedLocalOverrideV3 { Enabled = false });
-    Assert(localDisabled.ConfigSource == "LocalUser" && !localDisabled.Enabled && localDisabled.Outcome == "Disabled",
-        "sparse local user override wins over tool and content defaults");
     var scope = new AuraSharedScopeKey
     {
-        ModuleId = "CG",
-        FeatureId = "Feast",
-        ScopeType = "Role",
-        ScopeId = "role_a"
+        ModuleId = "CG", FeatureId = "Feast", ScopeType = "Role", ScopeId = "Content_role_a"
     };
-    var persistedOverride = v3.WriteUserOverride(
-        scope,
-        "Tool",
-        new AuraSharedLocalOverrideV3 { Enabled = false },
-        expectedRevision: 0);
-    var overrideConflict = v3.WriteUserOverride(
-        scope,
-        "Tool",
-        new AuraSharedLocalOverrideV3 { Enabled = true },
-        expectedRevision: 0);
-    var persistedEffective = v3.ResolveEffective(scope);
-    Assert(persistedOverride.Success && persistedOverride.Revision == 1
-           && overrideConflict.Conflict && overrideConflict.Revision == 1
-           && File.Exists(Path.Combine(root, "CG", "Role", "role_a", "Feast", "aura.user.json"))
-           && persistedEffective.ConfigSource == "LocalUser" && !persistedEffective.Enabled,
-        "v3 sparse user override is persisted at the feature scope with CAS protection");
-
-    Directory.CreateDirectory(Path.Combine(sources, "Audio", "RoleA"));
-    File.WriteAllText(Path.Combine(sources, "Audio", "RoleA", "voice.ogg"), "ogg-data");
-    var legacyAudioDirectory = Path.Combine(root, "Audio", "AudioContent", "RoleA");
-    Directory.CreateDirectory(legacyAudioDirectory);
-    File.WriteAllText(Path.Combine(legacyAudioDirectory, "voice.ogg"), "custom-legacy-ogg");
-    var audioOwner = new AuraSharedRegistrationManifestV3
+    var all = v4.ResolveEffective(scope, new AuraSharedLocalOverrideV4
     {
-        OwnerModId = "AudioContent",
-        ParticipantKind = AuraSharedParticipantKinds.Content,
-        PackageId = "AudioContent.Resources",
-        Resources = new List<AuraSharedResourceDeclarationV3>
-        {
-            new()
-            {
-                ModuleId = "Audio",
-                FeatureId = "Voice",
-                ScopeType = "Role",
-                ScopeId = "role_a",
-                ResourceId = "voice-pack",
-                Kind = AuraSharedResourceKinds.Directory,
-                Source = "Audio/RoleA",
-                LegacyPaths = new List<string> { "Audio/AudioContent/RoleA" },
-                EffectMode = AuraSharedEffectModes.Replacement,
-                MissingPolicy = AuraSharedMissingPolicies.NativeFallback
-            }
-        }
-    };
-    Assert(v3.Register("AudioContent", audioOwner, sources).Success, "v3 directory resource registration");
-    var legacyChild = v3.Resolve("Audio/AudioContent/RoleA/voice.ogg");
-    Assert(legacyChild.Success && legacyChild.Active && legacyChild.UsedLegacyPath
-           && string.Equals(legacyChild.ResolvedPath, Path.Combine(legacyAudioDirectory, "voice.ogg"), StringComparison.OrdinalIgnoreCase),
-        "v3 resolver preserves and prefers a customized registered legacy directory");
-    var canonicalAudioDirectory = Path.Combine(root, "Audio", "Role", "role_a", "Voice", "AudioContent", "voice-pack", "content");
-    File.WriteAllText(Path.Combine(canonicalAudioDirectory, "voice.ogg"), "custom-v3-ogg");
-    Assert(v3.Register("AudioContent", audioOwner, sources).Success, "v3 directory resource re-registration");
-    var canonicalCustomizedChild = v3.Resolve("Audio/AudioContent/RoleA/voice.ogg");
-    Assert(canonicalCustomizedChild.Success && !canonicalCustomizedChild.UsedLegacyPath
-           && string.Equals(canonicalCustomizedChild.ResolvedPath, Path.Combine(canonicalAudioDirectory, "voice.ogg"), StringComparison.OrdinalIgnoreCase),
-        "v3 canonical directory customization wins over an older legacy directory");
-
-    var nextSession = new AuraSharedRegistrationCoordinator(v3Storage, v3Packages, "session-b");
-    var residual = nextSession.Resolve(canonicalRelative);
-    Assert(residual.Success && !residual.Active && residual.Outcome == "LegacyUnregistered",
-        "persistent residual data is inactive without a current-session lease");
-    Assert(nextSession.QueryCatalog(new AuraSharedCatalogQueryV3
-        {
-            ModuleId = "CG",
-            FeatureId = "Feast"
-        }).Entries.Count == 0,
-        "v3 catalog excludes residual registrations by default");
-    var residualCatalog = nextSession.QueryCatalog(new AuraSharedCatalogQueryV3
-    {
-        ModuleId = "CG",
-        FeatureId = "Feast",
-        IncludeInactive = true
+        Enabled = true,
+        SelectionMode = AuraSharedSelectionModes.All
     });
-    Assert(residualCatalog.Entries.Count == 3
-           && residualCatalog.Entries.All(entry => !entry.Active && entry.Available),
-        "v3 catalog can inspect redundant persisted registrations without activating them");
-
-    var missing = new AuraSharedRegistrationManifestV3
+    Assert(all.Resources.Count == 2 && all.Resources[0].ResourceId == "first",
+        "v4 routes multiple enabled resources through the common selection pipeline");
+    var disabled = v4.ResolveEffective(scope, new AuraSharedLocalOverrideV4
     {
-        OwnerModId = "MissingContent",
-        ParticipantKind = AuraSharedParticipantKinds.Content,
-        PackageId = "Missing.Resources",
-        Resources = new List<AuraSharedResourceDeclarationV3>
+        Enabled = true,
+        SelectionMode = AuraSharedSelectionModes.All,
+        ResourceOverrides = new Dictionary<string, bool> { ["Content:first"] = false }
+    });
+    Assert(disabled.Resources.Count == 1 && disabled.Resources[0].ResourceId == "second",
+        "v4 sparse resource overrides control effective candidates");
+    var overrideWrite = v4.WriteUserOverride(scope, "LocalUser", new AuraSharedLocalOverrideV4
+    {
+        Enabled = true,
+        SelectionMode = AuraSharedSelectionModes.Sequential,
+        ResourceOverrides = new Dictionary<string, bool> { ["Content:first"] = false }
+    }, 0);
+    var overrideJson = JObject.Parse(File.ReadAllText(Path.Combine(
+        root, "CG", "Role", "Content_role_a", "Feast", "aura.user.json")));
+    var configuredCatalog = v4.QueryCatalog(new AuraSharedCatalogQueryV4
+    {
+        ModuleId = "CG", FeatureId = "Feast", ScopeId = "Content_role_a"
+    });
+    Assert(overrideWrite.Success
+           && overrideJson["schemaVersion"]!.Value<int>() == 4
+           && overrideJson["selectionMode"]!.Value<string>() == AuraSharedSelectionModes.Sequential
+           && overrideJson["override"] == null
+           && configuredCatalog.Entries.Any(entry => entry.Resource.ResourceId == "first" && !entry.ConfiguredEnabled),
+        "v4 writes a sparse flat aura.user.json and keeps disabled resources in the normal catalog");
+
+    var manualSource = Path.Combine(sources, "manual.png");
+    File.WriteAllText(manualSource, "manual");
+    var manualRequest = new AuraSharedManualResourceRequestV4
+    {
+        OwnerModId = "Tool",
+        WriterId = "LocalUser",
+        SourcePath = manualSource,
+        Resource = new AuraSharedResourceDeclarationV4
         {
-            new()
-            {
-                ModuleId = "Audio",
-                FeatureId = "BattleBgm",
-                ScopeType = "Role",
-                ScopeId = "role_a",
-                ResourceId = "missing-bgm",
-                Source = "missing.ogg",
-                EffectMode = AuraSharedEffectModes.Replacement,
-                MissingPolicy = AuraSharedMissingPolicies.NativeFallback
-            }
+            ModuleId = "CG", FeatureId = "Feast", ScopeType = "Role", ScopeId = "Content_role_a",
+            ScopeOwnerModId = "Content", ScopeAliases = new List<string> { "role_a" }, ResourceId = "manual.local",
+            Kind = AuraSharedResourceKinds.File, FileName = "content.png", OriginKind = AuraSharedOriginKinds.UserManual,
+            WriterId = "LocalUser", Priority = 1000
         }
     };
-    var missingResult = v3.Register("MissingContent", missing, sources);
-    var missingResolution = v3.Resolve("Audio/Role/role_a/BattleBgm/MissingContent/missing-bgm/content.ogg");
-    Assert(missingResult.Success
-           && missingResult.Items.Single().Status == AuraSharedRegistrationStatuses.Unavailable
-           && !missingResolution.Success
-           && missingResolution.Fallback == AuraSharedMissingPolicies.NativeFallback,
-        "missing replacement resource is isolated and resolves to native fallback");
-    var staleMissingPath = Path.Combine(root, "Audio", "Role", "role_a", "BattleBgm", "MissingContent", "missing-bgm", "content.ogg");
-    Directory.CreateDirectory(Path.GetDirectoryName(staleMissingPath)!);
-    File.WriteAllText(staleMissingPath, "residual-from-an-older-install");
-    var missingCatalogEntry = v3.QueryCatalog(new AuraSharedCatalogQueryV3
+    var imported = v4.UpsertManualResource("Tool", manualRequest);
+    manualRequest.Archive = true;
+    manualRequest.SourcePath = "";
+    var archived = v4.UpsertManualResource("Tool", manualRequest);
+    var history = v4.QueryCatalog(new AuraSharedCatalogQueryV4
     {
-        ModuleId = "Audio",
-        FeatureId = "BattleBgm",
-        OwnerModId = "MissingContent"
-    }).Entries.Single();
-    Assert(missingCatalogEntry.Active && !missingCatalogEntry.Available,
-        "active catalog declarations retain unavailable registration outcomes even if residual files exist");
+        Visibility = AuraSharedCatalogVisibilities.History,
+        OwnerModId = "Tool"
+    });
+    Assert(imported.Success && archived.Success && history.Entries.Single().HistoryReasons.Contains(AuraSharedHistoryReasons.Archived),
+        "v4 manual resources share the canonical tree and archive into the history view");
+
+    manifest.Resources = new List<AuraSharedResourceDeclarationV4> { Resource("first", "first.png", 20) };
+    manifest.PackageVersion++;
+    var updated = v4.Register("Content", manifest, sources);
+    var retired = v4.QueryCatalog(new AuraSharedCatalogQueryV4
+    {
+        Visibility = AuraSharedCatalogVisibilities.History,
+        OwnerModId = "Content"
+    });
+    Assert(updated.Success && retired.Entries.Any(entry => entry.Resource.ResourceId == "second"
+            && entry.HistoryReasons.Contains(AuraSharedHistoryReasons.Retired)),
+        "v4 keeps removed declarations in history as retired resources");
+
+    var nextSession = new AuraSharedRegistrationCoordinator(v4Storage, v4Packages, "session-v4-next");
+    Assert(nextSession.QueryCatalog(new AuraSharedCatalogQueryV4()).Entries.Count == 0
+           && nextSession.QueryCatalog(new AuraSharedCatalogQueryV4 { Visibility = AuraSharedCatalogVisibilities.History })
+               .Entries.All(entry => entry.HistoryReasons.Contains(AuraSharedHistoryReasons.InactiveOwner)),
+        "v4 separates persistent history from active session leases");
 }
 
 void TestQualifiedResourceIdentityConflicts()
@@ -582,11 +436,11 @@ void TestQualifiedResourceIdentityConflicts()
     using var identityStorage = new AuraSharedStorageCoordinator(root);
     var identityPackages = new AuraSharedPackageCoordinator(identityStorage);
     var coordinator = new AuraSharedRegistrationCoordinator(identityStorage, identityPackages, "identity-session");
-    AuraSharedRegistrationManifestV3 Manifest(string packageId, string source) => new()
+    AuraSharedRegistrationManifestV4 Manifest(string packageId, string source) => new()
     {
         OwnerModId = "ContentA",
         PackageId = packageId,
-        Resources = new List<AuraSharedResourceDeclarationV3>
+        Resources = new List<AuraSharedResourceDeclarationV4>
         {
             new()
             {
@@ -595,14 +449,17 @@ void TestQualifiedResourceIdentityConflicts()
                 ScopeId = "role-a",
                 FeatureId = "Skin",
                 ResourceId = "summer",
-                Source = source
+                Source = source,
+                ScopeOwnerModId = "ContentA",
+                OriginKind = AuraSharedOriginKinds.ContentRegistered,
+                WriterId = "ContentA"
             }
         }
     };
 
     var first = coordinator.Register("ContentA", Manifest("ContentA.Skins", "skin-a.txt"), sources);
     var conflict = coordinator.Register("ContentA", Manifest("ContentA.AlternateSkins", "skin-b.txt"), sources);
-    var catalog = coordinator.QueryCatalog(new AuraSharedCatalogQueryV3 { ModuleId = "Skin" });
+    var catalog = coordinator.QueryCatalog(new AuraSharedCatalogQueryV4 { ModuleId = "Skin" });
     Assert(first.Items.Single().Success
            && !conflict.Items.Single().Success
            && conflict.Items.Single().Status == AuraSharedRegistrationStatuses.Invalid
@@ -613,7 +470,7 @@ void TestQualifiedResourceIdentityConflicts()
     var otherOwner = Manifest("ContentB.Skins", "skin-b.txt");
     otherOwner.OwnerModId = "ContentB";
     var coexist = coordinator.Register("ContentB", otherOwner, sources);
-    var candidates = coordinator.QueryCatalog(new AuraSharedCatalogQueryV3 { ModuleId = "Skin" }).Entries;
+    var candidates = coordinator.QueryCatalog(new AuraSharedCatalogQueryV4 { ModuleId = "Skin" }).Entries;
     Assert(coexist.Items.Single().Success
            && candidates.Count == 2
            && candidates.Select(entry => entry.SemanticResourceId).Distinct(StringComparer.OrdinalIgnoreCase).Count() == 1
@@ -626,7 +483,7 @@ void TestQualifiedResourceIdentityConflicts()
     var unsafeResult = coordinator.Register("ContentC", unsafeIdentity, sources);
     Assert(!unsafeResult.Items.Single().Success
            && unsafeResult.Items.Single().Status == AuraSharedRegistrationStatuses.Invalid
-           && coordinator.QueryCatalog(new AuraSharedCatalogQueryV3 { OwnerModId = "ContentC" }).Entries.Count == 0,
+           && coordinator.QueryCatalog(new AuraSharedCatalogQueryV4 { OwnerModId = "ContentC" }).Entries.Count == 0,
         "resource registration rejects identity segments that would collapse to the same canonical directory");
 }
 

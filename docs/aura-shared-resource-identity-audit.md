@@ -11,7 +11,7 @@ preserve registrations -> validate qualified identity -> group semantic candidat
 
 | Module | Registration identity | Candidate/conflict policy | Audit result |
 | --- | --- | --- | --- |
-| AuraSharedCore v3 catalog | Full module/scope/feature/owner/resource tuple | Cross-owner semantic duplicates coexist; same-owner active package collision is invalid | Updated |
+| AuraSharedCore v4 catalog | Full module/scope/feature/owner/resource tuple | Cross-owner semantic duplicates coexist; same-owner active package collision is invalid | Updated |
 | AuraSkinShared | `ownerModId:targetCareerId:skinId` | All candidates retained; AuraTools local list gates candidates; selections and sync use qualified ids | Updated from destructive semantic deduplication |
 | AuraCgShared | `ownerModId:cgId` | Cross-owner entries coexist; enabled candidates use shared priority/random/sequential selector; duplicate qualified ids in one or multiple owner contributions are rejected | Verified and hardened |
 | AuraCardUseFxShared | `ownerModId:effectId` | Qualified entries coexist; stack/exclusive policy resolves semantic overlap; duplicate qualified manifest entries are rejected | Verified and hardened |

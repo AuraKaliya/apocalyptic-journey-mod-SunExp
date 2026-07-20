@@ -14,14 +14,13 @@ public static class AuraToolsFeastManualResourceStore
 
     public static string RoleDirectory(string roleId)
     {
-        return FileResourceUtil.EnsureDirectory(
-            AuraToolsConfigService.DataRootDirectory,
-            "CG",
-            "Overrides",
+        var normalized = RoleCatalog.NormalizeRoleId(roleId);
+        var resourcePath = AuraSharedResourcePathPolicy.ResourcePath(
+            ManualScope(normalized),
             AuraToolsIds.ModId,
-            "Feast",
-            "Role",
-            FeastRoleResourceIdentity.FolderName(RoleCatalog.NormalizeRoleId(roleId)));
+            ManualDeclaration(normalized, LocalManualId));
+        var absolute = AuraToolsConfigService.ResolveConfiguredPath(resourcePath);
+        return FileResourceUtil.EnsureDirectory(Path.GetDirectoryName(absolute) ?? absolute);
     }
 
     public static bool ImportRoleImage(string roleId, string sourcePath, out string message)
@@ -45,18 +44,15 @@ public static class AuraToolsFeastManualResourceStore
         var existing = role.ManualResources.FirstOrDefault(manual =>
             string.Equals(manual.ManualId, LocalManualId, StringComparison.OrdinalIgnoreCase));
         var destination = ManualResourcePath(normalizedRole, LocalManualId);
-        AuraSharedEditableResourceResult result;
+        AuraSharedRegistrationItemResultV4 result;
         try
         {
-            result = AuraSharedEditableResource.Seed(AuraToolsIds.ModId, new AuraSharedEditableResourceRequest
+            result = AuraSharedResourceProtocol.UpsertManualResource(AuraToolsIds.ModId, new AuraSharedManualResourceRequestV4
             {
                 OwnerModId = AuraToolsIds.ModId,
-                System = AuraSharedSystems.Cg,
-                LogicalId = "feast.manual." + normalizedRole + "." + LocalManualId,
+                WriterId = "LocalUser",
                 SourcePath = canonicalSource,
-                DestinationRelativePath = destination,
-                PreviousSeedHash = existing?.SeedHash ?? "",
-                ForceReset = true
+                Resource = ManualDeclaration(normalizedRole, LocalManualId)
             });
         }
         finally
@@ -82,12 +78,12 @@ public static class AuraToolsFeastManualResourceStore
         existing.DisplayName = (string.IsNullOrWhiteSpace(role.DisplayName) ? role.RoleId : role.DisplayName)
                                + " - 人工配置";
         existing.Resource = destination;
-        existing.SeedHash = result.SeedHash;
-        existing.ContentHash = result.ContentHash;
+        existing.SeedHash = "";
+        existing.ContentHash = "";
         existing.Priority = 1000;
         role.ResourceOverrides[FeastRoleResourceIdentity.ManualId(normalizedRole, LocalManualId)] = true;
         AuraToolsFeastRuntime.SaveRoleSettings(role);
-        message = "已保存人工美餐 CG 配置；原文件已按共享可编辑资源规则备份。";
+        message = "已按共享资源协议 v4 注册人工美餐 CG。";
         return true;
     }
 
@@ -99,18 +95,67 @@ public static class AuraToolsFeastManualResourceStore
             RoleCatalog.GetDisplayName(normalizedRole));
         var removed = role.ManualResources.RemoveAll(manual =>
             string.Equals(manual.ManualId, LocalManualId, StringComparison.OrdinalIgnoreCase));
+        var archived = AuraSharedResourceProtocol.UpsertManualResource(AuraToolsIds.ModId, new AuraSharedManualResourceRequestV4
+        {
+            OwnerModId = AuraToolsIds.ModId,
+            WriterId = "LocalUser",
+            Archive = true,
+            Resource = ManualDeclaration(normalizedRole, LocalManualId)
+        });
         role.ResourceOverrides.Remove(FeastRoleResourceIdentity.ManualId(normalizedRole, LocalManualId));
         AuraToolsFeastRuntime.SaveRoleSettings(role);
-        message = removed > 0 ? "已移除人工配置；资源文件保留在本地目录。" : "当前角色没有人工配置。";
-        return removed > 0;
+        message = removed > 0 && archived.Success
+            ? "已停用人工配置；资源已移入历史资源视图。"
+            : "当前角色没有可移除的人工配置。";
+        return removed > 0 && archived.Success;
     }
 
     private static string ManualResourcePath(string roleId, string manualId)
     {
-        return "CG/Overrides/" + AuraToolsIds.ModId
-               + "/Feast/Role/" + FeastRoleResourceIdentity.FolderName(roleId)
-               + "/" + AuraSharedPaths.SafeSegment(manualId, LocalManualId)
-               + "/content.png";
+        return AuraSharedResourcePathPolicy.ResourcePath(
+            ManualScope(roleId),
+            AuraToolsIds.ModId,
+            ManualDeclaration(roleId, manualId));
+    }
+
+    private static AuraSharedScopeKey ManualScope(string roleId)
+    {
+        return new AuraSharedScopeKey
+        {
+            ModuleId = AuraSharedSystems.Cg,
+            FeatureId = "Feast",
+            ScopeType = "Role",
+            ScopeId = RoleCatalog.NormalizeRoleId(roleId)
+        };
+    }
+
+    private static AuraSharedResourceDeclarationV4 ManualDeclaration(string roleId, string manualId)
+    {
+        var normalized = RoleCatalog.NormalizeRoleId(roleId);
+        var role = RoleCatalog.GetRoles().FirstOrDefault(item => RoleCatalog.MatchesRole(normalized, item.Id));
+        return new AuraSharedResourceDeclarationV4
+        {
+            ModuleId = AuraSharedSystems.Cg,
+            FeatureId = "Feast",
+            ScopeType = "Role",
+            ScopeId = normalized,
+            ScopeOwnerModId = role?.OwnerModId ?? AuraToolsIds.ModId,
+            ScopeAliases = role?.Aliases?.ToList() ?? new System.Collections.Generic.List<string> { normalized },
+            ResourceId = "manual." + AuraSharedPaths.SafeSegment(manualId, LocalManualId),
+            Kind = AuraSharedResourceKinds.File,
+            FileName = "content.png",
+            OriginKind = AuraSharedOriginKinds.UserManual,
+            WriterId = "LocalUser",
+            DefaultEnabled = true,
+            Priority = 1000,
+            EffectMode = AuraSharedEffectModes.Additive,
+            MissingPolicy = AuraSharedMissingPolicies.Skip,
+            Metadata = new System.Collections.Generic.Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["displayName"] = RoleCatalog.GetDisplayName(normalized) + " - 人工配置",
+                ["mediaType"] = "image"
+            }
+        };
     }
 
     private static string ResolveInputPath(string value)

@@ -1,73 +1,319 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "ownerModId": "SunExp",
   "participantKind": "Content",
-  "packageId": "SunExp.SharedResources.V3",
+  "packageId": "SunExp.SharedResources.V4",
   "packageVersion": 1,
   "resources": [
     {
-      "moduleId": "Audio", "featureId": "Voice", "scopeType": "Role", "scopeId": "SunExp_wuna_wuna",
-      "resourceId": "wuna.voice-pack", "kind": "Directory", "source": "Audio/WuNa",
-      "legacyPaths": ["Audio/SunExp/WuNa"], "priority": 100,
-      "effectMode": "Replacement", "missingPolicy": "NativeFallback", "tags": ["role-pack", "voice"]
+      "moduleId": "Audio",
+      "featureId": "Voice",
+      "scopeType": "Role",
+      "scopeId": "SunExp_wuna_wuna",
+      "resourceId": "wuna.voice-pack",
+      "kind": "Directory",
+      "source": "Audio/WuNa",
+      "priority": 100,
+      "effectMode": "Replacement",
+      "missingPolicy": "NativeFallback",
+      "tags": [
+        "role-pack",
+        "voice"
+      ],
+      "writerId": "SunExp",
+      "defaultEnabled": true,
+      "archived": false,
+      "scopeOwnerModId": "SunExp",
+      "scopeAliases": [
+        "wuna"
+      ],
+      "originKind": "ContentRegistered"
     },
     {
-      "moduleId": "Audio", "featureId": "Voice", "scopeType": "Role", "scopeId": "SunExp_columbina_columbina",
-      "resourceId": "columbina.voice-pack", "kind": "Directory", "source": "Audio/Columbina",
-      "legacyPaths": ["Audio/SunExp/Columbina"], "priority": 100,
-      "effectMode": "Replacement", "missingPolicy": "NativeFallback", "tags": ["role-pack", "voice"]
+      "moduleId": "Audio",
+      "featureId": "Voice",
+      "scopeType": "Role",
+      "scopeId": "SunExp_columbina_columbina",
+      "resourceId": "columbina.voice-pack",
+      "kind": "Directory",
+      "source": "Audio/Columbina",
+      "priority": 100,
+      "effectMode": "Replacement",
+      "missingPolicy": "NativeFallback",
+      "tags": [
+        "role-pack",
+        "voice"
+      ],
+      "writerId": "SunExp",
+      "defaultEnabled": true,
+      "archived": false,
+      "scopeOwnerModId": "SunExp",
+      "scopeAliases": [
+        "columbina"
+      ],
+      "originKind": "ContentRegistered"
     },
     {
-      "moduleId": "CG", "featureId": "SkillCg", "scopeType": "Role", "scopeId": "SunExp_loneer_loneer",
-      "resourceId": "loneer.morning-star-prayer", "kind": "File", "source": "CG/Loneer/Loneer_晨星祈愿.png", "fileName": "content.png",
-      "legacyPaths": ["CG/SunExp/Loneer/Loneer_晨星祈愿.png"], "priority": 20,
-      "effectMode": "Additive", "missingPolicy": "Skip", "tags": ["skill-cg", "active-skill"]
+      "moduleId": "CG",
+      "featureId": "SkillCg",
+      "scopeType": "Role",
+      "scopeId": "SunExp_loneer_loneer",
+      "resourceId": "loneer.morning-star-prayer",
+      "kind": "File",
+      "source": "CG/Loneer/Loneer_晨星祈愿.png",
+      "fileName": "content.png",
+      "priority": 20,
+      "effectMode": "Additive",
+      "missingPolicy": "Skip",
+      "tags": [
+        "skill-cg",
+        "active-skill"
+      ],
+      "writerId": "SunExp",
+      "defaultEnabled": true,
+      "archived": false,
+      "scopeOwnerModId": "SunExp",
+      "scopeAliases": [
+        "loneer"
+      ],
+      "originKind": "ContentRegistered"
     },
     {
-      "moduleId": "CG", "featureId": "SkillCg", "scopeType": "Role", "scopeId": "SunExp_wuna_wuna",
-      "resourceId": "wuna.white-sun-prayer", "kind": "File", "source": "CG/WuNa/WuNa_白曜圣祷.png", "fileName": "content.png",
-      "legacyPaths": ["CG/SunExp/WuNa/WuNa_白曜圣祷.png"], "priority": 20,
-      "effectMode": "Additive", "missingPolicy": "Skip", "tags": ["skill-cg", "active-skill"]
+      "moduleId": "CG",
+      "featureId": "SkillCg",
+      "scopeType": "Role",
+      "scopeId": "SunExp_wuna_wuna",
+      "resourceId": "wuna.white-sun-prayer",
+      "kind": "File",
+      "source": "CG/WuNa/WuNa_白曜圣祷.png",
+      "fileName": "content.png",
+      "priority": 20,
+      "effectMode": "Additive",
+      "missingPolicy": "Skip",
+      "tags": [
+        "skill-cg",
+        "active-skill"
+      ],
+      "writerId": "SunExp",
+      "defaultEnabled": true,
+      "archived": false,
+      "scopeOwnerModId": "SunExp",
+      "scopeAliases": [
+        "wuna"
+      ],
+      "originKind": "ContentRegistered"
     },
     {
-      "moduleId": "CG", "featureId": "SkillCg", "scopeType": "Role", "scopeId": "SunExp_columbina_columbina",
-      "resourceId": "columbina.homesickness", "kind": "File", "source": "CG/Columbina/Columbina_她的乡愁.png", "fileName": "content.png",
-      "legacyPaths": ["CG/SunExp/Columbina/Columbina_她的乡愁.png"], "priority": 20,
-      "effectMode": "Additive", "missingPolicy": "Skip", "tags": ["skill-cg", "active-skill"]
+      "moduleId": "CG",
+      "featureId": "SkillCg",
+      "scopeType": "Role",
+      "scopeId": "SunExp_columbina_columbina",
+      "resourceId": "columbina.homesickness",
+      "kind": "File",
+      "source": "CG/Columbina/Columbina_她的乡愁.png",
+      "fileName": "content.png",
+      "priority": 20,
+      "effectMode": "Additive",
+      "missingPolicy": "Skip",
+      "tags": [
+        "skill-cg",
+        "active-skill"
+      ],
+      "writerId": "SunExp",
+      "defaultEnabled": true,
+      "archived": false,
+      "scopeOwnerModId": "SunExp",
+      "scopeAliases": [
+        "columbina"
+      ],
+      "originKind": "ContentRegistered"
     },
     {
-      "moduleId": "CG", "featureId": "CardUse", "scopeType": "Card", "scopeId": "SunExp_sunexp_blazing_crown_collapse",
-      "resourceId": "sunexp.blazing-crown-collapse", "kind": "Directory", "source": "CG/WuNa/BlazingCrownCollapse",
-      "legacyPaths": ["CG/SunExp/WuNa/BlazingCrownCollapse"], "priority": 30,
-      "effectMode": "Additive", "missingPolicy": "Skip", "tags": ["card-use-cg", "sequence-cg"]
+      "moduleId": "CG",
+      "featureId": "CardUse",
+      "scopeType": "Card",
+      "scopeId": "SunExp_sunexp_blazing_crown_collapse",
+      "resourceId": "sunexp.blazing-crown-collapse",
+      "kind": "Directory",
+      "source": "CG/WuNa/BlazingCrownCollapse",
+      "priority": 30,
+      "effectMode": "Additive",
+      "missingPolicy": "Skip",
+      "tags": [
+        "card-use-cg",
+        "sequence-cg"
+      ],
+      "writerId": "SunExp",
+      "defaultEnabled": true,
+      "archived": false,
+      "scopeOwnerModId": "SunExp",
+      "scopeAliases": [
+        "collapse"
+      ],
+      "originKind": "ContentRegistered"
     },
     {
-      "moduleId": "CG", "featureId": "Feast", "scopeType": "Role", "scopeId": "SunExp_loneer_loneer",
-      "resourceId": "loneer.feast", "kind": "File", "source": "CG/Loneer/Loneer_美餐.png", "fileName": "content.png",
-      "legacyPaths": ["CG/SunExp/Loneer/Loneer_美餐.png"], "priority": 20,
-      "effectMode": "Additive", "missingPolicy": "Skip", "tags": ["feast-cg"]
+      "moduleId": "CG",
+      "featureId": "Feast",
+      "scopeType": "Role",
+      "scopeId": "SunExp_loneer_loneer",
+      "resourceId": "loneer.feast",
+      "kind": "File",
+      "source": "CG/Loneer/Loneer_美餐.png",
+      "fileName": "content.png",
+      "priority": 20,
+      "effectMode": "Additive",
+      "missingPolicy": "Skip",
+      "tags": [
+        "feast-cg"
+      ],
+      "writerId": "SunExp",
+      "defaultEnabled": true,
+      "archived": false,
+      "scopeOwnerModId": "SunExp",
+      "scopeAliases": [
+        "loneer"
+      ],
+      "originKind": "ContentRegistered"
     },
     {
-      "moduleId": "CG", "featureId": "Feast", "scopeType": "Role", "scopeId": "SunExp_wuna_wuna",
-      "resourceId": "wuna.feast", "kind": "File", "source": "CG/WuNa/WuNa_美餐.png", "fileName": "content.png",
-      "legacyPaths": ["CG/SunExp/WuNa/WuNa_美餐.png"], "priority": 20,
-      "effectMode": "Additive", "missingPolicy": "Skip", "tags": ["feast-cg"]
+      "moduleId": "CG",
+      "featureId": "Feast",
+      "scopeType": "Role",
+      "scopeId": "SunExp_wuna_wuna",
+      "resourceId": "wuna.feast",
+      "kind": "File",
+      "source": "CG/WuNa/WuNa_美餐.png",
+      "fileName": "content.png",
+      "priority": 20,
+      "effectMode": "Additive",
+      "missingPolicy": "Skip",
+      "tags": [
+        "feast-cg"
+      ],
+      "writerId": "SunExp",
+      "defaultEnabled": true,
+      "archived": false,
+      "scopeOwnerModId": "SunExp",
+      "scopeAliases": [
+        "wuna"
+      ],
+      "originKind": "ContentRegistered"
     },
     {
-      "moduleId": "CG", "featureId": "Feast", "scopeType": "Role", "scopeId": "SunExp_columbina_columbina",
-      "resourceId": "columbina.feast", "kind": "File", "source": "CG/Columbina/Columbina_美餐.png", "fileName": "content.png",
-      "legacyPaths": ["CG/SunExp/Columbina/Columbina_美餐.png"], "priority": 20,
-      "effectMode": "Additive", "missingPolicy": "Skip", "tags": ["feast-cg"]
+      "moduleId": "CG",
+      "featureId": "Feast",
+      "scopeType": "Role",
+      "scopeId": "SunExp_columbina_columbina",
+      "resourceId": "columbina.feast",
+      "kind": "File",
+      "source": "CG/Columbina/Columbina_美餐.png",
+      "fileName": "content.png",
+      "priority": 20,
+      "effectMode": "Additive",
+      "missingPolicy": "Skip",
+      "tags": [
+        "feast-cg"
+      ],
+      "writerId": "SunExp",
+      "defaultEnabled": true,
+      "archived": false,
+      "scopeOwnerModId": "SunExp",
+      "scopeAliases": [
+        "columbina"
+      ],
+      "originKind": "ContentRegistered"
     }
   ],
   "defaults": [
-    { "moduleId": "Audio", "featureId": "Voice", "scopeType": "Role", "scopeId": "SunExp_wuna_wuna", "profileId": "content-default", "enabled": true, "priority": 100, "resourceOwnerModId": "SunExp", "resourceId": "wuna.voice-pack" },
-    { "moduleId": "Audio", "featureId": "Voice", "scopeType": "Role", "scopeId": "SunExp_columbina_columbina", "profileId": "content-default", "enabled": true, "priority": 100, "resourceOwnerModId": "SunExp", "resourceId": "columbina.voice-pack" },
-    { "moduleId": "CG", "featureId": "SkillCg", "scopeType": "Role", "scopeId": "SunExp_loneer_loneer", "profileId": "content-default", "enabled": true, "priority": 20, "resourceOwnerModId": "SunExp", "resourceId": "loneer.morning-star-prayer" },
-    { "moduleId": "CG", "featureId": "SkillCg", "scopeType": "Role", "scopeId": "SunExp_wuna_wuna", "profileId": "content-default", "enabled": true, "priority": 20, "resourceOwnerModId": "SunExp", "resourceId": "wuna.white-sun-prayer" },
-    { "moduleId": "CG", "featureId": "SkillCg", "scopeType": "Role", "scopeId": "SunExp_columbina_columbina", "profileId": "content-default", "enabled": true, "priority": 20, "resourceOwnerModId": "SunExp", "resourceId": "columbina.homesickness" },
-    { "moduleId": "CG", "featureId": "Feast", "scopeType": "Role", "scopeId": "SunExp_loneer_loneer", "profileId": "content-default", "enabled": true, "priority": 20, "resourceOwnerModId": "SunExp", "resourceId": "loneer.feast" },
-    { "moduleId": "CG", "featureId": "Feast", "scopeType": "Role", "scopeId": "SunExp_wuna_wuna", "profileId": "content-default", "enabled": true, "priority": 20, "resourceOwnerModId": "SunExp", "resourceId": "wuna.feast" },
-    { "moduleId": "CG", "featureId": "Feast", "scopeType": "Role", "scopeId": "SunExp_columbina_columbina", "profileId": "content-default", "enabled": true, "priority": 20, "resourceOwnerModId": "SunExp", "resourceId": "columbina.feast" }
-  ]
+    {
+      "moduleId": "Audio",
+      "featureId": "Voice",
+      "scopeType": "Role",
+      "scopeId": "SunExp_wuna_wuna",
+      "profileId": "content-default",
+      "enabled": true,
+      "priority": 100,
+      "resourceOwnerModId": "SunExp",
+      "resourceId": "wuna.voice-pack"
+    },
+    {
+      "moduleId": "Audio",
+      "featureId": "Voice",
+      "scopeType": "Role",
+      "scopeId": "SunExp_columbina_columbina",
+      "profileId": "content-default",
+      "enabled": true,
+      "priority": 100,
+      "resourceOwnerModId": "SunExp",
+      "resourceId": "columbina.voice-pack"
+    },
+    {
+      "moduleId": "CG",
+      "featureId": "SkillCg",
+      "scopeType": "Role",
+      "scopeId": "SunExp_loneer_loneer",
+      "profileId": "content-default",
+      "enabled": true,
+      "priority": 20,
+      "resourceOwnerModId": "SunExp",
+      "resourceId": "loneer.morning-star-prayer"
+    },
+    {
+      "moduleId": "CG",
+      "featureId": "SkillCg",
+      "scopeType": "Role",
+      "scopeId": "SunExp_wuna_wuna",
+      "profileId": "content-default",
+      "enabled": true,
+      "priority": 20,
+      "resourceOwnerModId": "SunExp",
+      "resourceId": "wuna.white-sun-prayer"
+    },
+    {
+      "moduleId": "CG",
+      "featureId": "SkillCg",
+      "scopeType": "Role",
+      "scopeId": "SunExp_columbina_columbina",
+      "profileId": "content-default",
+      "enabled": true,
+      "priority": 20,
+      "resourceOwnerModId": "SunExp",
+      "resourceId": "columbina.homesickness"
+    },
+    {
+      "moduleId": "CG",
+      "featureId": "Feast",
+      "scopeType": "Role",
+      "scopeId": "SunExp_loneer_loneer",
+      "profileId": "content-default",
+      "enabled": true,
+      "priority": 20,
+      "resourceOwnerModId": "SunExp",
+      "resourceId": "loneer.feast"
+    },
+    {
+      "moduleId": "CG",
+      "featureId": "Feast",
+      "scopeType": "Role",
+      "scopeId": "SunExp_wuna_wuna",
+      "profileId": "content-default",
+      "enabled": true,
+      "priority": 20,
+      "resourceOwnerModId": "SunExp",
+      "resourceId": "wuna.feast"
+    },
+    {
+      "moduleId": "CG",
+      "featureId": "Feast",
+      "scopeType": "Role",
+      "scopeId": "SunExp_columbina_columbina",
+      "profileId": "content-default",
+      "enabled": true,
+      "priority": 20,
+      "resourceOwnerModId": "SunExp",
+      "resourceId": "columbina.feast"
+    }
+  ],
+  "packageSourceKind": "ModPackage"
 }

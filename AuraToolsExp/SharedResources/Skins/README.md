@@ -1,7 +1,7 @@
 # AuraSkinShared 皮肤资源包
 
 Mod 内的 `SharedResources/Skins` 是发布源，不是运行时读取目录。Mod 加载时通过
-`AuraSkinRuntime.RegisterPackage` 注册到共享层。v3 运行时目录为
+`AuraSkinRuntime.RegisterPackage` 注册到共享层。v4 运行时目录为
 `ModsData/AuraShared/Skin/Role/<角色ID>/Skin/<MOD>/<皮肤ID>/content/`。
 旧版 `ModsData/AuraShared/Skins/<角色ID>/<皮肤ID>/` 仅作为已注册资源的兼容读取别名；
 未在本次会话注册的残留目录不会被扫描启用。

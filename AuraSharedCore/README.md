@@ -36,7 +36,7 @@ the bootstrapper does not scan or install resources on behalf of other Mods.
 
 ## Package manifest contract
 
-`SharedResources/package.json` is the stable entry point for bundled shared resources in main Mods. The main Mods are
+`SharedResources/aura.registration.json` is the required v4 entry point for bundled shared resources in main Mods. The main Mods are
 `SunExp`, `SanGuoShaExp`, and `AuraToolsExp`; prototype packages under `TestMods` may exercise the same APIs but must not
 define the production contract.
 

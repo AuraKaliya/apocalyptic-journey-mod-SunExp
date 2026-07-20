@@ -18,6 +18,10 @@ public sealed class RoleInfo
 
     public string Icon { get; set; } = "";
 
+    public string OwnerModId { get; set; } = "";
+
+    public List<string> Aliases { get; set; } = new();
+
     public List<RoleSkillInfo> Skills { get; set; } = new();
 }
 
@@ -73,6 +77,19 @@ public static class RoleCatalog
         return AuraSharedIdentity.NormalizeRoleId(roleId);
     }
 
+    public static bool MatchesRole(string activeRoleId, string candidateRoleId, IEnumerable<string>? candidateAliases = null)
+    {
+        var active = GetRoles().FirstOrDefault(role => role.Aliases
+            .Concat(new[] { role.Id })
+            .Any(alias => string.Equals(NormalizeRoleId(alias), NormalizeRoleId(activeRoleId), StringComparison.OrdinalIgnoreCase)));
+        if (active == null) return false;
+        var candidateIds = (candidateAliases ?? Array.Empty<string>()).Concat(new[] { candidateRoleId });
+        return active.Aliases.Concat(new[] { active.Id })
+            .Select(NormalizeRoleId)
+            .Intersect(candidateIds.Select(NormalizeRoleId), StringComparer.OrdinalIgnoreCase)
+            .Any();
+    }
+
     private static List<RoleInfo> ScanRoles()
     {
         var result = new List<RoleInfo>();
@@ -107,6 +124,8 @@ public static class RoleCatalog
                     DisplayName = ResolveDisplayName(normalizedId, row),
                     PackBelong = row.TryGetValue("PackBelong", out var pack) ? pack : "",
                     Icon = row.TryGetValue("Icon", out var icon) ? icon : "",
+                    OwnerModId = row.TryGetValue("PackBelong", out var owner) ? owner : "Witch",
+                    Aliases = new List<string> { normalizedId },
                     Skills = ResolveSkills(row)
                 });
             }
@@ -114,6 +133,37 @@ public static class RoleCatalog
         catch (Exception ex)
         {
             AuraToolsLog.Warn("Role scan failed: " + ex.Message);
+        }
+
+        try
+        {
+            foreach (var entry in AuraRoleRegistryRuntime.GetSnapshot().Entries)
+            {
+                var normalizedId = NormalizeRoleId(entry.RoleId);
+                if (string.IsNullOrWhiteSpace(normalizedId)) continue;
+                var existing = result.FirstOrDefault(role => string.Equals(role.Id, normalizedId, StringComparison.OrdinalIgnoreCase)
+                    || role.Aliases.Any(alias => entry.Aliases.Contains(alias, StringComparer.OrdinalIgnoreCase)));
+                if (existing == null)
+                {
+                    result.Add(new RoleInfo
+                    {
+                        Id = normalizedId,
+                        DisplayName = string.IsNullOrWhiteSpace(entry.DisplayName) ? normalizedId : entry.DisplayName,
+                        PackBelong = entry.PackBelong,
+                        Icon = entry.Icon,
+                        OwnerModId = entry.OwnerModId,
+                        Aliases = entry.Aliases.Concat(new[] { normalizedId }).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+                    });
+                    continue;
+                }
+                existing.Aliases = existing.Aliases.Concat(entry.Aliases).Concat(new[] { normalizedId })
+                    .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                if (string.IsNullOrWhiteSpace(existing.OwnerModId)) existing.OwnerModId = entry.OwnerModId;
+            }
+        }
+        catch (Exception ex)
+        {
+            AuraToolsLog.Warn("Active role registry scan failed: " + ex.Message);
         }
 
         var roles = result

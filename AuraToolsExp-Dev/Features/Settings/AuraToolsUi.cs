@@ -681,18 +681,19 @@ internal static class AuraToolsUi
 
     private static Transform ResolveOverlayRoot(Transform parent)
     {
-        if (parent is RectTransform)
-        {
-            return parent;
-        }
-
         var current = parent;
-        while (current.parent != null && current.parent is RectTransform)
+        while (current != null)
         {
+            if (current is RectTransform
+                && (string.Equals(current.name, "Window", StringComparison.Ordinal)
+                    || current.GetComponent<Canvas>() != null))
+            {
+                return current;
+            }
+            if (current.parent == null || current.parent is not RectTransform) break;
             current = current.parent;
         }
-
-        return current;
+        return parent;
     }
 
     private static Rect ResolveSpriteRect(Sprite source, Rect? sourceCrop)

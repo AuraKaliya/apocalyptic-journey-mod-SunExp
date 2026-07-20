@@ -278,11 +278,11 @@ public static class AuraToolsSkinRuntime
             : new Dictionary<string, string>(current.Override.Values, StringComparer.OrdinalIgnoreCase);
         values["selectionMode"] = "ManualSelection";
         values["resourceOverrides"] = AuraSharedJson.Serialize(scopedOverrides);
-        var localOverride = new AuraSharedLocalOverrideV3
+        var localOverride = new AuraSharedLocalOverrideV4
         {
             Enabled = current.Override?.Enabled,
-            ResourceOwnerModId = current.Override?.ResourceOwnerModId ?? "",
-            ResourceId = current.Override?.ResourceId ?? "",
+            SelectionMode = AuraSharedSelectionModes.Priority,
+            ResourceOverrides = scopedOverrides,
             Values = values
         };
         var written = AuraSharedResourceProtocol.WriteUserOverride(

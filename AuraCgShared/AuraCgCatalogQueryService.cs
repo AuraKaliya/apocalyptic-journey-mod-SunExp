@@ -13,7 +13,7 @@ public static class AuraCgCatalogQueryService
         string scopeType = "",
         string scopeId = "")
     {
-        var snapshot = AuraSharedResourceProtocol.QueryCatalog(callerId, new AuraSharedCatalogQueryV3
+        var snapshot = AuraSharedResourceProtocol.QueryCatalog(callerId, new AuraSharedCatalogQueryV4
         {
             ModuleId = AuraSharedSystems.Cg,
             FeatureId = featureId,
@@ -36,7 +36,7 @@ public static class AuraCgCatalogQueryService
         string scopeType = "",
         string scopeId = "")
     {
-        var snapshot = AuraSharedResourceProtocol.QueryCatalog(callerId, new AuraSharedCatalogQueryV3
+        var snapshot = AuraSharedResourceProtocol.QueryCatalog(callerId, new AuraSharedCatalogQueryV4
         {
             ModuleId = AuraSharedSystems.Cg,
             FeatureId = featureId,
@@ -77,7 +77,7 @@ public static class AuraCgCatalogQueryService
                + AuraSharedPaths.NormalizeRelativePath(relativePath ?? "");
     }
 
-    private static AuraCgCatalogResource Project(AuraSharedCatalogEntryV3 entry)
+    private static AuraCgCatalogResource Project(AuraSharedCatalogEntryV4 entry)
     {
         var metadata = entry.Resource.Metadata
                        ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -87,9 +87,12 @@ public static class AuraCgCatalogQueryService
             ParticipantKind = entry.ParticipantKind,
             PackageId = entry.PackageId,
             PackageVersion = entry.PackageVersion,
+            OriginKind = entry.Resource.OriginKind,
             FeatureId = entry.Resource.FeatureId,
             ScopeType = entry.Resource.ScopeType,
             ScopeId = entry.Resource.ScopeId,
+            ScopeOwnerModId = entry.Resource.ScopeOwnerModId,
+            ScopeAliases = (entry.Resource.ScopeAliases ?? new List<string>()).ToArray(),
             ResourceId = entry.Resource.ResourceId,
             QualifiedResourceId = entry.QualifiedResourceId,
             DisplayName = Metadata(metadata, "displayName", entry.Resource.ResourceId),
@@ -167,9 +170,12 @@ public sealed class AuraCgCatalogResource
     public string ParticipantKind { get; set; } = "";
     public string PackageId { get; set; } = "";
     public long PackageVersion { get; set; }
+    public string OriginKind { get; set; } = "";
     public string FeatureId { get; set; } = "";
     public string ScopeType { get; set; } = "";
     public string ScopeId { get; set; } = "";
+    public string ScopeOwnerModId { get; set; } = "";
+    public IReadOnlyList<string> ScopeAliases { get; set; } = Array.Empty<string>();
     public string ResourceId { get; set; } = "";
     public string QualifiedResourceId { get; set; } = "";
     public string DisplayName { get; set; } = "";

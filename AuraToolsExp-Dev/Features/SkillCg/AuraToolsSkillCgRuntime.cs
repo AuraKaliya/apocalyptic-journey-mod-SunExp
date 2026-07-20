@@ -1202,6 +1202,17 @@ public static class AuraToolsSkillCgEditor
             }
             else
             {
+                var activeRole = RoleCatalog.GetRoles().FirstOrDefault(candidate =>
+                    string.Equals(candidate.Id, RoleCatalog.NormalizeRoleId(role.RoleId), StringComparison.OrdinalIgnoreCase));
+                FileResourceUtil.RegisterManualDirectory(
+                    AuraSharedSystems.Cg,
+                    "SkillCg",
+                    "Role",
+                    role.RoleId,
+                    activeRole?.OwnerModId ?? AuraToolsIds.ModId,
+                    "user-imports",
+                    FileResourceUtil.RoleSkillCgDirectory(role.RoleId),
+                    out _);
                 role.Enabled = true;
                 rule.Enabled = true;
                 SetHint(message + " " + rule.Image);

@@ -81,12 +81,12 @@ foreach ($modPath in @($career.ActionImage1, $career.ActionImage2)) {
     Assert-True (Test-Path -LiteralPath (Join-Path $repoRoot $relative)) "Missing Columbina skill image from career data."
 }
 
-$sharedPackagePath = Join-Path $repoRoot "SunExp\SharedResources\package.json"
+$sharedPackagePath = Join-Path $repoRoot "SunExp\SharedResources\aura.registration.json"
 $sharedPackage = Get-Content -Raw -Encoding UTF8 -LiteralPath $sharedPackagePath | ConvertFrom-Json
-Assert-True ([int]$sharedPackage.packageVersion -ge 10) "Columbina voice resources require SunExp shared package version 10 or newer."
+Assert-True ([int]$sharedPackage.schemaVersion -eq 4) "Columbina resources require AuraShared resource protocol v4."
 $sharedPackageRoot = Split-Path -Parent $sharedPackagePath
-foreach ($resourceId in @("SunExp.Columbina.Homesickness.SkillCg", "SunExp.Columbina.FeastCg")) {
-    $resource = $sharedPackage.resources | Where-Object { $_.resourceId -eq $resourceId -and $_.system -eq "CG" -and $_.kind -eq "File" } | Select-Object -First 1
+foreach ($resourceId in @("columbina.homesickness", "columbina.feast")) {
+    $resource = $sharedPackage.resources | Where-Object { $_.resourceId -eq $resourceId -and $_.moduleId -eq "CG" -and $_.kind -eq "File" } | Select-Object -First 1
     Assert-True ($null -ne $resource) "Missing Columbina shared CG package resource: $resourceId"
     Assert-True (Test-Path -LiteralPath (Join-Path $sharedPackageRoot $resource.source) -PathType Leaf) "Missing Columbina shared CG source: $($resource.source)"
 }
@@ -102,7 +102,7 @@ Assert-True ($null -ne $feastCg -and $feastCg.kind -eq "feast") "Columbina Feast
 Assert-True ($feastCg.defaultActivation.consumerMode -eq "toolManaged" -and $feastCg.defaultActivation.consumerModId -eq "AuraToolsExp") "Columbina Feast CG must be managed by AuraToolsExp."
 Assert-True ([double]$homesicknessCg.defaultPresentation.hold -eq 2.1) "Columbina Homesickness CG must cover the longest voice variant."
 
-$voicePack = $sharedPackage.resources | Where-Object { $_.resourceId -eq "SunExp.Columbina.VoicePack" -and $_.system -eq "Audio" -and $_.kind -eq "Directory" } | Select-Object -First 1
+$voicePack = $sharedPackage.resources | Where-Object { $_.resourceId -eq "columbina.voice-pack" -and $_.moduleId -eq "Audio" -and $_.kind -eq "Directory" } | Select-Object -First 1
 Assert-True ($null -ne $voicePack) "Columbina shared voice pack registration is missing."
 $voiceRoot = Join-Path $sharedPackageRoot $voicePack.source
 $voiceFiles = @(Get-ChildItem -LiteralPath $voiceRoot -Filter "*.ogg" -File)
@@ -123,7 +123,7 @@ foreach ($providerId in $expectedVoiceCounts.Keys) {
     Assert-True ($paths.Count -eq $expectedVoiceCounts[$providerId]) "Unexpected Columbina voice variant count: $providerId"
     Assert-True ([double]$provider.gainDb -eq 8) "Columbina voices must use the configured +8 dB provider gain: $providerId"
     foreach ($path in $paths) {
-        Assert-True ($path.StartsWith("Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content/")) "Columbina voice must resolve through the v3 shared scope: $path"
+        Assert-True ($path.StartsWith("Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content/")) "Columbina voice must resolve through the v4 shared scope: $path"
         Assert-True (Test-Path -LiteralPath (Join-Path $voiceRoot ([System.IO.Path]::GetFileName($path))) -PathType Leaf) "Missing declared Columbina voice file: $path"
     }
 }

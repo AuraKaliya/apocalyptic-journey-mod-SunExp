@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace AuraShared.Core;
 
@@ -14,7 +12,7 @@ public sealed class AuraSharedRegistrationCoordinator
     private readonly AuraSharedStorageCoordinator storage;
     private readonly AuraSharedPackageCoordinator packages;
     private readonly AuraSharedEditableResourceCoordinator editable;
-    private readonly Dictionary<string, AuraSharedRegistrationManifestV3> active =
+    private readonly Dictionary<string, AuraSharedRegistrationManifestV4> active =
         new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, bool> activeAvailability =
         new(StringComparer.OrdinalIgnoreCase);
@@ -37,9 +35,9 @@ public sealed class AuraSharedRegistrationCoordinator
 
     public string SessionId { get; }
 
-    public AuraSharedRegistrationResultV3 Register(
+    public AuraSharedRegistrationResultV4 Register(
         string callerOwnerModId,
-        AuraSharedRegistrationManifestV3 manifest,
+        AuraSharedRegistrationManifestV4 manifest,
         string baseDirectory)
     {
         lock (gate)
@@ -48,7 +46,134 @@ public sealed class AuraSharedRegistrationCoordinator
         }
     }
 
-    public AuraSharedResourceResolutionV3 Resolve(string requestedPath)
+    public AuraSharedRegistrationItemResultV4 UpsertManualResource(
+        string callerOwnerModId,
+        AuraSharedManualResourceRequestV4 request)
+    {
+        lock (gate)
+        {
+            var item = new AuraSharedRegistrationItemResultV4();
+            var owner = (callerOwnerModId ?? "").Trim();
+            if (request == null || !string.Equals(owner, request.OwnerModId?.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                item.Status = AuraSharedRegistrationStatuses.Invalid;
+                item.Message = "Manual resource owner does not match caller.";
+                return item;
+            }
+            var resource = request.Resource ?? new AuraSharedResourceDeclarationV4();
+            resource.Normalize();
+            resource.OriginKind = AuraSharedOriginKinds.UserManual;
+            resource.WriterId = "LocalUser";
+            resource.Archived = request.Archive;
+            item.ScopeKey = resource.Scope.Key;
+            item.ResourceId = resource.ResourceId;
+            item.CanonicalPath = AuraSharedResourcePathPolicy.ResourcePath(resource.Scope, owner, resource);
+            if (!HasCanonicalIdentitySegments(owner, resource)
+                || string.IsNullOrWhiteSpace(resource.ScopeOwnerModId)
+                || !string.Equals(request.WriterId, "LocalUser", StringComparison.Ordinal))
+            {
+                item.Status = AuraSharedRegistrationStatuses.Invalid;
+                item.Message = "Manual v4 identity, scope owner, or writer is invalid.";
+                return item;
+            }
+            if (!request.Archive)
+            {
+                var source = Path.GetFullPath(request.SourcePath ?? "");
+                var isDirectory = string.Equals(resource.Kind, AuraSharedResourceKinds.Directory, StringComparison.OrdinalIgnoreCase);
+                if (isDirectory ? !Directory.Exists(source) : !File.Exists(source))
+                {
+                    item.Status = AuraSharedRegistrationStatuses.Unavailable;
+                    item.Message = "Manual source is missing.";
+                    return item;
+                }
+                if (isDirectory)
+                {
+                    if (!SamePath(source, Absolute(item.CanonicalPath)))
+                    {
+                        item.Status = AuraSharedRegistrationStatuses.Invalid;
+                        item.Message = "Manual directories must already be inside their canonical v4 location.";
+                        return item;
+                    }
+                    item.Changed = true;
+                }
+                else
+                {
+                    var seeded = editable.Seed(new AuraSharedEditableResourceRequest
+                    {
+                        OwnerModId = owner,
+                        System = resource.ModuleId,
+                        LogicalId = resource.Scope.Key + ":" + resource.ResourceId,
+                        SourcePath = source,
+                        DestinationRelativePath = item.CanonicalPath,
+                        ForceReset = true
+                    });
+                    if (!seeded.Success)
+                    {
+                        item.Status = AuraSharedRegistrationStatuses.Invalid;
+                        item.Message = seeded.Message;
+                        return item;
+                    }
+                    item.Changed = seeded.Changed;
+                }
+            }
+            resource.Source = item.CanonicalPath;
+            var packageId = owner + ".LocalResources";
+            var persisted = ReadPersistedManifests().FirstOrDefault(manifest =>
+                string.Equals(manifest.OwnerModId, owner, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(manifest.PackageId, packageId, StringComparison.OrdinalIgnoreCase))
+                ?? new AuraSharedRegistrationManifestV4
+                {
+                    OwnerModId = owner,
+                    ParticipantKind = AuraSharedParticipantKinds.Tool,
+                    PackageSourceKind = AuraSharedPackageSourceKinds.LocalPackage,
+                    PackageId = packageId
+                };
+            persisted.Resources.RemoveAll(existing => string.Equals(
+                ResourceIdentity(owner, existing), ResourceIdentity(owner, resource), StringComparison.OrdinalIgnoreCase));
+            persisted.Resources.Add(resource);
+            persisted.PackageVersion++;
+            var key = RegistrationKey(owner, packageId);
+            active[key] = persisted;
+            activeAvailability[AvailabilityKey(key, resource)] = !request.Archive && Exists(Absolute(item.CanonicalPath));
+            storage.WriteRawJsonAtomic(
+                Absolute("_Registry/V4/Owners/" + Safe(owner) + "/" + Safe(packageId) + ".json"),
+                persisted,
+                true);
+            item.Success = true;
+            item.Status = request.Archive ? "Archived" : AuraSharedRegistrationStatuses.Updated;
+            revisions[resource.Scope.Key] = ++revision;
+            WriteLayeredMetadata(persisted, new[] { item });
+            WriteRuntimeIndex();
+            return item;
+        }
+    }
+
+    public int ActivateLocalPackages(string callerOwnerModId)
+    {
+        lock (gate)
+        {
+            var owner = (callerOwnerModId ?? "").Trim();
+            var activated = 0;
+            foreach (var manifest in ReadPersistedManifests().Where(manifest =>
+                         string.Equals(manifest.OwnerModId, owner, StringComparison.OrdinalIgnoreCase)
+                         && string.Equals(manifest.PackageSourceKind, AuraSharedPackageSourceKinds.LocalPackage, StringComparison.Ordinal)))
+            {
+                var key = RegistrationKey(owner, manifest.PackageId);
+                active[key] = manifest;
+                foreach (var resource in manifest.Resources)
+                {
+                    activeAvailability[AvailabilityKey(key, resource)] = !resource.Archived
+                        && Exists(Absolute(AuraSharedResourcePathPolicy.ResourcePath(resource.Scope, owner, resource)));
+                    revisions[resource.Scope.Key] = ++revision;
+                }
+                activated++;
+            }
+            if (activated > 0) WriteRuntimeIndex();
+            return activated;
+        }
+    }
+
+    public AuraSharedResourceResolutionV4 Resolve(string requestedPath)
     {
         lock (gate)
         {
@@ -58,52 +183,28 @@ public sealed class AuraSharedRegistrationCoordinator
                 .FirstOrDefault(match => match != null);
             if (candidate == null)
             {
-                var direct = ResolveAbsolute(requested);
-                return new AuraSharedResourceResolutionV3
+                return new AuraSharedResourceResolutionV4
                 {
-                    Success = Exists(direct),
+                    Success = false,
                     Active = false,
-                    UsedLegacyPath = true,
-                    ResolvedPath = direct,
-                    Outcome = Exists(direct) ? "LegacyUnregistered" : "Missing",
+                    ResolvedPath = ResolveAbsolute(requested),
+                    Outcome = "Unregistered",
                     Fallback = "Unregistered"
                 };
             }
 
             var canonicalPath = ResolveAbsolute(candidate!.CanonicalRequestPath);
-            var preferredLegacy = candidate.PreferLegacy
-                ? candidate.LegacyRequestPaths.Select(ResolveAbsolute).FirstOrDefault(Exists)
-                : "";
-            var resolved = string.IsNullOrWhiteSpace(preferredLegacy) ? canonicalPath : preferredLegacy;
-            var usedLegacy = false;
-            if (!string.IsNullOrWhiteSpace(preferredLegacy))
-            {
-                usedLegacy = true;
-            }
-            else if (!Exists(canonicalPath))
-            {
-                var legacy = candidate.LegacyRequestPaths
-                    .Select(ResolveAbsolute)
-                    .FirstOrDefault(Exists);
-                if (!string.IsNullOrWhiteSpace(legacy))
-                {
-                    resolved = legacy;
-                    usedLegacy = true;
-                }
-            }
-
-            var available = Exists(resolved);
+            var available = Exists(canonicalPath);
             var scopeKey = candidate.Resource.Scope.Key;
-            return new AuraSharedResourceResolutionV3
+            return new AuraSharedResourceResolutionV4
             {
                 Success = available,
                 Active = true,
-                UsedLegacyPath = usedLegacy,
                 OwnerModId = candidate.Manifest.OwnerModId,
                 ResourceId = candidate.Resource.ResourceId,
                 ScopeKey = scopeKey,
-                ResolvedPath = resolved,
-                Outcome = available ? (usedLegacy ? "LegacyFallback" : "Resolved") : "Unavailable",
+                ResolvedPath = canonicalPath,
+                Outcome = available ? "Resolved" : "Unavailable",
                 Fallback = available
                     ? "None"
                     : candidate.Resource.MissingPolicy,
@@ -120,15 +221,15 @@ public sealed class AuraSharedRegistrationCoordinator
         }
     }
 
-    public AuraSharedEffectiveResolutionV3 ResolveEffective(
+    public AuraSharedEffectiveResolutionV4 ResolveEffective(
         AuraSharedScopeKey scope,
-        AuraSharedLocalOverrideV3? localOverride = null)
+        AuraSharedLocalOverrideV4? localOverride = null)
     {
         lock (gate)
         {
             scope ??= new AuraSharedScopeKey();
             scope.Normalize();
-            return AuraSharedEffectiveResolverV3.Resolve(
+            return AuraSharedEffectiveResolverV4.Resolve(
                 scope,
                 active.Values,
                 localOverride ?? TryReadUserOverride(scope)?.Override,
@@ -137,7 +238,7 @@ public sealed class AuraSharedRegistrationCoordinator
         }
     }
 
-    public AuraSharedUserOverrideDocumentV3 ReadUserOverride(AuraSharedScopeKey scope)
+    public AuraSharedUserOverrideDocumentV4 ReadUserOverride(AuraSharedScopeKey scope)
     {
         lock (gate)
         {
@@ -145,22 +246,22 @@ public sealed class AuraSharedRegistrationCoordinator
             scope.Normalize();
             return storage.LoadRawJsonOrDefault(
                 Absolute(AuraSharedResourcePathPolicy.UserOverridePath(scope)),
-                new AuraSharedUserOverrideDocumentV3());
+                new AuraSharedUserOverrideDocumentV4());
         }
     }
 
-    private AuraSharedUserOverrideDocumentV3? TryReadUserOverride(AuraSharedScopeKey scope)
+    private AuraSharedUserOverrideDocumentV4? TryReadUserOverride(AuraSharedScopeKey scope)
     {
         var path = Absolute(AuraSharedResourcePathPolicy.UserOverridePath(scope));
         return File.Exists(path)
-            ? storage.LoadRawJsonOrDefault(path, new AuraSharedUserOverrideDocumentV3())
+            ? storage.LoadRawJsonOrDefault(path, new AuraSharedUserOverrideDocumentV4())
             : null;
     }
 
-    public AuraSharedUserOverrideWriteResultV3 WriteUserOverride(
+    public AuraSharedUserOverrideWriteResultV4 WriteUserOverride(
         AuraSharedScopeKey scope,
         string writerId,
-        AuraSharedLocalOverrideV3 localOverride,
+        AuraSharedLocalOverrideV4 localOverride,
         long expectedRevision)
     {
         lock (gate)
@@ -168,12 +269,12 @@ public sealed class AuraSharedRegistrationCoordinator
             scope ??= new AuraSharedScopeKey();
             scope.Normalize();
             var path = Absolute(AuraSharedResourcePathPolicy.UserOverridePath(scope));
-            return storage.ExecuteWrite("UserOverrideV3/" + scope.Key, () =>
+            return storage.ExecuteWrite("UserOverrideV4/" + scope.Key, () =>
             {
-                var current = storage.LoadRawJsonOrDefault(path, new AuraSharedUserOverrideDocumentV3());
+                var current = storage.LoadRawJsonOrDefault(path, new AuraSharedUserOverrideDocumentV4());
                 if (expectedRevision >= 0 && current.Revision != expectedRevision)
                 {
-                    return new AuraSharedUserOverrideWriteResultV3
+                    return new AuraSharedUserOverrideWriteResultV4
                     {
                         Conflict = true,
                         Revision = current.Revision,
@@ -181,17 +282,19 @@ public sealed class AuraSharedRegistrationCoordinator
                     };
                 }
 
-                var next = new AuraSharedUserOverrideDocumentV3
+                localOverride ??= new AuraSharedLocalOverrideV4();
+                localOverride.Normalize();
+                var next = new AuraSharedUserOverrideDocumentV4
                 {
                     Revision = current.Revision + 1,
                     WriterId = string.IsNullOrWhiteSpace(writerId) ? "LocalUser" : writerId.Trim(),
                     UpdatedUtc = DateTime.UtcNow.ToString("O"),
-                    Override = localOverride ?? new AuraSharedLocalOverrideV3()
+                    Override = localOverride
                 };
                 storage.WriteRawJsonAtomic(path, next, true);
                 revisions[scope.Key] = ++revision;
                 WriteRuntimeIndex();
-                return new AuraSharedUserOverrideWriteResultV3
+                return new AuraSharedUserOverrideWriteResultV4
                 {
                     Success = true,
                     Revision = next.Revision
@@ -200,7 +303,7 @@ public sealed class AuraSharedRegistrationCoordinator
         }
     }
 
-    public AuraSharedActiveLeaseV3[] GetActiveLeases()
+    public AuraSharedActiveLeaseV4[] GetActiveLeases()
     {
         lock (gate)
         {
@@ -211,15 +314,15 @@ public sealed class AuraSharedRegistrationCoordinator
         }
     }
 
-    public AuraSharedCatalogSnapshotV3 QueryCatalog(AuraSharedCatalogQueryV3? query)
+    public AuraSharedCatalogSnapshotV4 QueryCatalog(AuraSharedCatalogQueryV4? query)
     {
         lock (gate)
         {
-            query ??= new AuraSharedCatalogQueryV3();
+            query ??= new AuraSharedCatalogQueryV4();
             query.Normalize();
             var activeKeys = new HashSet<string>(active.Keys, StringComparer.OrdinalIgnoreCase);
             var manifests = active.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
-            if (query.IncludeInactive)
+            if (query.Visibility != AuraSharedCatalogVisibilities.Active)
             {
                 foreach (var manifest in ReadPersistedManifests())
                 {
@@ -238,6 +341,10 @@ public sealed class AuraSharedRegistrationCoordinator
                     activeKeys.Contains(pair.Key),
                     IsActiveResourceAvailable(pair.Key, resource))))
                 .Where(entry => MatchesCatalogQuery(entry, query))
+                .Where(entry => query.Visibility == AuraSharedCatalogVisibilities.All
+                                || (query.Visibility == AuraSharedCatalogVisibilities.History
+                                    ? entry.HistoryReasons.Count > 0
+                                    : entry.Active && entry.Available && !entry.Resource.Archived && !entry.Resource.Retired))
                 .OrderBy(entry => entry.Resource.ModuleId, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(entry => entry.Resource.ScopeType, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(entry => entry.Resource.ScopeId, StringComparer.OrdinalIgnoreCase)
@@ -246,7 +353,7 @@ public sealed class AuraSharedRegistrationCoordinator
                 .ThenBy(entry => entry.OwnerModId, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(entry => entry.Resource.ResourceId, StringComparer.OrdinalIgnoreCase)
                 .ToList();
-            return new AuraSharedCatalogSnapshotV3
+            return new AuraSharedCatalogSnapshotV4
             {
                 SessionId = SessionId,
                 Revision = revision,
@@ -255,12 +362,12 @@ public sealed class AuraSharedRegistrationCoordinator
         }
     }
 
-    private AuraSharedRegistrationResultV3 RegisterNoLock(
+    private AuraSharedRegistrationResultV4 RegisterNoLock(
         string callerOwnerModId,
-        AuraSharedRegistrationManifestV3 manifest,
+        AuraSharedRegistrationManifestV4 manifest,
         string baseDirectory)
     {
-        var result = new AuraSharedRegistrationResultV3
+        var result = new AuraSharedRegistrationResultV4
         {
             OwnerModId = (callerOwnerModId ?? "").Trim(),
             SessionId = SessionId
@@ -275,12 +382,13 @@ public sealed class AuraSharedRegistrationCoordinator
 
             manifest.Normalize(callerOwnerModId ?? "");
             result.OwnerModId = manifest.OwnerModId;
-            if (manifest.SchemaVersion != 3)
+            if (manifest.SchemaVersion != AuraSharedResourceSchemaVersions.Current)
             {
                 result.Message = "Unsupported registration schemaVersion=" + manifest.SchemaVersion + ".";
-                result.Items.Add(new AuraSharedRegistrationItemResultV3
+                result.Status = AuraSharedRegistrationStatuses.UnsupportedSchema;
+                result.Items.Add(new AuraSharedRegistrationItemResultV4
                 {
-                    Status = AuraSharedRegistrationStatuses.RejectedProtocol,
+                    Status = AuraSharedRegistrationStatuses.UnsupportedSchema,
                     Message = result.Message
                 });
                 return result;
@@ -305,11 +413,10 @@ public sealed class AuraSharedRegistrationCoordinator
                 ? AuraSharedJson.Serialize(registered)
                 : "";
             var registrationIdentities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var acceptedResources = new List<AuraSharedResourceDeclarationV3>();
             foreach (var resource in manifest.Resources.Where(item => item != null))
             {
                 var identity = ResourceIdentity(manifest.OwnerModId, resource);
-                AuraSharedRegistrationItemResultV3 item;
+                AuraSharedRegistrationItemResultV4 item;
                 if (!HasCanonicalIdentitySegments(manifest.OwnerModId, resource))
                 {
                     item = InvalidIdentityResult(resource, "Resource identity contains a non-canonical path segment: " + identity);
@@ -324,20 +431,40 @@ public sealed class AuraSharedRegistrationCoordinator
                 }
                 else
                 {
-                    item = RegisterResource(manifest, resource, sourceRoot);
-                    acceptedResources.Add(resource);
+                    item = ValidateResource(manifest, resource, sourceRoot);
                 }
+                result.Items.Add(item);
+            }
+
+            if (result.Items.Any(item => !item.Success))
+            {
+                result.Status = AuraSharedRegistrationStatuses.Invalid;
+                result.Message = "v4 package rejected atomically; every declaration must be valid and available.";
+                return result;
+            }
+
+            result.Items.Clear();
+            foreach (var resource in manifest.Resources.Where(item => item != null))
+            {
+                var item = RegisterResource(manifest, resource, sourceRoot);
                 result.Items.Add(item);
                 activeAvailability[AvailabilityKey(registrationKey, resource)] = item.Success;
             }
+            if (result.Items.Any(item => !item.Success))
+            {
+                result.Status = AuraSharedRegistrationStatuses.Invalid;
+                result.Message = "v4 package installation failed; package was not activated.";
+                return result;
+            }
 
-            var activeManifest = CloneWithResources(manifest, acceptedResources);
+            var activeManifest = CloneWithResources(manifest, manifest.Resources);
             active[registrationKey] = activeManifest;
+            PersistRetiredResources(manifest, registered);
             WriteLayeredMetadata(activeManifest, result.Items);
-            storage.ExecuteWrite("RegistrationV3/" + manifest.OwnerModId, () =>
+            storage.ExecuteWrite("RegistrationV4/" + manifest.OwnerModId, () =>
             {
                 storage.WriteRawJsonAtomic(
-                    Absolute("_Registry/V3/Owners/" + Safe(manifest.OwnerModId) + "/" + Safe(manifest.PackageId) + ".json"),
+                    Absolute("_Registry/V4/Owners/" + Safe(manifest.OwnerModId) + "/" + Safe(manifest.PackageId) + ".json"),
                     manifest,
                     true);
                 storage.WriteRawJsonAtomic(
@@ -366,10 +493,8 @@ public sealed class AuraSharedRegistrationCoordinator
             }
 
             result.Revision = revision;
-            // Registration is intentionally per declaration. One unavailable
-            // optional resource must not disable unrelated modules owned by
-            // the same Mod; callers inspect item outcomes for fallback.
             result.Success = true;
+            result.Status = AuraSharedRegistrationStatuses.Installed;
             result.Message = "registered=" + result.Items.Count
                              + ", unavailable=" + result.Items.Count(item => !item.Success)
                              + ", changedScopes=" + result.ChangedScopeKeys.Count;
@@ -378,9 +503,9 @@ public sealed class AuraSharedRegistrationCoordinator
                 operationId: Guid.NewGuid().ToString("N"),
                 transactionId: "",
                 ownerModId: manifest.OwnerModId,
-                system: "RegistrationV3",
+                system: "RegistrationV4",
                 logicalId: manifest.PackageId,
-                kind: "RegisterPackageV3",
+                kind: "RegisterPackageV4",
                 phase: "Completed",
                 result: result.Success ? "Success" : "Partial",
                 message: result.Message));
@@ -393,28 +518,65 @@ public sealed class AuraSharedRegistrationCoordinator
         }
     }
 
-    private IEnumerable<AuraSharedRegistrationManifestV3> ReadPersistedManifests()
+    private void PersistRetiredResources(
+        AuraSharedRegistrationManifestV4 current,
+        AuraSharedRegistrationManifestV4? activePrevious)
     {
-        var root = Absolute("_Registry/V3/Owners");
-        if (!Directory.Exists(root))
+        var ownerPath = Absolute("_Registry/V4/Owners/" + Safe(current.OwnerModId) + "/" + Safe(current.PackageId) + ".json");
+        var previous = activePrevious;
+        if (previous == null && File.Exists(ownerPath))
         {
-            return Array.Empty<AuraSharedRegistrationManifestV3>();
+            previous = storage.LoadRawJsonOrDefault(ownerPath, new AuraSharedRegistrationManifestV4());
+            previous.Normalize(current.OwnerModId);
+        }
+        if (previous == null || previous.SchemaVersion != AuraSharedResourceSchemaVersions.Current) return;
+        var currentIds = current.Resources.Select(resource => ResourceIdentity(current.OwnerModId, resource))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var retired = previous.Resources.Where(resource => !currentIds.Contains(ResourceIdentity(current.OwnerModId, resource)))
+            .Select(resource => AuraSharedJson.Deserialize<AuraSharedResourceDeclarationV4>(AuraSharedJson.Serialize(resource)))
+            .Where(resource => resource != null)
+            .Select(resource =>
+            {
+                resource!.Retired = true;
+                return resource;
+            })
+            .ToList();
+        if (retired.Count == 0) return;
+        var historyManifest = CloneWithResources(previous, retired);
+        historyManifest.PackageId = current.PackageId + ".Retired." + DateTime.UtcNow.ToString("yyyyMMddHHmmssfff");
+        storage.WriteRawJsonAtomic(
+            Absolute("_Registry/V4/History/Owners/" + Safe(current.OwnerModId) + "/" + Safe(historyManifest.PackageId) + ".json"),
+            historyManifest,
+            true);
+    }
+
+    private IEnumerable<AuraSharedRegistrationManifestV4> ReadPersistedManifests()
+    {
+        var roots = new[]
+        {
+            Absolute("_Registry/V4/Owners"),
+            Absolute("_Registry/V4/History/Owners")
+        }.Where(Directory.Exists).ToArray();
+        if (roots.Length == 0)
+        {
+            return Array.Empty<AuraSharedRegistrationManifestV4>();
         }
 
-        var manifests = new List<AuraSharedRegistrationManifestV3>();
-        foreach (var path in Directory.EnumerateFiles(root, "*.json", SearchOption.AllDirectories)
+        var manifests = new List<AuraSharedRegistrationManifestV4>();
+        foreach (var path in roots.SelectMany(root => Directory.EnumerateFiles(root, "*.json", SearchOption.AllDirectories))
                      .OrderBy(value => value, StringComparer.OrdinalIgnoreCase))
         {
             try
             {
-                var manifest = AuraSharedJson.Deserialize<AuraSharedRegistrationManifestV3>(File.ReadAllText(path));
+                var manifest = AuraSharedJson.Deserialize<AuraSharedRegistrationManifestV4>(File.ReadAllText(path));
                 if (manifest == null)
                 {
                     continue;
                 }
 
                 manifest.Normalize(manifest.OwnerModId);
-                if (manifest.SchemaVersion == 3 && !string.IsNullOrWhiteSpace(manifest.OwnerModId))
+                if (manifest.SchemaVersion == AuraSharedResourceSchemaVersions.Current
+                    && !string.IsNullOrWhiteSpace(manifest.OwnerModId))
                 {
                     manifests.Add(manifest);
                 }
@@ -428,19 +590,42 @@ public sealed class AuraSharedRegistrationCoordinator
         return manifests;
     }
 
-    private AuraSharedCatalogEntryV3 CreateCatalogEntry(
-        AuraSharedRegistrationManifestV3 manifest,
-        AuraSharedResourceDeclarationV3 resource,
+    private AuraSharedCatalogEntryV4 CreateCatalogEntry(
+        AuraSharedRegistrationManifestV4 manifest,
+        AuraSharedResourceDeclarationV4 resource,
         bool isActive,
         bool activeResourceAvailable)
     {
         var canonical = AuraSharedResourcePathPolicy.ResourcePath(resource.Scope, manifest.OwnerModId, resource);
-        return new AuraSharedCatalogEntryV3
+        var available = isActive ? activeResourceAvailable : Exists(Absolute(canonical));
+        var historyReasons = new List<string>();
+        if (!isActive) historyReasons.Add(AuraSharedHistoryReasons.InactiveOwner);
+        if (!available) historyReasons.Add(AuraSharedHistoryReasons.Unavailable);
+        if (resource.Archived) historyReasons.Add(AuraSharedHistoryReasons.Archived);
+        if (resource.Retired) historyReasons.Add(AuraSharedHistoryReasons.Retired);
+        var user = TryReadUserOverride(resource.Scope)?.Override;
+        var configuredEnabled = resource.DefaultEnabled;
+        if (user?.ResourceOverrides != null)
         {
+            var qualified = resource.ModuleId + "/" + resource.ScopeType + "/" + resource.ScopeId + "/"
+                            + resource.FeatureId + "/" + manifest.OwnerModId + "/" + resource.ResourceId;
+            var shortId = manifest.OwnerModId + ":" + resource.ResourceId;
+            if (user.ResourceOverrides.TryGetValue(qualified, out var qualifiedValue)) configuredEnabled = qualifiedValue;
+            else if (user.ResourceOverrides.TryGetValue(shortId, out var shortValue)) configuredEnabled = shortValue;
+        }
+        return new AuraSharedCatalogEntryV4
+        {
+            Registered = true,
             Active = isActive,
-            Available = isActive ? activeResourceAvailable : Exists(Absolute(canonical)),
+            Available = available,
+            Applicable = true,
+            ConfiguredEnabled = configuredEnabled,
+            EffectiveEnabled = isActive && available && configuredEnabled && user?.Enabled != false
+                               && !resource.Archived && !resource.Retired,
+            HistoryReasons = historyReasons,
             OwnerModId = manifest.OwnerModId,
             ParticipantKind = manifest.ParticipantKind,
+            PackageSourceKind = manifest.PackageSourceKind,
             PackageId = manifest.PackageId,
             PackageVersion = manifest.PackageVersion,
             Resource = resource,
@@ -455,7 +640,7 @@ public sealed class AuraSharedRegistrationCoordinator
         };
     }
 
-    private static bool MatchesCatalogQuery(AuraSharedCatalogEntryV3 entry, AuraSharedCatalogQueryV3 query)
+    private static bool MatchesCatalogQuery(AuraSharedCatalogEntryV4 entry, AuraSharedCatalogQueryV4 query)
     {
         return MatchesFilter(entry.Resource.ModuleId, query.ModuleId)
                && MatchesFilter(entry.Resource.FeatureId, query.FeatureId)
@@ -470,13 +655,13 @@ public sealed class AuraSharedRegistrationCoordinator
                || string.Equals(value, filter, StringComparison.OrdinalIgnoreCase);
     }
 
-    private bool IsActiveResourceAvailable(string registrationKey, AuraSharedResourceDeclarationV3 resource)
+    private bool IsActiveResourceAvailable(string registrationKey, AuraSharedResourceDeclarationV4 resource)
     {
         return activeAvailability.TryGetValue(AvailabilityKey(registrationKey, resource), out var available)
                && available;
     }
 
-    private static string AvailabilityKey(string registrationKey, AuraSharedResourceDeclarationV3 resource)
+    private static string AvailabilityKey(string registrationKey, AuraSharedResourceDeclarationV4 resource)
     {
         return registrationKey + "\n" + resource.Scope.Key + "\n" + resource.ResourceId;
     }
@@ -484,7 +669,7 @@ public sealed class AuraSharedRegistrationCoordinator
     private bool HasActiveIdentityConflict(
         string registrationKey,
         string ownerModId,
-        AuraSharedResourceDeclarationV3 resource)
+        AuraSharedResourceDeclarationV4 resource)
     {
         var identity = ResourceIdentity(ownerModId, resource);
         return active
@@ -500,11 +685,11 @@ public sealed class AuraSharedRegistrationCoordinator
                 StringComparison.OrdinalIgnoreCase));
     }
 
-    private static AuraSharedRegistrationItemResultV3 InvalidIdentityResult(
-        AuraSharedResourceDeclarationV3 resource,
+    private static AuraSharedRegistrationItemResultV4 InvalidIdentityResult(
+        AuraSharedResourceDeclarationV4 resource,
         string message)
     {
-        return new AuraSharedRegistrationItemResultV3
+        return new AuraSharedRegistrationItemResultV4
         {
             ScopeKey = resource.Scope.Key,
             ResourceId = resource.ResourceId,
@@ -513,12 +698,12 @@ public sealed class AuraSharedRegistrationCoordinator
         };
     }
 
-    private static string ResourceIdentity(string ownerModId, AuraSharedResourceDeclarationV3 resource)
+    private static string ResourceIdentity(string ownerModId, AuraSharedResourceDeclarationV4 resource)
     {
         return resource.Scope.Key + ":" + (ownerModId ?? "").Trim() + ":" + resource.ResourceId;
     }
 
-    private static bool HasCanonicalIdentitySegments(string ownerModId, AuraSharedResourceDeclarationV3 resource)
+    private static bool HasCanonicalIdentitySegments(string ownerModId, AuraSharedResourceDeclarationV4 resource)
     {
         return IsCanonicalIdentitySegment(resource.ModuleId)
                && IsCanonicalIdentitySegment(resource.ScopeType)
@@ -537,15 +722,16 @@ public sealed class AuraSharedRegistrationCoordinator
                && string.Equals(AuraSharedPaths.SafeSegment(normalized, "invalid"), normalized, StringComparison.Ordinal);
     }
 
-    private static AuraSharedRegistrationManifestV3 CloneWithResources(
-        AuraSharedRegistrationManifestV3 manifest,
-        IEnumerable<AuraSharedResourceDeclarationV3> resources)
+    private static AuraSharedRegistrationManifestV4 CloneWithResources(
+        AuraSharedRegistrationManifestV4 manifest,
+        IEnumerable<AuraSharedResourceDeclarationV4> resources)
     {
-        return new AuraSharedRegistrationManifestV3
+        return new AuraSharedRegistrationManifestV4
         {
             SchemaVersion = manifest.SchemaVersion,
             OwnerModId = manifest.OwnerModId,
             ParticipantKind = manifest.ParticipantKind,
+            PackageSourceKind = manifest.PackageSourceKind,
             PackageId = manifest.PackageId,
             PackageVersion = manifest.PackageVersion,
             Resources = resources.ToList(),
@@ -553,13 +739,77 @@ public sealed class AuraSharedRegistrationCoordinator
         };
     }
 
-    private AuraSharedRegistrationItemResultV3 RegisterResource(
-        AuraSharedRegistrationManifestV3 manifest,
-        AuraSharedResourceDeclarationV3 resource,
+    private AuraSharedRegistrationItemResultV4 ValidateResource(
+        AuraSharedRegistrationManifestV4 manifest,
+        AuraSharedResourceDeclarationV4 resource,
         string sourceRoot)
     {
         resource.Normalize();
-        var item = new AuraSharedRegistrationItemResultV3
+        var item = new AuraSharedRegistrationItemResultV4
+        {
+            ScopeKey = resource.Scope.Key,
+            ResourceId = resource.ResourceId,
+            CanonicalPath = AuraSharedResourcePathPolicy.ResourcePath(resource.Scope, manifest.OwnerModId, resource),
+            Success = true,
+            Status = "Validated"
+        };
+        if (string.IsNullOrWhiteSpace(resource.ResourceId) || string.IsNullOrWhiteSpace(resource.Source))
+        {
+            item.Success = false;
+            item.Status = AuraSharedRegistrationStatuses.Invalid;
+            item.Message = "Resource id or source is empty.";
+            return item;
+        }
+        if (!AuraSharedOriginKinds.IsValid(resource.OriginKind)
+            || string.IsNullOrWhiteSpace(resource.WriterId)
+            || string.IsNullOrWhiteSpace(resource.ScopeOwnerModId))
+        {
+            item.Success = false;
+            item.Status = AuraSharedRegistrationStatuses.Invalid;
+            item.Message = "v4 resource requires originKind, writerId, and scopeOwnerModId.";
+            return item;
+        }
+        if (resource.OriginKind == AuraSharedOriginKinds.UserManual
+            && (!string.Equals(manifest.PackageSourceKind, AuraSharedPackageSourceKinds.LocalPackage, StringComparison.Ordinal)
+                || !string.Equals(manifest.ParticipantKind, AuraSharedParticipantKinds.Tool, StringComparison.Ordinal)
+                || !string.Equals(resource.WriterId, "LocalUser", StringComparison.Ordinal)))
+        {
+            item.Success = false;
+            item.Status = AuraSharedRegistrationStatuses.Invalid;
+            item.Message = "UserManual resources require a Tool LocalPackage written by LocalUser.";
+            return item;
+        }
+        var validParticipantOrigin = manifest.ParticipantKind == AuraSharedParticipantKinds.Content
+            ? resource.OriginKind == AuraSharedOriginKinds.ContentRegistered
+            : manifest.ParticipantKind == AuraSharedParticipantKinds.Foundation
+                ? resource.OriginKind == AuraSharedOriginKinds.FoundationDefault
+                : resource.OriginKind == AuraSharedOriginKinds.ToolRegistered
+                  || resource.OriginKind == AuraSharedOriginKinds.ToolDefault
+                  || resource.OriginKind == AuraSharedOriginKinds.UserManual;
+        if (!validParticipantOrigin)
+        {
+            item.Success = false;
+            item.Status = AuraSharedRegistrationStatuses.Invalid;
+            item.Message = "Resource originKind does not match participantKind.";
+            return item;
+        }
+        var source = Path.GetFullPath(Path.Combine(sourceRoot, resource.Source.Replace('/', Path.DirectorySeparatorChar)));
+        if (!AuraSharedStorageCoordinator.IsInside(source, sourceRoot) || !Exists(source))
+        {
+            item.Success = false;
+            item.Status = AuraSharedRegistrationStatuses.Unavailable;
+            item.Message = "Resource source is unavailable or escapes the package: " + resource.Source;
+        }
+        return item;
+    }
+
+    private AuraSharedRegistrationItemResultV4 RegisterResource(
+        AuraSharedRegistrationManifestV4 manifest,
+        AuraSharedResourceDeclarationV4 resource,
+        string sourceRoot)
+    {
+        resource.Normalize();
+        var item = new AuraSharedRegistrationItemResultV4
         {
             ScopeKey = resource.Scope.Key,
             ResourceId = resource.ResourceId
@@ -591,7 +841,6 @@ public sealed class AuraSharedRegistrationCoordinator
             return item;
         }
 
-        MigrateLegacyCustomization(manifest, resource, source, canonical);
         var installed = packages.Install(new AuraSharedInstallRequest
         {
             OwnerModId = manifest.OwnerModId,
@@ -602,13 +851,13 @@ public sealed class AuraSharedRegistrationCoordinator
             Kind = resource.Kind,
             SourcePath = source,
             DestinationRelativePath = canonical,
-            PreserveLocalChanges = true
+            PreserveLocalChanges = false
         });
         item.Success = installed.Success;
         item.Changed = installed.Changed;
         item.Status = installed.Status;
         item.Message = installed.Message;
-        var state = new AuraSharedResourceStateV3
+        var state = new AuraSharedResourceStateV4
         {
             SeedHash = installed.SeedHash,
             ContentHash = installed.ContentHash,
@@ -626,102 +875,13 @@ public sealed class AuraSharedRegistrationCoordinator
         return item;
     }
 
-    private void MigrateLegacyCustomization(
-        AuraSharedRegistrationManifestV3 manifest,
-        AuraSharedResourceDeclarationV3 resource,
-        string packagedSource,
-        string canonicalRelativePath)
-    {
-        var canonical = Absolute(canonicalRelativePath);
-        resource.Metadata?.Remove("aura.preferLegacy");
-        if (Exists(canonical)
-            && string.Equals(resource.Kind, AuraSharedResourceKinds.File, StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-        if (Directory.Exists(canonical)
-            && Directory.Exists(packagedSource)
-            && !string.Equals(HashDirectory(canonical), HashDirectory(packagedSource), StringComparison.OrdinalIgnoreCase))
-        {
-            // A customization already made in the v3 location always wins over
-            // an older v2 directory left on disk.
-            return;
-        }
-
-        foreach (var legacyRelative in resource.LegacyPaths)
-        {
-            var legacy = Absolute(legacyRelative);
-            if (!Exists(legacy))
-            {
-                continue;
-            }
-
-            var record = new AuraSharedMigrationRecordV3
-            {
-                Source = legacyRelative,
-                Destination = canonicalRelativePath,
-                RecordedUtc = DateTime.UtcNow.ToString("O")
-            };
-            if (File.Exists(legacy) && File.Exists(packagedSource))
-            {
-                var legacyHash = HashFile(legacy);
-                var seedHash = HashFile(packagedSource);
-                record.SourceHash = legacyHash;
-                if (!string.Equals(legacyHash, seedHash, StringComparison.OrdinalIgnoreCase))
-                {
-                    var migrated = editable.Seed(new AuraSharedEditableResourceRequest
-                    {
-                        OwnerModId = manifest.OwnerModId,
-                        System = resource.ModuleId,
-                        LogicalId = "migration." + resource.ResourceId,
-                        SourcePath = legacy,
-                        DestinationRelativePath = canonicalRelativePath
-                    });
-                    record.Classification = "UserCustomized";
-                    record.Result = migrated.Success ? "Migrated" : "PreservedLegacy";
-                }
-                else
-                {
-                    record.Classification = "ExactDuplicate";
-                    record.Result = "CanonicalSeedPreferred";
-                }
-            }
-            else if (Directory.Exists(legacy) && Directory.Exists(packagedSource))
-            {
-                var legacyHash = HashDirectory(legacy);
-                var seedHash = HashDirectory(packagedSource);
-                record.SourceHash = legacyHash;
-                if (!string.Equals(legacyHash, seedHash, StringComparison.OrdinalIgnoreCase))
-                {
-                    resource.Metadata ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                    resource.Metadata["aura.preferLegacy"] = legacyRelative;
-                    record.Classification = "UserCustomizedDirectory";
-                    record.Result = "PreservedAndPreferred";
-                }
-                else
-                {
-                    record.Classification = "ExactDuplicateDirectory";
-                    record.Result = "CanonicalSeedPreferred";
-                }
-            }
-            else
-            {
-                record.Classification = "LegacyKindMismatch";
-                record.Result = "PreservedLegacy";
-            }
-
-            AppendMigrationRecord(manifest.OwnerModId, record);
-            break;
-        }
-    }
-
     private void WriteLayeredMetadata(
-        AuraSharedRegistrationManifestV3 manifest,
-        IReadOnlyList<AuraSharedRegistrationItemResultV3> items)
+        AuraSharedRegistrationManifestV4 manifest,
+        IReadOnlyList<AuraSharedRegistrationItemResultV4> items)
     {
         storage.WriteRawJsonAtomic(Absolute(AuraSharedResourcePathPolicy.RootManifestPath()), new
         {
-            schemaVersion = 3,
+            schemaVersion = AuraSharedResourceSchemaVersions.Current,
             protocolVersion = AuraSharedResourceProtocolVersions.Current,
             layout = "module/scopeType/scopeId/featureId/ownerModId/resourceId",
             readPolicy = "onDemand",
@@ -734,7 +894,7 @@ public sealed class AuraSharedRegistrationCoordinator
         {
             storage.WriteRawJsonAtomic(Absolute(AuraSharedResourcePathPolicy.ModuleManifestPath(module)), new
             {
-                schemaVersion = 3,
+                schemaVersion = AuraSharedResourceSchemaVersions.Current,
                 moduleId = module,
                 layout = "module/scopeType/scopeId/featureId/ownerModId/resourceId",
                 readPolicy = "onDemand"
@@ -751,7 +911,7 @@ public sealed class AuraSharedRegistrationCoordinator
                 Absolute(AuraSharedResourcePathPolicy.ScopeTypeManifestPath(scopeType.ModuleId, scopeType.ScopeType)),
                 new
                 {
-                    schemaVersion = 3,
+                    schemaVersion = AuraSharedResourceSchemaVersions.Current,
                     moduleId = scopeType.ModuleId,
                     scopeType = scopeType.ScopeType,
                     generated = true
@@ -767,7 +927,7 @@ public sealed class AuraSharedRegistrationCoordinator
         {
             storage.WriteRawJsonAtomic(Absolute(AuraSharedResourcePathPolicy.ScopeManifestPath(scope)), new
             {
-                schemaVersion = 3,
+                schemaVersion = AuraSharedResourceSchemaVersions.Current,
                 moduleId = scope.ModuleId,
                 scopeType = scope.ScopeType,
                 scopeId = scope.ScopeId,
@@ -779,7 +939,7 @@ public sealed class AuraSharedRegistrationCoordinator
                 .ToArray();
             storage.WriteRawJsonAtomic(Absolute(AuraSharedResourcePathPolicy.FeatureManifestPath(scope)), new
             {
-                schemaVersion = 3,
+                schemaVersion = AuraSharedResourceSchemaVersions.Current,
                 scope,
                 effectModes = scopeResources
                     .Select(item => item.EffectMode).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
@@ -802,7 +962,7 @@ public sealed class AuraSharedRegistrationCoordinator
                 Absolute(AuraSharedResourcePathPolicy.ProviderManifestPath(scope, manifest.OwnerModId)),
                 new
                 {
-                    schemaVersion = 3,
+                    schemaVersion = AuraSharedResourceSchemaVersions.Current,
                     ownerModId = manifest.OwnerModId,
                     participantKinds = ownerManifests.Select(value => value.ParticipantKind)
                         .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
@@ -822,7 +982,7 @@ public sealed class AuraSharedRegistrationCoordinator
                 Absolute(AuraSharedResourcePathPolicy.ProviderDefaultsPath(scope, manifest.OwnerModId)),
                 new
                 {
-                    schemaVersion = 3,
+                    schemaVersion = AuraSharedResourceSchemaVersions.Current,
                     ownerModId = manifest.OwnerModId,
                     participantKind = manifest.ParticipantKind,
                     profiles = defaults
@@ -842,7 +1002,7 @@ public sealed class AuraSharedRegistrationCoordinator
                     resource.ResourceId)),
                 new
                 {
-                    schemaVersion = 3,
+                    schemaVersion = AuraSharedResourceSchemaVersions.Current,
                     ownerModId = manifest.OwnerModId,
                     resource,
                     canonicalPath = item?.CanonicalPath ?? ""
@@ -853,9 +1013,9 @@ public sealed class AuraSharedRegistrationCoordinator
 
     private void WriteRuntimeIndex()
     {
-        storage.WriteRawJsonAtomic(Absolute("_Runtime/Index/resources.v3.json"), new
+        storage.WriteRawJsonAtomic(Absolute("_Runtime/Index/resources.v4.json"), new
         {
-            schemaVersion = 3,
+            schemaVersion = AuraSharedResourceSchemaVersions.Current,
             sessionId = SessionId,
             revision,
             owners = active.Values.Select(value => value.OwnerModId)
@@ -867,27 +1027,14 @@ public sealed class AuraSharedRegistrationCoordinator
         }, false);
     }
 
-    private void AppendMigrationRecord(string ownerModId, AuraSharedMigrationRecordV3 record)
+    private AuraSharedActiveLeaseV4 CreateLease(AuraSharedRegistrationManifestV4 manifest)
     {
-        var path = Absolute("_Migration/V2ToV3/" + Safe(ownerModId) + "/journal.json");
-        var records = storage.LoadRawJsonOrDefault(path, new List<AuraSharedMigrationRecordV3>());
-        if (!records.Any(existing =>
-                string.Equals(existing.Source, record.Source, StringComparison.OrdinalIgnoreCase)
-                && string.Equals(existing.Destination, record.Destination, StringComparison.OrdinalIgnoreCase)
-                && string.Equals(existing.SourceHash, record.SourceHash, StringComparison.OrdinalIgnoreCase)))
-        {
-            records.Add(record);
-            storage.WriteRawJsonAtomic(path, records, true);
-        }
-    }
-
-    private AuraSharedActiveLeaseV3 CreateLease(AuraSharedRegistrationManifestV3 manifest)
-    {
-        return new AuraSharedActiveLeaseV3
+        return new AuraSharedActiveLeaseV4
         {
             SessionId = SessionId,
             OwnerModId = manifest.OwnerModId,
             ParticipantKind = manifest.ParticipantKind,
+            PackageSourceKind = manifest.PackageSourceKind,
             PackageId = manifest.PackageId,
             PackageVersion = manifest.PackageVersion,
             RegisteredUtc = DateTime.UtcNow.ToString("O"),
@@ -900,14 +1047,14 @@ public sealed class AuraSharedRegistrationCoordinator
     }
 
     private static ResourcePathMatch? MatchResource(
-        AuraSharedRegistrationManifestV3 manifest,
-        AuraSharedResourceDeclarationV3 resource,
+        AuraSharedRegistrationManifestV4 manifest,
+        AuraSharedResourceDeclarationV4 resource,
         string requested)
     {
         var canonical = AuraSharedResourcePathPolicy.ResourcePath(resource.Scope, manifest.OwnerModId, resource);
         if (string.Equals(requested, canonical, StringComparison.OrdinalIgnoreCase))
         {
-            return new ResourcePathMatch(manifest, resource, canonical, resource.LegacyPaths, PreferLegacy(resource));
+            return new ResourcePathMatch(manifest, resource, canonical);
         }
 
         var directory = string.Equals(resource.Kind, AuraSharedResourceKinds.Directory, StringComparison.OrdinalIgnoreCase);
@@ -917,28 +1064,7 @@ public sealed class AuraSharedRegistrationCoordinator
             return new ResourcePathMatch(
                 manifest,
                 resource,
-                canonical.TrimEnd('/') + suffix,
-                resource.LegacyPaths.Select(path => path.TrimEnd('/') + suffix),
-                PreferLegacy(resource));
-        }
-
-        foreach (var legacy in resource.LegacyPaths)
-        {
-            if (string.Equals(requested, legacy, StringComparison.OrdinalIgnoreCase))
-            {
-                return new ResourcePathMatch(manifest, resource, canonical, new[] { legacy }, PreferLegacy(resource));
-            }
-
-            if (directory && requested.StartsWith(legacy.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase))
-            {
-                var suffix = requested.Substring(legacy.TrimEnd('/').Length);
-                return new ResourcePathMatch(
-                    manifest,
-                    resource,
-                    canonical.TrimEnd('/') + suffix,
-                    new[] { legacy.TrimEnd('/') + suffix },
-                    PreferLegacy(resource));
-            }
+                canonical.TrimEnd('/') + suffix);
         }
 
         return null;
@@ -966,6 +1092,14 @@ public sealed class AuraSharedRegistrationCoordinator
 
     private static bool Exists(string path) => File.Exists(path) || Directory.Exists(path);
 
+    private static bool SamePath(string left, string right)
+    {
+        return string.Equals(
+            Path.GetFullPath(left ?? "").TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+            Path.GetFullPath(right ?? "").TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+            StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string Safe(string value) => AuraSharedPaths.SafeSegment(value, "unknown");
 
     private static string RegistrationKey(string ownerModId, string packageId)
@@ -973,51 +1107,20 @@ public sealed class AuraSharedRegistrationCoordinator
         return (ownerModId ?? "").Trim() + "\n" + (packageId ?? "").Trim();
     }
 
-    private static bool PreferLegacy(AuraSharedResourceDeclarationV3 resource)
-    {
-        return resource.Metadata != null
-               && resource.Metadata.ContainsKey("aura.preferLegacy");
-    }
-
-    private static string HashFile(string path)
-    {
-        using var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-        using var sha = SHA256.Create();
-        return string.Concat(sha.ComputeHash(stream).Select(value => value.ToString("x2")));
-    }
-
-    private static string HashDirectory(string path)
-    {
-        var entries = Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories)
-            .Select(file => AuraSharedStorageCoordinator.MakeRelative(path, file).Replace('\\', '/').ToLowerInvariant()
-                            + "|" + new FileInfo(file).Length
-                            + "|" + HashFile(file).ToLowerInvariant())
-            .OrderBy(value => value, StringComparer.OrdinalIgnoreCase);
-        using var sha = SHA256.Create();
-        return string.Concat(sha.ComputeHash(Encoding.UTF8.GetBytes(string.Join("\n", entries)))
-            .Select(value => value.ToString("x2")));
-    }
-
     private sealed class ResourcePathMatch
     {
         public ResourcePathMatch(
-            AuraSharedRegistrationManifestV3 manifest,
-            AuraSharedResourceDeclarationV3 resource,
-            string canonicalRequestPath,
-            IEnumerable<string> legacyRequestPaths,
-            bool preferLegacy)
+            AuraSharedRegistrationManifestV4 manifest,
+            AuraSharedResourceDeclarationV4 resource,
+            string canonicalRequestPath)
         {
             Manifest = manifest;
             Resource = resource;
             CanonicalRequestPath = canonicalRequestPath;
-            LegacyRequestPaths = legacyRequestPaths.ToArray();
-            PreferLegacy = preferLegacy;
         }
 
-        public AuraSharedRegistrationManifestV3 Manifest { get; }
-        public AuraSharedResourceDeclarationV3 Resource { get; }
+        public AuraSharedRegistrationManifestV4 Manifest { get; }
+        public AuraSharedResourceDeclarationV4 Resource { get; }
         public string CanonicalRequestPath { get; }
-        public string[] LegacyRequestPaths { get; }
-        public bool PreferLegacy { get; }
     }
 }

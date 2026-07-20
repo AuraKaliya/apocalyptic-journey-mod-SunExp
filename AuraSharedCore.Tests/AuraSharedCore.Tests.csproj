@@ -15,7 +15,7 @@
     <Compile Include="..\AuraSharedCore\AuraSharedResourceProtocolModels.cs" Link="Core\AuraSharedResourceProtocolModels.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedResourcePathPolicy.cs" Link="Core\AuraSharedResourcePathPolicy.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedRegistrationCoordinator.cs" Link="Core\AuraSharedRegistrationCoordinator.cs" />
-    <Compile Include="..\AuraSharedCore\AuraSharedEffectiveResolverV3.cs" Link="Core\AuraSharedEffectiveResolverV3.cs" />
+    <Compile Include="..\AuraSharedCore\AuraSharedEffectiveResolverV4.cs" Link="Core\AuraSharedEffectiveResolverV4.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedSecureEnvelope.cs" Link="Core\AuraSharedSecureEnvelope.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedOperationLog.cs" Link="Core\AuraSharedOperationLog.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedResourceLockTable.cs" Link="Core\AuraSharedResourceLockTable.cs" />

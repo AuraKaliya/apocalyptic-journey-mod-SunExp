@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aura.local/schemas/aura-registration-v4.schema.json",
+  "title": "AuraShared registration manifest v4",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "ownerModId", "participantKind", "packageSourceKind", "packageId", "resources"],
+  "properties": {
+    "schemaVersion": { "const": 4 },
+    "ownerModId": { "type": "string", "minLength": 1 },
+    "participantKind": { "enum": ["Foundation", "Content", "Tool"] },
+    "packageSourceKind": { "enum": ["ModPackage", "LocalPackage"] },
+    "packageId": { "type": "string", "minLength": 1 },
+    "packageVersion": { "type": "integer", "minimum": 1 },
+    "resources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["moduleId", "featureId", "scopeType", "scopeId", "scopeOwnerModId", "resourceId", "kind", "source", "originKind", "writerId", "defaultEnabled"],
+        "properties": {
+          "moduleId": { "type": "string", "minLength": 1 },
+          "featureId": { "type": "string", "minLength": 1 },
+          "scopeType": { "type": "string", "minLength": 1 },
+          "scopeId": { "type": "string", "minLength": 1 },
+          "scopeOwnerModId": { "type": "string", "minLength": 1 },
+          "scopeAliases": { "type": "array", "items": { "type": "string" } },
+          "resourceId": { "type": "string", "minLength": 1 },
+          "kind": { "enum": ["File", "Directory"] },
+          "source": { "type": "string", "minLength": 1 },
+          "fileName": { "type": "string" },
+          "originKind": { "enum": ["ContentRegistered", "ToolRegistered", "ToolDefault", "FoundationDefault", "UserManual"] },
+          "writerId": { "type": "string", "minLength": 1 },
+          "defaultEnabled": { "type": "boolean" },
+          "archived": { "type": "boolean" },
+          "retired": { "type": "boolean" },
+          "priority": { "type": "integer" },
+          "effectMode": { "enum": ["Additive", "Replacement"] },
+          "missingPolicy": { "enum": ["Skip", "NativeFallback"] },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "metadata": { "type": "object", "additionalProperties": { "type": "string" } }
+        }
+      }
+    },
+    "defaults": { "type": "array" }
+  }
+}

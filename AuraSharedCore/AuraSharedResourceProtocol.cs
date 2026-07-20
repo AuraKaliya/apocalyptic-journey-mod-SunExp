@@ -1,18 +1,19 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Newtonsoft.Json.Linq;
 using Witch.Mod;
 
 namespace AuraShared.Core;
 
 public static class AuraSharedResourceProtocol
 {
-    public const int CurrentSchemaVersion = 3;
+    public const int CurrentSchemaVersion = AuraSharedResourceSchemaVersions.Current;
     public const string DefaultManifestPath = "SharedResources/aura.registration.json";
 
     public static event Action<string, long>? ScopeChanged;
 
-    public static AuraSharedRegistrationResultV3 RegisterManifest(
+    public static AuraSharedRegistrationResultV4 RegisterManifest(
         ModConfig modConfig,
         string ownerModId,
         string manifestRelativePath = DefaultManifestPath)
@@ -30,7 +31,19 @@ public static class AuraSharedResourceProtocol
                 return Failed(ownerModId, "Registration manifest is missing or outside its Mod: " + manifestPath);
             }
 
-            var manifest = AuraSharedJson.Deserialize<AuraSharedRegistrationManifestV3>(File.ReadAllText(manifestPath));
+            var manifestJson = File.ReadAllText(manifestPath);
+            var document = JObject.Parse(manifestJson);
+            if (document["schemaVersion"]?.Value<int>() != AuraSharedResourceSchemaVersions.Current)
+            {
+                return new AuraSharedRegistrationResultV4
+                {
+                    Success = false,
+                    Status = AuraSharedRegistrationStatuses.UnsupportedSchema,
+                    OwnerModId = ownerModId ?? "",
+                    Message = "UnsupportedSchema: v4 registration requires explicit schemaVersion=4."
+                };
+            }
+            var manifest = AuraSharedJson.Deserialize<AuraSharedRegistrationManifestV4>(manifestJson);
             if (manifest == null)
             {
                 return Failed(ownerModId, "Registration manifest JSON is invalid: " + manifestPath);
@@ -44,9 +57,9 @@ public static class AuraSharedResourceProtocol
         }
     }
 
-    public static AuraSharedRegistrationResultV3 Register(
+    public static AuraSharedRegistrationResultV4 Register(
         string ownerModId,
-        AuraSharedRegistrationManifestV3 manifest,
+        AuraSharedRegistrationManifestV4 manifest,
         string baseDirectory)
     {
         try
@@ -54,14 +67,14 @@ public static class AuraSharedResourceProtocol
             var responseJson = AuraSharedRuntime.InvokeComponent(
                 null,
                 ownerModId,
-                "RegisterPackageV3Json",
+                "RegisterPackageV4Json",
                 ownerModId,
                 AuraSharedJson.Serialize(manifest),
                 baseDirectory) as string;
             var result = string.IsNullOrWhiteSpace(responseJson)
-                ? Failed(ownerModId, "Shared v3 registration returned no response.")
-                : AuraSharedJson.Deserialize<AuraSharedRegistrationResultV3>(responseJson!)
-                  ?? Failed(ownerModId, "Shared v3 registration response is invalid.");
+                ? Failed(ownerModId, "Shared v4 registration returned no response.")
+                : AuraSharedJson.Deserialize<AuraSharedRegistrationResultV4>(responseJson!)
+                  ?? Failed(ownerModId, "Shared v4 registration response is invalid.");
             foreach (var scopeKey in result.ChangedScopeKeys ?? new List<string>())
             {
                 try
@@ -80,23 +93,52 @@ public static class AuraSharedResourceProtocol
         }
     }
 
-    public static AuraSharedResourceResolutionV3 Resolve(string callerId, string relativeOrAbsolutePath)
+    public static AuraSharedResourceResolutionV4 Resolve(string callerId, string relativeOrAbsolutePath)
     {
         try
         {
             var json = AuraSharedRuntime.InvokeComponent(
                 null,
                 callerId,
-                "ResolveResourceV3Json",
+                "ResolveResourceV4Json",
                 relativeOrAbsolutePath) as string;
             return string.IsNullOrWhiteSpace(json)
-                ? Direct(relativeOrAbsolutePath)
-                : AuraSharedJson.Deserialize<AuraSharedResourceResolutionV3>(json!) ?? Direct(relativeOrAbsolutePath);
+                ? Unregistered(relativeOrAbsolutePath)
+                : AuraSharedJson.Deserialize<AuraSharedResourceResolutionV4>(json!) ?? Unregistered(relativeOrAbsolutePath);
         }
         catch
         {
-            return Direct(relativeOrAbsolutePath);
+            return Unregistered(relativeOrAbsolutePath);
         }
+    }
+
+    public static AuraSharedRegistrationItemResultV4 UpsertManualResource(
+        string callerId,
+        AuraSharedManualResourceRequestV4 request)
+    {
+        try
+        {
+            var json = AuraSharedRuntime.InvokeComponent(
+                null,
+                callerId,
+                "UpsertManualResourceV4Json",
+                callerId,
+                AuraSharedJson.Serialize(request)) as string;
+            return string.IsNullOrWhiteSpace(json)
+                ? new AuraSharedRegistrationItemResultV4 { Message = "Shared v4 manual resource service returned no response." }
+                : AuraSharedJson.Deserialize<AuraSharedRegistrationItemResultV4>(json!)
+                  ?? new AuraSharedRegistrationItemResultV4 { Message = "Shared v4 manual resource response is invalid." };
+        }
+        catch (Exception ex)
+        {
+            return new AuraSharedRegistrationItemResultV4 { Message = ex.Message };
+        }
+    }
+
+    public static int ActivateLocalPackages(string callerId)
+    {
+        var value = AuraSharedRuntime.InvokeComponent(null, callerId, "ActivateLocalPackagesV4", callerId);
+        return int.TryParse(Convert.ToString(value), out var count) ? count : 0;
     }
 
     public static string ResolvePath(string callerId, string relativeOrAbsolutePath)
@@ -106,50 +148,50 @@ public static class AuraSharedResourceProtocol
 
     public static long GetScopeRevision(string callerId, string scopeKey)
     {
-        var value = AuraSharedRuntime.InvokeComponent(null, callerId, "GetScopeRevisionV3", scopeKey);
+        var value = AuraSharedRuntime.InvokeComponent(null, callerId, "GetScopeRevisionV4", scopeKey);
         return long.TryParse(Convert.ToString(value), out var revision) ? revision : 0;
     }
 
-    public static AuraSharedCatalogSnapshotV3 QueryCatalog(string callerId, AuraSharedCatalogQueryV3? query = null)
+    public static AuraSharedCatalogSnapshotV4 QueryCatalog(string callerId, AuraSharedCatalogQueryV4? query = null)
     {
         try
         {
             var json = AuraSharedRuntime.InvokeComponent(
                 null,
                 callerId,
-                "QueryCatalogV3Json",
-                AuraSharedJson.Serialize(query ?? new AuraSharedCatalogQueryV3())) as string;
+                "QueryCatalogV4Json",
+                AuraSharedJson.Serialize(query ?? new AuraSharedCatalogQueryV4())) as string;
             return string.IsNullOrWhiteSpace(json)
-                ? new AuraSharedCatalogSnapshotV3()
-                : AuraSharedJson.Deserialize<AuraSharedCatalogSnapshotV3>(json!) ?? new AuraSharedCatalogSnapshotV3();
+                ? new AuraSharedCatalogSnapshotV4()
+                : AuraSharedJson.Deserialize<AuraSharedCatalogSnapshotV4>(json!) ?? new AuraSharedCatalogSnapshotV4();
         }
         catch
         {
-            return new AuraSharedCatalogSnapshotV3();
+            return new AuraSharedCatalogSnapshotV4();
         }
     }
 
-    public static AuraSharedEffectiveResolutionV3 ResolveEffective(
+    public static AuraSharedEffectiveResolutionV4 ResolveEffective(
         string callerId,
         AuraSharedScopeKey scope,
-        AuraSharedLocalOverrideV3? localOverride = null)
+        AuraSharedLocalOverrideV4? localOverride = null)
     {
         try
         {
             var json = AuraSharedRuntime.InvokeComponent(
                 null,
                 callerId,
-                "ResolveEffectiveV3Json",
+                "ResolveEffectiveV4Json",
                 AuraSharedJson.Serialize(scope),
                 localOverride == null ? "" : AuraSharedJson.Serialize(localOverride)) as string;
             return string.IsNullOrWhiteSpace(json)
-                ? new AuraSharedEffectiveResolutionV3 { ScopeKey = scope?.Key ?? "", Outcome = "Unavailable", Fallback = "CoreUnavailable" }
-                : AuraSharedJson.Deserialize<AuraSharedEffectiveResolutionV3>(json!)
-                  ?? new AuraSharedEffectiveResolutionV3 { ScopeKey = scope?.Key ?? "", Outcome = "Unavailable", Fallback = "InvalidResponse" };
+                ? new AuraSharedEffectiveResolutionV4 { ScopeKey = scope?.Key ?? "", Outcome = "Unavailable", Fallback = "CoreUnavailable" }
+                : AuraSharedJson.Deserialize<AuraSharedEffectiveResolutionV4>(json!)
+                  ?? new AuraSharedEffectiveResolutionV4 { ScopeKey = scope?.Key ?? "", Outcome = "Unavailable", Fallback = "InvalidResponse" };
         }
         catch (Exception ex)
         {
-            return new AuraSharedEffectiveResolutionV3
+            return new AuraSharedEffectiveResolutionV4
             {
                 ScopeKey = scope?.Key ?? "",
                 Outcome = "Unavailable",
@@ -158,7 +200,7 @@ public static class AuraSharedResourceProtocol
         }
     }
 
-    public static AuraSharedUserOverrideDocumentV3 ReadUserOverride(
+    public static AuraSharedUserOverrideDocumentV4 ReadUserOverride(
         string callerId,
         AuraSharedScopeKey scope)
     {
@@ -167,23 +209,23 @@ public static class AuraSharedResourceProtocol
             var json = AuraSharedRuntime.InvokeComponent(
                 null,
                 callerId,
-                "ReadUserOverrideV3Json",
+                "ReadUserOverrideV4Json",
                 AuraSharedJson.Serialize(scope)) as string;
             return string.IsNullOrWhiteSpace(json)
-                ? new AuraSharedUserOverrideDocumentV3()
-                : AuraSharedJson.Deserialize<AuraSharedUserOverrideDocumentV3>(json!)
-                  ?? new AuraSharedUserOverrideDocumentV3();
+                ? new AuraSharedUserOverrideDocumentV4()
+                : AuraSharedJson.Deserialize<AuraSharedUserOverrideDocumentV4>(json!)
+                  ?? new AuraSharedUserOverrideDocumentV4();
         }
         catch
         {
-            return new AuraSharedUserOverrideDocumentV3();
+            return new AuraSharedUserOverrideDocumentV4();
         }
     }
 
-    public static AuraSharedUserOverrideWriteResultV3 WriteUserOverride(
+    public static AuraSharedUserOverrideWriteResultV4 WriteUserOverride(
         string callerId,
         AuraSharedScopeKey scope,
-        AuraSharedLocalOverrideV3 localOverride,
+        AuraSharedLocalOverrideV4 localOverride,
         long expectedRevision)
     {
         try
@@ -191,42 +233,40 @@ public static class AuraSharedResourceProtocol
             var json = AuraSharedRuntime.InvokeComponent(
                 null,
                 callerId,
-                "WriteUserOverrideV3Json",
+                "WriteUserOverrideV4Json",
                 AuraSharedJson.Serialize(scope),
                 callerId,
                 AuraSharedJson.Serialize(localOverride),
                 expectedRevision) as string;
             return string.IsNullOrWhiteSpace(json)
-                ? new AuraSharedUserOverrideWriteResultV3 { Message = "Shared v3 override returned no response." }
-                : AuraSharedJson.Deserialize<AuraSharedUserOverrideWriteResultV3>(json!)
-                  ?? new AuraSharedUserOverrideWriteResultV3 { Message = "Shared v3 override response is invalid." };
+                ? new AuraSharedUserOverrideWriteResultV4 { Message = "Shared v4 override returned no response." }
+                : AuraSharedJson.Deserialize<AuraSharedUserOverrideWriteResultV4>(json!)
+                  ?? new AuraSharedUserOverrideWriteResultV4 { Message = "Shared v4 override response is invalid." };
         }
         catch (Exception ex)
         {
-            return new AuraSharedUserOverrideWriteResultV3 { Message = ex.Message };
+            return new AuraSharedUserOverrideWriteResultV4 { Message = ex.Message };
         }
     }
 
-    private static AuraSharedResourceResolutionV3 Direct(string value)
+    private static AuraSharedResourceResolutionV4 Unregistered(string value)
     {
         var path = Path.IsPathRooted(value ?? "")
             ? Path.GetFullPath(value ?? "")
             : AuraSharedPaths.ResolveSharedPath(value ?? "");
-        var found = File.Exists(path) || Directory.Exists(path);
-        return new AuraSharedResourceResolutionV3
+        return new AuraSharedResourceResolutionV4
         {
-            Success = found,
+            Success = false,
             Active = false,
-            UsedLegacyPath = true,
             ResolvedPath = path,
-            Outcome = found ? "DirectCompatibility" : "Missing",
+            Outcome = "Unregistered",
             Fallback = "Unregistered"
         };
     }
 
-    private static AuraSharedRegistrationResultV3 Failed(string ownerModId, string message)
+    private static AuraSharedRegistrationResultV4 Failed(string ownerModId, string message)
     {
-        return new AuraSharedRegistrationResultV3
+        return new AuraSharedRegistrationResultV4
         {
             Success = false,
             OwnerModId = ownerModId ?? "",

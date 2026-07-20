@@ -58,13 +58,49 @@ public static class FileResourceUtil
         };
     }
 
-    private static AuraSharedResourceDeclarationV3 DirectoryResource(string resourceId)
+    private static AuraSharedResourceDeclarationV4 DirectoryResource(string resourceId)
     {
-        return new AuraSharedResourceDeclarationV3
+        return new AuraSharedResourceDeclarationV4
         {
             ResourceId = resourceId,
             Kind = AuraSharedResourceKinds.Directory
         };
+    }
+
+    public static bool RegisterManualDirectory(
+        string moduleId,
+        string featureId,
+        string scopeType,
+        string scopeId,
+        string scopeOwnerModId,
+        string resourceId,
+        string directory,
+        out string message)
+    {
+        var declaration = new AuraSharedResourceDeclarationV4
+        {
+            ModuleId = moduleId,
+            FeatureId = featureId,
+            ScopeType = scopeType,
+            ScopeId = SafeFolderName(scopeId),
+            ScopeOwnerModId = string.IsNullOrWhiteSpace(scopeOwnerModId) ? AuraToolsIds.ModId : scopeOwnerModId,
+            ScopeAliases = new System.Collections.Generic.List<string> { scopeId },
+            ResourceId = resourceId,
+            Kind = AuraSharedResourceKinds.Directory,
+            OriginKind = AuraSharedOriginKinds.UserManual,
+            WriterId = "LocalUser",
+            DefaultEnabled = true,
+            Priority = 1000
+        };
+        var result = AuraSharedResourceProtocol.UpsertManualResource(AuraToolsIds.ModId, new AuraSharedManualResourceRequestV4
+        {
+            OwnerModId = AuraToolsIds.ModId,
+            WriterId = "LocalUser",
+            SourcePath = directory,
+            Resource = declaration
+        });
+        message = result.Message;
+        return result.Success;
     }
 
     public static void OpenDirectory(string directory)

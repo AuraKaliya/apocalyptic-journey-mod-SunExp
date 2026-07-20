@@ -24,7 +24,7 @@ public static class SkinPackageInstaller
 
     public static IReadOnlyList<RegisteredSkinResource> GetActiveResources()
     {
-        return AuraSharedResourceProtocol.QueryCatalog("AuraSkinShared", new AuraSharedCatalogQueryV3
+        return AuraSharedResourceProtocol.QueryCatalog("AuraSkinShared", new AuraSharedCatalogQueryV4
             {
                 ModuleId = AuraSharedSystems.Skin,
                 FeatureId = "Skin",
@@ -86,13 +86,14 @@ public static class SkinPackageInstaller
                 preparedResources.Add(prepared);
             }
 
-            var registration = new AuraSharedRegistrationManifestV3
+            var registration = new AuraSharedRegistrationManifestV4
             {
                 OwnerModId = owner,
                 ParticipantKind = package.ParticipantKind,
+                PackageSourceKind = AuraSharedPackageSourceKinds.ModPackage,
                 PackageId = package.PackageId,
                 PackageVersion = package.PackageVersion,
-                Resources = preparedResources.Select(prepared => CreateDeclaration(prepared)).ToList()
+                Resources = preparedResources.Select(prepared => CreateDeclaration(prepared, owner, package.ParticipantKind)).ToList()
             };
             var registered = AuraSharedResourceProtocol.Register(owner, registration, packageDirectory);
             result.Success = registered.Success && registered.Items.All(item => item.Success);
@@ -112,7 +113,7 @@ public static class SkinPackageInstaller
                         result.Repaired++;
                         break;
                     case AuraSharedRegistrationStatuses.Invalid:
-                    case AuraSharedRegistrationStatuses.RejectedProtocol:
+                    case AuraSharedRegistrationStatuses.UnsupportedSchema:
                     case AuraSharedRegistrationStatuses.Unavailable:
                         result.Conflicts++;
                         SkinLog.Error("Shared skin registration rejected for " + item.ResourceId + ": " + item.Message);
@@ -200,21 +201,27 @@ public static class SkinPackageInstaller
         };
     }
 
-    private static AuraSharedResourceDeclarationV3 CreateDeclaration(PreparedSkinResource prepared)
+    private static AuraSharedResourceDeclarationV4 CreateDeclaration(
+        PreparedSkinResource prepared,
+        string ownerModId,
+        string participantKind)
     {
-        return new AuraSharedResourceDeclarationV3
+        return new AuraSharedResourceDeclarationV4
         {
             ModuleId = AuraSharedSystems.Skin,
             FeatureId = "Skin",
             ScopeType = "Role",
             ScopeId = prepared.TargetCareerId,
+            ScopeOwnerModId = ownerModId,
+            ScopeAliases = new List<string> { prepared.TargetCareerId },
             ResourceId = prepared.SkinId,
             Kind = AuraSharedResourceKinds.Directory,
             Source = prepared.RelativeSource,
-            LegacyPaths = new List<string>
-            {
-                "Skins/" + prepared.TargetCareerId + "/" + prepared.SkinId
-            },
+            OriginKind = string.Equals(participantKind, AuraSharedParticipantKinds.Tool, StringComparison.OrdinalIgnoreCase)
+                ? AuraSharedOriginKinds.ToolRegistered
+                : AuraSharedOriginKinds.ContentRegistered,
+            WriterId = ownerModId,
+            DefaultEnabled = true,
             EffectMode = AuraSharedEffectModes.Additive,
             MissingPolicy = AuraSharedMissingPolicies.Skip,
             Metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)

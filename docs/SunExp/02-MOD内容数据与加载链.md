@@ -182,7 +182,7 @@ JSON 文件不是由 `GameConfigManager.LoadResource` 的 DataType 表机制自�
 | `visual.registry.json` | `VisualRegistry`、卡牌视觉和地图视觉运行时 |
 | `audio.registry.json` | `AudioApi`、AuraAudio/AudioArbiter |
 | `starterdeck.registry.json` | StarterDeckArbiter |
-| `SharedResources/package.json` | AuraSharedPackageEngine |
+| `SharedResources/aura.registration.json` | AuraSharedPackageEngine |
 | `SharedResources/cg.registry.json` | AuraCgRegistryRuntime、Skill CG |
 | `familiar.blessing.registry.json` | 使魔祝福注册表 |
 | `companion.intent.registry.json` | 伙伴意图注册表 |

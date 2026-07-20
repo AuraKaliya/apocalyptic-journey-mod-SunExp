@@ -51,13 +51,15 @@ foreach ($required in @(
     '"WriteStorageJson"',
     '"InstallResourceJson"',
     '"GetInstalledResourcesJson"',
-    '"RegisterPackageV3Json"',
-    '"ResolveResourceV3Json"',
-    '"ResolveEffectiveV3Json"',
-    '"ReadUserOverrideV3Json"',
-    '"WriteUserOverrideV3Json"',
-    '"QueryCatalogV3Json"',
-    '"GetScopeRevisionV3"',
+    '"RegisterPackageV4Json"',
+    '"UpsertManualResourceV4Json"',
+    '"ActivateLocalPackagesV4"',
+    '"ResolveResourceV4Json"',
+    '"ResolveEffectiveV4Json"',
+    '"ReadUserOverrideV4Json"',
+    '"WriteUserOverrideV4Json"',
+    '"QueryCatalogV4Json"',
+    '"GetScopeRevisionV4"',
     '"GetChangesJson"'
 )) {
     if (-not $runtimeText.Contains($required)) {
@@ -65,13 +67,13 @@ foreach ($required in @(
     }
 }
 $resourceProtocolModelsText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedResourceProtocolModels.cs")
-foreach ($required in @("public const int Current = 4", "public const int MinimumSupported = 3", "AuraSharedCatalogSnapshotV3")) {
+foreach ($required in @("public const int Current = 5", "public const int MinimumSupported = 5", "AuraSharedCatalogSnapshotV4", "AuraSharedOriginKinds", "AuraSharedCatalogVisibilities")) {
     if (-not $resourceProtocolModelsText.Contains($required)) {
         throw "AuraShared Core v4 resource protocol contract is missing: $required"
     }
 }
 $registrationCoordinatorText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedRegistrationCoordinator.cs")
-foreach ($required in @("QueryCatalog", "IncludeInactive", "RootManifestPath", "ScopeTypeManifestPath", "ScopeManifestPath", "ProviderManifestPath")) {
+foreach ($required in @("QueryCatalog", "AuraSharedCatalogVisibilities.History", "RootManifestPath", "ScopeTypeManifestPath", "ScopeManifestPath", "ProviderManifestPath", '"_Registry/V4/Owners"')) {
     if (-not $registrationCoordinatorText.Contains($required)) {
         throw "AuraShared layered catalog contract is missing: $required"
     }
@@ -327,15 +329,15 @@ if (-not $fileResourceText.Contains("AuraSharedPackageEngine.Install") -or $file
     throw "AuraTools Audio/CG import does not use the shared package engine exclusively."
 }
 
-$sunPackagePath = Join-Path $repoRoot "SunExp\SharedResources\package.json"
+$sunPackagePath = Join-Path $repoRoot "SunExp\SharedResources\aura.registration.json"
 $sunPackage = Get-Content -Raw -Encoding UTF8 -LiteralPath $sunPackagePath | ConvertFrom-Json
-if ($sunPackage.packageId -ne "SunExp.SharedResources" -or $sunPackage.ownerModId -ne "SunExp" -or
-    -not ($sunPackage.capabilities -contains "Audio") -or -not ($sunPackage.capabilities -contains "CG")) {
+if ($sunPackage.packageId -ne "SunExp.SharedResources.V4" -or $sunPackage.ownerModId -ne "SunExp" -or
+    $sunPackage.schemaVersion -ne 4 -or $sunPackage.packageSourceKind -ne "ModPackage") {
     throw "SunExp shared resource package manifest is invalid."
 }
 $sunPackageRoot = Split-Path -Parent $sunPackagePath
 $sunAudioResource = $sunPackage.resources | Where-Object {
-    $_.system -eq "Audio" -and $_.resourceId -eq "SunExp.WuNa.VoicePack" -and $_.kind -eq "Directory"
+    $_.moduleId -eq "Audio" -and $_.resourceId -eq "wuna.voice-pack" -and $_.kind -eq "Directory"
 } | Select-Object -First 1
 if ($null -eq $sunAudioResource) {
     throw "SunExp shared Audio package manifest is missing WuNa voice pack."
@@ -345,18 +347,18 @@ if (-not (Test-Path -LiteralPath $sunAudioSource -PathType Container)) {
     throw "SunExp shared Audio package source is missing: $sunAudioSource"
 }
 
-$v3ContractPath = Join-Path $repoRoot "docs\aura-shared-resource-v3-contract.md"
-if (-not (Test-Path -LiteralPath $v3ContractPath)) {
-    throw "AuraShared resource v3 protocol contract document is missing."
+$v4ContractPath = Join-Path $repoRoot "docs\aura-shared-resource-v4-contract.md"
+if (-not (Test-Path -LiteralPath $v4ContractPath)) {
+    throw "AuraShared resource v4 protocol contract document is missing."
 }
-$v3ContractText = Get-Content -Raw -LiteralPath $v3ContractPath
-foreach ($required in @("Active lease", "module/scopeType/scopeId/featureId/ownerModId/resourceId", "dual-read", "LocalUser > ToolDefault > ContentDefault > ModuleDefault")) {
-    if (-not $v3ContractText.Contains($required)) {
-        throw "AuraShared resource v3 protocol contract is missing: $required"
+$v4ContractText = Get-Content -Raw -LiteralPath $v4ContractPath
+foreach ($required in @("breaking, registration-only protocol", "moduleId/scopeType/canonicalScopeId/featureId/ownerModId/resourceId/content", "UserManual", "History view", "Priority", "Sequential")) {
+    if (-not $v4ContractText.Contains($required)) {
+        throw "AuraShared resource v4 protocol contract is missing: $required"
     }
 }
 $sunColumbinaAudioResource = $sunPackage.resources | Where-Object {
-    $_.system -eq "Audio" -and $_.resourceId -eq "SunExp.Columbina.VoicePack" -and $_.kind -eq "Directory"
+    $_.moduleId -eq "Audio" -and $_.resourceId -eq "columbina.voice-pack" -and $_.kind -eq "Directory"
 } | Select-Object -First 1
 if ($null -eq $sunColumbinaAudioResource) {
     throw "SunExp shared Audio package manifest is missing Columbina voice pack."
@@ -367,16 +369,16 @@ if (-not (Test-Path -LiteralPath $sunColumbinaAudioSource -PathType Container) -
     throw "SunExp Columbina shared Audio package must contain exactly 12 Ogg voice variants."
 }
 $requiredSunCgResources = @(
-    "SunExp.Loneer.MorningStarPrayer.SkillCg",
-    "SunExp.WuNa.WhiteSunPrayer.SkillCg",
-    "SunExp.Columbina.Homesickness.SkillCg",
-    "SunExp.Loneer.FeastCg",
-    "SunExp.WuNa.FeastCg",
-    "SunExp.Columbina.FeastCg"
+    "loneer.morning-star-prayer",
+    "wuna.white-sun-prayer",
+    "columbina.homesickness",
+    "loneer.feast",
+    "wuna.feast",
+    "columbina.feast"
 )
 foreach ($resourceId in $requiredSunCgResources) {
     $resource = $sunPackage.resources | Where-Object {
-        $_.system -eq "CG" -and $_.resourceId -eq $resourceId -and $_.kind -eq "File"
+        $_.moduleId -eq "CG" -and $_.resourceId -eq $resourceId -and $_.kind -eq "File"
     } | Select-Object -First 1
     if ($null -eq $resource) {
         throw "SunExp shared CG package manifest is missing resource: $resourceId"
@@ -388,10 +390,9 @@ foreach ($resourceId in $requiredSunCgResources) {
     }
 }
 $sunCardUseCgResource = $sunPackage.resources | Where-Object {
-    $_.system -eq "CG" -and $_.resourceId -eq "SunExp.BlazingCrownCollapse.CardUseCgSequence" -and $_.kind -eq "Directory"
+    $_.moduleId -eq "CG" -and $_.resourceId -eq "sunexp.blazing-crown-collapse" -and $_.kind -eq "Directory"
 } | Select-Object -First 1
-if ($null -eq $sunCardUseCgResource -or @($sunCardUseCgResource.tags) -notcontains "card-use-cg" -or
-    $sunCardUseCgResource.metadata.cgKind -ne "cardUse") {
+if ($null -eq $sunCardUseCgResource -or @($sunCardUseCgResource.tags) -notcontains "card-use-cg") {
     throw "SunExp shared CG package manifest is missing Blazing Crown Collapse card-use CG semantics."
 }
 $sunCardUseCgSource = [System.IO.Path]::GetFullPath((Join-Path $sunPackageRoot $sunCardUseCgResource.source))
@@ -450,12 +451,12 @@ if (-not $audioManifestText.Contains("Shared:Audio/Role/SunExp_columbina_columbi
     throw "SunExp Columbina audio registry does not declare shared voice variants."
 }
 
-$auraToolsPackagePath = Join-Path $repoRoot "AuraToolsExp\SharedResources\package.json"
+$auraToolsPackagePath = Join-Path $repoRoot "AuraToolsExp\SharedResources\aura.registration.json"
 $auraToolsPackage = Get-Content -Raw -Encoding UTF8 -LiteralPath $auraToolsPackagePath | ConvertFrom-Json
-if ($auraToolsPackage.ownerModId -ne "AuraToolsExp" -or
-    @($auraToolsPackage.resources).Count -ne 3 -or
-    @($auraToolsPackage.resources | Where-Object { $_.system -eq "Audio" }).Count -ne 1 -or
-    @($auraToolsPackage.resources | Where-Object { $_.system -eq "CG" }).Count -ne 2) {
+if ($auraToolsPackage.ownerModId -ne "AuraToolsExp" -or $auraToolsPackage.schemaVersion -ne 4 -or
+    @($auraToolsPackage.resources).Count -lt 10 -or
+    @($auraToolsPackage.resources | Where-Object { $_.moduleId -eq "Audio" }).Count -lt 1 -or
+    @($auraToolsPackage.resources | Where-Object { $_.moduleId -eq "CG" }).Count -lt 2) {
     throw "AuraTools bundled Audio/CG package manifest is invalid."
 }
 $auraToolsPackageRoot = Split-Path -Parent $auraToolsPackagePath
@@ -464,35 +465,37 @@ foreach ($resource in $auraToolsPackage.resources) {
     if (-not (Test-Path -LiteralPath $source)) {
         throw "AuraTools bundled resource source is missing: $source"
     }
-    if (-not $resource.destination.StartsWith($resource.system + "/AuraToolsExp/", [System.StringComparison]::OrdinalIgnoreCase)) {
-        throw "AuraTools bundled resource destination is not owner-qualified: $($resource.destination)"
+    if ([string]::IsNullOrWhiteSpace($resource.scopeOwnerModId) -or [string]::IsNullOrWhiteSpace($resource.originKind)) {
+        throw "AuraTools bundled v4 resource provenance is incomplete: $($resource.resourceId)"
     }
 }
 
-foreach ($v3RelativePath in @(
+foreach ($v4RelativePath in @(
     "SunExp\SharedResources\aura.registration.json",
     "AuraToolsExp\SharedResources\aura.registration.json"
 )) {
-    $v3Path = Join-Path $repoRoot $v3RelativePath
-    $v3 = Get-Content -Raw -Encoding UTF8 -LiteralPath $v3Path | ConvertFrom-Json
-    if ($v3.schemaVersion -ne 3 -or [string]::IsNullOrWhiteSpace($v3.ownerModId) -or
-        @($v3.resources).Count -eq 0) {
-        throw "AuraShared v3 registration manifest is invalid: $v3RelativePath"
+    $v4Path = Join-Path $repoRoot $v4RelativePath
+    $v4 = Get-Content -Raw -Encoding UTF8 -LiteralPath $v4Path | ConvertFrom-Json
+    if ($v4.schemaVersion -ne 4 -or $v4.packageSourceKind -ne "ModPackage" -or
+        [string]::IsNullOrWhiteSpace($v4.ownerModId) -or @($v4.resources).Count -eq 0) {
+        throw "AuraShared v4 registration manifest is invalid: $v4RelativePath"
     }
 
-    foreach ($resource in $v3.resources) {
+    foreach ($resource in $v4.resources) {
         if ([string]::IsNullOrWhiteSpace($resource.moduleId) -or
             [string]::IsNullOrWhiteSpace($resource.scopeType) -or
             [string]::IsNullOrWhiteSpace($resource.scopeId) -or
             [string]::IsNullOrWhiteSpace($resource.featureId) -or
             [string]::IsNullOrWhiteSpace($resource.resourceId) -or
-            @($resource.legacyPaths).Count -eq 0) {
-            throw "AuraShared v3 resource identity or migration aliases are incomplete: $($resource.resourceId)"
+            [string]::IsNullOrWhiteSpace($resource.scopeOwnerModId) -or
+            [string]::IsNullOrWhiteSpace($resource.originKind) -or
+            [string]::IsNullOrWhiteSpace($resource.writerId)) {
+            throw "AuraShared v4 resource identity or provenance is incomplete: $($resource.resourceId)"
         }
 
-        $source = [System.IO.Path]::GetFullPath((Join-Path (Split-Path -Parent $v3Path) $resource.source))
+        $source = [System.IO.Path]::GetFullPath((Join-Path (Split-Path -Parent $v4Path) $resource.source))
         if (-not (Test-Path -LiteralPath $source)) {
-            throw "AuraShared v3 resource source is missing: $source"
+            throw "AuraShared v4 resource source is missing: $source"
         }
     }
 }

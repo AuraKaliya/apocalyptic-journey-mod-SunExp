@@ -46,13 +46,13 @@ Core 负责共享路径、存储、资源注册、包事务、变更序列、诊
 - `WriteStorageJson(requestJson)`
 - `InstallResourceJson(requestJson)`
 - `GetInstalledResourcesJson(system)`
-- `RegisterPackageV3Json(ownerModId, manifestJson, baseDirectory)`
-- `ResolveResourceV3Json(requestedPath)`
-- `ResolveEffectiveV3Json(scopeJson, localOverrideJson)`
-- `ReadUserOverrideV3Json(scopeJson)`
-- `WriteUserOverrideV3Json(scopeJson, writerId, localOverrideJson, expectedRevision)`
-- `GetScopeRevisionV3(scopeKey)`
-- `QueryCatalogV3Json(queryJson)`
+- `RegisterPackageV4Json(ownerModId, manifestJson, baseDirectory)`
+- `ResolveResourceV4Json(requestedPath)`
+- `ResolveEffectiveV4Json(scopeJson, localOverrideJson)`
+- `ReadUserOverrideV4Json(scopeJson)`
+- `WriteUserOverrideV4Json(scopeJson, writerId, localOverrideJson, expectedRevision)`
+- `GetScopeRevisionV4(scopeKey)`
+- `QueryCatalogV4Json(queryJson)`
 - `GetChangesJson(sinceSequence)`
 - `GetOwners()`
 
@@ -114,7 +114,7 @@ Core 负责共享路径、存储、资源注册、包事务、变更序列、诊
 - `kind` 与规范目标路径不可在同一资源身份下悄然改变。
 - 安装使用 staging、事务 journal、注册表提交、完成/回滚与启动恢复。
 
-`SharedResources/package.json` 使用
+`SharedResources/aura.registration.json` 使用
 `AuraSharedCore/Schemas/resource-package.schema.json`。当前 schema version 1 支持
 `ownerModId`、`packageKind`、`capabilities`、`dependencies`，以及资源级
 `targetRoleIds`、`tags`、`metadata`。包引擎仍只安装文件或目录，不解释领域语义。
@@ -196,7 +196,7 @@ Core 负责共享路径、存储、资源注册、包事务、变更序列、诊
 
 需要允许用户手动替换的资源不得继续作为 package-managed 目标反复修复。内容或工具包
 先把只读模板安装到自身命名空间，再由 `AuraSharedEditableResource` 将模板物化到
-`CG/Overrides/<Owner>/...` 等可编辑目录。协调器记录模板哈希和当前内容哈希：目标缺失时
+`canonical UserManual resource directories` 等可编辑目录。协调器记录模板哈希和当前内容哈希：目标缺失时
 创建；仍等于旧模板时允许随新模板升级；已经偏离旧模板时视为用户自定义并保留；只有
 显式 Reset 才覆盖，并在 `Backups/Editable/<Owner>` 留下可恢复备份。由 JPG/JPEG 转换
 产生的临时 PNG 也必须通过该协调器进入和离开 `Cache/Editable`，消费者不能直接写入。
@@ -206,8 +206,8 @@ Core 负责共享路径、存储、资源注册、包事务、变更序列、诊
 内容 MOD 通过 `SharedResources/role.registry.json` 声明自己拥有的角色；工具或共享适配器
 可以把当前游戏职业表扫描结果作为独立 contribution 发布到 `AuraRoleShared`。贡献以
 `contributorModId + contributionId + sessionId` 分区，避免旧会话或某个动态扫描器覆盖
-其他 MOD 的声明。AuraToolsExp 读取角色目录与 v3 Catalog，但不再为每个新角色生成
-`generated-feast-defaults` 双注册贡献。内容 MOD 的美餐 CG 只由其 v3 manifest 注册；
+其他 MOD 的声明。AuraToolsExp 读取角色目录与 v4 Catalog，但不再为每个新角色生成
+`generated-feast-defaults` 双注册贡献。内容 MOD 的美餐 CG 只由其 v4 manifest 注册；
 工具默认资源仍归 AuraToolsExp 所有，并且仅在对应角色没有“当前 MOD 已启用且注册成功”
 的内容资源时作为一个候选显示。人工导入是独立候选，写入角色粒度的 `aura.user.json`，
 既不伪装成注册资源，也不阻止工具默认资源出现。

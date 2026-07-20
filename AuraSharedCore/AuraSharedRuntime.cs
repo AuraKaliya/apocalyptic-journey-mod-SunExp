@@ -112,13 +112,15 @@ public static class AuraSharedRuntime
                 "WriteStorageJson",
                 "InstallResourceJson",
                 "GetInstalledResourcesJson",
-                "RegisterPackageV3Json",
-                "ResolveResourceV3Json",
-                "ResolveEffectiveV3Json",
-                "ReadUserOverrideV3Json",
-                "WriteUserOverrideV3Json",
-                "GetScopeRevisionV3",
-                "QueryCatalogV3Json",
+                "RegisterPackageV4Json",
+                "UpsertManualResourceV4Json",
+                "ActivateLocalPackagesV4",
+                "ResolveResourceV4Json",
+                "ResolveEffectiveV4Json",
+                "ReadUserOverrideV4Json",
+                "WriteUserOverrideV4Json",
+                "GetScopeRevisionV4",
+                "QueryCatalogV4Json",
                 "GetChangesJson",
                 "GetOwners"
             }
@@ -379,36 +381,36 @@ public static class AuraSharedRuntime
                 : packages.GetResources(systemName));
         }
 
-        public string RegisterPackageV3Json(
+        public string RegisterPackageV4Json(
             object? ownerModId,
             object? manifestJson,
             object? baseDirectory)
         {
             var owner = Convert.ToString(ownerModId)?.Trim() ?? "";
-            var manifest = DeserializeRequest<AuraSharedRegistrationManifestV3>(manifestJson);
+            var manifest = DeserializeRequest<AuraSharedRegistrationManifestV4>(manifestJson);
             var root = Convert.ToString(baseDirectory)?.Trim() ?? "";
             var response = manifest == null || registrations == null
-                ? new AuraSharedRegistrationResultV3
+                ? new AuraSharedRegistrationResultV4
                 {
                     Success = false,
                     OwnerModId = owner,
-                    Message = "Shared v3 registration is unavailable."
+                    Message = "Shared v4 registration is unavailable."
                 }
                 : registrations.Register(owner, manifest, root);
             if (response.ChangedScopeKeys != null)
             {
                 foreach (var scopeKey in response.ChangedScopeKeys)
                 {
-                    PublishChange("Scope", "ResourceV3", scopeKey, registrations?.GetScopeRevision(scopeKey) ?? 0);
+                    PublishChange("Scope", "ResourceV4", scopeKey, registrations?.GetScopeRevision(scopeKey) ?? 0);
                 }
             }
             return AuraSharedJson.Serialize(response);
         }
 
-        public string ResolveResourceV3Json(object? requestedPath)
+        public string ResolveResourceV4Json(object? requestedPath)
         {
             return AuraSharedJson.Serialize(registrations?.Resolve(Convert.ToString(requestedPath) ?? "")
-                ?? new AuraSharedResourceResolutionV3
+                ?? new AuraSharedResourceResolutionV4
                 {
                     Success = false,
                     Outcome = "Unavailable",
@@ -416,26 +418,44 @@ public static class AuraSharedRuntime
                 });
         }
 
-        public long GetScopeRevisionV3(object? scopeKey)
+        public string UpsertManualResourceV4Json(object? ownerModId, object? requestJson)
+        {
+            var owner = Convert.ToString(ownerModId)?.Trim() ?? "";
+            var request = DeserializeRequest<AuraSharedManualResourceRequestV4>(requestJson);
+            return AuraSharedJson.Serialize(request == null || registrations == null
+                ? new AuraSharedRegistrationItemResultV4
+                {
+                    Status = AuraSharedRegistrationStatuses.Invalid,
+                    Message = "Shared v4 manual resource service is unavailable."
+                }
+                : registrations.UpsertManualResource(owner, request));
+        }
+
+        public int ActivateLocalPackagesV4(object? ownerModId)
+        {
+            return registrations?.ActivateLocalPackages(Convert.ToString(ownerModId) ?? "") ?? 0;
+        }
+
+        public long GetScopeRevisionV4(object? scopeKey)
         {
             return registrations?.GetScopeRevision(Convert.ToString(scopeKey) ?? "") ?? 0;
         }
 
-        public string QueryCatalogV3Json(object? queryJson)
+        public string QueryCatalogV4Json(object? queryJson)
         {
-            var query = DeserializeRequest<AuraSharedCatalogQueryV3>(queryJson) ?? new AuraSharedCatalogQueryV3();
+            var query = DeserializeRequest<AuraSharedCatalogQueryV4>(queryJson) ?? new AuraSharedCatalogQueryV4();
             return AuraSharedJson.Serialize(registrations?.QueryCatalog(query)
-                ?? new AuraSharedCatalogSnapshotV3());
+                ?? new AuraSharedCatalogSnapshotV4());
         }
 
-        public string ResolveEffectiveV3Json(object? scopeJson, object? localOverrideJson)
+        public string ResolveEffectiveV4Json(object? scopeJson, object? localOverrideJson)
         {
             var scope = DeserializeRequest<AuraSharedScopeKey>(scopeJson) ?? new AuraSharedScopeKey();
             var localOverride = string.IsNullOrWhiteSpace(Convert.ToString(localOverrideJson))
                 ? null
-                : DeserializeRequest<AuraSharedLocalOverrideV3>(localOverrideJson);
+                : DeserializeRequest<AuraSharedLocalOverrideV4>(localOverrideJson);
             return AuraSharedJson.Serialize(registrations?.ResolveEffective(scope, localOverride)
-                ?? new AuraSharedEffectiveResolutionV3
+                ?? new AuraSharedEffectiveResolutionV4
                 {
                     ScopeKey = scope.Key,
                     Outcome = "Unavailable",
@@ -443,30 +463,30 @@ public static class AuraSharedRuntime
                 });
         }
 
-        public string ReadUserOverrideV3Json(object? scopeJson)
+        public string ReadUserOverrideV4Json(object? scopeJson)
         {
             var scope = DeserializeRequest<AuraSharedScopeKey>(scopeJson) ?? new AuraSharedScopeKey();
             return AuraSharedJson.Serialize(registrations?.ReadUserOverride(scope)
-                                            ?? new AuraSharedUserOverrideDocumentV3());
+                                            ?? new AuraSharedUserOverrideDocumentV4());
         }
 
-        public string WriteUserOverrideV3Json(
+        public string WriteUserOverrideV4Json(
             object? scopeJson,
             object? writerId,
             object? localOverrideJson,
             object? expectedRevision)
         {
             var scope = DeserializeRequest<AuraSharedScopeKey>(scopeJson) ?? new AuraSharedScopeKey();
-            var localOverride = DeserializeRequest<AuraSharedLocalOverrideV3>(localOverrideJson)
-                                ?? new AuraSharedLocalOverrideV3();
+            var localOverride = DeserializeRequest<AuraSharedLocalOverrideV4>(localOverrideJson)
+                                ?? new AuraSharedLocalOverrideV4();
             long.TryParse(Convert.ToString(expectedRevision), out var expected);
             var result = registrations?.WriteUserOverride(
                 scope,
                 Convert.ToString(writerId) ?? "LocalUser",
                 localOverride,
-                expected) ?? new AuraSharedUserOverrideWriteResultV3
+                expected) ?? new AuraSharedUserOverrideWriteResultV4
                 {
-                    Message = "Shared v3 registration is unavailable."
+                    Message = "Shared v4 registration is unavailable."
                 };
             if (result.Success)
             {

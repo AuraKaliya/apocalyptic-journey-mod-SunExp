@@ -1164,13 +1164,23 @@ void TestRuntimeArchitectureGuards()
     var feastPackage = ReadRepoText("AuraToolsExp/SharedResources/aura.registration.json");
     var feastRegistry = ReadRepoText("AuraToolsExp/SharedResources/cg.registry.json");
     Assert(feastRoleCatalog.Contains("AuraRoleRegistryRuntime.PublishRuntimeRoles", StringComparison.Ordinal)
-           && feastManual.Contains("AuraSharedEditableResource.Seed", StringComparison.Ordinal),
-        "Feast role discovery stays shared while user imports use the editable-resource authority");
+           && feastRoleCatalog.Contains("AuraRoleRegistryRuntime.GetSnapshot", StringComparison.Ordinal)
+           && feastManual.Contains("AuraSharedResourceProtocol.UpsertManualResource", StringComparison.Ordinal)
+           && feastManual.Contains("AuraSharedOriginKinds.UserManual", StringComparison.Ordinal),
+        "Feast role discovery and manual imports use the shared v4 authorities");
+    Assert(feastRoleCatalog.Contains("AuraRoleRegistryRuntime.GetSnapshot", StringComparison.Ordinal)
+           && feastRoleCatalog.Contains("MatchesRole", StringComparison.Ordinal)
+           && !feastRoleEditor.Contains("AuraToolsFeastRuntime.RegisteredRoleIds()", StringComparison.Ordinal)
+           && !feastRoleEditor.Contains("MatchExperience.Feast.Roles", StringComparison.Ordinal),
+        "Feast only displays active role identities and uses aliases for resource applicability");
+    Assert(!feastManual.Contains("\"Overrides\"", StringComparison.Ordinal)
+           && feastManual.Contains("AuraSharedResourcePathPolicy.ResourcePath", StringComparison.Ordinal),
+        "manual Feast resources use the same canonical hierarchy as registered resources");
     Assert(feastRuntime.Contains("AuraCgCatalogQueryService.QueryRegisteredResources", StringComparison.Ordinal)
            && !feastRuntime.Contains("AuraCgRegistryRuntime", StringComparison.Ordinal)
            && cgCatalogQuery.Contains("QueryCatalog", StringComparison.Ordinal)
            && cgCatalogQuery.Contains("entry.CanonicalPath", StringComparison.Ordinal),
-        "Feast runtime discovery must use active and available v3 Catalog resources without a legacy CG registry join");
+        "Feast runtime discovery must use active and available v4 Catalog resources without a legacy CG registry join");
     Assert(feastRuntime.Contains("AuraSharedResourceProtocol.ReadUserOverride", StringComparison.Ordinal)
            && feastRuntime.Contains("AuraSharedResourceProtocol.WriteUserOverride", StringComparison.Ordinal)
            && feastRuntime.Contains("resourceOverrides", StringComparison.Ordinal)
@@ -1186,21 +1196,25 @@ void TestRuntimeArchitectureGuards()
            && cgCandidateSelector.Contains("public const string Sequential = \"sequential\"", StringComparison.Ordinal)
            && feastRuntime.Contains("AuraCgCandidateSelector.Select", StringComparison.Ordinal),
         "Feast multi-enable selection must share one priority/random/sequential candidate selector");
-    Assert(feastPackage.Contains("\"featureId\": \"Feast\"", StringComparison.Ordinal)
+    Assert(feastPackage.Contains("\"schemaVersion\": 4", StringComparison.Ordinal)
            && feastPackage.Contains("\"participantKind\": \"Tool\"", StringComparison.Ordinal)
-           && feastPackage.Contains("CG/AuraToolsExp/Templates/Feast/Roles/", StringComparison.Ordinal)
+           && feastPackage.Contains("\"scopeOwnerModId\"", StringComparison.Ordinal)
+           && feastPackage.Contains("\"originKind\"", StringComparison.Ordinal)
+           && !feastPackage.Contains("legacyPaths", StringComparison.Ordinal)
            && feastRegistry.Contains("CG/Role/", StringComparison.Ordinal)
            && feastRegistry.Contains("/Feast/AuraToolsExp/", StringComparison.Ordinal)
            && !feastRegistry.Contains("CG/AuraToolsExp/Feast/Roles/", StringComparison.Ordinal),
-        "packaged feast defaults must use the v3 role scope while retaining old paths only as migration aliases");
+        "packaged feast defaults must use explicit v4 role ownership and provenance");
     Assert(feastManual.Contains("TryPrepareCanonicalPng", StringComparison.Ordinal)
            && feastManual.Contains("StageTemporary", StringComparison.Ordinal)
            && feastManual.Contains("ImageConversion.EncodeToPNG", StringComparison.Ordinal),
         "feast image import must validate PNG and normalize JPG/JPEG through the shared temporary-resource boundary");
     Assert(settingsUi.Contains("CreateFixedScroll", StringComparison.Ordinal)
-           && feastRoleEditor.Contains("CreateFixedScroll", StringComparison.Ordinal)
+           && feastRoleEditor.Contains("CreateScroll", StringComparison.Ordinal)
+           && feastRoleEditor.Contains("AuraTools.SharedResourceHistory", StringComparison.Ordinal)
+           && feastRoleEditor.Contains("editorRoot", StringComparison.Ordinal)
            && skinEditor.Contains("CreateFixedScroll", StringComparison.Ordinal),
-        "dynamic Feast and skin collections must render as cards inside fixed-height scroll viewports");
+        "Feast uses flexible non-nested overlays with a history view while skin keeps its bounded viewport");
     Assert(skinRuntime.Contains("ConfigureCandidateOverrides", StringComparison.Ordinal)
            && skinRuntime.Contains("\"ManualSelection\"", StringComparison.Ordinal)
            && skinRuntime.Contains("resourceOverrides", StringComparison.Ordinal)

@@ -12,10 +12,12 @@ public static class AuraToolsResourceBootstrap
         LastResult = AuraSharedResourceBootstrapper.Bootstrap(
             modConfig,
             AuraToolsIds.ModId);
+        var localCount = AuraSharedResourceProtocol.ActivateLocalPackages(AuraToolsIds.ModId);
 
         if (LastResult.Success)
         {
-            AuraToolsLog.Info("[Resources] bundled resources ready: " + LastResult.Summary + ".");
+            AuraToolsLog.Info("[Resources] bundled resources ready: " + LastResult.Summary
+                              + "; local packages=" + localCount + ".");
             return;
         }
 

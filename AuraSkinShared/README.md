@@ -14,7 +14,7 @@
 ## Persistent data
 
 - Installed skins: `ModsData/AuraShared/Skin/Role/<careerId>/Skin/<owner>/<skinId>/content`
-- Owner package registry: `ModsData/AuraShared/_Registry/V3/Owners/<owner>/<packageId>.json`
+- Owner package registry: `ModsData/AuraShared/_Registry/V4/Owners/<owner>/<packageId>.json`
 - Active leases: `ModsData/AuraShared/_Runtime/Leases/<session>/<owner>/<packageId>.json`
 - Selections: `ModsData/AuraShared/Config/Shared/Skin/selections.json`
 - Staging: `ModsData/AuraShared/Cache/Packages`
@@ -26,7 +26,7 @@ Publication source folders may use shorter names because the installer derives c
 ## Installation, identity, and candidate selection
 
 Consumers call `AuraSkinRuntime.RegisterPackage(modConfig, ownerModId)`. SkinShared validates skin manifests, translates
-the package into v3 resource declarations, and delegates path policy, migration aliases, storage, hashing, leases, locking,
+the package into v4 resource declarations, and delegates path policy, migration aliases, storage, hashing, leases, locking,
 and recovery to AuraSharedCore. Registration identity is `(ownerModId, packageId)` and resource identity is the normalized
 `Skin/Role/targetCareerId/Skin/ownerModId/skinId` tuple. `targetCareerId::skinId` is only the semantic grouping key.
 

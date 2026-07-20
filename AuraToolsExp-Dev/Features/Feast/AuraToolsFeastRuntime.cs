@@ -88,7 +88,7 @@ public static class AuraToolsFeastRuntime
         {
             catalogResources = Array.Empty<AuraCgCatalogResource>();
             catalogLoaded = true;
-            AuraToolsLog.Warn("[Feast] failed to query v3 catalog: " + ex.Message);
+            AuraToolsLog.Warn("[Feast] failed to query v4 catalog: " + ex.Message);
         }
     }
 
@@ -104,12 +104,12 @@ public static class AuraToolsFeastRuntime
         var registered = resources
             .Where(IsRoleResource)
             .Where(resource => !IsToolProvidedDefault(resource))
-            .Where(resource => string.Equals(
-                RoleCatalog.NormalizeRoleId(resource.ScopeId),
-                normalizedRole,
-                StringComparison.OrdinalIgnoreCase))
+            .Where(resource => RoleCatalog.MatchesRole(normalizedRole, resource.ScopeId, resource.ScopeAliases))
             .Where(resource => string.Equals(resource.MediaType, "image", StringComparison.OrdinalIgnoreCase))
-            .Select(resource => CreateCatalogCandidate(resource, FeastCgSourceKind.Registered))
+            .Select(resource => CreateCatalogCandidate(resource,
+                string.Equals(resource.OriginKind, AuraSharedOriginKinds.UserManual, StringComparison.Ordinal)
+                    ? FeastCgSourceKind.Manual
+                    : FeastCgSourceKind.Registered))
             .Where(candidate => !string.IsNullOrWhiteSpace(candidate.ImageResource))
             .ToList();
 
@@ -121,10 +121,7 @@ public static class AuraToolsFeastRuntime
                 .Where(resource =>
                     string.Equals(resource.ScopeType, "Global", StringComparison.OrdinalIgnoreCase)
                     || IsRoleResource(resource)
-                    && string.Equals(
-                        RoleCatalog.NormalizeRoleId(resource.ScopeId),
-                        normalizedRole,
-                        StringComparison.OrdinalIgnoreCase))
+                    && RoleCatalog.MatchesRole(normalizedRole, resource.ScopeId, resource.ScopeAliases))
                 .Where(resource => string.Equals(resource.MediaType, "image", StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(resource => IsRoleResource(resource))
                 .ThenByDescending(resource => resource.Priority)
@@ -137,7 +134,6 @@ public static class AuraToolsFeastRuntime
         }
 
         var settings = EnsureRoleSettings(normalizedRole, RoleCatalog.GetDisplayName(normalizedRole));
-        candidates.AddRange(settings.ManualResources.Select(manual => CreateManualCandidate(normalizedRole, manual)));
         var candidateIds = candidates.Select(candidate => candidate.QualifiedCgId).ToArray();
         if (settings.MigrateLegacyCandidateSelection(candidateIds))
         {
@@ -453,17 +449,12 @@ public static class AuraToolsFeastRuntime
         {
             role.Enabled = local.Enabled.Value;
         }
+        role.SelectionMode = AuraCgSelectionModes.Normalize(local.SelectionMode);
+        role.ResourceOverrides = new Dictionary<string, bool>(
+            local.ResourceOverrides ?? new Dictionary<string, bool>(),
+            StringComparer.OrdinalIgnoreCase);
 
         var values = local.Values ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        if (values.TryGetValue("selectionMode", out var mode))
-        {
-            role.SelectionMode = AuraCgSelectionModes.Normalize(mode);
-        }
-        if (values.TryGetValue("resourceOverrides", out var overridesJson))
-        {
-            role.ResourceOverrides = AuraSharedJson.Deserialize<Dictionary<string, bool>>(overridesJson)
-                                     ?? new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-        }
         if (values.TryGetValue("manualResources", out var manualJson))
         {
             role.ManualResources = AuraSharedJson.Deserialize<List<FeastManualResourceSettings>>(manualJson)
@@ -509,9 +500,9 @@ public static class AuraToolsFeastRuntime
         }
     }
 
-    private static AuraSharedLocalOverrideV3 CreateLocalOverride(
+    private static AuraSharedLocalOverrideV4 CreateLocalOverride(
         FeastRoleSettings role,
-        AuraSharedUserOverrideDocumentV3 current)
+        AuraSharedUserOverrideDocumentV4 current)
     {
         var values = current.Override?.Values == null
             ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -521,11 +512,11 @@ public static class AuraToolsFeastRuntime
         values["manualResources"] = AuraSharedJson.Serialize(role.ManualResources);
         values.Remove("candidateSelectionConfigured");
         values.Remove("enabledCgIds");
-        return new AuraSharedLocalOverrideV3
+        return new AuraSharedLocalOverrideV4
         {
             Enabled = role.Enabled,
-            ResourceOwnerModId = current.Override?.ResourceOwnerModId ?? "",
-            ResourceId = current.Override?.ResourceId ?? "",
+            SelectionMode = role.SelectionMode,
+            ResourceOverrides = new Dictionary<string, bool>(role.ResourceOverrides, StringComparer.OrdinalIgnoreCase),
             Values = values
         };
     }
@@ -559,7 +550,7 @@ public static class AuraToolsFeastRuntime
 
     private static bool IsToolProvidedDefault(AuraCgCatalogResource resource)
     {
-        return string.Equals(resource.OwnerModId, AuraToolsIds.ModId, StringComparison.OrdinalIgnoreCase)
+        return string.Equals(resource.OriginKind, AuraSharedOriginKinds.ToolDefault, StringComparison.Ordinal)
                && (IsRoleResource(resource)
                    || string.Equals(resource.ScopeType, "Global", StringComparison.OrdinalIgnoreCase)
                    && string.Equals(resource.ScopeId, "all", StringComparison.OrdinalIgnoreCase));

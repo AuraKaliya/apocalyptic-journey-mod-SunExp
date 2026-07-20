@@ -294,8 +294,8 @@
       "cardIds": ["*"],
       "media": {
         "type": "image",
-        "resource": "CG/Role/agua/Feast/AuraToolsExp/template.agua/content.png",
-        "fallbackImage": "CG/Role/agua/Feast/AuraToolsExp/template.agua/content.png"
+        "resource": "CG/Role/Agua_agua_agua/Feast/AuraToolsExp/template.agua/content.png",
+        "fallbackImage": "CG/Role/Agua_agua_agua/Feast/AuraToolsExp/template.agua/content.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade",
@@ -324,8 +324,8 @@
       "cardIds": ["*"],
       "media": {
         "type": "image",
-        "resource": "CG/Role/saya/Feast/AuraToolsExp/template.saya/content.png",
-        "fallbackImage": "CG/Role/saya/Feast/AuraToolsExp/template.saya/content.png"
+        "resource": "CG/Role/Saya_careersample_saya/Feast/AuraToolsExp/template.saya/content.png",
+        "fallbackImage": "CG/Role/Saya_careersample_saya/Feast/AuraToolsExp/template.saya/content.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade",
@@ -354,8 +354,8 @@
       "cardIds": ["*"],
       "media": {
         "type": "image",
-        "resource": "CG/Role/pw_chiha_career_time_jk_chiha/Feast/AuraToolsExp/template.pw_chiha.jk_chiha/content.png",
-        "fallbackImage": "CG/Role/pw_chiha_career_time_jk_chiha/Feast/AuraToolsExp/template.pw_chiha.jk_chiha/content.png"
+        "resource": "CG/Role/PW_Chiha_career_time_JK_Chiha/Feast/AuraToolsExp/template.pw_chiha.jk_chiha/content.png",
+        "fallbackImage": "CG/Role/PW_Chiha_career_time_JK_Chiha/Feast/AuraToolsExp/template.pw_chiha.jk_chiha/content.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade",
@@ -384,8 +384,8 @@
       "cardIds": ["*"],
       "media": {
         "type": "image",
-        "resource": "CG/Role/pw_chiha_career_time_mg_chiha/Feast/AuraToolsExp/template.pw_chiha.mg_chiha/content.png",
-        "fallbackImage": "CG/Role/pw_chiha_career_time_mg_chiha/Feast/AuraToolsExp/template.pw_chiha.mg_chiha/content.png"
+        "resource": "CG/Role/PW_Chiha_career_time_MG_Chiha/Feast/AuraToolsExp/template.pw_chiha.mg_chiha/content.png",
+        "fallbackImage": "CG/Role/PW_Chiha_career_time_MG_Chiha/Feast/AuraToolsExp/template.pw_chiha.mg_chiha/content.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade",

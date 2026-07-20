@@ -33,7 +33,7 @@ public static class AuraSharedResourcePathPolicy
     public static string ResourcePath(
         AuraSharedScopeKey scope,
         string ownerModId,
-        AuraSharedResourceDeclarationV3 declaration)
+        AuraSharedResourceDeclarationV4 declaration)
     {
         var directory = ResourceDirectory(scope, ownerModId, declaration?.ResourceId ?? "resource");
         if (declaration == null

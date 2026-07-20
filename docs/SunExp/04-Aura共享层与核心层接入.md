@@ -102,7 +102,7 @@ sequenceDiagram
     E->>C: AuraSharedRuntime.Initialize(owner=SunExp)
     E->>C: RegisterFeature defaults
     E->>C: initialize RPC authority
-    E->>P: Install SharedResources/package.json
+    E->>P: Install SharedResources/aura.registration.json
     E->>P: Register shared manifest
     E->>D: Register CG manifest and Skill CG runtime
     E->>D: Register starter deck profiles
@@ -121,7 +121,7 @@ sequenceDiagram
 ### 5.1 安装与注册不是同一件事
 
 - **安装**：`AuraSharedPackageEngine.InstallManifest` 把声明的共享资源事务性安装到共享路径，并维护来源和安装索引。
-- **注册**：`AuraSharedResourceProtocol.RegisterManifest` 把 owner、module、scope、feature、resource 等声明写入 v3 分层目录；消费者通过 Catalog API 枚举当前会话的活跃注册。
+- **注册**：`AuraSharedResourceProtocol.RegisterManifest` 把 owner、module、scope、feature、resource 等声明写入 v4 分层目录；消费者通过 Catalog API 枚举当前会话的活跃注册。
 - **领域解析**：CG、Skin、Audio 等领域组件读取自己的协议字段，执行校验、匹配、优先级和 fallback。
 
 只复制文件不等于完成注册，只写注册表也不保证目标资源已经安装。
@@ -134,7 +134,7 @@ Aura 核心使用资源的 owner-qualified unique key。相同 key 的来源可�
 
 SunExp 负责：
 
-- 安装 `SunExp/SharedResources/package.json`；
+- 安装 `SunExp/SharedResources/aura.registration.json`；
 - 注册 SunExp 的 CG、皮肤、音频、Journey、starter deck 等声明；
 - 提交 SunExp 内容触发产生的共享表现请求；
 - 为注册项提供稳定的 `ownerModId` 和 domain id。

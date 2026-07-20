@@ -180,7 +180,8 @@ foreach ($requiredText in @(
     "CanonicalRelativePath = entry.CanonicalPath",
     "AuraSharedResourceKinds.Directory",
     "AuraSharedSystems.Skin",
-    "LegacyPaths",
+    "ScopeOwnerModId",
+    "AuraSharedOriginKinds",
     "GetActiveResources"
 )) {
     if (-not $installerText.Contains($requiredText)) {

@@ -179,6 +179,17 @@ public static class AuraToolsAudioRoleEditor
         }
         else
         {
+            var role = RoleCatalog.GetRoles().FirstOrDefault(candidate =>
+                string.Equals(candidate.Id, RoleCatalog.NormalizeRoleId(settings.RoleId), StringComparison.OrdinalIgnoreCase));
+            FileResourceUtil.RegisterManualDirectory(
+                AuraShared.Core.AuraSharedSystems.Audio,
+                "LocalAudio",
+                "Role",
+                settings.RoleId,
+                role?.OwnerModId ?? AuraToolsIds.ModId,
+                "user-imports",
+                FileResourceUtil.RoleAudioDirectory(settings.RoleId),
+                out _);
             settings.RelativePath = imported;
             settings.Enabled = true;
             SetHint(message + " " + settings.RelativePath);

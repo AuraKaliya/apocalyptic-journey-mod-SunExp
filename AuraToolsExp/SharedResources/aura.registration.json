@@ -1,104 +1,446 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "ownerModId": "AuraToolsExp",
   "participantKind": "Tool",
-  "packageId": "AuraToolsExp.SharedResources.V3",
+  "packageId": "AuraToolsExp.SharedResources.V4",
   "packageVersion": 1,
   "resources": [
     {
-      "moduleId": "Audio", "featureId": "BattleBgm", "scopeType": "Global", "scopeId": "all",
-      "resourceId": "default-battle-bgm", "kind": "File", "source": "Audio/Common/battle_bgm.mp3", "fileName": "content.mp3",
-      "legacyPaths": ["Audio/AuraToolsExp/Common/battle_bgm.mp3", "Audio/Common/battle_bgm.mp3"], "priority": -1000,
-      "effectMode": "Replacement", "missingPolicy": "NativeFallback", "tags": ["tool-default", "bgm"]
+      "moduleId": "Audio",
+      "featureId": "BattleBgm",
+      "scopeType": "Global",
+      "scopeId": "all",
+      "resourceId": "default-battle-bgm",
+      "kind": "File",
+      "source": "Audio/Common/battle_bgm.mp3",
+      "fileName": "content.mp3",
+      "priority": -1000,
+      "effectMode": "Replacement",
+      "missingPolicy": "NativeFallback",
+      "tags": [
+        "tool-default",
+        "bgm"
+      ],
+      "writerId": "AuraToolsExp",
+      "defaultEnabled": true,
+      "archived": false,
+      "scopeOwnerModId": "AuraToolsExp",
+      "scopeAliases": [],
+      "originKind": "ToolDefault"
     },
     {
-      "moduleId": "Audio", "featureId": "CardUse", "scopeType": "Global", "scopeId": "all",
-      "resourceId": "default-card-use", "kind": "File", "source": "Audio/Common/card_use.mp3", "fileName": "content.mp3",
-      "legacyPaths": ["Audio/AuraToolsExp/Common/card_use.mp3", "Audio/Common/card_use.mp3"], "priority": -1000,
-      "effectMode": "Additive", "missingPolicy": "Skip", "tags": ["tool-default", "sound"]
+      "moduleId": "Audio",
+      "featureId": "CardUse",
+      "scopeType": "Global",
+      "scopeId": "all",
+      "resourceId": "default-card-use",
+      "kind": "File",
+      "source": "Audio/Common/card_use.mp3",
+      "fileName": "content.mp3",
+      "priority": -1000,
+      "effectMode": "Additive",
+      "missingPolicy": "Skip",
+      "tags": [
+        "tool-default",
+        "sound"
+      ],
+      "writerId": "AuraToolsExp",
+      "defaultEnabled": true,
+      "archived": false,
+      "scopeOwnerModId": "AuraToolsExp",
+      "scopeAliases": [],
+      "originKind": "ToolDefault"
     },
     {
-      "moduleId": "CG", "featureId": "SkillCg", "scopeType": "Role", "scopeId": "career_1",
-      "resourceId": "official.career_1.careercard_1", "kind": "File", "source": "CG/Roles/1/skill_cg.png", "fileName": "content.png",
-      "legacyPaths": ["CG/AuraToolsExp/Roles/1/skill_cg.png", "CG/Roles/1/skill_cg.png"], "priority": 10,
-      "effectMode": "Additive", "missingPolicy": "Skip", "tags": ["skill-cg", "official-role"]
+      "moduleId": "CG",
+      "featureId": "SkillCg",
+      "scopeType": "Role",
+      "scopeId": "career_1",
+      "resourceId": "official.career_1.careercard_1",
+      "kind": "File",
+      "source": "CG/Roles/1/skill_cg.png",
+      "fileName": "content.png",
+      "priority": 10,
+      "effectMode": "Additive",
+      "missingPolicy": "Skip",
+      "tags": [
+        "skill-cg",
+        "official-role"
+      ],
+      "writerId": "AuraToolsExp",
+      "defaultEnabled": true,
+      "archived": false,
+      "scopeOwnerModId": "Witch",
+      "scopeAliases": [],
+      "originKind": "ToolRegistered"
     },
     {
-      "moduleId": "CG", "featureId": "SkillCg", "scopeType": "Role", "scopeId": "career_3",
-      "resourceId": "official.career_3.careercard_4", "kind": "File", "source": "CG/Roles/_3/skill_cg.png", "fileName": "content.png",
-      "legacyPaths": ["CG/AuraToolsExp/Roles/_3/skill_cg.png", "CG/Roles/_3/skill_cg.png"], "priority": 10,
-      "effectMode": "Additive", "missingPolicy": "Skip", "tags": ["skill-cg", "official-role"]
+      "moduleId": "CG",
+      "featureId": "SkillCg",
+      "scopeType": "Role",
+      "scopeId": "career_3",
+      "resourceId": "official.career_3.careercard_4",
+      "kind": "File",
+      "source": "CG/Roles/_3/skill_cg.png",
+      "fileName": "content.png",
+      "priority": 10,
+      "effectMode": "Additive",
+      "missingPolicy": "Skip",
+      "tags": [
+        "skill-cg",
+        "official-role"
+      ],
+      "writerId": "AuraToolsExp",
+      "defaultEnabled": true,
+      "archived": false,
+      "scopeOwnerModId": "Witch",
+      "scopeAliases": [],
+      "originKind": "ToolRegistered"
     },
     {
-      "moduleId": "CG", "featureId": "Feast", "scopeType": "Global", "scopeId": "all",
-      "resourceId": "default-template", "kind": "File", "source": "CG/Feast/Default/feast_cg.png", "fileName": "content.png",
-      "legacyPaths": ["CG/AuraToolsExp/Templates/Feast/Default/feast_cg.png"], "priority": -1000,
-      "effectMode": "Additive", "missingPolicy": "Skip", "tags": ["feast-cg", "tool-default"]
+      "moduleId": "CG",
+      "featureId": "Feast",
+      "scopeType": "Global",
+      "scopeId": "all",
+      "resourceId": "default-template",
+      "kind": "File",
+      "source": "CG/Feast/Default/feast_cg.png",
+      "fileName": "content.png",
+      "priority": -1000,
+      "effectMode": "Additive",
+      "missingPolicy": "Skip",
+      "tags": [
+        "feast-cg",
+        "tool-default"
+      ],
+      "writerId": "AuraToolsExp",
+      "defaultEnabled": true,
+      "archived": false,
+      "scopeOwnerModId": "AuraToolsExp",
+      "scopeAliases": [],
+      "originKind": "ToolDefault"
     },
     {
-      "moduleId": "CG", "featureId": "Feast", "scopeType": "Role", "scopeId": "career_1",
-      "resourceId": "template.career_1", "kind": "File", "source": "CG/Feast/Roles/career_1/feast_cg.png", "fileName": "content.png",
-      "legacyPaths": ["CG/AuraToolsExp/Templates/Feast/Roles/career_1/feast_cg.png"], "priority": 10, "effectMode": "Additive", "missingPolicy": "Skip", "tags": ["feast-cg", "official-role"]
+      "moduleId": "CG",
+      "featureId": "Feast",
+      "scopeType": "Role",
+      "scopeId": "career_1",
+      "resourceId": "template.career_1",
+      "kind": "File",
+      "source": "CG/Feast/Roles/career_1/feast_cg.png",
+      "fileName": "content.png",
+      "priority": 10,
+      "effectMode": "Additive",
+      "missingPolicy": "Skip",
+      "tags": [
+        "feast-cg",
+        "official-role"
+      ],
+      "writerId": "AuraToolsExp",
+      "defaultEnabled": true,
+      "archived": false,
+      "scopeOwnerModId": "Witch",
+      "scopeAliases": [],
+      "originKind": "ToolRegistered"
     },
     {
-      "moduleId": "CG", "featureId": "Feast", "scopeType": "Role", "scopeId": "career_2",
-      "resourceId": "template.career_2", "kind": "File", "source": "CG/Feast/Roles/career_2/feast_cg.png", "fileName": "content.png",
-      "legacyPaths": ["CG/AuraToolsExp/Templates/Feast/Roles/career_2/feast_cg.png"], "priority": 10, "effectMode": "Additive", "missingPolicy": "Skip", "tags": ["feast-cg", "official-role"]
+      "moduleId": "CG",
+      "featureId": "Feast",
+      "scopeType": "Role",
+      "scopeId": "career_2",
+      "resourceId": "template.career_2",
+      "kind": "File",
+      "source": "CG/Feast/Roles/career_2/feast_cg.png",
+      "fileName": "content.png",
+      "priority": 10,
+      "effectMode": "Additive",
+      "missingPolicy": "Skip",
+      "tags": [
+        "feast-cg",
+        "official-role"
+      ],
+      "writerId": "AuraToolsExp",
+      "defaultEnabled": true,
+      "archived": false,
+      "scopeOwnerModId": "Witch",
+      "scopeAliases": [],
+      "originKind": "ToolRegistered"
     },
     {
-      "moduleId": "CG", "featureId": "Feast", "scopeType": "Role", "scopeId": "career_3",
-      "resourceId": "template.career_3", "kind": "File", "source": "CG/Feast/Roles/career_3/feast_cg.png", "fileName": "content.png",
-      "legacyPaths": ["CG/AuraToolsExp/Templates/Feast/Roles/career_3/feast_cg.png"], "priority": 10, "effectMode": "Additive", "missingPolicy": "Skip", "tags": ["feast-cg", "official-role"]
+      "moduleId": "CG",
+      "featureId": "Feast",
+      "scopeType": "Role",
+      "scopeId": "career_3",
+      "resourceId": "template.career_3",
+      "kind": "File",
+      "source": "CG/Feast/Roles/career_3/feast_cg.png",
+      "fileName": "content.png",
+      "priority": 10,
+      "effectMode": "Additive",
+      "missingPolicy": "Skip",
+      "tags": [
+        "feast-cg",
+        "official-role"
+      ],
+      "writerId": "AuraToolsExp",
+      "defaultEnabled": true,
+      "archived": false,
+      "scopeOwnerModId": "Witch",
+      "scopeAliases": [],
+      "originKind": "ToolRegistered"
     },
     {
-      "moduleId": "CG", "featureId": "Feast", "scopeType": "Role", "scopeId": "career_5",
-      "resourceId": "template.career_5", "kind": "File", "source": "CG/Feast/Roles/career_5/feast_cg.png", "fileName": "content.png",
-      "legacyPaths": ["CG/AuraToolsExp/Templates/Feast/Roles/career_5/feast_cg.png"], "priority": 10, "effectMode": "Additive", "missingPolicy": "Skip", "tags": ["feast-cg", "official-role"]
+      "moduleId": "CG",
+      "featureId": "Feast",
+      "scopeType": "Role",
+      "scopeId": "career_5",
+      "resourceId": "template.career_5",
+      "kind": "File",
+      "source": "CG/Feast/Roles/career_5/feast_cg.png",
+      "fileName": "content.png",
+      "priority": 10,
+      "effectMode": "Additive",
+      "missingPolicy": "Skip",
+      "tags": [
+        "feast-cg",
+        "official-role"
+      ],
+      "writerId": "AuraToolsExp",
+      "defaultEnabled": true,
+      "archived": false,
+      "scopeOwnerModId": "Witch",
+      "scopeAliases": [],
+      "originKind": "ToolRegistered"
     },
     {
-      "moduleId": "CG", "featureId": "Feast", "scopeType": "Role", "scopeId": "career_6",
-      "resourceId": "template.career_6", "kind": "File", "source": "CG/Feast/Roles/career_6/feast_cg.png", "fileName": "content.png",
-      "legacyPaths": ["CG/AuraToolsExp/Templates/Feast/Roles/career_6/feast_cg.png"], "priority": 10, "effectMode": "Additive", "missingPolicy": "Skip", "tags": ["feast-cg", "official-role"]
+      "moduleId": "CG",
+      "featureId": "Feast",
+      "scopeType": "Role",
+      "scopeId": "career_6",
+      "resourceId": "template.career_6",
+      "kind": "File",
+      "source": "CG/Feast/Roles/career_6/feast_cg.png",
+      "fileName": "content.png",
+      "priority": 10,
+      "effectMode": "Additive",
+      "missingPolicy": "Skip",
+      "tags": [
+        "feast-cg",
+        "official-role"
+      ],
+      "writerId": "AuraToolsExp",
+      "defaultEnabled": true,
+      "archived": false,
+      "scopeOwnerModId": "Witch",
+      "scopeAliases": [],
+      "originKind": "ToolRegistered"
     },
     {
-      "moduleId": "CG", "featureId": "Feast", "scopeType": "Role", "scopeId": "career_7",
-      "resourceId": "template.career_7", "kind": "File", "source": "CG/Feast/Roles/career_7/feast_cg.png", "fileName": "content.png",
-      "legacyPaths": ["CG/AuraToolsExp/Templates/Feast/Roles/career_7/feast_cg.png"], "priority": 10, "effectMode": "Additive", "missingPolicy": "Skip", "tags": ["feast-cg", "official-role"]
+      "moduleId": "CG",
+      "featureId": "Feast",
+      "scopeType": "Role",
+      "scopeId": "career_7",
+      "resourceId": "template.career_7",
+      "kind": "File",
+      "source": "CG/Feast/Roles/career_7/feast_cg.png",
+      "fileName": "content.png",
+      "priority": 10,
+      "effectMode": "Additive",
+      "missingPolicy": "Skip",
+      "tags": [
+        "feast-cg",
+        "official-role"
+      ],
+      "writerId": "AuraToolsExp",
+      "defaultEnabled": true,
+      "archived": false,
+      "scopeOwnerModId": "Witch",
+      "scopeAliases": [],
+      "originKind": "ToolRegistered"
     },
     {
-      "moduleId": "CG", "featureId": "Feast", "scopeType": "Role", "scopeId": "career_8",
-      "resourceId": "template.career_8", "kind": "File", "source": "CG/Feast/Roles/career_8/feast_cg.png", "fileName": "content.png",
-      "legacyPaths": ["CG/AuraToolsExp/Templates/Feast/Roles/career_8/feast_cg.png"], "priority": 10, "effectMode": "Additive", "missingPolicy": "Skip", "tags": ["feast-cg", "official-role"]
+      "moduleId": "CG",
+      "featureId": "Feast",
+      "scopeType": "Role",
+      "scopeId": "career_8",
+      "resourceId": "template.career_8",
+      "kind": "File",
+      "source": "CG/Feast/Roles/career_8/feast_cg.png",
+      "fileName": "content.png",
+      "priority": 10,
+      "effectMode": "Additive",
+      "missingPolicy": "Skip",
+      "tags": [
+        "feast-cg",
+        "official-role"
+      ],
+      "writerId": "AuraToolsExp",
+      "defaultEnabled": true,
+      "archived": false,
+      "scopeOwnerModId": "Witch",
+      "scopeAliases": [],
+      "originKind": "ToolRegistered"
     },
     {
-      "moduleId": "CG", "featureId": "Feast", "scopeType": "Role", "scopeId": "career_9",
-      "resourceId": "template.career_9", "kind": "File", "source": "CG/Feast/Roles/career_9/feast_cg.png", "fileName": "content.png",
-      "legacyPaths": ["CG/AuraToolsExp/Templates/Feast/Roles/career_9/feast_cg.png"], "priority": 10, "effectMode": "Additive", "missingPolicy": "Skip", "tags": ["feast-cg", "official-role"]
+      "moduleId": "CG",
+      "featureId": "Feast",
+      "scopeType": "Role",
+      "scopeId": "career_9",
+      "resourceId": "template.career_9",
+      "kind": "File",
+      "source": "CG/Feast/Roles/career_9/feast_cg.png",
+      "fileName": "content.png",
+      "priority": 10,
+      "effectMode": "Additive",
+      "missingPolicy": "Skip",
+      "tags": [
+        "feast-cg",
+        "official-role"
+      ],
+      "writerId": "AuraToolsExp",
+      "defaultEnabled": true,
+      "archived": false,
+      "scopeOwnerModId": "Witch",
+      "scopeAliases": [],
+      "originKind": "ToolRegistered"
     },
     {
-      "moduleId": "CG", "featureId": "Feast", "scopeType": "Role", "scopeId": "agua",
-      "resourceId": "template.agua", "kind": "File", "source": "CG/Feast/Roles/agua/feast_cg.png", "fileName": "content.png",
-      "legacyPaths": ["CG/AuraToolsExp/Templates/Feast/Roles/agua/feast_cg.png"], "priority": 10, "effectMode": "Additive", "missingPolicy": "Skip", "tags": ["feast-cg", "mod-role"]
+      "moduleId": "CG",
+      "featureId": "Feast",
+      "scopeType": "Role",
+      "scopeId": "Agua_agua_agua",
+      "resourceId": "template.agua",
+      "kind": "File",
+      "source": "CG/Feast/Roles/agua/feast_cg.png",
+      "fileName": "content.png",
+      "priority": 10,
+      "effectMode": "Additive",
+      "missingPolicy": "Skip",
+      "tags": [
+        "feast-cg",
+        "mod-role"
+      ],
+      "writerId": "AuraToolsExp",
+      "defaultEnabled": true,
+      "archived": false,
+      "scopeOwnerModId": "Agua",
+      "scopeAliases": [
+        "agua"
+      ],
+      "originKind": "ToolRegistered"
     },
     {
-      "moduleId": "CG", "featureId": "Feast", "scopeType": "Role", "scopeId": "saya",
-      "resourceId": "template.saya", "kind": "File", "source": "CG/Feast/Roles/saya/feast_cg.png", "fileName": "content.png",
-      "legacyPaths": ["CG/AuraToolsExp/Templates/Feast/Roles/saya/feast_cg.png"], "priority": 10, "effectMode": "Additive", "missingPolicy": "Skip", "tags": ["feast-cg", "mod-role"]
+      "moduleId": "CG",
+      "featureId": "Feast",
+      "scopeType": "Role",
+      "scopeId": "Saya_careersample_saya",
+      "resourceId": "template.saya",
+      "kind": "File",
+      "source": "CG/Feast/Roles/saya/feast_cg.png",
+      "fileName": "content.png",
+      "priority": 10,
+      "effectMode": "Additive",
+      "missingPolicy": "Skip",
+      "tags": [
+        "feast-cg",
+        "mod-role"
+      ],
+      "writerId": "AuraToolsExp",
+      "defaultEnabled": true,
+      "archived": false,
+      "scopeOwnerModId": "Saya",
+      "scopeAliases": [
+        "saya"
+      ],
+      "originKind": "ToolRegistered"
     },
     {
-      "moduleId": "CG", "featureId": "Feast", "scopeType": "Role", "scopeId": "pw_chiha_career_time_jk_chiha",
-      "resourceId": "template.pw_chiha.jk_chiha", "kind": "File", "source": "CG/Feast/Roles/pw_chiha_career_time_jk_chiha/feast_cg.png", "fileName": "content.png",
-      "legacyPaths": ["CG/AuraToolsExp/Templates/Feast/Roles/pw_chiha_career_time_jk_chiha/feast_cg.png"], "priority": 10, "effectMode": "Additive", "missingPolicy": "Skip", "tags": ["feast-cg", "mod-role"]
+      "moduleId": "CG",
+      "featureId": "Feast",
+      "scopeType": "Role",
+      "scopeId": "PW_Chiha_career_time_JK_Chiha",
+      "resourceId": "template.pw_chiha.jk_chiha",
+      "kind": "File",
+      "source": "CG/Feast/Roles/pw_chiha_career_time_jk_chiha/feast_cg.png",
+      "fileName": "content.png",
+      "priority": 10,
+      "effectMode": "Additive",
+      "missingPolicy": "Skip",
+      "tags": [
+        "feast-cg",
+        "mod-role"
+      ],
+      "writerId": "AuraToolsExp",
+      "defaultEnabled": true,
+      "archived": false,
+      "scopeOwnerModId": "PW_Chiha",
+      "scopeAliases": [
+        "JK_Chiha",
+        "pw_chiha_career_time_jk_chiha"
+      ],
+      "originKind": "ToolRegistered"
     },
     {
-      "moduleId": "CG", "featureId": "Feast", "scopeType": "Role", "scopeId": "pw_chiha_career_time_mg_chiha",
-      "resourceId": "template.pw_chiha.mg_chiha", "kind": "File", "source": "CG/Feast/Roles/pw_chiha_career_time_mg_chiha/feast_cg.png", "fileName": "content.png",
-      "legacyPaths": ["CG/AuraToolsExp/Templates/Feast/Roles/pw_chiha_career_time_mg_chiha/feast_cg.png"], "priority": 10, "effectMode": "Additive", "missingPolicy": "Skip", "tags": ["feast-cg", "mod-role"]
+      "moduleId": "CG",
+      "featureId": "Feast",
+      "scopeType": "Role",
+      "scopeId": "PW_Chiha_career_time_MG_Chiha",
+      "resourceId": "template.pw_chiha.mg_chiha",
+      "kind": "File",
+      "source": "CG/Feast/Roles/pw_chiha_career_time_mg_chiha/feast_cg.png",
+      "fileName": "content.png",
+      "priority": 10,
+      "effectMode": "Additive",
+      "missingPolicy": "Skip",
+      "tags": [
+        "feast-cg",
+        "mod-role"
+      ],
+      "writerId": "AuraToolsExp",
+      "defaultEnabled": true,
+      "archived": false,
+      "scopeOwnerModId": "PW_Chiha",
+      "scopeAliases": [
+        "MG_Chiha",
+        "pw_chiha_career_time_mg_chiha"
+      ],
+      "originKind": "ToolRegistered"
     }
   ],
   "defaults": [
-    { "moduleId": "Audio", "featureId": "BattleBgm", "scopeType": "Global", "scopeId": "all", "profileId": "tool-default", "enabled": true, "priority": 100, "resourceOwnerModId": "AuraToolsExp", "resourceId": "default-battle-bgm" },
-    { "moduleId": "Audio", "featureId": "CardUse", "scopeType": "Global", "scopeId": "all", "profileId": "tool-default", "enabled": true, "priority": 100, "resourceOwnerModId": "AuraToolsExp", "resourceId": "default-card-use" },
-    { "moduleId": "CG", "featureId": "Feast", "scopeType": "Global", "scopeId": "all", "profileId": "tool-default", "enabled": true, "priority": 100, "resourceOwnerModId": "AuraToolsExp", "resourceId": "default-template" }
-  ]
+    {
+      "moduleId": "Audio",
+      "featureId": "BattleBgm",
+      "scopeType": "Global",
+      "scopeId": "all",
+      "profileId": "tool-default",
+      "enabled": true,
+      "priority": 100,
+      "resourceOwnerModId": "AuraToolsExp",
+      "resourceId": "default-battle-bgm"
+    },
+    {
+      "moduleId": "Audio",
+      "featureId": "CardUse",
+      "scopeType": "Global",
+      "scopeId": "all",
+      "profileId": "tool-default",
+      "enabled": true,
+      "priority": 100,
+      "resourceOwnerModId": "AuraToolsExp",
+      "resourceId": "default-card-use"
+    },
+    {
+      "moduleId": "CG",
+      "featureId": "Feast",
+      "scopeType": "Global",
+      "scopeId": "all",
+      "profileId": "tool-default",
+      "enabled": true,
+      "priority": 100,
+      "resourceOwnerModId": "AuraToolsExp",
+      "resourceId": "default-template"
+    }
+  ],
+  "packageSourceKind": "ModPackage"
 }

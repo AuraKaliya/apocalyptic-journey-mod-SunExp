@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using AuraCg.Shared;
+using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
 using UnityEngine;
@@ -17,6 +18,7 @@ public static class AuraToolsFeastRoleEditor
     private static Transform? resourceContent;
     private static Text? statusText;
     private static RoleInfo? activeRole;
+    private static Transform? editorRoot;
 
     public static void Show(Transform parent)
     {
@@ -25,6 +27,7 @@ public static class AuraToolsFeastRoleEditor
             parent,
             "一键美餐 - 角色资源",
             RefreshAndSave);
+        editorRoot = window.transform;
         var toolbar = CreateHorizontal("Toolbar", window.transform, Settings.AuraToolsUi.ToolbarHeight);
         statusText = Settings.AuraToolsUi.AddText(
             toolbar.transform,
@@ -35,9 +38,10 @@ public static class AuraToolsFeastRoleEditor
             Settings.AuraToolsUi.TextMinHeight,
             1f);
         Settings.AuraToolsUi.AddButton(toolbar.transform, "重新扫描", () => RefreshRoles(true), 104f);
+        Settings.AuraToolsUi.AddButton(toolbar.transform, "历史资源", () => ShowHistory(window.transform), 96f);
         Settings.AuraToolsUi.AddButton(toolbar.transform, "保存", RefreshAndSave, 78f);
 
-        roleContent = Settings.AuraToolsUi.CreateFixedScroll(window.transform, "FeastRoles", 560f);
+        roleContent = Settings.AuraToolsUi.CreateScroll(window.transform, "FeastRoles");
         RefreshRoles(false);
     }
 
@@ -62,36 +66,7 @@ public static class AuraToolsFeastRoleEditor
 
     private static IReadOnlyList<RoleInfo> AllRoles(bool forceScan)
     {
-        var roles = RoleCatalog.GetRoles(forceScan)
-            .ToDictionary(role => role.Id, StringComparer.OrdinalIgnoreCase);
-        foreach (var roleId in AuraToolsFeastRuntime.RegisteredRoleIds())
-        {
-            if (!roles.ContainsKey(roleId))
-            {
-                roles[roleId] = new RoleInfo
-                {
-                    Id = roleId,
-                    DisplayName = RoleCatalog.GetDisplayName(roleId)
-                };
-            }
-        }
-
-        foreach (var pair in AuraToolsConfigService.MatchExperience.Feast.Roles)
-        {
-            var roleId = RoleCatalog.NormalizeRoleId(pair.Key);
-            if (!string.IsNullOrWhiteSpace(roleId) && !roles.ContainsKey(roleId))
-            {
-                roles[roleId] = new RoleInfo
-                {
-                    Id = roleId,
-                    DisplayName = string.IsNullOrWhiteSpace(pair.Value?.DisplayName)
-                        ? roleId
-                        : pair.Value?.DisplayName ?? roleId
-                };
-            }
-        }
-
-        return roles.Values
+        return RoleCatalog.GetRoles(forceScan)
             .OrderBy(role => role.DisplayName)
             .ThenBy(role => role.Id)
             .ToArray();
@@ -134,7 +109,7 @@ public static class AuraToolsFeastRoleEditor
         var enabledCount = candidates.Count(candidate => roleSettings.IsCandidateEnabled(candidate.QualifiedCgId));
 
         var card = Settings.AuraToolsUi.CreateLayout("FeastRole-" + role.Id, roleContent!);
-        Settings.AuraToolsUi.SetFixedHeight(card, 112f);
+        Settings.AuraToolsUi.SetFixedHeight(card, 126f);
         Settings.AuraToolsUi.AddPanelImage(
             card,
             enabledCount > 0 && roleSettings.Enabled
@@ -163,9 +138,9 @@ public static class AuraToolsFeastRoleEditor
             Settings.AuraToolsUi.TextMinHeight,
             1f);
         Settings.AuraToolsUi.AddButton(top.transform, "预览", () => AuraToolsFeastRuntime.PreviewRole(role.Id), 76f);
-        Settings.AuraToolsUi.AddButton(top.transform, "资源管理", () => ShowResources(card.transform, role), 104f);
+        Settings.AuraToolsUi.AddButton(top.transform, "资源管理", () => ShowResources(editorRoot ?? card.transform, role), 104f);
 
-        var bottom = CreateHorizontal("Bottom", card.transform, 38f);
+        var bottom = CreateHorizontal("Bottom", card.transform, Settings.AuraToolsUi.ButtonHeight);
         Settings.AuraToolsUi.AddText(
             bottom.transform,
             "注册 " + registeredCount
@@ -227,8 +202,64 @@ public static class AuraToolsFeastRoleEditor
             FileResourceUtil.OpenDirectory(AuraToolsFeastManualResourceStore.RoleDirectory(role.Id)), 128f);
         Settings.AuraToolsUi.AddButton(toolbar.transform, "导入图片", () => PickRoleImage(role), 96f);
         Settings.AuraToolsUi.AddButton(toolbar.transform, "移除人工项", () => RemoveRoleImage(role), 112f);
-        resourceContent = Settings.AuraToolsUi.CreateFixedScroll(window.transform, "FeastResources", 540f);
+        resourceContent = Settings.AuraToolsUi.CreateScroll(window.transform, "FeastResources");
         RefreshResourceCards();
+    }
+
+    private static void ShowHistory(Transform parent)
+    {
+        var window = Settings.AuraToolsUi.CreateOverlay(
+            "AuraTools.SharedResourceHistory",
+            parent,
+            "共享资源 - 历史资源",
+            null,
+            true,
+            1120f);
+        var history = AuraSharedResourceProtocol.QueryCatalog(AuraToolsIds.ModId, new AuraSharedCatalogQueryV4
+        {
+            Visibility = AuraSharedCatalogVisibilities.All
+        });
+        var content = Settings.AuraToolsUi.CreateScroll(window.transform, "SharedResourceHistory");
+        var entries = history.Entries.Where(entry => entry.HistoryReasons.Count > 0 || IsInapplicableRoleResource(entry)).ToArray();
+        if (entries.Length == 0)
+        {
+            Settings.AuraToolsUi.AddText(content, "当前没有历史资源。", Settings.AuraToolsUi.BodyFontSize,
+                TextAnchor.MiddleLeft, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 1f);
+            return;
+        }
+        foreach (var entry in entries)
+        {
+            var reasons = entry.HistoryReasons.ToList();
+            if (IsInapplicableRoleResource(entry)) reasons.Add(AuraSharedHistoryReasons.Inapplicable);
+            var row = Settings.AuraToolsUi.CreateLayout("History-" + entry.QualifiedResourceId, content);
+            Settings.AuraToolsUi.SetFixedHeight(row, 78f);
+            Settings.AuraToolsUi.AddPanelImage(row, Settings.AuraToolsUi.Row);
+            var layout = row.AddComponent<HorizontalLayoutGroup>();
+            layout.padding = new RectOffset(10, 10, 8, 8);
+            layout.spacing = 10f;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = false;
+            Settings.AuraToolsUi.AddText(row.transform,
+                entry.QualifiedResourceId + "\n" + entry.Resource.OriginKind + " · "
+                + string.Join(" / ", reasons.Distinct(StringComparer.OrdinalIgnoreCase)),
+                Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, Settings.AuraToolsUi.MutedText, 62f, 1f);
+            Settings.AuraToolsUi.AddButton(row.transform, "打开目录", () =>
+            {
+                var absolute = AuraToolsConfigService.ResolveConfiguredPath(entry.CanonicalPath);
+                var directory = Directory.Exists(absolute) ? absolute : Path.GetDirectoryName(absolute);
+                if (!string.IsNullOrWhiteSpace(directory)) FileResourceUtil.OpenDirectory(directory);
+            }, 92f);
+        }
+    }
+
+    private static bool IsInapplicableRoleResource(AuraSharedCatalogEntryV4 entry)
+    {
+        return string.Equals(entry.Resource.ScopeType, "Role", StringComparison.OrdinalIgnoreCase)
+               && !RoleCatalog.GetRoles().Any(role => RoleCatalog.MatchesRole(
+                   role.Id,
+                   entry.Resource.ScopeId,
+                   entry.Resource.ScopeAliases));
     }
 
     private static void RefreshResourceCards()

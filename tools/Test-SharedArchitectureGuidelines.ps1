@@ -860,10 +860,11 @@ Require-Text $guidelines "Ownership And Mutability" "Shared guidelines must docu
 Require-Text $guidelines "Conflict And Candidate Policy" "Shared guidelines must document conflict and candidate policy."
 Require-Text $guidelines "Resolution Priority" "Shared guidelines must document resolution priority."
 
-$resourceV3 = Read-RepoText "docs\aura-shared-resource-v3-contract.md"
-Require-Text $resourceV3 "Active lease" "Shared v3 guidelines must separate active leases from persistent registrations."
-Require-Text $resourceV3 "module/scopeType/scopeId/featureId/ownerModId/resourceId" "Shared v3 guidelines must define the canonical module-owned layout."
-Require-Text $resourceV3 "dual-read" "Shared v3 guidelines must define legacy dual-read migration."
+$resourceV4 = Read-RepoText "docs\aura-shared-resource-v4-contract.md"
+Require-Text $resourceV4 "registration-only protocol" "Shared v4 guidelines must require registration."
+Require-Text $resourceV4 "moduleId/scopeType/canonicalScopeId/featureId/ownerModId/resourceId/content" "Shared v4 guidelines must define the canonical module-owned layout."
+Require-Text $resourceV4 "History view" "Shared v4 guidelines must define independent history visibility."
+Require-Text $resourceV4 "UserManual" "Shared v4 guidelines must define manual resource provenance."
 
 $auditFile = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot "docs\SunExp") -File -Filter "04-Aura*.md")
 if ($auditFile.Count -ne 1) {

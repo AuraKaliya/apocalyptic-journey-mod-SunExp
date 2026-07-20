@@ -9,7 +9,7 @@ namespace AuraAudio.Shared;
 public static class AuraAudioRuntime
 {
     public const string DefaultRegistryPath = "audio.registry.json";
-    public const string DefaultPackageManifestPath = "SharedResources/package.json";
+    public const string DefaultPackageManifestPath = AuraSharedResourceProtocol.DefaultManifestPath;
 
     public static AuraAudioInitializeResult Initialize(
         ModConfig modConfig,
