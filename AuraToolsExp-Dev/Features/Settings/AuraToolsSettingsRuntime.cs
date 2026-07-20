@@ -648,18 +648,32 @@ public static class AuraToolsSettingsRuntime
         }, content =>
         {
             var statusRow = CreateInlineRow(content, "SkinStatusRow");
-            AuraToolsUi.AddText(statusRow.transform, "共享皮肤目录：" + AuraToolsConfigService.SkinDirectory, AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
-            AuraToolsUi.AddButton(statusRow.transform, "打开目录", () => FileResourceUtil.OpenDirectory(AuraToolsConfigService.SkinDirectory), 92f);
-            AuraToolsUi.AddButton(statusRow.transform, "重新扫描", () =>
-            {
-                AuraToolsSkinRuntime.RegisterBundledPackage();
-                AuraToolsSkinRuntime.Reload();
-                RebuildPanel(activePanel!.transform);
-            }, 92f);
-
-            var autoInstallRow = CreateInlineRow(content, "SkinAutoInstallInfoRow");
             AuraToolsConfigService.Skin.AutoInstallBundledSkins = true;
-            AuraToolsUi.AddText(autoInstallRow.transform, "说明：AuraToolsExp 内置角色皮肤会自动安装并补齐到共享皮肤目录。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
+            var skinCandidates = AuraToolsSkinRuntime.CandidateDefinitions();
+            var enabledCandidates = skinCandidates.Count(candidate =>
+                AuraToolsConfigService.Skin.IsCandidateEnabled(candidate.QualifiedSkinId));
+            AuraToolsUi.AddText(
+                statusRow.transform,
+                "ManualSelection · 角色 "
+                + AuraToolsSkinRuntime.CandidateCareerIds().Count
+                + " · 待选 " + enabledCandidates + "/" + skinCandidates.Count,
+                AuraToolsUi.BodyFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.Text,
+                AuraToolsUi.TextMinHeight,
+                1f);
+            AuraToolsUi.AddButton(statusRow.transform, "管理皮肤", () =>
+                AuraToolsSkinEditor.Show(activePanel!.transform), 104f);
+
+            var installPolicyRow = CreateInlineRow(content, "SkinAutoInstallInfoRow");
+            AuraToolsUi.AddText(
+                installPolicyRow.transform,
+                "内置角色皮肤会自动安装并补齐到共享皮肤目录。",
+                AuraToolsUi.HintFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.MutedText,
+                AuraToolsUi.TextMinHeight,
+                1f);
 
             var toggles = CreateInlineRow(content, "SkinToggleRow");
             AuraToolsUi.AddToggle(toggles.transform, AuraToolsConfigService.Skin.SyncRemote, value =>
@@ -679,27 +693,6 @@ public static class AuraToolsSettingsRuntime
             });
             AuraToolsUi.AddText(entryRow.transform, "在角色选择界面显示皮肤按钮", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
 
-            foreach (var candidate in AuraToolsSkinRuntime.CandidateDefinitions())
-            {
-                var candidateRow = CreateInlineRow(content, "SkinCandidate-" + candidate.QualifiedSkinId);
-                AuraToolsUi.AddToggle(candidateRow.transform,
-                    AuraToolsConfigService.Skin.IsCandidateEnabled(candidate.QualifiedSkinId),
-                    value =>
-                    {
-                        AuraToolsSkinRuntime.SetCandidateEnabled(candidate.QualifiedSkinId, value);
-                        RebuildPanel(activePanel!.transform);
-                    });
-                var label = candidate.TargetCareerId + " / " + candidate.Name
-                            + " / " + candidate.OwnerModId
-                            + "\n" + candidate.QualifiedSkinId;
-                AuraToolsUi.AddText(candidateRow.transform, label, AuraToolsUi.BodyFontSize,
-                    TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
-            }
-
-            foreach (var line in AuraToolsSkinRuntime.StatusLines())
-            {
-                AuraToolsUi.AddText(content, line, AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
-            }
         });
     }
 
@@ -770,11 +763,7 @@ public static class AuraToolsSettingsRuntime
                 AuraToolsUi.TextMinHeight,
                 1f);
             AuraToolsUi.AddButton(row.transform, "按角色配置", () => AuraToolsFeastRoleEditor.Show(activePanel!.transform), 112f);
-
-            var policyRow = CreateInlineRow(content, "FeastPolicyRow");
             feast.PlayCg = true;
-            AuraToolsUi.AddText(policyRow.transform, "说明：一键吃掉所有食物，并播放当前角色的美餐CG。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
-            AuraToolsUi.AddText(content, "声明：该功能初始代码由【哈基米】提供，后续由【Aura】进行维护，若MOD角色需要增添相关CG，可通过共享层接口实现自主注册，也可联系【Aura】进行内置添加。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
         }, feast.Enabled ? AuraToolsUi.SuccessText : AuraToolsUi.MutedText);
 
         CreateSubmodule(parent, "随身保险箱", AuraToolsConfigService.MatchExperience.SafeBox.Enabled, value =>

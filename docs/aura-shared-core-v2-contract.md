@@ -206,9 +206,11 @@ Core 负责共享路径、存储、资源注册、包事务、变更序列、诊
 内容 MOD 通过 `SharedResources/role.registry.json` 声明自己拥有的角色；工具或共享适配器
 可以把当前游戏职业表扫描结果作为独立 contribution 发布到 `AuraRoleShared`。贡献以
 `contributorModId + contributionId + sessionId` 分区，避免旧会话或某个动态扫描器覆盖
-其他 MOD 的声明。AuraToolsExp 订阅角色目录 revision，并为新角色生成自己的默认美餐
-CG 配置和可编辑工作副本；它只注册 `generated-feast-defaults` 贡献，不改写内容 MOD 的
-CG manifest 贡献。
+其他 MOD 的声明。AuraToolsExp 读取角色目录与 v3 Catalog，但不再为每个新角色生成
+`generated-feast-defaults` 双注册贡献。内容 MOD 的美餐 CG 只由其 v3 manifest 注册；
+工具默认资源仍归 AuraToolsExp 所有，并且仅在对应角色没有“当前 MOD 已启用且注册成功”
+的内容资源时作为一个候选显示。人工导入是独立候选，写入角色粒度的 `aura.user.json`，
+既不伪装成注册资源，也不阻止工具默认资源出现。
 
 ## Conflict And Candidate Policy（冲突与候选策略）
 
@@ -226,6 +228,10 @@ owner/provider 不匹配时 fail closed。
 工具覆盖决定本机的有效配置，但不回写外部 owner 的声明。领域候选的具体优先级、
 冲突合并和 fallback 次序由 Audio/CG/Skin/Journey/StarterDeck 等领域协议分别定义，
 Core 不提供一个跨领域的万能优先级。
+
+动态候选统一使用稀疏 `resourceOverrides`：没有键即启用，显式 `false` 才关闭。因此
+人工修改已有项后，新扫描到的注册资源不会被旧白名单隐式关闭。Skin 的
+`ManualSelection` 只控制候选是否加入待选池，不触发主动换肤。
 
 ## Operation Log（操作日志）
 

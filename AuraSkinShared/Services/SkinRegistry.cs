@@ -16,9 +16,8 @@ public static class SkinRegistry
     private static readonly Dictionary<string, SkinDefinition> ByQualifiedId = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, List<SkinDefinition>> BySemanticKey = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, List<SkinDefinition>> ByCareer = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly HashSet<string> EnabledQualifiedIds = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, bool> CandidateOverrides = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> AmbiguityWarnings = new(StringComparer.OrdinalIgnoreCase);
-    private static bool candidateSelectionConfigured;
 
     public static IEnumerable<string> CareerIds => ByCareer.Keys;
 
@@ -97,14 +96,37 @@ public static class SkinRegistry
 
     public static void ConfigureCandidateEnablement(bool configured, IEnumerable<string>? enabledQualifiedSkinIds)
     {
-        candidateSelectionConfigured = configured;
-        EnabledQualifiedIds.Clear();
+        CandidateOverrides.Clear();
+        if (!configured)
+        {
+            return;
+        }
+
+        var enabled = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var value in enabledQualifiedSkinIds ?? Array.Empty<string>())
         {
             var normalized = (value ?? "").Trim();
             if (normalized.Length > 0)
             {
-                EnabledQualifiedIds.Add(normalized);
+                enabled.Add(normalized);
+            }
+        }
+
+        foreach (var candidate in ByQualifiedId.Keys)
+        {
+            CandidateOverrides[candidate] = enabled.Contains(candidate);
+        }
+    }
+
+    public static void ConfigureCandidateOverrides(IEnumerable<KeyValuePair<string, bool>>? overrides)
+    {
+        CandidateOverrides.Clear();
+        foreach (var pair in overrides ?? Array.Empty<KeyValuePair<string, bool>>())
+        {
+            var id = (pair.Key ?? "").Trim();
+            if (id.Length > 0)
+            {
+                CandidateOverrides[id] = pair.Value;
             }
         }
     }
@@ -112,7 +134,7 @@ public static class SkinRegistry
     public static bool IsEffectivelyEnabled(SkinDefinition? skin)
     {
         return skin != null
-               && (!candidateSelectionConfigured || EnabledQualifiedIds.Contains(skin.QualifiedSkinId));
+               && (!CandidateOverrides.TryGetValue(skin.QualifiedSkinId, out var enabled) || enabled);
     }
 
     public static SkinDefinition? Find(string careerId, string skinId)

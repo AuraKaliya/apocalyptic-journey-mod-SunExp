@@ -1,9 +1,9 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "enabled": true,
   "autoInstallBundledSkins": true,
   "showEntrySkinButton": true,
   "syncRemote": true,
-  "candidateSelectionConfigured": false,
-  "enabledSkinIds": []
+  "selectionSchemaVersion": 3,
+  "resourceOverrides": {}
 }

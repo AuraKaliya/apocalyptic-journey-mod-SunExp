@@ -20,13 +20,13 @@ public static class AuraToolsSkinRuntime
     private const string OfficialSummerSkinId = "AuraToolsExp.career_1.summer_cool";
     private static ModConfig? currentConfig;
     private static bool initialized;
+    private static bool migratingSelection;
     private static string lastInstallStatus = "Skin package not installed yet.";
 
     public static void Initialize(ModConfig modConfig)
     {
         currentConfig = modConfig;
         AuraSkinRuntime.Initialize(modConfig, AuraToolsIds.ModId);
-        ConfigureFromSettings();
         if (!initialized)
         {
             initialized = true;
@@ -116,13 +116,44 @@ public static class AuraToolsSkinRuntime
         return SkinRuntime.GetAllSkinCandidates();
     }
 
+    public static IReadOnlyList<SkinDefinition> CandidateDefinitions(string careerId)
+    {
+        return SkinRuntime.GetAllSkins(careerId);
+    }
+
+    public static IReadOnlyList<string> CandidateCareerIds()
+    {
+        return SkinRuntime.GetAllSkinCandidates()
+            .Select(candidate => candidate.TargetCareerId)
+            .Where(candidate => !string.IsNullOrWhiteSpace(candidate))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(candidate => candidate, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    public static string SelectedQualifiedSkinId(string careerId)
+    {
+        return SkinRuntime.GetSelectedQualifiedSkinId(careerId);
+    }
+
     public static void SetCandidateEnabled(string qualifiedSkinId, bool enabled)
     {
-        var candidateIds = SkinRuntime.GetAllSkinCandidates()
+        var candidates = SkinRuntime.GetAllSkinCandidates();
+        var candidate = candidates.FirstOrDefault(value => string.Equals(
+            value.QualifiedSkinId,
+            qualifiedSkinId,
+            StringComparison.OrdinalIgnoreCase));
+        if (candidate == null)
+        {
+            return;
+        }
+
+        var candidateIds = candidates
             .Select(candidate => candidate.QualifiedSkinId)
             .ToArray();
         AuraToolsConfigService.Skin.SetCandidateEnabled(qualifiedSkinId, enabled, candidateIds);
         AuraToolsConfigService.SaveSkin();
+        SaveCareerOverrides(candidate.TargetCareerId);
         ConfigureFromSettings();
     }
 
@@ -155,12 +186,124 @@ public static class AuraToolsSkinRuntime
 
     private static void ConfigureFromSettings()
     {
+        var candidates = SkinRuntime.GetAllSkinCandidates();
+        if (!migratingSelection
+            && AuraToolsConfigService.Skin.MigrateLegacyCandidateSelection(
+                candidates.Select(candidate => candidate.QualifiedSkinId)))
+        {
+            migratingSelection = true;
+            try
+            {
+                AuraToolsConfigService.SaveSkin();
+                foreach (var careerId in candidates
+                             .Select(candidate => candidate.TargetCareerId)
+                             .Distinct(StringComparer.OrdinalIgnoreCase))
+                {
+                    SaveCareerOverrides(careerId);
+                }
+            }
+            finally
+            {
+                migratingSelection = false;
+            }
+        }
+
+        var effectiveOverrides = new Dictionary<string, bool>(
+            AuraToolsConfigService.Skin.ResourceOverrides,
+            StringComparer.OrdinalIgnoreCase);
+        foreach (var careerId in candidates
+                     .Select(candidate => candidate.TargetCareerId)
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            foreach (var pair in ReadCareerOverrides(careerId))
+            {
+                effectiveOverrides[pair.Key] = pair.Value;
+            }
+        }
+
         SkinRuntime.ConfigurePresentation(
             AuraToolsConfigService.Root.Skin.Enabled && AuraToolsConfigService.Skin.Enabled,
             AuraToolsConfigService.Skin.ShowEntrySkinButton);
-        SkinRuntime.ConfigureCandidates(
-            AuraToolsConfigService.Skin.CandidateSelectionConfigured,
-            AuraToolsConfigService.Skin.EnabledSkinIds);
+        SkinRuntime.ConfigureCandidateOverrides(effectiveOverrides);
+    }
+
+    private static AuraSharedScopeKey SkinScope(string careerId)
+    {
+        return new AuraSharedScopeKey
+        {
+            ModuleId = AuraSharedSystems.Skin,
+            FeatureId = "Skin",
+            ScopeType = "Role",
+            ScopeId = (careerId ?? "").Trim()
+        };
+    }
+
+    private static Dictionary<string, bool> ReadCareerOverrides(string careerId)
+    {
+        var document = AuraSharedResourceProtocol.ReadUserOverride(AuraToolsIds.ModId, SkinScope(careerId));
+        if (document.Revision <= 0
+            || document.Override?.Values == null
+            || !document.Override.Values.TryGetValue("resourceOverrides", out var json))
+        {
+            return new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var parsed = AuraSharedJson.Deserialize<Dictionary<string, bool>>(json);
+        return parsed == null
+            ? new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, bool>(parsed, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static void SaveCareerOverrides(string careerId)
+    {
+        var normalizedCareerId = (careerId ?? "").Trim();
+        if (normalizedCareerId.Length == 0)
+        {
+            return;
+        }
+
+        var candidateIds = SkinRuntime.GetAllSkins(normalizedCareerId)
+            .Select(candidate => candidate.QualifiedSkinId)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var scopedOverrides = ReadCareerOverrides(normalizedCareerId);
+        foreach (var pair in AuraToolsConfigService.Skin.ResourceOverrides
+                     .Where(pair => candidateIds.Contains(pair.Key)))
+        {
+            scopedOverrides[pair.Key] = pair.Value;
+        }
+        var scope = SkinScope(normalizedCareerId);
+        var current = AuraSharedResourceProtocol.ReadUserOverride(AuraToolsIds.ModId, scope);
+        var values = current.Override?.Values == null
+            ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string>(current.Override.Values, StringComparer.OrdinalIgnoreCase);
+        values["selectionMode"] = "ManualSelection";
+        values["resourceOverrides"] = AuraSharedJson.Serialize(scopedOverrides);
+        var localOverride = new AuraSharedLocalOverrideV3
+        {
+            Enabled = current.Override?.Enabled,
+            ResourceOwnerModId = current.Override?.ResourceOwnerModId ?? "",
+            ResourceId = current.Override?.ResourceId ?? "",
+            Values = values
+        };
+        var written = AuraSharedResourceProtocol.WriteUserOverride(
+            AuraToolsIds.ModId,
+            scope,
+            localOverride,
+            current.Revision);
+        if (written.Conflict)
+        {
+            current = AuraSharedResourceProtocol.ReadUserOverride(AuraToolsIds.ModId, scope);
+            written = AuraSharedResourceProtocol.WriteUserOverride(
+                AuraToolsIds.ModId,
+                scope,
+                localOverride,
+                current.Revision);
+        }
+        if (!written.Success)
+        {
+            AuraToolsLog.Warn("[Skin] failed to persist role resource overrides for "
+                              + normalizedCareerId + ": " + written.Message);
+        }
     }
 
     private static void OnLocalSelectionChanged(SkinSelectionSnapshot snapshot)

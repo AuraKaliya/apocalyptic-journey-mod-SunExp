@@ -17,9 +17,9 @@ public static class AuraSkinRuntime
     private const string GlobalObjectName = "AuraSkin.Global";
     private const string ComponentFullName = "AuraSkin.Shared.AuraSkinRuntime+AuraSkinComponent";
 
-    public const string CurrentBuildId = "aura-skin-shared-2026-07-20-v5";
-    public const int CurrentProtocolVersion = 5;
-    public const int MinimumSupportedProtocolVersion = 5;
+    public const string CurrentBuildId = "aura-skin-shared-2026-07-20-v6";
+    public const int CurrentProtocolVersion = 6;
+    public const int MinimumSupportedProtocolVersion = 6;
 
     private static readonly HashSet<string> ReuseLogOwners = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> CompatibilityErrorsShown = new(StringComparer.OrdinalIgnoreCase);

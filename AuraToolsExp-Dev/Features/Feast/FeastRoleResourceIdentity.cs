@@ -32,6 +32,14 @@ public static class FeastRoleResourceIdentity
         return "generated.feast." + Hash((roleId ?? "").Trim(), 16).ToLowerInvariant();
     }
 
+    public static string ManualId(string roleId, string manualId)
+    {
+        return "manual:CG:Feast:Role:"
+               + (roleId ?? "").Trim()
+               + ":"
+               + (manualId ?? "").Trim();
+    }
+
     private static string Hash(string value, int length)
     {
         using var sha = SHA256.Create();

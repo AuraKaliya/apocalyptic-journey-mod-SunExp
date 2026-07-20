@@ -87,6 +87,15 @@ public sealed class FeastRoleSettings
     [JsonProperty("enabledCgIds")]
     public List<string> EnabledCgIds { get; set; } = new();
 
+    [JsonProperty("selectionSchemaVersion")]
+    public int SelectionSchemaVersion { get; set; }
+
+    [JsonProperty("resourceOverrides")]
+    public Dictionary<string, bool> ResourceOverrides { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    [JsonProperty("manualResources")]
+    public List<FeastManualResourceSettings> ManualResources { get; set; } = new();
+
     [JsonProperty("selectionMode")]
     public string SelectionMode { get; set; } = AuraCgSelectionModes.Priority;
 
@@ -136,6 +145,44 @@ public sealed class FeastRoleSettings
             CandidateSelectionConfigured = true;
         }
         LegacySelectedCgId = null;
+        ResourceOverrides = (ResourceOverrides ?? new Dictionary<string, bool>())
+            .Where(pair => !string.IsNullOrWhiteSpace(pair.Key))
+            .GroupBy(pair => pair.Key.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.Last().Value, StringComparer.OrdinalIgnoreCase);
+        ManualResources ??= new List<FeastManualResourceSettings>();
+        foreach (var manual in ManualResources)
+        {
+            manual?.Normalize();
+        }
+        ManualResources = ManualResources
+            .Where(manual => manual != null
+                             && !string.IsNullOrWhiteSpace(manual.ManualId)
+                             && !string.IsNullOrWhiteSpace(manual.Resource))
+            .GroupBy(manual => manual.ManualId, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.Last())
+            .ToList();
+        if (ManualResources.Count == 0
+            && LocalCustomized
+            && !string.IsNullOrWhiteSpace(LocalResource))
+        {
+            ManualResources.Add(new FeastManualResourceSettings
+            {
+                ManualId = "legacy-local",
+                DisplayName = string.IsNullOrWhiteSpace(DisplayName) ? "人工配置" : DisplayName + " - 人工配置",
+                Resource = LocalResource,
+                SeedHash = LocalSeedHash,
+                ContentHash = LocalContentHash,
+                Priority = 1000
+            });
+        }
+        if (LocalCustomized)
+        {
+            LocalCustomized = false;
+            LocalCgId = "";
+            LocalResource = "";
+            LocalSeedHash = "";
+            LocalContentHash = "";
+        }
         SelectionMode = AuraCgSelectionModes.Normalize(SelectionMode);
         LocalCgId = (LocalCgId ?? "").Trim();
         LocalResource = (LocalResource ?? "").Trim().Replace('\\', '/').TrimStart('/');
@@ -148,8 +195,10 @@ public sealed class FeastRoleSettings
 
     public bool IsCandidateEnabled(string qualifiedCgId)
     {
-        return !CandidateSelectionConfigured
-               || EnabledCgIds.Contains((qualifiedCgId ?? "").Trim(), StringComparer.OrdinalIgnoreCase);
+        var id = (qualifiedCgId ?? "").Trim();
+        return id.Length == 0
+               || !ResourceOverrides.TryGetValue(id, out var enabled)
+               || enabled;
     }
 
     public void SetCandidateEnabled(string qualifiedCgId, bool enabled, IEnumerable<string> currentCandidates)
@@ -160,20 +209,63 @@ public sealed class FeastRoleSettings
             return;
         }
 
-        if (!CandidateSelectionConfigured)
+        ResourceOverrides[id] = enabled;
+        SelectionSchemaVersion = 2;
+    }
+
+    public bool MigrateLegacyCandidateSelection(IEnumerable<string> currentCandidates)
+    {
+        if (!CandidateSelectionConfigured && SelectionSchemaVersion >= 2)
         {
-            EnabledCgIds = (currentCandidates ?? Array.Empty<string>())
-                .Select(value => (value ?? "").Trim())
-                .Where(value => value.Length > 0)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            CandidateSelectionConfigured = true;
+            return false;
         }
 
-        EnabledCgIds.RemoveAll(value => string.Equals(value, id, StringComparison.OrdinalIgnoreCase));
-        if (enabled)
+        if (CandidateSelectionConfigured)
         {
-            EnabledCgIds.Add(id);
+            var legacyEnabled = new HashSet<string>(EnabledCgIds ?? new List<string>(), StringComparer.OrdinalIgnoreCase);
+            foreach (var candidate in currentCandidates ?? Array.Empty<string>())
+            {
+                var id = (candidate ?? "").Trim();
+                if (id.Length > 0 && !ResourceOverrides.ContainsKey(id))
+                {
+                    ResourceOverrides[id] = legacyEnabled.Contains(id);
+                }
+            }
         }
+
+        CandidateSelectionConfigured = false;
+        (EnabledCgIds ??= new List<string>()).Clear();
+        SelectionSchemaVersion = 2;
+        return true;
+    }
+}
+
+public sealed class FeastManualResourceSettings
+{
+    [JsonProperty("manualId")]
+    public string ManualId { get; set; } = "";
+
+    [JsonProperty("displayName")]
+    public string DisplayName { get; set; } = "";
+
+    [JsonProperty("resource")]
+    public string Resource { get; set; } = "";
+
+    [JsonProperty("seedHash")]
+    public string SeedHash { get; set; } = "";
+
+    [JsonProperty("contentHash")]
+    public string ContentHash { get; set; } = "";
+
+    [JsonProperty("priority")]
+    public int Priority { get; set; } = 1000;
+
+    public void Normalize()
+    {
+        ManualId = (ManualId ?? "").Trim();
+        DisplayName = string.IsNullOrWhiteSpace(DisplayName) ? "人工配置" : DisplayName.Trim();
+        Resource = (Resource ?? "").Trim().Replace('\\', '/').TrimStart('/');
+        SeedHash = (SeedHash ?? "").Trim();
+        ContentHash = (ContentHash ?? "").Trim();
     }
 }

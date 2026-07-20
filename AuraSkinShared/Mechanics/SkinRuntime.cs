@@ -54,6 +54,12 @@ public static class SkinRuntime
         ApplyAllKnownSelections();
     }
 
+    public static void ConfigureCandidateOverrides(IEnumerable<KeyValuePair<string, bool>>? overrides)
+    {
+        SkinRegistry.ConfigureCandidateOverrides(overrides);
+        ApplyAllKnownSelections();
+    }
+
     public static void ConfigurePresentation(bool featureEnabled, bool entryPanelEnabled)
     {
         FeatureEnabled = featureEnabled;

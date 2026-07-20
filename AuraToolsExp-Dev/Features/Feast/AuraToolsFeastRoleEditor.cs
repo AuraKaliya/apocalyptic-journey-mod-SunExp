@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using AuraCg.Shared;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
 using UnityEngine;
@@ -11,51 +14,90 @@ namespace AuraToolsExp.Dll.Features.Feast;
 public static class AuraToolsFeastRoleEditor
 {
     private static Transform? roleContent;
-    private static Text? hintText;
+    private static Transform? resourceContent;
+    private static Text? statusText;
+    private static RoleInfo? activeRole;
 
     public static void Show(Transform parent)
     {
-        var window = Settings.AuraToolsUi.CreateOverlay("AuraTools.FeastRoleEditor", parent, "一键美餐 - 按角色配置", RefreshAndSave);
-        var toolbar = Settings.AuraToolsUi.CreateLayout("Toolbar", window.transform);
-        Settings.AuraToolsUi.SetFixedHeight(toolbar, Settings.AuraToolsUi.ToolbarHeight);
-        var toolbarLayout = toolbar.AddComponent<HorizontalLayoutGroup>();
-        toolbarLayout.spacing = 10f;
-        toolbarLayout.childControlWidth = true;
-        toolbarLayout.childControlHeight = true;
-        toolbarLayout.childForceExpandWidth = false;
-        toolbarLayout.childForceExpandHeight = false;
-
-        hintText = Settings.AuraToolsUi.AddText(
+        var window = Settings.AuraToolsUi.CreateOverlay(
+            "AuraTools.FeastRoleEditor",
+            parent,
+            "一键美餐 - 角色资源",
+            RefreshAndSave);
+        var toolbar = CreateHorizontal("Toolbar", window.transform, Settings.AuraToolsUi.ToolbarHeight);
+        statusText = Settings.AuraToolsUi.AddText(
             toolbar.transform,
-            "CG 列表来自 AuraShared 注册表；这里只显示已启用 MOD 实际扫描到的角色。",
+            "",
             Settings.AuraToolsUi.HintFontSize,
             TextAnchor.MiddleLeft,
             Settings.AuraToolsUi.MutedText,
             Settings.AuraToolsUi.TextMinHeight,
             1f);
-        Settings.AuraToolsUi.AddButton(toolbar.transform, "重新扫描", () => RefreshRoles(true), 92f);
+        Settings.AuraToolsUi.AddButton(toolbar.transform, "重新扫描", () => RefreshRoles(true), 104f);
         Settings.AuraToolsUi.AddButton(toolbar.transform, "保存", RefreshAndSave, 78f);
 
-        roleContent = Settings.AuraToolsUi.CreateScroll(window.transform, "FeastRoles");
+        roleContent = Settings.AuraToolsUi.CreateFixedScroll(window.transform, "FeastRoles", 560f);
         RefreshRoles(false);
     }
 
     private static void RefreshRoles(bool forceScan)
     {
+        if (forceScan)
+        {
+            AuraToolsFeastRuntime.RefreshCatalog();
+        }
+
         EnsureRoleEntries(forceScan);
-        RefreshRows(forceScan);
+        RefreshRoleCards(forceScan);
     }
 
     private static void EnsureRoleEntries(bool forceScan)
     {
-        AuraToolsFeastDefaultMaterializer.EnsureCurrent(forceScan);
-        foreach (var role in RoleCatalog.GetRoles(forceScan))
+        foreach (var role in AllRoles(forceScan))
         {
             AuraToolsFeastRuntime.EnsureRoleSettings(role.Id, role.DisplayName);
         }
     }
 
-    private static void RefreshRows(bool forceScan)
+    private static IReadOnlyList<RoleInfo> AllRoles(bool forceScan)
+    {
+        var roles = RoleCatalog.GetRoles(forceScan)
+            .ToDictionary(role => role.Id, StringComparer.OrdinalIgnoreCase);
+        foreach (var roleId in AuraToolsFeastRuntime.RegisteredRoleIds())
+        {
+            if (!roles.ContainsKey(roleId))
+            {
+                roles[roleId] = new RoleInfo
+                {
+                    Id = roleId,
+                    DisplayName = RoleCatalog.GetDisplayName(roleId)
+                };
+            }
+        }
+
+        foreach (var pair in AuraToolsConfigService.MatchExperience.Feast.Roles)
+        {
+            var roleId = RoleCatalog.NormalizeRoleId(pair.Key);
+            if (!string.IsNullOrWhiteSpace(roleId) && !roles.ContainsKey(roleId))
+            {
+                roles[roleId] = new RoleInfo
+                {
+                    Id = roleId,
+                    DisplayName = string.IsNullOrWhiteSpace(pair.Value?.DisplayName)
+                        ? roleId
+                        : pair.Value?.DisplayName ?? roleId
+                };
+            }
+        }
+
+        return roles.Values
+            .OrderBy(role => role.DisplayName)
+            .ThenBy(role => role.Id)
+            .ToArray();
+    }
+
+    private static void RefreshRoleCards(bool forceScan)
     {
         if (roleContent == null)
         {
@@ -63,7 +105,7 @@ public static class AuraToolsFeastRoleEditor
         }
 
         Settings.AuraToolsUi.ClearChildren(roleContent);
-        var roles = RoleCatalog.GetRoles(forceScan);
+        var roles = AllRoles(forceScan);
         if (roles.Count == 0)
         {
             Settings.AuraToolsUi.AddText(
@@ -77,143 +119,253 @@ public static class AuraToolsFeastRoleEditor
             return;
         }
 
-        foreach (var role in roles.OrderBy(role => role.DisplayName).ThenBy(role => role.Id))
+        foreach (var role in roles)
         {
-            CreateRoleBlock(role);
+            CreateRoleCard(role);
         }
     }
 
-    private static void CreateRoleBlock(RoleInfo role)
+    private static void CreateRoleCard(RoleInfo role)
     {
-        var settings = AuraToolsFeastRuntime.EnsureRoleSettings(role.Id, role.DisplayName);
-        var candidates = AuraToolsFeastRuntime.BuildCandidateCgsForRole(role.Id).ToList();
-        var effective = AuraToolsFeastRuntime.ResolveEffectiveCandidateForPreview(role.Id);
+        var roleSettings = AuraToolsFeastRuntime.EnsureRoleSettings(role.Id, role.DisplayName);
+        var candidates = AuraToolsFeastRuntime.BuildCandidateCgsForRole(role.Id);
+        var registeredCount = candidates.Count(candidate => candidate.SourceKind == FeastCgSourceKind.Registered);
+        var manualCount = candidates.Count(candidate => candidate.SourceKind == FeastCgSourceKind.Manual);
+        var enabledCount = candidates.Count(candidate => roleSettings.IsCandidateEnabled(candidate.QualifiedCgId));
 
-        var block = Settings.AuraToolsUi.CreateLayout("FeastRole-" + role.Id, roleContent!);
-        Settings.AuraToolsUi.SetFixedHeight(block, 126f + candidates.Count * 36f);
-        Settings.AuraToolsUi.AddImage(block, effective == null ? Settings.AuraToolsUi.Row : Settings.AuraToolsUi.ActiveRow);
-        var blockLayout = block.AddComponent<VerticalLayoutGroup>();
-        blockLayout.padding = new RectOffset(8, 8, 6, 6);
-        blockLayout.spacing = 6f;
-        blockLayout.childControlWidth = true;
-        blockLayout.childControlHeight = true;
-        blockLayout.childForceExpandWidth = true;
-        blockLayout.childForceExpandHeight = false;
+        var card = Settings.AuraToolsUi.CreateLayout("FeastRole-" + role.Id, roleContent!);
+        Settings.AuraToolsUi.SetFixedHeight(card, 112f);
+        Settings.AuraToolsUi.AddPanelImage(
+            card,
+            enabledCount > 0 && roleSettings.Enabled
+                ? Settings.AuraToolsUi.ActiveRow
+                : Settings.AuraToolsUi.Row);
+        var layout = card.AddComponent<VerticalLayoutGroup>();
+        layout.padding = new RectOffset(10, 10, 7, 7);
+        layout.spacing = 5f;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = false;
 
-        var top = Settings.AuraToolsUi.CreateLayout("Top", block.transform);
-        Settings.AuraToolsUi.SetFixedHeight(top, Settings.AuraToolsUi.ButtonHeight);
-        var topLayout = top.AddComponent<HorizontalLayoutGroup>();
-        topLayout.spacing = 8f;
-        topLayout.childControlWidth = true;
-        topLayout.childControlHeight = true;
-        topLayout.childForceExpandWidth = false;
-        topLayout.childForceExpandHeight = false;
-
-        Settings.AuraToolsUi.AddToggle(top.transform, settings.Enabled, value =>
-            AuraToolsFeastRuntime.SetRoleEnabled(role.Id, value));
-        Settings.AuraToolsUi.AddText(top.transform, RoleTitle(role), Settings.AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, Settings.AuraToolsUi.Text, Settings.AuraToolsUi.TextMinHeight, 1f);
-        Settings.AuraToolsUi.AddButton(top.transform, "预览", () => AuraToolsFeastRuntime.PreviewRole(role.Id), 78f, 34f);
-
-        var bottom = Settings.AuraToolsUi.CreateLayout("Bottom", block.transform);
-        Settings.AuraToolsUi.SetFixedHeight(bottom, Settings.AuraToolsUi.ButtonHeight);
-        var bottomLayout = bottom.AddComponent<HorizontalLayoutGroup>();
-        bottomLayout.spacing = 8f;
-        bottomLayout.childControlWidth = true;
-        bottomLayout.childControlHeight = true;
-        bottomLayout.childForceExpandWidth = false;
-        bottomLayout.childForceExpandHeight = false;
-
-        var modes = new[] { AuraCg.Shared.AuraCgSelectionModes.Priority, AuraCg.Shared.AuraCgSelectionModes.Random, AuraCg.Shared.AuraCgSelectionModes.Sequential };
-        var modeLabels = new[] { "按优先级", "随机", "按顺序" };
-        var selectedMode = Array.FindIndex(modes, mode => string.Equals(mode, settings.SelectionMode, StringComparison.OrdinalIgnoreCase));
-        Settings.AuraToolsUi.AddText(bottom.transform, "选择方式", Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 0f, 72f);
-        Settings.AuraToolsUi.AddSelectButton(bottom.transform, modeLabels.ToList(), Math.Max(0, selectedMode), index =>
+        var top = CreateHorizontal("Top", card.transform, Settings.AuraToolsUi.ButtonHeight);
+        Settings.AuraToolsUi.AddToggle(top.transform, roleSettings.Enabled, enabled =>
         {
-            if (index < 0 || index >= modes.Length)
-            {
-                return;
-            }
+            AuraToolsFeastRuntime.SetRoleEnabled(role.Id, enabled);
+            RefreshRoleCards(false);
+        });
+        Settings.AuraToolsUi.AddText(
+            top.transform,
+            RoleTitle(role) + "\n" + role.Id,
+            Settings.AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft,
+            Settings.AuraToolsUi.Text,
+            Settings.AuraToolsUi.TextMinHeight,
+            1f);
+        Settings.AuraToolsUi.AddButton(top.transform, "预览", () => AuraToolsFeastRuntime.PreviewRole(role.Id), 76f);
+        Settings.AuraToolsUi.AddButton(top.transform, "资源管理", () => ShowResources(card.transform, role), 104f);
 
-            AuraToolsFeastRuntime.SetSelectionModeForRole(role.Id, modes[index]);
-            RefreshRows(false);
-        }, 180f);
-        var enabledCount = candidates.Count(candidate => settings.IsCandidateEnabled(candidate.QualifiedCgId));
-        Settings.AuraToolsUi.AddText(bottom.transform, "已启用 " + enabledCount + "/" + candidates.Count, Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 1f);
+        var bottom = CreateHorizontal("Bottom", card.transform, 38f);
+        Settings.AuraToolsUi.AddText(
+            bottom.transform,
+            "注册 " + registeredCount
+            + " · 人工 " + manualCount
+            + " · 待选 " + enabledCount + "/" + candidates.Count,
+            Settings.AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft,
+            Settings.AuraToolsUi.MutedText,
+            Settings.AuraToolsUi.TextMinHeight,
+            1f);
+        AddSelectionMode(bottom.transform, role, roleSettings);
+    }
+
+    private static void AddSelectionMode(
+        Transform parent,
+        RoleInfo role,
+        FeastRoleSettings roleSettings)
+    {
+        var modes = new[]
+        {
+            AuraCgSelectionModes.Priority,
+            AuraCgSelectionModes.Random,
+            AuraCgSelectionModes.Sequential
+        };
+        var labels = new[] { "按优先级", "随机", "按顺序" };
+        var selected = Array.FindIndex(
+            modes,
+            mode => string.Equals(mode, roleSettings.SelectionMode, StringComparison.OrdinalIgnoreCase));
+        Settings.AuraToolsUi.AddSelectButton(parent, labels, Math.Max(0, selected), index =>
+        {
+            if (index >= 0 && index < modes.Length)
+            {
+                AuraToolsFeastRuntime.SetSelectionModeForRole(role.Id, modes[index]);
+                RefreshRoleCards(false);
+            }
+        }, 150f, 38f);
+    }
+
+    private static void ShowResources(Transform parent, RoleInfo role)
+    {
+        activeRole = role;
+        var window = Settings.AuraToolsUi.CreateOverlay(
+            "AuraTools.FeastResourceEditor",
+            parent,
+            "一键美餐 - " + RoleTitle(role),
+            () => activeRole = null,
+            true,
+            1040f);
+        var toolbar = CreateHorizontal("Toolbar", window.transform, Settings.AuraToolsUi.ToolbarHeight);
+        Settings.AuraToolsUi.AddText(
+            toolbar.transform,
+            role.Id,
+            Settings.AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft,
+            Settings.AuraToolsUi.MutedText,
+            Settings.AuraToolsUi.TextMinHeight,
+            1f);
+        Settings.AuraToolsUi.AddButton(toolbar.transform, "打开人工目录", () =>
+            FileResourceUtil.OpenDirectory(AuraToolsFeastManualResourceStore.RoleDirectory(role.Id)), 128f);
+        Settings.AuraToolsUi.AddButton(toolbar.transform, "导入图片", () => PickRoleImage(role), 96f);
+        Settings.AuraToolsUi.AddButton(toolbar.transform, "移除人工项", () => RemoveRoleImage(role), 112f);
+        resourceContent = Settings.AuraToolsUi.CreateFixedScroll(window.transform, "FeastResources", 540f);
+        RefreshResourceCards();
+    }
+
+    private static void RefreshResourceCards()
+    {
+        if (resourceContent == null || activeRole == null)
+        {
+            return;
+        }
+
+        Settings.AuraToolsUi.ClearChildren(resourceContent);
+        var role = activeRole;
+        var roleSettings = AuraToolsFeastRuntime.EnsureRoleSettings(role.Id, role.DisplayName);
+        var candidates = AuraToolsFeastRuntime.BuildCandidateCgsForRole(role.Id);
+        if (candidates.Count == 0)
+        {
+            Settings.AuraToolsUi.AddText(
+                resourceContent,
+                "当前没有可用资源。",
+                Settings.AuraToolsUi.BodyFontSize,
+                TextAnchor.MiddleLeft,
+                Settings.AuraToolsUi.MutedText,
+                Settings.AuraToolsUi.TextMinHeight,
+                1f);
+            return;
+        }
 
         var candidateIds = candidates.Select(candidate => candidate.QualifiedCgId).ToArray();
         foreach (var candidate in candidates)
         {
-            var candidateRow = Settings.AuraToolsUi.CreateLayout("Candidate-" + candidate.QualifiedCgId, block.transform);
-            Settings.AuraToolsUi.SetFixedHeight(candidateRow, 30f);
-            var candidateLayout = candidateRow.AddComponent<HorizontalLayoutGroup>();
-            candidateLayout.spacing = 8f;
-            candidateLayout.childControlWidth = true;
-            candidateLayout.childControlHeight = true;
-            candidateLayout.childForceExpandWidth = false;
-            candidateLayout.childForceExpandHeight = false;
-            Settings.AuraToolsUi.AddToggle(candidateRow.transform, settings.IsCandidateEnabled(candidate.QualifiedCgId), enabled =>
-            {
-                AuraToolsFeastRuntime.SetCandidateEnabledForRole(
-                    role.Id,
-                    candidate.QualifiedCgId,
-                    enabled,
-                    candidateIds);
-                RefreshRows(false);
-            });
-            Settings.AuraToolsUi.AddText(candidateRow.transform, candidate.DisplayName + " / " + candidate.OwnerModId, Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, Settings.AuraToolsUi.Text, Settings.AuraToolsUi.TextMinHeight, 1f);
+            CreateResourceCard(role, roleSettings, candidate, candidateIds);
         }
+    }
 
-        var actions = Settings.AuraToolsUi.CreateLayout("Actions", block.transform);
-        Settings.AuraToolsUi.SetFixedHeight(actions, Settings.AuraToolsUi.ButtonHeight);
-        var actionsLayout = actions.AddComponent<HorizontalLayoutGroup>();
-        actionsLayout.spacing = 8f;
-        actionsLayout.childControlWidth = true;
-        actionsLayout.childControlHeight = true;
-        actionsLayout.childForceExpandWidth = false;
-        actionsLayout.childForceExpandHeight = false;
+    private static void CreateResourceCard(
+        RoleInfo role,
+        FeastRoleSettings roleSettings,
+        FeastCgCandidate candidate,
+        IReadOnlyList<string> candidateIds)
+    {
+        var enabled = roleSettings.IsCandidateEnabled(candidate.QualifiedCgId);
+        var card = Settings.AuraToolsUi.CreateLayout(
+            "FeastResource-" + candidate.QualifiedCgId,
+            resourceContent!);
+        Settings.AuraToolsUi.SetFixedHeight(card, 88f);
+        Settings.AuraToolsUi.AddPanelImage(
+            card,
+            enabled ? Settings.AuraToolsUi.ActiveRow : Settings.AuraToolsUi.Row);
+        var layout = card.AddComponent<HorizontalLayoutGroup>();
+        layout.padding = new RectOffset(10, 10, 8, 8);
+        layout.spacing = 10f;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
+
+        Settings.AuraToolsUi.AddToggle(card.transform, enabled, value =>
+        {
+            AuraToolsFeastRuntime.SetCandidateEnabledForRole(
+                role.Id,
+                candidate.QualifiedCgId,
+                value,
+                candidateIds);
+            RefreshResourceCards();
+            RefreshRoleCards(false);
+        });
         Settings.AuraToolsUi.AddText(
-            actions.transform,
-            "资源：" + AuraToolsFeastDefaultMaterializer.DescribeRoleResource(role.Id),
-            Settings.AuraToolsUi.HintFontSize,
+            card.transform,
+            candidate.DisplayName
+            + " · " + SourceLabel(candidate.SourceKind)
+            + " · " + candidate.OwnerModId
+            + "\n" + candidate.QualifiedCgId,
+            Settings.AuraToolsUi.BodyFontSize,
             TextAnchor.MiddleLeft,
-            settings.LocalCustomized ? Settings.AuraToolsUi.SuccessText : Settings.AuraToolsUi.MutedText,
-            Settings.AuraToolsUi.TextMinHeight,
+            enabled ? Settings.AuraToolsUi.Text : Settings.AuraToolsUi.MutedText,
+            70f,
             1f);
-        Settings.AuraToolsUi.AddButton(actions.transform, "打开目录", () =>
-            FileResourceUtil.OpenDirectory(AuraToolsFeastDefaultMaterializer.RoleDirectory(role.Id)), 88f, 30f);
-        Settings.AuraToolsUi.AddButton(actions.transform, "选择PNG", () => PickRoleImage(role), 88f, 30f);
-        Settings.AuraToolsUi.AddButton(actions.transform, "重置默认", () => ResetRoleImage(role), 88f, 30f);
+        Settings.AuraToolsUi.AddButton(card.transform, "打开目录", () =>
+            OpenCandidateDirectory(role.Id, candidate), 92f);
     }
 
     private static void PickRoleImage(RoleInfo role)
     {
-        SetHint("正在打开图片选择器……");
-        OptionalFileDialog.PickImageFileAsync(AuraToolsFeastDefaultMaterializer.RoleDirectory(role.Id), result =>
-        {
-            if (result.Selected)
+        SetStatus("正在打开图片选择器……");
+        OptionalFileDialog.PickImageFileAsync(
+            AuraToolsFeastManualResourceStore.RoleDirectory(role.Id),
+            result =>
             {
-                if (AuraToolsFeastDefaultMaterializer.ImportRoleImage(role.Id, result.Path, out var message))
+                if (result.Selected)
                 {
-                    SetHint(message);
-                    RefreshRows(false);
+                    AuraToolsFeastManualResourceStore.ImportRoleImage(role.Id, result.Path, out var message);
+                    SetStatus(message);
+                    RefreshResourceCards();
+                    RefreshRoleCards(false);
                     return;
                 }
 
-                SetHint(message);
-                return;
-            }
-
-            SetHint(result.Status == OptionalFileDialogStatus.Cancelled
-                ? "已取消选择图片。"
-                : "无法打开文件选择器：" + result.Message);
-        });
+                SetStatus(result.Status == OptionalFileDialogStatus.Cancelled
+                    ? "已取消选择。"
+                    : "无法打开文件选择器：" + result.Message);
+            });
     }
 
-    private static void ResetRoleImage(RoleInfo role)
+    private static void RemoveRoleImage(RoleInfo role)
     {
-        AuraToolsFeastDefaultMaterializer.ResetRoleImage(role.Id, out var message);
-        SetHint(message);
-        RefreshRows(false);
+        AuraToolsFeastManualResourceStore.RemoveRoleImage(role.Id, out var message);
+        SetStatus(message);
+        RefreshResourceCards();
+        RefreshRoleCards(false);
+    }
+
+    private static void OpenCandidateDirectory(string roleId, FeastCgCandidate candidate)
+    {
+        if (candidate.SourceKind == FeastCgSourceKind.Manual)
+        {
+            FileResourceUtil.OpenDirectory(AuraToolsFeastManualResourceStore.RoleDirectory(roleId));
+            return;
+        }
+
+        var path = AuraToolsConfigService.ResolveConfiguredPath(candidate.ImageResource);
+        var directory = string.IsNullOrWhiteSpace(path) ? "" : Path.GetDirectoryName(path);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            FileResourceUtil.OpenDirectory(directory);
+        }
+    }
+
+    private static GameObject CreateHorizontal(string name, Transform parent, float height)
+    {
+        var row = Settings.AuraToolsUi.CreateLayout(name, parent);
+        Settings.AuraToolsUi.SetFixedHeight(row, height);
+        var layout = row.AddComponent<HorizontalLayoutGroup>();
+        layout.spacing = 8f;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
+        return row;
     }
 
     private static string RoleTitle(RoleInfo role)
@@ -221,19 +373,27 @@ public static class AuraToolsFeastRoleEditor
         return string.IsNullOrWhiteSpace(role.DisplayName) ? role.Id : role.DisplayName;
     }
 
+    private static string SourceLabel(FeastCgSourceKind sourceKind)
+    {
+        return sourceKind == FeastCgSourceKind.Manual
+            ? "人工配置"
+            : sourceKind == FeastCgSourceKind.Default
+                ? "默认资源"
+                : "注册资源";
+    }
+
     private static void RefreshAndSave()
     {
         AuraToolsConfigService.MatchExperience.Feast.Normalize();
         AuraToolsConfigService.SaveMatchExperience();
-        SetHint("已保存一键美餐角色配置。");
+        SetStatus("已保存一键美餐配置。");
     }
 
-    private static void SetHint(string message)
+    private static void SetStatus(string message)
     {
-        if (hintText != null)
+        if (statusText != null)
         {
-            hintText.text = message;
+            statusText.text = message ?? "";
         }
     }
-
 }

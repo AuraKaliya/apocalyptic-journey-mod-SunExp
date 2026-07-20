@@ -333,6 +333,21 @@ internal static class AuraToolsUi
         return content.transform;
     }
 
+    public static Transform CreateFixedScroll(
+        Transform parent,
+        string name,
+        float height = 520f)
+    {
+        var content = CreateScroll(parent, name);
+        var root = content.parent?.parent?.gameObject;
+        if (root != null)
+        {
+            SetFixedHeight(root, Mathf.Max(180f, height));
+        }
+
+        return content;
+    }
+
     public static GameObject CreateOverlay(string name, Transform parent, string title, Action? onClose = null, bool singleInstance = true, float maxWidth = 1180f)
     {
         var overlayRoot = ResolveOverlayRoot(parent);

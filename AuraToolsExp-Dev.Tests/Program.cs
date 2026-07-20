@@ -330,23 +330,37 @@ void TestConfigModelSerializationCompatibility()
            && migratedRole.EnabledCgIds.SequenceEqual(new[] { "SunExp:feast-a" })
            && migratedRole.SelectionMode == "priority",
         "legacy single Feast selection migrates to the enabled candidate list");
+    Assert(migratedRole.MigrateLegacyCandidateSelection(new[] { "SunExp:feast-a", "ContentB:feast-b" })
+           && migratedRole.ResourceOverrides["SunExp:feast-a"]
+           && !migratedRole.ResourceOverrides["ContentB:feast-b"],
+        "legacy Feast whitelist migrates once into sparse overrides for the candidates seen during migration");
     var unconfiguredRole = new FeastRoleSettings();
     unconfiguredRole.SetCandidateEnabled("ContentB:feast-b", false, new[] { "ContentA:feast-a", "ContentB:feast-b" });
-    Assert(unconfiguredRole.CandidateSelectionConfigured
-           && unconfiguredRole.EnabledCgIds.SequenceEqual(new[] { "ContentA:feast-a" }),
-        "first Feast toggle snapshots all discovered candidates before applying the local override");
+    Assert(!unconfiguredRole.CandidateSelectionConfigured
+           && !unconfiguredRole.ResourceOverrides["ContentB:feast-b"]
+           && unconfiguredRole.IsCandidateEnabled("ContentA:feast-a")
+           && unconfiguredRole.IsCandidateEnabled("NewContent:feast-new"),
+        "Feast uses sparse overrides so newly scanned resources remain enabled after manual configuration");
+    var legacyManualRole = JsonConvert.DeserializeObject<FeastRoleSettings>(
+        "{\"roleId\":\"role-a\",\"localCustomized\":true,\"localResource\":\"CG/legacy.png\"}")!;
+    legacyManualRole.Normalize("role-a", FeastSettings.CreateDefaultPresentation());
+    Assert(legacyManualRole.ManualResources.Count == 1
+           && !legacyManualRole.LocalCustomized
+           && string.IsNullOrWhiteSpace(legacyManualRole.LocalResource),
+        "legacy Feast manual files migrate once and cannot reappear after the manual candidate is removed");
 
     var skin = JsonConvert.DeserializeObject<AuraToolsSkinSettings>(
         "{\"schemaVersion\":0,\"autoInstallBundledSkins\":false}")!;
     skin.Normalize();
-    Assert(skin.SchemaVersion == 2 && skin.AutoInstallBundledSkins,
+    Assert(skin.SchemaVersion == 3 && skin.AutoInstallBundledSkins,
         "skin config keeps its always-on bundled installation policy after the file split");
     skin.SetCandidateEnabled("ContentB:summer", false, new[] { "ContentA:summer", "ContentB:summer" });
-    Assert(skin.CandidateSelectionConfigured
-           && skin.EnabledSkinIds.SequenceEqual(new[] { "ContentA:summer" })
+    Assert(!skin.CandidateSelectionConfigured
+           && skin.SelectionSchemaVersion == 3
            && skin.IsCandidateEnabled("ContentA:summer")
-           && !skin.IsCandidateEnabled("ContentB:summer"),
-        "first skin toggle preserves every discovered owner-qualified candidate before applying the override");
+           && !skin.IsCandidateEnabled("ContentB:summer")
+           && skin.IsCandidateEnabled("NewContent:summer"),
+        "skin ManualSelection gating uses sparse overrides and admits newly scanned candidates by default");
     var qualifiedSkin = new SkinDefinition
     {
         OwnerModId = "ContentA",
@@ -1137,33 +1151,37 @@ void TestRuntimeArchitectureGuards()
     Assert(!skillCgRuntime.Contains("PreloadOnFightStart", StringComparison.Ordinal),
         "SkillCG must not preload registered CG during fight start");
 
-    var feastDefaults = ReadRepoText("AuraToolsExp-Dev/Features/Feast/AuraToolsFeastDefaultMaterializer.cs");
+    var feastManual = ReadRepoText("AuraToolsExp-Dev/Features/Feast/AuraToolsFeastManualResourceStore.cs");
     var feastRuntime = ReadRepoText("AuraToolsExp-Dev/Features/Feast/AuraToolsFeastRuntime.cs");
     var feastRoleEditor = ReadRepoText("AuraToolsExp-Dev/Features/Feast/AuraToolsFeastRoleEditor.cs");
+    var skinRuntime = ReadRepoText("AuraToolsExp-Dev/Features/Skin/AuraToolsSkinRuntime.cs");
+    var skinEditor = ReadRepoText("AuraToolsExp-Dev/Features/Skin/AuraToolsSkinEditor.cs");
+    var settingsUi = ReadRepoText("AuraToolsExp-Dev/Features/Settings/AuraToolsUi.cs");
     var cgCatalogQuery = ReadRepoText("AuraCgShared/AuraCgCatalogQueryService.cs");
     var cgCandidateSelector = ReadRepoText("AuraCgShared/AuraCgCandidateSelector.cs");
     var feastRoleCatalog = ReadRepoText("AuraToolsExp-Dev/Infrastructure/RoleCatalog.cs");
     var cgRegistry = ReadRepoText("AuraCgShared/AuraCgRegistry.cs");
     var feastPackage = ReadRepoText("AuraToolsExp/SharedResources/aura.registration.json");
     var feastRegistry = ReadRepoText("AuraToolsExp/SharedResources/cg.registry.json");
-    Assert(feastDefaults.Contains("AuraRoleRegistryRuntime.Changed += OnRoleRegistryChanged", StringComparison.Ordinal)
-           && feastRoleCatalog.Contains("AuraRoleRegistryRuntime.PublishRuntimeRoles", StringComparison.Ordinal)
-           && feastDefaults.Contains("AuraSharedEditableResource.Seed", StringComparison.Ordinal),
-        "feast defaults must react to the shared role directory and materialize through the editable-resource authority");
-    Assert(feastDefaults.Contains("RegisterContribution(AuraToolsIds.ModId, ContributionId", StringComparison.Ordinal)
-           && cgRegistry.Contains("ReplaceContributionEntries", StringComparison.Ordinal)
-           && cgRegistry.Contains("RegistrationSourceId", StringComparison.Ordinal),
-        "generated feast CG entries must use an isolated owner contribution instead of replacing manifest entries");
-    Assert(feastRuntime.Contains("AuraCgCatalogQueryService.GetActiveResourceKeys", StringComparison.Ordinal)
-           && feastRuntime.Contains("AuraCgCatalogQueryService.IsActive", StringComparison.Ordinal)
+    Assert(feastRoleCatalog.Contains("AuraRoleRegistryRuntime.PublishRuntimeRoles", StringComparison.Ordinal)
+           && feastManual.Contains("AuraSharedEditableResource.Seed", StringComparison.Ordinal),
+        "Feast role discovery stays shared while user imports use the editable-resource authority");
+    Assert(feastRuntime.Contains("AuraCgCatalogQueryService.QueryRegisteredResources", StringComparison.Ordinal)
+           && !feastRuntime.Contains("AuraCgRegistryRuntime", StringComparison.Ordinal)
            && cgCatalogQuery.Contains("QueryCatalog", StringComparison.Ordinal)
            && cgCatalogQuery.Contains("entry.CanonicalPath", StringComparison.Ordinal),
-        "Feast must join semantic CG declarations to active shared-module registrations by resource identity or canonical path");
+        "Feast runtime discovery must use active and available v3 Catalog resources without a legacy CG registry join");
     Assert(feastRuntime.Contains("AuraSharedResourceProtocol.ReadUserOverride", StringComparison.Ordinal)
            && feastRuntime.Contains("AuraSharedResourceProtocol.WriteUserOverride", StringComparison.Ordinal)
-           && feastRuntime.Contains("enabledCgIds", StringComparison.Ordinal)
+           && feastRuntime.Contains("resourceOverrides", StringComparison.Ordinal)
+           && feastRuntime.Contains("manualResources", StringComparison.Ordinal)
            && feastRoleEditor.Contains("SetCandidateEnabledForRole", StringComparison.Ordinal),
         "Feast role choices must persist through the role scope aura.user.json instead of a tool-only selection path");
+    Assert(feastRuntime.Contains("registered.Count == 0", StringComparison.Ordinal)
+           && feastRuntime.Contains("FeastCgSourceKind.Default", StringComparison.Ordinal)
+           && feastRuntime.Contains("FeastCgSourceKind.Manual", StringComparison.Ordinal)
+           && feastRuntime.Contains("!IsToolProvidedDefault(resource)", StringComparison.Ordinal),
+        "Feast default visibility depends only on successful non-tool registration and is independent of manual resources");
     Assert(cgCandidateSelector.Contains("public const string Random = \"random\"", StringComparison.Ordinal)
            && cgCandidateSelector.Contains("public const string Sequential = \"sequential\"", StringComparison.Ordinal)
            && feastRuntime.Contains("AuraCgCandidateSelector.Select", StringComparison.Ordinal),
@@ -1175,13 +1193,19 @@ void TestRuntimeArchitectureGuards()
            && feastRegistry.Contains("/Feast/AuraToolsExp/", StringComparison.Ordinal)
            && !feastRegistry.Contains("CG/AuraToolsExp/Feast/Roles/", StringComparison.Ordinal),
         "packaged feast defaults must use the v3 role scope while retaining old paths only as migration aliases");
-    Assert(!feastDefaults.Contains("LogicalId = \"feast.default.\"", StringComparison.Ordinal)
-           && feastDefaults.Contains("DefaultTemplateResource = \"CG/Global/all/Feast/AuraToolsExp/default-template/content.png\"", StringComparison.Ordinal),
-        "new roles must reference one shared feast fallback instead of copying one default image per role");
-    Assert(feastDefaults.Contains("TryPrepareCanonicalPng", StringComparison.Ordinal)
-           && feastDefaults.Contains("StageTemporary", StringComparison.Ordinal)
-           && feastDefaults.Contains("ImageConversion.EncodeToPNG", StringComparison.Ordinal),
+    Assert(feastManual.Contains("TryPrepareCanonicalPng", StringComparison.Ordinal)
+           && feastManual.Contains("StageTemporary", StringComparison.Ordinal)
+           && feastManual.Contains("ImageConversion.EncodeToPNG", StringComparison.Ordinal),
         "feast image import must validate PNG and normalize JPG/JPEG through the shared temporary-resource boundary");
+    Assert(settingsUi.Contains("CreateFixedScroll", StringComparison.Ordinal)
+           && feastRoleEditor.Contains("CreateFixedScroll", StringComparison.Ordinal)
+           && skinEditor.Contains("CreateFixedScroll", StringComparison.Ordinal),
+        "dynamic Feast and skin collections must render as cards inside fixed-height scroll viewports");
+    Assert(skinRuntime.Contains("ConfigureCandidateOverrides", StringComparison.Ordinal)
+           && skinRuntime.Contains("\"ManualSelection\"", StringComparison.Ordinal)
+           && skinRuntime.Contains("resourceOverrides", StringComparison.Ordinal)
+           && skinEditor.Contains("管理待选", StringComparison.Ordinal),
+        "skin management must remain ManualSelection with per-role sparse candidate overrides");
 
     var starterDeckRuntime = ReadRepoText("AuraToolsExp-Dev/Features/StarterDeck/AuraToolsStarterDeckRuntime.cs");
     var starterDeckModule = ReadRepoSourceTree("AuraToolsExp-Dev/Features/StarterDeck");

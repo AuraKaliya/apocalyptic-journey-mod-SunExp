@@ -106,9 +106,9 @@ $skinRuntimeText = Get-Content -Raw -LiteralPath (Join-Path $sharedRoot "AuraSki
 if (-not $skinRuntimeText.Contains('private const string GlobalObjectName = "AuraSkin.Global"')) {
     throw "AuraSkinShared global runtime identity is missing."
 }
-if (-not $skinRuntimeText.Contains("CurrentProtocolVersion = 5") -or
+if (-not $skinRuntimeText.Contains("CurrentProtocolVersion = 6") -or
     -not $skinRuntimeText.Contains('"RegisterPackage"')) {
-    throw "AuraSkinShared owner-qualified candidate protocol v5 is incomplete."
+    throw "AuraSkinShared sparse ManualSelection candidate protocol v6 is incomplete."
 }
 if ($skinRuntimeText.Contains("RegisterSkinRoot")) {
     throw "Legacy external skin root registration must not remain in AuraSkinShared."

@@ -66,6 +66,12 @@ another MOD's private directory. By default the catalog returns only current-ses
 active and available resources. `includeInactive: true` is a diagnostic view of
 persisted redundant declarations and never activates them.
 
+For runtime discovery, “registered resource” means that the provider MOD is active
+in the current session, package registration succeeded for that declaration, and
+the catalog entry is both `Active` and `Available`. A persisted declaration without
+those conditions is not a registered runtime candidate. Feature runtimes must not
+join the v3 catalog back to a legacy domain registry to rediscover the payload.
+
 One missing declaration produces an `Unavailable` item result without failing
 unrelated declarations from the same Mod. Additive features use `Skip`;
 replacement features use `NativeFallback` and must not suppress the game before
@@ -84,12 +90,35 @@ the selected payload remains owned by a content Mod. A tool cannot re-own or
 rewrite a foreign declaration. A local override is sparse and changes only the
 effective local result.
 
+At a concrete module granularity, resource candidates have three independent
+origins:
+
+- `Registered`: current-session, successfully registered content resources.
+- `Manual`: user-created candidates persisted in `aura.user.json`; they are not
+  registrations and do not claim a content owner.
+- `Default`: resources owned by the tool MOD. A default candidate is exposed only
+  when the target has zero `Registered` candidates.
+
+Manual candidates do not participate in the default-visibility predicate. Therefore
+a target with only manual configuration still exposes the tool default. Content
+MODs do not synthesize defaults for targets they did not register.
+
 When a feature enables multiple additive candidates, its domain shared layer owns
 one list-based selector. `priority`, deterministic `random`, and `sequential` modes
 all consume the same enabled candidate list; tools must not implement separate
 single-choice side paths. Feature-local choices are persisted in the scope's
 `aura.user.json` and read on demand. Tool-owned aggregate settings may retain a
 compatibility copy, but they are not the shared scope authority.
+
+Candidate enablement uses sparse `resourceOverrides` (`qualifiedResourceId -> bool`).
+Absence means enabled, so a newly scanned registered resource stays enabled even
+after the user has configured existing candidates. A legacy whitelist is migrated
+once by snapshotting only the candidates visible during migration; it must not
+remain the ongoing selection model.
+
+Skin uses `ManualSelection`: enabling a skin only adds it to the selectable pool.
+It never switches the active skin. Newly registered skins enter the pool by default
+unless their qualified identity has an explicit `false` override.
 
 Domain catalogs must not discard entries by a bare semantic key during scanning.
 They preserve qualified entries, group them by semantic key, and apply an explicit

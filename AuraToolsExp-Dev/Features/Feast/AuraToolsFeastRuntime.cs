@@ -29,6 +29,8 @@ public static class AuraToolsFeastRuntime
     private static bool batchEating;
     private static long actionSequence;
     private static string cachedRoleId = "";
+    private static bool catalogLoaded;
+    private static IReadOnlyList<AuraCgCatalogResource> catalogResources = Array.Empty<AuraCgCatalogResource>();
     private static readonly HashSet<string> DiagnosticKeys = new(StringComparer.OrdinalIgnoreCase);
 
     public static void Initialize(ModConfig modConfig)
@@ -51,29 +53,100 @@ public static class AuraToolsFeastRuntime
         RegisterAfter(modConfig, "FightManager.CmdChangeCareer", CaptureCurrentRole);
         RegisterAfter(modConfig, "FightManager.RpcChangeCareer", CaptureCurrentRole);
         AuraToolsConfigService.Changed += Reconfigure;
-        AuraToolsFeastDefaultMaterializer.Initialize();
+        AuraSharedResourceProtocol.ScopeChanged += OnSharedScopeChanged;
+        RefreshCatalog();
     }
 
     public static int RegisteredFeastCgCount()
     {
-        return GetFeastEntries().Count;
+        return GetCatalogResources()
+            .Count(resource => IsRoleResource(resource) && !IsToolProvidedDefault(resource));
+    }
+
+    public static IReadOnlyList<string> RegisteredRoleIds()
+    {
+        return GetCatalogResources()
+            .Where(IsRoleResource)
+            .Select(resource => RoleCatalog.NormalizeRoleId(resource.ScopeId))
+            .Where(roleId => !string.IsNullOrWhiteSpace(roleId))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(roleId => roleId, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    public static void RefreshCatalog()
+    {
+        try
+        {
+            var snapshot = AuraCgCatalogQueryService.QueryRegisteredResources(
+                AuraToolsIds.ModId,
+                "Feast");
+            catalogResources = snapshot.Entries;
+            catalogLoaded = true;
+        }
+        catch (Exception ex)
+        {
+            catalogResources = Array.Empty<AuraCgCatalogResource>();
+            catalogLoaded = true;
+            AuraToolsLog.Warn("[Feast] failed to query v3 catalog: " + ex.Message);
+        }
     }
 
     public static IReadOnlyList<FeastCgCandidate> BuildCandidateCgsForRole(string roleId)
     {
-        AuraToolsFeastDefaultMaterializer.EnsureCurrent();
         var normalizedRole = RoleCatalog.NormalizeRoleId(roleId);
         if (string.IsNullOrWhiteSpace(normalizedRole))
         {
             return Array.Empty<FeastCgCandidate>();
         }
 
-        return GetFeastEntries()
-            .Where(entry => AuraCgTargetMatcher.MatchesRole(entry, normalizedRole))
-            .Where(entry => AuraCgActivationRuntime.CanConsumerPlay(entry, AuraToolsIds.ModId))
-            .Select(CreateCandidate)
+        var resources = GetCatalogResources();
+        var registered = resources
+            .Where(IsRoleResource)
+            .Where(resource => !IsToolProvidedDefault(resource))
+            .Where(resource => string.Equals(
+                RoleCatalog.NormalizeRoleId(resource.ScopeId),
+                normalizedRole,
+                StringComparison.OrdinalIgnoreCase))
+            .Where(resource => string.Equals(resource.MediaType, "image", StringComparison.OrdinalIgnoreCase))
+            .Select(resource => CreateCatalogCandidate(resource, FeastCgSourceKind.Registered))
             .Where(candidate => !string.IsNullOrWhiteSpace(candidate.ImageResource))
+            .ToList();
+
+        var candidates = new List<FeastCgCandidate>(registered);
+        if (registered.Count == 0)
+        {
+            var toolDefault = resources
+                .Where(IsToolProvidedDefault)
+                .Where(resource =>
+                    string.Equals(resource.ScopeType, "Global", StringComparison.OrdinalIgnoreCase)
+                    || IsRoleResource(resource)
+                    && string.Equals(
+                        RoleCatalog.NormalizeRoleId(resource.ScopeId),
+                        normalizedRole,
+                        StringComparison.OrdinalIgnoreCase))
+                .Where(resource => string.Equals(resource.MediaType, "image", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(resource => IsRoleResource(resource))
+                .ThenByDescending(resource => resource.Priority)
+                .ThenBy(resource => resource.ResourceId, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+            if (toolDefault != null)
+            {
+                candidates.Add(CreateCatalogCandidate(toolDefault, FeastCgSourceKind.Default));
+            }
+        }
+
+        var settings = EnsureRoleSettings(normalizedRole, RoleCatalog.GetDisplayName(normalizedRole));
+        candidates.AddRange(settings.ManualResources.Select(manual => CreateManualCandidate(normalizedRole, manual)));
+        var candidateIds = candidates.Select(candidate => candidate.QualifiedCgId).ToArray();
+        if (settings.MigrateLegacyCandidateSelection(candidateIds))
+        {
+            SaveRoleSettings(settings);
+        }
+
+        return candidates
             .OrderByDescending(candidate => candidate.Priority)
+            .ThenBy(candidate => candidate.SourceKind)
             .ThenBy(candidate => candidate.OwnerModId, StringComparer.OrdinalIgnoreCase)
             .ThenBy(candidate => candidate.CgId, StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -90,7 +163,8 @@ public static class AuraToolsFeastRuntime
             {
                 Enabled = true,
                 RoleId = normalizedRole,
-                DisplayName = string.IsNullOrWhiteSpace(displayName) ? normalizedRole : displayName
+                DisplayName = string.IsNullOrWhiteSpace(displayName) ? normalizedRole : displayName,
+                SelectionSchemaVersion = 2
             };
             settings.Roles[normalizedRole] = roleSettings;
         }
@@ -108,14 +182,14 @@ public static class AuraToolsFeastRuntime
     {
         var role = EnsureRoleSettings(roleId, RoleCatalog.GetDisplayName(roleId));
         role.Enabled = enabled;
-        SaveRoleSelection(role);
+        SaveRoleSettings(role);
     }
 
     public static void SetSelectionModeForRole(string roleId, string selectionMode)
     {
         var role = EnsureRoleSettings(roleId, RoleCatalog.GetDisplayName(roleId));
         role.SelectionMode = AuraCgSelectionModes.Normalize(selectionMode);
-        SaveRoleSelection(role);
+        SaveRoleSettings(role);
     }
 
     public static void SetCandidateEnabledForRole(
@@ -126,7 +200,7 @@ public static class AuraToolsFeastRuntime
     {
         var role = EnsureRoleSettings(roleId, RoleCatalog.GetDisplayName(roleId));
         role.SetCandidateEnabled(qualifiedCgId, enabled, currentCandidates);
-        SaveRoleSelection(role);
+        SaveRoleSettings(role);
     }
 
     public static FeastCgCandidate? ResolveEffectiveCandidateForPreview(string roleId)
@@ -165,6 +239,11 @@ public static class AuraToolsFeastRuntime
             MaxRequestAgeSeconds = 8f,
             DuplicateWindowSeconds = 1.25f
         });
+    }
+
+    private static void OnSharedScopeChanged(string scopeKey, long revision)
+    {
+        catalogLoaded = false;
     }
 
     private static void OnFoodEaten(ModHookContext context)
@@ -380,6 +459,16 @@ public static class AuraToolsFeastRuntime
         {
             role.SelectionMode = AuraCgSelectionModes.Normalize(mode);
         }
+        if (values.TryGetValue("resourceOverrides", out var overridesJson))
+        {
+            role.ResourceOverrides = AuraSharedJson.Deserialize<Dictionary<string, bool>>(overridesJson)
+                                     ?? new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        }
+        if (values.TryGetValue("manualResources", out var manualJson))
+        {
+            role.ManualResources = AuraSharedJson.Deserialize<List<FeastManualResourceSettings>>(manualJson)
+                                   ?? new List<FeastManualResourceSettings>();
+        }
         if (values.TryGetValue("candidateSelectionConfigured", out var configured)
             && bool.TryParse(configured, out var parsedConfigured))
         {
@@ -389,9 +478,10 @@ public static class AuraToolsFeastRuntime
         {
             role.EnabledCgIds = AuraSharedJson.Deserialize<List<string>>(enabledJson) ?? new List<string>();
         }
+        role.Normalize(role.RoleId, AuraToolsConfigService.MatchExperience.Feast.DefaultPresentation);
     }
 
-    private static void SaveRoleSelection(FeastRoleSettings role)
+    public static void SaveRoleSettings(FeastRoleSettings role)
     {
         role.Normalize(role.RoleId, AuraToolsConfigService.MatchExperience.Feast.DefaultPresentation);
         AuraToolsConfigService.SaveMatchExperience();
@@ -427,8 +517,10 @@ public static class AuraToolsFeastRuntime
             ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             : new Dictionary<string, string>(current.Override.Values, StringComparer.OrdinalIgnoreCase);
         values["selectionMode"] = role.SelectionMode;
-        values["candidateSelectionConfigured"] = role.CandidateSelectionConfigured.ToString();
-        values["enabledCgIds"] = AuraSharedJson.Serialize(role.EnabledCgIds);
+        values["resourceOverrides"] = AuraSharedJson.Serialize(role.ResourceOverrides);
+        values["manualResources"] = AuraSharedJson.Serialize(role.ManualResources);
+        values.Remove("candidateSelectionConfigured");
+        values.Remove("enabledCgIds");
         return new AuraSharedLocalOverrideV3
         {
             Enabled = role.Enabled,
@@ -449,52 +541,73 @@ public static class AuraToolsFeastRuntime
         };
     }
 
-    private static List<AuraCgRegistryEntry> GetFeastEntries()
+    private static IReadOnlyList<AuraCgCatalogResource> GetCatalogResources()
     {
-        try
+        if (!catalogLoaded)
         {
-            var activeResources = AuraCgCatalogQueryService.GetActiveResourceKeys(
-                AuraToolsIds.ModId,
-                "Feast");
-            return AuraCgRegistryRuntime.GetRegisteredEntries()
-                .Where(entry => string.Equals(entry.Kind, FeastKind, StringComparison.OrdinalIgnoreCase))
-                .Where(entry => string.Equals(entry.Media.Type, "image", StringComparison.OrdinalIgnoreCase))
-                .Where(entry => AuraCgCatalogQueryService.IsActive(activeResources, entry)
-                                || string.Equals(entry.OwnerModId, AuraToolsIds.ModId, StringComparison.OrdinalIgnoreCase)
-                                   && string.Equals(entry.RegistrationSourceId, AuraToolsFeastDefaultMaterializer.ContributionId, StringComparison.OrdinalIgnoreCase))
-                .ToList();
+            RefreshCatalog();
         }
-        catch (Exception ex)
-        {
-            AuraToolsLog.Warn("[Feast] failed to read CG registry: " + ex.Message);
-            return new List<AuraCgRegistryEntry>();
-        }
+
+        return catalogResources;
     }
 
-    private static FeastCgCandidate CreateCandidate(AuraCgRegistryEntry entry)
+    private static bool IsRoleResource(AuraCgCatalogResource resource)
     {
-        var image = string.IsNullOrWhiteSpace(entry.Media.Resource)
-            ? entry.Media.FallbackImage
-            : entry.Media.Resource;
+        return string.Equals(resource.ScopeType, "Role", StringComparison.OrdinalIgnoreCase)
+               && !string.IsNullOrWhiteSpace(resource.ScopeId);
+    }
+
+    private static bool IsToolProvidedDefault(AuraCgCatalogResource resource)
+    {
+        return string.Equals(resource.OwnerModId, AuraToolsIds.ModId, StringComparison.OrdinalIgnoreCase)
+               && (IsRoleResource(resource)
+                   || string.Equals(resource.ScopeType, "Global", StringComparison.OrdinalIgnoreCase)
+                   && string.Equals(resource.ScopeId, "all", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static FeastCgCandidate CreateCatalogCandidate(
+        AuraCgCatalogResource resource,
+        FeastCgSourceKind sourceKind)
+    {
         return new FeastCgCandidate
         {
-            OwnerModId = entry.OwnerModId,
-            CgId = entry.CgId,
-            QualifiedCgId = entry.QualifiedCgId,
-            DisplayName = string.IsNullOrWhiteSpace(entry.DisplayName) ? entry.QualifiedCgId : entry.DisplayName,
-            ImageResource = image,
-            Priority = entry.Priority,
+            SourceKind = sourceKind,
+            OwnerModId = resource.OwnerModId,
+            CgId = resource.ResourceId,
+            QualifiedCgId = resource.QualifiedResourceId,
+            DisplayName = string.IsNullOrWhiteSpace(resource.DisplayName)
+                ? resource.QualifiedResourceId
+                : resource.DisplayName,
+            ImageResource = resource.CanonicalResource,
+            Priority = resource.Priority,
             Presentation = new SkillCgPresentationSettings
             {
-                Mode = entry.DefaultPresentation.Mode,
-                Fit = entry.DefaultPresentation.Fit,
-                FadeIn = entry.DefaultPresentation.FadeIn,
-                Hold = entry.DefaultPresentation.Hold,
-                FadeOut = entry.DefaultPresentation.FadeOut,
-                FocusX = entry.DefaultPresentation.FocusX,
-                FocusY = entry.DefaultPresentation.FocusY,
-                SafeScale = entry.DefaultPresentation.SafeScale
+                Mode = resource.Presentation.Mode,
+                Fit = resource.Presentation.Fit,
+                FadeIn = resource.Presentation.FadeIn,
+                Hold = resource.Presentation.Hold,
+                FadeOut = resource.Presentation.FadeOut,
+                FocusX = resource.Presentation.FocusX,
+                FocusY = resource.Presentation.FocusY,
+                SafeScale = resource.Presentation.SafeScale
             }.Resolve(FeastSettings.CreateDefaultPresentation())
+        };
+    }
+
+    private static FeastCgCandidate CreateManualCandidate(
+        string roleId,
+        FeastManualResourceSettings manual)
+    {
+        return new FeastCgCandidate
+        {
+            SourceKind = FeastCgSourceKind.Manual,
+            OwnerModId = "LocalUser",
+            CgId = manual.ManualId,
+            QualifiedCgId = FeastRoleResourceIdentity.ManualId(roleId, manual.ManualId),
+            DisplayName = manual.DisplayName,
+            ImageResource = manual.Resource,
+            Priority = manual.Priority,
+            Presentation = FeastSettings.CreateDefaultPresentation()
         };
     }
 
@@ -508,7 +621,6 @@ public static class AuraToolsFeastRuntime
     {
         try
         {
-            AuraToolsFeastDefaultMaterializer.EnsureCurrent();
             var selected = AuraSharedIdentity.SelectRoleId(
                 ExtractRoleId(context.Arguments),
                 ExtractRoleId(context.Target),
@@ -675,6 +787,8 @@ public static class AuraToolsFeastRuntime
 
 public sealed class FeastCgCandidate
 {
+    public FeastCgSourceKind SourceKind { get; set; }
+
     public string OwnerModId { get; set; } = "";
 
     public string CgId { get; set; } = "";
@@ -688,6 +802,13 @@ public sealed class FeastCgCandidate
     public int Priority { get; set; }
 
     public SkillCgPresentationSettings Presentation { get; set; } = FeastSettings.CreateDefaultPresentation();
+}
+
+public enum FeastCgSourceKind
+{
+    Registered = 0,
+    Default = 1,
+    Manual = 2
 }
 
 public sealed class AuraToolsFeastDriver : MonoBehaviour
