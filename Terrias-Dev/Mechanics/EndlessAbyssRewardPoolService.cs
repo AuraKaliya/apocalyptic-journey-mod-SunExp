@@ -210,9 +210,7 @@ public static class EndlessAbyssRewardPoolService
             return false;
         }
 
-        var source = sourcePackId.Trim();
-        return string.Equals(rowPackId, source, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(rowPackId, "Terrias_terrias_" + source, StringComparison.OrdinalIgnoreCase);
+        return TerriasContentIdCompatibility.Equivalent(rowPackId, sourcePackId);
     }
 
     private static bool CardPackEnabled(string rowPackId, HashSet<string> enabledPacks)
@@ -222,10 +220,7 @@ public static class EndlessAbyssRewardPoolService
             return true;
         }
 
-        const string prefix = "Terrias_terrias_";
-        return rowPackId.StartsWith(prefix, StringComparison.Ordinal)
-            ? enabledPacks.Contains(rowPackId.Substring(prefix.Length))
-            : enabledPacks.Contains(prefix + rowPackId);
+        return enabledPacks.Any(pack => TerriasContentIdCompatibility.Equivalent(pack, rowPackId));
     }
 
     private static HashSet<string> EnabledCardPacks()

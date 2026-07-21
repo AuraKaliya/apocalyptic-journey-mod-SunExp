@@ -160,6 +160,38 @@ public static class StarStonePouchService
         SyncBuff(self, state);
     }
 
+    public static bool EnsurePresent(ScriptExecutor self)
+    {
+        if (self?.Self == null)
+        {
+            return false;
+        }
+
+        var state = StarStonePouchStateStore.GetOrCreate(self.Self);
+        if (state == null)
+        {
+            return false;
+        }
+
+        EnsureInitialized(state);
+        if (!BuffApi.Has(self.Self, TerriasIds.StarStonePouch))
+        {
+            // A missing buff cannot represent an exhausted zero-level pouch.
+            // Rebuild only this invalid recovery state; an existing buff and
+            // its autonomous ActionAfter listener are otherwise left intact.
+            if (state.Stones.Count == 0)
+            {
+                ResetStoneBag(state);
+            }
+
+            self.SetStatus("Self");
+            self.AddBuff(TerriasIds.StarStonePouch, Math.Max(1, state.BlackStoneCount()).ToString());
+        }
+
+        SyncBuff(self, state);
+        return BuffApi.Has(self.Self, TerriasIds.StarStonePouch);
+    }
+
     public static void Apply(ScriptExecutor self)
     {
         if (self?.Self == null)

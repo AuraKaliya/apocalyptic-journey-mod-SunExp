@@ -42,27 +42,30 @@ public static class RoleCatalog
     private static List<RoleInfo> cached = new();
     private static float lastScanRealtime;
     private static long cachedCatalogEpoch = -1;
+    private static long cachedRoleRevision = -1;
 
     public static IReadOnlyList<RoleInfo> GetRoles(bool forceRefresh = false)
     {
-        var snapshot = AuraGameDataHostApi.AcquireSnapshot();
+        var snapshot = AuraRoleRegistryRuntime.GetEffectiveSnapshot();
         lock (Gate)
         {
-            if (!snapshot.Version.NativeReady)
+            if (!snapshot.NativeReady)
             {
-                return cached.Count > 0 ? cached.ToList() : ScanRoles();
+                return cached.ToList();
             }
 
             if (!forceRefresh
                 && cached.Count > 0
-                && cachedCatalogEpoch == snapshot.Version.Epoch
+                && cachedCatalogEpoch == snapshot.CatalogEpoch
+                && cachedRoleRevision == snapshot.RegistryRevision
                 && UnityEngine.Time.realtimeSinceStartup - lastScanRealtime < 10f)
             {
                 return cached.ToList();
             }
 
-            cached = ScanRoles();
-            cachedCatalogEpoch = snapshot.Version.Epoch;
+            cached = ScanRoles(snapshot);
+            cachedCatalogEpoch = snapshot.CatalogEpoch;
+            cachedRoleRevision = snapshot.RegistryRevision;
             lastScanRealtime = UnityEngine.Time.realtimeSinceStartup;
             return cached.ToList();
         }
@@ -103,37 +106,52 @@ public static class RoleCatalog
             .Any();
     }
 
-    private static List<RoleInfo> ScanRoles()
+    private static List<RoleInfo> ScanRoles(AuraEffectiveRoleSnapshot effective)
     {
         var result = new List<RoleInfo>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         try
         {
-            var lines = AuraGameDataHostApi.Table(DataType.Career);
-
-            foreach (var definition in lines)
+            var nativeRoles = AuraGameDataHostApi.Query(DataType.Career, includeAllCandidates: true).Items
+                .Where(item => item.Enabled
+                    && !item.Retired
+                    && string.Equals(item.SourceKind, AuraGameDataSourceKinds.Native, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            foreach (var entry in effective.Entries)
             {
-                var row = definition.Fields;
-                if (!row.TryGetValue("Id", out var id))
+                var normalizedId = NormalizeRoleId(entry.RoleId);
+                var native = nativeRoles.FirstOrDefault(item =>
+                    string.Equals(NormalizeRoleId(item.Id), normalizedId, StringComparison.OrdinalIgnoreCase)
+                    || item.Aliases.Any(alias => string.Equals(
+                        NormalizeRoleId(alias),
+                        normalizedId,
+                        StringComparison.OrdinalIgnoreCase)));
+                if (native == null)
                 {
                     continue;
                 }
 
-                var normalizedId = NormalizeRoleId(id);
-                if (string.IsNullOrWhiteSpace(normalizedId) || !seen.Add(normalizedId))
-                {
-                    continue;
-                }
+                var row = native.Fields;
+                var localizedName = ResolveDisplayName(normalizedId, row);
 
                 result.Add(new RoleInfo
                 {
                     Id = normalizedId,
-                    DisplayName = ResolveDisplayName(normalizedId, row),
-                    PackBelong = row.TryGetValue("PackBelong", out var pack) ? pack : "",
-                    Icon = row.TryGetValue("Icon", out var icon) ? icon : "",
-                    OwnerModId = row.TryGetValue("PackBelong", out var owner) ? owner : "Witch",
-                    Aliases = new List<string> { normalizedId },
+                    DisplayName = string.IsNullOrWhiteSpace(localizedName) || localizedName == normalizedId
+                        ? (string.IsNullOrWhiteSpace(entry.DisplayName) ? normalizedId : entry.DisplayName)
+                        : localizedName,
+                    PackBelong = string.IsNullOrWhiteSpace(entry.PackBelong)
+                        ? (row.TryGetValue("PackBelong", out var pack) ? pack : "")
+                        : entry.PackBelong,
+                    Icon = string.IsNullOrWhiteSpace(entry.Icon)
+                        ? (row.TryGetValue("Icon", out var icon) ? icon : "")
+                        : entry.Icon,
+                    OwnerModId = string.IsNullOrWhiteSpace(entry.OwnerModId) ? native.OwnerModId : entry.OwnerModId,
+                    Aliases = entry.Aliases
+                        .Concat(native.Aliases)
+                        .Concat(new[] { normalizedId })
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList(),
                     Skills = ResolveSkills(row)
                 });
             }
@@ -143,55 +161,11 @@ public static class RoleCatalog
             AuraToolsLog.Warn("Role scan failed: " + ex.Message);
         }
 
-        try
-        {
-            foreach (var entry in AuraRoleRegistryRuntime.GetSnapshot().Entries)
-            {
-                var normalizedId = NormalizeRoleId(entry.RoleId);
-                if (string.IsNullOrWhiteSpace(normalizedId)) continue;
-                var existing = result.FirstOrDefault(role => string.Equals(role.Id, normalizedId, StringComparison.OrdinalIgnoreCase)
-                    || role.Aliases.Any(alias => entry.Aliases.Contains(alias, StringComparer.OrdinalIgnoreCase)));
-                if (existing == null)
-                {
-                    result.Add(new RoleInfo
-                    {
-                        Id = normalizedId,
-                        DisplayName = string.IsNullOrWhiteSpace(entry.DisplayName) ? normalizedId : entry.DisplayName,
-                        PackBelong = entry.PackBelong,
-                        Icon = entry.Icon,
-                        OwnerModId = entry.OwnerModId,
-                        Aliases = entry.Aliases.Concat(new[] { normalizedId }).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
-                    });
-                    continue;
-                }
-                existing.Aliases = existing.Aliases.Concat(entry.Aliases).Concat(new[] { normalizedId })
-                    .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-                if (string.IsNullOrWhiteSpace(existing.OwnerModId)) existing.OwnerModId = entry.OwnerModId;
-            }
-        }
-        catch (Exception ex)
-        {
-            AuraToolsLog.Warn("Active role registry scan failed: " + ex.Message);
-        }
-
-        var roles = result
+        return result
             .OrderBy(role => role.PackBelong)
             .ThenBy(role => role.DisplayName)
             .ThenBy(role => role.Id)
             .ToList();
-        AuraRoleRegistryRuntime.PublishRuntimeRoles(
-            AuraToolsIds.ModId,
-            "game-career-scan",
-            roles.Select(role => new AuraRoleRegistryEntry
-            {
-                RoleId = role.Id,
-                DisplayName = role.DisplayName,
-                PackBelong = role.PackBelong,
-                Icon = role.Icon,
-                Priority = 0,
-                Tags = new List<string> { "game-career-table" }
-            }));
-        return roles;
     }
 
     private static string ResolveDisplayName(string id, IReadOnlyDictionary<string, string> row)

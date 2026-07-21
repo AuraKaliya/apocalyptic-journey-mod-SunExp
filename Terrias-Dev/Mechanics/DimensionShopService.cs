@@ -963,11 +963,7 @@ public static class DimensionShopService
             return false;
         }
 
-        const string prefix = "Terrias_terrias_";
-        return string.Equals(rowPack, sourcePack, StringComparison.OrdinalIgnoreCase)
-               || string.Equals(rowPack, prefix + sourcePack, StringComparison.OrdinalIgnoreCase)
-               || sourcePack.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-               && string.Equals(rowPack, sourcePack.Substring(prefix.Length), StringComparison.OrdinalIgnoreCase);
+        return TerriasContentIdCompatibility.Equivalent(rowPack, sourcePack);
     }
 
     private static bool IsFlagSet(IDictionary<string, string>? values, string key)

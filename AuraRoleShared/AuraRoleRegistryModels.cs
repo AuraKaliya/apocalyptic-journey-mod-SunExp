@@ -266,3 +266,138 @@ public sealed class AuraRoleRegistrySnapshot
 
     public IReadOnlyList<AuraRoleRegistryEntry> Entries { get; }
 }
+
+public sealed class AuraEffectiveRoleSnapshot
+{
+    public AuraEffectiveRoleSnapshot(
+        long registryRevision,
+        long catalogEpoch,
+        bool nativeReady,
+        IReadOnlyList<AuraRoleRegistryEntry> entries)
+    {
+        RegistryRevision = Math.Max(0, registryRevision);
+        CatalogEpoch = Math.Max(0, catalogEpoch);
+        NativeReady = nativeReady;
+        Entries = entries ?? Array.Empty<AuraRoleRegistryEntry>();
+    }
+
+    public long RegistryRevision { get; }
+
+    public long CatalogEpoch { get; }
+
+    public bool NativeReady { get; }
+
+    public IReadOnlyList<AuraRoleRegistryEntry> Entries { get; }
+}
+
+public static class AuraEffectiveRoleCatalog
+{
+    public static IReadOnlyList<AuraRoleRegistryEntry> Merge(
+        IEnumerable<AuraRoleRegistryEntry>? runtimeEntries,
+        IEnumerable<AuraRoleRegistryEntry>? metadataEntries)
+    {
+        var metadata = NormalizeEntries(metadataEntries)
+            .OrderByDescending(entry => entry.Priority)
+            .ToList();
+        var result = new List<AuraRoleRegistryEntry>();
+
+        foreach (var runtimeEntry in NormalizeEntries(runtimeEntries))
+        {
+            var merged = runtimeEntry.Clone();
+            var ownerDeclared = false;
+            var displayNameDeclared = false;
+            var packBelongDeclared = false;
+            var iconDeclared = false;
+            foreach (var declaration in metadata.Where(candidate => IdentitiesOverlap(merged, candidate)))
+            {
+                merged.Aliases = merged.Aliases
+                    .Concat(declaration.Aliases)
+                    .Concat(new[] { declaration.RoleId })
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                merged.Tags = merged.Tags
+                    .Concat(declaration.Tags)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                merged.Priority = Math.Max(merged.Priority, declaration.Priority);
+
+                if (!ownerDeclared && CanUseDeclaredOwner(merged.OwnerModId, declaration.OwnerModId))
+                {
+                    merged.OwnerModId = declaration.OwnerModId;
+                    ownerDeclared = true;
+                }
+
+                if (!displayNameDeclared && !string.IsNullOrWhiteSpace(declaration.DisplayName))
+                {
+                    merged.DisplayName = declaration.DisplayName;
+                    displayNameDeclared = true;
+                }
+
+                if (!packBelongDeclared && !string.IsNullOrWhiteSpace(declaration.PackBelong))
+                {
+                    merged.PackBelong = declaration.PackBelong;
+                    packBelongDeclared = true;
+                }
+
+                if (!iconDeclared && !string.IsNullOrWhiteSpace(declaration.Icon))
+                {
+                    merged.Icon = declaration.Icon;
+                    iconDeclared = true;
+                }
+            }
+
+            merged.Enabled = true;
+            merged.Normalize();
+            if (!result.Any(entry => string.Equals(
+                    AuraShared.Core.AuraSharedIdentity.NormalizeRoleId(entry.RoleId),
+                    AuraShared.Core.AuraSharedIdentity.NormalizeRoleId(merged.RoleId),
+                    StringComparison.OrdinalIgnoreCase)))
+            {
+                result.Add(merged);
+            }
+        }
+
+        return result
+            .OrderBy(entry => entry.PackBelong, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(entry => entry.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(entry => entry.RoleId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static List<AuraRoleRegistryEntry> NormalizeEntries(IEnumerable<AuraRoleRegistryEntry>? entries)
+    {
+        return (entries ?? Array.Empty<AuraRoleRegistryEntry>())
+            .Where(entry => entry != null && entry.Enabled)
+            .Select(entry =>
+            {
+                var clone = entry.Clone();
+                clone.Normalize();
+                return clone;
+            })
+            .Where(entry => !string.IsNullOrWhiteSpace(entry.RoleId))
+            .ToList();
+    }
+
+    private static bool IdentitiesOverlap(AuraRoleRegistryEntry left, AuraRoleRegistryEntry right)
+    {
+        var leftIds = left.Aliases.Concat(new[] { left.RoleId })
+            .Select(AuraShared.Core.AuraSharedIdentity.NormalizeRoleId)
+            .Where(value => value.Length > 0);
+        var rightIds = right.Aliases.Concat(new[] { right.RoleId })
+            .Select(AuraShared.Core.AuraSharedIdentity.NormalizeRoleId)
+            .Where(value => value.Length > 0);
+        return leftIds.Intersect(rightIds, StringComparer.OrdinalIgnoreCase).Any();
+    }
+
+    private static bool CanUseDeclaredOwner(string runtimeOwner, string declaredOwner)
+    {
+        if (string.IsNullOrWhiteSpace(declaredOwner))
+        {
+            return false;
+        }
+
+        return string.IsNullOrWhiteSpace(runtimeOwner)
+            || string.Equals(runtimeOwner, "BaseGame", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(runtimeOwner, declaredOwner, StringComparison.OrdinalIgnoreCase);
+    }
+}

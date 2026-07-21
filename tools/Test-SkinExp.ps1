@@ -160,6 +160,23 @@ if (-not $selectionText.Contains("AuraSharedConfigStore.ReadShared") -or
     throw "Skin selections do not use shared configuration storage."
 }
 
+$skinMechanicsText = Get-Content -Raw -LiteralPath (Join-Path $sharedRoot "Mechanics\SkinRuntime.cs")
+$careerConfigApiText = Get-Content -Raw -LiteralPath (Join-Path $sharedRoot "GameApi\CareerConfigApi.cs")
+$gameDataHostApiText = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot "AuraGameDataShared\GameApi\AuraGameDataHostApi.cs")
+if (-not $skinMechanicsText.Contains("snapshot.Version.NativeReady") -or
+    -not $skinMechanicsText.Contains("var careerIds = SkinSelectionStore.CareerIds") -or
+    $skinMechanicsText.Contains("SkinRegistry.CareerIds.Concat(SkinSelectionStore.CareerIds)")) {
+    throw "AuraSkin saved-selection application must wait for the native catalog and must not materialize every registered skin candidate."
+}
+if (-not $skinMechanicsText.Contains("warnOnFailure: false") -or
+    -not $careerConfigApiText.Contains("bool warnOnFailure")) {
+    throw "AuraSkin deferred saved selections must not emit startup materialization warnings."
+}
+if (-not $gameDataHostApiText.Contains("Game-data definition was not found in the effective catalog.") -or
+    $gameDataHostApiText.Contains("Registered definition was not found.")) {
+    throw "AuraGameData missing-definition diagnostics must describe the effective catalog rather than only registered definitions."
+}
+
 foreach ($requiredText in @("SkinExp.career_1.summer_cool", "AuraToolsExp.career_1.summer_cool", "SkinRuntime.TryRemapSelection")) {
     if (-not $auraToolsSkinRuntimeText.Contains($requiredText)) {
         throw "AuraTools skin migration contract is missing: $requiredText"

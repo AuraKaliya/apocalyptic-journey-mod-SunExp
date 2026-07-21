@@ -21,6 +21,7 @@ public static class AuraToolsSkinRuntime
     private static ModConfig? currentConfig;
     private static bool initialized;
     private static bool migratingSelection;
+    private static string lastBroadcastFingerprint = "";
     private static string lastInstallStatus = "Skin package not installed yet.";
 
     public static void Initialize(ModConfig modConfig)
@@ -336,10 +337,24 @@ public static class AuraToolsSkinRuntime
             return;
         }
 
+        var lobbyFingerprint = string.Join(",", manager.LobbyInfos?.AddedPlayers?
+            .Where(player => player != null && !string.IsNullOrWhiteSpace(player.Id))
+            .Select(player => player.Id)
+            .OrderBy(playerId => playerId, StringComparer.Ordinal)
+            ?? Enumerable.Empty<string>());
+        var fingerprint = AuraSharedJson.Serialize(snapshot) + "|lobby=" + lobbyFingerprint;
+        if (string.Equals(lastBroadcastFingerprint, fingerprint, StringComparison.Ordinal))
+        {
+            return;
+        }
+
         try
         {
             var command = new AuraSkinSelectionCommand(snapshot);
-            AuraToolsRpcTransport.Send(manager, command, "Skin.Selection", excludeOwner: true);
+            if (AuraToolsRpcTransport.Send(manager, command, "Skin.Selection", excludeOwner: true))
+            {
+                lastBroadcastFingerprint = fingerprint;
+            }
         }
         catch (Exception ex)
         {

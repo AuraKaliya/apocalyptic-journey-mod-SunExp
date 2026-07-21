@@ -46,4 +46,21 @@ public static class SpiritIntentPresentationDataComposer
 
         return composed;
     }
+
+    public static Dictionary<string, string> PresentationOverrides(
+        IDictionary<string, string> composed)
+    {
+        if (composed == null)
+        {
+            throw new ArgumentNullException(nameof(composed));
+        }
+
+        var overrides = new Dictionary<string, string>(composed, StringComparer.Ordinal);
+        foreach (var field in AdapterFields)
+        {
+            overrides.Remove(field);
+        }
+
+        return overrides;
+    }
 }

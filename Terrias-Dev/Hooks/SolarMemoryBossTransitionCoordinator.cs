@@ -287,7 +287,6 @@ public static class SolarMemoryBossTransitionCoordinator
 
     private static string ShortModId(string id)
     {
-        const string prefix = "Terrias_terrias_";
-        return id.StartsWith(prefix, StringComparison.Ordinal) ? id.Substring(prefix.Length) : id;
+        return TerriasContentIdCompatibility.LocalId(id);
     }
 }

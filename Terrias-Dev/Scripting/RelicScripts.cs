@@ -226,6 +226,7 @@ public static class RelicScripts
 
         ExecutorApi.TryAddEvent(self, "FightStart", new Action(Reset), "coronation_throne");
         ExecutorApi.TryAddEvent(self, "Terrias_terrias_solar_crownOnLevelChange", new Action(Check), "coronation_throne");
+        ExecutorApi.TryAddEvent(self, TerriasContentIdCompatibility.LegacyMainPrefix + "solar_crownOnLevelChange", new Action(Check), "coronation_throne");
         ExecutorApi.TryAddEvent(self, "solar_crownOnLevelChange", new Action(Check), "coronation_throne");
         ExecutorApi.TryAddEvent(self, "Action", new Action(Check), "coronation_throne");
         ExecutorApi.TryAddEvent(self, "StartRound", new Action(Check), "coronation_throne");

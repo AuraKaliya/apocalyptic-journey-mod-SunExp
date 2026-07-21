@@ -220,6 +220,9 @@ public static class PolymorphStateStore
                 state.OriginalCareerId,
                 "PolymorphStateStore.RestoreOriginalCareer:" + source);
             PolymorphNetworkSync.BroadcastRestore(state, "PolymorphStateStore.RestoreOriginalCareer:" + source);
+            PolymorphRuntimeService.RestoreOriginalCareerRuntime(
+                state,
+                "PolymorphStateStore.RestoreOriginalCareer:" + source);
             RoleSkillApi.RefreshFightSkills("PolymorphStateStore.RestoreOriginalCareer:" + source);
             TerriasLog.Info("[Polymorph] restored career from " + source + ": "
                 + state.RoleId + " -> " + state.OriginalCareerId);

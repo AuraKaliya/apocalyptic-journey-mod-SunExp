@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
 
@@ -112,18 +113,16 @@ public static class PolymorphBuffService
             return;
         }
 
-        var description = "\u53d8\u8eab\u6210\u4e3a" + role.DisplayName;
-        SetDescription(self.dataConfig, description);
+        var presentation = BuildTraitPresentation(role);
+        foreach (var field in presentation)
+        {
+            DictionaryUtil.Set(self.Vars, field.Key, field.Value);
+        }
 
         var buff = self.Self?.GetBuff(TerriasIds.PolymorphTraitBuffId);
-        SetDescription(buff?.buffConfig?.dataConfig, description);
-        try
+        if (buff != null)
         {
-            buff?.UpdateMsg();
-        }
-        catch (Exception ex)
-        {
-            TerriasLog.Debug("[Polymorph] trait buff message refresh skipped: " + ex.Message);
+            BuffApi.ApplyRuntimePresentation(buff, presentation);
         }
     }
 
@@ -157,16 +156,15 @@ public static class PolymorphBuffService
         }
     }
 
-    private static void SetDescription(IDataConfig? config, string description)
+    private static Dictionary<string, string> BuildTraitPresentation(PolymorphRoleSpec role)
     {
-        if (config?.Vars == null)
+        var description = "\u53d8\u8eab\u6210\u4e3a" + role.DisplayName;
+        return new Dictionary<string, string>
         {
-            return;
-        }
-
-        DictionaryUtil.Set(config.Vars, "Description", description);
-        DictionaryUtil.Set(config.Vars, "Description_zh-Hant", description);
-        DictionaryUtil.Set(config.Vars, "Description_ja", description);
-        DictionaryUtil.Set(config.Vars, "Description_en", "Polymorphed into " + description.Substring("\u53d8\u8eab\u6210\u4e3a".Length) + ".");
+            ["Description"] = description,
+            ["Description_zh-Hant"] = description,
+            ["Description_ja"] = description,
+            ["Description_en"] = "Polymorphed into " + role.DisplayName + "."
+        };
     }
 }

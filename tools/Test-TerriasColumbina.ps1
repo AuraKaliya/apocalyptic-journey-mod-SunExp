@@ -159,7 +159,7 @@ $actionPresentationCatalog = [System.IO.File]::ReadAllText((Join-Path $repoRoot 
 Assert-True ($actionPresentationCatalog.Contains('columbina_homesickness') -and $actionPresentationCatalog.Contains('RoleActionTargetMode.AllOpponents')) "Homesickness must be registered as an all-opponent presentation action."
 Assert-True ($actionPresentationCatalog.Contains('columbina_eternal_tide') -and $actionPresentationCatalog.Contains('RoleActionTargetMode.SelfOnly')) "Eternal Tide must be registered as a self-only presentation action."
 Assert-True ($actionPresentationCatalog.Contains('IsColumbinaRole')) "The shared role presentation catalog must recognize Columbina."
-Assert-True ($actionPresentationCatalog.Contains("return normalized.TrimStart('*');")) "Action card ids must normalize generated-card asterisks after full mod prefixes."
+Assert-True ($actionPresentationCatalog.Contains("TerriasContentIdCompatibility.LocalId(value).TrimStart('*')")) "Action card ids must normalize current or legacy full mod prefixes before generated-card asterisks."
 
 $actionAnimationRuntime = [System.IO.File]::ReadAllText((Join-Path $repoRoot "Terrias-Dev\Hooks\RoleActionAnimationRuntime.cs"))
 $allOpponentBranch = $actionAnimationRuntime.IndexOf('targetMode == RoleActionTargetMode.AllOpponents', [StringComparison]::Ordinal)
@@ -228,7 +228,7 @@ Assert-True (-not $constellationCatalog.Contains('IndexOf("columbina"')) "Conste
 
 $buffApiSource = [System.IO.File]::ReadAllText((Join-Path $repoRoot "Terrias-Dev\GameApi\BuffApi.cs"))
 Assert-True ($buffApiSource.Contains('ApplyRuntimePresentation(')) "BuffApi must own live Buff presentation mutation."
-Assert-True ($buffApiSource.Contains('DictionaryUtil.Set(config.Vars')) "Dynamic Buff presentation must write through instance Vars."
+Assert-True ($buffApiSource.Contains('mergedVars[field.Key] = field.Value ?? ""') -and $buffApiSource.Contains('CopyRuntimeExecutorContext(config, replacement)')) "Dynamic live Buff presentation must refresh immutable data and preserve the initialized executor context through the same per-instance clone."
 Assert-True ($buffApiSource.Contains('AuraGameDataHostApi.CloneWritable(source, mergedData, mergedVars, preCompile: false)')) "Dynamic Buff names must use the shared per-instance clone API instead of mutating base data."
 
 $columbinaRuntime = [System.IO.File]::ReadAllText((Join-Path $repoRoot "Terrias-Dev\Hooks\ColumbinaRuntime.cs"))

@@ -61,9 +61,7 @@ public static class TerriasIds
             return false;
         }
 
-        var localId = id.StartsWith("Terrias_terrias_", System.StringComparison.Ordinal)
-            ? id.Substring("Terrias_terrias_".Length)
-            : id;
+        var localId = TerriasContentIdCompatibility.LocalId(id);
         return localId.StartsWith("*", System.StringComparison.Ordinal)
             || string.Equals(localId, LegacyEmberCloakLiningRelicId, System.StringComparison.Ordinal);
     }
@@ -468,19 +466,20 @@ public static class TerriasIds
             return false;
         }
 
-        if (string.Equals(id, SolarBossOrbitMirrorMapId, System.StringComparison.Ordinal)
-            || string.Equals(id, SolarBossOrbitMirrorShortMapId, System.StringComparison.Ordinal)
-            || string.Equals(id, SolarBossSecondSunMapId, System.StringComparison.Ordinal)
-            || string.Equals(id, SolarBossSecondSunShortMapId, System.StringComparison.Ordinal)
-            || string.Equals(id, SolarBossSaintWunaMapId, System.StringComparison.Ordinal)
-            || string.Equals(id, SolarBossSaintWunaShortMapId, System.StringComparison.Ordinal))
+        var normalized = TerriasContentIdCompatibility.Canonicalize(id);
+        if (string.Equals(normalized, SolarBossOrbitMirrorMapId, System.StringComparison.Ordinal)
+            || string.Equals(normalized, SolarBossOrbitMirrorShortMapId, System.StringComparison.Ordinal)
+            || string.Equals(normalized, SolarBossSecondSunMapId, System.StringComparison.Ordinal)
+            || string.Equals(normalized, SolarBossSecondSunShortMapId, System.StringComparison.Ordinal)
+            || string.Equals(normalized, SolarBossSaintWunaMapId, System.StringComparison.Ordinal)
+            || string.Equals(normalized, SolarBossSaintWunaShortMapId, System.StringComparison.Ordinal))
         {
             return true;
         }
 
         foreach (var value in SolarMemoryMapIds)
         {
-            if (string.Equals(id, value, System.StringComparison.Ordinal))
+            if (string.Equals(normalized, value, System.StringComparison.Ordinal))
             {
                 return true;
             }
@@ -488,7 +487,7 @@ public static class TerriasIds
 
         foreach (var value in SolarMemoryShortMapIds)
         {
-            if (string.Equals(id, value, System.StringComparison.Ordinal))
+            if (string.Equals(normalized, value, System.StringComparison.Ordinal))
             {
                 return true;
             }
@@ -504,7 +503,7 @@ public static class TerriasIds
             return false;
         }
 
-        var value = id ?? "";
+        var value = TerriasContentIdCompatibility.Canonicalize(id);
         return value.StartsWith("Breaks_solar_memory_", System.StringComparison.Ordinal)
             || value.StartsWith("Sub_solar_memory_", System.StringComparison.Ordinal)
             || value.StartsWith("Terrias_terrias_Sub_solar_memory_", System.StringComparison.Ordinal);

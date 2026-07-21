@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using AuraGameData.Shared.GameApi;
 using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
 namespace Terrias.Dll.Mechanics;
 
@@ -143,7 +144,11 @@ public static class ProjectionModifierPolicyRegistry
     {
         try
         {
-            return string.IsNullOrWhiteSpace(buffId) ? null : AuraGameDataHostApi.CopyRow(DataType.Buff, buffId);
+            return string.IsNullOrWhiteSpace(buffId)
+                ? null
+                : AuraGameDataHostApi.CopyRow(
+                    DataType.Buff,
+                    TerriasContentIdCompatibility.LookupCandidates(buffId, "terrias", "wuna", "columbina"));
         }
         catch
         {

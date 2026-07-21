@@ -17,13 +17,16 @@ public static class TerriasHardTagIds
 
     public const string RebirthBuff = "buff_rebirth";
 
-    private const string FullPrefix = "Terrias_terrias_";
-
     public static string FullId(string id)
     {
-        return string.IsNullOrWhiteSpace(id) || id.StartsWith(FullPrefix, StringComparison.Ordinal)
-            ? id
-            : FullPrefix + id;
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return id;
+        }
+
+        return TerriasContentIdCompatibility.HasKnownPrefix(id)
+            ? TerriasContentIdCompatibility.Canonicalize(id)
+            : TerriasContentIdCompatibility.CurrentMainPrefix + id;
     }
 
     public static string Normalize(string? id)
@@ -33,10 +36,7 @@ public static class TerriasHardTagIds
             return "";
         }
 
-        var value = (id ?? "").Trim().TrimStart('*');
-        return value.StartsWith(FullPrefix, StringComparison.Ordinal)
-            ? value.Substring(FullPrefix.Length)
-            : value;
+        return TerriasContentIdCompatibility.LocalId(id).TrimStart('*');
     }
 
     public static bool Same(string? left, string right)

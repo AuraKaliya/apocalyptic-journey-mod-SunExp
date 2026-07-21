@@ -145,7 +145,7 @@ public static class EnemyCatalogApi
         {
             return "BaseGame";
         }
-        if (normalized.StartsWith("Terrias_terrias_", StringComparison.Ordinal))
+        if (TerriasContentIdCompatibility.HasKnownPrefix(normalized))
         {
             return "Terrias";
         }

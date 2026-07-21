@@ -180,24 +180,36 @@ public static class SkinRuntime
         var started = AuraGameDataDiagnostics.Timestamp();
         try
         {
-            var catalogEpoch = AuraGameDataHostApi.AcquireSnapshot().Version.Epoch;
+            var snapshot = AuraGameDataHostApi.AcquireSnapshot();
+            if (!snapshot.Version.NativeReady)
+            {
+                SkinLog.DebugOnce("apply-selections-await-native",
+                    "Saved skin application deferred until the native game-data catalog is ready.");
+                return;
+            }
+
+            var catalogEpoch = snapshot.Version.Epoch;
             if (lastAppliedCatalogEpoch == catalogEpoch
                 && lastAppliedSelectionRevision == selectionRevision)
             {
                 return;
             }
 
-            var careerIds = SkinRegistry.CareerIds.Concat(SkinSelectionStore.CareerIds)
+            // A registered skin candidate is not an active selection. Only
+            // materialize careers for selections that actually need applying.
+            var careerIds = SkinSelectionStore.CareerIds
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
             foreach (var careerId in careerIds)
             {
                 var normalizedCareerId = CareerConfigApi.NormalizeId(careerId);
-                if (!CareerConfigApi.TryCreate(careerId, out var career) || career == null)
+                if (!CareerConfigApi.TryCreate(careerId, out var career, warnOnFailure: false) || career == null)
                 {
                     if (!string.IsNullOrWhiteSpace(normalizedCareerId))
                     {
-                        SkinLog.Warn("Could not apply saved skin for missing career " + normalizedCareerId);
+                        SkinLog.DebugOnce("deferred-selection:" + normalizedCareerId,
+                            "Saved skin application deferred for a career outside the effective game-data catalog: "
+                            + normalizedCareerId + ".");
                     }
 
                     continue;

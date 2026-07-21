@@ -49,6 +49,7 @@ internal sealed class DimensionShopNativeSkin : IDisposable
     private readonly HashSet<string> interactionLayoutWarnings = new(StringComparer.Ordinal);
 
     private bool disposed;
+    private long overlayGeneration;
 
     private DimensionShopNativeSkin(
         GameObject shell,
@@ -244,6 +245,7 @@ internal sealed class DimensionShopNativeSkin : IDisposable
             return;
         }
 
+        overlayGeneration = DimensionShopGameApi.BeginNativeOverlayGeneration();
         ClearGenerated();
         goldBalanceText.text = state.Gold.ToString();
         truthBalanceText.text = state.Truth.ToString();
@@ -276,6 +278,7 @@ internal sealed class DimensionShopNativeSkin : IDisposable
         }
 
         disposed = true;
+        overlayGeneration = DimensionShopGameApi.BeginNativeOverlayGeneration();
         ClearGenerated();
         refreshButton.Unbind();
         exitButton.Unbind();
@@ -313,7 +316,7 @@ internal sealed class DimensionShopNativeSkin : IDisposable
         }
         nativeItem.Init(nativeConfig);
         holder.name = GeneratedPrefix + "Offer_" + type;
-        LogNativeComponentTopology("offer-" + type, holder, nativeItem);
+        LogNativeComponentTopology("offer-" + type, holder, nativeItem, overlayGeneration);
 
         var priceButton = BindNativeButton(
             Require(holder.transform, "val"),
@@ -401,7 +404,7 @@ internal sealed class DimensionShopNativeSkin : IDisposable
             nativeItem.Init(item.Equipped, NativeConfig(item, DataType.Card));
             nativeItem.canClick = true;
             holder.name = GeneratedPrefix + "HeldCard";
-            LogNativeComponentTopology("held-card", holder, nativeItem);
+            LogNativeComponentTopology("held-card", holder, nativeItem, overlayGeneration);
             holder.SetActive(true);
         }
     }
@@ -431,7 +434,7 @@ internal sealed class DimensionShopNativeSkin : IDisposable
             nativeItem.IsSelf = true;
             nativeItem.canClick = true;
             holder.name = GeneratedPrefix + "HeldRelic";
-            LogNativeComponentTopology("held-relic", holder, nativeItem);
+            LogNativeComponentTopology("held-relic", holder, nativeItem, overlayGeneration);
             holder.SetActive(true);
             displayed++;
         }
@@ -622,7 +625,8 @@ internal sealed class DimensionShopNativeSkin : IDisposable
     private static void LogNativeComponentTopology(
         string kind,
         GameObject root,
-        Witch.UI.Window.Item item)
+        Witch.UI.Window.Item item,
+        long overlayGeneration)
     {
         var raycastGraphics = 0;
         foreach (var graphic in item.GetComponentsInChildren<Graphic>(true))
@@ -642,7 +646,7 @@ internal sealed class DimensionShopNativeSkin : IDisposable
             }
 
             enabledTooltipCount++;
-            tooltip.OnShow += () => DimensionShopGameApi.VerifyTooltipVisible(kind, tooltip.transform);
+            tooltip.OnShow += () => DimensionShopGameApi.VerifyTooltipVisible(kind, tooltip, overlayGeneration);
         }
 
         TerriasLog.InfoOnceAlways(

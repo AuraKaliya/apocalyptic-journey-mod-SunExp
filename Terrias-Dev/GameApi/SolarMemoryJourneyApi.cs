@@ -26,7 +26,11 @@ public static class SolarMemoryJourneyApi
     {
         AuraJourneyMapIdAliasRegistry.RegisterPrefixAlias(
             "Terrias.MapFullToShort",
-            "Terrias_terrias_",
+            TerriasContentIdCompatibility.CurrentMainPrefix,
+            "");
+        AuraJourneyMapIdAliasRegistry.RegisterPrefixAlias(
+            "Terrias.LegacyMapFullToShort",
+            TerriasContentIdCompatibility.LegacyMainPrefix,
             "");
     }
 

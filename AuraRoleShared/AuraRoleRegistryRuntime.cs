@@ -1,7 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using AuraGameData.Shared;
+using AuraGameData.Shared.GameApi;
 using AuraShared.Core;
+using Witch.Core;
 using Witch.Mod;
 
 namespace AuraRole.Shared;
@@ -22,6 +26,47 @@ public static class AuraRoleRegistryRuntime
     {
         var document = ReadDocument();
         return new AuraRoleRegistrySnapshot(Math.Max(0, cachedRevision), document.BuildActiveEntries(CurrentSessionId));
+    }
+
+    public static AuraEffectiveRoleSnapshot GetEffectiveSnapshot()
+    {
+        var gameData = AuraGameDataHostApi.AcquireSnapshot();
+        var registry = GetSnapshot();
+        if (!gameData.Version.NativeReady)
+        {
+            return new AuraEffectiveRoleSnapshot(
+                registry.Revision,
+                gameData.Version.Epoch,
+                nativeReady: false,
+                Array.Empty<AuraRoleRegistryEntry>());
+        }
+
+        var runtimeEntries = AuraGameDataHostApi.Query(DataType.Career, includeAllCandidates: true).Items
+            .Where(item => item.Enabled
+                && !item.Retired
+                && string.Equals(item.SourceKind, AuraGameDataSourceKinds.Native, StringComparison.OrdinalIgnoreCase))
+            .GroupBy(item => AuraSharedIdentity.NormalizeRoleId(item.Id), StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .Select(item => new AuraRoleRegistryEntry
+            {
+                RoleId = item.Id,
+                OwnerModId = item.OwnerModId,
+                DisplayName = Field(item.Fields, "Name", item.Id),
+                PackBelong = Field(item.Fields, "PackBelong"),
+                Icon = Field(item.Fields, "Icon"),
+                Priority = item.Priority,
+                Aliases = item.Aliases.Concat(new[] { item.Id }).ToList(),
+                Tags = new List<string> { "runtime-available", "native-career" },
+                Enabled = true
+            })
+            .ToList();
+
+        var effective = AuraEffectiveRoleCatalog.Merge(runtimeEntries, registry.Entries);
+        return new AuraEffectiveRoleSnapshot(
+            registry.Revision,
+            gameData.Version.Epoch,
+            nativeReady: true,
+            effective);
     }
 
     public static bool RegisterManifest(
@@ -183,5 +228,12 @@ public static class AuraRoleRegistryRuntime
         catch
         {
         }
+    }
+
+    private static string Field(IReadOnlyDictionary<string, string> fields, string key, string fallback = "")
+    {
+        return fields.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value)
+            ? value.Trim()
+            : fallback;
     }
 }

@@ -425,19 +425,14 @@ public static class CardApi
 
     private static string[] Candidates(string id)
     {
-        if (id.StartsWith("Terrias_", StringComparison.Ordinal))
-        {
-            return new[] { id };
-        }
-
-        return new[]
-        {
+        return TerriasContentIdCompatibility.LookupCandidates(
             id,
-            "Terrias_cursecard_" + id,
-            "Terrias_terrias_" + id,
-            "Terrias_loneer_" + id,
-            "Terrias_wuna_" + id
-        };
+            "cursecard",
+            "terrias",
+            "loneer",
+            "wuna",
+            "columbina",
+            "solar_memory");
     }
 
     private static bool NeedsWritableRuntimeConfig(CardGrantRequest? request)

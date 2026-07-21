@@ -126,7 +126,7 @@ public static class FamiliarSpeciesCatalog
             return FamiliarId.Sanitize(value).ToLowerInvariant();
         }
 
-        if (value.StartsWith("Terrias_terrias_", StringComparison.OrdinalIgnoreCase))
+        if (TerriasContentIdCompatibility.HasKnownPrefix(value))
         {
             return FamiliarId.NormalizeSpeciesId(value);
         }

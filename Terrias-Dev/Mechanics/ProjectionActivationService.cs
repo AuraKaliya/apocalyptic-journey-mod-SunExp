@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
 
@@ -39,12 +40,14 @@ public static class ProjectionActivationService
 
     private static bool GrantRoleCard(ScriptExecutor self, PolymorphRoleSpec role, bool fixedAnotherMe)
     {
+        var presentation = BuildRoleCardPresentation(role, fixedAnotherMe);
         var request = CardGrantRequest
             .ToHand(TerriasIds.ProjectionRoleTemplateShortId)
             .WithSource("projection:" + role.Id)
             .WithRuntimeTags("Burnout", "Nihility")
+            .WithRuntimePresentation(presentation)
             .RequireMutations()
-            .Configure("projection-role-card", config => ConfigureRoleCard(config, role, fixedAnotherMe));
+            .Configure("projection-role-card", config => ConfigureRoleCard(config, role));
         var result = CardApi.GrantCardToHand(self, request);
         if (!result.Success)
         {
@@ -82,24 +85,33 @@ public static class ProjectionActivationService
         ProjectionStateStore.ClearAll(source);
     }
 
-    private static void ConfigureRoleCard(DataConfig config, PolymorphRoleSpec role, bool fixedAnotherMe)
+    private static void ConfigureRoleCard(DataConfig config, PolymorphRoleSpec role)
     {
-        var displayName = fixedAnotherMe ? "另一个我" : role.DisplayName + "的投影";
         DictionaryUtil.Set(config.Vars, "Tag", AppendToken(DictionaryUtil.Get(config.Vars, "Tag"), "Burnout", "Nihility"));
-        DictionaryUtil.Set(config.Vars, "Icon", role.CardFacePath);
-        DictionaryUtil.Set(config.Vars, "Name", displayName);
-        DictionaryUtil.Set(config.Vars, "Name_zh-Hant", fixedAnotherMe ? "另一個我" : role.DisplayName + "的投影");
-        DictionaryUtil.Set(config.Vars, "Name_en", fixedAnotherMe ? "Another Me" : role.DisplayName + " Projection");
-        DictionaryUtil.Set(config.Vars, "Name_ja", fixedAnotherMe ? "もう一人の私" : role.DisplayName + "の投影");
-        DictionaryUtil.Set(config.Vars, "Description", fixedAnotherMe ? "召唤另一个我。" : "召唤" + displayName + "。");
-        DictionaryUtil.Set(config.Vars, "Description_zh-Hant", fixedAnotherMe ? "召喚另一個我。" : "召喚" + role.DisplayName + "的投影。");
-        DictionaryUtil.Set(config.Vars, "Description_en", fixedAnotherMe ? "Summon another you." : "Summon " + role.DisplayName + "'s projection.");
-        DictionaryUtil.Set(config.Vars, "Description_ja", fixedAnotherMe ? "もう一人の自分を召喚する。" : role.DisplayName + "の投影を召喚する。");
         DictionaryUtil.Set(config.Vars, TerriasIds.RuntimeMarkersKey,
             AppendToken(DictionaryUtil.Get(config.Vars, TerriasIds.RuntimeMarkersKey), TerriasIds.ProjectionRoleCardMarker));
         DictionaryUtil.Set(config.Vars, TerriasIds.ProjectionRoleIdKey, role.Id);
         DictionaryUtil.Set(config.Vars, TerriasIds.ProjectionRoleNameKey, role.DisplayName);
         DictionaryUtil.Set(config.Vars, TerriasIds.ProjectionRoleCardFacePathKey, role.CardFacePath);
+    }
+
+    private static Dictionary<string, string> BuildRoleCardPresentation(
+        PolymorphRoleSpec role,
+        bool fixedAnotherMe)
+    {
+        var displayName = fixedAnotherMe ? "另一个我" : role.DisplayName + "的投影";
+        return new Dictionary<string, string>
+        {
+            ["Icon"] = role.CardFacePath,
+            ["Name"] = displayName,
+            ["Name_zh-Hant"] = fixedAnotherMe ? "另一個我" : role.DisplayName + "的投影",
+            ["Name_en"] = fixedAnotherMe ? "Another Me" : role.DisplayName + " Projection",
+            ["Name_ja"] = fixedAnotherMe ? "もう一人の私" : role.DisplayName + "の投影",
+            ["Description"] = fixedAnotherMe ? "召唤另一个我。" : "召唤" + displayName + "。",
+            ["Description_zh-Hant"] = fixedAnotherMe ? "召喚另一個我。" : "召喚" + role.DisplayName + "的投影。",
+            ["Description_en"] = fixedAnotherMe ? "Summon another you." : "Summon " + role.DisplayName + "'s projection.",
+            ["Description_ja"] = fixedAnotherMe ? "もう一人の自分を召喚する。" : role.DisplayName + "の投影を召喚する。"
+        };
     }
 
     private static string AppendToken(string existing, params string[] tokens)

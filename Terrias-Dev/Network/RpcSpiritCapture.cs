@@ -57,6 +57,8 @@ public sealed class RpcSpiritCaptureRequest : RpcCommandBase, ITerriasServerBoun
             serverSender,
             ProtocolVersion,
             BattleEpoch);
+        OwnerStatusId = "";
+        TargetStatusId = "";
     }
 
     public override void RpcExecute()

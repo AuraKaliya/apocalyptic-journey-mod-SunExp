@@ -253,7 +253,7 @@ public static class AuraGameDataHostApi
         AuraGameDataDiagnostics.RecordMaterialization();
         var snapshot = AcquireSnapshot().Resolve(TypeName(dataType), candidateIds ?? Array.Empty<string>());
         return snapshot == null
-            ? AuraGameDataHostMutationResult.Fail("resolve", "Registered definition was not found.")
+            ? AuraGameDataHostMutationResult.Fail("resolve", "Game-data definition was not found in the effective catalog.")
             : MaterializeSnapshot(snapshot, new AuraGameDataMaterializeRequest());
     }
 

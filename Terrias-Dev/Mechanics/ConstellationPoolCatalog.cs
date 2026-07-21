@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Terrias.Dll.Infrastructure;
 
 namespace Terrias.Dll.Mechanics;
 
@@ -186,7 +187,7 @@ public static class ConstellationPoolCatalog
 
     public static ConstellationPoolDefinition PoolForRole(string? roleId)
     {
-        var normalized = (roleId ?? "").Trim();
+        var normalized = TerriasContentIdCompatibility.Canonicalize(roleId);
         return RoleToPoolId.TryGetValue(normalized, out var poolId)
                && Pools.TryGetValue(poolId, out var pool)
             ? pool

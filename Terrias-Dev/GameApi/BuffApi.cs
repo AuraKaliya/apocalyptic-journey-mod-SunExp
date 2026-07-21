@@ -48,40 +48,10 @@ public static class BuffApi
         IReadOnlyDictionary<string, string> presentationFields)
     {
         var source = buffConfig?.dataConfig;
-        if (source?.data == null || source.Vars == null
-            || presentationFields == null || presentationFields.Count == 0)
+        var replacement = CreateRuntimePresentation(source, presentationFields);
+        if (replacement == null)
         {
             return false;
-        }
-
-        var mergedData = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var field in source.data)
-        {
-            mergedData[field.Key] = field.Value;
-        }
-
-        var mergedVars = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var field in source.Vars)
-        {
-            mergedVars[field.Key] = field.Value;
-        }
-
-        foreach (var field in presentationFields)
-        {
-            if (string.IsNullOrWhiteSpace(field.Key))
-            {
-                continue;
-            }
-
-            mergedData[field.Key] = field.Value ?? "";
-            mergedVars[field.Key] = field.Value ?? "";
-        }
-
-        var replacement = AuraGameDataHostApi.CloneWritable(source, mergedData, mergedVars, preCompile: false);
-        var scripts = source.scriptExecutor?.ScriptDict;
-        if (scripts != null && replacement.scriptExecutor != null)
-        {
-            replacement.scriptExecutor.ScriptDict = new Dictionary<string, Delegate>(scripts);
         }
 
         buffConfig!.dataConfig = replacement;
@@ -100,29 +70,25 @@ public static class BuffApi
         IBuffItem? buff,
         IReadOnlyDictionary<string, string> presentationFields)
     {
-        var config = buff?.buffConfig?.dataConfig;
+        var buffConfig = buff?.buffConfig;
+        var config = buffConfig?.dataConfig;
         if (config?.Vars == null || presentationFields == null || presentationFields.Count == 0)
         {
             return false;
         }
 
-        var changed = false;
-        foreach (var field in presentationFields)
-        {
-            if (string.IsNullOrWhiteSpace(field.Key)
-                || string.Equals(DictionaryUtil.Get(config.Vars, field.Key), field.Value, StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            DictionaryUtil.Set(config.Vars, field.Key, field.Value ?? "");
-            changed = true;
-        }
-
-        if (!changed)
+        if (!RuntimePresentationDiffers(config, presentationFields))
         {
             return false;
         }
+
+        var replacement = CreateRuntimePresentation(config, presentationFields);
+        if (replacement == null || !CopyRuntimeExecutorContext(config, replacement))
+        {
+            return false;
+        }
+
+        buffConfig!.dataConfig = replacement;
 
         try
         {
@@ -134,6 +100,87 @@ public static class BuffApi
         }
 
         return true;
+    }
+
+    private static DataConfig? CreateRuntimePresentation(
+        IDataConfig? source,
+        IReadOnlyDictionary<string, string> presentationFields)
+    {
+        if (source?.data == null || source.Vars == null
+            || presentationFields == null || presentationFields.Count == 0)
+        {
+            return null;
+        }
+
+        var mergedData = new Dictionary<string, string>(source.data, StringComparer.Ordinal);
+        var mergedVars = new Dictionary<string, string>(source.Vars, StringComparer.Ordinal);
+        foreach (var field in presentationFields)
+        {
+            if (string.IsNullOrWhiteSpace(field.Key))
+            {
+                continue;
+            }
+
+            mergedData[field.Key] = field.Value ?? "";
+            mergedVars[field.Key] = field.Value ?? "";
+        }
+
+        var replacement = AuraGameDataHostApi.CloneWritable(source, mergedData, mergedVars, preCompile: false);
+        var scripts = source.scriptExecutor?.ScriptDict;
+        if (scripts != null && replacement.scriptExecutor != null)
+        {
+            replacement.scriptExecutor.ScriptDict = new Dictionary<string, Delegate>(scripts);
+        }
+
+        return replacement;
+    }
+
+    private static bool CopyRuntimeExecutorContext(IDataConfig source, IDataConfig replacement)
+    {
+        var sourceExecutor = source.scriptExecutor;
+        var replacementExecutor = replacement.scriptExecutor;
+        if (sourceExecutor == null || replacementExecutor == null)
+        {
+            return sourceExecutor == null && replacementExecutor == null;
+        }
+
+        try
+        {
+            replacementExecutor.Self = sourceExecutor.Self;
+            replacementExecutor.status = sourceExecutor.status;
+            replacementExecutor.Target = sourceExecutor.Target;
+            replacementExecutor.Object.Clear();
+            replacementExecutor.Object.AddRange(sourceExecutor.Object);
+            return sourceExecutor.Self == null || replacementExecutor.Self != null;
+        }
+        catch (Exception ex)
+        {
+            TerriasLog.Warn("[BuffApi] runtime executor context migration failed: " + ex.Message);
+            return false;
+        }
+    }
+
+    private static bool RuntimePresentationDiffers(
+        IDataConfig config,
+        IReadOnlyDictionary<string, string> presentationFields)
+    {
+        foreach (var field in presentationFields)
+        {
+            if (string.IsNullOrWhiteSpace(field.Key))
+            {
+                continue;
+            }
+
+            var expected = field.Value ?? "";
+            if (!config.data.TryGetValue(field.Key, out var dataValue)
+                || !string.Equals(dataValue, expected, StringComparison.Ordinal)
+                || !string.Equals(DictionaryUtil.Get(config.Vars, field.Key), expected, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public static bool TryAddBattleScopedBuffOnce(
@@ -831,7 +878,9 @@ public static class BuffApi
 
         try
         {
-            var config = AuraGameDataHostApi.CopyRow(DataType.Buff, buffId);
+            var config = AuraGameDataHostApi.CopyRow(
+                DataType.Buff,
+                TerriasContentIdCompatibility.LookupCandidates(buffId, "terrias", "wuna", "columbina"));
             return predicate(DictionaryUtil.Get(config, "Type"));
         }
         catch
@@ -852,11 +901,8 @@ public static class BuffApi
             return true;
         }
 
-        const string prefix = "Terrias_terrias_";
         var id = buffId ?? "";
-        var normalized = id.StartsWith(prefix, StringComparison.Ordinal)
-            ? id.Substring(prefix.Length)
-            : id;
+        var normalized = TerriasContentIdCompatibility.LocalId(id);
         return PositiveExcludeIds.Contains(id) || PositiveExcludeIds.Contains(normalized);
     }
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Terrias.Dll.Infrastructure;
 
 namespace Terrias.Dll.Mechanics;
 
@@ -55,7 +56,6 @@ public sealed class SpiritProfileResolution<TProfile> where TProfile : class
 public static class SpiritProfileIdentityResolver
 {
     private const string BaseGameRuntimePrefix = "enemy_";
-    private const string TerriasRuntimePrefix = "Terrias_terrias_";
 
     public static SpiritProfileResolution<TProfile> Resolve<TProfile>(
         IReadOnlyList<TProfile> profiles,
@@ -201,7 +201,14 @@ public static class SpiritProfileIdentityResolver
     {
         var candidates = new List<string> { Normalize(rawId) };
         AddKnownAlias(candidates, rawId, BaseGameRuntimePrefix);
-        AddKnownAlias(candidates, rawId, TerriasRuntimePrefix);
+        foreach (var candidate in TerriasContentIdCompatibility.LookupCandidates(rawId, "terrias"))
+        {
+            var normalized = Normalize(candidate);
+            if (!candidates.Contains(normalized))
+            {
+                candidates.Add(normalized);
+            }
+        }
         return candidates;
     }
 

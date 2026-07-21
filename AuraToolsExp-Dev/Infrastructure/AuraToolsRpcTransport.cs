@@ -28,6 +28,8 @@ public static class AuraToolsRpcTransport
     public const int SoftLimitBytes = AuraToolsRpcPayloadGuard.DefaultSoftLimitBytes;
     public const int WarningLimitBytes = 48000;
     public const int ChunkRawBytes = 18000;
+    private static readonly Dictionary<string, TrafficStat> TrafficByCommand = new(StringComparer.Ordinal);
+    private static DateTime trafficWindowStartedUtc = DateTime.UtcNow;
 
     public static bool Send(
         PlayerManager? manager,
@@ -72,6 +74,7 @@ public static class AuraToolsRpcTransport
                 manager.SendRpcCommand(command);
             }
 
+            RecordTraffic(manager, command, bytes, excludeOwner);
             return true;
         }
         catch (Exception ex)
@@ -217,6 +220,56 @@ public static class AuraToolsRpcTransport
         }
 
         AuraToolsLog.Warn(message);
+    }
+
+    private static void RecordTraffic(PlayerManager manager, RpcCommandBase command, int bytes, bool excludeOwner)
+    {
+        var name = command.GetType().Name;
+        if (!TrafficByCommand.TryGetValue(name, out var stat))
+        {
+            stat = new TrafficStat();
+            TrafficByCommand[name] = stat;
+        }
+
+        var lobbyCount = Math.Max(1, GameServer.Instance?.LobbyInfo?.AddedPlayers?.Count ?? 1);
+        var recipients = Math.Max(0, lobbyCount - (excludeOwner ? 1 : 0));
+        stat.Commands++;
+        stat.PayloadBytes += Math.Max(0, bytes);
+        stat.EstimatedDeliveries += recipients;
+        stat.EstimatedDeliveredBytes += (long)Math.Max(0, bytes) * recipients;
+
+        var now = DateTime.UtcNow;
+        if (now - trafficWindowStartedUtc < TimeSpan.FromSeconds(10))
+        {
+            return;
+        }
+
+        var elapsedMs = Math.Max(1L, (long)(now - trafficWindowStartedUtc).TotalMilliseconds);
+        var top = string.Join(", ", TrafficByCommand
+            .OrderByDescending(pair => pair.Value.EstimatedDeliveredBytes)
+            .Take(6)
+            .Select(pair => pair.Key
+                            + "="
+                            + pair.Value.Commands
+                            + "cmd/"
+                            + pair.Value.PayloadBytes
+                            + "B/"
+                            + pair.Value.EstimatedDeliveries
+                            + "deliveries"));
+        AuraToolsLog.Info("[NetworkTraffic] windowMs=" + elapsedMs + "; lobby=" + lobbyCount + "; top=" + top + ".");
+        TrafficByCommand.Clear();
+        trafficWindowStartedUtc = now;
+    }
+
+    private sealed class TrafficStat
+    {
+        public long Commands { get; set; }
+
+        public long PayloadBytes { get; set; }
+
+        public long EstimatedDeliveries { get; set; }
+
+        public long EstimatedDeliveredBytes { get; set; }
     }
 }
 

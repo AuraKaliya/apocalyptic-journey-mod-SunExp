@@ -109,7 +109,9 @@ public static class BuffOverflowApi
 
         try
         {
-            var data = AuraGameDataHostApi.CopyRow(DataType.Buff, buffId);
+            var data = AuraGameDataHostApi.CopyRow(
+                DataType.Buff,
+                TerriasContentIdCompatibility.LookupCandidates(buffId, "terrias", "wuna", "columbina"));
             var configured = DictionaryUtil.ParseInt(DictionaryUtil.Get(data, "UpperBound"));
             return configured > 0 ? configured : fallback;
         }

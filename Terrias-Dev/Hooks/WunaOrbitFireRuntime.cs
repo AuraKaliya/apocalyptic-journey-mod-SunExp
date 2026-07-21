@@ -318,7 +318,8 @@ public static class WunaOrbitFireRuntime
 
     private static bool IsWunaRoleId(string value)
     {
-        var normalized = AuraSharedIdentity.NormalizeRoleId(value).TrimStart('*').Trim();
+        var normalized = TerriasContentIdCompatibility.Canonicalize(
+            AuraSharedIdentity.NormalizeRoleId(value).TrimStart('*').Trim());
         return string.Equals(normalized, "wuna", StringComparison.OrdinalIgnoreCase)
             || string.Equals(normalized, "Terrias_wuna_wuna", StringComparison.OrdinalIgnoreCase)
             || normalized.EndsWith("_wuna", StringComparison.OrdinalIgnoreCase)

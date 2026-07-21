@@ -92,6 +92,10 @@ public sealed class RpcSpiritSummonRequest : RpcCommandBase, ITerriasServerBound
             ProtocolVersion,
             BattleEpoch,
             RegistryHash);
+        CapturedEnemy = new CapturedEnemySnapshot();
+        OwnerStatusId = "";
+        ReadyOnTurn = new Dictionary<string, int>();
+        RegistryHash = "";
     }
 
     public override void RpcExecute()

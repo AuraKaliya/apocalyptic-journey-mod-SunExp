@@ -4,6 +4,7 @@ using System.Linq;
 using AuraGameData.Shared;
 using AuraMode.Shared;
 using AuraGameData.Shared.GameApi;
+using AuraRole.Shared;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
@@ -231,8 +232,15 @@ internal static class StarterDeckCardCatalog
             var systemSkillCards = new List<string>();
             var excludedDerivedCards = new List<string>();
             var otherCards = new List<string>();
-            var careerSkillCardIds = StarterDeckCardClassification.BuildCareerSkillCardIds(
-                AuraGameDataHostApi.CopyTableForHostInterop(DataType.Career));
+            var effectiveRoles = AuraRoleRegistryRuntime.GetEffectiveSnapshot();
+            var effectiveCareerRows = effectiveRoles.NativeReady
+                ? effectiveRoles.Entries
+                    .Select(role => AuraGameDataHostApi.CopyRow(DataType.Career, role.RoleId))
+                    .Where(row => row != null)
+                    .Select(row => row!)
+                    .ToList()
+                : new List<Dictionary<string, string>>();
+            var careerSkillCardIds = StarterDeckCardClassification.BuildCareerSkillCardIds(effectiveCareerRows);
 
             foreach (var row in AuraGameDataHostApi.CopyTableForHostInterop(DataType.Card))
             {

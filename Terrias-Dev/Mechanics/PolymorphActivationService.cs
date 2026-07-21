@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
 
@@ -22,10 +23,12 @@ public static class PolymorphActivationService
             return false;
         }
 
+        var presentation = BuildRoleCardPresentation(role);
         var request = CardGrantRequest
             .ToHand(TerriasIds.PolymorphRoleTemplateShortId)
             .WithSource("polymorph:" + role.Id)
             .WithRuntimeTags("Burnout", "Nihility")
+            .WithRuntimePresentation(presentation)
             .RequireMutations()
             .Configure("polymorph-role-card", config => ConfigureRoleCard(config, role));
         var result = CardApi.GrantCardToHand(self, request);
@@ -68,15 +71,6 @@ public static class PolymorphActivationService
     private static void ConfigureRoleCard(DataConfig config, PolymorphRoleSpec role)
     {
         DictionaryUtil.Set(config.Vars, "Tag", AppendToken(DictionaryUtil.Get(config.Vars, "Tag"), "Burnout", "Nihility"));
-        DictionaryUtil.Set(config.Vars, "Icon", role.CardFacePath);
-        DictionaryUtil.Set(config.Vars, "Name", "\u767e\u53d8\uff1a" + role.DisplayName);
-        DictionaryUtil.Set(config.Vars, "Name_zh-Hant", "\u767e\u8b8a\uff1a" + role.DisplayName);
-        DictionaryUtil.Set(config.Vars, "Name_en", "Polymorph: " + role.DisplayName);
-        DictionaryUtil.Set(config.Vars, "Name_ja", "\u767e\u5909\uff1a" + role.DisplayName);
-        DictionaryUtil.Set(config.Vars, "Description", "\u767e\u53d8\uff1a" + role.DisplayName);
-        DictionaryUtil.Set(config.Vars, "Description_zh-Hant", "\u767e\u8b8a\uff1a" + role.DisplayName);
-        DictionaryUtil.Set(config.Vars, "Description_en", "Polymorph: " + role.DisplayName);
-        DictionaryUtil.Set(config.Vars, "Description_ja", "\u767e\u5909\uff1a" + role.DisplayName);
         DictionaryUtil.Set(config.Vars, TerriasIds.RuntimeMarkersKey,
             AppendToken(DictionaryUtil.Get(config.Vars, TerriasIds.RuntimeMarkersKey), TerriasIds.PolymorphRoleCardMarker));
         DictionaryUtil.Set(config.Vars, TerriasIds.PolymorphRoleIdKey, role.Id);
@@ -84,6 +78,22 @@ public static class PolymorphActivationService
         DictionaryUtil.Set(config.Vars, TerriasIds.PolymorphRoleCardFacePathKey, role.CardFacePath);
         DictionaryUtil.Set(config.Vars, TerriasIds.PolymorphRoleCropXKey, role.CropOffsetX.ToString());
         DictionaryUtil.Set(config.Vars, TerriasIds.PolymorphRoleCropYKey, role.CropOffsetY.ToString());
+    }
+
+    private static Dictionary<string, string> BuildRoleCardPresentation(PolymorphRoleSpec role)
+    {
+        return new Dictionary<string, string>
+        {
+            ["Icon"] = role.CardFacePath,
+            ["Name"] = "\u767e\u53d8\uff1a" + role.DisplayName,
+            ["Name_zh-Hant"] = "\u767e\u8b8a\uff1a" + role.DisplayName,
+            ["Name_en"] = "Polymorph: " + role.DisplayName,
+            ["Name_ja"] = "\u767e\u5909\uff1a" + role.DisplayName,
+            ["Description"] = "\u767e\u53d8\uff1a" + role.DisplayName,
+            ["Description_zh-Hant"] = "\u767e\u8b8a\uff1a" + role.DisplayName,
+            ["Description_en"] = "Polymorph: " + role.DisplayName,
+            ["Description_ja"] = "\u767e\u5909\uff1a" + role.DisplayName
+        };
     }
 
     private static string AppendToken(string existing, params string[] tokens)

@@ -3,12 +3,48 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using AuraShared.Core;
+using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Mechanics;
 
 if (args.Length != 1 || !File.Exists(args[0]))
 {
     throw new ArgumentException("Expected the shipped spirit.intent.registry.json path.");
 }
+
+var legacyMainPrefix = TerriasContentIdCompatibility.LegacyPrefixFor("terrias");
+var legacyWunaPrefix = TerriasContentIdCompatibility.LegacyPrefixFor("wuna");
+var legacyLoneerPrefix = TerriasContentIdCompatibility.LegacyPrefixFor("loneer");
+var legacyColumbinaPrefix = TerriasContentIdCompatibility.LegacyPrefixFor("columbina");
+var legacyCurseCardPrefix = TerriasContentIdCompatibility.LegacyPrefixFor("cursecard");
+var legacySolarMemoryPrefix = TerriasContentIdCompatibility.LegacyPrefixFor("solar_memory");
+
+Assert(TerriasContentIdCompatibility.Canonicalize(legacyMainPrefix + "spark") == "Terrias_terrias_spark",
+    "legacy main-table ids must canonicalize to Terrias");
+Assert(TerriasContentIdCompatibility.Canonicalize(legacyWunaPrefix + "wuna") == "Terrias_wuna_wuna",
+    "legacy role-table ids must canonicalize to Terrias");
+Assert(TerriasContentIdCompatibility.Canonicalize(legacyLoneerPrefix + "loneer") == "Terrias_loneer_loneer",
+    "legacy Loneer ids must canonicalize to Terrias");
+Assert(TerriasContentIdCompatibility.Canonicalize(legacyColumbinaPrefix + "columbina") == "Terrias_columbina_columbina",
+    "legacy Columbina ids must canonicalize to Terrias");
+Assert(TerriasContentIdCompatibility.Canonicalize(legacyCurseCardPrefix + "abyss_deficit") == "Terrias_cursecard_abyss_deficit",
+    "legacy curse-card ids must canonicalize to Terrias");
+Assert(TerriasContentIdCompatibility.Canonicalize(legacySolarMemoryPrefix + "route") == "Terrias_solar_memory_route",
+    "legacy Solar Memory ids must canonicalize to Terrias");
+Assert(TerriasContentIdCompatibility.Equivalent(legacyMainPrefix + "spark", "Terrias_terrias_spark"),
+    "legacy and current ids must compare as equivalent");
+Assert(!TerriasContentIdCompatibility.Equivalent(legacyWunaPrefix + "same", "Terrias_terrias_same"),
+    "different table namespaces must not collapse merely because local suffixes match");
+var legacyCandidates = TerriasContentIdCompatibility.LookupCandidates(legacyMainPrefix + "spark", "terrias");
+Assert(legacyCandidates.Contains(legacyMainPrefix + "spark")
+       && legacyCandidates.Contains("Terrias_terrias_spark")
+       && legacyCandidates.Contains("spark"),
+    "legacy lookup candidates must preserve raw identity and include current/local aliases");
+Assert(FamiliarId.NormalizeSpeciesId(legacyMainPrefix + "dusk") == "dusk",
+    "familiar identity must accept the legacy main-table prefix");
+Assert(RoleActionPresentationCatalog.TargetMode(legacyColumbinaPrefix + "columbina_homesickness") == RoleActionTargetMode.AllOpponents,
+    "role action presentation must accept legacy role-card ids");
+Assert(TerriasHardTagIds.Normalize(legacyMainPrefix + "solar_memory_scorched_world") == "solar_memory_scorched_world",
+    "hard-tag identity must accept the legacy main-table prefix");
 
 var document = AuraSharedJson.Deserialize<SpiritIntentRegistryDocument>(File.ReadAllText(args[0]))
     ?? throw new InvalidDataException("C# SpiritIntentRegistryDocument deserialization returned null.");
@@ -50,6 +86,8 @@ var composedPresentation = SpiritIntentPresentationDataComposer.Compose(
         ["TargetScript"] = "native-defence-target",
         ["UseScript"] = "native-defence-use",
         ["Description"] = "Grant {0} Shield.",
+        ["Description_zh-Hant"] = "獲得{0}點護盾。",
+        ["Description1"] = "Secondary {0} presentation.",
         ["Icon"] = "Icon/ActionIcon/Defence"
     },
     new System.Collections.Generic.Dictionary<string, string>
@@ -63,6 +101,16 @@ Assert(composedPresentation["Id"] == "Terrias_terrias_enemycard_spirit_intent_ad
 Assert(composedPresentation["InitScript"] == "adapter-init", "spirit presentation must use the adapter init script");
 Assert(composedPresentation["Description"] == "Grant {0} Shield.", "spirit presentation must preserve the source description");
 Assert(composedPresentation["Icon"] == "Icon/ActionIcon/Defence", "spirit presentation must preserve the source icon");
+var presentationOverrides = SpiritIntentPresentationDataComposer.PresentationOverrides(composedPresentation);
+Assert(presentationOverrides["Description"] == "Grant {0} Shield."
+       && presentationOverrides["Description_zh-Hant"] == "獲得{0}點護盾。"
+       && presentationOverrides["Description1"] == "Secondary {0} presentation.",
+    "spirit materialization overrides must retain every Description presentation field");
+Assert(!presentationOverrides.ContainsKey("Id")
+       && !presentationOverrides.ContainsKey("InitScript")
+       && !presentationOverrides.ContainsKey("TargetScript")
+       && !presentationOverrides.ContainsKey("UseScript"),
+    "spirit materialization overrides must omit only the adapter-owned identity and executable fields");
 
 foreach (var profile in document.Profiles)
 {

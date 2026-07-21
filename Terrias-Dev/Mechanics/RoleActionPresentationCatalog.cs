@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Terrias.Dll.Infrastructure;
 
 namespace Terrias.Dll.Mechanics;
 
@@ -74,18 +75,12 @@ public static class RoleActionPresentationCatalog
 
     private static string NormalizeRoleId(string value)
     {
-        return AuraShared.Core.AuraSharedIdentity.NormalizeRoleId(value).TrimStart('*').Trim();
+        var normalized = AuraShared.Core.AuraSharedIdentity.NormalizeRoleId(value).TrimStart('*').Trim();
+        return TerriasContentIdCompatibility.Canonicalize(normalized);
     }
 
     private static string NormalizeContentId(string value)
     {
-        var normalized = (value ?? "").Trim().TrimStart('*');
-        const string fullPrefix = "Terrias_terrias_";
-        if (normalized.StartsWith(fullPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            normalized = normalized.Substring(fullPrefix.Length);
-        }
-
-        return normalized.TrimStart('*');
+        return TerriasContentIdCompatibility.LocalId(value).TrimStart('*');
     }
 }

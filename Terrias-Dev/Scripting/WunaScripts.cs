@@ -139,11 +139,6 @@ public static class WunaScripts
             return;
         }
 
-        if (PolymorphCooldownService.TryUseSharedSkill(self, "Wuna.WhiteSunPrayer"))
-        {
-            return;
-        }
-
         var cooldown = PlayerApi.GetSkillTime(TerriasIds.WunaWhiteSunPrayerCardId);
         if (cooldown > 0)
         {
@@ -162,10 +157,11 @@ public static class WunaScripts
 
         var handTagRequested = TerriasCardTagService.RequestBurnoutAndWhiteRadianceForFriendlyHands(self, "Wuna.WhiteSunPrayer");
         TerriasLog.Info("Wuna white sun prayer hand tag requested=" + handTagRequested);
-        if (!PolymorphCooldownService.MarkSkillUsed(self, "Wuna.WhiteSunPrayer"))
-        {
-            PlayerApi.SetSkillTime(TerriasIds.WunaWhiteSunPrayerCardId, 5);
-        }
+        PlayerApi.SetSkillTime(TerriasIds.WunaWhiteSunPrayerCardId, 5);
+        PolymorphCooldownService.MarkSkillUsed(
+            self,
+            "Wuna.WhiteSunPrayer",
+            TerriasIds.WunaWhiteSunPrayerCardId);
     }
 
     private static void UseGraveSong(ScriptExecutor self)
@@ -173,11 +169,6 @@ public static class WunaScripts
         if (!IsWunaRuntimeActive())
         {
             PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u4e4c\u5a1c\u6280\u80fd\u5df2\u88ab\u5f53\u524d\u5316\u8eab\u8986\u76d6\u3002");
-            return;
-        }
-
-        if (PolymorphCooldownService.TryUseSharedSkill(self, "Wuna.GraveSong"))
-        {
             return;
         }
 
@@ -202,10 +193,8 @@ public static class WunaScripts
         BuffApi.ClearEmberDamageBonus(self, self.Self);
         self.RemoveBuff(TerriasIds.Ember);
         BuffApi.OnEmberConsumed(self, self.Self, ember);
-        if (!PolymorphCooldownService.MarkSkillUsed(self, "Wuna.GraveSong"))
-        {
-            PlayerApi.SetSkillTime(GraveSongCardId, 4);
-        }
+        PlayerApi.SetSkillTime(GraveSongCardId, 4);
+        PolymorphCooldownService.MarkSkillUsed(self, "Wuna.GraveSong", GraveSongCardId);
         if (burn > 0)
         {
             self.SetStatus("All");

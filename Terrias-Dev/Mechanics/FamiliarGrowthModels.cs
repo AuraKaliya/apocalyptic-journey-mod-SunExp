@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json;
+using Terrias.Dll.Infrastructure;
 
 namespace Terrias.Dll.Mechanics;
 
@@ -295,16 +296,9 @@ public interface IFamiliarProfileStore
 
 public static class FamiliarId
 {
-    private const string TerriasPartnerPrefix = "Terrias_terrias_";
-
     public static string NormalizeSpeciesId(string? speciesId)
     {
-        var value = (speciesId ?? "").Trim();
-        if (value.StartsWith(TerriasPartnerPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            value = value.Substring(TerriasPartnerPrefix.Length);
-        }
-
+        var value = TerriasContentIdCompatibility.LocalId(speciesId);
         return Sanitize(value).ToLowerInvariant();
     }
 

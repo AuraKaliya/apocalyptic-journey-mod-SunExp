@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using AuraGameData.Shared.Application;
 using AuraGameData.Shared.GameApi;
 using AuraShared.Core;
@@ -24,6 +25,7 @@ public static class DimensionShopGameApi
     private static readonly object RolePersistGate = new();
     private static bool rolePersistPending;
     private static string pendingRolePersistSource = "";
+    private static long nativeOverlayGeneration;
 
     public static bool HasPendingRolePersist
     {
@@ -377,18 +379,27 @@ public static class DimensionShopGameApi
         }
     }
 
-    public static void VerifyTooltipVisible(string kind, Transform anchor)
+    public static long BeginNativeOverlayGeneration()
+    {
+        var generation = Interlocked.Increment(ref nativeOverlayGeneration);
+        HideTooltip();
+        return generation;
+    }
+
+    public static void VerifyTooltipVisible(string kind, KeywordDisplay tooltip, long generation)
     {
         ScheduleNativeOverlayVerification(
             "tooltip-" + (kind ?? "unknown"),
-            anchor,
-            () => UIManager.Instance?.GetTooltip()?.gameObject);
+            tooltip == null ? null : tooltip.transform,
+            () => UIManager.Instance?.GetTooltip()?.gameObject,
+            () => TooltipVerificationCancellationReason(tooltip, generation));
     }
 
     private static void ScheduleNativeOverlayVerification(
         string kind,
-        Transform anchor,
-        Func<GameObject?> resolveOverlay)
+        Transform? anchor,
+        Func<GameObject?> resolveOverlay,
+        Func<string>? cancellationReason = null)
     {
         AuraSharedFrameScheduler.RunOnceAfterFrames(new AuraSharedFrameActionRequest
         {
@@ -399,6 +410,19 @@ public static class DimensionShopGameApi
             Phase = AuraSharedFramePhase.Presentation,
             Action = () =>
             {
+                var cancellation = cancellationReason?.Invoke() ?? "";
+                if (!string.IsNullOrWhiteSpace(cancellation))
+                {
+                    TerriasLog.DebugOnce(
+                        "dimension-shop-native-overlay-cancelled-" + kind + "-" + cancellation,
+                        "[DimensionShop] native overlay verification cancelled: kind="
+                        + kind
+                        + ", reason="
+                        + cancellation
+                        + ".");
+                    return;
+                }
+
                 var overlay = resolveOverlay();
                 if (AuraUiNativeOverlayVisibility.IsVisibleAbove(anchor, overlay, out var diagnostic))
                 {
@@ -421,6 +445,26 @@ public static class DimensionShopGameApi
                     + ".");
             }
         });
+    }
+
+    private static string TooltipVerificationCancellationReason(KeywordDisplay? tooltip, long generation)
+    {
+        if (generation != Interlocked.Read(ref nativeOverlayGeneration))
+        {
+            return "render-generation-changed";
+        }
+
+        if (tooltip == null)
+        {
+            return "anchor-destroyed";
+        }
+
+        if (!tooltip.isActiveAndEnabled || !tooltip.gameObject.activeInHierarchy)
+        {
+            return "anchor-inactive";
+        }
+
+        return tooltip.isHover ? "" : "hover-ended";
     }
 
     public static void CloseNativeBreakFallback()

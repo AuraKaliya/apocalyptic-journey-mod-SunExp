@@ -16,6 +16,11 @@ public static class CareerConfigApi
 
     public static bool TryCreate(string? careerId, out DataConfig? career)
     {
+        return TryCreate(careerId, out career, warnOnFailure: true);
+    }
+
+    internal static bool TryCreate(string? careerId, out DataConfig? career, bool warnOnFailure)
+    {
         career = null;
         var candidates = CandidateIds(careerId).ToArray();
         if (candidates.Length == 0)
@@ -30,7 +35,7 @@ public static class CareerConfigApi
             return true;
         }
 
-        if (!string.IsNullOrWhiteSpace(materialized.Message))
+        if (warnOnFailure && !string.IsNullOrWhiteSpace(materialized.Message))
         {
             SkinLog.Warn("Career config could not be created: "
                          + string.Join(", ", candidates)

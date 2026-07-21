@@ -51,6 +51,7 @@ function New-ProjectXml {
     $auraSharedDictionary = Join-Path $RepoRoot "AuraSharedCore\AuraSharedDictionary.cs"
     $auraCombatCardZoneSnapshot = Join-Path $RepoRoot "AuraSharedCore\AuraCombatCardZoneSnapshot.cs"
     $terriasIds = Join-Path $RepoRoot "Terrias-Dev\Infrastructure\TerriasIds.cs"
+    $terriasContentIdCompatibility = Join-Path $RepoRoot "Terrias-Dev\Infrastructure\TerriasContentIdCompatibility.cs"
     $terriasFrameDispatcher = Join-Path $RepoRoot "Terrias-Dev\Infrastructure\TerriasFrameDispatcher.cs"
     $terriasPerformanceSettings = Join-Path $RepoRoot "Terrias-Dev\Infrastructure\TerriasPerformanceSettings.cs"
     $cardApi = Join-Path $RepoRoot "Terrias-Dev\GameApi\CardApi.cs"
@@ -108,6 +109,7 @@ function New-ProjectXml {
     <Compile Include="$auraSharedDictionary" />
     <Compile Include="$auraCombatCardZoneSnapshot" />
     <Compile Include="$dictionaryUtil" />
+    <Compile Include="$terriasContentIdCompatibility" />
     <Compile Include="$terriasIds" />
     <Compile Include="$terriasFrameDispatcher" />
     <Compile Include="$terriasPerformanceSettings" />
@@ -1831,6 +1833,8 @@ function Invoke-SourceAssertions {
 
     $executorApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\ExecutorApi.cs"))
     $terriasIds = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Infrastructure\TerriasIds.cs"))
+    $terriasContentIdCompatibility = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Infrastructure\TerriasContentIdCompatibility.cs"))
+    $terriasConfigIndex = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\TerriasConfigIndex.cs"))
     $terriasFieldId = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Infrastructure\TerriasFieldId.cs"))
     $playerApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\PlayerApi.cs"))
     $cardApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\CardApi.cs"))
@@ -1847,6 +1851,7 @@ function Invoke-SourceAssertions {
     $polymorphActivationService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\PolymorphActivationService.cs"))
     $polymorphBuffService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\PolymorphBuffService.cs"))
     $polymorphCooldownService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\PolymorphCooldownService.cs"))
+    $polymorphRoleRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\PolymorphRoleRegistry.cs"))
     $polymorphRuntimeService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\PolymorphRuntimeService.cs"))
     $polymorphStateStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\PolymorphStateStore.cs"))
     $projectionActivationService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\ProjectionActivationService.cs"))
@@ -2011,6 +2016,9 @@ function Invoke-SourceAssertions {
     $endlessAbyssEvacuationButtonRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Ui\EndlessAbyssEvacuationButtonRuntime.cs"))
     $endlessAbyssEvacuationService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessAbyssEvacuationService.cs"))
     $endlessAbyssEvacuationRpc = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Network\RpcEndlessAbyssEvacuation.cs"))
+    $endlessAbyssSettlementBarrierRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\EndlessAbyssSettlementBarrierRuntime.cs"))
+    $endlessAbyssSettlementBarrierView = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Ui\EndlessAbyssSettlementBarrierView.cs"))
+    $endlessAbyssSettlementBarrierRpc = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Network\RpcEndlessAbyssSettlementBarrier.cs"))
     $terriasNetworkRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Network\TerriasNetworkRuntime.cs"))
     $endlessSeaFloorPlanner = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessSeaFloorPlanner.cs"))
     $endlessSeaMapBuilder = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessSeaMapBuilder.cs"))
@@ -2311,7 +2319,7 @@ function Invoke-SourceAssertions {
     Assert-True $executorApi.Contains("public static int BurnUpperBound(IStatusManager? target)") "ExecutorApi must expose a dynamic burn upper bound helper."
     Assert-True $buffOverflowApi.Contains("private const int BurnUpperBoundFallback = 1;") "Invalid burn upper bounds must fall back to the minimum valid stack count."
     Assert-True $buffOverflowApi.Contains("target.GetBuff(buffId)?.buffConfig?.UpperBound") "Burn upper bound must prefer the live BuffItemConfig.UpperBound."
-    Assert-True $buffOverflowApi.Contains('AuraGameDataHostApi.CopyRow(DataType.Buff, buffId)') "Burn upper bound must fall back to the current Buff data row through the explicit shared copy API."
+    Assert-True ($buffOverflowApi.Contains('AuraGameDataHostApi.CopyRow(') -and $buffOverflowApi.Contains('TerriasContentIdCompatibility.LookupCandidates(buffId, "terrias", "wuna", "columbina")')) "Burn upper bound must fall back to the current or legacy Buff data row through the explicit shared copy API."
     Assert-True $buffOverflowApi.Contains("var upperBound = BurnUpperBound(target);") "Burn overflow must use the dynamic burn upper bound."
     Assert-True $terriasStatusLifecycleRouter.Contains("TerriasHookTargets.StatusManagerAddBuff") "Burn overflow must route StatusManager.AddBuff through the shared status lifecycle router."
     Assert-True $runtimeHooks.Contains('TerriasStatusLifecycleRouter.Register("RuntimeStatusBuff"') "RuntimeHooks must subscribe burn overflow to the shared StatusManager.AddBuff lifecycle."
@@ -2478,6 +2486,7 @@ function Invoke-SourceAssertions {
     Assert-True $dimensionShopRuntime.Contains('RegisterBefore(modConfig, "MapItem.Init", PrepareDimensionShopMapItem);') "Dimension shop must prepare its custom map node for native MapItem initialization."
     Assert-True $dimensionShopRuntime.Contains('RegisterAfter(modConfig, "MapItem.Init", RestoreDimensionShopMapItem);') "Dimension shop must restore its custom map node after native MapItem initialization."
     Assert-True ($dimensionShopRuntime.Contains('node.data["NodeId"] = NativeMapItemNodeId;') -and $dimensionShopRuntime.Contains('node.data["NodeId"] = originalNodeId;')) "Dimension shop MapItem compatibility must be a reversible NodeId mapping."
+    Assert-True ($dimensionShopRuntime.Contains("NodeDice = previous?.NodeDice") -and $dimensionShopRuntime.Contains("MapNodeSafetyService.EnsureNodeDice")) "Dimension shop injection must preserve the replaced RNG cursor and repair a missing authoritative NodeDice before insertion."
     Assert-True ($dimensionShopRuntime.Contains('RegisterBefore(modConfig, "MapSelectUI.SetNodes", RestoreBeforeMapSelectionBoundary);') -and $dimensionShopRuntime.Contains('RegisterBefore(modConfig, "MapItem.OnPointerDown", RestoreBeforeMapItemBoundary);')) "Dimension shop must restore residual native NodeIds before persistence or user interaction."
     Assert-True ($dimensionShopRuntime.Contains('RegisterBefore(modConfig, "Commands.load", PrepareDimensionShopRoute);') -and $dimensionShopRuntime.Contains("DimensionShopGameApi.CloseNativeBreakFallback()")) "Dimension shop must recover a residual native NodeId that reaches command routing."
     Assert-True ($dimensionShopGameApi.Contains('GameObject.Find("Breaks")') -and $dimensionShopGameApi.Contains("background.SetActive(true)")) "Dimension shop route recovery must remove the native break screen and restore the adventure background."
@@ -2498,6 +2507,7 @@ function Invoke-SourceAssertions {
     Assert-True ($sharedUiNativeGameItems.Contains("AuraUiSafeSellItem : SellItem") -and $sharedUiNativeGameItems.Contains("AuraUiSafeRelicItem : RelicItemConfig") -and $sharedUiNativeGameItems.Contains("EnsureTooltip")) "AuraUiShared must retain native item initialization and tooltip ownership while replacing only unsafe action meaning."
     Assert-True ($dimensionShopNativeSkin.Contains("nativeItem.Init(item.Equipped, NativeConfig(item, DataType.Card))") -and $dimensionShopNativeSkin.Contains("nativeItem.Init(NativeConfig(item, DataType.Relic))") -and $dimensionShopService.Contains("NativeConfig = config")) "Dimension shop backpack entries must initialize from their exact native DataConfig instances."
     Assert-True ($dimensionShopNativeSkin.Contains("LogNativeComponentTopology") -and $dimensionShopNativeSkin.Contains("DimensionShopGameApi.VerifyTooltipVisible") -and $dimensionShopGameApi.Contains("native overlay verified visible") -and $dimensionShopGameApi.Contains('"floating-card"') -and $dimensionShopGameApi.Contains('"floating-relic"') -and -not $dimensionShopNativeSkin.Contains("native KeywordDisplay shown") -and -not $dimensionShopNativeSkin.Contains("right-click reached native")) "Dimension shop diagnostics must verify rendered overlay visibility rather than report pointer-event arrival as success."
+    Assert-True ($dimensionShopNativeSkin.Contains("BeginNativeOverlayGeneration") -and $dimensionShopGameApi.Contains("TooltipVerificationCancellationReason") -and $dimensionShopGameApi.Contains('return "render-generation-changed"') -and $dimensionShopGameApi.Contains("native overlay verification cancelled")) "Dimension shop tooltip verification must classify redraw, destroyed anchors, and ended hover as cancellation instead of visibility failure."
     Assert-True ($sharedUiNativeOverlayVisibility.Contains("SharesRootCanvas") -and $sharedUiNativeOverlayVisibility.Contains("IsVisibleAbove") -and $sharedUiNativeOverlayVisibility.Contains("sameRootCanvas") -and $sharedUiNativeOverlayVisibility.Contains("aboveAnchor") -and $dimensionShopGameApi.Contains("AuraUiNativeOverlayVisibility.SharesRootCanvas") -and $dimensionShopGameApi.Contains("AuraUiNativeOverlayVisibility.IsVisibleAbove")) "AuraUiShared must verify that native overlays share the anchor Canvas and render above its UI branch."
     Assert-True ($sharedUiNativeInteraction.Contains("class AuraUiNativeItemAnchor") -and $sharedUiNativeInteraction.Contains("onRightClick: surface.InvokeRight") -and $sharedUiNativeInteraction.Contains("lastRightFrame == frame") -and $sharedUiNativeInteraction.Contains("tooltip.enabled = true")) "AuraUiShared anchored item binding must restore exact tooltip and right-click response without double dispatch."
     Assert-True ($sharedUiNativeGameItems.Contains("manager.enableIcon = sprite != null") -and $sharedUiNativeGameItems.Contains("manager.SetIcon(sprite)") -and $dimensionShopNativeSkin.Contains('"val/Disabled/Title"')) "Dimension shop icon and price state must explicitly cover null and disabled native states."
@@ -2513,6 +2523,7 @@ function Invoke-SourceAssertions {
     Assert-True ($dimensionShopService.Contains("public static bool SellRelic(string instanceId") -and $dimensionShopService.Contains("public static bool UnequipRelic(string instanceId") -and $dimensionShopGameApi.Contains("ShowRelicMenu")) "Dimension shop relics must expose safe sale and take-off actions through the host floating menu."
     Assert-True ($dimensionShopService.Contains('tags.IndexOf("Eternal"') -and $dimensionShopService.Contains("role.cardList.Count <= role.CardBottomCount")) "Dimension shop card sales must preserve native Eternal and minimum-deck restrictions."
     Assert-True ($dimensionShopGameApi.Contains("TruthCurrencySprite") -and $dimensionShopGameApi.Contains('TruthCurrencyResourcePath = "Icon/UI_Icons/Native/Icon/\u771f\u7406\u4e4b\u6676"') -and -not $dimensionShopGameApi.Contains("CurrencySpriteNear") -and $dimensionShopGameApi.Contains("GetFloatingWindow")) "Dimension shop currency and context-menu integrations must use explicit host APIs and stay behind the GameApi facade."
+    Assert-True ($terriasContentIdCompatibility.Contains("LegacyMainTableId") -and $terriasContentIdCompatibility.Contains('LegacyPrefix("wuna")') -and $terriasContentIdCompatibility.Contains('LegacyPrefix("loneer")') -and $terriasContentIdCompatibility.Contains('LegacyPrefix("columbina")') -and $terriasContentIdCompatibility.Contains('LegacyPrefix("cursecard")') -and $terriasContentIdCompatibility.Contains('LegacyPrefix("solar_memory")') -and $terriasContentIdCompatibility.Contains("Canonicalize") -and $terriasContentIdCompatibility.Contains("LookupCandidates") -and $terriasConfigIndex.Contains("TerriasContentIdCompatibility.LookupCandidates")) "Terrias content lookup must centralize all supported legacy-to-current prefix aliases."
     Assert-True ($dimensionShopService.Contains("public enum DimensionShopItemState") -and $dimensionShopService.Contains("HeldCards = BuildHeldCards()") -and $dimensionShopService.Contains("HeldRelics = BuildHeldRelics()")) "Dimension shop view state must expose typed offer states and held-item snapshots."
     Assert-True ($dimensionShopService.Contains("Description = SafeItemDescription(config)") -and $dimensionShopService.Contains('Tips = SafeLocalizedField(config, "Tips")')) "Dimension shop held cards and relics must expose localized hover-tooltip content."
     Assert-True ($dimensionShopConfigSource.Contains("ShopkeeperPortraitResourcePath") -and $dimensionShopConfigSource.Contains("ShopkeeperPortraitNodePath")) "Dimension shop config must expose replaceable native shopkeeper portrait settings."
@@ -2566,6 +2577,7 @@ function Invoke-SourceAssertions {
     Assert-True $mapNodeCardArtRuntime.Contains('RegisterBefore(modConfig, "MapItem.Init", CaptureMapItemBaseline);') "Map-node art runtime must capture icon baseline before native MapItem.Init mutates transform."
     Assert-True $mapNodeCardArtRuntime.Contains('RegisterAfter(modConfig, "MapItem.Init", ApplyMapNodeCardArt);') "Map-node art runtime must apply configured art after native MapItem.Init."
     Assert-True $mapNodeCardArtRuntime.Contains("TerriasResourceCache.Load<Texture>(spec.TexturePath, true)") "Map-node art runtime must load textures through the shared mod-aware resource cache."
+    Assert-True ($mapNodeCardArtRuntime.Contains("NodeRuntimeScope") -and $mapNodeCardArtRuntime.Contains('string.Equals(scope, "historicalProjection"') -and $mapNodeCardArtRuntime.Contains("TerriasLog.DebugOnce")) "Map-node diagnostics must distinguish authority nodes from display-only historical projections and suppress repeated projection noise."
     Assert-True $mapNodeCardArtRegistry.Contains("VisualRegistry.MapNodeArtSpecs()") "Map-node art registry must be driven by the visual registry."
     Assert-True ($visualRegistry.Contains("TerriasIds.SolarBossSecondSunMapTexturePath") -and $visualRegistryJson.Contains("solar_memory.second_sun.map_card")) "Visual registry must cover the second-sun boss map texture."
     Assert-True ($visualRegistry.Contains("TerriasIds.SolarBossSaintWunaMapTexturePath") -and $visualRegistryJson.Contains("solar_memory.saint_wuna.map_card")) "Visual registry must cover the saint Wuna boss map texture."
@@ -2673,32 +2685,48 @@ function Invoke-SourceAssertions {
     Assert-True $cardMutationService.Contains("public static void SetTemporaryCost") "CardMutationService must own temporary card-cost mutation."
     Assert-True (-not $cardMutationService.Contains('config.data["Expend')) "Temporary card-cost mutation must not write base data."
     Assert-True (-not $polymorphActivationService.Contains("DictionaryUtil.Set(config.data")) "Polymorph role-card runtime state must be written to Vars, not read-only base data."
+    Assert-True ($polymorphActivationService.Contains("BuildRoleCardPresentation(role)") -and $polymorphActivationService.Contains(".WithRuntimePresentation(presentation)")) "Polymorph role cards must materialize dynamic names, descriptions, and icons through the native-readable presentation path."
     Assert-True $polymorphActivationService.Contains("PolymorphBuffService.GrantForRole(self, role);") "Polymorph role cards must grant the trait buff instead of changing career directly."
     Assert-True (-not $polymorphActivationService.Contains("self.ChangeCareer(role.Id);")) "Polymorph card use must not be hard-bound to direct career changes."
     Assert-True $polymorphBuffService.Contains("self.ChangeCareer(role.Id);") "Polymorph trait buff apply must own the career change."
     Assert-True $polymorphBuffService.Contains("PolymorphRuntimeService.Enter(self, role, state);") "Polymorph trait buff apply must enter a runtime overlay after ChangeCareer."
+    Assert-True ($polymorphBuffService.Contains("BuildTraitPresentation(role)") -and $polymorphBuffService.Contains("BuffApi.ApplyRuntimePresentation(buff, presentation)")) "Polymorph trait buffs must publish role-specific descriptions through the native-readable buff presentation path."
+    Assert-True ($buffApi.Contains("RuntimePresentationDiffers") -and $buffApi.Contains("CopyRuntimeExecutorContext(config, replacement)")) "Live Buff presentation refreshes must migrate their initialized script executor before replacing native UI data."
+    Assert-True ($buffApi.Contains("replacementExecutor.Self = sourceExecutor.Self") -and $buffApi.Contains("replacementExecutor.status = sourceExecutor.status") -and $buffApi.Contains("replacementExecutor.Target = sourceExecutor.Target") -and $buffApi.Contains("replacementExecutor.Object.AddRange(sourceExecutor.Object)")) "Live Buff presentation clones must preserve Self, status, Target, and Object for later ClearScript execution."
     Assert-True $polymorphBuffService.Contains("PolymorphStateStore.ClearOwner(owner") "Polymorph trait buff clear must restore the owner career through state cleanup."
     Assert-True $polymorphBuffService.Contains('ExecutorApi.TryAddTokenedEvent(self, "StartRound"') "Polymorph trait buff must own shared cooldown round ticking."
     Assert-True $polymorphCooldownService.Contains("CrossFormSkillUse") "Polymorph must track a separate cross-form skill-use ledger."
-    Assert-True $polymorphCooldownService.Contains("IsCrossFormLocked") "Polymorph must block only cross-form skill reuse in the same round."
+    Assert-True $polymorphCooldownService.Contains("HasDifferentFormSkillUseThisRound") "Polymorph must detect same-round use by another form only while initializing the next form."
     Assert-True $polymorphCooldownService.Contains("RoleCooldowns") "Polymorph must retain actual cooldown snapshots per form."
-    Assert-True $polymorphCooldownService.Contains("PrepareCurrentRoleEntry") "Polymorph must normalize first-entry cooldown and restore revisited form cooldowns."
+    Assert-True ($polymorphCooldownService.Contains("PrepareCurrentRoleEntry") -and $polymorphCooldownService.Contains("RoleSkillApi.SetCurrentCareerSkillTimes(0)") -and $polymorphCooldownService.Contains(": 0;")) "Polymorph must clear career-seeded cooldowns on first entry and restore only revisited-form cooldown snapshots."
+    Assert-True ($polymorphCooldownService.Contains("CrossFormEntryCooldown = 1") -and $polymorphCooldownService.Contains("ApplyEntryCooldownFloor") -and $polymorphCooldownService.Contains("EntryCooldownOverlays")) "Polymorph must apply a one-time native entry cooldown without persisting it as a form cooldown."
+    Assert-True (-not $polymorphCooldownService.Contains("StateVersion")) "Cross-form entry cooldown tracking must survive form-state version changes within the same Polymorph session."
     Assert-True $polymorphBuffService.Contains("CaptureCurrentRole(self.Self") "Polymorph must capture the outgoing form cooldown before ChangeCareer."
     Assert-True (-not $polymorphCooldownService.Contains("RoleSkillApi.SetCurrentCareerSkillTimes(cooldown);")) "Polymorph must not overwrite native role skill cooldowns."
-    Assert-True $wunaScripts.Contains("PolymorphCooldownService.MarkSkillUsed(self, ""Wuna.WhiteSunPrayer"")") "Wuna polymorph skill use must commit the shared cooldown."
-    Assert-True $wunaScripts.Contains("PolymorphCooldownService.MarkSkillUsed(self, ""Wuna.GraveSong"")") "Wuna second polymorph skill must share the same cooldown record."
-    Assert-True $loneerService.Contains("PolymorphCooldownService.MarkSkillUsed(self, ""Loneer.MorningStarPrayer"")") "Loneer polymorph skill use must commit the shared cooldown."
+    Assert-True $wunaScripts.Contains('"Wuna.WhiteSunPrayer",') "Wuna polymorph skill use must commit the shared cooldown."
+    Assert-True $wunaScripts.Contains('"Wuna.GraveSong", GraveSongCardId') "Wuna second polymorph skill must share the same cooldown record."
+    Assert-True $loneerService.Contains('"Loneer.MorningStarPrayer",') "Loneer polymorph skill use must commit the shared cooldown."
+    Assert-True ($wunaScripts.Contains("PlayerApi.SetSkillTime(TerriasIds.WunaWhiteSunPrayerCardId, 5);") -and $wunaScripts.IndexOf("PlayerApi.SetSkillTime(TerriasIds.WunaWhiteSunPrayerCardId, 5);") -lt $wunaScripts.IndexOf('"Wuna.WhiteSunPrayer",')) "Wuna White Sun Prayer must write its native cooldown before the polymorph ledger captures it."
+    Assert-True ($wunaScripts.Contains("PlayerApi.SetSkillTime(GraveSongCardId, 4);") -and $wunaScripts.IndexOf("PlayerApi.SetSkillTime(GraveSongCardId, 4);") -lt $wunaScripts.IndexOf('"Wuna.GraveSong", GraveSongCardId')) "Wuna Grave Song must write its native cooldown before the polymorph ledger captures it."
+    Assert-True ($loneerService.Contains("SetMorningPrayerCooldown(self, state, PrayerCooldownRounds);") -and $loneerService.IndexOf("SetMorningPrayerCooldown(self, state, PrayerCooldownRounds);") -lt $loneerService.IndexOf('"Loneer.MorningStarPrayer",')) "Loneer Morning Star Prayer must write its cooldown before the polymorph ledger captures it."
+    Assert-True ($polymorphRoleRegistry.Contains("AuraRoleRegistryRuntime.GetEffectiveSnapshot()") -and -not $polymorphRoleRegistry.Contains("TerriasConfigIndex.Rows(DataType.Career)")) "Polymorph role discovery must consume the shared effective-role catalog instead of every registered Career row."
     Assert-True $buffScripts.Contains("[TerriasIds.PolymorphTraitBuffShortId] = ApplyPolymorphTrait") "BuffScripts must route polymorph trait apply behavior."
     Assert-True $buffScripts.Contains("[TerriasIds.PolymorphTraitBuffShortId] = ClearPolymorphTrait") "BuffScripts must route polymorph trait clear behavior."
     Assert-True (-not $polymorphRuntime.Contains('HideTraitBuffFromContext')) "Polymorph trait buff must remain visible in battle."
     Assert-True $polymorphRuntime.Contains('RegisterBefore(modConfig, TerriasHookTargets.SkillItemTrueUse, CaptureSkillUseBefore);') "Polymorph runtime must capture official skill use before TrueUse."
     Assert-True $polymorphRuntime.Contains('RegisterAfter(modConfig, TerriasHookTargets.SkillItemTrueUse, MarkSkillUseAfter);') "Polymorph runtime must commit shared cooldown after official skill use."
+    Assert-True (-not $polymorphRuntime.Contains("TerriasHookTargets.SkillItemTryUse") -and -not $polymorphRuntime.Contains("TerriasHookTargets.ScriptExecutorUpdateSkillTime") -and -not $polymorphCooldownService.Contains("TryUseSharedSkill")) "Polymorph entry cooldown must remain reducible and must not be reapplied by skill-use or cooldown-UI hooks."
     Assert-True $buffData.Contains('"polymorph_trait"') "Polymorph trait buff data row is missing."
     Assert-True ([regex]::IsMatch($buffData, '"polymorph_trait"[\s\S]*?"Icon/Buff/')) "Polymorph trait buff must reuse the Heroic Blessing icon path family."
     Assert-True $polymorphActivationService.Contains("PolymorphRuntimeService.ClearAll(source);") "Polymorph cleanup must clear runtime overlays before restoring career state."
     Assert-True $polymorphRuntimeService.Contains("TryRunCurrentCareerScript") "Polymorph runtime must run the current target-role career script."
     Assert-True $polymorphRuntimeService.Contains("RoleSkillApi.RefreshFightSkills") "Polymorph runtime must rebuild combat skill buttons after changing career."
     Assert-True $polymorphRuntimeService.Contains("executor?.Clear();") "Polymorph runtime cleanup must clear the attached career executor."
+    Assert-True ($polymorphRuntimeService.Contains("ClearAttachment(attachment, source, endCombat: false)") -and $polymorphRuntimeService.Contains("if (endCombat && executor != null)") -and $polymorphRuntimeService.Contains("LoneerMiracleService.DetachCareerRuntime(executor)")) "Leaving a Loneer form must detach only career runtime; full Loneer combat cleanup is reserved for battle end."
+    Assert-True ($polymorphStateStore.Contains("PolymorphRuntimeService.RestoreOriginalCareerRuntime") -and $polymorphRuntimeService.Contains("LoneerMiracleService.ResumeAfterPolymorph(executor)")) "Restoring an original Loneer career must restore its career runtime without deleting autonomous buffs."
+    Assert-True ($loneerService.Contains("StarStonePouchService.EnsurePresent(self)") -and $starStonePouchService.Contains("public static bool EnsurePresent") -and $starStonePouchService.Contains("if (!BuffApi.Has(self.Self, TerriasIds.StarStonePouch))")) "Loneer polymorph entry and restoration must preserve an existing Star Stone Pouch and recover it only when missing."
+    $loneerPolymorphEntry = [regex]::Match($loneerService, "public\s+static\s+void\s+PreparePolymorphEntry[\s\S]*?public\s+static\s+void\s+ResumeAfterPolymorph")
+    Assert-True ($loneerPolymorphEntry.Success -and -not $loneerPolymorphEntry.Value.Contains("ClearCombatBuffs") -and -not $loneerPolymorphEntry.Value.Contains("EndCombatCleanup")) "Entering a Loneer form must not clear or pause autonomous buff behavior."
     Assert-True $roleSkillApi.Contains("fightUi.InitSkill();") "RoleSkillApi must reuse the native FightUI skill creation path."
     Assert-True $roleSkillApi.Contains("EnsureCurrentCareerSkillTimes") "RoleSkillApi must ensure target skill cooldown keys exist before the rebuilt buttons are used."
     Assert-True $roleSkillApi.Contains('value.Replace("*", "")') "RoleSkillApi must normalize starred official skill ids before cooldown sync."
@@ -2738,6 +2766,7 @@ function Invoke-SourceAssertions {
     Assert-True $entry.Contains("Terrias.Dll.Scripting.ProjectionScripts") "Entry must register ProjectionScripts for CSV action calls."
     Assert-True $entry.Contains("Terrias.Dll.Scripting.HeartChangeScripts") "Entry must register HeartChangeScripts for temporary controlled intent action calls."
     Assert-True $projectionActivationService.Contains("CardGrantRequest") "Projection generated cards must use the shared card grant API."
+    Assert-True ($projectionActivationService.Contains("BuildRoleCardPresentation(role, fixedAnotherMe)") -and $projectionActivationService.Contains(".WithRuntimePresentation(presentation)")) "Projection generated cards must materialize dynamic names, descriptions, and icons through the native-readable presentation path."
     Assert-True $projectionActivationService.Contains("DictionaryUtil.Set(config.Vars") "Projection generated cards must write runtime overrides to Vars."
     Assert-True (-not $projectionActivationService.Contains("DictionaryUtil.Set(config.data")) "Projection generated cards must not mutate base config data."
     Assert-True $projectionSummonService.Contains("CompanionPositionOwnershipService.HasForOwner") "Projection summon must enforce the shared projection/spirit position per player owner."
@@ -3567,6 +3596,12 @@ function Invoke-SourceAssertions {
     Assert-True $endlessAbyssEvacuationService.Contains("EndlessAbyssEvacuationDepth.Calculate") "Endless Abyss evacuation must delegate total-depth projection to its pure calculator."
     Assert-True $endlessAbyssEvacuationRpc.Contains("serverSender.IsLobbyHost") "Endless Abyss evacuation RPC must require bound lobby-host authority."
     Assert-True $endlessAbyssEvacuationRpc.Contains("TryCaptureStored(RequestedToken") "Endless Abyss evacuation RPC must publish server-stored state instead of trusting its payload."
+    Assert-True $endlessAbyssEvacuationRuntime.Contains('"GameExitUI.OnDestroy"') "Endless Abyss evacuation must wait for native settlement save completion before sending its ACK."
+    Assert-True $endlessAbyssSettlementBarrierRuntime.Contains("HostWaitSeconds = 15") "Endless Abyss settlement barrier must bound the host wait."
+    Assert-True $endlessAbyssSettlementBarrierRuntime.Contains("ForcedCommitGraceSeconds = 2") "Endless Abyss settlement barrier must preserve a forced local-save grace period."
+    Assert-True $endlessAbyssSettlementBarrierView.Contains("settlementUi.NextShow()") "Endless Abyss settlement barrier must preserve native settlement details."
+    Assert-True $endlessAbyssSettlementBarrierRpc.Contains("sender.IsLobbyHost") "Endless Abyss host barrier events must require bound host authority."
+    Assert-True $endlessAbyssSettlementBarrierRpc.Contains("TryCaptureStored(command.SettlementToken") "Endless Abyss settlement barrier must validate the stored authoritative token."
     Assert-True $endlessSeaNetworkSync.Contains("CurrentProtocolVersion = 3") "Endless Sea snapshots must version the evacuation state extension."
     Assert-True $endlessSeaNetworkSync.Contains("EvacuationDepth") "Endless Sea snapshots must carry authoritative evacuation settlement depth."
     Assert-True $endlessSeaRunLauncher.Contains('saveInfo.GameVars[GameVar.ExLockDes.ToString()] = "0"') "Endless Sea saves must not pre-lock editable map slots."

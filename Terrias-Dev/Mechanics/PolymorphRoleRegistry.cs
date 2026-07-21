@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraRole.Shared;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
 using Witch.Core;
@@ -14,9 +15,18 @@ public static class PolymorphRoleRegistry
         var start = TerriasPerformanceCounters.Timestamp();
         try
         {
-            return TerriasConfigIndex.Rows(DataType.Career)
-                .Select(ToSpec)
-                .Where(spec => !string.IsNullOrWhiteSpace(spec.Id))
+            var effective = AuraRoleRegistryRuntime.GetEffectiveSnapshot();
+            if (!effective.NativeReady)
+            {
+                TerriasLog.Debug("[Polymorph] effective role catalog is waiting for native career capture.");
+                return Array.Empty<PolymorphRoleSpec>();
+            }
+
+            return effective.Entries
+                .Select(entry => TerriasConfigIndex.Row(DataType.Career, entry.RoleId))
+                .Where(row => row != null)
+                .Select(row => ToSpec(row!))
+                .Where(spec => !string.IsNullOrWhiteSpace(spec.Id) && !spec.IsLocked)
                 .OrderBy(spec => spec.DisplayName, StringComparer.Ordinal)
                 .ThenBy(spec => spec.Id, StringComparer.Ordinal)
                 .ToArray();

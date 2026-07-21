@@ -134,15 +134,22 @@ public static class DimensionShopRuntime
             ["Note"] = "\u5efa\u7b51"
         };
         var previous = nodes[replacement];
-        nodes[replacement] = new MapTree.Node("\u5efa\u7b51")
+        var replacementNode = new MapTree.Node("\u5efa\u7b51")
         {
             data = data,
-            NodeDice = previous.NodeDice
+            NodeDice = previous?.NodeDice
         };
+        MapNodeSafetyService.EnsureNodeDice(
+            manager.MapTree,
+            replacementNode,
+            "DimensionShopRuntime.EnsureFirstLayerCandidate");
+        nodes[replacement] = replacementNode;
         TerriasLog.Info("[DimensionShop] injected first-layer candidate at index="
                        + replacement
                        + " from "
                        + source
+                       + "; nodeDice="
+                       + (replacementNode.NodeDice != null ? "present" : "missing")
                        + ".");
     }
 

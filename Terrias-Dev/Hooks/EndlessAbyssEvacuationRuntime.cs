@@ -25,6 +25,7 @@ public static class EndlessAbyssEvacuationRuntime
         RegisterAfter(modConfig, "MapSelectUI.Start", ResumePendingSettlement);
         RegisterAfter(modConfig, "MapSelectUI.ShowMap", ResumePendingSettlement);
         RegisterBefore(modConfig, "GameExitUI.ReturnAsync", ArmFinalization);
+        RegisterAfter(modConfig, "GameExitUI.OnDestroy", ObserveReturnCompleted);
         RegisterBefore(modConfig, "GameApp.ReturnToMenu", FinalizeBeforeMenuReturn);
     }
 
@@ -113,6 +114,7 @@ public static class EndlessAbyssEvacuationRuntime
 
         lastPresentedToken = resolution.Token;
         finalizationArmed = false;
+        EndlessAbyssSettlementBarrierRuntime.Prepare(resolution);
         TerriasLog.Info("[EndlessAbyssEvacuation] authoritative result accepted: source="
                        + source
                        + ", runId="
@@ -284,6 +286,16 @@ public static class EndlessAbyssEvacuationRuntime
                 GameUIManager.Instance?.ShowUI<GameExitUI>("GameExitUI", true);
             }
 
+            var settlementUi = GameUIManager.Instance?.GetUI<GameExitUI>("GameExitUI");
+            if (settlementUi != null)
+            {
+                EndlessAbyssSettlementBarrierRuntime.Attach(settlementUi, resolution);
+            }
+            else
+            {
+                TerriasLog.Warn("[EndlessAbyssEvacuation] settlement barrier attach skipped: GameExitUI unavailable.");
+            }
+
             TerriasLog.Info("[EndlessAbyssEvacuation] settlement shown from "
                 + source
                 + "; floor="
@@ -319,7 +331,13 @@ public static class EndlessAbyssEvacuationRuntime
             && IsActiveUi<GameExitUI>("GameExitUI"))
         {
             finalizationArmed = true;
+            EndlessAbyssSettlementBarrierRuntime.ObserveReturnStarting();
         }
+    }
+
+    private static void ObserveReturnCompleted(ModHookContext context)
+    {
+        EndlessAbyssSettlementBarrierRuntime.ObserveReturnCompleted();
     }
 
     private static void FinalizeBeforeMenuReturn(ModHookContext context)

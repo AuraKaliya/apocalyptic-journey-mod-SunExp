@@ -11,6 +11,8 @@ public static class SkinLog
 
     public static void Warn(string message) => AuraSharedLog.Warn(Tag, message);
 
+    public static void DebugOnce(string key, string message) => AuraSharedLog.DebugOnce(Tag, key, message);
+
     public static void Error(string message, Exception? exception = null)
     {
         AuraSharedLog.Error(Tag, message, exception);

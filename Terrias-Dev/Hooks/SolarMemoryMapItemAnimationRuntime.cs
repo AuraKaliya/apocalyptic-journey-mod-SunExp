@@ -212,10 +212,7 @@ public static class SolarMemoryMapItemAnimationRuntime
             return row;
         }
 
-        const string prefix = "Terrias_terrias_";
-        var shortId = fullEnemyId.StartsWith(prefix, StringComparison.Ordinal)
-            ? fullEnemyId.Substring(prefix.Length)
-            : fullEnemyId;
+        var shortId = TerriasContentIdCompatibility.LocalId(fullEnemyId);
         return ConfigRow(DataType.Enemy, shortId);
     }
 

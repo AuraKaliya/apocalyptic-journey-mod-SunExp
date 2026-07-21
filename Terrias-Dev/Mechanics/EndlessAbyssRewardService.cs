@@ -238,14 +238,12 @@ public static class EndlessAbyssRewardService
             return true;
         }
 
-        const string prefix = "Terrias_terrias_";
-        if (pack.StartsWith(prefix, StringComparison.Ordinal)
-            && enabledPacks.Contains(pack.Substring(prefix.Length)))
+        if (enabledPacks.Any(enabled => TerriasContentIdCompatibility.Equivalent(enabled, pack)))
         {
             return true;
         }
 
-        return enabledPacks.Contains(prefix + pack);
+        return false;
     }
 
     private static HashSet<string> EnabledCardPacks()

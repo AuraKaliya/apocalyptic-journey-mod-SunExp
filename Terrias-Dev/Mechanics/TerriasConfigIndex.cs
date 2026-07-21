@@ -9,7 +9,6 @@ namespace Terrias.Dll.Mechanics;
 
 public static class TerriasConfigIndex
 {
-    private const string TerriasPrefix = "Terrias_terrias_";
     private static readonly Dictionary<string, FilterCache> FilterCaches = new(StringComparer.Ordinal);
 
     public static List<Dictionary<string, string>> Rows(DataType type)
@@ -40,8 +39,9 @@ public static class TerriasConfigIndex
         var start = TerriasPerformanceCounters.Timestamp();
         try
         {
-            var normalized = id.Trim();
-            var resolved = AuraGameDataHostApi.Resolve(type, normalized, AlternateTerriasId(normalized));
+            var resolved = AuraGameDataHostApi.Resolve(
+                type,
+                TerriasContentIdCompatibility.LookupCandidates(id, "terrias"));
             return resolved?.Fields.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
         }
         finally
@@ -87,13 +87,6 @@ public static class TerriasConfigIndex
     {
         FilterCaches.Clear();
         AuraGameDataHostApi.InvalidateNativeCatalog();
-    }
-
-    private static string AlternateTerriasId(string id)
-    {
-        return id.StartsWith(TerriasPrefix, StringComparison.Ordinal)
-            ? id.Substring(TerriasPrefix.Length)
-            : TerriasPrefix + id;
     }
 
     private static Dictionary<string, string> Clone(Dictionary<string, string> row)

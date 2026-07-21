@@ -77,6 +77,7 @@ $auraSender = Read-RepoText "AuraToolsExp-Dev\Infrastructure\AuraToolsRpcSender.
 $sharedAuthority = Read-RepoText "AuraSharedCore\AuraRpcAuthorityRuntime.cs"
 $auraPayloadGuard = Read-RepoText "AuraToolsExp-Dev\Infrastructure\AuraToolsRpcPayloadGuard.cs"
 $auraTransport = Read-RepoText "AuraToolsExp-Dev\Infrastructure\AuraToolsRpcTransport.cs"
+$auraTargetedQueryTransport = Read-RepoText "AuraToolsExp-Dev\Infrastructure\AuraToolsTargetedQueryTransport.cs"
 $damageCommands = Read-RepoText "AuraToolsExp-Dev\Features\DamageMeter\Network\DamageMeterCommands.cs"
 $damageRuntime = Read-RepoText "AuraToolsExp-Dev\Features\DamageMeter\Network\DamageMeterNetworkRuntime.cs"
 $damagePolicy = Read-RepoText "AuraToolsExp-Dev\Features\DamageMeter\Network\DamageMeterAuthorityPolicy.cs"
@@ -202,6 +203,9 @@ Assert-Contains $modSyncRuntime "MaxManifestActiveTransfers" "ModSync chunked tr
 Assert-Contains $modSyncRuntime "ReceiveHostModManifestChunk" "ModSync must reassemble host manifest chunks."
 Assert-Contains $modSyncRuntime "Sha256Hex(payload)" "ModSync reassembly must verify payload checksum."
 Assert-Contains $modSyncRuntime "PruneExpiredManifestChunkBuffers" "ModSync must expire stale chunk buffers."
+Assert-Contains $modSyncRuntime "AuraToolsTargetedQueryTransport.Send" "ModSync host manifests must use the native connection-targeted query response path."
+Assert-Contains $auraTargetedQueryTransport "NetworkConnectionToClient" "AuraTools targeted queries must bind the actual requesting connection."
+Assert-Contains $auraTargetedQueryTransport "RpcQueryMethod.Invoke" "AuraTools immediate lobby queries must reuse the native TargetRpc response path."
 
 Assert-Contains $loggingConfig "MaxRetainedLogFiles" "AuraTools logging settings must expose log retention."
 Assert-Contains $fileLogging "PruneOldLogFiles" "AuraTools file logging must prune old log files."

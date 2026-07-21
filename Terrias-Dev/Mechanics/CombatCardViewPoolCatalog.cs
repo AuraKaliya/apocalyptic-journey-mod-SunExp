@@ -36,7 +36,8 @@ public static class CombatCardViewPoolCatalog
             return false;
         }
 
-        if (ExplicitBuckets.TryGetValue(CardConfigApi.Id(config), out var explicitBucket))
+        var canonicalId = TerriasContentIdCompatibility.Canonicalize(CardConfigApi.Id(config));
+        if (ExplicitBuckets.TryGetValue(canonicalId, out var explicitBucket))
         {
             bucket = explicitBucket;
             return true;
@@ -59,7 +60,7 @@ public static class CombatCardViewPoolCatalog
             return false;
         }
 
-        if (ExplicitBuckets.ContainsKey(CardConfigApi.Id(config)))
+        if (ExplicitBuckets.ContainsKey(TerriasContentIdCompatibility.Canonicalize(CardConfigApi.Id(config))))
         {
             return true;
         }

@@ -93,6 +93,9 @@ public sealed class RpcProjectionSummonRequest : RpcCommandBase, ITerriasServerB
     public override void CmdExecute()
     {
         ProjectionSummonService.ResolveNetworkSummon(RoleId, OwnerStatusId, Token, serverSender, ProtocolVersion, BattleEpoch, RegistryHash);
+        RoleId = "";
+        OwnerStatusId = "";
+        RegistryHash = "";
     }
 
     public override void RpcExecute()
@@ -150,6 +153,8 @@ public sealed class RpcHeartChangeControlRequest : RpcCommandBase, ITerriasServe
     public override void CmdExecute()
     {
         HeartChangeControlService.ResolveNetworkControl(TargetStatusId, OwnerStatusId, Token, serverSender);
+        TargetStatusId = "";
+        OwnerStatusId = "";
     }
 
     public override void RpcExecute()

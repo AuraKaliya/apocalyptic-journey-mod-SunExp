@@ -459,15 +459,6 @@ public static class EndlessAbyssCurseService
 
     private static string Normalize(string id)
     {
-        var value = (id ?? "").Replace("*", "").Trim();
-        foreach (var prefix in new[] { "Terrias_terrias_", "Terrias_cursecard_" })
-        {
-            if (value.StartsWith(prefix, StringComparison.Ordinal))
-            {
-                return value.Substring(prefix.Length);
-            }
-        }
-
-        return value;
+        return TerriasContentIdCompatibility.LocalId((id ?? "").Replace("*", "")).Trim();
     }
 }

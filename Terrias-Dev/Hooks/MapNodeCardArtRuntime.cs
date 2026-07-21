@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using AuraShared.Core;
 using Terrias.Dll.GameApi;
@@ -58,7 +59,8 @@ public static class MapNodeCardArtRuntime
             var note = DictionaryUtil.Get(data, "Note");
             var level = DictionaryUtil.Get(data, "Level");
             var spec = MapNodeCardArtRegistry.Resolve(data);
-            TerriasLog.InfoAlways("[MapNodeDiagnostic] before MapItem.Init; id="
+            var scope = NodeRuntimeScope(node);
+            var message = "[MapNodeDiagnostic] before MapItem.Init; id="
                 + ValueOrMissing(id)
                 + "; type="
                 + ValueOrMissing(type)
@@ -68,6 +70,8 @@ public static class MapNodeCardArtRuntime
                 + ValueOrMissing(note)
                 + "; level="
                 + ValueOrMissing(level)
+                + "; scope="
+                + scope
                 + "; nodeDice="
                 + (node.NodeDice != null ? "present" : "missing")
                 + "; configuredArt="
@@ -75,12 +79,41 @@ public static class MapNodeCardArtRuntime
                 + "; nativeTexture="
                 + NativeTextureExpectation(type, nodeId)
                 + FightTextureExpectation(type, nodeId)
-                + ".");
+                + ".";
+            if (node.NodeDice == null && string.Equals(scope, "historicalProjection", StringComparison.Ordinal))
+            {
+                TerriasLog.DebugOnce("MapNodeDiagnostic.HistoricalProjection." + ValueOrMissing(id), message);
+            }
+            else
+            {
+                TerriasLog.InfoAlways(message);
+            }
         }
         catch (Exception ex)
         {
             TerriasLog.Warn("[MapNodeDiagnostic] inspection failed before MapItem.Init: " + ex.Message);
         }
+    }
+
+    private static string NodeRuntimeScope(MapTree.Node node)
+    {
+        var tree = MapManager.Instance?.MapTree;
+        if (tree == null)
+        {
+            return "unbound";
+        }
+
+        if (ReferenceEquals(tree.currentNode, node))
+        {
+            return "current";
+        }
+
+        if (tree.SelectNode != null && tree.SelectNode.Any(candidate => ReferenceEquals(candidate, node)))
+        {
+            return "selectCandidate";
+        }
+
+        return "historicalProjection";
     }
 
     private static string NativeTextureExpectation(string type, string nodeId)

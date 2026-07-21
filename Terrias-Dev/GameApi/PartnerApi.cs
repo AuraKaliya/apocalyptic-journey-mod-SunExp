@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
+using Terrias.Dll.Infrastructure;
 
 namespace Terrias.Dll.GameApi;
 
@@ -10,8 +11,8 @@ public static class PartnerApi
     public static bool IsCurrentPartner(string localId, string fullId)
     {
         var id = CurrentPartnerId();
-        return string.Equals(id, localId, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(id, fullId, StringComparison.OrdinalIgnoreCase)
+        return TerriasContentIdCompatibility.Equivalent(id, localId)
+            || TerriasContentIdCompatibility.Equivalent(id, fullId)
             || (!string.IsNullOrWhiteSpace(id) && id.EndsWith("_" + localId, StringComparison.OrdinalIgnoreCase));
     }
 
@@ -79,8 +80,8 @@ public static class PartnerApi
 
     private static bool MatchesId(string value, string localId, string fullId)
     {
-        return string.Equals(value, localId, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(value, fullId, StringComparison.OrdinalIgnoreCase)
+        return TerriasContentIdCompatibility.Equivalent(value, localId)
+            || TerriasContentIdCompatibility.Equivalent(value, fullId)
             || (!string.IsNullOrWhiteSpace(value) && value.EndsWith("_" + localId, StringComparison.OrdinalIgnoreCase));
     }
 

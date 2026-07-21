@@ -855,9 +855,12 @@ void TestRuntimeArchitectureGuards()
     Assert(roleDisplayResolver.Contains(".Localize(\"Name\")", StringComparison.Ordinal)
            && !roleDisplayResolver.Contains("new DataConfig", StringComparison.Ordinal),
         "role catalog resolves startup display names from loaded rows without forcing the unfinished DataConfig id cache");
-    Assert(roleCatalog.Contains("cachedCatalogEpoch", StringComparison.Ordinal)
-           && roleCatalog.Contains("snapshot.Version.NativeReady", StringComparison.Ordinal),
-        "role catalog does not retain a partial pre-ready scan and follows game-data catalog epochs");
+    Assert(roleCatalog.Contains("AuraRoleRegistryRuntime.GetEffectiveSnapshot()", StringComparison.Ordinal)
+           && roleCatalog.Contains("cachedCatalogEpoch", StringComparison.Ordinal)
+           && roleCatalog.Contains("cachedRoleRevision", StringComparison.Ordinal)
+           && roleCatalog.Contains("snapshot.NativeReady", StringComparison.Ordinal)
+           && !roleCatalog.Contains("PublishRuntimeRoles", StringComparison.Ordinal),
+        "role catalog consumes only effective enabled roles and invalidates on both game-data and role-registry revisions");
 
     var epochAwareStarterDeckCatalog = ReadRepoText("AuraToolsExp-Dev/Features/StarterDeck/StarterDeckCardCatalog.cs");
     var epochAwareStarterDeckRuntime = ReadRepoText("AuraToolsExp-Dev/Features/StarterDeck/AuraToolsStarterDeckRuntime.cs");
@@ -1176,12 +1179,12 @@ void TestRuntimeArchitectureGuards()
     var cgRegistry = ReadRepoText("AuraCgShared/AuraCgRegistry.cs");
     var feastPackage = ReadRepoText("AuraToolsExp/SharedResources/aura.registration.json");
     var feastRegistry = ReadRepoText("AuraToolsExp/SharedResources/cg.registry.json");
-    Assert(feastRoleCatalog.Contains("AuraRoleRegistryRuntime.PublishRuntimeRoles", StringComparison.Ordinal)
-           && feastRoleCatalog.Contains("AuraRoleRegistryRuntime.GetSnapshot", StringComparison.Ordinal)
+    Assert(feastRoleCatalog.Contains("AuraRoleRegistryRuntime.GetEffectiveSnapshot", StringComparison.Ordinal)
+           && !feastRoleCatalog.Contains("AuraRoleRegistryRuntime.PublishRuntimeRoles", StringComparison.Ordinal)
            && feastManual.Contains("AuraSharedResourceProtocol.UpsertManualResource", StringComparison.Ordinal)
            && feastManual.Contains("AuraSharedOriginKinds.UserManual", StringComparison.Ordinal),
         "Feast role discovery and manual imports use the shared v4 authorities");
-    Assert(feastRoleCatalog.Contains("AuraRoleRegistryRuntime.GetSnapshot", StringComparison.Ordinal)
+    Assert(feastRoleCatalog.Contains("AuraRoleRegistryRuntime.GetEffectiveSnapshot", StringComparison.Ordinal)
            && feastRoleCatalog.Contains("MatchesRole", StringComparison.Ordinal)
            && !feastRoleEditor.Contains("AuraToolsFeastRuntime.RegisteredRoleIds()", StringComparison.Ordinal)
            && !feastRoleEditor.Contains("MatchExperience.Feast.Roles", StringComparison.Ordinal),

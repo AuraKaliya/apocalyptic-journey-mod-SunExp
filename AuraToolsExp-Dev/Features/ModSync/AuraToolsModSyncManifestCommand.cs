@@ -3,8 +3,39 @@ using AuraOnline.Shared;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Infrastructure;
 using Network.Command;
+using Network.Query;
 
 namespace AuraToolsExp.Dll.Features.ModSync;
+
+[Serializable]
+public sealed class AuraToolsModSyncManifestQuery : QueryBase<string>, IAuraToolsImmediateQuery
+{
+    public int ProtocolVersion { get; set; } = AuraToolsModSyncManifestCommand.CurrentProtocolVersion;
+
+    public bool ResponseDispatched { get; set; }
+
+    public string RequesterPlayerId { get; set; } = "";
+
+    public void BindServerRequester(string playerId)
+    {
+        RequesterPlayerId = (playerId ?? "").Trim();
+    }
+
+    public override void CmdExecute()
+    {
+        Result = ResponseDispatched
+            ? ""
+            : AuraToolsModSyncRuntime.CreateTargetedHostManifestPayload(ProtocolVersion, RequesterPlayerId);
+    }
+}
+
+[Serializable]
+public sealed class AuraToolsModSyncManifestQueryResult
+{
+    public AuraChatModPlayerSnapshot? HostManifest { get; set; }
+
+    public string RejectionReason { get; set; } = "";
+}
 
 [Serializable]
 public sealed class AuraToolsModSyncManifestCommand : RpcCommandBase, IAuraToolsServerBoundRpcCommand

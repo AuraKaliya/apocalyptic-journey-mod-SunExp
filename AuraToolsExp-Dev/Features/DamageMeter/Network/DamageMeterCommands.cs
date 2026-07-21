@@ -31,7 +31,9 @@ public sealed class DamageMeterSubmitCommand : RpcCommandBase, IAuraToolsServerB
 
     public override void CmdExecute()
     {
-        if (!DamageMeterNetworkRuntime.AcceptOnServer(Candidate, serverSender, out var confirmed, out var rejection))
+        var accepted = DamageMeterNetworkRuntime.AcceptOnServer(Candidate, serverSender, out var confirmed, out var rejection);
+        Candidate = new DamageEvent();
+        if (!accepted)
         {
             RejectionReason = rejection;
             Confirmed = null;
@@ -69,11 +71,13 @@ public sealed class DamageMeterSubmitBatchCommand : RpcCommandBase, IAuraToolsSe
 
     public override void CmdExecute()
     {
-        if (!DamageMeterNetworkRuntime.AcceptBatchOnServer(
+        var accepted = DamageMeterNetworkRuntime.AcceptBatchOnServer(
                 Candidates,
                 serverSender,
                 out var confirmed,
-                out var rejections))
+                out var rejections);
+        Candidates = new List<DamageEvent>();
+        if (!accepted)
         {
             Confirmed = new List<DamageEvent>();
             RejectionReasons = rejections;

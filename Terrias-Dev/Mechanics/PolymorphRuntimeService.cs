@@ -35,10 +35,10 @@ public static class PolymorphRuntimeService
 
         ClearOwner(state.OwnerStatusId, "PolymorphRuntimeService.Enter");
 
-        var ranCareerScript = TryRunCurrentCareerScript(self, role);
+        var careerExecutor = TryRunCurrentCareerScript(self, role);
         if (IsLoneer(role.Id))
         {
-            LoneerMiracleService.OnFightStart(self);
+            LoneerMiracleService.PreparePolymorphEntry(careerExecutor ?? self);
         }
 
         RoleSkillApi.EnsureCurrentCareerSkillTimes();
@@ -57,7 +57,7 @@ public static class PolymorphRuntimeService
         TerriasLog.Info("[Polymorph] runtime entered: owner=" + state.OwnerStatusId
             + ", role=" + role.Id
             + ", supportedPassive=" + IsSupportedPassiveRole(role.Id)
-            + ", careerScript=" + ranCareerScript);
+            + ", careerScript=" + (careerExecutor != null));
         TerriasPerformanceCounters.Record("Polymorph.RuntimeEntered");
         return true;
     }
@@ -79,7 +79,7 @@ public static class PolymorphRuntimeService
 
         foreach (var attachment in attachments)
         {
-            ClearAttachment(attachment, source);
+            ClearAttachment(attachment, source, endCombat: true);
         }
 
         TerriasPerformanceCounters.Record("Polymorph.RuntimeCleared");
@@ -98,11 +98,43 @@ public static class PolymorphRuntimeService
 
         if (attachment != null)
         {
-            ClearAttachment(attachment, source);
+            ClearAttachment(attachment, source, endCombat: false);
         }
     }
 
-    private static void ClearAttachment(PolymorphRuntimeAttachment attachment, string source)
+    public static bool RestoreOriginalCareerRuntime(PolymorphState state, string source)
+    {
+        if (state?.OriginalCareer == null || !IsSupportedPassiveRole(state.OriginalCareerId))
+        {
+            return false;
+        }
+
+        var owner = FightPlayer.Instance?.Status;
+        if (owner == null || (!string.IsNullOrWhiteSpace(state.OwnerStatusId)
+            && !string.Equals(owner.InstanceId, state.OwnerStatusId, StringComparison.Ordinal)))
+        {
+            TerriasLog.Warn("[Polymorph] original career runtime restore skipped from " + source
+                + ": owner status unavailable.");
+            return false;
+        }
+
+        var executor = TryRunCareerScript(owner, state.OriginalCareer, state.OriginalCareerId);
+        if (executor == null)
+        {
+            return false;
+        }
+
+        if (IsLoneer(state.OriginalCareerId))
+        {
+            LoneerMiracleService.ResumeAfterPolymorph(executor);
+        }
+
+        TerriasLog.Info("[Polymorph] original career runtime restored from " + source
+            + ": role=" + state.OriginalCareerId + ".");
+        return true;
+    }
+
+    private static void ClearAttachment(PolymorphRuntimeAttachment attachment, string source, bool endCombat)
     {
         try
         {
@@ -114,12 +146,12 @@ public static class PolymorphRuntimeService
             }
             else if (IsLoneer(attachment.RoleId))
             {
-                if (executor != null)
+                if (endCombat && executor != null)
                 {
                     LoneerMiracleService.EndCombatCleanup(executor);
                 }
 
-                ExecutorApi.ClearHook(executor, "TerriasLoneerCareerHook", "TerriasLoneerCareerToken");
+                LoneerMiracleService.DetachCareerRuntime(executor);
             }
 
             executor?.Clear();
@@ -131,28 +163,33 @@ public static class PolymorphRuntimeService
         }
     }
 
-    private static bool TryRunCurrentCareerScript(ScriptExecutor self, PolymorphRoleSpec role)
+    private static ScriptExecutor? TryRunCurrentCareerScript(ScriptExecutor self, PolymorphRoleSpec role)
+    {
+        return TryRunCareerScript(self.Self, RoleTable.Instance?.Career, role.Id);
+    }
+
+    private static ScriptExecutor? TryRunCareerScript(IStatusManager? owner, DataConfig? career, string roleId)
     {
         try
         {
-            var executor = RoleTable.Instance?.Career?.scriptExecutor;
-            if (executor == null)
+            var executor = career?.scriptExecutor;
+            if (executor == null || owner == null)
             {
-                return false;
+                return null;
             }
 
             executor.Clear();
-            executor.Self = self.Self;
+            executor.Self = owner;
             executor.Object.Clear();
-            executor.Object.Add(self.Self);
+            executor.Object.Add(owner);
             executor.RunScript("SkillScript");
-            TerriasLog.Info("[Polymorph] career script ran for role: " + role.Id);
-            return true;
+            TerriasLog.Info("[Polymorph] career script ran for role: " + roleId);
+            return executor as ScriptExecutor;
         }
         catch (Exception ex)
         {
-            TerriasLog.Warn("[Polymorph] career script failed for " + role.Id + ": " + ex.Message);
-            return false;
+            TerriasLog.Warn("[Polymorph] career script failed for " + roleId + ": " + ex.Message);
+            return null;
         }
     }
 
@@ -179,6 +216,6 @@ public static class PolymorphRuntimeService
 
     private static string NormalizeRoleId(string roleId)
     {
-        return (roleId ?? "").Trim().TrimStart('*');
+        return TerriasContentIdCompatibility.Canonicalize((roleId ?? "").Trim().TrimStart('*'));
     }
 }

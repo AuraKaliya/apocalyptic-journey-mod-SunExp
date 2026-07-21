@@ -645,11 +645,10 @@ public static class SolarMemoryBlessingPickerRuntime
 
     private static bool IsTechnicalBlessing(string id)
     {
-        return id.Equals("dusk_afterheat_recovery", StringComparison.OrdinalIgnoreCase)
-            || id.Equals("Terrias_terrias_dusk_afterheat_recovery", StringComparison.OrdinalIgnoreCase)
+        var localId = TerriasContentIdCompatibility.LocalId(id);
+        return localId.Equals("dusk_afterheat_recovery", StringComparison.OrdinalIgnoreCase)
             || id.EndsWith("_dusk_afterheat_recovery", StringComparison.OrdinalIgnoreCase)
-            || id.Equals("star_clay_doll_placeholder", StringComparison.OrdinalIgnoreCase)
-            || id.Equals(TerriasIds.StarClayDollBlessingId, StringComparison.OrdinalIgnoreCase)
+            || localId.Equals("star_clay_doll_placeholder", StringComparison.OrdinalIgnoreCase)
             || id.EndsWith("_star_clay_doll_placeholder", StringComparison.OrdinalIgnoreCase);
     }
 

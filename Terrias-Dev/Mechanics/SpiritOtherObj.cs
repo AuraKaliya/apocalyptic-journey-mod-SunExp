@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using AuraGameData.Shared.GameApi;
 using Terrias.Dll.Infrastructure;
 using TMPro;
@@ -191,10 +190,7 @@ public sealed class SpiritOtherObj : OtherObj
         var materialized = AuraGameDataHostApi.Materialize(new AuraGameDataMaterializeRequest
         {
             Definition = adapterHandle,
-            DataOverrides = presentationData
-                .Where(pair => !string.Equals(pair.Key, "Id", StringComparison.Ordinal)
-                    && pair.Key.IndexOf("Script", StringComparison.OrdinalIgnoreCase) < 0)
-                .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal),
+            DataOverrides = SpiritIntentPresentationDataComposer.PresentationOverrides(presentationData),
             Vars = new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 [TerriasIds.SpiritIntentSourceCardVar] = sourceCardId,

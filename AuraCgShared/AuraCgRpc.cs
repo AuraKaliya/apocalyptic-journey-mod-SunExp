@@ -172,6 +172,7 @@ public sealed class RpcSkillCgPlaybackRequest : RpcCommandBase, IAuraCgServerBou
     public override void CmdExecute()
     {
         SkillCgArbiterRuntime.ApplyServerPlaybackRequest(Playback, serverSender);
+        Playback = new SkillCgPlaybackSnapshot();
     }
 
     public override void RpcExecute()

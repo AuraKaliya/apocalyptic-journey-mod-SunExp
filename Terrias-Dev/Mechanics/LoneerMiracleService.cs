@@ -105,6 +105,73 @@ public static class LoneerMiracleService
         RequestGuidanceSelection(self, state, "\u9009\u62e9\u3010\u6307\u5f15\u724c\u3011");
     }
 
+    public static void PreparePolymorphEntry(ScriptExecutor self)
+    {
+        if (!IsActive() || self?.Self == null)
+        {
+            return;
+        }
+
+        var state = LoneerCombatStateStore.GetOrCreate(self.Self);
+        if (state == null)
+        {
+            TerriasLog.Warn("Loneer polymorph initialization skipped: owner status unavailable.");
+            return;
+        }
+
+        var initializedNow = !state.Initialized;
+        if (initializedNow)
+        {
+            InitializeState(state);
+            MiracleClockService.Initialize(self, state, InitialClockMax);
+        }
+        else
+        {
+            MiracleClockService.Sync(self, state);
+        }
+
+        // A polymorph form starts with a normalized active-skill cooldown. The
+        // shared polymorph entry service applies its one-time cross-form floor
+        // after the career script has finished seeding native cooldown values.
+        SetMorningPrayerCooldown(self, state, 0);
+        StarStonePouchService.EnsurePresent(self);
+        if (string.IsNullOrWhiteSpace(state.GuidanceCardId)
+            && !state.SelectionPending
+            && !state.SelectionScheduled)
+        {
+            RequestGuidanceSelection(self, state, "\u9009\u62e9\u3010\u6307\u5f15\u724c\u3011");
+        }
+
+        TerriasLog.Info("Loneer polymorph state prepared: owner=" + self.Self.InstanceId
+            + ", initializedNow=" + initializedNow
+            + ", starStoneBlack=" + StarStonePouchService.CurrentBlackStones(self)
+            + ", clock=" + state.ClockValue);
+    }
+
+    public static void ResumeAfterPolymorph(ScriptExecutor self)
+    {
+        if (!IsActive() || self?.Self == null)
+        {
+            return;
+        }
+
+        var state = LoneerCombatStateStore.GetOrCreate(self.Self);
+        if (state == null)
+        {
+            return;
+        }
+
+        EnsureInitialized(self, state);
+        StarStonePouchService.EnsurePresent(self);
+        MiracleClockService.Sync(self, state);
+        SetMorningPrayerCooldown(self, state, state.PrayerCooldown);
+    }
+
+    public static void DetachCareerRuntime(ScriptExecutor? self)
+    {
+        ExecutorApi.ClearHook(self, "TerriasLoneerCareerHook", "TerriasLoneerCareerToken");
+    }
+
     private static void OnStarStonePouchDrawn(ScriptExecutor self, StarStonePouchDrawResult result)
     {
         if (self?.Self == null || result.OwnerStatusId != self.Self.InstanceId)
@@ -443,11 +510,6 @@ public static class LoneerMiracleService
             return;
         }
 
-        if (PolymorphCooldownService.TryUseSharedSkill(self, "Loneer.MorningStarPrayer"))
-        {
-            return;
-        }
-
         EnsureInitialized(self, state);
         var cooldown = MorningPrayerCooldown(state);
         if (cooldown > 0)
@@ -480,10 +542,11 @@ public static class LoneerMiracleService
         TriggerNaturalMorningStar(self, state, "MorningStarPrayer");
         state.PrayerUseCount += 1;
         ReduceBlackStoneMax(self, state, 2);
-        if (!PolymorphCooldownService.MarkSkillUsed(self, "Loneer.MorningStarPrayer"))
-        {
-            SetMorningPrayerCooldown(self, state, PrayerCooldownRounds);
-        }
+        SetMorningPrayerCooldown(self, state, PrayerCooldownRounds);
+        PolymorphCooldownService.MarkSkillUsed(
+            self,
+            "Loneer.MorningStarPrayer",
+            TerriasIds.LoneerMorningPrayerSkillCardId);
         TerriasLog.Info("Morning Star Prayer resolved: owner=" + self.Self.InstanceId
             + ", cooldown=" + state.PrayerCooldown
             + ", blackStoneMax=" + StarStonePouchService.BlackStoneMax(self)

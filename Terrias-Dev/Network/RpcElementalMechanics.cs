@@ -86,6 +86,8 @@ public sealed class RpcElementalCrystalCreateRequest : RpcCommandBase, ITerriasS
             Token,
             serverSender,
             BattleEpoch);
+        SourceStatusId = "";
+        TriggerTargetStatusId = "";
     }
 
     public override void RpcExecute()
@@ -123,6 +125,8 @@ public sealed class RpcElementalCrystalClaim : RpcCommandBase, ITerriasServerBou
     public override void CmdExecute()
     {
         ElementalCrystalChallengeService.ResolveClaim(EventId, OwnerStatusId, serverSender, BattleEpoch);
+        EventId = "";
+        OwnerStatusId = "";
     }
 
     public override void RpcExecute()

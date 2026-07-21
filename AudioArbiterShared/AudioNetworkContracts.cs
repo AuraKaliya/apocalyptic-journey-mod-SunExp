@@ -56,6 +56,7 @@ public sealed class RpcAudioPresentationRequest : RpcCommandBase, IAudioArbiterS
     public override void CmdExecute()
     {
         AudioArbiterRuntime.ApplyServerCardUsePresentation(Event, serverSender);
+        Event = new SoundPlaybackRequest();
     }
 
     public override void RpcExecute()

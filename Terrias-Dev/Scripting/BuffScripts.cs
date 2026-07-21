@@ -400,6 +400,7 @@ public static class BuffScripts
         }
 
         ExecutorApi.TryAddTokenedEvent(executor, "Terrias_terrias_emberOnLevelChange", "TerriasEmberToken", token, new Action(Sync), "ember");
+        ExecutorApi.TryAddTokenedEvent(executor, TerriasContentIdCompatibility.LegacyMainPrefix + "emberOnLevelChange", "TerriasEmberToken", token, new Action(Sync), "ember");
         ExecutorApi.TryAddTokenedEvent(executor, "emberOnLevelChange", "TerriasEmberToken", token, new Action(Sync), "ember");
         ExecutorApi.TryAddTokenedEvent(executor, "StartRound", "TerriasEmberToken", token, new Action(() =>
         {

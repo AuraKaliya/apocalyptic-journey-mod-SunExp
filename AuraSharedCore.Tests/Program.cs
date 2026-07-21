@@ -892,6 +892,28 @@ void TestRoleRegistryContracts()
            && active.Single(role => role.RoleId == "Mod_role").Aliases.Contains("role")
            && active.Single(role => role.RoleId == "Mod_role").Aliases.Contains("role-alternate"),
         "role registry preserves duplicate semantic contributions and merges their metadata by explicit priority");
+
+    var effective = AuraEffectiveRoleCatalog.Merge(
+        new[]
+        {
+            new AuraRoleRegistryEntry { RoleId = "career_7", OwnerModId = "BaseGame", DisplayName = "Runtime Koko" },
+            new AuraRoleRegistryEntry { RoleId = "Mod_role", OwnerModId = "Mod", DisplayName = "Runtime Role" }
+        },
+        active.Concat(new[]
+        {
+            new AuraRoleRegistryEntry
+            {
+                RoleId = "DisabledMod_role",
+                OwnerModId = "DisabledMod",
+                DisplayName = "Disabled Role",
+                Priority = 200
+            }
+        }));
+    Assert(effective.Count == 2
+           && effective.All(role => role.RoleId != "DisabledMod_role")
+           && effective.Single(role => role.RoleId == "Mod_role").DisplayName == "Declared Role"
+           && effective.Single(role => role.RoleId == "Mod_role").Aliases.Contains("role-alternate"),
+        "effective role catalog enriches only roles present in the current native career snapshot");
 }
 
 void TestObjectPoolContracts()

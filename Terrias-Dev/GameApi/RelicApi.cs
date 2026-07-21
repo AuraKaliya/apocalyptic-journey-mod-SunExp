@@ -5,8 +5,6 @@ namespace Terrias.Dll.GameApi;
 
 public static class RelicApi
 {
-    private const string TerriasPrefix = "Terrias_terrias_";
-
     public static bool HasRelic(string localId)
     {
         if (string.IsNullOrWhiteSpace(localId))
@@ -46,9 +44,8 @@ public static class RelicApi
             return false;
         }
 
-        var value = id!.Trim().TrimStart('*');
-        var expected = localId.Trim().TrimStart('*');
-        return string.Equals(value, expected, StringComparison.Ordinal)
-               || string.Equals(value, TerriasPrefix + expected, StringComparison.Ordinal);
+        var value = TerriasContentIdCompatibility.LocalId(id).TrimStart('*');
+        var expected = TerriasContentIdCompatibility.LocalId(localId).TrimStart('*');
+        return string.Equals(value, expected, StringComparison.OrdinalIgnoreCase);
     }
 }

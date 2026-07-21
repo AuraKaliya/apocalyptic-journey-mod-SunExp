@@ -829,12 +829,20 @@ if ($gameDataApplication -match "GameConfigManager|DataConfig|ScriptExecutor|Fig
 
 $sunConfigIndex = Read-RepoText "Terrias-Dev\Mechanics\TerriasConfigIndex.cs"
 $toolsRoleCatalog = Read-RepoText "AuraToolsExp-Dev\Infrastructure\RoleCatalog.cs"
+$roleRegistryRuntime = Read-RepoText "AuraRoleShared\AuraRoleRegistryRuntime.cs"
 $toolsStarterDeckCatalog = Read-RepoText "AuraToolsExp-Dev\Features\StarterDeck\StarterDeckCardCatalog.cs"
 foreach ($consumer in @($sunConfigIndex, $toolsRoleCatalog, $toolsStarterDeckCatalog)) {
     Require-Text $consumer "AuraGameDataHostApi" "Shared game-data catalog consumers must delegate to AuraGameDataHostApi."
 }
 if ($sunConfigIndex -match "GameConfigManager" -or $toolsRoleCatalog -match "GameConfigManager") {
     throw "Shared game-data consumers must not restore private table scans."
+}
+Require-Text $roleRegistryRuntime "GetEffectiveSnapshot" "AuraRoleShared must expose a current-session effective role catalog."
+Require-Text $roleRegistryRuntime "AuraGameDataSourceKinds\.Native" "Effective roles must be anchored to the native Career snapshot produced from enabled mods."
+Require-Text $toolsRoleCatalog "GetEffectiveSnapshot" "AuraTools role discovery must consume the shared effective role catalog."
+Require-Text $toolsStarterDeckCatalog "GetEffectiveSnapshot" "Starter-deck role-skill classification must use only currently effective roles."
+if ($toolsRoleCatalog -match "PublishRuntimeRoles" -or $toolsRoleCatalog -match "AuraGameDataHostApi\.Table\(DataType\.Career\)") {
+    throw "AuraTools must not republish or enumerate non-effective Career definitions."
 }
 
 foreach ($consumerRoot in @("Terrias-Dev", "AuraToolsExp-Dev", "SanGuoShaExp-Dev", "AuraJourneyShared", "AuraSkinShared")) {
